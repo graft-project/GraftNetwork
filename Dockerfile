@@ -1,6 +1,6 @@
 FROM ubuntu:16.04
 
-ENV SRC_DIR /usr/local/src/monero
+ENV SRC_DIR /usr/local/src/graft
 
 RUN set -x \
   && buildDeps=' \
@@ -16,7 +16,7 @@ RUN set -x \
   && apt-get -qq update \
   && apt-get -qq --no-install-recommends install $buildDeps
 
-RUN git clone https://github.com/monero-project/monero.git $SRC_DIR
+RUN git clone https://github.com/graft-project/GraftNetwork.git $SRC_DIR
 WORKDIR $SRC_DIR
 RUN make -j$(nproc) release-static
 
@@ -26,11 +26,11 @@ RUN cp build/release/bin/* /usr/local/bin/ \
   && apt-get -qq --auto-remove purge $buildDeps
 
 # Contains the blockchain
-VOLUME /root/.bitmonero
+VOLUME /root/.graft
 
 # Generate your wallet via accessing the container and run:
 # cd /wallet
-# monero-wallet-cli
+# graft-wallet-cli
 VOLUME /wallet
 
 ENV LOG_LEVEL 0
@@ -42,4 +42,4 @@ ENV RPC_BIND_PORT 18081
 EXPOSE 18080
 EXPOSE 18081
 
-CMD monerod --log-level=$LOG_LEVEL --p2p-bind-ip=$P2P_BIND_IP --p2p-bind-port=$P2P_BIND_PORT --rpc-bind-ip=$RPC_BIND_IP --rpc-bind-port=$RPC_BIND_PORT
+CMD graftnoded --log-level=$LOG_LEVEL --p2p-bind-ip=$P2P_BIND_IP --p2p-bind-port=$P2P_BIND_PORT --rpc-bind-ip=$RPC_BIND_IP --rpc-bind-port=$RPC_BIND_PORT

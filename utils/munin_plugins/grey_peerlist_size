@@ -35,7 +35,7 @@ case $1 in
         cat <<'EOM'
 graph_title grey_peerlist_size
 graph_vlabel grey_peerlist_size
-graph_category monero
+graph_category graft
 grey_peerlist_size.label grey_peerlist_size
 EOM
         exit 0;;

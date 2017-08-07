@@ -35,7 +35,7 @@ case $1 in
         cat <<'EOM'
 graph_title tx_count
 graph_vlabel tx_count
-graph_category monero
+graph_category graft
 tx_count.label tx_count
 tx_count.type COUNTER
 EOM
