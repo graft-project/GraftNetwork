@@ -35,7 +35,7 @@ case $1 in
         cat <<'EOM'
 graph_title Height
 graph_vlabel height
-graph_category monero
+graph_category graft
 height.label height
 height.type COUNTER
 EOM

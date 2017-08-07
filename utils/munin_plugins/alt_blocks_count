@@ -35,7 +35,7 @@ case $1 in
         cat <<'EOM'
 graph_title alt_blocks_count
 graph_vlabel alt_blocks_count
-graph_category monero
+graph_category graft
 alt_blocks_count.label alt_blocks_count
 EOM
         exit 0;;

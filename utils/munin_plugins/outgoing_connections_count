@@ -35,7 +35,7 @@ case $1 in
         cat <<'EOM'
 graph_title outgoing_connections_count
 graph_vlabel outgoing_connections_count
-graph_category monero
+graph_category graft
 outgoing_connections_count.label outgoing_connections_count
 EOM
         exit 0;;
