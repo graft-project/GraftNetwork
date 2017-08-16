@@ -88,7 +88,7 @@ add_dependencies(blockchain_import
 	version)
 set_property(TARGET blockchain_import
 	PROPERTY
-	OUTPUT_NAME "monero-blockchain-import")
+	OUTPUT_NAME "graft-blockchain-import")
 
 monero_add_executable(blockchain_export
   ${blockchain_export_sources}
@@ -110,7 +110,7 @@ add_dependencies(blockchain_export
 	version)
 set_property(TARGET blockchain_export
 	PROPERTY
-	OUTPUT_NAME "monero-blockchain-export")
+	OUTPUT_NAME "graft-blockchain-export")
 
 monero_add_executable(cn_deserialize
   ${cn_deserialize_sources}
@@ -128,5 +128,5 @@ add_dependencies(cn_deserialize
 	version)
 set_property(TARGET cn_deserialize
 	PROPERTY
-	OUTPUT_NAME "monero-utils-deserialize")
+	OUTPUT_NAME "graft-utils-deserialize")
 
