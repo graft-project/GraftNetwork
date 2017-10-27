@@ -1,0 +1,2 @@
+./graftnoded --testnet --detach
+
