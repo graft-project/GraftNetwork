@@ -122,7 +122,7 @@
 
 #define ALLOW_DEBUG_COMMANDS
 
-#define CRYPTONOTE_NAME                         "bitmonero"
+#define CRYPTONOTE_NAME                         "graft"
 #define CRYPTONOTE_POOLDATA_FILENAME            "poolstate.bin"
 #define CRYPTONOTE_BLOCKCHAINDATA_FILENAME      "data.mdb"
 #define CRYPTONOTE_BLOCKCHAINDATA_LOCK_FILENAME "lock.mdb"
@@ -155,6 +155,7 @@ namespace config
         0x54 ,0x68, 0x65, 0x20, 0x41, 0x72 , 0x74, 0x20, 0x6F, 0x66, 0x20, 0x57, 0x61, 0x72, 0x20, 0x33
     } }; // Bender's nightmare
   //std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd08807121017767aafcde9be00dcfd098715ebcf7f410daebc582fda69d24a28e9d0bc890d1";
+  // https://monero.stackexchange.com/questions/2886/how-can-i-create-a-new-monero-genesis-block?rq=1
   std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101dbb56baf25ba96a9e186214df0725d5aa898514fcce283013338fd9de0ae8f95";
   uint32_t const GENESIS_NONCE = 10000;
 
@@ -168,7 +169,7 @@ namespace config
         //0x12 ,0x30, 0xF1, 0x71 , 0x61, 0x04 , 0x41, 0x61, 0x17, 0x31, 0x00, 0x82, 0x16, 0xA1, 0xA1, 0x11
           0x54 ,0x68, 0x65, 0x20, 0x41, 0x72 , 0x74, 0x20, 0x6F, 0x66, 0x20, 0x57, 0x61, 0x72, 0x20, 0x34
       } }; // Bender's daydream
-    //std::string const GENESIS_TX = "013c01ff0001ffffffffffff0f029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101168d0c4ca86fb55a4cf6a36d31431be1c53a3bd7411bb24e8832410289fa6f3b";
+    // std::string const GENESIS_TX = "013c01ff0001ffffffffffff0f029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101168d0c4ca86fb55a4cf6a36d31431be1c53a3bd7411bb24e8832410289fa6f3b";
     std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101ceeea76a2485121ecec6a750e9e4d316c65c56e99672501372aeb7165d6fd3b2";
     uint32_t const GENESIS_NONCE = 10001;
   }
