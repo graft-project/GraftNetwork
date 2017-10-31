@@ -3,21 +3,15 @@
 #include <readline/history.h>
 #include <sys/select.h>
 #include <unistd.h>
-#include <mutex>
-#include <condition_variable>
 #include <boost/thread.hpp>
 #include <boost/algorithm/string.hpp>
 
-static int process_input();
 static void install_line_handler();
 static void remove_line_handler();
 
-static std::string last_line;
-static std::string last_prompt;
-std::mutex line_mutex, sync_mutex, process_mutex;
-std::condition_variable have_line;
-
-std::vector<std::string> rdln::readline_buffer::completion_commands = {"exit"};
+static boost::mutex sync_mutex;
+static rdln::linestatus line_stat;
+static char *the_line;
 
 namespace
 {
@@ -43,6 +37,12 @@ rdln::suspend_readline::~suspend_readline()
     m_buffer->start();
 }
 
+std::vector<std::string>& rdln::readline_buffer::completion_commands()
+{
+  static std::vector<std::string> commands = {"exit"};
+  return commands;
+}
+
 rdln::readline_buffer::readline_buffer()
 : std::stringbuf(), m_cout_buf(NULL)
 {
@@ -51,7 +51,6 @@ rdln::readline_buffer::readline_buffer()
 
 void rdln::readline_buffer::start()
 {
-  std::unique_lock<std::mutex> lock(process_mutex);
   if(m_cout_buf != NULL)
     return;
   m_cout_buf = std::cout.rdbuf();
@@ -61,8 +60,6 @@ void rdln::readline_buffer::start()
 
 void rdln::readline_buffer::stop()
 {
-  std::unique_lock<std::mutex> lock(process_mutex);
-  have_line.notify_all();
   if(m_cout_buf == NULL)
     return;
   std::cout.rdbuf(m_cout_buf);
@@ -70,135 +67,113 @@ void rdln::readline_buffer::stop()
   remove_line_handler();
 }
 
-void rdln::readline_buffer::get_line(std::string& line) const
+rdln::linestatus rdln::readline_buffer::get_line(std::string& line) const
 {
-  std::unique_lock<std::mutex> lock(line_mutex);
-  have_line.wait(lock);
-  line = last_line;
+  boost::lock_guard<boost::mutex> lock(sync_mutex);
+  line_stat = rdln::partial;
+  rl_callback_read_char();
+  if (line_stat == rdln::full)
+  {
+    line = the_line;
+    free(the_line);
+    the_line = NULL;
+  }
+  return line_stat;
 }
 
 void rdln::readline_buffer::set_prompt(const std::string& prompt)
 {
-  last_prompt = prompt;
   if(m_cout_buf == NULL)
     return;
-  std::lock_guard<std::mutex> lock(sync_mutex);
-  rl_set_prompt(last_prompt.c_str());
+  boost::lock_guard<boost::mutex> lock(sync_mutex);
+  rl_set_prompt(prompt.c_str());
   rl_redisplay();
 }
 
-int rdln::readline_buffer::process()
+void rdln::readline_buffer::add_completion(const std::string& command)
 {
-  process_mutex.lock();
-  if(m_cout_buf == NULL)
-  {
-    process_mutex.unlock();
-    boost::this_thread::sleep_for(boost::chrono::milliseconds( 1 ));
-    return 0;
-  }
-  int count = process_input();
-  process_mutex.unlock();
-  boost::this_thread::sleep_for(boost::chrono::milliseconds( 1 ));
-  return count;
+  if(std::find(completion_commands().begin(), completion_commands().end(), command) != completion_commands().end())
+    return;
+  completion_commands().push_back(command);
+}
+
+const std::vector<std::string>& rdln::readline_buffer::get_completions()
+{
+  return completion_commands();
 }
 
 int rdln::readline_buffer::sync()
 {
-  std::lock_guard<std::mutex> lock(sync_mutex);
-  char* saved_line;
-  int saved_point;
-  
-  saved_point = rl_point;
-  saved_line = rl_copy_text(0, rl_end);
-  
-  rl_set_prompt("");
-  rl_replace_line("", 0);
-  rl_redisplay();
-  
+  boost::lock_guard<boost::mutex> lock(sync_mutex);
+#if RL_READLINE_VERSION < 0x0700
+  char lbuf[2] = {0,0};
+  char *line = NULL;
+  int end = 0, point = 0;
+#endif
+
+  if (rl_end || *rl_prompt)
+  {
+#if RL_READLINE_VERSION >= 0x0700
+    rl_clear_visible_line();
+#else
+    line = rl_line_buffer;
+    end = rl_end;
+    point = rl_point;
+    rl_line_buffer = lbuf;
+    rl_end = 0;
+    rl_point = 0;
+    rl_save_prompt();
+    rl_redisplay();
+#endif
+  }
+
   do
   {
     m_cout_buf->sputc( this->sgetc() );
   }
   while ( this->snextc() != EOF );
-  
-  rl_set_prompt(last_prompt.c_str());
-  rl_replace_line(saved_line, 0);
-  rl_point = saved_point;
-  rl_redisplay();
-  free(saved_line);
-  
-  return 0;
-}
 
-static int process_input()
-{
-  int count;
-  struct timeval t;
-  fd_set fds;
-  
-  t.tv_sec = 0;
-  t.tv_usec = 1000;
-  
-  FD_ZERO(&fds);
-  FD_SET(STDIN_FILENO, &fds);
-  count = select(STDIN_FILENO + 1, &fds, NULL, NULL, &t);
-  if (count < 1)
+#if RL_READLINE_VERSION < 0x0700
+  if (end || *rl_prompt)
   {
-    return count;
+    rl_restore_prompt();
+    rl_line_buffer = line;
+    rl_end = end;
+    rl_point = point;
   }
-  rl_callback_read_char();
-  return count;
+#endif
+  rl_on_new_line();
+  rl_redisplay();
+
+  return 0;
 }
 
 static void handle_line(char* line)
 {
-  if(last_line == "exit" || last_line == "q")
+  bool exit = false;
+  if (line)
   {
-    return;
-  }
-  std::lock_guard<std::mutex> lock(sync_mutex);
-  rl_set_prompt(last_prompt.c_str());
-  rl_already_prompted = 1;
-}
-
-static int handle_enter(int x, int y)
-{
-  std::lock_guard<std::mutex> lock(sync_mutex);
-  char* line = NULL;
-
-  line = rl_copy_text(0, rl_end);
-  rl_crlf();
-  rl_on_new_line();
-  rl_set_prompt("");
-  rl_replace_line("", 1);
-  rl_redisplay();
-  
-  std::string test_line = line;
-  boost::trim_right(test_line);
-  if (test_line.length() > 0)
+    line_stat = rdln::full;
+    the_line = line;
+    std::string test_line = line;
+    boost::trim_right(test_line);
+    if(!test_line.empty())
+    {
+      add_history(test_line.c_str());
+      history_set_pos(history_length);
+      if (test_line == "exit" || test_line == "q")
+        exit = true;
+    }
+  } else
+  /* EOF */
   {
-    last_line = test_line;
-    add_history(test_line.c_str());
-    have_line.notify_one();
+    line_stat = rdln::empty;
+    exit = true;
   }
-  free(line);
-
-  if(last_line != "exit" && last_line != "q")
-  {
-    rl_set_prompt(last_prompt.c_str());
-    rl_on_new_line_with_prompt();
-    rl_redisplay();
-  }
-
   rl_done = 1;
-  return 0;
-}
-
-static int startup_hook()
-{
-  rl_bind_key(RETURN, handle_enter);
-  rl_bind_key(NEWLINE, handle_enter);
-  return 0;
+  if (exit)
+    rl_set_prompt("");
+  return;
 }
 
 static char* completion_matches(const char* text, int state)
@@ -233,9 +208,9 @@ static char** attempted_completion(const char* text, int start, int end)
 
 static void install_line_handler()
 {
-  rl_startup_hook = startup_hook;
   rl_attempted_completion_function = attempted_completion;
   rl_callback_handler_install("", handle_line);
+  stifle_history(500);
 }
 
 static void remove_line_handler()
@@ -243,8 +218,6 @@ static void remove_line_handler()
   rl_replace_line("", 0);
   rl_set_prompt("");
   rl_redisplay();
-  rl_unbind_key(RETURN);
-  rl_unbind_key(NEWLINE);
   rl_callback_handler_remove();
 }
 

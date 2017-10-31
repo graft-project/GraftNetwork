@@ -43,6 +43,7 @@ class test_core
 {
 public:
   void on_synchronized(){}
+  void safesyncmode(const bool){}
   uint64_t get_current_blockchain_height() const {return 1;}
   void set_target_blockchain_height(uint64_t) {}
   bool init(const boost::program_options::variables_map& vm) {return true ;}
@@ -52,6 +53,7 @@ public:
   bool have_block(const crypto::hash& id) const {return true;}
   bool get_blockchain_top(uint64_t& height, crypto::hash& top_id)const{height=0;top_id=cryptonote::null_hash;return true;}
   bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay) { return true; }
+  bool handle_incoming_txs(const std::list<cryptonote::blobdata>& tx_blob, std::vector<cryptonote::tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay) { return true; }
   bool handle_incoming_block(const cryptonote::blobdata& block_blob, cryptonote::block_verification_context& bvc, bool update_miner_blocktemplate = true) { return true; }
   void pause_mine(){}
   void resume_mine(){}
@@ -64,7 +66,7 @@ public:
   bool prepare_handle_incoming_blocks(const std::list<cryptonote::block_complete_entry>  &blocks) { return true; }
   bool cleanup_handle_incoming_blocks(bool force_sync = false) { return true; }
   uint64_t get_target_blockchain_height() const { return 1; }
-  size_t get_block_sync_size() const { return BLOCKS_SYNCHRONIZING_DEFAULT_COUNT; }
+  size_t get_block_sync_size(uint64_t height) const { return BLOCKS_SYNCHRONIZING_DEFAULT_COUNT; }
   virtual void on_transaction_relayed(const cryptonote::blobdata& tx) {}
   bool get_testnet() const { return false; }
   bool get_pool_transaction(const crypto::hash& id, cryptonote::blobdata& tx_blob) const { return false; }
@@ -72,6 +74,10 @@ public:
   bool get_blocks(uint64_t start_offset, size_t count, std::list<std::pair<cryptonote::blobdata, cryptonote::block>>& blocks, std::list<cryptonote::blobdata>& txs) const { return false; }
   bool get_transactions(const std::vector<crypto::hash>& txs_ids, std::list<cryptonote::transaction>& txs, std::list<crypto::hash>& missed_txs) const { return false; }
   bool get_block_by_hash(const crypto::hash &h, cryptonote::block &blk, bool *orphan = NULL) const { return false; }
+  uint8_t get_ideal_hard_fork_version(uint64_t height) const { return 0; }
+  uint8_t get_hard_fork_version(uint64_t height) const { return 0; }
+  cryptonote::difficulty_type get_block_cumulative_difficulty(uint64_t height) const { return 0; }
+  bool fluffy_blocks_enabled() const { return false; }
 };
 
 typedef nodetool::node_server<cryptonote::t_cryptonote_protocol_handler<test_core>> Server;

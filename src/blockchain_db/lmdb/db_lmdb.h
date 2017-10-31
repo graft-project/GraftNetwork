@@ -165,6 +165,8 @@ public:
 
   virtual void sync();
 
+  virtual void safesyncmode(const bool onoff);
+
   virtual void reset();
 
   virtual std::vector<std::string> get_filenames() const;
@@ -366,6 +368,9 @@ private:
   // migrate from DB version 0 to 1
   void migrate_0_1();
 
+  void cleanup_batch();
+
+private:
   MDB_env* m_env;
 
   MDB_dbi m_blocks;

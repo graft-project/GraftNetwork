@@ -35,12 +35,21 @@
 #include "net/net_utils_base.h"
 #include "misc_language.h"
 #include "cryptonote_config.h"
+#ifdef ALLOW_DEBUG_COMMANDS
 #include "crypto/crypto.h"
+#endif
 
 namespace nodetool
 {
   typedef boost::uuids::uuid uuid;
   typedef uint64_t peerid_type;
+
+  static inline std::string peerid_to_string(peerid_type peer_id)
+  {
+    std::ostringstream s;
+    s << std::hex << peer_id;
+    return epee::string_tools::pad_string(s.str(), 16, '0', true);
+  }
 
 #pragma pack (push, 1)
   
@@ -439,6 +448,14 @@ namespace nodetool
   
 #endif
 
+
+  inline crypto::hash get_proof_of_trust_hash(const nodetool::proof_of_trust& pot)
+  {
+    std::string s;
+    s.append(reinterpret_cast<const char*>(&pot.peer_id), sizeof(pot.peer_id));
+    s.append(reinterpret_cast<const char*>(&pot.time), sizeof(pot.time));
+    return crypto::cn_fast_hash(s.data(), s.size());
+  }
 
 }
 

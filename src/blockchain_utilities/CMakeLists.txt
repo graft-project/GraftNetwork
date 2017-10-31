@@ -26,6 +26,16 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+set(blocksdat "")
+if(PER_BLOCK_CHECKPOINT)
+  if(APPLE)
+    add_custom_command(OUTPUT blocksdat.o MAIN_DEPENDENCY ../blocks/checkpoints.dat COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && touch stub.c && ${CMAKE_C_COMPILER} -o stub.o -c stub.c COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ${CMAKE_LINKER} -r -sectcreate __DATA __blocks_dat ../blocks/checkpoints.dat -o ${CMAKE_CURRENT_BINARY_DIR}/blocksdat.o stub.o && rm -f stub.*)
+  else()
+    add_custom_command(OUTPUT blocksdat.o MAIN_DEPENDENCY ../blocks/checkpoints.dat COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && cp ../blocks/checkpoints.dat blocks.dat && ${CMAKE_LINKER} -r -b binary -o ${CMAKE_CURRENT_BINARY_DIR}/blocksdat.o blocks.dat && rm -f blocks.dat)
+  endif()
+  set(blocksdat "blocksdat.o")
+endif()
+
 set(blockchain_import_sources
   blockchain_import.cpp
   bootstrap_file.cpp
@@ -33,7 +43,6 @@ set(blockchain_import_sources
   )
 
 set(blockchain_import_private_headers
-  fake_core.h
   bootstrap_file.h
   blocksdat_file.h
   bootstrap_serialization.h
@@ -58,14 +67,10 @@ monero_private_headers(blockchain_export
 	  ${blockchain_export_private_headers})
 
 
-set(cn_deserialize_sources
-  cn_deserialize.cpp
-  )
-
-
 monero_add_executable(blockchain_import
   ${blockchain_import_sources}
-  ${blockchain_import_private_headers})
+  ${blockchain_import_private_headers}
+  ${blocksdat})
 
 target_link_libraries(blockchain_import
   PRIVATE
@@ -111,22 +116,4 @@ add_dependencies(blockchain_export
 set_property(TARGET blockchain_export
 	PROPERTY
 	OUTPUT_NAME "graft-blockchain-export")
-
-monero_add_executable(cn_deserialize
-  ${cn_deserialize_sources}
-  ${cn_deserialize_private_headers})
-
-target_link_libraries(cn_deserialize
-  LINK_PRIVATE
-    cryptonote_core
-    blockchain_db
-	p2p
-    epee
-    ${CMAKE_THREAD_LIBS_INIT})
-
-add_dependencies(cn_deserialize
-	version)
-set_property(TARGET cn_deserialize
-	PROPERTY
-	OUTPUT_NAME "graft-utils-deserialize")
 

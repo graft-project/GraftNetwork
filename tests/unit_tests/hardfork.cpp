@@ -31,7 +31,7 @@
 #include <algorithm>
 #include "gtest/gtest.h"
 
-#include "blockchain_db/lmdb/db_lmdb.h"
+#include "blockchain_db/blockchain_db.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/hardfork.h"
 
@@ -47,6 +47,7 @@ public:
   virtual void open(const std::string& filename, const int db_flags = 0) { }
   virtual void close() {}
   virtual void sync() {}
+  virtual void safesyncmode(const bool onoff) {}
   virtual void reset() {}
   virtual std::vector<std::string> get_filenames() const { return std::vector<std::string>(); }
   virtual std::string get_db_name() const { return std::string(); }

@@ -3,6 +3,7 @@
 
 Copyright (c) 2017, The Graft Project
 Copyright (c) 2014-2017, The Monero Project
+Portions Copyright (c) 2012-2013, The Cryptonote developers
 
 ## Development Resources
 
@@ -310,6 +311,15 @@ https://github.com/bitcoin/bitcoin/blob/master/doc/build-openbsd.md
 You will have to add the serialization, date_time, and regex modules to Boost when building as they are needed by Monero.
 
 To build: `env CC=egcc CXX=eg++ CPP=ecpp DEVELOPER_LOCAL_TOOLS=1 BOOST_ROOT=/path/to/the/boost/you/built make release-static-64`
+
+### On Linux for Android (using docker):
+
+        # Build image (select android64.Dockerfile for aarch64)
+        cd utils/build_scripts/ && docker build -f android32.Dockerfile -t monero-android .
+        # Create container
+        docker create -it --name monero-android monero-android bash
+        # Get binaries
+        docker cp monero-android:/opt/android/monero/build/release/bin .
 
 ### Building Portable Statically Linked Binaries
 

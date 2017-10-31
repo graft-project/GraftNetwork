@@ -53,8 +53,8 @@
 
 #include "syncobj.h"
 
-#include "../../contrib/epee/include/net/net_utils_base.h" 
-#include "../../contrib/epee/include/misc_log_ex.h" 
+#include "net/net_utils_base.h" 
+#include "misc_log_ex.h" 
 #include <boost/lambda/bind.hpp>
 #include <boost/lambda/lambda.hpp>
 #include <boost/uuid/random_generator.hpp>
@@ -74,11 +74,11 @@
 
 #include <boost/asio/basic_socket.hpp>
 #include <boost/asio/ip/unicast.hpp>
-#include "../../contrib/epee/include/net/abstract_tcp_server2.h"
+#include "net/abstract_tcp_server2.h"
 
 // TODO:
-#include "../../src/p2p/network_throttle-detail.hpp"
-#include "../../src/cryptonote_core/cryptonote_core.h"
+#include "network_throttle-detail.hpp"
+#include "cryptonote_core/cryptonote_core.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net.p2p"
@@ -244,8 +244,7 @@ void connection_basic::sleep_before_packet(size_t packet_size, int phase,  int q
 		delay *= 0.50;
 		if (delay > 0) {
             long int ms = (long int)(delay * 1000);
-			MDEBUG("Sleeping in " << __FUNCTION__ << " for " << ms << " ms before packet_size="<<packet_size); // debug sleep
-			_dbg1("sleep in sleep_before_packet");
+			MTRACE("Sleeping in " << __FUNCTION__ << " for " << ms << " ms before packet_size="<<packet_size); // debug sleep
 			boost::this_thread::sleep(boost::posix_time::milliseconds( ms ) );
 		}
 	} while(delay > 0);
@@ -264,13 +263,13 @@ void connection_basic::set_start_time() {
 
 void connection_basic::do_send_handler_write(const void* ptr , size_t cb ) {
 	sleep_before_packet(cb,1,-1);
-	MDEBUG("handler_write (direct) - before ASIO write, for packet="<<cb<<" B (after sleep)");
+	MTRACE("handler_write (direct) - before ASIO write, for packet="<<cb<<" B (after sleep)");
 	set_start_time();
 }
 
 void connection_basic::do_send_handler_write_from_queue( const boost::system::error_code& e, size_t cb, int q_len ) {
 	sleep_before_packet(cb,2,q_len);
-	MDEBUG("handler_write (after write, from queue="<<q_len<<") - before ASIO write, for packet="<<cb<<" B (after sleep)");
+	MTRACE("handler_write (after write, from queue="<<q_len<<") - before ASIO write, for packet="<<cb<<" B (after sleep)");
 
 	set_start_time();
 }

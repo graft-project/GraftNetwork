@@ -42,10 +42,7 @@
 
 #include "common/common_fwd.h"
 #include "common/rpc_client.h"
-#include "misc_log_ex.h"
-#include "cryptonote_core/cryptonote_core.h"
-#include "cryptonote_protocol/cryptonote_protocol_handler.h"
-#include "p2p/net_node.h"
+#include "cryptonote_basic/cryptonote_basic.h"
 #include "rpc/core_rpc_server.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -155,6 +152,8 @@ public:
   bool update(const std::string &command);
 
   bool relay_tx(const std::string &txid);
+
+  bool sync_info();
 };
 
 } // namespace daemonize

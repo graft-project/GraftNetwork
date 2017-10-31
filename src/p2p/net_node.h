@@ -61,8 +61,11 @@ namespace nodetool
   template<class base_type>
   struct p2p_connection_context_t: base_type //t_payload_net_handler::connection_context //public net_utils::connection_context_base
   {
+    p2p_connection_context_t(): peer_id(0), support_flags(0), m_in_timedsync(false) {}
+
     peerid_type peer_id;
     uint32_t support_flags;
+    bool m_in_timedsync;
   };
 
   template<class t_payload_net_handler>
@@ -186,6 +189,7 @@ namespace nodetool
     virtual bool drop_connection(const epee::net_utils::connection_context_base& context);
     virtual void request_callback(const epee::net_utils::connection_context_base& context);
     virtual void for_each_connection(std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
+    virtual bool for_connection(const boost::uuids::uuid&, std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool add_host_fail(const epee::net_utils::network_address &address);
     //----------------- i_connection_filter  --------------------------------------------------------
     virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address);
@@ -222,6 +226,7 @@ namespace nodetool
     bool is_addr_recently_failed(const epee::net_utils::network_address& addr);
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(bool testnet) const;
+    bool connect_to_seed();
 
     template <class Container>
     bool connect_to_peerlist(const Container& peers);

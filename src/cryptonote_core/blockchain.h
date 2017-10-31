@@ -65,6 +65,7 @@ namespace cryptonote
    */
   enum blockchain_db_sync_mode
   {
+    db_defaultsync, //!< user didn't specify, use db_async
     db_sync,  //!< handle syncing calls instead of the backing db, synchronously
     db_async, //!< handle syncing calls instead of the backing db, asynchronously
     db_nosync //!< Leave syncing up to the backing db (safest, but slowest because of disk I/O)
@@ -585,7 +586,7 @@ namespace cryptonote
      *
      * @return true if Blockchain is having the chain stored currently, else false
      */
-    bool is_storing_blockchain()const{return m_is_blockchain_storing;}
+    bool is_storing_blockchain()const{return false;}
 
     /**
      * @brief gets the difficulty of the block with a given height
@@ -701,6 +702,11 @@ namespace cryptonote
         blockchain_db_sync_mode sync_mode, bool fast_sync);
 
     /**
+     * @brief Put DB in safe sync mode
+     */
+    void safesyncmode(const bool onoff);
+
+    /**
      * @brief set whether or not to show/print time statistics
      *
      * @param stats the new time stats setting
@@ -744,6 +750,15 @@ namespace cryptonote
      * @return the version
      */
     uint8_t get_ideal_hard_fork_version(uint64_t height) const { return m_hardfork->get_ideal_version(height); }
+
+    /**
+     * @brief returns the actual hardfork version for a given block height
+     *
+     * @param height the height for which to check version info
+     *
+     * @return the version
+     */
+    uint8_t get_hard_fork_version(uint64_t height) const { return m_hardfork->get(height); }
 
     /**
      * @brief get information about hardfork voting for a version
@@ -822,6 +837,16 @@ namespace cryptonote
      *
      * @return a reference to the BlockchainDB instance
      */
+    const BlockchainDB& get_db() const
+    {
+      return *m_db;
+    }
+
+    /**
+     * @brief get a reference to the BlockchainDB in use by Blockchain
+     *
+     * @return a reference to the BlockchainDB instance
+     */
     BlockchainDB& get_db()
     {
       return *m_db;
@@ -846,7 +871,7 @@ namespace cryptonote
      * @param blocks the blocks to be hashed
      * @param map return-by-reference the hashes for each block
      */
-    void block_longhash_worker(const uint64_t height, const std::vector<block> &blocks,
+    void block_longhash_worker(uint64_t height, const std::vector<block> &blocks,
         std::unordered_map<crypto::hash, crypto::hash> &map) const;
 
     /**
@@ -865,10 +890,20 @@ namespace cryptonote
     cryptonote::blobdata get_txpool_tx_blob(const crypto::hash& txid) const;
     bool for_all_txpool_txes(std::function<bool(const crypto::hash&, const txpool_tx_meta_t&, const cryptonote::blobdata*)>, bool include_blob = false) const;
 
+    bool is_within_compiled_block_hash_area(uint64_t height) const;
+    bool is_within_compiled_block_hash_area() const { return is_within_compiled_block_hash_area(m_db->height()); }
+
     void lock();
     void unlock();
 
     void cancel();
+
+    /**
+     * @brief called when we see a tx originating from a block
+     *
+     * Used for handling txes from historical blocks in a fast way
+     */
+    void on_new_tx_from_block(const cryptonote::transaction &tx);
 
   private:
 
@@ -910,6 +945,7 @@ namespace cryptonote
     blockchain_db_sync_mode m_db_sync_mode;
     bool m_fast_sync;
     bool m_show_time_stats;
+    bool m_db_default_sync;
     uint64_t m_db_blocks_per_sync;
     uint64_t m_max_prepare_blocks_threads;
     uint64_t m_fake_pow_calc_time;
@@ -931,8 +967,6 @@ namespace cryptonote
 
 
     checkpoints m_checkpoints;
-    std::atomic<bool> m_is_in_checkpoint_zone;
-    std::atomic<bool> m_is_blockchain_storing;
     bool m_enforce_dns_checkpoints;
 
     HardFork *m_hardfork;

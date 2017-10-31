@@ -98,6 +98,7 @@ public:
     void setAutoRefreshInterval(int millis);
     int autoRefreshInterval() const;
     void setRefreshFromBlockHeight(uint64_t refresh_from_block_height);
+    uint64_t getRefreshFromBlockHeight() const { return m_wallet->get_refresh_from_block_height(); };
     void setRecoveringFromSeed(bool recoveringFromSeed);
     bool watchOnly() const;
     bool rescanSpent();
@@ -128,6 +129,7 @@ public:
     virtual void startRefresh();
     virtual void pauseRefresh();
     virtual bool parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error);
+    virtual std::string getDefaultDataDir() const;
 
 private:
     void clearStatus() const;

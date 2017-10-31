@@ -92,7 +92,7 @@ namespace cryptonote
       LockedTXN(Blockchain &b): m_blockchain(b), m_batch(false) {
         m_batch = m_blockchain.get_db().batch_start();
       }
-      ~LockedTXN() { if (m_batch) { m_blockchain.get_db().batch_stop(); } }
+      ~LockedTXN() { try { if (m_batch) { m_blockchain.get_db().batch_stop(); } } catch (const std::exception &e) { MWARNING("LockedTXN dtor filtering exception: " << e.what()); } }
     private:
       Blockchain &m_blockchain;
       bool m_batch;
@@ -553,6 +553,17 @@ namespace cryptonote
     });
   }
   //------------------------------------------------------------------
+  void tx_memory_pool::get_transaction_backlog(std::vector<tx_backlog_entry>& backlog) const
+  {
+    CRITICAL_REGION_LOCAL(m_transactions_lock);
+    CRITICAL_REGION_LOCAL1(m_blockchain);
+    const uint64_t now = time(NULL);
+    m_blockchain.for_all_txpool_txes([&backlog, now](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd){
+      backlog.push_back({meta.blob_size, meta.fee, meta.receive_time - now});
+      return true;
+    });
+  }
+  //------------------------------------------------------------------
   void tx_memory_pool::get_transaction_stats(struct txpool_stats& stats) const
   {
     CRITICAL_REGION_LOCAL(m_transactions_lock);
@@ -575,7 +586,7 @@ namespace cryptonote
         stats.num_10m++;
       if (meta.last_failed_height)
         stats.num_failing++;
-      uint64_t age = now - meta.receive_time;
+      uint64_t age = now - meta.receive_time + (now == meta.receive_time);
       agebytes[age].txs++;
       agebytes[age].bytes += meta.blob_size;
       return true;
@@ -848,6 +859,9 @@ namespace cryptonote
     std::unordered_set<crypto::key_image> k_images;
 
     LOG_PRINT_L2("Filling block template, median size " << median_size << ", " << m_txs_by_fee_and_receive_time.size() << " txes in the pool");
+
+    LockedTXN lock(m_blockchain);
+
     auto sorted_it = m_txs_by_fee_and_receive_time.begin();
     while (sorted_it != m_txs_by_fee_and_receive_time.end())
     {

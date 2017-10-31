@@ -35,6 +35,7 @@
 #include "transaction_history.h"
 #include "address_book.h"
 #include "common_defines.h"
+#include "common/util.h"
 
 #include "mnemonics/electrum-words.h"
 #include <boost/format.hpp>
@@ -99,7 +100,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         }
     }
 
-    virtual void on_money_received(uint64_t height, const crypto::hash &txid, uint64_t amount)
+    virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount)
     {
 
         std::string tx_hash =  epee::string_tools::pod_to_hex(txid);
@@ -114,7 +115,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         }
     }
 
-    virtual void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, uint64_t amount)
+    virtual void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount)
     {
 
         std::string tx_hash =  epee::string_tools::pod_to_hex(txid);
@@ -129,8 +130,8 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         }
     }
 
-    virtual void on_money_spent(uint64_t height, const crypto::hash &txid, uint64_t amount,
-                                const cryptonote::transaction& spend_tx)
+    virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx,
+                                uint64_t amount, const cryptonote::transaction& spend_tx)
     {
         // TODO;
         std::string tx_hash = epee::string_tools::pod_to_hex(txid);
@@ -1009,9 +1010,9 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
 
         } catch (const tools::error::not_enough_outs_to_mix& e) {
             std::ostringstream writer;
-            writer << tr("not enough outputs for specified mixin_count") << " = " << e.mixin_count() << ":";
+            writer << tr("not enough outputs for specified ring size") << " = " << (e.mixin_count() + 1) << ":";
             for (const std::pair<uint64_t, uint64_t> outs_for_amount : e.scanty_outs()) {
-                writer << "\n" << tr("output amount") << " = " << print_money(outs_for_amount.first) << ", " << tr("found outputs to mix") << " = " << outs_for_amount.second;
+                writer << "\n" << tr("output amount") << " = " << print_money(outs_for_amount.first) << ", " << tr("found outputs to use") << " = " << outs_for_amount.second;
             }
             m_errorString = writer.str();
             m_status = Status_Error;
@@ -1103,9 +1104,9 @@ PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
 
         } catch (const tools::error::not_enough_outs_to_mix& e) {
             std::ostringstream writer;
-            writer << tr("not enough outputs for specified mixin_count") << " = " << e.mixin_count() << ":";
+            writer << tr("not enough outputs for specified ring size") << " = " << (e.mixin_count() + 1) << ":";
             for (const std::pair<uint64_t, uint64_t> outs_for_amount : e.scanty_outs()) {
-                writer << "\n" << tr("output amount") << " = " << print_money(outs_for_amount.first) << ", " << tr("found outputs to mix") << " = " << outs_for_amount.second;
+                writer << "\n" << tr("output amount") << " = " << print_money(outs_for_amount.first) << ", " << tr("found outputs to use") << " = " << outs_for_amount.second;
             }
             m_errorString = writer.str();
             m_status = Status_Error;
@@ -1386,13 +1387,6 @@ bool WalletImpl::doInit(const string &daemon_address, uint64_t upper_transaction
     if (!m_wallet->init(daemon_address, m_daemon_login, upper_transaction_size_limit))
        return false;
 
-    // in case new wallet, this will force fast-refresh (pulling hashes instead of blocks)
-    // If daemon isn't synced a calculated block height will be used instead
-    if (isNewWallet() && daemonSynced()) {
-        LOG_PRINT_L2(__FUNCTION__ << ":New Wallet - fast refresh until " << daemonBlockChainHeight());
-        m_wallet->set_refresh_from_block_height(daemonBlockChainHeight());
-    }
-
     if (m_rebuildWalletCache)
       LOG_PRINT_L2(__FUNCTION__ << ": Rebuilding wallet cache, fast refresh until block " << m_wallet->get_refresh_from_block_height());
 
@@ -1409,6 +1403,11 @@ bool WalletImpl::doInit(const string &daemon_address, uint64_t upper_transaction
 bool WalletImpl::parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error)
 {
     return m_wallet->parse_uri(uri, address, payment_id, amount, tx_description, recipient_name, unknown_parameters, error);
+}
+
+std::string WalletImpl::getDefaultDataDir() const
+{
+ return tools::get_default_data_dir();
 }
 
 bool WalletImpl::rescanSpent()

@@ -227,6 +227,19 @@ namespace tools
       return false;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  uint64_t wallet_rpc_server::adjust_mixin(uint64_t mixin)
+  {
+    if (mixin < 4 && m_wallet->use_fork_rules(6, 10)) {
+      MWARNING("Requested ring size " << (mixin + 1) << " too low for hard fork 6, using 5");
+      mixin = 4;
+    }
+    else if (mixin < 2 && m_wallet->use_fork_rules(2, 10)) {
+      MWARNING("Requested ring size " << (mixin + 1) << " too low for hard fork 2, using 3");
+      mixin = 2;
+    }
+    return mixin;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
   void wallet_rpc_server::fill_transfer_entry(tools::wallet_rpc::transfer_entry &entry, const crypto::hash &txid, const crypto::hash &payment_id, const tools::wallet2::payment_details &pd)
   {
     entry.txid = string_tools::pod_to_hex(pd.m_tx_hash);
@@ -236,6 +249,7 @@ namespace tools
     entry.height = pd.m_block_height;
     entry.timestamp = pd.m_timestamp;
     entry.amount = pd.m_amount;
+    entry.unlock_time = pd.m_unlock_time;
     entry.fee = 0; // TODO
     entry.note = m_wallet->get_tx_note(pd.m_tx_hash);
     entry.type = "in";
@@ -249,6 +263,7 @@ namespace tools
       entry.payment_id = entry.payment_id.substr(0,16);
     entry.height = pd.m_block_height;
     entry.timestamp = pd.m_timestamp;
+    entry.unlock_time = pd.m_unlock_time;
     entry.fee = pd.m_amount_in - pd.m_amount_out;
     uint64_t change = pd.m_change == (uint64_t)-1 ? 0 : pd.m_change; // change may not be known
     entry.amount = pd.m_amount_in - change - entry.fee;
@@ -276,6 +291,7 @@ namespace tools
     entry.timestamp = pd.m_timestamp;
     entry.fee = pd.m_amount_in - pd.m_amount_out;
     entry.amount = pd.m_amount_in - pd.m_change - entry.fee;
+    entry.unlock_time = pd.m_tx.unlock_time;
     entry.note = m_wallet->get_tx_note(txid);
     entry.type = is_failed ? "failed" : "pending";
   }
@@ -289,6 +305,7 @@ namespace tools
     entry.height = 0;
     entry.timestamp = pd.m_timestamp;
     entry.amount = pd.m_amount;
+    entry.unlock_time = pd.m_unlock_time;
     entry.fee = 0; // TODO
     entry.note = m_wallet->get_tx_note(pd.m_tx_hash);
     entry.type = "pool";
@@ -352,10 +369,25 @@ namespace tools
       cryptonote::tx_destination_entry de;
       bool has_payment_id;
       crypto::hash8 new_payment_id;
-      if(!get_account_address_from_str_or_url(de.addr, has_payment_id, new_payment_id, m_wallet->testnet(), it->address, false))
+      er.message = "";
+      if(!get_account_address_from_str_or_url(de.addr, has_payment_id, new_payment_id, m_wallet->testnet(), it->address,
+        [&er](const std::string &url, const std::vector<std::string> &addresses, bool dnssec_valid)->std::string {
+          if (!dnssec_valid)
+          {
+            er.message = std::string("Invalid DNSSEC for ") + url;
+            return {};
+          }
+          if (addresses.empty())
+          {
+            er.message = std::string("No Monero address found at ") + url;
+            return {};
+          }
+          return addresses[0];
+        }))
       {
         er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
-        er.message = std::string("WALLET_RPC_ERROR_CODE_WRONG_ADDRESS: ") + it->address;
+        if (er.message.empty())
+          er.message = std::string("WALLET_RPC_ERROR_CODE_WRONG_ADDRESS: ") + it->address;
         return false;
       }
       de.amount = it->amount;
@@ -439,11 +471,7 @@ namespace tools
 
     try
     {
-      uint64_t mixin = req.mixin;
-      if (mixin < 2 && m_wallet->use_fork_rules(2, 10)) {
-        LOG_PRINT_L1("Requested mixin " << req.mixin << " too low for hard fork 2, using 2");
-        mixin = 2;
-      }
+      uint64_t mixin = adjust_mixin(req.mixin);
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, req.priority, extra, m_trusted_daemon);
 
       // reject proposed transactions if there are more than one.  see on_transfer_split below.
@@ -454,7 +482,8 @@ namespace tools
         return false;
       }
 
-      m_wallet->commit_tx(ptx_vector);
+      if (!req.do_not_relay)
+        m_wallet->commit_tx(ptx_vector);
 
       // populate response with tx hash
       res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector.back().tx));
@@ -463,6 +492,13 @@ namespace tools
         res.tx_key = epee::string_tools::pod_to_hex(ptx_vector.back().tx_key);
       }
       res.fee = ptx_vector.back().fee;
+
+      if (req.get_tx_hex)
+      {
+        cryptonote::blobdata blob;
+        tx_to_blob(ptx_vector.back().tx, blob);
+        res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
+      }
       return true;
     }
     catch (const tools::error::daemon_busy& e)
@@ -508,20 +544,19 @@ namespace tools
 
     try
     {
-      uint64_t mixin = req.mixin;
+      uint64_t mixin = adjust_mixin(req.mixin);
       uint64_t ptx_amount;
-      if (mixin < 2 && m_wallet->use_fork_rules(2, 10)) {
-        LOG_PRINT_L1("Requested mixin " << req.mixin << " too low for hard fork 2, using 2");
-        mixin = 2;
-      }
       std::vector<wallet2::pending_tx> ptx_vector;
       LOG_PRINT_L2("on_transfer_split calling create_transactions_2");
       ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, req.priority, extra, m_trusted_daemon);
       LOG_PRINT_L2("on_transfer_split called create_transactions_2");
 
-      LOG_PRINT_L2("on_transfer_split calling commit_tx");
-      m_wallet->commit_tx(ptx_vector);
-      LOG_PRINT_L2("on_transfer_split called commit_tx");
+      if (!req.do_not_relay)
+      {
+        LOG_PRINT_L2("on_transfer_split calling commit_tx");
+        m_wallet->commit_tx(ptx_vector);
+        LOG_PRINT_L2("on_transfer_split called commit_tx");
+      }
 
       // populate response with tx hashes
       for (auto & ptx : ptx_vector)
@@ -538,6 +573,13 @@ namespace tools
         res.amount_list.push_back(ptx_amount);
 
         res.fee_list.push_back(ptx.fee);
+
+        if (req.get_tx_hex)
+        {
+          cryptonote::blobdata blob;
+          tx_to_blob(ptx.tx, blob);
+          res.tx_blob_list.push_back(epee::string_tools::buff_to_hex_nodelimer(blob));
+        }
       }
 
       return true;
@@ -577,7 +619,8 @@ namespace tools
     {
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_unmixable_sweep_transactions(m_trusted_daemon);
 
-      m_wallet->commit_tx(ptx_vector);
+      if (!req.do_not_relay)
+        m_wallet->commit_tx(ptx_vector);
 
       // populate response with tx hashes
       for (auto & ptx : ptx_vector)
@@ -588,6 +631,12 @@ namespace tools
           res.tx_key_list.push_back(epee::string_tools::pod_to_hex(ptx.tx_key));
         }
         res.fee_list.push_back(ptx.fee);
+        if (req.get_tx_hex)
+        {
+          cryptonote::blobdata blob;
+          tx_to_blob(ptx.tx, blob);
+          res.tx_blob_list.push_back(epee::string_tools::buff_to_hex_nodelimer(blob));
+        }
       }
 
       return true;
@@ -638,9 +687,11 @@ namespace tools
 
     try
     {
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, req.mixin, req.unlock_time, req.priority, extra, m_trusted_daemon);
+      uint64_t mixin = adjust_mixin(req.mixin);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, mixin, req.unlock_time, req.priority, extra, m_trusted_daemon);
 
-      m_wallet->commit_tx(ptx_vector);
+      if (!req.do_not_relay)
+        m_wallet->commit_tx(ptx_vector);
 
       // populate response with tx hashes
       for (auto & ptx : ptx_vector)
@@ -650,7 +701,12 @@ namespace tools
         {
           res.tx_key_list.push_back(epee::string_tools::pod_to_hex(ptx.tx_key));
         }
-        res.fee_list.push_back(ptx.fee);
+        if (req.get_tx_hex)
+        {
+          cryptonote::blobdata blob;
+          tx_to_blob(ptx.tx, blob);
+          res.tx_blob_list.push_back(epee::string_tools::buff_to_hex_nodelimer(blob));
+        }
       }
 
       return true;
@@ -1018,10 +1074,23 @@ namespace tools
     cryptonote::account_public_address address;
     bool has_payment_id;
     crypto::hash8 payment_id;
-    if(!get_account_address_from_str_or_url(address, has_payment_id, payment_id, m_wallet->testnet(), req.address, false))
+    er.message = "";
+    if(!get_account_address_from_str_or_url(address, has_payment_id, payment_id, m_wallet->testnet(), req.address,
+      [&er](const std::string &url, const std::vector<std::string> &addresses, bool dnssec_valid)->std::string {
+        if (!dnssec_valid)
+        {
+          er.message = std::string("Invalid DNSSEC for ") + url;
+          return {};
+        }
+        if (addresses.empty())
+        {
+          er.message = std::string("No Monero address found at ") + url;
+          return {};
+        }
+        return addresses[0];
+      }))
     {
       er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
-      er.message = "";
       return false;
     }
 
@@ -1301,7 +1370,12 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-
+    if (!m_trusted_daemon)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = "This command requires a trusted daemon.";
+      return false;
+    }
     try
     {
       std::vector<std::pair<crypto::key_image, crypto::signature>> ski;
@@ -1412,10 +1486,25 @@ namespace tools
     bool has_payment_id;
     crypto::hash8 payment_id8;
     crypto::hash payment_id = cryptonote::null_hash;
-    if(!get_account_address_from_str_or_url(address, has_payment_id, payment_id8, m_wallet->testnet(), req.address, false))
+    er.message = "";
+    if(!get_account_address_from_str_or_url(address, has_payment_id, payment_id8, m_wallet->testnet(), req.address,
+      [&er](const std::string &url, const std::vector<std::string> &addresses, bool dnssec_valid)->std::string {
+        if (!dnssec_valid)
+        {
+          er.message = std::string("Invalid DNSSEC for ") + url;
+          return {};
+        }
+        if (addresses.empty())
+        {
+          er.message = std::string("No Monero address found at ") + url;
+          return {};
+        }
+        return addresses[0];
+      }))
     {
       er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
-      er.message = std::string("WALLET_RPC_ERROR_CODE_WRONG_ADDRESS: ") + req.address;
+      if (er.message.empty())
+        er.message = std::string("WALLET_RPC_ERROR_CODE_WRONG_ADDRESS: ") + req.address;
       return false;
     }
     if (has_payment_id)

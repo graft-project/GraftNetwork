@@ -265,7 +265,7 @@ namespace cryptonote
 
     // "Shuffle" outs
     std::vector<tx_destination_entry> shuffled_dsts(destinations);
-    std::sort(shuffled_dsts.begin(), shuffled_dsts.end(), [](const tx_destination_entry& de1, const tx_destination_entry& de2) { return de1.amount < de2.amount; } );
+    std::random_shuffle(shuffled_dsts.begin(), shuffled_dsts.end(), [](unsigned int i) { return crypto::rand<unsigned int>() % i; });
 
     uint64_t summary_outs_money = 0;
     //fill outputs
@@ -371,7 +371,7 @@ namespace cryptonote
         // enforce same mixin for all outputs
         for (size_t i = 1; i < sources.size(); ++i) {
           if (n_total_outs != sources[i].outputs.size()) {
-            LOG_ERROR("Non-simple ringct transaction has varying mixin");
+            LOG_ERROR("Non-simple ringct transaction has varying ring size");
             return false;
           }
         }

@@ -33,7 +33,7 @@ endif()
 
 cmake_minimum_required(VERSION 2.8.7)
 
-project(monero)
+project(graftnetwork)
 
 function (die msg)
   if (NOT WIN32)
@@ -108,7 +108,7 @@ set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 
 # set this to 0 if per-block checkpoint needs to be disabled
-set(PER_BLOCK_CHECKPOINT 1)
+set(PER_BLOCK_CHECKPOINT 0)
 
 if(PER_BLOCK_CHECKPOINT)
   add_definitions("-DPER_BLOCK_CHECKPOINT")
@@ -392,6 +392,9 @@ else()
     set(ARCH_FLAG "")
   elseif(PPC64LE)
     set(ARCH_FLAG "-mcpu=${ARCH}")
+  elseif(IOS AND ARCH STREQUAL "arm64")
+    message(STATUS "IOS: Changing arch from arm64 to armv8")
+    set(ARCH_FLAG "-march=armv8")
   else()
     set(ARCH_FLAG "-march=${ARCH}")
   endif()

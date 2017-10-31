@@ -37,6 +37,7 @@
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "crypto/crypto.h"
 #include "profile_tools.h"
+#include "ringct/rctOps.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "blockchain.db.lmdb"
@@ -212,7 +213,7 @@ const std::string lmdb_error(const std::string& error_string, int mdb_res)
 inline void lmdb_db_open(MDB_txn* txn, const char* name, int flags, MDB_dbi& dbi, const std::string& error_string)
 {
   if (auto res = mdb_dbi_open(txn, name, flags, &dbi))
-    throw0(cryptonote::DB_OPEN_FAILURE(lmdb_error(error_string + " : ", res).c_str()));
+    throw0(cryptonote::DB_OPEN_FAILURE((lmdb_error(error_string + " : ", res) + std::string(" - you may want to start with --db-salvage")).c_str()));
 }
 
 
@@ -1082,9 +1083,10 @@ BlockchainLMDB::BlockchainLMDB(bool batch_transactions)
   m_hardfork = nullptr;
 }
 
-void BlockchainLMDB::open(const std::string& filename, const int mdb_flags)
+void BlockchainLMDB::open(const std::string& filename, const int db_flags)
 {
   int result;
+  int mdb_flags = MDB_NORDAHEAD;
 
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
 
@@ -1122,6 +1124,15 @@ void BlockchainLMDB::open(const std::string& filename, const int mdb_flags)
     throw0(DB_ERROR(lmdb_error("Failed to set max number of dbs: ", result).c_str()));
 
   size_t mapsize = DEFAULT_MAPSIZE;
+
+  if (db_flags & DBF_FAST)
+    mdb_flags |= MDB_NOSYNC;
+  if (db_flags & DBF_FASTEST)
+    mdb_flags |= MDB_NOSYNC | MDB_WRITEMAP | MDB_MAPASYNC;
+  if (db_flags & DBF_RDONLY)
+    mdb_flags = MDB_RDONLY;
+  if (db_flags & DBF_SALVAGE)
+    mdb_flags |= MDB_PREVSNAPSHOT;
 
   if (auto result = mdb_env_open(m_env, filename.c_str(), mdb_flags, 0644))
     throw0(DB_ERROR(lmdb_error("Failed to open lmdb environment: ", result).c_str()));
@@ -1305,6 +1316,11 @@ void BlockchainLMDB::sync()
   {
     throw0(DB_ERROR(lmdb_error("Failed to sync database: ", result).c_str()));
   }
+}
+
+void BlockchainLMDB::safesyncmode(const bool onoff)
+{
+  mdb_env_set_flags(m_env, MDB_NOSYNC|MDB_MAPASYNC, !onoff);
 }
 
 void BlockchainLMDB::reset()
@@ -2404,8 +2420,8 @@ bool BlockchainLMDB::for_blocks_range(const uint64_t& h1, const uint64_t& h2, st
   MDB_cursor_op op;
   if (h1)
   {
-    MDB_val_set(k, h1);
-	op = MDB_SET;
+    k = MDB_val{sizeof(h1), (void*)&h1};
+    op = MDB_SET;
   } else
   {
     op = MDB_FIRST;
@@ -2588,6 +2604,16 @@ void BlockchainLMDB::batch_commit()
   memset(&m_wcursors, 0, sizeof(m_wcursors));
 }
 
+void BlockchainLMDB::cleanup_batch()
+{
+  // for destruction of batch transaction
+  m_write_txn = nullptr;
+  delete m_write_batch_txn;
+  m_write_batch_txn = nullptr;
+  m_batch_active = false;
+  memset(&m_wcursors, 0, sizeof(m_wcursors));
+}
+
 void BlockchainLMDB::batch_stop()
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -2602,15 +2628,18 @@ void BlockchainLMDB::batch_stop()
   check_open();
   LOG_PRINT_L3("batch transaction: committing...");
   TIME_MEASURE_START(time1);
-  m_write_txn->commit();
-  TIME_MEASURE_FINISH(time1);
-  time_commit1 += time1;
-  // for destruction of batch transaction
-  m_write_txn = nullptr;
-  delete m_write_batch_txn;
-  m_write_batch_txn = nullptr;
-  m_batch_active = false;
-  memset(&m_wcursors, 0, sizeof(m_wcursors));
+  try
+  {
+    m_write_txn->commit();
+    TIME_MEASURE_FINISH(time1);
+    time_commit1 += time1;
+    cleanup_batch();
+  }
+  catch (const std::exception &e)
+  {
+    cleanup_batch();
+    throw;
+  }
   LOG_PRINT_L3("batch transaction: end");
 }
 
