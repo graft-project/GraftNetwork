@@ -1,8 +1,8 @@
-name: monero
+name: graft
 version: 0.10.2-1
-summary: "Monero: the secure, private, untraceable cryptocurrency https://getmonero.org"
+summary: "Graft Network: the secure, private, untraceable cryptocurrency https://www.graft.network"
 description: |
-    Monero is a private, secure, untraceable, decentralised digital currency.
+    Graft Network is a private, secure, untraceable, decentralised digital currency.
     You are your bank, you control your funds, and nobody can trace your transfers
     unless you allow them to do so.
 grade: devel
@@ -16,16 +16,16 @@ apps:
         plugs:
             - network
             - network-bind
-    monero-wallet-rpc:
+    graft-wallet-rpc:
         command: |
-          monero-wallet-rpc --log-file ${SNAP_USER_DATA}
+          graft-wallet-rpc --log-file ${SNAP_USER_DATA}
         plugs:
             - home
             - network
             - network-bind
-    monero-wallet-cli:
+    graft-wallet-cli:
         command: |
-          monero-wallet-cli --log-file ${SNAP_USER_DATA}
+          graft-wallet-cli --log-file ${SNAP_USER_DATA}
         plugs:
             - home
             - network
