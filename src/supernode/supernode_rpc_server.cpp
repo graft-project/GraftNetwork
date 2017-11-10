@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2017, The Graft Project
 // 
 // All rights reserved.
 // 
@@ -26,21 +26,22 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
-// Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
+// Parts of this file are originally copyright (c) 2014-2017 The Monero Project
+
 #include <boost/asio/ip/address.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <cstdint>
 #include "include_base_utils.h"
 using namespace epee;
 
-#include "super_node_rpc_server.h"
+#include "supernode_rpc_server.h"
 
 
-tools::super_node_rpc_server::super_node_rpc_server() {}
-tools::super_node_rpc_server::~super_node_rpc_server() {}
+tools::supernode_rpc_server::supernode_rpc_server() {}
+tools::supernode_rpc_server::~supernode_rpc_server() {}
 
 
-bool tools::super_node_rpc_server::on_test_call(const super_node_rpc::COMMAND_RPC_EMPTY_TEST::request& req, super_node_rpc::COMMAND_RPC_EMPTY_TEST::response& res, epee::json_rpc::error& er) {
+bool tools::supernode_rpc_server::on_test_call(const supernode_rpc::COMMAND_RPC_EMPTY_TEST::request& req, supernode_rpc::COMMAND_RPC_EMPTY_TEST::response& res, epee::json_rpc::error& er) {
 	LOG_PRINT_L0("\n\n--------------------------------- 1 get test call\n");
 	sleep(5);
 	LOG_PRINT_L0("\n\n--------------------------------- 2 get test call\n");
