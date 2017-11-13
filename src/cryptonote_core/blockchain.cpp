@@ -87,10 +87,10 @@ static const struct {
   uint8_t threshold;
   time_t time;
 } mainnet_hard_forks[] = {
-  /*
-  // version 1 from the start of the blockchain
-  { 1, 1, 0, 1341378000 },
 
+  // version 1 from the start of the blockchain
+  { 1, 0, 0, 1341378000 },
+/*
   // version 2 starts from block 1009827, which is on or around the 20th of March, 2016. Fork time finalised on 2015-09-20. No fork voting occurs for the v2 fork.
   { 2, 1009827, 0, 1442763710 },
 
@@ -110,7 +110,7 @@ static const struct {
   { 6, 1, 0, 1503046577 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
-static const uint64_t mainnet_hard_fork_version_1_till = 0;
+static const uint64_t mainnet_hard_fork_version_1_till = 1;
 
 static const struct {
   uint8_t version;
@@ -118,10 +118,10 @@ static const struct {
   uint8_t threshold;
   time_t time;
 } testnet_hard_forks[] = {
-  /*
-  // version 1 from the start of the blockchain
-  { 1, 1, 0, 1341378000 },
 
+  // version 1 from the start of the blockchain
+  { 1, 0, 0, 1341378000 },
+  /*
   // version 2 starts from block 624634, which is on or around the 23rd of November, 2015. Fork time finalised on 2015-11-20. No fork voting occurs for the v2 fork.
   { 2, 624634, 0, 1445355000 },
 
@@ -136,7 +136,7 @@ static const struct {
   { 6, 1, 0, 1501709789 },
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
-static const uint64_t testnet_hard_fork_version_1_till = 0;
+static const uint64_t testnet_hard_fork_version_1_till = 1;
 
 //------------------------------------------------------------------
 Blockchain::Blockchain(tx_memory_pool& tx_pool) :
@@ -360,6 +360,7 @@ bool Blockchain::init(BlockchainDB* db, const bool testnet, const cryptonote::te
     {
       generate_genesis_block(bl, config::GENESIS_TX, config::GENESIS_NONCE);
     }
+
     add_new_block(bl, bvc);
     CHECK_AND_ASSERT_MES(!bvc.m_verifivation_failed, false, "Failed to add genesis block to blockchain");
   }
