@@ -33,29 +33,47 @@
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <string>
-#include "net/http_server_impl_base.h"
 #include "supernode_rpc_server_commands_defs.h"
+#include "net/http_server_impl_base.h"
+#include "common/command_line.h"
 
+namespace
+{
+const command_line::arg_descriptor<std::string, true> arg_rpc_bind_port = {"rpc-bind-port", "Sets bind port for server"};
+const command_line::arg_descriptor<bool> arg_disable_rpc_login = {"disable-rpc-login", "Disable HTTP authentication for RPC connections served by this process"};
+const command_line::arg_descriptor<bool> arg_trusted_daemon = {"trusted-daemon", "Enable commands which rely on a trusted daemon", false};
+
+constexpr const char default_rpc_username[] = "graft";
+}
 
 namespace tools {
-    class supernode_rpc_server: public epee::http_server_impl_base<supernode_rpc_server> {
-		public:
-		typedef epee::net_utils::connection_context_base connection_context;
+class supernode_rpc_server: public epee::http_server_impl_base<supernode_rpc_server> {
+public:
+    typedef epee::net_utils::connection_context_base connection_context;
 
-		public:
-        supernode_rpc_server();
-        ~supernode_rpc_server();
+public:
+    supernode_rpc_server();
+    ~supernode_rpc_server();
 
-		private:
-        CHAIN_HTTP_TO_MAP2(connection_context) //forward http requests to uri map
+    bool init(const boost::program_options::variables_map *vm);
 
-		BEGIN_URI_MAP2()
-			BEGIN_JSON_RPC_MAP("/json_rpc")
-                MAP_JON_RPC_WE("test_call",         on_test_call,       supernode_rpc::COMMAND_RPC_EMPTY_TEST)
-			END_JSON_RPC_MAP()
-		END_URI_MAP2()
+    static const char* tr(const char* str);
 
-		//json_rpc
-        bool on_test_call(const supernode_rpc::COMMAND_RPC_EMPTY_TEST::request& req, supernode_rpc::COMMAND_RPC_EMPTY_TEST::response& res, epee::json_rpc::error& er);
-	};
+private:
+    CHAIN_HTTP_TO_MAP2(connection_context) //forward http requests to uri map
+
+    BEGIN_URI_MAP2()
+    BEGIN_JSON_RPC_MAP("/json_rpc")
+    MAP_JON_RPC_WE("test_call",         on_test_call,       supernode_rpc::COMMAND_RPC_EMPTY_TEST)
+    END_JSON_RPC_MAP()
+    END_URI_MAP2()
+
+    //json_rpc
+    bool on_test_call(const supernode_rpc::COMMAND_RPC_EMPTY_TEST::request& req, supernode_rpc::COMMAND_RPC_EMPTY_TEST::response& res, epee::json_rpc::error& er);
+
+private:
+    bool m_trusted_daemon;
+    std::string rpc_login_filename;
+    const boost::program_options::variables_map *m_vm;
+};
 }

@@ -27,17 +27,57 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "supernode_rpc_server.h"
-
+#include "wallet/wallet_args.h"
+#include "rpc/rpc_args.h"
 
 int main(int argc, char** argv) {
-	LOG_PRINT_L0("=1");
-    tools::supernode_rpc_server rpc;
-	rpc.init( "7655", "127.0.0.1");
-	LOG_PRINT_L0("=2");
-	rpc.run(100);
-	LOG_PRINT_L0("=3");
+    namespace po = boost::program_options;
 
-	return 0;
+    po::options_description desc_params(wallet_args::tr("Supernode options"));
+    command_line::add_arg(desc_params, arg_rpc_bind_port);
+    command_line::add_arg(desc_params, arg_disable_rpc_login);
+    command_line::add_arg(desc_params, arg_trusted_daemon);
+    cryptonote::rpc_args::init_options(desc_params);
+
+    //      --daemon-address arg            Use daemon instance at <host>:<port>
+    //      --daemon-host arg               Use daemon instance at host <arg> instead of
+    //                                      localhost
+    //      --daemon-port arg (=0)          Use daemon instance at port <arg> instead of
+    //                                      18081
+    //      --daemon-login arg              Specify username[:password] for daemon RPC
+    //                                      client
+    //      --testnet                       For testnet. Daemon must also be launched
+    //                                      with --testnet flag
+    //      --restricted-rpc                Restricts to view-only commands
+    //      --log-file arg                  Specify log file
+    //      --log-level arg                 0-4 or categories
+    //      --max-concurrency arg (=0)      Max number of threads to use for a parallel
+    //                                      job
+    //      --config-file arg               Config file
+
+    const auto vm = wallet_args::main(
+                argc, argv,
+                "graft-supernode [--rpc-bind-port=<port>]",
+                desc_params,
+                po::positional_options_description(),
+                "graft-supernode.log",
+                true
+                );
+    if (!vm)
+    {
+        return 1;
+    }
+
+    LOG_PRINT_L0(tools::supernode_rpc_server::tr("Initializing Graft Supernode Server..."));
+    tools::supernode_rpc_server rpc;
+//        rpc.init( "7655", "127.0.0.1");
+    bool r = rpc.init(&(vm.get()));
+    CHECK_AND_ASSERT_MES(r, 1, tools::supernode_rpc_server::tr("Failed to initialize Graft Supernode Server!"));
+    LOG_PRINT_L0(tools::supernode_rpc_server::tr("Starting Graft Supernode Server..."));
+    rpc.run(100);
+    LOG_PRINT_L0(tools::supernode_rpc_server::tr("Stopped Graft Supernode Server!"));
+
+    return 0;
 }
 
 
