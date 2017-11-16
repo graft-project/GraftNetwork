@@ -36,6 +36,7 @@
 #include "supernode_rpc_server_commands_defs.h"
 #include "net/http_server_impl_base.h"
 #include "common/command_line.h"
+#include "net/http_client.h"
 
 namespace
 {
@@ -64,16 +65,44 @@ private:
 
     BEGIN_URI_MAP2()
     BEGIN_JSON_RPC_MAP("/json_rpc")
-    MAP_JON_RPC_WE("test_call",         on_test_call,       supernode_rpc::COMMAND_RPC_EMPTY_TEST)
+        //Test DAPI
+        MAP_JON_RPC_WE("test_call",         on_test_call,       supernode_rpc::COMMAND_RPC_EMPTY_TEST)
+        //Wallet DAPI
+        MAP_JON_RPC_WE("ReadyToPay",        onReadyToPay,       supernode_rpc::COMMAND_RPC_READY_TO_PAY)
+        MAP_JON_RPC_WE("RejectPay",         onRejectPay,        supernode_rpc::COMMAND_RPC_REJECT_PAY)
+        MAP_JON_RPC_WE("Pay",               onPay,              supernode_rpc::COMMAND_RPC_PAY)
+        MAP_JON_RPC_WE("GetPayStatus",      onGetPayStatus,     supernode_rpc::COMMAND_RPC_GET_PAY_STATUS)
+        //Point of Sale DAPI
+        MAP_JON_RPC_WE("Sale",              onSale,             supernode_rpc::COMMAND_RPC_SALE)
+        MAP_JON_RPC_WE("GetSaleStatus",     onGetSaleStatus,    supernode_rpc::COMMAND_RPC_GET_SALE_STATUS)
+        //Generic DAPI
+        MAP_JON_RPC_WE("GetWalletBalance",  onGetWalletBalance, supernode_rpc::COMMAND_RPC_GET_WALLET_BALANCE)
+        MAP_JON_RPC_WE("GetSupernodeList",  onGetSupernodeList, supernode_rpc::COMMAND_RPC_GET_SUPERNODE_LIST)
+        //Temporal DAPI
+        MAP_JON_RPC_WE("CreateAccount",     onCreateAccount,    supernode_rpc::COMMAND_RPC_CREATE_ACCOUNT)
     END_JSON_RPC_MAP()
     END_URI_MAP2()
 
-    //json_rpc
-    bool on_test_call(const supernode_rpc::COMMAND_RPC_EMPTY_TEST::request& req, supernode_rpc::COMMAND_RPC_EMPTY_TEST::response& res, epee::json_rpc::error& er);
+    //JSON-RPC: Test DAPI
+    bool on_test_call(const supernode_rpc::COMMAND_RPC_EMPTY_TEST::request &req, supernode_rpc::COMMAND_RPC_EMPTY_TEST::response &res, epee::json_rpc::error &er);
+    //JSON-RPC: Wallet DAPI
+    bool onReadyToPay(const supernode_rpc::COMMAND_RPC_READY_TO_PAY::request &req, supernode_rpc::COMMAND_RPC_READY_TO_PAY::response &res, epee::json_rpc::error &er);
+    bool onRejectPay(const supernode_rpc::COMMAND_RPC_REJECT_PAY::request &req, supernode_rpc::COMMAND_RPC_REJECT_PAY::response &res, epee::json_rpc::error &er);
+    bool onPay(const supernode_rpc::COMMAND_RPC_PAY::request &req, supernode_rpc::COMMAND_RPC_PAY::response &res, epee::json_rpc::error &er);
+    bool onGetPayStatus(const supernode_rpc::COMMAND_RPC_GET_PAY_STATUS::request &req, supernode_rpc::COMMAND_RPC_GET_PAY_STATUS::response &res, epee::json_rpc::error &er);
+    //JSON-RPC: Point of Sale DAPI
+    bool onSale(const supernode_rpc::COMMAND_RPC_SALE::request &req, supernode_rpc::COMMAND_RPC_SALE::response &res, epee::json_rpc::error &er);
+    bool onGetSaleStatus(const supernode_rpc::COMMAND_RPC_GET_SALE_STATUS::request &req, supernode_rpc::COMMAND_RPC_GET_SALE_STATUS::response &res, epee::json_rpc::error &er);
+    //JSON-RPC: Generic DAPI
+    bool onGetWalletBalance(const supernode_rpc::COMMAND_RPC_GET_WALLET_BALANCE::request &req, supernode_rpc::COMMAND_RPC_GET_WALLET_BALANCE::response &res, epee::json_rpc::error &er);
+    bool onGetSupernodeList(const supernode_rpc::COMMAND_RPC_GET_SUPERNODE_LIST::request &req, supernode_rpc::COMMAND_RPC_GET_SUPERNODE_LIST::response &res, epee::json_rpc::error &er);
+    //JSON-RPC: Temporal DAPI
+    bool onCreateAccount(const supernode_rpc::COMMAND_RPC_CREATE_ACCOUNT::request &req, supernode_rpc::COMMAND_RPC_CREATE_ACCOUNT::response &res, epee::json_rpc::error &er);
 
 private:
     bool m_trusted_daemon;
     std::string rpc_login_filename;
+    epee::net_utils::http::http_simple_client m_http_client;
     const boost::program_options::variables_map *m_vm;
 };
 }

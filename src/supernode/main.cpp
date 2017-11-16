@@ -29,11 +29,13 @@
 #include "supernode_rpc_server.h"
 #include "wallet/wallet_args.h"
 #include "rpc/rpc_args.h"
+#include "graft_wallet.h"
 
 int main(int argc, char** argv) {
     namespace po = boost::program_options;
 
     po::options_description desc_params(wallet_args::tr("Supernode options"));
+    tools::GraftWallet::init_options(desc_params);
     command_line::add_arg(desc_params, arg_rpc_bind_port);
     command_line::add_arg(desc_params, arg_disable_rpc_login);
     command_line::add_arg(desc_params, arg_trusted_daemon);

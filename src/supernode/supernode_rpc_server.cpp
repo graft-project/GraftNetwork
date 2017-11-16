@@ -38,7 +38,9 @@
 using namespace epee;
 
 #include "supernode_rpc_server.h"
-
+#include "wallet/wallet_rpc_server_error_codes.h"
+#include "mnemonics/electrum-words.h"
+#include "graft_wallet.h"
 
 tools::supernode_rpc_server::supernode_rpc_server() {}
 tools::supernode_rpc_server::~supernode_rpc_server() {}
@@ -122,6 +124,156 @@ bool tools::supernode_rpc_server::on_test_call(const supernode_rpc::COMMAND_RPC_
     LOG_PRINT_L0("\n\n--------------------------------- 1 get test call\n");
     sleep(5);
     LOG_PRINT_L0("\n\n--------------------------------- 2 get test call\n");
+    return true;
+}
+
+bool tools::supernode_rpc_server::onReadyToPay(const tools::supernode_rpc::COMMAND_RPC_READY_TO_PAY::request &req, tools::supernode_rpc::COMMAND_RPC_READY_TO_PAY::response &res, json_rpc::error &er)
+{
+    return true;
+}
+
+bool tools::supernode_rpc_server::onRejectPay(const tools::supernode_rpc::COMMAND_RPC_REJECT_PAY::request &req, tools::supernode_rpc::COMMAND_RPC_REJECT_PAY::response &res, json_rpc::error &er)
+{
+    return true;
+}
+
+bool tools::supernode_rpc_server::onPay(const tools::supernode_rpc::COMMAND_RPC_PAY::request &req, tools::supernode_rpc::COMMAND_RPC_PAY::response &res, json_rpc::error &er)
+{
+    return true;
+}
+
+bool tools::supernode_rpc_server::onGetPayStatus(const tools::supernode_rpc::COMMAND_RPC_GET_PAY_STATUS::request &req, tools::supernode_rpc::COMMAND_RPC_GET_PAY_STATUS::response &res, json_rpc::error &er)
+{
+    return true;
+}
+
+bool tools::supernode_rpc_server::onSale(const tools::supernode_rpc::COMMAND_RPC_SALE::request &req, tools::supernode_rpc::COMMAND_RPC_SALE::response &res, json_rpc::error &er)
+{
+    return true;
+}
+
+bool tools::supernode_rpc_server::onGetSaleStatus(const tools::supernode_rpc::COMMAND_RPC_GET_SALE_STATUS::request &req, tools::supernode_rpc::COMMAND_RPC_GET_SALE_STATUS::response &res, json_rpc::error &er)
+{
+    return true;
+}
+
+bool tools::supernode_rpc_server::onGetWalletBalance(const tools::supernode_rpc::COMMAND_RPC_GET_WALLET_BALANCE::request &req, tools::supernode_rpc::COMMAND_RPC_GET_WALLET_BALANCE::response &res, json_rpc::error &er)
+{
+    namespace po = boost::program_options;
+    po::variables_map vm2;
+    {
+      po::options_description desc("dummy");
+      const command_line::arg_descriptor<std::string, true> arg_password = {"password", "password"};
+      const char *argv[4];
+      int argc = 3;
+      argv[0] = "wallet-rpc";
+      argv[1] = "--password";
+      argv[2] = req.password.c_str();
+      argv[3] = NULL;
+      vm2 = *m_vm;
+      command_line::add_arg(desc, arg_password);
+      po::store(po::parse_command_line(argc, argv, desc), vm2);
+    }
+    std::unique_ptr<tools::GraftWallet> wal;
+    try {
+      wal = tools::GraftWallet::make_from_data(vm2, req.account).first;
+    }
+    catch (const std::exception& e)
+    {
+      wal = nullptr;
+    }
+    if (!wal)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = "Failed to open wallet";
+      return false;
+    }
+
+//      if (!wal) return not_open(er);
+    try
+    {
+      res.balance = wal->balance();
+      res.unlocked_balance = wal->unlocked_balance();
+    }
+    catch (const std::exception& e)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = e.what();
+      return false;
+    }
+    return true;
+}
+
+bool tools::supernode_rpc_server::onGetSupernodeList(const tools::supernode_rpc::COMMAND_RPC_GET_SUPERNODE_LIST::request &req, tools::supernode_rpc::COMMAND_RPC_GET_SUPERNODE_LIST::response &res, json_rpc::error &er)
+{
+    return true;
+}
+
+bool tools::supernode_rpc_server::onCreateAccount(const tools::supernode_rpc::COMMAND_RPC_CREATE_ACCOUNT::request &req, tools::supernode_rpc::COMMAND_RPC_CREATE_ACCOUNT::response &res, json_rpc::error &er)
+{
+    LOG_PRINT_L0("start create acoount");
+    namespace po = boost::program_options;
+    po::variables_map vm2;
+
+    {
+      std::vector<std::string> languages;
+      crypto::ElectrumWords::get_language_list(languages);
+      std::vector<std::string>::iterator it;
+
+      it = std::find(languages.begin(), languages.end(), req.language);
+      if (it == languages.end())
+      {
+        er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        er.message = "Unknown language";
+        return false;
+      }
+    }
+    LOG_PRINT_L0("create acoount: step 1");
+    {
+      po::options_description desc("dummy");
+      const command_line::arg_descriptor<std::string, true> arg_password = {"password", "password"};
+      const char *argv[4];
+      int argc = 3;
+      argv[0] = "wallet-rpc";
+      argv[1] = "--password";
+      argv[2] = req.password.c_str();
+      argv[3] = NULL;
+      vm2 = *m_vm;
+      command_line::add_arg(desc, arg_password);
+      po::store(po::parse_command_line(argc, argv, desc), vm2);
+    }
+    LOG_PRINT_L0("create acoount: step 2");
+    std::unique_ptr<tools::GraftWallet> wal = tools::GraftWallet::make_new(vm2).first;
+    if (!wal)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = "Failed to create wallet";
+      return false;
+    }
+    LOG_PRINT_L0("create acoount: step 3");
+    wal->set_seed_language(req.language);
+    cryptonote::COMMAND_RPC_GET_HEIGHT::request hreq;
+    cryptonote::COMMAND_RPC_GET_HEIGHT::response hres;
+    hres.height = 0;
+    bool r = net_utils::invoke_http_json("/getheight", hreq, hres, m_http_client);
+    wal->set_refresh_from_block_height(hres.height);
+    crypto::secret_key dummy_key;
+    try {
+      wal->generate_graft(req.password, dummy_key, false, false);
+    }
+    catch (const std::exception& e)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = "Failed to generate wallet";
+      return false;
+    }
+    LOG_PRINT_L0("create acoount: step 4");
+    res.account = wal->store_keys_graft(req.password);
+    LOG_PRINT_L0(res.account);
+
+///    if (m_wallet)
+///      delete m_wallet;
+///    m_wallet = wal.release();
     return true;
 }
 
