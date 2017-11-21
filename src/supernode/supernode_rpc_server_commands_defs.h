@@ -66,9 +66,13 @@ namespace supernode_rpc {
       struct response
       {
         int64_t result;
+        std::string transaction;
+        std::string data;
 
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(result)
+          KV_SERIALIZE(transaction)
+          KV_SERIALIZE(data)
         END_KV_SERIALIZE_MAP()
       };
     };
@@ -94,15 +98,27 @@ namespace supernode_rpc {
       };
     };
 
+    struct transaction_record
+    {
+      uint64_t amount;
+      std::string address;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(amount)
+        KV_SERIALIZE(address)
+      END_KV_SERIALIZE_MAP()
+    };
+
     struct COMMAND_RPC_PAY
     {
       struct request
       {
         std::string pid;
+        transaction_record transaction;
         std::string account;
 
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(pid)
+          KV_SERIALIZE(transaction)
           KV_SERIALIZE(account)
         END_KV_SERIALIZE_MAP()
       };
@@ -253,6 +269,32 @@ namespace supernode_rpc {
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(account)
         END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    struct COMMAND_RPC_GET_PAYMENT_ADDRESS
+    {
+      struct request
+      {
+          std::string account;
+          std::string password;
+          std::string payment_id;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(account)
+            KV_SERIALIZE(password)
+            KV_SERIALIZE(payment_id)
+          END_KV_SERIALIZE_MAP()
+      };
+      struct response
+      {
+          std::string payment_address;
+          std::string payment_id;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(payment_address)
+            KV_SERIALIZE(payment_id)
+          END_KV_SERIALIZE_MAP()
       };
     };
 }

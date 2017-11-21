@@ -140,20 +140,16 @@ uint64_t calculate_fee(uint64_t fee_per_kb, const cryptonote::blobdata &blob, ui
 
 std::unique_ptr<tools::GraftWallet> make_basic(const boost::program_options::variables_map& vm, const options& opts)
 {
-    LOG_PRINT_L0("make_basic start");
   const bool testnet = command_line::get_arg(vm, opts.testnet);
   const bool restricted = command_line::get_arg(vm, opts.restricted);
-    LOG_PRINT_L0("make_basic 1");
   auto daemon_address = command_line::get_arg(vm, opts.daemon_address);
   auto daemon_host = command_line::get_arg(vm, opts.daemon_host);
   auto daemon_port = command_line::get_arg(vm, opts.daemon_port);
-    LOG_PRINT_L0("make_basic 2");
   if (!daemon_address.empty() && !daemon_host.empty() && 0 != daemon_port)
   {
     tools::fail_msg_writer() << tools::GraftWallet::tr("can't specify daemon host or port more than once");
     return nullptr;
   }
-    LOG_PRINT_L0("make_basic 3");
   boost::optional<epee::net_utils::http::login> login{};
   if (command_line::has_arg(vm, opts.daemon_login))
   {
@@ -165,7 +161,6 @@ std::unique_ptr<tools::GraftWallet> make_basic(const boost::program_options::var
 
     login.emplace(std::move(parsed->username), std::move(parsed->password).password());
   }
-    LOG_PRINT_L0("make_basic 4");
   if (daemon_host.empty())
     daemon_host = "localhost";
 
@@ -176,7 +171,6 @@ std::unique_ptr<tools::GraftWallet> make_basic(const boost::program_options::var
 
   if (daemon_address.empty())
     daemon_address = std::string("http://") + daemon_host + ":" + std::to_string(daemon_port);
-    LOG_PRINT_L0("make_basic 5");
   std::unique_ptr<tools::GraftWallet> wallet(new tools::GraftWallet(testnet, restricted));
   wallet->init(std::move(daemon_address), std::move(login));
   return wallet;
@@ -184,18 +178,15 @@ std::unique_ptr<tools::GraftWallet> make_basic(const boost::program_options::var
 
 boost::optional<tools::password_container> get_password(const boost::program_options::variables_map& vm, const options& opts, const bool verify)
 {
-   LOG_PRINT_L0("get_password start");
   if (command_line::has_arg(vm, opts.password) && command_line::has_arg(vm, opts.password_file))
   {
     tools::fail_msg_writer() << tools::GraftWallet::tr("can't specify more than one of --password and --password-file");
     return boost::none;
   }
-    LOG_PRINT_L0("get_password 2");
   if (command_line::has_arg(vm, opts.password))
   {
     return tools::password_container{command_line::get_arg(vm, opts.password)};
   }
-    LOG_PRINT_L0("get_password 3");
   if (command_line::has_arg(vm, opts.password_file))
   {
     std::string password;
@@ -211,7 +202,6 @@ boost::optional<tools::password_container> get_password(const boost::program_opt
     boost::trim_right_if(password, boost::is_any_of("\r\n"));
     return {tools::password_container{std::move(password)}};
   }
-    LOG_PRINT_L0("get_password 4");
   return tools::GraftWallet::password_prompt(verify);
 }
 

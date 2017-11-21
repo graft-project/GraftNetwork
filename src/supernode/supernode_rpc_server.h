@@ -37,6 +37,9 @@
 #include "net/http_server_impl_base.h"
 #include "common/command_line.h"
 #include "net/http_client.h"
+#include "graft_wallet.h"
+
+class DataStorage;
 
 namespace
 {
@@ -80,6 +83,7 @@ private:
         MAP_JON_RPC_WE("GetSupernodeList",  onGetSupernodeList, supernode_rpc::COMMAND_RPC_GET_SUPERNODE_LIST)
         //Temporal DAPI
         MAP_JON_RPC_WE("CreateAccount",     onCreateAccount,    supernode_rpc::COMMAND_RPC_CREATE_ACCOUNT)
+        MAP_JON_RPC_WE("GetPaymentAddress", onGetPaymentAddress,supernode_rpc::COMMAND_RPC_GET_PAYMENT_ADDRESS)
     END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -98,11 +102,17 @@ private:
     bool onGetSupernodeList(const supernode_rpc::COMMAND_RPC_GET_SUPERNODE_LIST::request &req, supernode_rpc::COMMAND_RPC_GET_SUPERNODE_LIST::response &res, epee::json_rpc::error &er);
     //JSON-RPC: Temporal DAPI
     bool onCreateAccount(const supernode_rpc::COMMAND_RPC_CREATE_ACCOUNT::request &req, supernode_rpc::COMMAND_RPC_CREATE_ACCOUNT::response &res, epee::json_rpc::error &er);
+    bool onGetPaymentAddress(const supernode_rpc::COMMAND_RPC_GET_PAYMENT_ADDRESS::request &req, supernode_rpc::COMMAND_RPC_GET_PAYMENT_ADDRESS::response &res, epee::json_rpc::error &er);
+
+    std::unique_ptr<tools::GraftWallet> initWallet(const std::string &account, const std::string &password, epee::json_rpc::error &er) const;
 
 private:
     bool m_trusted_daemon;
     std::string rpc_login_filename;
     epee::net_utils::http::http_simple_client m_http_client;
     const boost::program_options::variables_map *m_vm;
+    DataStorage *m_trans_status_storage;
+    DataStorage *m_trans_cache_storage;
+    DataStorage *m_auth_cache_storage;
 };
 }
