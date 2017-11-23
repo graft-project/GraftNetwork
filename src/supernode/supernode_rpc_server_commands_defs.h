@@ -40,9 +40,6 @@ namespace supernode_rpc {
 	struct COMMAND_RPC_EMPTY_TEST {
 		struct request {
 			BEGIN_KV_SERIALIZE_MAP()
-//				KV_SERIALIZE(balance)
-//				KV_SERIALIZE(unlocked_balance)
-
 			END_KV_SERIALIZE_MAP()
 		};
 
@@ -52,5 +49,253 @@ namespace supernode_rpc {
 		};
 	};
 
+    //Wallet DAPI
+    struct COMMAND_RPC_READY_TO_PAY
+    {
+      struct request
+      {
+        std::string pid;
+        std::string key_image;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(pid)
+          KV_SERIALIZE(key_image)
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        int64_t result;
+        std::string transaction;
+        std::string data;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(result)
+          KV_SERIALIZE(transaction)
+          KV_SERIALIZE(data)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    struct COMMAND_RPC_REJECT_PAY
+    {
+      struct request
+      {
+        std::string pid;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(pid)
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        int64_t result;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(result)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    struct transaction_record
+    {
+      uint64_t amount;
+      std::string address;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(amount)
+        KV_SERIALIZE(address)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct COMMAND_RPC_PAY
+    {
+      struct request
+      {
+        std::string pid;
+        transaction_record transaction;
+        std::string account;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(pid)
+          KV_SERIALIZE(transaction)
+          KV_SERIALIZE(account)
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        int64_t result;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(result)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    struct COMMAND_RPC_GET_PAY_STATUS
+    {
+      struct request
+      {
+        std::string pid;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(pid)
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        int64_t result;
+        int64_t pay_status;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(result)
+          KV_SERIALIZE(pay_status)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    //Point of Sale DAPI
+    struct COMMAND_RPC_SALE
+    {
+      struct request
+      {
+        std::string pid;
+        std::string data;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(pid)
+          KV_SERIALIZE(data)
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        int64_t result;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(result)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    struct COMMAND_RPC_GET_SALE_STATUS
+    {
+      struct request
+      {
+        std::string pid;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(pid)
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        int64_t result;
+        int64_t sale_status;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(result)
+          KV_SERIALIZE(sale_status)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    //Generic DAPI
+    struct COMMAND_RPC_GET_WALLET_BALANCE
+    {
+      struct request
+      {
+        std::string account;
+        std::string password;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(account)
+          KV_SERIALIZE(password)
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        uint64_t balance;
+        uint64_t unlocked_balance;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(balance)
+          KV_SERIALIZE(unlocked_balance)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    struct COMMAND_RPC_GET_SUPERNODE_LIST
+    {
+      struct request
+      {
+        BEGIN_KV_SERIALIZE_MAP()
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        int64_t result;
+        std::list<std::string> supernode_list;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(result)
+          KV_SERIALIZE(supernode_list)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    //Temporal DAPI
+    struct COMMAND_RPC_CREATE_ACCOUNT
+    {
+      struct request
+      {
+        std::string password;
+        std::string language;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(password)
+          KV_SERIALIZE(language)
+        END_KV_SERIALIZE_MAP()
+      };
+      struct response
+      {
+        std::string account;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(account)
+        END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    struct COMMAND_RPC_GET_PAYMENT_ADDRESS
+    {
+      struct request
+      {
+          std::string account;
+          std::string password;
+          std::string payment_id;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(account)
+            KV_SERIALIZE(password)
+            KV_SERIALIZE(payment_id)
+          END_KV_SERIALIZE_MAP()
+      };
+      struct response
+      {
+          std::string payment_address;
+          std::string payment_id;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(payment_address)
+            KV_SERIALIZE(payment_id)
+          END_KV_SERIALIZE_MAP()
+      };
+    };
 }
 }
