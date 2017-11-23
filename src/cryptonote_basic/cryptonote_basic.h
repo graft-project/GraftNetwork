@@ -139,9 +139,7 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
-
   typedef boost::variant<txin_gen, txin_to_script, txin_to_scripthash, txin_to_key> txin_v;
-
   typedef boost::variant<txout_to_script, txout_to_scripthash, txout_to_key> txout_target_v;
 
   //typedef std::pair<uint64_t, txout> out_t;
@@ -171,17 +169,21 @@ namespace cryptonote
     //extra
     std::vector<uint8_t> extra;
 
+    // zero fee;
+    // TODO: check if it possible to use 'extra' for this
+    bool allow_zero_fee;
+
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
-      if(version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
+      if (version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
       VARINT_FIELD(unlock_time)
       FIELD(vin)
       FIELD(vout)
       FIELD(extra)
     END_SERIALIZE()
-
   public:
-    transaction_prefix(){}
+    transaction_prefix()
+      : allow_zero_fee(false) {}
   };
 
   class transaction: public transaction_prefix

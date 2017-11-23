@@ -40,6 +40,7 @@
 #define TX_EXTRA_MERGE_MINING_TAG           0x03
 #define TX_EXTRA_GRAFT_EXTRA_TAG            0x04
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
+#define TX_EXTRA_GRAFT_DATA_TAG             0x10
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
 #define TX_EXTRA_NONCE_ENCRYPTED_PAYMENT_ID 0x01
@@ -79,7 +80,7 @@ namespace cryptonote
     template <template <bool> class Archive>
     bool do_serialize(Archive<true>& ar)
     {
-      if(TX_EXTRA_PADDING_MAX_COUNT < size)
+      if (TX_EXTRA_PADDING_MAX_COUNT < size)
         return false;
 
       // i = 1 - because of variant tag
@@ -108,7 +109,7 @@ namespace cryptonote
 
     BEGIN_SERIALIZE()
       FIELD(nonce)
-      if(TX_EXTRA_NONCE_MAX_COUNT < nonce.size()) return false;
+      if (TX_EXTRA_NONCE_MAX_COUNT < nonce.size()) return false;
     END_SERIALIZE()
   };
 
@@ -168,7 +169,6 @@ namespace cryptonote
       FIELD(data)
     END_SERIALIZE()
   };
-
 
   struct tx_extra_graft_extra
   {

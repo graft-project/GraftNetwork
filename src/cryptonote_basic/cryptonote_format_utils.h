@@ -238,6 +238,11 @@ namespace cryptonote
   bool is_valid_decomposed_amount(uint64_t amount);
   void get_hash_stats(uint64_t &tx_hashes_calculated, uint64_t &tx_hashes_cached, uint64_t &block_hashes_calculated, uint64_t & block_hashes_cached);
 
+
+  // graft
+  // parses graft-related fields from transaction_prefix.extra. in case successful parse - result will be applied to tx_prefix;
+  bool parse_graft_data_from_tx_prefix(transaction_prefix &tx_prefix);
+
 #define CHECKED_GET_SPECIFIC_VARIANT(variant_var, specific_type, variable_name, fail_return_val) \
   CHECK_AND_ASSERT_MES(variant_var.type() == typeid(specific_type), fail_return_val, "wrong variant type: " << variant_var.type().name() << ", expected " << typeid(specific_type).name()); \
   specific_type& variable_name = boost::get<specific_type>(variant_var);

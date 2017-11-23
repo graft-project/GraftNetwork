@@ -103,6 +103,7 @@ namespace cryptonote
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
     tx.invalidate_hashes();
+    parse_graft_data_from_tx_prefix(tx);
     return true;
   }
   //---------------------------------------------------------------
@@ -128,6 +129,7 @@ namespace cryptonote
 
     get_transaction_hash(tx, tx_hash);
     get_transaction_prefix_hash(tx, tx_prefix_hash);
+    parse_graft_data_from_tx_prefix(tx);
     return true;
   }
   //---------------------------------------------------------------
@@ -413,7 +415,8 @@ namespace cryptonote
         << ", in transaction id=" << get_transaction_hash(tx));
 
     }
-    return true;
+    return true;    //TODO: validate tx
+
   }
   //-----------------------------------------------------------------------------------------------
   bool check_outs_valid(const transaction& tx)
@@ -877,6 +880,5 @@ namespace cryptonote
         return false;
       return ::serialization::parse_binary(graft_extra.data, graft_tx_extra);
   }
-
 
 }
