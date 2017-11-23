@@ -61,7 +61,11 @@ public:
   {
     //initialize objects
     MGINFO("Initializing p2p server...");
-    if (!m_server.init(vm))
+
+    auto main_seed_nodes = command_line::get_arg(vm, command_line::arg_testnet_on) ? ::config::testnet::SEED_NODES : ::config::SEED_NODES;
+    auto network_id = command_line::get_arg(vm, command_line::arg_testnet_on) ? ::config::testnet::NETWORK_ID : ::config::NETWORK_ID;
+
+    if (!m_server.init(vm, main_seed_nodes, network_id))
     {
       throw std::runtime_error("Failed to initialize p2p server.");
     }

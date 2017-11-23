@@ -111,7 +111,11 @@ int main(int argc, char* argv[])
   //initialize objects
 
   MGINFO("Initializing p2p server...");
-  bool res = p2psrv.init(vm);
+
+  auto main_seed_nodes = command_line::get_arg(vm, command_line::arg_testnet_on) ? ::config::testnet::SEED_NODES : ::config::SEED_NODES;
+  auto network_id = command_line::get_arg(vm, command_line::arg_testnet_on) ? ::config::testnet::NETWORK_ID : ::config::NETWORK_ID;
+
+  bool res = p2psrv.init(vm, main_seed_nodes, network_id);
   CHECK_AND_ASSERT_MES(res, 1, "Failed to initialize p2p server.");
   MGINFO("P2p server initialized OK");
 
