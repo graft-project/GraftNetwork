@@ -177,4 +177,20 @@ namespace config
     uint32_t const GENESIS_NONCE = 10001;
     std::set<std::string> const SEED_NODES{"54.207.116.130:28980", "54.207.21.115:28980", "54.233.159.189:28980"};
   }
+
+  namespace supernode {
+    uint16_t const P2P_DEFAULT_PORT = 18983;
+    boost::uuids::uuid const NETWORK_ID = { {
+      0x54 ,0x68, 0x65, 0x20, 0x41, 0x72 , 0x74, 0x20, 0x6F, 0x66, 0x20, 0x57, 0x61, 0x72, 0x20, 0x35
+    } };
+    std::set<std::string> const SEED_NODES{};
+
+    namespace testnet {
+      uint16_t const P2P_DEFAULT_PORT = 28983;
+      boost::uuids::uuid const NETWORK_ID = { {
+        0x54 ,0x68, 0x65, 0x20, 0x41, 0x72 , 0x74, 0x20, 0x6F, 0x66, 0x20, 0x57, 0x61, 0x72, 0x20, 0x36
+      } };
+      std::set<std::string> const SEED_NODES{};
+    }
+  }
 }
