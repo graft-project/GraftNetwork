@@ -101,6 +101,7 @@ namespace cryptonote
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
     tx.invalidate_hashes();
+    parse_graft_data_from_tx_prefix(tx);
     return true;
   }
   //---------------------------------------------------------------
@@ -126,6 +127,7 @@ namespace cryptonote
 
     get_transaction_hash(tx, tx_hash);
     get_transaction_prefix_hash(tx, tx_prefix_hash);
+    parse_graft_data_from_tx_prefix(tx);
     return true;
   }
   //---------------------------------------------------------------
@@ -411,7 +413,8 @@ namespace cryptonote
         << ", in transaction id=" << get_transaction_hash(tx));
 
     }
-    return true;
+    return true;    //TODO: validate tx
+
   }
   //-----------------------------------------------------------------------------------------------
   bool check_outs_valid(const transaction& tx)
@@ -869,4 +872,22 @@ namespace cryptonote
     block_hashes_calculated = block_hashes_calculated_count;
     block_hashes_cached = block_hashes_cached_count;
   }
+  //---------------------------------------------------------------
+  bool parse_graft_data_from_tx(const transaction_prefix &tx_prefix, tx_extra_graft_data &gd)
+  {
+
+  }
+  //---------------------------------------------------------------
+  bool parse_graft_data_from_tx_prefix(transaction_prefix &tx_prefix)
+  {
+      std::vector<tx_extra_field> extra_fields;
+      if (!parse_tx_extra(tx_prefix.extra, extra_fields))
+        return false;
+
+      tx_extra_graft_data gd = {0};
+      if (find_tx_extra_field_by_type(extra_fields, gd)) {
+        tx_prefix.allow_zero_fee = gd.allow_extra_fee;
+      }
+  }
+
 }
