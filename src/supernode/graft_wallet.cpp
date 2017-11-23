@@ -3618,8 +3618,6 @@ std::string GraftWallet::store_keys_graft(const std::string& password, bool watc
   CHECK_AND_ASSERT_MES(r, false, "failed to serialize wallet keys");
 
   ///Return only account_data
-  LOG_PRINT_L0(sizeof(account_data));
-  LOG_PRINT_L0(account_data.size());
   return account_data;
 
   GraftWallet::keys_file_data keys_file_data = boost::value_initialized<GraftWallet::keys_file_data>();
