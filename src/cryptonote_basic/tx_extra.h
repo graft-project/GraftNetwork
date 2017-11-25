@@ -169,14 +169,7 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
-  struct tx_extra_graft_data
-  {
-    bool allow_extra_fee;
-    BEGIN_SERIALIZE()
-      FIELD(allow_extra_fee)
-    END_SERIALIZE()
 
-  };
 
   // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
   //   varint tag;
@@ -184,7 +177,7 @@ namespace cryptonote
   //   varint data[];
 
   typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag,
-    tx_extra_mysterious_minergate, tx_extra_graft_data> tx_extra_field;
+    tx_extra_mysterious_minergate/*, tx_extra_graft_data*/> tx_extra_field;
 }
 
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding, TX_EXTRA_TAG_PADDING);
@@ -192,4 +185,4 @@ VARIANT_TAG(binary_archive, cryptonote::tx_extra_pub_key, TX_EXTRA_TAG_PUBKEY);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_nonce, TX_EXTRA_NONCE);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_merge_mining_tag, TX_EXTRA_MERGE_MINING_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_data, TX_EXTRA_GRAFT_DATA_TAG);
+// VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_data, TX_EXTRA_GRAFT_DATA_TAG);
