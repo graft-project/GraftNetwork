@@ -40,10 +40,10 @@ int main(int argc, char** argv) {
 	// this not working - log still filled
 	//el::Loggers::setCategories("", true);
 	//mlog_set_categories("");
-	//mlog_set_log_level(32);
+	mlog_set_log_level(0);
 
 
-	string conf_file("aconf.ini");
+	string conf_file("conf.ini");
 	if(argc>1) conf_file = argv[1];
 	LOG_PRINT_L4("conf: "<<conf_file);
 
