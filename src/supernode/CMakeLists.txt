@@ -37,7 +37,10 @@ set(supernode_api_headers)
 
 set(supernode_private_headers
   supernode_rpc_server.h
-  supernode_rpc_server_commands_defs.h)
+  supernode_rpc_server_commands_defs.h
+	real_time_commands.h
+	real_time_auth.h
+	http_rpc_client.h)
 
 monero_private_headers(supernode
   ${supernode_private_headers})
@@ -64,7 +67,9 @@ add_dependencies(supernode version)
 if (NOT BUILD_GUI_DEPS)
   set(supernode_rpc_sources
     main.cpp
-    supernode_rpc_server.cpp)
+    supernode_rpc_server.cpp
+		real_time_auth.cpp
+		http_rpc_client.cpp)
 
   set(supernode_rpc_headers)
 
