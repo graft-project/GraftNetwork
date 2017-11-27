@@ -172,7 +172,16 @@ namespace cryptonote
     //extra
     std::vector<uint8_t> extra;
 
-
+    // graft: introducing transaction type
+    enum tx_type {
+      // generic monero transaction;
+      tx_type_generic = 0,
+      // supernode 'zero-fee' transaction
+      tx_type_zero_fee = 1,
+      tx_type_invalid = 255
+    };
+    // graft: tx type field
+    uint32_t type;
 
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
@@ -181,9 +190,11 @@ namespace cryptonote
       FIELD(vin)
       FIELD(vout)
       FIELD(extra)
+      FIELD(type)
     END_SERIALIZE()
   public:
-    transaction_prefix() {}
+    transaction_prefix()
+      : type(tx_type_generic) {}
   };
 
   class transaction: public transaction_prefix
@@ -201,16 +212,6 @@ namespace cryptonote
     mutable crypto::hash hash;
     mutable size_t blob_size;
 
-    // graft: introducing transaction type
-    enum tx_type {
-      // generic monero transaction;
-      tx_type_generic = 0,
-      // supernode 'zero-fee' transaction
-      tx_type_zero_fee = 1,
-      tx_type_invalid = 255
-    };
-    // graft: tx type field
-    uint32_t type;
 
     transaction();
     transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
@@ -338,6 +339,7 @@ namespace cryptonote
     rct_signatures.type = rct::RCTTypeNull;
     set_hash_valid(false);
     set_blob_size_valid(false);
+    type = tx_type_generic;
   }
 
   inline
