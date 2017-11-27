@@ -181,16 +181,16 @@ namespace cryptonote
       tx_type_invalid = 255
     };
     // graft: tx type field
-    uint32_t type;
+    size_t type;
 
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
       if (version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
       VARINT_FIELD(unlock_time)
+      VARINT_FIELD(type)
       FIELD(vin)
       FIELD(vout)
       FIELD(extra)
-      FIELD(type)
     END_SERIALIZE()
   public:
     transaction_prefix()
@@ -232,7 +232,6 @@ namespace cryptonote
       }
 
       FIELDS(*static_cast<transaction_prefix *>(this))
-      FIELD(type)
 
       if (version == 1)
       {
