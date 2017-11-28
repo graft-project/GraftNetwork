@@ -103,6 +103,7 @@ enum TransferType {
   TransferOriginal,
   TransferNew,
   TransferLocked,
+  TransferZeroFee
 };
 
 namespace
@@ -757,6 +758,7 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("bc_height", boost::bind(&simple_wallet::show_blockchain_height, this, _1), tr("Show blockchain height"));
   m_cmd_binder.set_handler("transfer_original", boost::bind(&simple_wallet::transfer, this, _1), tr("Same as transfer, but using an older transaction building algorithm"));
   m_cmd_binder.set_handler("transfer", boost::bind(&simple_wallet::transfer_new, this, _1), tr("transfer [<priority>] [<ring_size>] <address> <amount> [<payment_id>] - Transfer <amount> to <address>. <priority> is the priority of the transaction. The higher the priority, the higher the fee of the transaction. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
+  m_cmd_binder.set_handler("transfer_zf", boost::bind(&simple_wallet::transfer_zero_fee, this, _1), tr("transfer_zf [<priority>] [<ring_size>] <address> <amount> [<payment_id>] - Transfer <amount> to <address>. <priority> is the priority of the transaction. The higher the priority, the higher the fee of the transaction. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
   m_cmd_binder.set_handler("locked_transfer", boost::bind(&simple_wallet::locked_transfer, this, _1), tr("locked_transfer [<ring_size>] <addr> <amount> <lockblocks>(Number of blocks to lock the transaction for, max 1000000) [<payment_id>]"));
   m_cmd_binder.set_handler("sweep_unmixable", boost::bind(&simple_wallet::sweep_unmixable, this, _1), tr("Send all unmixable outputs to yourself with ring_size 1"));
   m_cmd_binder.set_handler("sweep_all", boost::bind(&simple_wallet::sweep_all, this, _1), tr("sweep_all [ring_size] address [payment_id] - Send all unlocked balance to an address"));
@@ -1992,6 +1994,7 @@ bool simple_wallet::refresh_main(uint64_t start_height, bool reset)
 bool simple_wallet::refresh(const std::vector<std::string>& args)
 {
   uint64_t start_height = 0;
+  LOG_PRINT_L4("L4 Log");
   if(!args.empty()){
     try
     {
@@ -2489,6 +2492,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     std::vector<tools::wallet2::pending_tx> ptx_vector;
     uint64_t bc_height, unlock_block = 0;
     std::string err;
+
     switch (transfer_type)
     {
       case TransferLocked:
@@ -2503,6 +2507,9 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
       break;
       case TransferNew:
         ptx_vector = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */, priority, extra, m_trusted_daemon);
+      break;
+      case TransferZeroFee:
+        ptx_vector = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */, priority, extra, m_trusted_daemon, true);
       break;
       default:
         LOG_ERROR("Unknown transfer method, using original");
@@ -2614,6 +2621,11 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
           if (!print_ring_members(ptx_vector, prompt))
             return true;
         }
+        LOG_PRINT_L1("printing tx type: ");
+        for (const auto &ptx: ptx_vector) {
+          std::cout << "tx type: " << ptx.tx.type <<  std::endl;
+        }
+
         prompt << ENDL << tr("Is this okay?  (Y/Yes/N/No): ");
         
         std::string accepted = command_line::input_line(prompt.str());
@@ -2748,6 +2760,11 @@ bool simple_wallet::transfer(const std::vector<std::string> &args_)
 bool simple_wallet::transfer_new(const std::vector<std::string> &args_)
 {
   return transfer_main(TransferNew, args_);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::transfer_zero_fee(const std::vector<std::string> &args_)
+{
+  return transfer_main(TransferZeroFee, args_);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::locked_transfer(const std::vector<std::string> &args_)
@@ -4981,6 +4998,7 @@ int main(int argc, char* argv[])
   CHECK_AND_ASSERT_MES(r, 1, sw::tr("Failed to initialize wallet"));
 
   std::vector<std::string> command = command_line::get_arg(*vm, arg_command);
+
   if (!command.empty())
   {
     w.process_command(command);
