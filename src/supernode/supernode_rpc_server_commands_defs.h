@@ -115,11 +115,13 @@ namespace supernode_rpc {
         std::string pid;
         transaction_record transaction;
         std::string account;
+        std::string password;
 
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(pid)
           KV_SERIALIZE(transaction)
           KV_SERIALIZE(account)
+          KV_SERIALIZE(password)
         END_KV_SERIALIZE_MAP()
       };
 
@@ -265,9 +267,11 @@ namespace supernode_rpc {
       struct response
       {
         std::string account;
+        std::string address;
 
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(account)
+          KV_SERIALIZE(address)
         END_KV_SERIALIZE_MAP()
       };
     };

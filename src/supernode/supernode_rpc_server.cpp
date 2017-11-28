@@ -195,6 +195,11 @@ bool tools::supernode_rpc_server::onPay(const tools::supernode_rpc::COMMAND_RPC_
         res.result = ERROR_ZERO_PAYMENT_AMOUNT;
         return true;
     }
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(req.account, req.password, er);
+    if (!wal)
+    {
+        return false;
+    }
     //TODO: Validation
     //TODO: BroadcastPay
     m_trans_status_storage->storeData(req.pid, std::to_string(STATUS_APPROVED));
@@ -337,6 +342,7 @@ bool tools::supernode_rpc_server::onCreateAccount(const tools::supernode_rpc::CO
         return false;
     }
     res.account = wal->store_keys_graft(req.password);
+    res.address = wal->get_account().get_public_address_str(wal->testnet());
 
     ///    if (m_wallet)
     ///      delete m_wallet;
