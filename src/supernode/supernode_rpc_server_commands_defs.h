@@ -102,6 +102,7 @@ namespace supernode_rpc {
     {
       uint64_t amount;
       std::string address;
+
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(amount)
         KV_SERIALIZE(address)
@@ -266,12 +267,12 @@ namespace supernode_rpc {
       };
       struct response
       {
-        std::string account;
         std::string address;
+        std::string account;
 
         BEGIN_KV_SERIALIZE_MAP()
-          KV_SERIALIZE(account)
           KV_SERIALIZE(address)
+          KV_SERIALIZE(account)
         END_KV_SERIALIZE_MAP()
       };
     };
