@@ -111,6 +111,9 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL(m_transactions_lock);
 
     PERF_TIMER(add_tx);
+    LOG_PRINT_L1("tx_type: " << tx.type);
+
+
     if (tx.version == 0)
     {
       // v0 never accepted
@@ -164,6 +167,7 @@ namespace cryptonote
       fee = tx.rct_signatures.txnFee;
     }
 
+    LOG_PRINT_L0("tx_type: " << tx.type);
     if (!kept_by_block && (tx.type != transaction::tx_type_zero_fee && !m_blockchain.check_fee(blob_size, fee)))
     {
       tvc.m_verifivation_failed = true;
