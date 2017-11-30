@@ -31,8 +31,10 @@
 #pragma once
 #include <unordered_set>
 #include <atomic>
+#include <crypto/hash.h>
 #include "net/net_utils_base.h"
 #include "copyable_atomic.h"
+#include "cryptonote_basic.h"
 
 namespace cryptonote
 {
