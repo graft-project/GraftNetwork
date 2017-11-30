@@ -404,39 +404,21 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet) const
-  {
-    std::set<std::string> full_addrs;
-    if (testnet)
-    {
-      full_addrs.insert("54.207.116.130:28980");
-      full_addrs.insert("54.207.21.115:28980");
-      full_addrs.insert("54.233.159.189:28980");
-    }
-    else
-    {
-      full_addrs.insert("54.207.116.130:18980");
-      full_addrs.insert("54.207.21.115:18980");
-      full_addrs.insert("54.233.159.189:18980");
-    }
-    return full_addrs;
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::init(const boost::program_options::variables_map& vm)
+  bool node_server<t_payload_net_handler>::init(const boost::program_options::variables_map& vm, const std::set<std::string>& main_seed_nodes, const boost::uuids::uuid& network_id)
   {
     std::set<std::string> full_addrs;
     m_testnet = command_line::get_arg(vm, command_line::arg_testnet_on);
 
+    m_main_seed_nodes = main_seed_nodes;
+
     if (m_testnet)
     {
-      memcpy(&m_network_id, &::config::testnet::NETWORK_ID, 16);
-      full_addrs = get_seed_nodes(true);
+      memcpy(&m_network_id, &network_id, 16);
+      full_addrs = m_main_seed_nodes;
     }
     else
     {
-      memcpy(&m_network_id, &::config::NETWORK_ID, 16);
+      memcpy(&m_network_id, &network_id, 16);
       // for each hostname in the seed nodes list, attempt to DNS resolve and
       // add the result addresses as seed nodes
       // TODO: at some point add IPv6 support, but that won't be relevant
@@ -513,7 +495,7 @@ namespace nodetool
         else
           MINFO("Not enough DNS seed nodes found, using fallback defaults too");
 
-        for (const auto &peer: get_seed_nodes(false))
+        for (const auto &peer: m_main_seed_nodes)
           full_addrs.insert(peer);
       }
     }
@@ -1186,7 +1168,7 @@ namespace nodetool
           if (!fallback_nodes_added)
           {
             MWARNING("Failed to connect to any of seed peers, trying fallback seeds");
-            for (const auto &peer: get_seed_nodes(m_testnet))
+            for (const auto &peer: m_main_seed_nodes)
             {
               MDEBUG("Fallback seed node: " << peer);
               append_net_address(m_seed_nodes, peer);

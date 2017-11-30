@@ -36,7 +36,13 @@ set(supernode_sources
     storages/local_data_storage.cpp
     graft_wallet.cpp
     wallet_args.cpp
-    node_rpc_proxy.cpp)
+    node_rpc_proxy.cpp
+    core.cpp
+    main.cpp
+    supernode_rpc_server.cpp
+    p2p.cpp
+    protocol.cpp)
+
 set(supernode_api_headers)
 
 set(supernode_private_headers
@@ -48,7 +54,13 @@ set(supernode_private_headers
     wallet_errors.h
     node_rpc_proxy.h
     supernode_rpc_server.h
-    supernode_rpc_server_commands_defs.h)
+    supernode_rpc_server_commands_defs.h
+    core.h
+    supernode.h
+    supernode_rpc_server.h
+    supernode_rpc_server_commands_defs.h
+    p2p.h
+    protocol.h)
 
 monero_private_headers(supernode
   ${supernode_private_headers})
@@ -62,12 +74,15 @@ target_link_libraries(supernode
     cryptonote_core
     mnemonics
     p2p
+    supernode_core
+    supernode_protocol
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${Boost_REGEX_LIBRARY}
+
   PRIVATE
     ${EXTRA_LIBRARIES})
 add_dependencies(supernode version)
@@ -75,12 +90,18 @@ add_dependencies(supernode version)
 if (NOT BUILD_GUI_DEPS)
   set(supernode_rpc_sources
     main.cpp
-    supernode_rpc_server.cpp)
+    core.cpp
+    supernode_rpc_server.cpp
+    p2p.cpp
+    protocol.cpp)
 
   set(supernode_rpc_headers)
 
   set(supernode_rpc_private_headers
-    supernode_rpc_server.h)
+    core.h
+    supernode_rpc_server.h
+    p2p.h
+    protocol.h)
 
   monero_private_headers(supernode_rpc_server
     ${supernode_rpc_private_headers})
@@ -97,6 +118,8 @@ if (NOT BUILD_GUI_DEPS)
       cryptonote_core
       cncrypto
       common
+      supernode_core
+      supernode_protocol
       ${Boost_CHRONO_LIBRARY}
       ${Boost_PROGRAM_OPTIONS_LIBRARY}
       ${Boost_FILESYSTEM_LIBRARY}
@@ -118,7 +141,7 @@ if (BUILD_GUI_DEPS)
     foreach(lib ${libs_to_merge})
         list(APPEND objlibs $<TARGET_OBJECTS:obj_${lib}>) # matches naming convention in src/CMakeLists.txt
     endforeach()
-    add_library(supernode_merged STATIC ${objlibs})
+    add_library(supernode_merged STATIC ${objlibs} supernode.h)
     if(IOS)
         set(lib_folder lib-${ARCH})
     else()

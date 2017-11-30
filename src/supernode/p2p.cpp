@@ -1,21 +1,21 @@
-// Copyright (c) 2014-2017, The Monero Project
-// 
+// Copyright (c) 2017, The Graft Project
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -26,78 +26,39 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
+// Parts of this file are originally copyright (c) 2014-2017 The Monero Project
 
-#pragma once
+#include "p2p.h"
 
-#include "cryptonote_protocol/cryptonote_protocol_handler.h"
-#include "p2p/net_node.h"
-#include "daemon/protocol.h"
-
-#undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "daemon"
-
-namespace daemonize
-{
-
-class t_p2p final
-{
-private:
-  typedef cryptonote::t_cryptonote_protocol_handler<cryptonote::core> t_protocol_raw;
-  typedef nodetool::node_server<t_protocol_raw> t_node_server;
-public:
-  static void init_options(boost::program_options::options_description & option_spec)
-  {
-    t_node_server::init_options(option_spec);
-  }
-private:
-  t_node_server m_server;
-public:
-  t_p2p(
-      boost::program_options::variables_map const & vm
-    , t_protocol & protocol
-    )
-    : m_server{protocol.get()}
-  {
-    //initialize objects
+supernode::daemon::p2p::p2p(boost::program_options::variables_map const &vm, supernode::daemon::protocol &protocol): m_server{protocol.get()} {
     MGINFO("Initializing p2p server...");
 
-    auto main_seed_nodes = command_line::get_arg(vm, command_line::arg_testnet_on) ? ::config::testnet::SEED_NODES : ::config::SEED_NODES;
-    auto network_id = command_line::get_arg(vm, command_line::arg_testnet_on) ? ::config::testnet::NETWORK_ID : ::config::NETWORK_ID;
+    auto main_seed_nodes = command_line::get_arg(vm, command_line::arg_testnet_on) ? ::config::supernode::testnet::SEED_NODES : ::config::supernode::SEED_NODES;
+    auto network_id = command_line::get_arg(vm, command_line::arg_testnet_on) ? ::config::supernode::testnet::NETWORK_ID : ::config::supernode::NETWORK_ID;
 
-    if (!m_server.init(vm, main_seed_nodes, network_id))
-    {
-      throw std::runtime_error("Failed to initialize p2p server.");
+    if (!m_server.init(vm, main_seed_nodes, network_id)) {
+        throw std::runtime_error("Failed to initialize p2p server.");
     }
+
     MGINFO("P2p server initialized OK");
-  }
+}
 
-  t_node_server & get()
-  {
-    return m_server;
-  }
+supernode::daemon::p2p::~p2p() {
 
-  void run()
-  {
+}
+
+void supernode::daemon::p2p::run() {
     MGINFO("Starting p2p net loop...");
+
     m_server.run();
+
     MGINFO("p2p net loop stopped");
-  }
+}
 
-  void stop()
-  {
-    m_server.send_stop_signal();
-  }
+supernode::t_node_server &supernode::daemon::p2p::get() {
+    return m_server;
+}
 
-  ~t_p2p()
-  {
-    MGINFO("Deinitializing p2p...");
-    try {
-      m_server.deinit();
-    } catch (...) {
-      MERROR("Failed to deinitialize p2p...");
-    }
-  }
-};
-
+void supernode::daemon::p2p::init_options(boost::program_options::options_description &option_spec) {
+    t_node_server::init_options(option_spec);
 }
