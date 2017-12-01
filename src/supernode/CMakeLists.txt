@@ -36,11 +36,20 @@ set(supernode_sources)
 set(supernode_api_headers)
 
 set(supernode_private_headers
-  supernode_rpc_server.h
-  supernode_rpc_server_commands_defs.h
-	real_time_commands.h
-	real_time_auth.h
-	http_rpc_client.h)
+  AuthSample.h
+  AuthSampleObject.h
+	BaseRTAObject.h
+	BaseRTAProcessor.h
+	DAPI_RPC_Client.h
+	DAPI_RPC_Server.h
+	FSN_Servant.h
+	PosProxy.h
+	PosSaleObject.h
+	SubNetBroadcast.h
+	WalletPayObject.h
+	WalletProxy.h
+	supernode_common_struct.h
+	supernode_rpc_command.h)
 
 monero_private_headers(supernode
   ${supernode_private_headers})
@@ -54,6 +63,7 @@ target_link_libraries(supernode
     cryptonote_core
     mnemonics
     p2p
+		uuid
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
@@ -67,14 +77,22 @@ add_dependencies(supernode version)
 if (NOT BUILD_GUI_DEPS)
   set(supernode_rpc_sources
     main.cpp
-    supernode_rpc_server.cpp
-		real_time_auth.cpp
-		http_rpc_client.cpp)
+    AuthSample.cpp
+		AuthSampleObject.cpp
+		BaseRTAObject.cpp
+		BaseRTAProcessor.cpp
+		DAPI_RPC_Client.cpp
+		DAPI_RPC_Server.cpp
+		FSN_Servant.cpp
+		PosProxy.cpp
+		PosSaleObject.cpp
+		SubNetBroadcast.cpp
+		WalletPayObject.cpp
+		WalletProxy.cpp)
 
   set(supernode_rpc_headers)
 
-  set(supernode_rpc_private_headers
-    supernode_rpc_server.h)
+  set(supernode_rpc_private_headers)
 
   monero_private_headers(supernode_rpc_server
     ${supernode_rpc_private_headers})
@@ -91,6 +109,7 @@ if (NOT BUILD_GUI_DEPS)
       cryptonote_core
       cncrypto
       common
+			uuid
       ${Boost_CHRONO_LIBRARY}
       ${Boost_PROGRAM_OPTIONS_LIBRARY}
       ${Boost_FILESYSTEM_LIBRARY}
