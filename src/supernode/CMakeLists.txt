@@ -32,95 +32,109 @@
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-set(supernode_sources)
+set(supernode_sources
+    AuthSample.cpp
+    AuthSampleObject.cpp
+    BaseRTAObject.cpp
+    BaseRTAProcessor.cpp
+    DAPI_RPC_Client.cpp
+    DAPI_RPC_Server.cpp
+    FSN_Servant.cpp
+    PosProxy.cpp
+    PosSaleObject.cpp
+    SubNetBroadcast.cpp
+    WalletPayObject.cpp
+    WalletProxy.cpp
+    )
+
 set(supernode_api_headers)
 
 set(supernode_private_headers
-  AuthSample.h
-  AuthSampleObject.h
-	BaseRTAObject.h
-	BaseRTAProcessor.h
-	DAPI_RPC_Client.h
-	DAPI_RPC_Server.h
-	FSN_Servant.h
-	PosProxy.h
-	PosSaleObject.h
-	SubNetBroadcast.h
-	WalletPayObject.h
-	WalletProxy.h
-	supernode_common_struct.h
-	supernode_rpc_command.h)
+    AuthSample.h
+    AuthSampleObject.h
+    BaseRTAObject.h
+    BaseRTAProcessor.h
+    DAPI_RPC_Client.h
+    DAPI_RPC_Server.h
+    FSN_Servant.h
+    PosProxy.h
+    PosSaleObject.h
+    SubNetBroadcast.h
+    WalletPayObject.h
+    WalletProxy.h
+    supernode_common_struct.h
+    supernode_rpc_command.h)
 
 monero_private_headers(supernode
-  ${supernode_private_headers})
+    ${supernode_private_headers})
 monero_add_library(supernode
-  ${supernode_sources}
-  ${supernode_api_headers}
-  ${supernode_private_headers})
+    ${supernode_sources}
+    ${supernode_api_headers}
+    ${supernode_private_headers})
 target_link_libraries(supernode
-  PUBLIC
+    PUBLIC
     common
     cryptonote_core
     mnemonics
     p2p
-		uuid
+    uuid
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${Boost_REGEX_LIBRARY}
-  PRIVATE
+    PRIVATE
     ${EXTRA_LIBRARIES})
 add_dependencies(supernode version)
 
 if (NOT BUILD_GUI_DEPS)
-  set(supernode_rpc_sources
-    main.cpp
-    AuthSample.cpp
-		AuthSampleObject.cpp
-		BaseRTAObject.cpp
-		BaseRTAProcessor.cpp
-		DAPI_RPC_Client.cpp
-		DAPI_RPC_Server.cpp
-		FSN_Servant.cpp
-		PosProxy.cpp
-		PosSaleObject.cpp
-		SubNetBroadcast.cpp
-		WalletPayObject.cpp
-		WalletProxy.cpp)
+    set(supernode_rpc_sources
+        main.cpp
+        AuthSample.cpp
+        AuthSampleObject.cpp
+        BaseRTAObject.cpp
+        BaseRTAProcessor.cpp
+        DAPI_RPC_Client.cpp
+        DAPI_RPC_Server.cpp
+        FSN_Servant.cpp
+        PosProxy.cpp
+        PosSaleObject.cpp
+        SubNetBroadcast.cpp
+        WalletPayObject.cpp
+        WalletProxy.cpp)
 
-  set(supernode_rpc_headers)
+    set(supernode_rpc_headers)
 
-  set(supernode_rpc_private_headers)
+    set(supernode_rpc_private_headers)
 
-  monero_private_headers(supernode_rpc_server
-    ${supernode_rpc_private_headers})
-  monero_add_executable(supernode_rpc_server
-    ${supernode_rpc_sources}
-    ${supernode_rpc_headers}
-    ${supernode_rpc_private_headers})
+    monero_private_headers(supernode_rpc_server
+        ${supernode_rpc_private_headers})
+    monero_add_executable(supernode_rpc_server
+        ${supernode_rpc_sources}
+        ${supernode_rpc_headers}
+        ${supernode_rpc_private_headers})
 
-  target_link_libraries(supernode_rpc_server
-    PRIVATE
-      wallet
-      epee
-      rpc
-      cryptonote_core
-      cncrypto
-      common
-			uuid
-      ${Boost_CHRONO_LIBRARY}
-      ${Boost_PROGRAM_OPTIONS_LIBRARY}
-      ${Boost_FILESYSTEM_LIBRARY}
-      ${Boost_THREAD_LIBRARY}
-      ${CMAKE_THREAD_LIBS_INIT}
-      ${EXTRA_LIBRARIES})
-  add_dependencies(supernode_rpc_server version)
-  set_property(TARGET supernode_rpc_server
-    PROPERTY
-      OUTPUT_NAME "graft-supernode")
-  install(TARGETS supernode_rpc_server DESTINATION bin)
+    target_link_libraries(supernode_rpc_server
+        PRIVATE
+        wallet
+        epee
+        rpc
+        cryptonote_core
+        cncrypto
+        common
+        uuid
+        ${Boost_CHRONO_LIBRARY}
+        ${Boost_PROGRAM_OPTIONS_LIBRARY}
+        ${Boost_FILESYSTEM_LIBRARY}
+        ${Boost_THREAD_LIBRARY}
+        ${CMAKE_THREAD_LIBS_INIT}
+        ${EXTRA_LIBRARIES})
+    add_dependencies(supernode_rpc_server version)
+    set_property(TARGET supernode_rpc_server
+        PROPERTY
+        OUTPUT_NAME "graft-supernode")
+    install(TARGETS supernode_rpc_server DESTINATION bin)
 endif()
 
 
