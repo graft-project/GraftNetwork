@@ -184,13 +184,20 @@ uint64_t FSN_Servant::GetCurrentBlockHeight() const
 
 string FSN_Servant::SignByWalletPrivateKey(const string& str, const string& wallet_addr) const
 {
-    return "";
+    Monero::Wallet * wallet = walletByAddress(wallet_addr);
+    if (!wallet)
+        throw std::runtime_error("Address doesn't belong to any wallet of this supernode: " + wallet_addr);
+
+    return wallet->signMessage(str);
 }
 
-bool FSN_Servant::IsSignValid(const string& str, const FSN_WalletData& wallet) const
+bool FSN_Servant::IsSignValid(const string &message, const string &address, const string &signature) const
 {
-    return false;
+    // verify can be done by any wallet
+    // TODO: make is static in wallet2_api/wallet2;
+    return m_minerWallet->verifySignedMessage(message, address, signature);
 }
+
 
 uint64_t FSN_Servant::GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const
 {
@@ -302,11 +309,24 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
     return wallet;
 }
 
+
+
 FSN_WalletData FSN_Servant::walletData(Wallet *wallet)
 {
     FSN_WalletData result = FSN_WalletData(wallet->address(), wallet->secretViewKey());
     return result;
 }
 
+Wallet *FSN_Servant::walletByAddress(const string &address) const
+{
+    Monero::Wallet * wallet = nullptr;
+    if (address == GetMyMinerWallet().Addr) {
+        wallet = m_minerWallet;
+    } else if (address == GetMyStakeWallet().Addr) {
+        wallet = m_stakeWallet;
+    }
+
+    return wallet;
+}
 
 } // namespace supernode

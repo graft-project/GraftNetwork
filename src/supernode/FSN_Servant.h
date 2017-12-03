@@ -47,8 +47,24 @@ public:
      */
     uint64_t GetCurrentBlockHeight() const;
 
+    /*!
+     * \brief SignByWalletPrivateKey - signs the message with the given wallet address.
+     *                                 is given address is not miner nor stake wallet address,
+     *                                 throws std::runtime error
+     * \param str                    - message
+     * \param wallet_addr            - miner or stake wallet address
+     * \return                       - signature
+     */
     string SignByWalletPrivateKey(const string& str, const string& wallet_addr) const;
-    bool IsSignValid(const string& str, const FSN_WalletData& wallet) const;
+
+    /*!
+     * \brief IsSignValid - checks signature for given message and wallet address
+     * \param message     - message
+     * \param address     - wallet address
+     * \param signature   - signature
+     * \return            - true if signature is valid
+     */
+    bool IsSignValid(const string& message, const string &address, const string &signature) const;
 
     // calc balance from chain begin to block_num
     uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const;
@@ -66,8 +82,8 @@ private:
     bool initBlockchain(const std::string &dbpath, bool testnet);
 
     Monero::Wallet * initWallet(Monero::Wallet *existingWallet, const string &path, const string &password, bool testnet);
-
     static FSN_WalletData walletData(Monero::Wallet * wallet);
+    Monero::Wallet * walletByAddress(const std::string &address) const;
 private:
     // next two fields may be references
     mutable boost::mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
@@ -79,8 +95,8 @@ private:
     cryptonote::Blockchain     * m_bc      = nullptr;
     cryptonote::tx_memory_pool * m_mempool = nullptr;
 
-    Monero::Wallet *m_stakeWallet = nullptr;
-    Monero::Wallet *m_minerWallet = nullptr;
+    mutable Monero::Wallet *m_stakeWallet = nullptr;
+    mutable Monero::Wallet *m_minerWallet = nullptr;
 
 };
 

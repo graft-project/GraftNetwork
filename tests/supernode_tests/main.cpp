@@ -145,6 +145,21 @@ TEST_F(FSNServantTest, SetStakeAndMinerWallets)
     ASSERT_TRUE(fsns->GetMyStakeWallet().ViewKey == "589f8986c57cdfb4dbba870168be4faf883eccbdc838c86e32242a99e740cd01");
 }
 
+TEST_F(FSNServantTest, SignAndVerify)
+{
+    string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
+    fsns->Set(wallet_root_path + "/stake_wallet", "", wallet_root_path + "/miner_wallet", "");
+
+    std::string message = "Hello, Graft";
+    std::string address = "T6TyzMRMpksMftG4twjXyaC1vdoJ4axHg3xxtbWiQ5Ps3soR779vdNF2R7iEhyZ1Uicacfc8X3drQFmtzLZtnPN81TwSDmyun";
+
+    std::string signature = fsns->SignByWalletPrivateKey(message, address);
+
+    ASSERT_TRUE(fsns->IsSignValid(message, address, signature));
+    ASSERT_FALSE(fsns->IsSignValid(message + ".", address, signature));
+}
+
+
 
 int main(int argc, char** argv)
 {
