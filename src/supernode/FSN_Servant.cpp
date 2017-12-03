@@ -35,10 +35,9 @@
 #include <exception>
 
 using namespace cryptonote;
+using namespace Monero;
 
 namespace supernode {
-
-
 
 namespace helpers {
 public_key get_tx_gen_pub_key(const transaction &tx)
@@ -106,22 +105,23 @@ FSN_Servant::FSN_Servant(const FSN_Servant &other)
 }
 
 FSN_Servant::FSN_Servant(const string &bdb_path, const string &daemon_addr, bool testnet)
-    : m_testnet{testnet}
+    : m_testnet{testnet},
+      m_daemonAddr{daemon_addr}
 {
 
     if (!initBlockchain(bdb_path, testnet))
         throw std::runtime_error("Failed to open blockchain");
+
 }
 
 void FSN_Servant::Set(const string& stakeFileName, const string& stakePasswd, const string& minerFileName, const string& minerPasswd)
 {
-    // TODO:
-    // Open stake wallet;
-    // Open miner waller;
+    m_stakeWallet = initWallet(m_stakeWallet, stakeFileName, stakePasswd, m_testnet);
+    m_minerWallet = initWallet(m_minerWallet, minerFileName, minerPasswd, m_testnet);
 }
 
 
-vector< pair<uint64_t, boost::shared_ptr<supernode::FSN_Data> > >
+vector<pair<uint64_t, boost::shared_ptr<supernode::FSN_Data>>>
 FSN_Servant::LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums) const
 {
     vector<pair<uint64_t, boost::shared_ptr<FSN_Data>>> result;
@@ -206,11 +206,18 @@ void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn)
 
 FSN_WalletData FSN_Servant::GetMyStakeWallet() const
 {
-    return FSN_WalletData();
+    if (!m_stakeWallet)
+        throw std::runtime_error("Stake wallet non initialized");
+
+    return walletData(m_stakeWallet);
 }
+
 FSN_WalletData FSN_Servant::GetMyMinerWallet() const
 {
-    return FSN_WalletData();
+    if (!m_minerWallet)
+        throw std::runtime_error("Miner wallet non initialized");
+
+    return walletData(m_minerWallet);
 }
 
 bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &address, const cryptonote::block &block,
@@ -276,6 +283,28 @@ bool FSN_Servant::initBlockchain(const string &dbpath, bool testnet)
     bool result = m_bc->init(m_bdb, testnet);
     CHECK_AND_ASSERT_MES(result, false, "Failed to initialize source blockchain storage");
     LOG_PRINT_L0("Source blockchain storage initialized OK");
+    return result;
+}
+
+Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, const string &password, bool testnet)
+{
+    WalletManager * wmgr = Monero::WalletManagerFactory::getWalletManager();
+
+    if (existingWallet)
+        wmgr->closeWallet(existingWallet);
+    Wallet * wallet = wmgr->openWallet(path, password, testnet);
+    if (!wallet)
+        throw runtime_error(string("error opening wallet: ") + wmgr->errorString());
+
+    if (!wallet->init(m_daemonAddr, 0)) {
+        MERROR("Can't connect to a daemon.");
+    }
+    return wallet;
+}
+
+FSN_WalletData FSN_Servant::walletData(Wallet *wallet)
+{
+    FSN_WalletData result = FSN_WalletData(wallet->address(), wallet->secretViewKey());
     return result;
 }
 

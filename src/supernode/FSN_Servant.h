@@ -3,6 +3,7 @@
 
 #include "supernode_common_struct.h"
 #include <cryptonote_core/cryptonote_core.h>
+#include <wallet/wallet2_api.h>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/lock_guard.hpp>
 
@@ -19,10 +20,6 @@ public:
     FSN_Servant(const string &bdb_path, const string &daemon_addr, bool testnet);
     // data for my wallet access
     void Set(const string& stakeFileName, const string& stakePasswd, const string& minerFileName, const string& minerPasswd);
-
-
-
-
     // start from blockchain top and check, if block solved by one from  full_super_node_servant::all_fsn
     // push block number and full_super_node_data to output vector. stop, when output_vector.size==blockNums OR blockchain ends
     // output_vector.begin - newest block, solved by FSN
@@ -68,15 +65,23 @@ private:
                          const crypto::secret_key &viewkey);
     bool initBlockchain(const std::string &dbpath, bool testnet);
 
+    Monero::Wallet * initWallet(Monero::Wallet *existingWallet, const string &path, const string &password, bool testnet);
+
+    static FSN_WalletData walletData(Monero::Wallet * wallet);
 private:
     // next two fields may be references
     mutable boost::mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
     vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 
     bool                         m_testnet = false;
-    cryptonote::BlockchainDB   * m_bdb = nullptr;
-    cryptonote::Blockchain     * m_bc = nullptr;
+    std::string                  m_daemonAddr;
+    cryptonote::BlockchainDB   * m_bdb     = nullptr;
+    cryptonote::Blockchain     * m_bc      = nullptr;
     cryptonote::tx_memory_pool * m_mempool = nullptr;
+
+    Monero::Wallet *m_stakeWallet = nullptr;
+    Monero::Wallet *m_minerWallet = nullptr;
+
 };
 
 } // namespace supernode

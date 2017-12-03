@@ -42,11 +42,12 @@ add_executable(supernode_tests
   ${supernode_tests_sources}
   ${supernode_tests_headers})
 
+
 target_link_libraries(supernode_tests
-  PRIVATE
-    wallet
+   PRIVATE
     epee
     supernode
+    wallet
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
