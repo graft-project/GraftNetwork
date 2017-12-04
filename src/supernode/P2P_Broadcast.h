@@ -4,7 +4,8 @@
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
 #include <string>
-using namepspace std;
+#include <vector>
+using namespace std;
 
 namespace supernode {
 
@@ -22,7 +23,7 @@ namespace supernode {
 
 		// block until send to neighbors. return false if can't send
 		template<class IN_t>
-		bool Send( const string& method, const IN_t& data ) {}
+		bool Send( const string& method, const IN_t& data ) { return false; }
 
 
 

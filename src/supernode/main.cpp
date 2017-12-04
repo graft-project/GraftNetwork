@@ -9,6 +9,7 @@
 #include "PosProxy.h"
 #include "WalletProxy.h"
 #include "AuthSample.h"
+#include "P2P_Broadcast.h"
 using namespace std;
 
 
@@ -27,6 +28,36 @@ int main(int argc, char** argv) {
 
 
 	// TODO: Init all monero staff here
+
+	// init p2p
+	const boost::property_tree::ptree& p2p_conf = config.get_child("p2p");
+	vector< pair<string, string> > p2p_seeds;
+
+    {// for test only
+    	string ipp = p2p_conf.get<string>("seeds");
+
+    	typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
+    	boost::char_separator<char> sep1(",");
+    	boost::char_separator<char> sep2(":");
+    	tokenizer tokens(ipp, sep1);
+    	for(auto i=tokens.begin();i!=tokens.end();i++) {
+    		string ss = *i;
+
+    		tokenizer tok2(ss, sep2);
+    		auto aa = tok2.begin();
+    		pair<string, string> pp;
+    		pp.first = *aa;
+    		aa++;
+    		pp.second = *aa;
+    		p2p_seeds.push_back( pp );
+    	}
+
+    }
+
+
+	supernode::P2P_Broadcast broadcast;
+	broadcast.Set( p2p_conf.get<string>("ip"), p2p_conf.get<string>("port"), p2p_conf.get<int>("threads"), p2p_seeds );
+	broadcast.Start();
 
 
 	// Init super node objects
