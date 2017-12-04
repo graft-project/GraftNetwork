@@ -14,13 +14,29 @@ namespace supernode {
 
 	// ------------------------------------------
 	struct FSN_WalletData {
-		string Addr;
+        FSN_WalletData() = default;
+        FSN_WalletData(const FSN_WalletData &other) = default;
+        FSN_WalletData(const std::string &_addr, const std::string &_viewkey)
+            : Addr{_addr}
+            , ViewKey{_viewkey} {}
+
+
+
+        string Addr;
 		string ViewKey;
 	};
 
 
 	// ------------------------------------------
 	struct FSN_Data {
+        FSN_Data(const FSN_WalletData &_stakeWallet, const FSN_WalletData &_minerWallet,
+                 const std::string &_ip = "", const std::string &_port = "")
+            : Stake{_stakeWallet}
+            , Miner{_minerWallet}
+            , IP{_ip}
+            , Port{_port} {}
+
+
 		FSN_WalletData Stake;
 		FSN_WalletData Miner;
 		string IP;
