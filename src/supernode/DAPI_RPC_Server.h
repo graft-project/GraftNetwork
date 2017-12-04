@@ -7,7 +7,8 @@
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include "net/http_server_impl_base.h"
-
+#include <string>
+using namespace std;
 
 namespace supernode {
 
