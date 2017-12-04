@@ -26,6 +26,7 @@ vector<string> StrTok(const string& str, const string& sep) {
 };
 
 
+
 int main(int argc, char** argv) {
 	mlog_configure("", true);
 	mlog_set_log_level(5);

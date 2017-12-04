@@ -7,6 +7,7 @@ void supernode::WalletProxy::Init() {
 
 
 bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out) {
+	LOG_PRINT_L5("PAY: ");
 	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
 	Setup(data);
 	if( !data->Init(in) ) return false;
