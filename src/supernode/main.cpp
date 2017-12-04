@@ -12,6 +12,18 @@
 #include "P2P_Broadcast.h"
 using namespace std;
 
+namespace supernode {
+namespace helpers {
+vector<string> StrTok(const string& str, const string& sep) {
+	vector<string> ret;
+	typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
+	boost::char_separator<char> sep1(sep.c_str());
+	tokenizer tokens(str, sep1);
+	for(auto i=tokens.begin();i!=tokens.end();i++) ret.push_back( *i );
+	return ret;
+}
+};
+};
 
 
 int main(int argc, char** argv) {
@@ -34,24 +46,11 @@ int main(int argc, char** argv) {
 	vector< pair<string, string> > p2p_seeds;
 
     {// for test only
-    	string ipp = p2p_conf.get<string>("seeds");
-
-    	typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
-    	boost::char_separator<char> sep1(",");
-    	boost::char_separator<char> sep2(":");
-    	tokenizer tokens(ipp, sep1);
-    	for(auto i=tokens.begin();i!=tokens.end();i++) {
-    		string ss = *i;
-
-    		tokenizer tok2(ss, sep2);
-    		auto aa = tok2.begin();
-    		pair<string, string> pp;
-    		pp.first = *aa;
-    		aa++;
-    		pp.second = *aa;
-    		p2p_seeds.push_back( pp );
+    	vector<string> ipps = supernode::helpers::StrTok( p2p_conf.get<string>("seeds"), "," );
+    	for(auto ipp : ipps ) {
+    		vector<string> vv = supernode::helpers::StrTok( ipp, ":" );
+    		p2p_seeds.push_back( make_pair(vv[0], vv[1]) );
     	}
-
     }
 
 
@@ -79,12 +78,20 @@ int main(int argc, char** argv) {
 		objs[i]->Start();
 	}
 
-	dapi_server.Start();
+	dapi_server.Start();// block execution
+
+
+	// -----------------------------------------------------------------
+
+
+
+	broadcast.Stop();// because handlers not deleted, so stop first, then delete objects
 
 	for(unsigned i=0;i<objs.size();i++) {
 		objs[i]->Stop();
 		delete objs[i];
 	}
+
 
 
 	return 0;

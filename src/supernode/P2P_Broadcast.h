@@ -16,6 +16,8 @@ namespace supernode {
 		// seeds - neighbors from config, ip, port
 		void Set(const string& ip, const string& port, int threadsNum, const vector< pair<string, string> >& seeds );
 		void Start();// start accept connection, NOT blocked call
+		void Stop();//stop all worker threads and wait for it's end (join)
+
 
 		// if we can;t use method as string and need to use int, so create class enum p2p_command : int {} in
 		template<class IN_t>
