@@ -3,7 +3,7 @@
 bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	BaseRTAObject::Init(src);
 
-	TransactionRecord.BlockNum = m_Servant->GetCurrentBlockNum();
+	TransactionRecord.BlockNum = m_Servant->GetCurrentBlockHeight();
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
 
 	InitSubnet();
