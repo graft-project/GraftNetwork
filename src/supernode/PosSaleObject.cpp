@@ -7,7 +7,7 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
 
 	InitSubnet();
-	if( !BroadcastRecord("PosProxySale") ) return false;
+	if( !BroadcastRecord(dapi_call::PosProxySale) ) return false;
 
 	// TODO: add all other handlers for this sale request
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);

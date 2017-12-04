@@ -4,7 +4,8 @@
 #include "supernode_common_struct.h"
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
-
+#include <string>
+using namespace std;
 
 namespace supernode {
 

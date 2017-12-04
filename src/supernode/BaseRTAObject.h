@@ -6,6 +6,8 @@
 #include "DAPI_RPC_Server.h"
 #include "FSN_Servant.h"
 #include "DAPI_RPC_Client.h"
+#include <string>
+using namespace std;
 
 namespace supernode {
 
@@ -27,7 +29,7 @@ namespace supernode {
 			DAPI_RPC_Client call;
 			call.Set(ip, port);
 			uuid_copy(req.PaymentID, TransactionRecord.PaymentID);
-			return call.Invoke_HTTP_JSON(method, req, resp);
+			return call.Invoke(method, req, resp);
 		}
 
 		bool CheckSign(const string& wallet, const string& sign);

@@ -4,6 +4,8 @@
 #include "supernode_common_struct.h"
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/lock_guard.hpp>
+#include <string>
+using namespace std;
 
 namespace supernode {
 

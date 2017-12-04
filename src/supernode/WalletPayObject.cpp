@@ -7,13 +7,13 @@ bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
 
 	InitSubnet();
-	if( !BroadcastRecord("WalletProxyPay") ) return false;
+	if( !BroadcastRecord( dapi_call::WalletProxyPay ) ) return false;
 
 	auto dd = TransactionRecord.AuthNodes[ rand()*TransactionRecord.AuthNodes.size()/RAND_MAX ];
 	rpc_command::WALLET_GET_POS_DATA::request req;
 	rpc_command::WALLET_GET_POS_DATA::response resp;
 
-	if( !SendDAPICall(dd->IP, dd->Port, "WalletGetPosData", req, resp) ) return false;
+	if( !SendDAPICall(dd->IP, dd->Port, dapi_call::WalletGetPosData, req, resp) ) return false;
 	TransactionRecord.DataForClientWallet = resp.DataForClientWallet;
 
 	// TODO: add all other handlers for this sale request
@@ -43,7 +43,7 @@ bool supernode::WalletPayObject::WalletTRSigned(const rpc_command::WALLET_TR_SIG
 		req.Signs.push_back( a.Sign );
 	}
 
-	if( !m_SubNetBroadcast.Send("WalletPutTxInPool", req) ) return false;
+	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req) ) return false;
 
 	// TODO: set status to SUCCESS
 

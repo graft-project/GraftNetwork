@@ -51,7 +51,9 @@
 
 #include "easylogging++.h"
 
+#ifndef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "default"
+#endif
 
 #define MCFATAL(cat,x) CLOG(FATAL,cat) << x
 #define MCERROR(cat,x) CLOG(ERROR,cat) << x

@@ -19,7 +19,7 @@ bool supernode::AuthSampleObject::WalletProxyPay(const RTA_TransactionRecord& sr
 	rpc_command::WALLET_TR_SIGNED::response resp;
 	req.Sign = GenerateSignForWallet();
 	req.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
-	if( !SendDAPICall(WalletIP, WalletPort, "WalletTRSigned", req, resp) ) return false;
+	if( !SendDAPICall(WalletIP, WalletPort, dapi_call::WalletTRSigned, req, resp) ) return false;
 
 	return true;
 }
@@ -33,7 +33,7 @@ bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PU
 	rpc_command::POS_TR_SIGNED::response resp;
 	req.Sign = GenerateSignForPos();
 	req.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
-	if( !SendDAPICall(PosIP, PosPort, "PoSTRSigned", req, resp) ) return false;
+	if( !SendDAPICall(PosIP, PosPort, dapi_call::PoSTRSigned, req, resp) ) return false;
 
 
 	return true;
