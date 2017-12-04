@@ -1131,14 +1131,20 @@ TEST_F(WalletManagerMainnetTest, RecoverAndRefreshWalletMainNetAsync)
 
 }
 
+TEST_F(WalletTest2, EmissionPrint)
+{
+    std::cout << "MONEY_SUPPLY: " << Monero::Wallet::displayAmount(MONEY_SUPPLY) << std::endl;
+    std::cout << "COIN: " << Monero::Wallet::displayAmount(COIN) << std::endl;
+    std::cout << "MAX_MONEY: " << Monero::Wallet::displayAmount(std::numeric_limits<uint64_t>::max()) << std::endl;
+}
 
 
 int main(int argc, char** argv)
 {
     // we can override default values for "TESTNET_DAEMON_ADDRESS" and "WALLETS_ROOT_DIR"
 
-    std::cout << "*** libwallet_api_tests currently DISABLED ***" << std::endl;
-    return 0;
+    // std::cout << "*** libwallet_api_tests currently DISABLED ***" << std::endl;
+    // return 0;
 
     const char * testnet_daemon_addr = std::getenv("TESTNET_DAEMON_ADDRESS");
     if (testnet_daemon_addr) {
