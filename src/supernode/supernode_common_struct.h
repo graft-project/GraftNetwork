@@ -14,6 +14,7 @@ using namespace std;
 
 namespace supernode {
 
+
 	// ------------------------------------------
 	struct FSN_WalletData {
         FSN_WalletData() = default;

@@ -5,6 +5,8 @@
 
 
 namespace supernode {
+	class FSN_Servant;
+
 	namespace dapi_call {
 		extern const string Pay;
 		extern const string GetPayStatus;
@@ -33,18 +35,26 @@ namespace supernode {
 
 			bool Fail;
 		};
-		struct RTA_TRANSACTION_OBJECT : public RTA_TransactionRecordBase {
-			BEGIN_KV_SERIALIZE_MAP()
-				KV_SERIALIZE(SenderIP)
-				KV_SERIALIZE(SenderPort)
-				KV_SERIALIZE(PayToWallet)
-			END_KV_SERIALIZE_MAP()
+		struct RTA_TRANSACTION_OBJECT {
+			struct request : public RTA_TransactionRecordBase {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(SenderIP)
+					KV_SERIALIZE(SenderPort)
+					KV_SERIALIZE(PayToWallet)
+					END_KV_SERIALIZE_MAP()
 
-			vector<FSN_Data> Nodes;
-			//for DAPI callback
-			string SenderIP;
-			string SenderPort;
-			string PayToWallet;
+					vector<FSN_Data> Nodes;
+				//for DAPI callback
+				string SenderIP;
+				string SenderPort;
+				string PayToWallet;
+			};
+
+			struct response {
+				BEGIN_KV_SERIALIZE_MAP()
+				END_KV_SERIALIZE_MAP()
+			};
+
 		};
 
 
@@ -179,6 +189,9 @@ namespace supernode {
 		};
 
 
+		void ConvertFromTR(RTA_TRANSACTION_OBJECT::request& dst, const RTA_TransactionRecord& src);
+
+		bool ConvertToTR(RTA_TransactionRecord& dst, const RTA_TRANSACTION_OBJECT::request& src, const FSN_Servant* servant);
 
 
 	};

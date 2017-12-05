@@ -5,6 +5,7 @@ bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 
 	// we allready have block num
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
+	if( TransactionRecord.AuthNodes.empty() ) return false;
 
 	InitSubnet();
 	if( !BroadcastRecord( dapi_call::WalletProxyPay ) ) return false;
@@ -32,7 +33,7 @@ bool supernode::WalletPayObject::WalletTRSigned(const rpc_command::WALLET_TR_SIG
 	if( !CheckSign(in.FSN_StakeWalletAddr, in.Sign) ) return false;
 
 	m_Signs.push_back(in);
-	if( m_Signs.size()!=FSN_Servant::FSN_PerAuthSample ) return true;// not all signs gotted
+	if( m_Signs.size()!=m_Servant->AuthSampleSize() ) return true;// not all signs gotted
 
 	if( !PutTXToPool() ) return false;
 
@@ -43,7 +44,9 @@ bool supernode::WalletPayObject::WalletTRSigned(const rpc_command::WALLET_TR_SIG
 		req.Signs.push_back( a.Sign );
 	}
 
-	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req) ) return false;
+	vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
+
+	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
 
 	// TODO: set status to SUCCESS
 

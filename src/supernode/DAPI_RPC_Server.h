@@ -68,7 +68,7 @@ namespace supernode {
 		}
 
 		#define ADD_DAPI_HANDLER(method, data, class_owner) AddHandler<data::request, data::response>( #method, bind( &class_owner::method, this, _1, _2) );
-		#define ADD_SUBNET_BROADCAST_HANDLER(method, data, class_owner) AddHandler<data, rpc_command::SUB_NET_BROADCAST_RESPONCE>( dapi_call::method, bind( &class_owner::method, this, _1, _2) );
+//		#define ADD_SUBNET_BROADCAST_HANDLER(method, data, class_owner) AddHandler<data, rpc_command::SUB_NET_BROADCAST_RESPONCE>( dapi_call::method, bind( &class_owner::method, this, _1, _2) );
 
 		// IN must be child from sub_net_data
 		// income message filtered by payment_id and method
@@ -83,7 +83,7 @@ namespace supernode {
 
 		#define ADD_DAPI_GLOBAL_METHOD_HANDLER(payid, method, data, class_owner) Add_UUID_MethodHandler<data::request, data::response>( payid, dapi_call::method, bind( &class_owner::method, this, _1, _2) );
 
-		void RemoveHandler(int idx);// TODO: select handler identifyer and put it to call
+		void RemoveHandler(int idx);
 
 
 		protected:

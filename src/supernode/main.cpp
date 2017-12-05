@@ -26,7 +26,7 @@ vector<string> StrTok(const string& str, const string& sep) {
 };
 };
 
-
+/*
 class TestDAPI_Server_And_Client {
 	public:
 	struct TEST_RPC_CALL {
@@ -123,20 +123,17 @@ class TestDAPI_Server_And_Client {
 
 
 };
-
+*/
 
 int main(int argc, char** argv) {
 	mlog_configure("", true);
 	mlog_set_log_level(5);
 
-
+/*
 	TestDAPI_Server_And_Client tt1;
 	tt1.Test();
-
-
-
-
 	return 0;
+*/
 
 	string conf_file("conf.ini");
 	if(argc>1) conf_file = argv[1];

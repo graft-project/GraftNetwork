@@ -1,7 +1,7 @@
 #ifndef FSN_SERVANT_H_
 #define FSN_SERVANT_H_
 
-#include "supernode_common_struct.h"
+#include "FSN_ServantBase.h"
 #include <cryptonote_core/cryptonote_core.h>
 #include <wallet/wallet2_api.h>
 #include <boost/thread/mutex.hpp>
@@ -11,7 +11,7 @@ using namespace std;
 
 namespace supernode {
 
-class FSN_Servant
+class FSN_Servant : public FSN_ServantBase
 {
 public:
 
@@ -39,15 +39,15 @@ public:
      * \return
      */
     vector<pair<uint64_t, boost::shared_ptr<FSN_Data>>>
-    LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums) const;
+    LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums) const override;
 
     // start scan blockchain from forBlockNum, scan from top to bottom
-    vector<boost::shared_ptr<FSN_Data>> GetAuthSample(uint64_t forBlockNum) const;
+    vector<boost::shared_ptr<FSN_Data>> GetAuthSample(uint64_t forBlockNum) const  override;
     /*!
      * \brief GetCurrentBlockNum - returns current blockchain height
      * \return
      */
-    uint64_t GetCurrentBlockHeight() const;
+    uint64_t GetCurrentBlockHeight() const  override;
 
     /*!
      * \brief SignByWalletPrivateKey - signs the message with the given wallet address.
@@ -57,7 +57,7 @@ public:
      * \param wallet_addr            - miner or stake wallet address
      * \return                       - signature
      */
-    string SignByWalletPrivateKey(const string& str, const string& wallet_addr) const;
+    string SignByWalletPrivateKey(const string& str, const string& wallet_addr) const  override;
 
     /*!
      * \brief IsSignValid - checks signature for given message and wallet address
@@ -66,17 +66,18 @@ public:
      * \param signature   - signature
      * \return            - true if signature is valid
      */
-    bool IsSignValid(const string& message, const string &address, const string &signature) const;
+    bool IsSignValid(const string& message, const string &address, const string &signature) const  override;
 
     // calc balance from chain begin to block_num
-    uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const;
+    uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const  override;
 
     void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn);
 
 public:
-    FSN_WalletData GetMyStakeWallet() const;
-    FSN_WalletData GetMyMinerWallet() const;
-    static const unsigned FSN_PerAuthSample = 8;
+    FSN_WalletData GetMyStakeWallet() const  override;
+    FSN_WalletData GetMyMinerWallet() const  override;
+    int AuthSampleSize() const override;
+
 
 private:
     static bool proofCoinbaseTx(const cryptonote::account_public_address &address, const cryptonote::block &block,

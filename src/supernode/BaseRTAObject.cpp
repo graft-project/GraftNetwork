@@ -20,7 +20,10 @@ void supernode::BaseRTAObject::InitSubnet() {
 }
 
 bool supernode::BaseRTAObject::BroadcastRecord(const string& call) {
-	return m_SubNetBroadcast.Send(call, TransactionRecord);
+	rpc_command::RTA_TRANSACTION_OBJECT::request in;
+	rpc_command::ConvertFromTR(in, TransactionRecord);
+	vector<rpc_command::RTA_TRANSACTION_OBJECT::response> out;
+	return m_SubNetBroadcast.Send(call, in, out);
 }
 
 bool supernode::BaseRTAObject::CheckSign(const string& wallet, const string& sign) {

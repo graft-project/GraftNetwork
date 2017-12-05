@@ -62,7 +62,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     }
 
     if(!handler) return false;
-    handler->Process(ps, response_info.m_body);
+    if( !handler->Process(ps, response_info.m_body) ) return false;
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
@@ -87,5 +87,11 @@ int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h) {
 	return idx;
 }
 
-
+void supernode::DAPI_RPC_Server::RemoveHandler(int idx) {
+	boost::lock_guard<boost::mutex> lock(m_Handlers_Guard);
+	for(unsigned i=0;i<m_vHandlers.size();i++) if( m_vHandlers[i].Idx==idx ) {
+		m_vHandlers.erase( m_vHandlers.begin()+i );
+		break;
+	}
+}
 
