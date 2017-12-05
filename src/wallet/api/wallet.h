@@ -87,7 +87,7 @@ public:
     void setTrustedDaemon(bool arg);
     bool trustedDaemon() const;
     uint64_t balance() const;
-    uint64_t unlockedBalance() const;
+    uint64_t unlockedBalance(uint64_t till_block = 0) const;
     uint64_t blockChainHeight() const;
     uint64_t approximateBlockChainHeight() const;
     uint64_t daemonBlockChainHeight() const;
@@ -98,7 +98,7 @@ public:
     void setAutoRefreshInterval(int millis);
     int autoRefreshInterval() const;
     void setRefreshFromBlockHeight(uint64_t refresh_from_block_height);
-    uint64_t getRefreshFromBlockHeight() const { return m_wallet->get_refresh_from_block_height(); };
+    uint64_t getRefreshFromBlockHeight() const { return m_wallet->get_refresh_from_block_height(); }
     void setRecoveringFromSeed(bool recoveringFromSeed);
     bool watchOnly() const;
     bool rescanSpent();
