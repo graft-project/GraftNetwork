@@ -17,7 +17,7 @@ public:
     FSN_Servant();
     FSN_Servant(const FSN_Servant &other);
 
-    FSN_Servant(const string &bdb_path, const string &daemon_addr, bool testnet);
+    FSN_Servant(const string &bdb_path, const string &daemon_addr, const string &fsn_wallets_dir, bool testnet = false);
     // data for my wallet access
     void Set(const string& stakeFileName, const string& stakePasswd, const string& minerFileName, const string& minerPasswd);
     // start from blockchain top and check, if block solved by one from  full_super_node_servant::all_fsn
@@ -91,6 +91,8 @@ private:
 
     bool                         m_testnet = false;
     std::string                  m_daemonAddr;
+    // directory where view-only wallets for other FSNs will be stored
+    std::string                  m_fsnWalletsDir;
     cryptonote::BlockchainDB   * m_bdb     = nullptr;
     cryptonote::Blockchain     * m_bc      = nullptr;
     cryptonote::tx_memory_pool * m_mempool = nullptr;
