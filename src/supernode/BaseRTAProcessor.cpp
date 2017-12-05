@@ -6,7 +6,7 @@ supernode::BaseRTAProcessor::~BaseRTAProcessor() {}
 void supernode::BaseRTAProcessor::Start() {}
 void supernode::BaseRTAProcessor::Stop() {}
 
-void supernode::BaseRTAProcessor::Set(const FSN_Servant* ser, DAPI_RPC_Server* dapi) {
+void supernode::BaseRTAProcessor::Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi) {
 	m_Servant = ser;
 	m_DAPIServer = dapi;
 	Init();
@@ -21,7 +21,7 @@ void supernode::BaseRTAProcessor::Setup(boost::shared_ptr<BaseRTAObject> obj) {
 	obj->Set(m_Servant, m_DAPIServer);
 }
 
-boost::shared_ptr<supernode::BaseRTAObject> supernode::BaseRTAProcessor::ObjectByPayment(const uuid_t payment_id) {
+boost::shared_ptr<supernode::BaseRTAObject> supernode::BaseRTAProcessor::ObjectByPayment(const string& payment_id) {
 	boost::shared_ptr<BaseRTAObject> ret;
 	{
 		boost::lock_guard<boost::mutex> lock(m_ObjectsGuard);

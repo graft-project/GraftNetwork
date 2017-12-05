@@ -5,15 +5,16 @@ bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 
 	// we allready have block num
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
+	if( TransactionRecord.AuthNodes.empty() ) return false;
 
 	InitSubnet();
-	if( !BroadcastRecord("WalletProxyPay") ) return false;
+	if( !BroadcastRecord( dapi_call::WalletProxyPay ) ) return false;
 
 	auto dd = TransactionRecord.AuthNodes[ rand()*TransactionRecord.AuthNodes.size()/RAND_MAX ];
 	rpc_command::WALLET_GET_POS_DATA::request req;
 	rpc_command::WALLET_GET_POS_DATA::response resp;
 
-	if( !SendDAPICall(dd->IP, dd->Port, "WalletGetPosData", req, resp) ) return false;
+	if( !SendDAPICall(dd->IP, dd->Port, dapi_call::WalletGetPosData, req, resp) ) return false;
 	TransactionRecord.DataForClientWallet = resp.DataForClientWallet;
 
 	// TODO: add all other handlers for this sale request
@@ -32,18 +33,20 @@ bool supernode::WalletPayObject::WalletTRSigned(const rpc_command::WALLET_TR_SIG
 	if( !CheckSign(in.FSN_StakeWalletAddr, in.Sign) ) return false;
 
 	m_Signs.push_back(in);
-	if( m_Signs.size()!=FSN_Servant::FSN_PerAuthSample ) return true;// not all signs gotted
+	if( m_Signs.size()!=m_Servant->AuthSampleSize() ) return true;// not all signs gotted
 
 	if( !PutTXToPool() ) return false;
 
 	rpc_command::WALLET_PUT_TX_IN_POOL::request req;
-	uuid_copy(req.PaymentID, TransactionRecord.PaymentID);
+	req.PaymentID = TransactionRecord.PaymentID;
 	for(auto& a : m_Signs) {
 		req.FSN_Wallets.push_back( a.FSN_StakeWalletAddr );
 		req.Signs.push_back( a.Sign );
 	}
 
-	if( !m_SubNetBroadcast.Send("WalletPutTxInPool", req) ) return false;
+	vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
+
+	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
 
 	// TODO: set status to SUCCESS
 

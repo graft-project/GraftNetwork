@@ -4,8 +4,10 @@
 #include "supernode_rpc_command.h"
 #include "SubNetBroadcast.h"
 #include "DAPI_RPC_Server.h"
-#include "FSN_Servant.h"
+#include "FSN_ServantBase.h"
 #include "DAPI_RPC_Client.h"
+#include <string>
+using namespace std;
 
 namespace supernode {
 
@@ -15,7 +17,7 @@ namespace supernode {
 
 		public:
 		virtual bool Init(const RTA_TransactionRecordBase& src);
-		virtual void Set(const FSN_Servant* ser, DAPI_RPC_Server* dapi);
+		virtual void Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi);
 		virtual ~BaseRTAObject();
 
 		protected:
@@ -26,15 +28,15 @@ namespace supernode {
 		bool SendDAPICall(const string& ip, const string& port, const string& method, IN_t& req, OUT_t& resp) {
 			DAPI_RPC_Client call;
 			call.Set(ip, port);
-			uuid_copy(req.PaymentID, TransactionRecord.PaymentID);
-			return call.Invoke_HTTP_JSON(method, req, resp);
+			req.PaymentID = TransactionRecord.PaymentID;
+			return call.Invoke(method, req, resp);
 		}
 
 		bool CheckSign(const string& wallet, const string& sign);
 
 		protected:
 		SubNetBroadcast m_SubNetBroadcast;
-		const FSN_Servant* m_Servant = nullptr;
+		const FSN_ServantBase* m_Servant = nullptr;
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
 
 	};

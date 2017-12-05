@@ -5,9 +5,10 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 
 	TransactionRecord.BlockNum = m_Servant->GetCurrentBlockHeight();
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
+	if( TransactionRecord.AuthNodes.empty() ) return false;
 
 	InitSubnet();
-	if( !BroadcastRecord("PosProxySale") ) return false;
+	if( !BroadcastRecord(dapi_call::PosProxySale) ) return false;
 
 	// TODO: add all other handlers for this sale request
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
@@ -25,7 +26,7 @@ bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STA
 bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out) {
 	if( !CheckSign(in.FSN_StakeWalletAddr, in.Sign) ) return false;
 	m_Signs++;
-	if( m_Signs!=FSN_Servant::FSN_PerAuthSample ) return true;// not all signs gotted
+	if( m_Signs!=m_Servant->AuthSampleSize() ) return true;// not all signs gotted
 
 	// TODO: set transaction state to OK
 	return true;

@@ -1,16 +1,19 @@
 #ifndef SUPERNODE_COMMON_STRUCT_H_
 #define SUPERNODE_COMMON_STRUCT_H_
 
-#include <uuid/uuid.h>
 #include <boost/shared_ptr.hpp>
 #include <string>
 #include <vector>
 #include <inttypes.h>
+#include "cryptonote_protocol/cryptonote_protocol_defs.h"
+#include "cryptonote_basic/cryptonote_basic.h"
+#include "crypto/hash.h"
 using namespace std;
 
 #define LOG_PRINT_L5(xx) { cout<<xx<<endl; }
 
 namespace supernode {
+
 
 	// ------------------------------------------
 	struct FSN_WalletData {
@@ -46,7 +49,11 @@ namespace supernode {
 
 	// ------------------------------------------
 	struct SubNetData {
-		uuid_t PaymentID;
+		BEGIN_KV_SERIALIZE_MAP()
+			KV_SERIALIZE(PaymentID)
+		END_KV_SERIALIZE_MAP()
+
+		string PaymentID;
 	};
 
 

@@ -15,9 +15,8 @@ namespace supernode {
 		protected:
 		void Init() override;
 
-		bool PosProxySale(const rpc_command::RTA_TRANSACTION_OBJECT& in, rpc_command::SUB_NET_BROADCAST_RESPONCE& out);
-		bool WalletProxyPay(const rpc_command::RTA_TRANSACTION_OBJECT& in, rpc_command::SUB_NET_BROADCAST_RESPONCE& out);
-		bool Convert(RTA_TransactionRecord& tr, const rpc_command::RTA_TRANSACTION_OBJECT& in);
+		bool PosProxySale(const rpc_command::RTA_TRANSACTION_OBJECT::request& in, rpc_command::RTA_TRANSACTION_OBJECT::response& out);
+		bool WalletProxyPay(const rpc_command::RTA_TRANSACTION_OBJECT::request& in, rpc_command::RTA_TRANSACTION_OBJECT::response& out);
 		bool Check(RTA_TransactionRecord& tr);
 		void RemoveRecord(boost::shared_ptr<AuthSampleObject> record);
 

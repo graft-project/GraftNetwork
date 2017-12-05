@@ -2,16 +2,16 @@
 
 
 void supernode::AuthSample::Init()  {
-	m_DAPIServer->ADD_SUBNET_BROADCAST_HANDLER(PosProxySale, rpc_command::RTA_TRANSACTION_OBJECT, AuthSample);
-	m_DAPIServer->ADD_SUBNET_BROADCAST_HANDLER(WalletProxyPay, rpc_command::RTA_TRANSACTION_OBJECT, AuthSample);
+	m_DAPIServer->ADD_DAPI_HANDLER(PosProxySale, rpc_command::RTA_TRANSACTION_OBJECT, AuthSample);
+	m_DAPIServer->ADD_DAPI_HANDLER(WalletProxyPay, rpc_command::RTA_TRANSACTION_OBJECT, AuthSample);
 }
 
 
-bool supernode::AuthSample::PosProxySale(const rpc_command::RTA_TRANSACTION_OBJECT& in, rpc_command::SUB_NET_BROADCAST_RESPONCE& out) {
-	out.Fail = true;
+bool supernode::AuthSample::PosProxySale(const rpc_command::RTA_TRANSACTION_OBJECT::request& in, rpc_command::RTA_TRANSACTION_OBJECT::response& out) {
+//	out.Fail = true;
 
 	RTA_TransactionRecord tr;
-	if( !Convert(tr, in) ) return false;
+	if( !rpc_command::ConvertToTR(tr, in, m_Servant) ) return false;
 	if( !Check(tr) ) return false;
 
 	boost::shared_ptr<AuthSampleObject> data = boost::shared_ptr<AuthSampleObject>( new AuthSampleObject() );
@@ -25,12 +25,12 @@ bool supernode::AuthSample::PosProxySale(const rpc_command::RTA_TRANSACTION_OBJE
 	Add(data);
 
 
-	out.Fail = false;
+//	out.Fail = false;
 	return true;
 }
 
-bool supernode::AuthSample::WalletProxyPay(const rpc_command::RTA_TRANSACTION_OBJECT& in, rpc_command::SUB_NET_BROADCAST_RESPONCE& out) {
-	out.Fail = true;
+bool supernode::AuthSample::WalletProxyPay(const rpc_command::RTA_TRANSACTION_OBJECT::request& in, rpc_command::RTA_TRANSACTION_OBJECT::response& out) {
+//	out.Fail = true;
 
 	boost::shared_ptr<BaseRTAObject> ff = ObjectByPayment(in.PaymentID);
 	boost::shared_ptr<AuthSampleObject> data = boost::dynamic_pointer_cast<AuthSampleObject>(ff);
@@ -42,26 +42,36 @@ bool supernode::AuthSample::WalletProxyPay(const rpc_command::RTA_TRANSACTION_OB
 	data->WalletPort = in.SenderPort;
 
 	RTA_TransactionRecord tr;
-	if( !Convert(tr, in) ) { RemoveRecord(data); return false; }
+	if( !rpc_command::ConvertToTR(tr, in, m_Servant) ) { RemoveRecord(data); return false; }
 
 	if( !data->WalletProxyPay(tr) ) { RemoveRecord(data); return false; }
 
 
-	out.Fail = false;
+//	out.Fail = false;
 	return true;
 }
 
-bool supernode::AuthSample::Convert(RTA_TransactionRecord& tr, const rpc_command::RTA_TRANSACTION_OBJECT& in) {
-	// TODO: IMPL
-	return true;
-}
 
 bool supernode::AuthSample::Check(RTA_TransactionRecord& tr) {
 	// TODO: IMPL check sample selection if ok for givved block number
 	return true;
 }
 
+
+
 void supernode::AuthSample::RemoveRecord(boost::shared_ptr<AuthSampleObject> record) {}
+
+
+
+void supernode::rpc_command::ConvertFromTR(RTA_TRANSACTION_OBJECT::request& dst, const RTA_TransactionRecord& src) {}
+
+bool supernode::rpc_command::ConvertToTR(RTA_TransactionRecord& dst, const RTA_TRANSACTION_OBJECT::request& src, const FSN_ServantBase* servant) {
+	return true;
+}
+
+
+
+
 
 
 
