@@ -37,7 +37,7 @@ bool supernode::WalletPayObject::WalletTRSigned(const rpc_command::WALLET_TR_SIG
 	if( !PutTXToPool() ) return false;
 
 	rpc_command::WALLET_PUT_TX_IN_POOL::request req;
-	uuid_copy(req.PaymentID, TransactionRecord.PaymentID);
+	req.PaymentID = TransactionRecord.PaymentID;
 	for(auto& a : m_Signs) {
 		req.FSN_Wallets.push_back( a.FSN_StakeWalletAddr );
 		req.Signs.push_back( a.Sign );

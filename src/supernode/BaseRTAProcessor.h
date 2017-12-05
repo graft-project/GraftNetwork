@@ -17,7 +17,7 @@ namespace supernode {
 		protected:
 		void Add(boost::shared_ptr<BaseRTAObject> obj);
 		void Setup(boost::shared_ptr<BaseRTAObject> obj);
-		boost::shared_ptr<BaseRTAObject> ObjectByPayment(const uuid_t payment_id);
+		boost::shared_ptr<BaseRTAObject> ObjectByPayment(const string& payment_id);
 
 		virtual void Init()=0;
 

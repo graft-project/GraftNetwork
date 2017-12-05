@@ -8,7 +8,6 @@
 #include <boost/program_options/variables_map.hpp>
 #include "net/http_server_impl_base.h"
 #include <string>
-#include <uuid/uuid.h>
 using namespace std;
 
 namespace supernode {
@@ -19,7 +18,8 @@ namespace supernode {
 
 		public:
 		void Set(const string& ip, const string& port, int numThreads);
-		void Start();
+		void Start();//block
+		void Stop();
 
 		protected:
 		class SCallHandler {
@@ -73,13 +73,11 @@ namespace supernode {
 		// IN must be child from sub_net_data
 		// income message filtered by payment_id and method
 		template<class IN_t, class OUT_t>
-		int Add_UUID_MethodHandler( uuid_t paymentid, const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
+		int Add_UUID_MethodHandler( string paymentid, const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
 			SHandlerData hh;
 			hh.Handler = new STemplateHandler<IN_t, OUT_t>(handler);
 			hh.Name = method;
-			char uuid_str[37];
-			uuid_unparse_lower(paymentid, uuid_str);
-			hh.PaymentID = uuid_str;
+			hh.PaymentID = paymentid;
 			return AddHandlerData(hh);
 		}
 

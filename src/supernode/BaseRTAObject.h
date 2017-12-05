@@ -28,7 +28,7 @@ namespace supernode {
 		bool SendDAPICall(const string& ip, const string& port, const string& method, IN_t& req, OUT_t& resp) {
 			DAPI_RPC_Client call;
 			call.Set(ip, port);
-			uuid_copy(req.PaymentID, TransactionRecord.PaymentID);
+			req.PaymentID = TransactionRecord.PaymentID;
 			return call.Invoke(method, req, resp);
 		}
 

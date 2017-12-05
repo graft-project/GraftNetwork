@@ -17,7 +17,7 @@ namespace supernode {
 		// and handler will recieve only messages with subnet_id
 		// as subnet_id we use PaymentID, generated as UUID in PoS
 		// ALL data structs (IN and OUT) must be child form sub_net_data
-		void Set( DAPI_RPC_Server* pa, uuid_t subnet_id, const vector< boost::shared_ptr<FSN_Data> >& members );
+		void Set( DAPI_RPC_Server* pa, string subnet_id, const vector< boost::shared_ptr<FSN_Data> >& members );
 
 
 

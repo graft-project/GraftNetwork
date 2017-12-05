@@ -2,9 +2,6 @@
 #define SUPERNODE_RPC_COMMAND_H_
 
 #include "supernode_common_struct.h"
-#include "cryptonote_protocol/cryptonote_protocol_defs.h"
-#include "cryptonote_basic/cryptonote_basic.h"
-#include "crypto/hash.h"
 
 
 namespace supernode {

@@ -40,19 +40,30 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     }
 
     std::string payment_id;
-    if( !ps.get_value("PaymentID", payment_id, nullptr) ) payment_id = "";
+    {
+    	epee::json_rpc::request<SubNetData> resp;
+    	if( resp.load(ps) ) payment_id = resp.params.PaymentID;
+    }
+
+
+
+    SCallHandler* handler = nullptr;
 
     {
     	boost::lock_guard<boost::mutex> lock(m_Handlers_Guard);
     	for(unsigned i=0;i<m_vHandlers.size();i++) {
     		SHandlerData& hh = m_vHandlers[i];
     		if(hh.Name!=callback_name) continue;
-    		if(hh.PaymentID!=payment_id) return false;
+    		if(hh.PaymentID!=payment_id) continue;
 
-    		hh.Handler->Process(ps, response_info.m_body);
+    		handler = hh.Handler;
     		break;
     	}
     }
+
+    if(!handler) return false;
+    handler->Process(ps, response_info.m_body);
+
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
     return true;
@@ -64,6 +75,8 @@ void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int n
 }
 
 void supernode::DAPI_RPC_Server::Start() { run(m_NumThreads); }
+
+void supernode::DAPI_RPC_Server::Stop() { send_stop_signal(); }
 
 int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h) {
 	boost::lock_guard<boost::mutex> lock(m_Handlers_Guard);
