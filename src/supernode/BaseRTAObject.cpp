@@ -8,7 +8,7 @@ bool supernode::BaseRTAObject::Init(const RTA_TransactionRecordBase& src) {
 	return true;
 }
 
-void supernode::BaseRTAObject::Set(const FSN_Servant* ser, DAPI_RPC_Server* dapi) {
+void supernode::BaseRTAObject::Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi) {
 	m_Servant = ser;
 	m_DAPIServer = dapi;
 }

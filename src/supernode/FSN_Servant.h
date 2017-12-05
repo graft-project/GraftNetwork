@@ -76,7 +76,7 @@ public:
 public:
     FSN_WalletData GetMyStakeWallet() const  override;
     FSN_WalletData GetMyMinerWallet() const  override;
-    int AuthSampleSize() const override;
+    unsigned AuthSampleSize() const override;
 
 
 private:

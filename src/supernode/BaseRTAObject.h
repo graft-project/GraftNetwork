@@ -4,7 +4,7 @@
 #include "supernode_rpc_command.h"
 #include "SubNetBroadcast.h"
 #include "DAPI_RPC_Server.h"
-#include "FSN_Servant.h"
+#include "FSN_ServantBase.h"
 #include "DAPI_RPC_Client.h"
 #include <string>
 using namespace std;
@@ -17,7 +17,7 @@ namespace supernode {
 
 		public:
 		virtual bool Init(const RTA_TransactionRecordBase& src);
-		virtual void Set(const FSN_Servant* ser, DAPI_RPC_Server* dapi);
+		virtual void Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi);
 		virtual ~BaseRTAObject();
 
 		protected:
@@ -36,7 +36,7 @@ namespace supernode {
 
 		protected:
 		SubNetBroadcast m_SubNetBroadcast;
-		const FSN_Servant* m_Servant = nullptr;
+		const FSN_ServantBase* m_Servant = nullptr;
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
 
 	};

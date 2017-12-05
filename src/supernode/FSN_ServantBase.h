@@ -25,7 +25,7 @@ namespace supernode {
 	public:
 	    virtual FSN_WalletData GetMyStakeWallet() const=0;
 	    virtual FSN_WalletData GetMyMinerWallet() const=0;
-	    virtual int AuthSampleSize() const=0;
+	    virtual unsigned AuthSampleSize() const=0;
 
 
 

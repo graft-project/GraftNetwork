@@ -6,7 +6,7 @@ supernode::BaseRTAProcessor::~BaseRTAProcessor() {}
 void supernode::BaseRTAProcessor::Start() {}
 void supernode::BaseRTAProcessor::Stop() {}
 
-void supernode::BaseRTAProcessor::Set(const FSN_Servant* ser, DAPI_RPC_Server* dapi) {
+void supernode::BaseRTAProcessor::Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi) {
 	m_Servant = ser;
 	m_DAPIServer = dapi;
 	Init();

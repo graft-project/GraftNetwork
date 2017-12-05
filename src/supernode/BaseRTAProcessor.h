@@ -12,7 +12,7 @@ namespace supernode {
 		virtual void Start();
 		virtual void Stop();
 
-		void Set(const FSN_Servant* ser, DAPI_RPC_Server* dapi);
+		void Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi);
 
 		protected:
 		void Add(boost::shared_ptr<BaseRTAObject> obj);
@@ -22,7 +22,7 @@ namespace supernode {
 		virtual void Init()=0;
 
 		protected:
-		const FSN_Servant* m_Servant = nullptr;
+		const FSN_ServantBase* m_Servant = nullptr;
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
 		mutable boost::mutex m_ObjectsGuard;
 		vector< boost::shared_ptr<BaseRTAObject> > m_Objects;

@@ -13,7 +13,7 @@ namespace supernode {
 
 
 		protected:
-		int m_Signs = 0;
+		unsigned m_Signs = 0;
 
 
 	};

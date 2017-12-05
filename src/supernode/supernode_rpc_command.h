@@ -5,7 +5,7 @@
 
 
 namespace supernode {
-	class FSN_Servant;
+	class FSN_ServantBase;
 
 	namespace dapi_call {
 		extern const string Pay;
@@ -191,7 +191,7 @@ namespace supernode {
 
 		void ConvertFromTR(RTA_TRANSACTION_OBJECT::request& dst, const RTA_TransactionRecord& src);
 
-		bool ConvertToTR(RTA_TransactionRecord& dst, const RTA_TRANSACTION_OBJECT::request& src, const FSN_Servant* servant);
+		bool ConvertToTR(RTA_TransactionRecord& dst, const RTA_TRANSACTION_OBJECT::request& src, const FSN_ServantBase* servant);
 
 
 	};

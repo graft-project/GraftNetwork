@@ -65,7 +65,7 @@ void supernode::AuthSample::RemoveRecord(boost::shared_ptr<AuthSampleObject> rec
 
 void supernode::rpc_command::ConvertFromTR(RTA_TRANSACTION_OBJECT::request& dst, const RTA_TransactionRecord& src) {}
 
-bool supernode::rpc_command::ConvertToTR(RTA_TransactionRecord& dst, const RTA_TRANSACTION_OBJECT::request& src, const FSN_Servant* servant) {
+bool supernode::rpc_command::ConvertToTR(RTA_TransactionRecord& dst, const RTA_TRANSACTION_OBJECT::request& src, const FSN_ServantBase* servant) {
 	return true;
 }
 
