@@ -696,9 +696,9 @@ uint64_t WalletImpl::balance() const
     return m_wallet->balance();
 }
 
-uint64_t WalletImpl::unlockedBalance() const
+uint64_t WalletImpl::unlockedBalance(uint64_t till_block) const
 {
-    return m_wallet->unlocked_balance();
+    return m_wallet->unlocked_balance(till_block);
 }
 
 uint64_t WalletImpl::blockChainHeight() const

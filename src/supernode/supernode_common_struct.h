@@ -23,7 +23,6 @@ namespace supernode {
             : Addr{_addr}
             , ViewKey{_viewkey} {}
 
-
         bool operator!=(const FSN_WalletData& s) const;
         bool operator==(const FSN_WalletData& s) const;
 
@@ -45,7 +44,6 @@ namespace supernode {
 
         bool operator!=(const FSN_Data& s) const;
         bool operator==(const FSN_Data& s) const;
-
 		FSN_WalletData Stake;
 		FSN_WalletData Miner;
 		string IP;

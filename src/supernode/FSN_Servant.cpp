@@ -41,6 +41,11 @@ static const unsigned s_uAuthSampleSize = 8;
 
 namespace supernode {
 
+namespace consts {
+    static const string DEFAULT_FSN_WALLETS_DIR = "/tmp/graft/fsn_data/wallets_vo";
+    static const int    DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS = 5000;
+}
+
 namespace helpers {
 public_key get_tx_gen_pub_key(const transaction &tx)
 {
@@ -96,6 +101,8 @@ public_key get_tx_pub_key_from_received_outs(const transaction &tx)
 }
 } // namespace helpers
 
+
+
 FSN_Servant::FSN_Servant()
 {
 
@@ -106,10 +113,20 @@ FSN_Servant::FSN_Servant(const FSN_Servant &other)
 
 }
 
-FSN_Servant::FSN_Servant(const string &bdb_path, const string &daemon_addr, bool testnet)
-    : m_testnet{testnet},
-      m_daemonAddr{daemon_addr}
+FSN_Servant::FSN_Servant(const string &bdb_path, const string &daemon_addr, const string &fsn_wallets_dir, bool testnet)
+    : m_testnet{testnet}
+    , m_daemonAddr{daemon_addr}
+    , m_fsnWalletsDir(fsn_wallets_dir)
 {
+
+    if (m_fsnWalletsDir.empty())
+        m_fsnWalletsDir = consts::DEFAULT_FSN_WALLETS_DIR;
+
+    // create directory for "view only wallets" if not exists
+    if (!boost::filesystem::exists(m_fsnWalletsDir)) {
+        if (!boost::filesystem::create_directories(m_fsnWalletsDir))
+            throw std::runtime_error("Error creating FSN view only wallets directory");
+    }
 
     if (!initBlockchain(bdb_path, testnet))
         throw std::runtime_error("Failed to open blockchain");
@@ -186,7 +203,7 @@ uint64_t FSN_Servant::GetCurrentBlockHeight() const
 
 string FSN_Servant::SignByWalletPrivateKey(const string& str, const string& wallet_addr) const
 {
-    Monero::Wallet * wallet = walletByAddress(wallet_addr);
+    Monero::Wallet * wallet = getMyWalletByAddress(wallet_addr);
     if (!wallet)
         throw std::runtime_error("Address doesn't belong to any wallet of this supernode: " + wallet_addr);
 
@@ -203,13 +220,41 @@ bool FSN_Servant::IsSignValid(const string &message, const string &address, cons
 
 uint64_t FSN_Servant::GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const
 {
-    return 0;
+    // create or open view-only wallet;
+    Monero::Wallet * w = initViewOnlyWallet(wallet, m_testnet);
+    uint64_t result = w->unlockedBalance(block_num);
+
+    return result;
 }
 
 void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn)
 {
     All_FSN_Guard.lock();
     All_FSN.push_back(fsn);
+    // create view-only wallet for stake account
+    initViewOnlyWallet(fsn->Stake, m_testnet);
+    All_FSN_Guard.unlock();
+}
+
+void FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn)
+{
+    // TODO: RAII based (scoped) locks
+    All_FSN_Guard.lock();
+    const auto & it = std::find_if(All_FSN.begin(), All_FSN.end(),
+                                   [fsn] (const boost::shared_ptr<FSN_Data> &other) {
+                    return *fsn == *other;
+            });
+
+    if (it != All_FSN.end()) {
+        const auto &it = m_viewOnlyWallets.find(fsn->Stake.Addr);
+        if (it != m_viewOnlyWallets.end()) {
+            Monero::Wallet * w = it->second;
+            Monero::WalletManagerFactory::getWalletManager()->closeWallet(w);
+            m_viewOnlyWallets.erase(it);
+        } else {
+            LOG_ERROR("Internal error: All_FSN doesn't have corresponding wallet: " << fsn->Stake.Addr);
+        }
+    }
     All_FSN_Guard.unlock();
 }
 
@@ -311,6 +356,42 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
     return wallet;
 }
 
+Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool testnet) const
+{
+
+    const auto & walletIter = m_viewOnlyWallets.find(walletData.Addr);
+    if (walletIter != m_viewOnlyWallets.end())
+        return walletIter->second;
+
+    boost::filesystem::path wallet_path (m_fsnWalletsDir);
+    wallet_path /= walletData.Addr;
+    Monero::Wallet * w = nullptr;
+    Monero::WalletManager * wmgr = Monero::WalletManagerFactory::getWalletManager();
+
+    if (!wmgr->walletExists(wallet_path.string())) {
+        // create view only wallet
+        w = wmgr->createWalletFromKeys(wallet_path.string(), "English", m_testnet, 0, walletData.Addr, walletData.ViewKey);
+    } else {
+        // open existing
+        w = wmgr->openWallet(wallet_path.string(), "", m_testnet);
+    }
+
+    if (!w)
+        throw std::runtime_error(std::string("unable to open/create view only wallet: " + wmgr->errorString()));
+
+
+    if (!w->init(m_daemonAddr, 0)) {
+        MERROR("Can't connect to a daemon.");
+    } else {
+        w->setAutoRefreshInterval(consts::DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS);
+        w->startRefresh();
+    }
+
+    // add wallet to map
+    m_viewOnlyWallets[walletData.Addr] = w;
+    return w;
+}
+
 
 
 FSN_WalletData FSN_Servant::walletData(Wallet *wallet)
@@ -319,7 +400,7 @@ FSN_WalletData FSN_Servant::walletData(Wallet *wallet)
     return result;
 }
 
-Wallet *FSN_Servant::walletByAddress(const string &address) const
+Wallet *FSN_Servant::getMyWalletByAddress(const string &address) const
 {
     Monero::Wallet * wallet = nullptr;
     if (address == GetMyMinerWallet().Addr) {

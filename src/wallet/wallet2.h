@@ -389,7 +389,12 @@ namespace tools
     bool watch_only() const { return m_watch_only; }
 
     uint64_t balance() const;
-    uint64_t unlocked_balance() const;
+    /*!
+     * \brief unlocked_balance - returns unlocked wallet balance in atomic units
+     * \param till_block - optional arg. if greater than 0, balance will be returned by processing blocks till this one
+     * \return wallet balance in atomic units
+     */
+    uint64_t unlocked_balance(uint64_t till_block = 0) const;
     uint64_t unlocked_dust_balance(const tx_dust_policy &dust_policy) const;
     template<typename T>
     void transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outputs_count, const std::vector<size_t> &unused_transfers_indices, uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, bool trusted_daemon);
