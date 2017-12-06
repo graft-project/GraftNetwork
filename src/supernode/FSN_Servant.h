@@ -72,6 +72,7 @@ public:
     uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const  override;
 
     void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn);
+    boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const override;
 
 public:
     FSN_WalletData GetMyStakeWallet() const  override;

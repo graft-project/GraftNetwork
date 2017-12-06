@@ -22,6 +22,8 @@ namespace supernode {
 
 	    virtual uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const=0;
 
+	    virtual boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const=0;
+
 	public:
 	    virtual FSN_WalletData GetMyStakeWallet() const=0;
 	    virtual FSN_WalletData GetMyMinerWallet() const=0;

@@ -46,7 +46,8 @@ set(supernode_sources
     WalletPayObject.cpp
     WalletProxy.cpp
 		P2P_Broadcast.cpp
-    )
+		supernode_common_struct.cpp
+		supernode_rpc_command.cpp)
 
 set(supernode_api_headers)
 
@@ -105,7 +106,9 @@ if (NOT BUILD_GUI_DEPS)
         SubNetBroadcast.cpp
         WalletPayObject.cpp
         WalletProxy.cpp
-				P2P_Broadcast.cpp)
+				P2P_Broadcast.cpp
+				supernode_common_struct.cpp
+				supernode_rpc_command.cpp)
 
     set(supernode_rpc_headers)
 

@@ -1,14 +1,21 @@
 #include "PosSaleObject.h"
+#include <uuid/uuid.h>
 
 bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	BaseRTAObject::Init(src);
 
+	TransactionRecord.PaymentID = GeneratePaymentID();
 	TransactionRecord.BlockNum = m_Servant->GetCurrentBlockHeight();
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
 	if( TransactionRecord.AuthNodes.empty() ) return false;
 
 	InitSubnet();
-	if( !BroadcastRecord(dapi_call::PosProxySale) ) return false;
+
+	vector<rpc_command::POS_PROXY_SALE::response> outv;
+	rpc_command::POS_PROXY_SALE::request inbr;
+	rpc_command::ConvertFromTR(inbr, TransactionRecord);
+	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) return false;
+
 
 	// TODO: add all other handlers for this sale request
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
@@ -16,6 +23,8 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 
 	return true;
 }
+
+
 
 bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out) {
 	// TODO: IMPL
@@ -33,5 +42,11 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
 }
 
 
-
+string supernode::PosSaleObject::GeneratePaymentID() {
+	uuid_t out;
+	uuid_generate(out);
+	char uuid_str[37];
+	uuid_unparse_lower(out, uuid_str);
+	return uuid_str;
+}
 

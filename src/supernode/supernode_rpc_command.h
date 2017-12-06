@@ -28,26 +28,31 @@ namespace supernode {
 		extern const string DAPI_PROTOCOL;//  http for now
 
 		// ---------------------------------------
-		struct SUB_NET_BROADCAST_RESPONCE {
-			BEGIN_KV_SERIALIZE_MAP()
-				KV_SERIALIZE(Fail)
-			END_KV_SERIALIZE_MAP()
-
-			bool Fail;
+		struct RTA_TransactionRecordRequest : public RTA_TransactionRecordBase {
+			vector<string> NodesWallet;
 		};
-		struct RTA_TRANSACTION_OBJECT {
-			struct request : public RTA_TransactionRecordBase {
+
+
+		// ---------------------------------------
+		struct POS_PROXY_SALE {
+			struct request : public RTA_TransactionRecordRequest {
 				BEGIN_KV_SERIALIZE_MAP()
 					KV_SERIALIZE(SenderIP)
 					KV_SERIALIZE(SenderPort)
-					KV_SERIALIZE(PayToWallet)
-					END_KV_SERIALIZE_MAP()
 
-					vector<FSN_Data> Nodes;
+
+					KV_SERIALIZE(POS_Wallet)
+					KV_SERIALIZE(DataForClientWallet)
+					KV_SERIALIZE(BlockNum)
+					KV_SERIALIZE(Sum)
+					KV_SERIALIZE(PaymentID)
+					KV_SERIALIZE(NodesWallet)
+				END_KV_SERIALIZE_MAP()
+
+
 				//for DAPI callback
 				string SenderIP;
 				string SenderPort;
-				string PayToWallet;
 			};
 
 			struct response {
@@ -62,6 +67,10 @@ namespace supernode {
 		struct WALLET_PAY {
 			struct request : public RTA_TransactionRecordBase {
 				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(POS_Wallet)
+					KV_SERIALIZE(BlockNum)
+					KV_SERIALIZE(Sum)
+					KV_SERIALIZE(PaymentID)
 				END_KV_SERIALIZE_MAP()
 
 			};
@@ -75,9 +84,40 @@ namespace supernode {
 		};
 
 		// ---------------------------------------
+		struct WALLET_PROXY_PAY {
+			struct request : public RTA_TransactionRecordRequest {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(POS_Wallet)
+					KV_SERIALIZE(BlockNum)
+					KV_SERIALIZE(Sum)
+					KV_SERIALIZE(PaymentID)
+					KV_SERIALIZE(NodesWallet)
+				END_KV_SERIALIZE_MAP()
+			};
+
+			struct response {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(DataForClientWallet)
+					KV_SERIALIZE(Sign)
+					KV_SERIALIZE(FSN_StakeWalletAddr)
+				END_KV_SERIALIZE_MAP()
+
+				string DataForClientWallet;
+				string Sign;
+				string FSN_StakeWalletAddr;
+			};
+		};
+
+
+		// ---------------------------------------
 		struct WALLET_GET_TRANSACTION_STATUS {
 			struct request : public RTA_TransactionRecordBase {
 				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(POS_Wallet)
+					KV_SERIALIZE(DataForClientWallet)
+					KV_SERIALIZE(BlockNum)
+					KV_SERIALIZE(Sum)
+					KV_SERIALIZE(PaymentID)
 				END_KV_SERIALIZE_MAP()
 
 			};
@@ -93,44 +133,12 @@ namespace supernode {
 			struct request : public SubNetData {
 				BEGIN_KV_SERIALIZE_MAP()
 					KV_SERIALIZE(Signs)
+					KV_SERIALIZE(PaymentID)
+					KV_SERIALIZE(FSN_Wallets)
 				END_KV_SERIALIZE_MAP()
 
 				vector<string> Signs;
 				vector<string> FSN_Wallets;
-			};
-			struct response {
-				BEGIN_KV_SERIALIZE_MAP()
-				END_KV_SERIALIZE_MAP()
-
-			};
-		};
-
-		// ---------------------------------------
-		struct WALLET_GET_POS_DATA {
-			struct request : public SubNetData {
-				BEGIN_KV_SERIALIZE_MAP()
-				END_KV_SERIALIZE_MAP()
-
-			};
-			struct response {
-				BEGIN_KV_SERIALIZE_MAP()
-					KV_SERIALIZE(DataForClientWallet)
-				END_KV_SERIALIZE_MAP()
-
-				string DataForClientWallet;
-			};
-		};
-
-		// ---------------------------------------
-		struct WALLET_TR_SIGNED {
-			struct request : public SubNetData {
-				BEGIN_KV_SERIALIZE_MAP()
-					KV_SERIALIZE(Sign)
-					KV_SERIALIZE(FSN_StakeWalletAddr)
-				END_KV_SERIALIZE_MAP()
-
-				string Sign;
-				string FSN_StakeWalletAddr;
 			};
 			struct response {
 				BEGIN_KV_SERIALIZE_MAP()
@@ -145,13 +153,20 @@ namespace supernode {
 		struct POS_SALE {
 			struct request : public RTA_TransactionRecordBase {
 				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(POS_Wallet)
+					KV_SERIALIZE(DataForClientWallet)
+					KV_SERIALIZE(Sum)
 				END_KV_SERIALIZE_MAP()
 
 			};
 			struct response {
 				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(BlockNum)
+					KV_SERIALIZE(PaymentID)
 				END_KV_SERIALIZE_MAP()
 
+				uint64_t BlockNum;
+				string PaymentID;
 			};
 		};
 
@@ -160,6 +175,7 @@ namespace supernode {
 		struct POS_GET_SALE_STATUS {
 			struct request : public SubNetData {
 				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(PaymentID)
 				END_KV_SERIALIZE_MAP()
 
 			};
@@ -176,6 +192,7 @@ namespace supernode {
 				BEGIN_KV_SERIALIZE_MAP()
 					KV_SERIALIZE(Sign)
 					KV_SERIALIZE(FSN_StakeWalletAddr)
+					KV_SERIALIZE(PaymentID)
 				END_KV_SERIALIZE_MAP()
 
 				string Sign;
@@ -189,9 +206,9 @@ namespace supernode {
 		};
 
 
-		void ConvertFromTR(RTA_TRANSACTION_OBJECT::request& dst, const RTA_TransactionRecord& src);
+		void ConvertFromTR(RTA_TransactionRecordRequest& dst, const RTA_TransactionRecord& src);
 
-		bool ConvertToTR(RTA_TransactionRecord& dst, const RTA_TRANSACTION_OBJECT::request& src, const FSN_ServantBase* servant);
+		void ConvertToTR(RTA_TransactionRecord& dst, const RTA_TransactionRecordRequest& src, const FSN_ServantBase* servant);
 
 
 	};

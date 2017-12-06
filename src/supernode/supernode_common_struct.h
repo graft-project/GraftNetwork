@@ -24,6 +24,9 @@ namespace supernode {
             , ViewKey{_viewkey} {}
 
 
+        bool operator!=(const FSN_WalletData& s) const;
+        bool operator==(const FSN_WalletData& s) const;
+
 
         string Addr;
 		string ViewKey;
@@ -38,7 +41,10 @@ namespace supernode {
             , Miner{_minerWallet}
             , IP{_ip}
             , Port{_port} {}
+        FSN_Data() {}
 
+        bool operator!=(const FSN_Data& s) const;
+        bool operator==(const FSN_Data& s) const;
 
 		FSN_WalletData Stake;
 		FSN_WalletData Miner;
@@ -68,10 +74,8 @@ namespace supernode {
 
 	// ------------------------------------------
 	struct RTA_TransactionRecord : public RTA_TransactionRecordBase {
-		bool operator!=(const RTA_TransactionRecord& s) const {
-			// TODO: IMPL
-			return true;
-		}
+		bool operator!=(const RTA_TransactionRecord& s) const;
+		bool operator==(const RTA_TransactionRecord& s) const;
 		vector< boost::shared_ptr<FSN_Data> > AuthNodes;
 	};
 
