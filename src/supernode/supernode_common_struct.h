@@ -22,7 +22,10 @@ namespace supernode {
         FSN_WalletData(const std::string &_addr, const std::string &_viewkey)
             : Addr{_addr}
             , ViewKey{_viewkey} {}
-
+        bool operator == (const FSN_WalletData &other) const {
+            return this->Addr == other.Addr
+                    && this->ViewKey == other.ViewKey;
+        }
 
 
         string Addr;
@@ -38,6 +41,13 @@ namespace supernode {
             , Miner{_minerWallet}
             , IP{_ip}
             , Port{_port} {}
+
+        bool operator == (const FSN_Data &other) {
+            return this->IP == other.IP
+                    && this->Port == other.Port
+                    && this->Stake == other.Stake
+                    && this->Miner == other.Miner;
+        }
 
 
 		FSN_WalletData Stake;

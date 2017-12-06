@@ -177,26 +177,26 @@ TEST_F(FSNServantTest, GetBalance1)
 }
 
 
-//TEST_F(FSNServantTest, GetBalance2)
-//{
-//    FSN_WalletData wallet1("T6TyzMRMpksMftG4twjXyaC1vdoJ4axHg3xxtbWiQ5Ps3soR779vdNF2R7iEhyZ1Uicacfc8X3drQFmtzLZtnPN81TwSDmyun",
-//                           "455224dc3f6363fa09590efa43f5b6bdc04194d2a9c6c91e7605f7083771d20a");
+TEST_F(FSNServantTest, GetBalance2)
+{
+    FSN_WalletData wallet1("T6TyzMRMpksMftG4twjXyaC1vdoJ4axHg3xxtbWiQ5Ps3soR779vdNF2R7iEhyZ1Uicacfc8X3drQFmtzLZtnPN81TwSDmyun",
+                           "455224dc3f6363fa09590efa43f5b6bdc04194d2a9c6c91e7605f7083771d20a");
 
-////    std::cout << Monero::Wallet::displayAmount(fsns->GetWalletBalance(20, wallet1)) << std::endl;
-////    std::cout << Monero::Wallet::displayAmount(fsns->GetWalletBalance(10, wallet1)) << std::endl;
-//    for (int i = 0; i < 1000; ++i) {
+//    std::cout << Monero::Wallet::displayAmount(fsns->GetWalletBalance(20, wallet1)) << std::endl;
+//    std::cout << Monero::Wallet::displayAmount(fsns->GetWalletBalance(10, wallet1)) << std::endl;
+//    for (int i = 0; i < 1; ++i) {
 //        std::cout << "opening wallet: " << i << std::endl;
 //        std::cout << Monero::Wallet::displayAmount(fsns->GetWalletBalance(0,  wallet1)) << std::endl;
 //    }
 
-//    ASSERT_TRUE(fsns->GetWalletBalance(0, wallet1) > 0);
+    ASSERT_TRUE(fsns->GetWalletBalance(0, wallet1) > 0);
 //    auto start = std::chrono::high_resolution_clock::now();
-//    std::this_thread::sleep_for(std::chrono::seconds(200));
+//    std::this_thread::sleep_for(std::chrono::seconds(2));
 //    auto end = std::chrono::high_resolution_clock::now();
 //    std::chrono::duration<double, std::milli> elapsed = end-start;
 //    std::cout << "Waited " << elapsed.count() << " ms\n";
 
-//}
+}
 
 
 int main(int argc, char** argv)

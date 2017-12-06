@@ -72,6 +72,7 @@ public:
     uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const  override;
 
     void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn);
+    void RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn);
 
 public:
     FSN_WalletData GetMyStakeWallet() const  override;
@@ -85,11 +86,21 @@ private:
     bool initBlockchain(const std::string &dbpath, bool testnet);
 
     Monero::Wallet * initWallet(Monero::Wallet *existingWallet, const string &path, const string &password, bool testnet);
+    /*!
+     * \brief initViewOnlyWallet - creates new or opens existing view only wallet
+     * \brief walletData         - address and viewkey
+     * \param testnet            - testnet flag
+     * \return                   - pointer to Monero::Wallet obj
+     */
+    Monero::Wallet * initViewOnlyWallet(const FSN_WalletData &walletData, bool testnet) const;
     static FSN_WalletData walletData(Monero::Wallet * wallet);
-    Monero::Wallet * walletByAddress(const std::string &address) const;
+
+    Monero::Wallet * getMyWalletByAddress(const std::string &address) const;
+
 private:
     // next two fields may be references
     mutable boost::mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
+    // TODO: store FSN_Data and corresponding wallet in single map
     vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 
     bool                         m_testnet = false;
@@ -102,6 +113,7 @@ private:
 
     mutable Monero::Wallet *m_stakeWallet = nullptr;
     mutable Monero::Wallet *m_minerWallet = nullptr;
+    mutable std::map<std::string, Monero::Wallet*> m_viewOnlyWallets;
 
 };
 
