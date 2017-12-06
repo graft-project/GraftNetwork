@@ -13,6 +13,7 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
 	Add(data);
 
 	out.DataForClientWallet = data->TransactionRecord.DataForClientWallet;
+	// TODO: return vector<sign>
 
 	return true;
 }

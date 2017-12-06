@@ -69,7 +69,13 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     return true;
 }
 
+const string& supernode::DAPI_RPC_Server::IP() const { return m_IP; }
+const string& supernode::DAPI_RPC_Server::Port() const { return m_Port; }
+
+
 void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int numThreads) {
+	m_Port = port;
+	m_IP = ip;
 	init(port, ip);
 	m_NumThreads = numThreads;
 }

@@ -125,9 +125,167 @@ class TestDAPI_Server_And_Client {
 };
 */
 
+namespace supernode {
+
+struct Test_FSN_Servant : public supernode::FSN_ServantBase {
+	public:
+    vector<pair<uint64_t, boost::shared_ptr<supernode::FSN_Data>>> m_LastBlocksResolvedByFSN;
+    vector<boost::shared_ptr<supernode::FSN_Data>> m_GetAuthSample;
+    uint64_t m_GetCurrentBlockHeight = 0;
+    string m_SignByWalletPrivateKey;
+    supernode::FSN_WalletData m_GetMyStakeWallet;
+    supernode::FSN_WalletData m_GetMyMinerWallet;
+    unsigned m_AuthSampleSize;
+
+
+
+	public:
+    vector<pair<uint64_t, boost::shared_ptr<supernode::FSN_Data>>>
+    LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums) const override { return vector<pair<uint64_t, boost::shared_ptr<supernode::FSN_Data>>>(); }
+
+    vector<boost::shared_ptr<supernode::FSN_Data>> GetAuthSample(uint64_t forBlockNum) const { return m_GetAuthSample; }
+
+    uint64_t GetCurrentBlockHeight() const { return m_GetCurrentBlockHeight; }
+
+    string SignByWalletPrivateKey(const string& str, const string& wallet_addr) const { return m_SignByWalletPrivateKey; }
+
+    bool IsSignValid(const string& message, const string &address, const string &signature) const { return true; }
+
+    uint64_t GetWalletBalance(uint64_t block_num, const supernode::FSN_WalletData& wallet) const { return 0; }
+
+    boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const override { return nullptr; }
+
+    supernode::FSN_WalletData GetMyStakeWallet() const { return m_GetMyStakeWallet; }
+    supernode::FSN_WalletData GetMyMinerWallet() const { return m_GetMyMinerWallet; }
+    unsigned AuthSampleSize() const { return m_AuthSampleSize; }
+
+};
+
+struct Test_RTA_Flow {
+	public:
+	struct Supernode {
+		Test_FSN_Servant Servant;
+		boost::thread* WorkerThread = nullptr;
+		supernode::DAPI_RPC_Server dapi_server;
+
+		string Port;
+		string IP;
+
+		void Run() {
+			dapi_server.Set( IP, Port, 5 );
+
+
+			vector<supernode::BaseRTAProcessor*> objs;
+			objs.push_back( new supernode::WalletProxy() );
+			objs.push_back( new supernode::PosProxy() );
+			objs.push_back( new supernode::AuthSample() );
+
+			for(unsigned i=0;i<objs.size();i++) {
+				objs[i]->Set(&Servant, &dapi_server);
+				objs[i]->Start();
+			}
+
+			dapi_server.Start();// block execution
+
+
+			// -----------------------------------------------------------------
+
+			for(unsigned i=0;i<objs.size();i++) {
+				objs[i]->Stop();
+				delete objs[i];
+			}
+
+		}
+
+
+		void Start(string p1, string p2, string mp) {
+			IP = "127.0.0.1";
+			Port = mp;
+
+			Servant.m_AuthSampleSize = 2;
+			Servant.m_GetCurrentBlockHeight = 13;
+
+			boost::shared_ptr<FSN_Data> d1 = boost::shared_ptr<FSN_Data>(new FSN_Data());
+			boost::shared_ptr<FSN_Data> d2 = boost::shared_ptr<FSN_Data>(new FSN_Data());
+			d1->IP = IP;
+			d1->Port = p1;
+			d2->IP = IP;
+			d2->Port = p2;
+
+			Servant.m_GetAuthSample.push_back(d1);
+			Servant.m_GetAuthSample.push_back(d2);
+
+
+			WorkerThread = new boost::thread(&Supernode::Run, this);
+		}
+
+		void Stop() {
+			dapi_server.Stop();
+			WorkerThread->join();
+		}
+
+
+
+	};
+
+	void Test() {
+		string ip = "127.0.0.1";
+		string p1 = "7500";
+		string p2 = "8500";
+
+		Supernode wallet_proxy;
+		wallet_proxy.Start(p1, p2, p1);
+
+		Supernode pos_proxy;
+		pos_proxy.Start(p1, p2, p2);
+
+		sleep(1);
+
+		rpc_command::POS_SALE::request sale_in;
+		rpc_command::POS_SALE::response sale_out;
+		sale_in.Sum = 11;
+		sale_in.DataForClientWallet = "Some data";
+		sale_in.POS_Wallet = "0xFF";
+
+		{
+			DAPI_RPC_Client pos_sale;
+			pos_sale.Set(ip, p2);
+			bool ret = pos_sale.Invoke("Sale", sale_in, sale_out);
+			LOG_PRINT_L5("Sale ret: "<<ret<<"  BlockNum: "<<sale_out.BlockNum<<"  uuid: "<<sale_out.PaymentID);
+		}
+
+		rpc_command::WALLET_PAY::request pay_in;
+		rpc_command::WALLET_PAY::response pay_out;
+		pay_in.Sum = sale_in.Sum;
+		pay_in.POS_Wallet = sale_in.POS_Wallet;
+		pay_in.BlockNum = sale_out.BlockNum;
+		{
+			DAPI_RPC_Client wallet_pay;
+			wallet_pay.Set(ip, p1);
+			bool ret = wallet_pay.Invoke("Pay", pay_in, pay_out);
+
+			LOG_PRINT_L5("Pay ret: "<<ret<<"  data: "<<pay_out.DataForClientWallet);
+		}
+
+
+
+
+		wallet_proxy.Stop();
+		pos_proxy.Stop();
+	}
+
+};
+
+};
+
 int main(int argc, char** argv) {
 	mlog_configure("", true);
 	mlog_set_log_level(5);
+
+	supernode::Test_RTA_Flow test_flow;
+	test_flow.Test();
+	return 0;
+
 
 /*
 	TestDAPI_Server_And_Client tt1;

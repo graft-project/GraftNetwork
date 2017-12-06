@@ -73,6 +73,7 @@ public:
 
     void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn);
     void RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn);
+    boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const override;
 
 public:
     FSN_WalletData GetMyStakeWallet() const  override;

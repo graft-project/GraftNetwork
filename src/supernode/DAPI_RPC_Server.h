@@ -20,6 +20,8 @@ namespace supernode {
 		void Set(const string& ip, const string& port, int numThreads);
 		void Start();//block
 		void Stop();
+		const string& IP() const;
+		const string& Port() const;
 
 		protected:
 		class SCallHandler {
@@ -68,7 +70,6 @@ namespace supernode {
 		}
 
 		#define ADD_DAPI_HANDLER(method, data, class_owner) AddHandler<data::request, data::response>( #method, bind( &class_owner::method, this, _1, _2) );
-//		#define ADD_SUBNET_BROADCAST_HANDLER(method, data, class_owner) AddHandler<data, rpc_command::SUB_NET_BROADCAST_RESPONCE>( dapi_call::method, bind( &class_owner::method, this, _1, _2) );
 
 		// IN must be child from sub_net_data
 		// income message filtered by payment_id and method
@@ -98,6 +99,10 @@ namespace supernode {
 
 		protected:
 		int m_NumThreads = 5;
+
+		protected:
+		string m_IP;
+		string m_Port;
 
 
 	};

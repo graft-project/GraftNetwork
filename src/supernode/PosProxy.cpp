@@ -12,5 +12,8 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
 	if( !data->Init(in) ) return false;
 	Add(data);
 
+	out.BlockNum = data->TransactionRecord.BlockNum;
+	out.PaymentID = data->TransactionRecord.PaymentID;
+
 	return true;
 }

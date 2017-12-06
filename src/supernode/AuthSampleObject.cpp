@@ -6,20 +6,16 @@ bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 }
 
 
-bool supernode::AuthSampleObject::WalletProxyPay(const RTA_TransactionRecord& src) {
+bool supernode::AuthSampleObject::WalletProxyPay(const RTA_TransactionRecord& src, rpc_command::WALLET_PROXY_PAY::response& out) {
 	if(src!=TransactionRecord) return false;
 
 	// TODO: send LOCK. WTF?? all our nodes got this packet by sub-net broadcast. so only top node must send broad cast
 
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
 
-	// sign transaction record and send it to wallet.
-	rpc_command::WALLET_TR_SIGNED::request req;
-	rpc_command::WALLET_TR_SIGNED::response resp;
-	req.Sign = GenerateSignForWallet();
-	req.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
-	if( !SendDAPICall(WalletIP, WalletPort, dapi_call::WalletTRSigned, req, resp) ) return false;
+	out.DataForClientWallet = TransactionRecord.DataForClientWallet;
+	out.Sign = GenerateSignForWallet();
+	out.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
 
 	return true;
 }
@@ -39,10 +35,6 @@ bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PU
 	return true;
 }
 
-bool supernode::AuthSampleObject::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
-	out.DataForClientWallet = TransactionRecord.DataForClientWallet;
-	return true;
-}
 
 
 string supernode::AuthSampleObject::GenerateSignForWallet() {

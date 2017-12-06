@@ -22,7 +22,6 @@ namespace supernode {
 
 		protected:
 		void InitSubnet();
-		bool BroadcastRecord(const string& call);
 
 		template<class IN_t, class OUT_t>
 		bool SendDAPICall(const string& ip, const string& port, const string& method, IN_t& req, OUT_t& resp) {

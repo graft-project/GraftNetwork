@@ -11,6 +11,8 @@ namespace supernode {
 		bool GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out);
 		bool PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out);
 
+		protected:
+		string GeneratePaymentID();
 
 		protected:
 		unsigned m_Signs = 0;

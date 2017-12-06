@@ -416,4 +416,10 @@ unsigned FSN_Servant::AuthSampleSize() const { return s_uAuthSampleSize; }
 
 FSN_ServantBase::~FSN_ServantBase() {}
 
+boost::shared_ptr<FSN_Data> FSN_Servant::FSN_DataByStakeAddr(const string& addr) const {
+	boost::lock_guard<boost::mutex> lock(All_FSN_Guard);
+	for(auto a : All_FSN) if( a->Stake.Addr==addr ) return a;
+	return nullptr;
+}
+
 } // namespace supernode
