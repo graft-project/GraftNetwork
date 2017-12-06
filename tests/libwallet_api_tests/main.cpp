@@ -1136,6 +1136,10 @@ TEST_F(WalletTest2, EmissionPrint)
     std::cout << "MONEY_SUPPLY: " << Monero::Wallet::displayAmount(MONEY_SUPPLY) << std::endl;
     std::cout << "COIN: " << Monero::Wallet::displayAmount(COIN) << std::endl;
     std::cout << "MAX_MONEY: " << Monero::Wallet::displayAmount(std::numeric_limits<uint64_t>::max()) << std::endl;
+    std::cout << "FEE_PER_KB_OLD: " << Monero::Wallet::displayAmount(FEE_PER_KB_OLD) << std::endl;
+    std::cout << "FEE_PER_KB: " << Monero::Wallet::displayAmount(FEE_PER_KB) << std::endl;
+    std::cout << "DYNAMIC_FEE_PER_KB_BASE_BLOCK_REWARD: " << Monero::Wallet::displayAmount(DYNAMIC_FEE_PER_KB_BASE_BLOCK_REWARD) << std::endl;
+    std::cout << "DYNAMIC_FEE_PER_KB_BASE_FEE_V5: " << Monero::Wallet::displayAmount(DYNAMIC_FEE_PER_KB_BASE_FEE_V5) << std::endl;
 }
 
 

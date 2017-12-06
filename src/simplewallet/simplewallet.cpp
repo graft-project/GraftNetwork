@@ -630,6 +630,8 @@ bool simple_wallet::set_ask_password(const std::vector<std::string> &args/* = st
 
 bool simple_wallet::set_unit(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
 {
+  // do not use units anymore;
+  return true;
   const std::string &unit = args[1];
   unsigned int decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
 
