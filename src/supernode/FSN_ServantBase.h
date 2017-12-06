@@ -22,12 +22,22 @@ namespace supernode {
 
 	    virtual uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const=0;
 
-	    virtual boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const=0;
+	public:
+	    virtual void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn);
+	    virtual bool RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn);
+	    virtual boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const;
 
 	public:
 	    virtual FSN_WalletData GetMyStakeWallet() const=0;
 	    virtual FSN_WalletData GetMyMinerWallet() const=0;
 	    virtual unsigned AuthSampleSize() const=0;
+
+
+	protected:
+	    // next two fields may be references
+	    mutable boost::mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
+	    // TODO: store FSN_Data and corresponding wallet in single map
+	    vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 
 
 

@@ -71,9 +71,9 @@ public:
     // calc balance from chain begin to block_num
     uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const  override;
 
-    void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn);
-    void RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn);
-    boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const override;
+    virtual void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn) override;
+    virtual bool RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn) override;
+
 
 public:
     FSN_WalletData GetMyStakeWallet() const  override;
@@ -99,10 +99,6 @@ private:
     Monero::Wallet * getMyWalletByAddress(const std::string &address) const;
 
 private:
-    // next two fields may be references
-    mutable boost::mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
-    // TODO: store FSN_Data and corresponding wallet in single map
-    vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 
     bool                         m_testnet = false;
     std::string                  m_daemonAddr;

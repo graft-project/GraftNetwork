@@ -227,25 +227,18 @@ uint64_t FSN_Servant::GetWalletBalance(uint64_t block_num, const FSN_WalletData&
     return result;
 }
 
-void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn)
-{
-    All_FSN_Guard.lock();
-    All_FSN.push_back(fsn);
+void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
+	FSN_ServantBase::AddFsnAccount(fsn);
     // create view-only wallet for stake account
     initViewOnlyWallet(fsn->Stake, m_testnet);
-    All_FSN_Guard.unlock();
 }
 
-void FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn)
-{
-    // TODO: RAII based (scoped) locks
-    All_FSN_Guard.lock();
-    const auto & it = std::find_if(All_FSN.begin(), All_FSN.end(),
-                                   [fsn] (const boost::shared_ptr<FSN_Data> &other) {
-                    return *fsn == *other;
-            });
+bool FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
+	boost::lock_guard<boost::mutex> lock(All_FSN_Guard);// we use one mutex for All_FSN && for m_viewOnlyWallets
 
-    if (it != All_FSN.end()) {
+	if( !FSN_ServantBase::RemoveFsnAccount(fsn) ) return false;
+
+    // TODO: RAII based (scoped) locks
         const auto &it = m_viewOnlyWallets.find(fsn->Stake.Addr);
         if (it != m_viewOnlyWallets.end()) {
             Monero::Wallet * w = it->second;
@@ -254,8 +247,9 @@ void FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn)
         } else {
             LOG_ERROR("Internal error: All_FSN doesn't have corresponding wallet: " << fsn->Stake.Addr);
         }
-    }
-    All_FSN_Guard.unlock();
+
+        return true;
+
 }
 
 FSN_WalletData FSN_Servant::GetMyStakeWallet() const
@@ -416,10 +410,5 @@ unsigned FSN_Servant::AuthSampleSize() const { return s_uAuthSampleSize; }
 
 FSN_ServantBase::~FSN_ServantBase() {}
 
-boost::shared_ptr<FSN_Data> FSN_Servant::FSN_DataByStakeAddr(const string& addr) const {
-	boost::lock_guard<boost::mutex> lock(All_FSN_Guard);
-	for(auto a : All_FSN) if( a->Stake.Addr==addr ) return a;
-	return nullptr;
-}
 
 } // namespace supernode
