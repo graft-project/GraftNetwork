@@ -35,7 +35,7 @@ set(unit_tests_sources
   block_queue.cpp
   block_reward.cpp
   canonical_amounts.cpp
-  chacha8.cpp
+  chacha.cpp
   checkpoints.cpp
   command_line.cpp
   crypto.cpp
