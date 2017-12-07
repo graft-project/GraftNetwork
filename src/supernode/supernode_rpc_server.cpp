@@ -387,6 +387,56 @@ bool tools::supernode_rpc_server::onGetPaymentAddress(const tools::supernode_rpc
     return true;
 }
 
+bool tools::supernode_rpc_server::onGetSeed(const tools::supernode_rpc::COMMAND_RPC_GET_SEED::request &req, tools::supernode_rpc::COMMAND_RPC_GET_SEED::response &res, json_rpc::error &er)
+{
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(req.account, req.password, er);
+    if (!wal)
+    {
+        return false;
+    }
+    std::string seed;
+    wal->get_seed(seed);
+    res.seed = seed;
+    return true;
+}
+
+bool tools::supernode_rpc_server::onRestoreAccount(const tools::supernode_rpc::COMMAND_RPC_RESTORE_ACCOUNT::request &req, tools::supernode_rpc::COMMAND_RPC_RESTORE_ACCOUNT::response &res, json_rpc::error &er)
+{
+    if (req.seed.empty())
+    {
+        er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        er.message = "Electrum seed is empty";
+        return false;
+    }
+
+    crypto::secret_key recovery_key;
+    std::string old_language;
+    if (!crypto::ElectrumWords::words_to_bytes(req.seed, recovery_key, old_language))
+    {
+        er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        er.message = "Electrum-style word list failed verification";
+        return false;
+    }
+    std::unique_ptr<tools::GraftWallet> wal = createEmptyWallet(req.password, er);
+    if (!wal)
+    {
+        return false;
+    }
+    try
+    {
+        wal->set_seed_language(old_language);
+        wal->generate_graft(req.password, recovery_key, true, false);
+        res.account = wal->store_keys_graft(req.password);
+        res.address = wal->get_account().get_public_address_str(wal->testnet());
+    }
+    catch (const std::exception &e)
+    {
+        er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        er.message = e.what();
+    }
+    return true;
+}
+
 std::unique_ptr<tools::GraftWallet> tools::supernode_rpc_server::initWallet(const std::string &account, const std::string &password, epee::json_rpc::error &er) const
 {
     namespace po = boost::program_options;
@@ -417,6 +467,40 @@ std::unique_ptr<tools::GraftWallet> tools::supernode_rpc_server::initWallet(cons
     {
         er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
         er.message = "Failed to open wallet";
+    }
+    return wal;
+}
+
+std::unique_ptr<tools::GraftWallet> tools::supernode_rpc_server::createEmptyWallet(const string &password, json_rpc::error &er) const
+{
+    namespace po = boost::program_options;
+    po::variables_map vm2;
+    {
+        po::options_description desc("dummy");
+        const command_line::arg_descriptor<std::string, true> arg_password = {"password", "password"};
+        const char *argv[4];
+        int argc = 3;
+        argv[0] = "wallet-rpc";
+        argv[1] = "--password";
+        argv[2] = password.c_str();
+        argv[3] = NULL;
+        vm2 = *m_vm;
+        command_line::add_arg(desc, arg_password);
+        po::store(po::parse_command_line(argc, argv, desc), vm2);
+    }
+    std::unique_ptr<tools::GraftWallet> wal;
+    try
+    {
+        wal = tools::GraftWallet::make_new(vm2).first;
+    }
+    catch (const std::exception& e)
+    {
+        wal = nullptr;
+    }
+    if (!wal)
+    {
+        er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        er.message = "Failed to create wallet";
     }
     return wal;
 }

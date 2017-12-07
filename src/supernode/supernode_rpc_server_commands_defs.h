@@ -302,5 +302,51 @@ namespace supernode_rpc {
           END_KV_SERIALIZE_MAP()
       };
     };
+
+    struct COMMAND_RPC_GET_SEED
+    {
+      struct request
+      {
+          std::string account;
+          std::string password;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(account)
+            KV_SERIALIZE(password)
+          END_KV_SERIALIZE_MAP()
+      };
+      struct response
+      {
+          std::string seed;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(seed)
+          END_KV_SERIALIZE_MAP()
+      };
+    };
+
+    struct COMMAND_RPC_RESTORE_ACCOUNT
+    {
+      struct request
+      {
+          std::string seed;
+          std::string password;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(seed)
+            KV_SERIALIZE(password)
+          END_KV_SERIALIZE_MAP()
+      };
+      struct response
+      {
+          std::string address;
+          std::string account;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(address)
+            KV_SERIALIZE(account)
+          END_KV_SERIALIZE_MAP()
+      };
+    };
 }
 }
