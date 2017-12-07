@@ -313,7 +313,7 @@ struct Test_RTA_Flow {
 			wallet_pay.Set(ip, p1);
 			bool ret = wallet_pay.Invoke("Pay", pay_in, pay_out);
 
-			LOG_PRINT_L5("Pay ret: "<<ret<<"  data: "<<pay_out.DataForClientWallet);
+			LOG_PRINT_L5("Pay ret: "<<ret);
 		}
 
 		{// after Pay call you can can start poll status by GetPayStatus call

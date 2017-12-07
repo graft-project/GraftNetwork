@@ -71,10 +71,7 @@ namespace supernode {
 			};
 			struct response {
 				BEGIN_KV_SERIALIZE_MAP()
-					KV_SERIALIZE(DataForClientWallet)
 				END_KV_SERIALIZE_MAP()
-
-				string DataForClientWallet;
 			};
 		};
 
