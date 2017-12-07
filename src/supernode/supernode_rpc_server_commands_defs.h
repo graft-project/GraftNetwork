@@ -309,10 +309,12 @@ namespace supernode_rpc {
       {
           std::string account;
           std::string password;
+          std::string language;
 
           BEGIN_KV_SERIALIZE_MAP()
             KV_SERIALIZE(account)
             KV_SERIALIZE(password)
+            KV_SERIALIZE(language)
           END_KV_SERIALIZE_MAP()
       };
       struct response

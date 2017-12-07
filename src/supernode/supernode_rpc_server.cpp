@@ -394,6 +394,7 @@ bool tools::supernode_rpc_server::onGetSeed(const tools::supernode_rpc::COMMAND_
     {
         return false;
     }
+    wal->set_seed_language(req.language);
     std::string seed;
     wal->get_seed(seed);
     res.seed = seed;
