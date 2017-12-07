@@ -153,7 +153,6 @@ struct Test_FSN_Servant : public supernode::FSN_ServantBase {
 
     uint64_t GetWalletBalance(uint64_t block_num, const supernode::FSN_WalletData& wallet) const { return 0; }
 
-    boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const override { return nullptr; }
 
     supernode::FSN_WalletData GetMyStakeWallet() const { return m_GetMyStakeWallet; }
     supernode::FSN_WalletData GetMyMinerWallet() const { return m_GetMyMinerWallet; }
@@ -209,8 +208,10 @@ struct Test_RTA_Flow {
 			boost::shared_ptr<FSN_Data> d2 = boost::shared_ptr<FSN_Data>(new FSN_Data());
 			d1->IP = IP;
 			d1->Port = p1;
+			d1->Stake.Addr = "1_fsn";
 			d2->IP = IP;
 			d2->Port = p2;
+			d2->Stake.Addr = "2_fsn";
 
 			Servant.m_GetAuthSample.push_back(d1);
 			Servant.m_GetAuthSample.push_back(d2);
@@ -259,6 +260,7 @@ struct Test_RTA_Flow {
 		pay_in.Sum = sale_in.Sum;
 		pay_in.POS_Wallet = sale_in.POS_Wallet;
 		pay_in.BlockNum = sale_out.BlockNum;
+		pay_in.PaymentID = sale_out.PaymentID;
 		{
 			DAPI_RPC_Client wallet_pay;
 			wallet_pay.Set(ip, p1);

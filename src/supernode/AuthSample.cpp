@@ -10,7 +10,10 @@ void supernode::AuthSample::Init()  {
 bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out) {
 	RTA_TransactionRecord tr;
 	rpc_command::ConvertToTR(tr, in, m_Servant);
+	LOG_PRINT_L5("=OK-0");
 	if( !Check(tr) ) return false;
+
+	LOG_PRINT_L5("=OK-1");
 
 	boost::shared_ptr<AuthSampleObject> data = boost::shared_ptr<AuthSampleObject>( new AuthSampleObject() );
 	Setup(data);
@@ -20,6 +23,8 @@ bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::requ
 	data->PosPort = in.SenderPort;
 
 	Add(data);
+
+	LOG_PRINT_L5("=OK-2");
 
 
 	return true;

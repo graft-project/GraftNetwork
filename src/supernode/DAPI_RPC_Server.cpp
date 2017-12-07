@@ -54,15 +54,15 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     	for(unsigned i=0;i<m_vHandlers.size();i++) {
     		SHandlerData& hh = m_vHandlers[i];
     		if(hh.Name!=callback_name) continue;
-    		if(hh.PaymentID!=payment_id) continue;
+    		if(hh.PaymentID.size() &&  hh.PaymentID!=payment_id) continue;
 
     		handler = hh.Handler;
     		break;
     	}
     }
 
-    if(!handler) return false;
-    if( !handler->Process(ps, response_info.m_body) ) return false;
+    if(!handler) { return false; }
+    if( !handler->Process(ps, response_info.m_body) ) { return false; }
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
