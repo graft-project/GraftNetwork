@@ -33,6 +33,7 @@
 #include "wallet/wallet2_api.h"
 #include "wallet/wallet2.h"
 #include "include_base_utils.h"
+#include "cryptonote_config.h"
 
 #include <boost/chrono/chrono.hpp>
 #include <boost/filesystem.hpp>
@@ -47,6 +48,7 @@
 #include <vector>
 #include <atomic>
 #include <functional>
+#include <string>
 
 
 using namespace std;
@@ -86,9 +88,8 @@ const uint64_t AMOUNT_1XMR  =  1000000000000L;
 
 const std::string PAYMENT_ID_EMPTY = "";
 
-std::string TESTNET_DAEMON_ADDRESS = "localhost:38081";
-std::string MAINNET_DAEMON_ADDRESS = "localhost:18081";
-
+std::string TESTNET_DAEMON_ADDRESS = "localhost:" + std::to_string(config::testnet::RPC_DEFAULT_PORT);
+std::string MAINNET_DAEMON_ADDRESS = "localhost:"  + std::to_string(config::RPC_DEFAULT_PORT);
 
 }
 
@@ -1136,6 +1137,9 @@ int main(int argc, char** argv)
 {
     // we can override default values for "TESTNET_DAEMON_ADDRESS" and "WALLETS_ROOT_DIR"
 
+    std::cout << "*** libwallet_api_tests currently DISABLED ***" << std::endl;
+    return 0;
+
     const char * testnet_daemon_addr = std::getenv("TESTNET_DAEMON_ADDRESS");
     if (testnet_daemon_addr) {
         TESTNET_DAEMON_ADDRESS = testnet_daemon_addr;
@@ -1145,6 +1149,7 @@ int main(int argc, char** argv)
     if (mainnet_daemon_addr) {
         MAINNET_DAEMON_ADDRESS = mainnet_daemon_addr;
     }
+
 
 
 

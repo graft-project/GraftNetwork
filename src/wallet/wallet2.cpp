@@ -79,8 +79,8 @@ using namespace cryptonote;
 // arbitrary, used to generate different hashes from the same input
 #define CHACHA8_KEY_TAIL 0x8c
 
-#define UNSIGNED_TX_PREFIX "Monero unsigned tx set\003"
-#define SIGNED_TX_PREFIX "Monero signed tx set\003"
+#define UNSIGNED_TX_PREFIX "Graft unsigned tx set\003"
+#define SIGNED_TX_PREFIX "Graft signed tx set\003"
 
 #define RECENT_OUTPUT_RATIO (0.5) // 50% of outputs are from the recent zone
 #define RECENT_OUTPUT_ZONE ((time_t)(1.8 * 86400)) // last 1.8 day makes up the recent zone (taken from monerolink.pdf, Miller et al)
@@ -2687,12 +2687,18 @@ void wallet2::store_to(const std::string &path, const std::string &password)
   }
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::unlocked_balance() const
+uint64_t wallet2::unlocked_balance(uint64_t till_block) const
 {
   uint64_t amount = 0;
-  for(const transfer_details& td: m_transfers)
+  uint64_t block_height = 0;
+  for(const transfer_details& td: m_transfers) {
+    THROW_WALLET_EXCEPTION_IF(block_height > td.m_block_height, error::wallet_internal_error, "unsorted transfers");
+    if (till_block > 0 && td.m_block_height > till_block)
+        break;
+    block_height = td.m_block_height;
     if(!td.m_spent && is_transfer_unlocked(td))
       amount += td.amount();
+  }
 
   return amount;
 }
@@ -5563,13 +5569,17 @@ std::string wallet2::make_uri(const std::string &address, const std::string &pay
 //----------------------------------------------------------------------------------------------------
 bool wallet2::parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error)
 {
-  if (uri.substr(0, 7) != "monero:")
+  static const std::string URI_PREFIX = "graft:";
+  static const int URI_LEN = URI_PREFIX.length();
+
+
+  if (uri.substr(0, URI_LEN) != URI_PREFIX)
   {
-    error = std::string("URI has wrong scheme (expected \"monero:\"): ") + uri;
+    error = std::string("URI has wrong scheme (expected ") + "\"" + URI_PREFIX + "\"): " + uri;
     return false;
   }
 
-  std::string remainder = uri.substr(7);
+  std::string remainder = uri.substr(URI_LEN);
   const char *ptr = strchr(remainder.c_str(), '?');
   address = ptr ? remainder.substr(0, ptr-remainder.c_str()) : remainder;
 
