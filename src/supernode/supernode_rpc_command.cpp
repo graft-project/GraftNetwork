@@ -2,7 +2,7 @@
 #include "FSN_ServantBase.h"
 
 const string supernode::rpc_command::DAPI_URI = "/dapi";
-const string supernode::rpc_command::DAPI_METHOD = "GET";
+const string supernode::rpc_command::DAPI_METHOD = "POST";
 const string supernode::rpc_command::DAPI_PROTOCOL = "http";
 
 #define DCALL(xx) const string supernode::dapi_call::xx = #xx;
