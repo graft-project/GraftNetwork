@@ -126,14 +126,6 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
 //    return i18n_translate(str, "tools::supernode_rpc_server");
 //}
 
-
-//bool tools::supernode_rpc_server::on_test_call(const supernode_rpc::COMMAND_RPC_EMPTY_TEST::request& req, supernode_rpc::COMMAND_RPC_EMPTY_TEST::response& res, epee::json_rpc::error& er) {
-//    LOG_PRINT_L0("\n\n--------------------------------- 1 get test call\n");
-//    sleep(5);
-//    LOG_PRINT_L0("\n\n--------------------------------- 2 get test call\n");
-//    return true;
-//}
-
 //bool tools::supernode_rpc_server::onReadyToPay(const tools::supernode_rpc::COMMAND_RPC_READY_TO_PAY::request &req, tools::supernode_rpc::COMMAND_RPC_READY_TO_PAY::response &res, json_rpc::error &er)
 //{
 //    if (req.pid.empty() && req.key_image.empty())
@@ -175,85 +167,6 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
 //    m_trans_status_storage->storeData(req.pid, std::to_string(STATUS_REJECTED));
 //    //TODO: send BroadcastRemoveAccountLock();
 //    res.result = STATUS_OK;
-//    return true;
-//}
-
-//bool tools::supernode_rpc_server::onPay(const tools::supernode_rpc::COMMAND_RPC_PAY::request &req, tools::supernode_rpc::COMMAND_RPC_PAY::response &res, json_rpc::error &er)
-//{
-//    if (req.pid.empty() && req.account.empty() && req.transaction.address.empty())
-//    {
-//        res.result = ERROR_EMPTY_PARAMS;
-//        return true;
-//    }
-//    if (req.transaction.amount == 0)
-//    {
-//        res.result = ERROR_ZERO_PAYMENT_AMOUNT;
-//        return true;
-//    }
-//    std::unique_ptr<tools::GraftWallet> wal = initWallet(req.account, req.password, er);
-//    if (!wal)
-//    {
-//        return false;
-//    }
-//    //TODO: Validation
-//    //TODO: BroadcastPay
-//    m_trans_status_storage->storeData(req.pid, std::to_string(STATUS_APPROVED));
-//    res.result = STATUS_OK;
-//    return true;
-//}
-
-//bool tools::supernode_rpc_server::onGetPayStatus(const tools::supernode_rpc::COMMAND_RPC_GET_PAY_STATUS::request &req, tools::supernode_rpc::COMMAND_RPC_GET_PAY_STATUS::response &res, json_rpc::error &er)
-//{
-//    res.pay_status = STATUS_NONE;
-//    if (req.pid.empty())
-//    {
-//        res.result = ERROR_EMPTY_PARAMS;
-//        return true;
-//    }
-//    if (!m_trans_status_storage->exists(req.pid))
-//    {
-//        res.result = ERROR_PAYMENT_ID_DOES_NOT_EXISTS;
-//        return true;
-//    }
-//    res.result = STATUS_OK;
-//    res.pay_status = std::stoi(m_trans_status_storage->getData(req.pid));
-//    return true;
-//}
-
-//bool tools::supernode_rpc_server::onSale(const tools::supernode_rpc::COMMAND_RPC_SALE::request &req, tools::supernode_rpc::COMMAND_RPC_SALE::response &res, json_rpc::error &er)
-//{
-//    if (req.pid.empty() && req.data.empty())
-//    {
-//        res.result = ERROR_EMPTY_PARAMS;
-//        return true;
-//    }
-//    if (m_trans_status_storage->exists(req.pid))
-//    {
-//        res.result = ERROR_PAYMENT_ID_ALREADY_EXISTS;
-//        return true;
-//    }
-//    //TODO: send BroadcastSale()
-//    m_trans_status_storage->storeData(req.pid, std::to_string(STATUS_PROCESSING));
-//    m_trans_cache_storage->storeData(req.pid, req.data);
-//    res.result = STATUS_OK;
-//    return true;
-//}
-
-//bool tools::supernode_rpc_server::onGetSaleStatus(const tools::supernode_rpc::COMMAND_RPC_GET_SALE_STATUS::request &req, tools::supernode_rpc::COMMAND_RPC_GET_SALE_STATUS::response &res, json_rpc::error &er)
-//{
-//    res.sale_status = STATUS_NONE;
-//    if (req.pid.empty())
-//    {
-//        res.result = ERROR_EMPTY_PARAMS;
-//        return true;
-//    }
-//    if (!m_trans_status_storage->exists(req.pid))
-//    {
-//        res.result = ERROR_PAYMENT_ID_DOES_NOT_EXISTS;
-//        return true;
-//    }
-//    res.result = STATUS_OK;
-//    res.sale_status = std::stoi(m_trans_status_storage->getData(req.pid));
 //    return true;
 //}
 

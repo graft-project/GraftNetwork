@@ -79,8 +79,6 @@ namespace supernode {
 //    END_JSON_RPC_MAP()
 //    END_URI_MAP2()
 
-//    //JSON-RPC: Test DAPI
-//    bool on_test_call(const supernode_rpc::COMMAND_RPC_EMPTY_TEST::request &req, supernode_rpc::COMMAND_RPC_EMPTY_TEST::response &res, epee::json_rpc::error &er);
 //    //JSON-RPC: Wallet DAPI
 //    bool onReadyToPay(const supernode_rpc::COMMAND_RPC_READY_TO_PAY::request &req, supernode_rpc::COMMAND_RPC_READY_TO_PAY::response &res, epee::json_rpc::error &er);
 //    bool onRejectPay(const supernode_rpc::COMMAND_RPC_REJECT_PAY::request &req, supernode_rpc::COMMAND_RPC_REJECT_PAY::response &res, epee::json_rpc::error &er);
