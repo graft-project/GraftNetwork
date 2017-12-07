@@ -16,6 +16,7 @@ namespace supernode {
 
 		protected:
 		unsigned m_Signs = 0;
+		NTRansactionStatus m_Status = NTRansactionStatus::None;
 
 
 	};

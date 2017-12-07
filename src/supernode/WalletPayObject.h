@@ -15,6 +15,10 @@ namespace supernode {
 
 		protected:
 		bool PutTXToPool();
+		bool _Init(const RTA_TransactionRecordBase& src);
+
+		protected:
+		NTRansactionStatus m_Status = NTRansactionStatus::None;
 
 		//protected:
 		//vector<rpc_command::WALLET_TR_SIGNED::request> m_Signs;// TODO: set proper struct here

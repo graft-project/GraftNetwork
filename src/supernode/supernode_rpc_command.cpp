@@ -11,11 +11,12 @@ DCALL(GetPayStatus);
 DCALL(Sale);
 DCALL(GetSaleStatus);
 DCALL(WalletProxyPay);
-DCALL(WalletGetPosData);
 DCALL(WalletTRSigned);
 DCALL(WalletPutTxInPool);
 DCALL(PosProxySale);
 DCALL(PoSTRSigned);
+DCALL(WalletGetPosData);
+DCALL(WalletProxyGetPosData);
 #undef DCALL
 
 

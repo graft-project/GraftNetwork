@@ -1,6 +1,12 @@
 #include "WalletPayObject.h"
 
 bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
+	bool ret = _Init(src);
+	m_Status = ret?NTRansactionStatus::Success:NTRansactionStatus::Fail;
+	return ret;
+}
+
+bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	BaseRTAObject::Init(src);
 
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
@@ -18,32 +24,18 @@ bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 	if( !m_SubNetBroadcast.Send(dapi_call::WalletProxyPay, inbr, outv) || outv.empty() ) return false;
 
 
-	TransactionRecord.DataForClientWallet = outv.begin()->DataForClientWallet;
+	if( outv.size()!=m_Servant->AuthSampleSize() ) return false;// not all signs gotted
+	for(auto& a : outv) {
+		if( !CheckSign(a.FSN_StakeWalletAddr, a.Sign) ) return false;
+	}
 
-	// TODO: check all signs HERE
-
-
-
-	return true;
-}
-
-bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out) {
-	// TODO: IMPL
-	return true;
-}
-
-/*
-bool supernode::WalletPayObject::WalletTRSigned(const rpc_command::WALLET_TR_SIGNED::request& in, rpc_command::WALLET_TR_SIGNED::response& out) {
-	if( !CheckSign(in.FSN_StakeWalletAddr, in.Sign) ) return false;
-
-	m_Signs.push_back(in);
-	if( m_Signs.size()!=m_Servant->AuthSampleSize() ) return true;// not all signs gotted
+	// m_Signs.push_back(in); ??
 
 	if( !PutTXToPool() ) return false;
 
 	rpc_command::WALLET_PUT_TX_IN_POOL::request req;
 	req.PaymentID = TransactionRecord.PaymentID;
-	for(auto& a : m_Signs) {
+	for(auto& a : outv) {
 		req.FSN_Wallets.push_back( a.FSN_StakeWalletAddr );
 		req.Signs.push_back( a.Sign );
 	}
@@ -52,12 +44,14 @@ bool supernode::WalletPayObject::WalletTRSigned(const rpc_command::WALLET_TR_SIG
 
 	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
 
-	// TODO: set status to SUCCESS
-
-
 	return true;
 }
-*/
+
+bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out) {
+	out.Status = int(m_Status);
+	return true;
+}
+
 
 bool supernode::WalletPayObject::PutTXToPool() {
 	// TODO: IMPL
