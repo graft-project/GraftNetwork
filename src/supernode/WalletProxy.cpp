@@ -2,7 +2,7 @@
 
 void supernode::WalletProxy::Init() {
 	m_DAPIServer->ADD_DAPI_HANDLER(Pay, rpc_command::WALLET_PAY, WalletProxy);
-	// TODO: add all other handlers
+	m_DAPIServer->ADD_DAPI_HANDLER(WalletGetPosData, rpc_command::WALLET_GET_POS_DATA, WalletProxy);
 }
 
 
@@ -12,8 +12,18 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
 	if( !data->Init(in) ) return false;
 	Add(data);
 
-	out.DataForClientWallet = data->TransactionRecord.DataForClientWallet;
-	// TODO: return vector<sign>
-
 	return true;
+}
+
+bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
+
+	// we allready have block num
+	vector< boost::shared_ptr<FSN_Data> > vv = m_Servant->GetAuthSample( in.BlockNum );
+	if( vv.size()!=m_Servant->AuthSampleSize() ) return false;
+
+	boost::shared_ptr<FSN_Data> data = *vv.begin();
+
+	DAPI_RPC_Client call;
+	call.Set(data->IP, data->Port);
+	return call.Invoke(dapi_call::WalletProxyGetPosData, in, out);
 }

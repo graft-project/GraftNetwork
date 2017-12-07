@@ -2,6 +2,7 @@
 
 bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 	TransactionRecord = src;
+	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
 	return true;
 }
 
@@ -13,7 +14,6 @@ bool supernode::AuthSampleObject::WalletProxyPay(const RTA_TransactionRecord& sr
 
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
 
-	out.DataForClientWallet = TransactionRecord.DataForClientWallet;
 	out.Sign = GenerateSignForWallet();
 	out.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
 
@@ -35,7 +35,10 @@ bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PU
 	return true;
 }
 
-
+bool supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
+	out.DataForClientWallet = TransactionRecord.DataForClientWallet;
+	return true;
+}
 
 string supernode::AuthSampleObject::GenerateSignForWallet() {
 	// TODO: IMPL

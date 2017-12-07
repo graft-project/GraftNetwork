@@ -18,6 +18,7 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	inbr.SenderPort = m_DAPIServer->Port();
 	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) {  return false; }
 
+	m_Status = NTRansactionStatus::InProgress;
 
 	// TODO: add all other handlers for this sale request
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
@@ -29,7 +30,7 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 
 
 bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out) {
-	// TODO: IMPL
+	out.Status = int(m_Status);
 	return true;
 }
 
@@ -39,7 +40,7 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
 	m_Signs++;
 	if( m_Signs!=m_Servant->AuthSampleSize() ) return true;// not all signs gotted
 
-	// TODO: set transaction state to OK
+	m_Status = NTRansactionStatus::Success;
 	return true;
 }
 

@@ -229,6 +229,33 @@ struct Test_RTA_Flow {
 
 	};
 
+
+	NTRansactionStatus GetPayStatus(const string& port, const string& payID) {
+		DAPI_RPC_Client call;
+		call.Set("127.0.0.1", port);
+
+		rpc_command::WALLET_GET_TRANSACTION_STATUS::request in;
+		rpc_command::WALLET_GET_TRANSACTION_STATUS::response out;
+		in.PaymentID = payID;
+		bool ret = call.Invoke(dapi_call::GetPayStatus, in, out);
+
+		if(!ret) return NTRansactionStatus::Fail;
+		return NTRansactionStatus(out.Status);
+	}
+
+	NTRansactionStatus GetSaleStatus(const string& port, const string& payID) {
+		DAPI_RPC_Client call;
+		call.Set("127.0.0.1", port);
+
+		rpc_command::POS_GET_SALE_STATUS::request in;
+		rpc_command::POS_GET_SALE_STATUS::response out;
+		in.PaymentID = payID;
+		bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out);
+
+		if(!ret) return NTRansactionStatus::Fail;
+		return NTRansactionStatus(out.Status);
+	}
+
 	void Test() {
 		string ip = "127.0.0.1";
 		string p1 = "7500";
@@ -248,13 +275,33 @@ struct Test_RTA_Flow {
 		sale_in.DataForClientWallet = "Some data";
 		sale_in.POS_Wallet = "0xFF";
 
-		{
+		{// transaction must started from Sale call
 			DAPI_RPC_Client pos_sale;
 			pos_sale.Set(ip, p2);
 			bool ret = pos_sale.Invoke("Sale", sale_in, sale_out);
 			LOG_PRINT_L5("Sale ret: "<<ret<<"  BlockNum: "<<sale_out.BlockNum<<"  uuid: "<<sale_out.PaymentID);
 		}
 
+		{// after sale call you get PaymentID and BlockNum and can start poll status by GetSaleStatus call
+			NTRansactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
+			LOG_PRINT_L5("GetSaleStatus: "<<(trs==NTRansactionStatus::InProgress)<<"  int: "<<int(trs));
+
+		}
+
+		{// in any time after Sale call you can get PoS data by WalletGetPosData call
+			rpc_command::WALLET_GET_POS_DATA::request in;
+			rpc_command::WALLET_GET_POS_DATA::response out;
+			in.BlockNum = sale_out.BlockNum;
+			in.PaymentID = sale_out.PaymentID;
+			DAPI_RPC_Client call;
+			call.Set(ip, p1);
+			bool ret = call.Invoke("WalletGetPosData", in, out);
+
+			LOG_PRINT_L5("WalletGetPosData ret: "<<ret<<"  data: "<<out.DataForClientWallet);
+		}
+
+
+		// after use push Pay button, send Pay call
 		rpc_command::WALLET_PAY::request pay_in;
 		rpc_command::WALLET_PAY::response pay_out;
 		pay_in.Sum = sale_in.Sum;
@@ -269,7 +316,17 @@ struct Test_RTA_Flow {
 			LOG_PRINT_L5("Pay ret: "<<ret<<"  data: "<<pay_out.DataForClientWallet);
 		}
 
+		{// after Pay call you can can start poll status by GetPayStatus call
+			NTRansactionStatus trs =  GetPayStatus(p1, sale_out.PaymentID);
+			LOG_PRINT_L5("GetPayStatus: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
 
+		}
+
+		{
+			NTRansactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
+			LOG_PRINT_L5("GetSaleStatus2: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+
+		}
 
 
 		wallet_proxy.Stop();

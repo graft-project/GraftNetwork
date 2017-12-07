@@ -14,6 +14,13 @@ using namespace std;
 
 namespace supernode {
 
+	enum class NTRansactionStatus : int {
+		None = 0,
+		InProgress=1,
+		Success=2,
+		Fail=3
+	};
+
 
 	// ------------------------------------------
 	struct FSN_WalletData {

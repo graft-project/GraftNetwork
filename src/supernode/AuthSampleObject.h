@@ -17,6 +17,7 @@ namespace supernode {
 
 		protected:
 		bool WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out);
+		bool WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out);
 
 		protected:
 		string GenerateSignForWallet();
