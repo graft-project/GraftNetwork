@@ -367,7 +367,7 @@ struct Test_RTA_Flow {
 
 int main(int argc, char** argv) {
 	mlog_configure("", true);
-    mlog_set_log_level(0);
+    mlog_set_log_level(5);
 
 //	supernode::Test_RTA_Flow test_flow;
 //	test_flow.Test();
