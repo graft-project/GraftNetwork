@@ -7,7 +7,7 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	TransactionRecord.PaymentID = GeneratePaymentID();
 	TransactionRecord.BlockNum = m_Servant->GetCurrentBlockHeight();
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
-	if( TransactionRecord.AuthNodes.empty() ) { return false; }
+	if( TransactionRecord.AuthNodes.empty() ) { LOG_PRINT_L5("SALE: AuthNodes.empty"); return false; }
 
 	InitSubnet();
 
@@ -16,13 +16,17 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	rpc_command::ConvertFromTR(inbr, TransactionRecord);
 	inbr.SenderIP = m_DAPIServer->IP();
 	inbr.SenderPort = m_DAPIServer->Port();
-	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) {  return false; }
+	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) { return false; }
 
 	m_Status = NTRansactionStatus::InProgress;
 
-	// TODO: add all other handlers for this sale request
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, PoSTRSigned, rpc_command::POS_TR_SIGNED, PosSaleObject);
+
+
+	ADD_RTA_OBJECT_HANDLER(GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
+	ADD_RTA_OBJECT_HANDLER(PoSTRSigned, rpc_command::POS_TR_SIGNED, PosSaleObject);
+
+//	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
+//	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, PoSTRSigned, rpc_command::POS_TR_SIGNED, PosSaleObject);
 
 	return true;
 }

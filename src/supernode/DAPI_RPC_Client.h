@@ -19,7 +19,7 @@ namespace supernode {
 		void Set(string ip, string port);
 
 		template<class t_request, class t_response>
-		bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, std::chrono::milliseconds timeout = std::chrono::seconds(1)) {
+		bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
 
 	    	epee::json_rpc::request<t_request> req;
 	    	req.params = out_struct;

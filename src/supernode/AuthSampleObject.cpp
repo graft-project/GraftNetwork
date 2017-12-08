@@ -2,7 +2,8 @@
 
 bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 	TransactionRecord = src;
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
+	//m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
+	ADD_RTA_OBJECT_HANDLER(WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
 	return true;
 }
 
@@ -12,7 +13,8 @@ bool supernode::AuthSampleObject::WalletProxyPay(const RTA_TransactionRecord& sr
 
 	// TODO: send LOCK. WTF?? all our nodes got this packet by sub-net broadcast. so only top node must send broad cast
 
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
+	ADD_RTA_OBJECT_HANDLER(WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
+	//m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
 
 	out.Sign = GenerateSignForWallet();
 	out.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;

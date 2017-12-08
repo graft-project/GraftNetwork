@@ -16,6 +16,7 @@ namespace supernode {
 
 		protected:
 		void Add(boost::shared_ptr<BaseRTAObject> obj);
+		void Remove(boost::shared_ptr<BaseRTAObject> obj);
 		void Setup(boost::shared_ptr<BaseRTAObject> obj);
 		boost::shared_ptr<BaseRTAObject> ObjectByPayment(const string& payment_id);
 
@@ -26,6 +27,10 @@ namespace supernode {
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
 		mutable boost::mutex m_ObjectsGuard;
 		vector< boost::shared_ptr<BaseRTAObject> > m_Objects;
+
+//		mutable boost::mutex m_DeleteGuard;
+//		map< boost::posix_time::ptime, boost::shared_ptr<BaseRTAObject> > m_ForDelete;
+		// boost::posix_time::second_clock::local_time()
 
 	};
 

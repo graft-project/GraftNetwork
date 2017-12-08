@@ -24,3 +24,8 @@ bool supernode::BaseRTAObject::CheckSign(const string& wallet, const string& sig
 	// TODO: IMPL. We need sign string?
 	return true;
 }
+
+void supernode::BaseRTAObject::RemoveAllHandlers() {
+	boost::lock_guard<boost::mutex> lock(m_HanlderIdxGuard);
+}
+

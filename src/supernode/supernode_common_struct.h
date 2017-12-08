@@ -10,7 +10,7 @@
 #include "crypto/hash.h"
 using namespace std;
 
-#define LOG_PRINT_L5(xx) { cout<<xx<<endl; }
+#define LOG_PRINT_L5(xx) { cout<<__FILE__<<" : "<<xx<<endl; }
 
 namespace supernode {
 

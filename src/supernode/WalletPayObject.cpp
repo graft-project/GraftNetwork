@@ -9,8 +9,6 @@ bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	BaseRTAObject::Init(src);
 
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
-
 
 	// we allready have block num
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
@@ -43,6 +41,10 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
 
 	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
+
+
+	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
+	//m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
 
 	return true;
 }
