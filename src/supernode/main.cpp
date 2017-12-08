@@ -258,7 +258,7 @@ struct Test_RTA_Flow {
 	};
 
 
-	NTRansactionStatus GetPayStatus(const string& port, const string& payID) {
+    NTransactionStatus GetPayStatus(const string& port, const string& payID) {
 		DAPI_RPC_Client call;
 		call.Set("127.0.0.1", port);
 
@@ -267,11 +267,11 @@ struct Test_RTA_Flow {
 		in.PaymentID = payID;
 		bool ret = call.Invoke(dapi_call::GetPayStatus, in, out);
 
-		if(!ret) return NTRansactionStatus::Fail;
-		return NTRansactionStatus(out.Status);
+        if(!ret) return NTransactionStatus::Fail;
+        return NTransactionStatus(out.Status);
 	}
 
-	NTRansactionStatus GetSaleStatus(const string& port, const string& payID) {
+    NTransactionStatus GetSaleStatus(const string& port, const string& payID) {
 		DAPI_RPC_Client call;
 		call.Set("127.0.0.1", port);
 
@@ -280,8 +280,8 @@ struct Test_RTA_Flow {
 		in.PaymentID = payID;
 		bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out);
 
-		if(!ret) return NTRansactionStatus::Fail;
-		return NTRansactionStatus(out.Status);
+        if(!ret) return NTransactionStatus::Fail;
+        return NTransactionStatus(out.Status);
 	}
 
 	void Test() {
@@ -311,8 +311,8 @@ struct Test_RTA_Flow {
 		}
 
 		{// after sale call you get PaymentID and BlockNum and can start poll status by GetSaleStatus call
-			NTRansactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
-			LOG_PRINT_L5("GetSaleStatus: "<<(trs==NTRansactionStatus::InProgress)<<"  int: "<<int(trs));
+            NTransactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
+            LOG_PRINT_L5("GetSaleStatus: "<<(trs==NTransactionStatus::InProgress)<<"  int: "<<int(trs));
 
 		}
 
@@ -345,14 +345,14 @@ struct Test_RTA_Flow {
 		}
 
 		{// after Pay call you can can start poll status by GetPayStatus call
-			NTRansactionStatus trs =  GetPayStatus(p1, sale_out.PaymentID);
-			LOG_PRINT_L5("GetPayStatus: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+            NTransactionStatus trs =  GetPayStatus(p1, sale_out.PaymentID);
+            LOG_PRINT_L5("GetPayStatus: "<<(trs==NTransactionStatus::Success)<<"  int: "<<int(trs));
 
 		}
 
 		{
-			NTRansactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
-			LOG_PRINT_L5("GetSaleStatus2: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+            NTransactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
+            LOG_PRINT_L5("GetSaleStatus2: "<<(trs==NTransactionStatus::Success)<<"  int: "<<int(trs));
 
 		}
 
@@ -367,11 +367,11 @@ struct Test_RTA_Flow {
 
 int main(int argc, char** argv) {
 	mlog_configure("", true);
-	mlog_set_log_level(5);
+    mlog_set_log_level(0);
 
-	supernode::Test_RTA_Flow test_flow;
-	test_flow.Test();
-	return 0;
+//	supernode::Test_RTA_Flow test_flow;
+//	test_flow.Test();
+//	return 0;
 
 
 /*
@@ -414,9 +414,18 @@ int main(int argc, char** argv) {
 	supernode::DAPI_RPC_Server dapi_server;
 	dapi_server.Set( dapi_conf.get<string>("ip"), dapi_conf.get<string>("port"), dapi_conf.get<int>("threads") );
 
-	const boost::property_tree::ptree& wc = config.get_child("wallets");
-	supernode::FSN_Servant servant;
-	servant.Set( wc.get<string>("stake_file"), wc.get<string>("stake_passwd"), wc.get<string>("miner_file"), wc.get<string>("miner_passwd") );
+    const boost::property_tree::ptree& wc = config.get_child("wallets");
+//    supernode::FSN_Servant servant;
+//    servant.Set( wc.get<string>("stake_file"), wc.get<string>("stake_passwd"), wc.get<string>("miner_file"), wc.get<string>("miner_passwd") );
+    //TODO: Remove next code, it only for testing
+    supernode::Test_FSN_Servant servant;
+    servant.m_AuthSampleSize = 1;
+    boost::shared_ptr<supernode::FSN_Data> d1 = boost::shared_ptr<supernode::FSN_Data>(new supernode::FSN_Data());
+    d1->IP = dapi_conf.get<string>("ip");
+    d1->Port = dapi_conf.get<string>("port");
+    d1->Stake.Addr = "1_fsn";
+    servant.m_GetAuthSample.push_back(d1);
+    //TODO: end
 
 	vector<supernode::BaseRTAProcessor*> objs;
 	objs.push_back( new supernode::WalletProxy() );
