@@ -19,7 +19,7 @@ namespace supernode {
 		void Setup(boost::shared_ptr<BaseRTAObject> obj);
 		boost::shared_ptr<BaseRTAObject> ObjectByPayment(const string& payment_id);
 
-		virtual void Init()=0;
+        virtual void Init() = 0;
 
 		protected:
 		const FSN_ServantBase* m_Servant = nullptr;
