@@ -1,4 +1,5 @@
 #include "PosSaleObject.h"
+#include "graft_defines.h"
 #include <uuid/uuid.h>
 
 bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
@@ -18,19 +19,22 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	inbr.SenderPort = m_DAPIServer->Port();
 	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) {  return false; }
 
-	m_Status = NTRansactionStatus::InProgress;
+    m_Status = NTransactionStatus::InProgress;
 
 	// TODO: add all other handlers for this sale request
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
 	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, PoSTRSigned, rpc_command::POS_TR_SIGNED, PosSaleObject);
+    m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, RejectSale, rpc_command::POS_REJECT_SALE, PosSaleObject);
 
 	return true;
 }
 
 
 
-bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out) {
+bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out)
+{
 	out.Status = int(m_Status);
+    out.Result = STATUS_OK;
 	return true;
 }
 
@@ -40,8 +44,18 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
 	m_Signs++;
 	if( m_Signs!=m_Servant->AuthSampleSize() ) return true;// not all signs gotted
 
-	m_Status = NTRansactionStatus::Success;
-	return true;
+    m_Status = NTransactionStatus::Success;
+    return true;
+}
+
+bool supernode::PosSaleObject::RejectSale(const supernode::rpc_command::POS_REJECT_SALE::request &in, supernode::rpc_command::POS_REJECT_SALE::response &out)
+{
+    m_Status = NTransactionStatus::Fail;
+
+    //TODO: Add impl
+
+    out.Result = STATUS_OK;
+    return true;
 }
 
 

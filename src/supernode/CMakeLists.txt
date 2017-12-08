@@ -33,10 +33,14 @@
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 set(supernode_sources
+    graft_wallet.cpp
+    wallet_args.cpp
+    node_rpc_proxy.cpp
     AuthSample.cpp
     AuthSampleObject.cpp
     BaseRTAObject.cpp
     BaseRTAProcessor.cpp
+    baseclientproxy.cpp
     DAPI_RPC_Client.cpp
     DAPI_RPC_Server.cpp
     FSN_Servant.cpp
@@ -45,18 +49,24 @@ set(supernode_sources
     SubNetBroadcast.cpp
     WalletPayObject.cpp
     WalletProxy.cpp
-		P2P_Broadcast.cpp
-		supernode_common_struct.cpp
-		supernode_rpc_command.cpp
-		FSN_ServantBase.cpp)
+    P2P_Broadcast.cpp
+    supernode_common_struct.cpp
+    supernode_rpc_command.cpp
+    FSN_ServantBase.cpp)
 
 set(supernode_api_headers)
 
 set(supernode_private_headers
+    graft_defines.h
+    graft_wallet.h
+    wallet_args.h
+    wallet_errors.h
+    node_rpc_proxy.h
     AuthSample.h
     AuthSampleObject.h
     BaseRTAObject.h
     BaseRTAProcessor.h
+    baseclientproxy.h
     DAPI_RPC_Client.h
     DAPI_RPC_Server.h
     FSN_Servant.h
@@ -65,7 +75,7 @@ set(supernode_private_headers
     SubNetBroadcast.h
     WalletPayObject.h
     WalletProxy.h
-		P2P_Broadcast.h
+    P2P_Broadcast.h
     supernode_common_struct.h
     supernode_rpc_command.h)
 
@@ -107,10 +117,10 @@ if (NOT BUILD_GUI_DEPS)
         SubNetBroadcast.cpp
         WalletPayObject.cpp
         WalletProxy.cpp
-				P2P_Broadcast.cpp
-				supernode_common_struct.cpp
-				supernode_rpc_command.cpp
-				FSN_ServantBase.cpp)
+        P2P_Broadcast.cpp
+        supernode_common_struct.cpp
+        supernode_rpc_command.cpp
+        FSN_ServantBase.cpp)
 
     set(supernode_rpc_headers)
 
@@ -125,6 +135,7 @@ if (NOT BUILD_GUI_DEPS)
 
     target_link_libraries(supernode_rpc_server
         PRIVATE
+        supernode
         wallet
         epee
         rpc

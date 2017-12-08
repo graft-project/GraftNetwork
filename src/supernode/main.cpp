@@ -1,3 +1,31 @@
+// Copyright (c) 2017, The Graft Project
+//
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without modification, are
+// permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice, this list of
+//    conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice, this list
+//    of conditions and the following disclaimer in the documentation and/or other
+//    materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors may be
+//    used to endorse or promote products derived from this software without specific
+//    prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+// THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 #include <boost/bind.hpp>
 #include <string>
 #include <iostream>
@@ -230,7 +258,7 @@ struct Test_RTA_Flow {
 	};
 
 
-	NTRansactionStatus GetPayStatus(const string& port, const string& payID) {
+    NTransactionStatus GetPayStatus(const string& port, const string& payID) {
 		DAPI_RPC_Client call;
 		call.Set("127.0.0.1", port);
 
@@ -239,11 +267,11 @@ struct Test_RTA_Flow {
 		in.PaymentID = payID;
 		bool ret = call.Invoke(dapi_call::GetPayStatus, in, out);
 
-		if(!ret) return NTRansactionStatus::Fail;
-		return NTRansactionStatus(out.Status);
+        if(!ret) return NTransactionStatus::Fail;
+        return NTransactionStatus(out.Status);
 	}
 
-	NTRansactionStatus GetSaleStatus(const string& port, const string& payID) {
+    NTransactionStatus GetSaleStatus(const string& port, const string& payID) {
 		DAPI_RPC_Client call;
 		call.Set("127.0.0.1", port);
 
@@ -252,8 +280,8 @@ struct Test_RTA_Flow {
 		in.PaymentID = payID;
 		bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out);
 
-		if(!ret) return NTRansactionStatus::Fail;
-		return NTRansactionStatus(out.Status);
+        if(!ret) return NTransactionStatus::Fail;
+        return NTransactionStatus(out.Status);
 	}
 
 	void Test() {
@@ -283,8 +311,8 @@ struct Test_RTA_Flow {
 		}
 
 		{// after sale call you get PaymentID and BlockNum and can start poll status by GetSaleStatus call
-			NTRansactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
-			LOG_PRINT_L5("GetSaleStatus: "<<(trs==NTRansactionStatus::InProgress)<<"  int: "<<int(trs));
+            NTransactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
+            LOG_PRINT_L5("GetSaleStatus: "<<(trs==NTransactionStatus::InProgress)<<"  int: "<<int(trs));
 
 		}
 
@@ -317,14 +345,14 @@ struct Test_RTA_Flow {
 		}
 
 		{// after Pay call you can can start poll status by GetPayStatus call
-			NTRansactionStatus trs =  GetPayStatus(p1, sale_out.PaymentID);
-			LOG_PRINT_L5("GetPayStatus: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+            NTransactionStatus trs =  GetPayStatus(p1, sale_out.PaymentID);
+            LOG_PRINT_L5("GetPayStatus: "<<(trs==NTransactionStatus::Success)<<"  int: "<<int(trs));
 
 		}
 
 		{
-			NTRansactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
-			LOG_PRINT_L5("GetSaleStatus2: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+            NTransactionStatus trs =  GetSaleStatus(p2, sale_out.PaymentID);
+            LOG_PRINT_L5("GetSaleStatus2: "<<(trs==NTransactionStatus::Success)<<"  int: "<<int(trs));
 
 		}
 
@@ -339,11 +367,11 @@ struct Test_RTA_Flow {
 
 int main(int argc, char** argv) {
 	mlog_configure("", true);
-	mlog_set_log_level(5);
+    mlog_set_log_level(5);
 
-	supernode::Test_RTA_Flow test_flow;
-	test_flow.Test();
-	return 0;
+//	supernode::Test_RTA_Flow test_flow;
+//	test_flow.Test();
+//	return 0;
 
 
 /*
@@ -386,9 +414,18 @@ int main(int argc, char** argv) {
 	supernode::DAPI_RPC_Server dapi_server;
 	dapi_server.Set( dapi_conf.get<string>("ip"), dapi_conf.get<string>("port"), dapi_conf.get<int>("threads") );
 
-	const boost::property_tree::ptree& wc = config.get_child("wallets");
-	supernode::FSN_Servant servant;
-	servant.Set( wc.get<string>("stake_file"), wc.get<string>("stake_passwd"), wc.get<string>("miner_file"), wc.get<string>("miner_passwd") );
+    const boost::property_tree::ptree& wc = config.get_child("wallets");
+//    supernode::FSN_Servant servant;
+//    servant.Set( wc.get<string>("stake_file"), wc.get<string>("stake_passwd"), wc.get<string>("miner_file"), wc.get<string>("miner_passwd") );
+    //TODO: Remove next code, it only for testing
+    supernode::Test_FSN_Servant servant;
+    servant.m_AuthSampleSize = 1;
+    boost::shared_ptr<supernode::FSN_Data> d1 = boost::shared_ptr<supernode::FSN_Data>(new supernode::FSN_Data());
+    d1->IP = dapi_conf.get<string>("ip");
+    d1->Port = dapi_conf.get<string>("port");
+    d1->Stake.Addr = "1_fsn";
+    servant.m_GetAuthSample.push_back(d1);
+    //TODO: end
 
 	vector<supernode::BaseRTAProcessor*> objs;
 	objs.push_back( new supernode::WalletProxy() );
@@ -414,11 +451,5 @@ int main(int argc, char** argv) {
 		delete objs[i];
 	}
 
-
-
-	return 0;
+    return 0;
 }
-
-
-
-
