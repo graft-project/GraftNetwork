@@ -24,13 +24,17 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 
 	ADD_RTA_OBJECT_HANDLER(GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
 	ADD_RTA_OBJECT_HANDLER(PoSTRSigned, rpc_command::POS_TR_SIGNED, PosSaleObject);
-	ADD_RTA_OBJECT_HANDLER(RejectSale, rpc_command::POS_REJECT_SALE, PosSaleObject);
-
+	ADD_RTA_OBJECT_HANDLER(PosRejectSale, rpc_command::POS_REJECT_SALE, PosSaleObject);
+	ADD_RTA_OBJECT_HANDLER(AuthWalletRejectPay, rpc_command::WALLET_REJECT_PAY, PosSaleObject);
 
 	return true;
 }
 
-
+bool supernode::PosSaleObject::AuthWalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
+	m_Status = NTransactionStatus::RejectedByWallet;
+	// TODO: mark self for delete
+	return true;
+}
 
 bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out)
 {
@@ -49,8 +53,8 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
     return true;
 }
 
-bool supernode::PosSaleObject::RejectSale(const supernode::rpc_command::POS_REJECT_SALE::request &in, supernode::rpc_command::POS_REJECT_SALE::response &out)
-{
+
+bool supernode::PosSaleObject::PosRejectSale(const supernode::rpc_command::POS_REJECT_SALE::request &in, supernode::rpc_command::POS_REJECT_SALE::response &out) {
     m_Status = NTransactionStatus::Fail;
 
     //TODO: Add impl

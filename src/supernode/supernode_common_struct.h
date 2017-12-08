@@ -18,7 +18,8 @@ namespace supernode {
 		None = 0,
 		InProgress=1,
 		Success=2,
-		Fail=3
+		Fail=3,
+		RejectedByWallet=4
 	};
 
 

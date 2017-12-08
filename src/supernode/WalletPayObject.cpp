@@ -44,25 +44,12 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 
 
 	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
-	ADD_RTA_OBJECT_HANDLER(RejectPay, rpc_command::WALLET_REJECT_PAY, WalletPayObject);
-	//m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
-
 
 	return true;
 }
 
 bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out) {
 	out.Status = int(m_Status);
-    return true;
-}
-
-bool supernode::WalletPayObject::RejectPay(const supernode::rpc_command::WALLET_REJECT_PAY::request &in, supernode::rpc_command::WALLET_REJECT_PAY::response &out)
-{
-    m_Status = NTransactionStatus::Fail;
-
-    //TODO: Add impl
-
-    out.Result = STATUS_OK;
     return true;
 }
 

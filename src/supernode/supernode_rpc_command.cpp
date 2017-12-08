@@ -7,10 +7,9 @@ const string supernode::rpc_command::DAPI_PROTOCOL = "http";
 
 #define DCALL(xx) const string supernode::dapi_call::xx = #xx;
 DCALL(Pay);
-DCALL(RejectPay)
 DCALL(GetPayStatus);
 DCALL(Sale);
-DCALL(RejectSale)
+DCALL(PosRejectSale)
 DCALL(GetSaleStatus);
 DCALL(WalletProxyPay);
 DCALL(WalletTRSigned);
@@ -23,6 +22,9 @@ DCALL(GetWalletBalance)
 DCALL(CreateAccount)
 DCALL(GetSeed)
 DCALL(RestoreAccount)
+DCALL(WalletRejectPay)
+DCALL(WalletProxyRejectPay)
+DCALL(AuthWalletRejectPay)
 #undef DCALL
 
 

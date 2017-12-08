@@ -385,6 +385,57 @@ struct Test_RTA_Flow {
 		return true;
 	}
 
+	void TestWalletReject() {
+		bool bb;
+
+		rpc_command::POS_SALE::request sale_in;
+		rpc_command::POS_SALE::response sale_out;
+		sale_in.Sum = 11;
+		sale_in.DataForClientWallet = "Some data";
+		sale_in.POS_Wallet = "0xFF";
+
+		unsigned repeatCount = 10;
+
+
+		for(unsigned i=0;i<repeatCount;i++) {// transaction must started from Sale call
+			DAPI_RPC_Client pos_sale;
+			pos_sale.Set(IP, PosProxyPort);
+			bb = pos_sale.Invoke("Sale", sale_in, sale_out, chrono::seconds(10));
+			if( Assert(bb, "Sale") ) break;
+		}
+		if(!bb) return;
+
+		for(unsigned i=0;i<repeatCount;i++) {// after sale call you get PaymentID and BlockNum and can start poll status by GetSaleStatus call
+			NTransactionStatus trs =  GetSaleStatus(sale_out.PaymentID);
+			bb = trs==NTransactionStatus::InProgress;
+			if( Assert(bb, "GetSaleStatus") ) break;
+		}
+		if(!bb) return;
+
+		for(unsigned i=0;i<repeatCount;i++) {// in any time after Sale call you can get PoS data by WalletGetPosData call
+			rpc_command::WALLET_REJECT_PAY::request in;
+			rpc_command::WALLET_REJECT_PAY::response out;
+			in.BlockNum = sale_out.BlockNum;
+			in.PaymentID = sale_out.PaymentID;
+			DAPI_RPC_Client call;
+			call.Set(IP, WalletProxyPort);
+			bb = call.Invoke("WalletRejectPay", in, out, chrono::seconds(10));
+			if( Assert(bb, "WalletRejectPay") ) break;
+		}
+		if(!bb) return;
+
+
+
+		for(unsigned i=0;i<repeatCount;i++) {// after Pay call you can can start poll status by GetPayStatus call
+			NTransactionStatus trs =  GetSaleStatus(sale_out.PaymentID);
+			bb = trs==NTransactionStatus::RejectedByWallet;
+			if( Assert(bb, "GetSaleStatus : RejectedByWallet") ) break;
+		}
+		if(!bb) return;
+
+		LOG_PRINT_L5("WalletRejectPay - OK ");
+
+	}
 
 	unsigned m_RunInTread = 10;
 	atomic_uint m_Fail = {0};
@@ -397,12 +448,6 @@ struct Test_RTA_Flow {
 	}
 
 	void Test() {
-		/*
-		string ip = "127.0.0.1";
-		string p1 = "7500";
-		string p2 = "8500";
-		*/
-
 		Supernode wallet_proxy;
 		wallet_proxy.Start(WalletProxyPort, PosProxyPort, WalletProxyPort);
 
@@ -411,23 +456,18 @@ struct Test_RTA_Flow {
 
 		sleep(1);
 
+		TestWalletReject();
+
+
+		/*
+
 		boost::thread_group workers;
 		for(int i=0;i<10;i++) {
 			workers.create_thread( boost::bind(&Test_RTA_Flow::TestThread, this) );
 		}
 		workers.join_all();
 		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
-
-		/*
-		int fail = 0;
-		for(unsigned i=0;i<100;i++) {
-			LOG_PRINT_L5("\n");
-			if( !DoTest() ) { fail++; }
-			//boost::this_thread::sleep_for(boost::chrono::milliseconds(1000));
-		}
-		LOG_PRINT_L5("\n\nFAILED count: "<<fail);
-		// std::string threadId = boost::lexical_cast<std::string>(boost::this_thread::get_id());
-		 */
+*/
 
 		wallet_proxy.Stop();
 		pos_proxy.Stop();
