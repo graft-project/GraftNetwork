@@ -481,6 +481,61 @@ std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_fr
   return {std::move(wallet), std::move(*pwd)};
 }
 
+std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &daemon_address,
+                                                       const string &daemon_host, int daemon_port,
+                                                       const string &daemon_login, bool testnet,
+                                                       bool restricted)
+{
+    //make_basic() analogue
+    if (!daemon_address.empty() && !daemon_host.empty() && 0 != daemon_port)
+    {
+        tools::fail_msg_writer() << tools::GraftWallet::tr("can't specify daemon host or port more than once");
+        return nullptr;
+    }
+    boost::optional<epee::net_utils::http::login> login{};
+    if (!daemon_login.empty())
+    {
+        std::string ldaemon_login(daemon_login);
+        auto parsed = tools::login::parse(std::move(ldaemon_login), false, "Daemon client password");
+        if (!parsed)
+        {
+            return nullptr;
+        }
+        login.emplace(std::move(parsed->username), std::move(parsed->password).password());
+    }
+    std::string ldaemon_host = daemon_host;
+    if (daemon_host.empty())
+    {
+        ldaemon_host = "localhost";
+    }
+    if (!daemon_port)
+    {
+        daemon_port = testnet ? config::testnet::RPC_DEFAULT_PORT : config::RPC_DEFAULT_PORT;
+    }
+    std::string ldaemon_address = daemon_address;
+    if (daemon_address.empty())
+    {
+        ldaemon_address = std::string("http://") + ldaemon_host + ":" + std::to_string(daemon_port);
+    }
+    std::unique_ptr<tools::GraftWallet> wallet(new tools::GraftWallet(testnet, restricted));
+    wallet->init(std::move(ldaemon_address), std::move(login));
+    return wallet;
+}
+
+std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &account_data, const string &password,
+                                                       const string &daemon_address, const string &daemon_host,
+                                                       int daemon_port, const string &daemon_login,
+                                                       bool testnet, bool restricted)
+{
+    auto wallet = createWallet(daemon_address, daemon_host, daemon_port, daemon_login,
+                               testnet, restricted);
+    if (wallet)
+    {
+        wallet->load_graft(account_data, password);
+    }
+    return std::move(wallet);
+}
+
 std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_from_data(
         const boost::program_options::variables_map &vm, const string &data)
 {

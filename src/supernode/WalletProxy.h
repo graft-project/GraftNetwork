@@ -2,12 +2,11 @@
 #define WALLET_PROXY_H_
 
 #include "WalletPayObject.h"
-#include "BaseRTAProcessor.h"
+#include "baseclientproxy.h"
 
 namespace supernode {
-	class WalletProxy : public BaseRTAProcessor {
+    class WalletProxy : public BaseClientProxy {
 		public:
-
 
 		protected:
 		void Init() override;

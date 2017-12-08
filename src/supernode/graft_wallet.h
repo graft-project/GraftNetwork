@@ -124,6 +124,19 @@ namespace tools
       make_from_file(const boost::program_options::variables_map& vm, const std::string& wallet_file);
 
     //Graft Test
+    static std::unique_ptr<GraftWallet> createWallet(const std::string &daemon_address = std::string(),
+                                                     const std::string &daemon_host = std::string(),
+                                                     int daemon_port = 0,
+                                                     const std::string &daemon_login = std::string(),
+                                                     bool testnet = false, bool restricted = false);
+    static std::unique_ptr<GraftWallet> createWallet(const std::string &account_data,
+                                                     const std::string &password,
+                                                     const std::string &daemon_address = std::string(),
+                                                     const std::string &daemon_host = std::string(),
+                                                     int daemon_port = 0,
+                                                     const std::string &daemon_login = std::string(),
+                                                     bool testnet = false, bool restricted = false);
+
     static std::pair<std::unique_ptr<GraftWallet>, password_container>
       make_from_data(const boost::program_options::variables_map& vm, const std::string& data);
 
