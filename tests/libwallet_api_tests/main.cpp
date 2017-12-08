@@ -1133,8 +1133,8 @@ TEST_F(WalletManagerMainnetTest, RecoverAndRefreshWalletMainNetAsync)
 
 TEST_F(WalletTest2, EmissionPrint)
 {
-    std::cout << "MONEY_SUPPLY: " << Monero::Wallet::displayAmount(MONEY_SUPPLY) << std::endl;
-    std::cout << "COIN: " << Monero::Wallet::displayAmount(COIN) << std::endl;
+    std::cout << "MONEY_SUPPLY: " << Monero::Wallet::displayAmount(MONEY_SUPPLY) << " (" << MONEY_SUPPLY << ")" << std::endl;
+    std::cout << "COIN: " << Monero::Wallet::displayAmount(COIN) << " (" << COIN << ")" << std::endl;
     std::cout << "MAX_MONEY: " << Monero::Wallet::displayAmount(std::numeric_limits<uint64_t>::max()) << std::endl;
     std::cout << "FEE_PER_KB_OLD: " << Monero::Wallet::displayAmount(FEE_PER_KB_OLD) << std::endl;
     std::cout << "FEE_PER_KB: " << Monero::Wallet::displayAmount(FEE_PER_KB) << std::endl;
