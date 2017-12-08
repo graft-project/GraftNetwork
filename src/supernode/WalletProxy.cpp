@@ -1,15 +1,21 @@
 #include "WalletProxy.h"
 
-void supernode::WalletProxy::Init() {
+void supernode::WalletProxy::Init()
+{
+    BaseClientProxy::Init();
 	m_DAPIServer->ADD_DAPI_HANDLER(Pay, rpc_command::WALLET_PAY, WalletProxy);
 	m_DAPIServer->ADD_DAPI_HANDLER(WalletGetPosData, rpc_command::WALLET_GET_POS_DATA, WalletProxy);
 }
 
 
-bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out) {
+bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out)
+{
 	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
 	Setup(data);
-	if( !data->Init(in) ) return false;
+    if(!data->Init(in))
+    {
+        return false;
+    }
 	Add(data);
 
 	return true;

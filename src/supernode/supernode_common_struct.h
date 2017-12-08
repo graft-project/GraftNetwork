@@ -14,7 +14,7 @@ using namespace std;
 
 namespace supernode {
 
-	enum class NTRansactionStatus : int {
+    enum class NTransactionStatus : int {
 		None = 0,
 		InProgress=1,
 		Success=2,
