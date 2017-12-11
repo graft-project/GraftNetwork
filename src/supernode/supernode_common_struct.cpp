@@ -21,7 +21,7 @@ bool FSN_Data::operator==(const FSN_Data& s) const {
 bool RTA_TransactionRecord::operator!=(const RTA_TransactionRecord& s) const { return !(*this==s); }
 
 bool RTA_TransactionRecord::operator==(const RTA_TransactionRecord& s) const {
-	bool bb = s.Sum!=Sum || s.POS_Wallet!=POS_Wallet || s.BlockNum!=BlockNum || s.PaymentID!=PaymentID;
+    bool bb = s.Amount != Amount || s.POSAddress!=POSAddress || s.BlockNum!=BlockNum || s.PaymentID!=PaymentID;
 	if(bb) return false;
 
 	if( s.AuthNodes.size()!=AuthNodes.size() ) return false;
