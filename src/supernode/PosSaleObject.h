@@ -4,8 +4,10 @@
 #include "BaseRTAObject.h"
 
 namespace supernode {
+	class PosProxy;
 	class PosSaleObject : public BaseRTAObject {
 		public:
+		void Owner(PosProxy* o);
 		bool Init(const RTA_TransactionRecordBase& src) override;
 		bool GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out);
 		bool PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out);
@@ -19,6 +21,7 @@ namespace supernode {
 		protected:
 		unsigned m_Signs = 0;
         NTransactionStatus m_Status = NTransactionStatus::None;
+        PosProxy* m_Owner = nullptr;
 	};
 }
 

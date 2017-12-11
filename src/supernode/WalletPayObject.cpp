@@ -1,6 +1,8 @@
 #include "WalletPayObject.h"
 #include "graft_defines.h"
 
+void supernode::WalletPayObject::Owner(WalletProxy* o) { m_Owner = o; }
+
 bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 	bool ret = _Init(src);
     m_Status = ret ? NTransactionStatus::Success : NTransactionStatus::Fail;
@@ -52,6 +54,8 @@ bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRAN
 	out.Status = int(m_Status);
     return true;
 }
+
+
 
 
 bool supernode::WalletPayObject::PutTXToPool() {

@@ -1,5 +1,7 @@
 #include "AuthSampleObject.h"
 
+void supernode::AuthSampleObject::Owner(AuthSample* o) { m_Owner = o; }
+
 bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 	TransactionRecord = src;
 
