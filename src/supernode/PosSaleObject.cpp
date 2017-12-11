@@ -2,6 +2,8 @@
 #include "graft_defines.h"
 #include <uuid/uuid.h>
 
+void supernode::PosSaleObject::Owner(PosProxy* o) { m_Owner = o; }
+
 bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	BaseRTAObject::Init(src);
 

@@ -6,8 +6,10 @@
 #include "DAPI_RPC_Client.h"
 
 namespace supernode {
+	class AuthSample;
 	class AuthSampleObject: public BaseRTAObject {
 		public:
+		void Owner(AuthSample* o);
 		bool Init(const RTA_TransactionRecord& src);
 		bool WalletProxyPay(const RTA_TransactionRecord& src, rpc_command::WALLET_PROXY_PAY::response& out);
 
@@ -26,6 +28,9 @@ namespace supernode {
 
 		protected:
 		virtual bool Init(const RTA_TransactionRecordBase& src);
+
+		protected:
+		AuthSample* m_Owner = nullptr;
 
 
 	};

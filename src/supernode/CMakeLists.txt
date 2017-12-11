@@ -33,6 +33,7 @@
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 set(supernode_sources
+    api/pending_transaction.cpp
     graft_wallet.cpp
     wallet_args.cpp
     node_rpc_proxy.cpp
@@ -57,6 +58,7 @@ set(supernode_sources
 set(supernode_api_headers)
 
 set(supernode_private_headers
+    api/pending_transaction.h
     graft_defines.h
     graft_wallet.h
     wallet_args.h
