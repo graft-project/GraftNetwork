@@ -71,13 +71,17 @@ namespace supernode {
 		// ---------------------------------------
 		struct WALLET_PAY {
 			struct request : public RTA_TransactionRecordBase {
+                std::string Account;
+                std::string Password;
+
 				BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Account)
+                    KV_SERIALIZE(Password)
 					KV_SERIALIZE(POS_Wallet)
 					KV_SERIALIZE(BlockNum)
 					KV_SERIALIZE(Sum)
 					KV_SERIALIZE(PaymentID)
 				END_KV_SERIALIZE_MAP()
-
 			};
 			struct response {
                 int64_t Result;
