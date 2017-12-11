@@ -52,12 +52,15 @@
 #include "crypto/hash.h"
 #include "ringct/rctTypes.h"
 #include "ringct/rctOps.h"
+#include "wallet/wallet2_api.h"
 
 #include "wallet_errors.h"
 #include "common/password.h"
 #include "node_rpc_proxy.h"
 
 #include <iostream>
+
+using namespace Monero;
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.graftwallet"
@@ -336,6 +339,10 @@ namespace tools
                                       const crypto::secret_key& recovery_param,
                                       bool recover, bool two_random);
     void load_graft(const std::string& data, const std::string& password);
+
+    PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
+                                                       optional<uint64_t> amount, uint32_t mixin_count,
+                                                       PendingTransaction::Priority priority = PendingTransaction::Priority_Low);
 
     void generate(const std::string& wallet, const std::string& password,
       const cryptonote::account_public_address &account_public_address,
