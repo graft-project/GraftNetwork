@@ -29,6 +29,9 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
     }
 	Add(data);
 
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(in.Account, in.Password);
+    PendingTransaction *transaction = wal->createTransaction(in.POS_Wallet, in.PaymentID, in.Sum, 0);
+
 	return true;
 }
 
