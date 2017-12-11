@@ -234,7 +234,7 @@ void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
 }
 
 bool FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
-	boost::lock_guard<boost::mutex> lock(All_FSN_Guard);// we use one mutex for All_FSN && for m_viewOnlyWallets
+	boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);// we use one mutex for All_FSN && for m_viewOnlyWallets
 
 	if( !FSN_ServantBase::RemoveFsnAccount(fsn) ) return false;
 

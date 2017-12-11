@@ -13,6 +13,7 @@ namespace supernode {
 		virtual void Stop();
 
 		void Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi);
+		virtual void Tick();
 
 		protected:
 		void Add(boost::shared_ptr<BaseRTAObject> obj);
@@ -25,8 +26,11 @@ namespace supernode {
 		protected:
 		const FSN_ServantBase* m_Servant = nullptr;
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
-		mutable boost::mutex m_ObjectsGuard;
+		mutable boost::recursive_mutex m_ObjectsGuard;
 		vector< boost::shared_ptr<BaseRTAObject> > m_Objects;
+
+		mutable boost::recursive_mutex m_RemoveObjectsGuard;
+		vector< boost::shared_ptr<BaseRTAObject> > m_RemoveObjects;
 
 //		mutable boost::mutex m_DeleteGuard;
 //		map< boost::posix_time::ptime, boost::shared_ptr<BaseRTAObject> > m_ForDelete;

@@ -459,7 +459,7 @@ struct Test_RTA_Flow {
 		TestWalletReject();
 
 
-		/*
+
 
 		boost::thread_group workers;
 		for(int i=0;i<10;i++) {
@@ -467,7 +467,7 @@ struct Test_RTA_Flow {
 		}
 		workers.join_all();
 		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
-*/
+
 
 		wallet_proxy.Stop();
 		pos_proxy.Stop();

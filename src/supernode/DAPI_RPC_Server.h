@@ -93,7 +93,7 @@ namespace supernode {
 		int AddHandlerData(const SHandlerData& h);
 
 		protected:
-		boost::mutex m_Handlers_Guard;
+		boost::recursive_mutex m_Handlers_Guard;
 		vector<SHandlerData> m_vHandlers;
 		int m_HandlerIdx = 0;
 

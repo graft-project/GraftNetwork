@@ -54,7 +54,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     SCallHandler* handler = nullptr;
 
     {
-    	boost::lock_guard<boost::mutex> lock(m_Handlers_Guard);
+    	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
     	for(unsigned i=0;i<m_vHandlers.size();i++) {
     		SHandlerData& hh = m_vHandlers[i];
     		if(hh.Name!=callback_name) continue;
@@ -93,7 +93,7 @@ void supernode::DAPI_RPC_Server::Start() { run(m_NumThreads); }
 void supernode::DAPI_RPC_Server::Stop() { send_stop_signal(); }
 
 int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h) {
-	boost::lock_guard<boost::mutex> lock(m_Handlers_Guard);
+	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
 	int idx = m_HandlerIdx;
 	m_HandlerIdx++;
 	m_vHandlers.push_back(h);
@@ -102,7 +102,7 @@ int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h) {
 }
 
 void supernode::DAPI_RPC_Server::RemoveHandler(int idx) {
-	boost::lock_guard<boost::mutex> lock(m_Handlers_Guard);
+	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
 	for(unsigned i=0;i<m_vHandlers.size();i++) if( m_vHandlers[i].Idx==idx ) {
 		m_vHandlers.erase( m_vHandlers.begin()+i );
 		break;
