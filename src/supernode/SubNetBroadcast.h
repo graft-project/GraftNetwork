@@ -32,11 +32,20 @@ namespace supernode {
 			out.clear();
 			bool ret = true;
 			for(unsigned i=0;i<m_Members.size();i++) {
-				DAPI_RPC_Client client;
-				client.Set( m_Members[i]->IP, m_Members[i]->Port );
-				OUT_t outo;
-				if( !client.Invoke<IN_t, OUT_t>(method, in, outo) ) { ret = false; break; }
-				out.push_back(outo);
+				bool localcOk = false;
+				for(unsigned k=0;k<4;k++) {
+					DAPI_RPC_Client client;
+					client.Set( m_Members[i]->IP, m_Members[i]->Port );
+					OUT_t outo;
+					if( !client.Invoke<IN_t, OUT_t>(method, in, outo, chrono::seconds(5)) ) {
+						boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
+						continue;
+					}
+					localcOk = true;
+					out.push_back(outo);
+					break;
+				}//for K
+				if(!localcOk) { ret = false; break; }
 			}
 
 			if(!ret) { out.clear(); return false; }

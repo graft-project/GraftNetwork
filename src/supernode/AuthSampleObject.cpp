@@ -1,8 +1,13 @@
 #include "AuthSampleObject.h"
 
+void supernode::AuthSampleObject::Owner(AuthSample* o) { m_Owner = o; }
+
 bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 	TransactionRecord = src;
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
+
+	ADD_RTA_OBJECT_HANDLER(WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
+	ADD_RTA_OBJECT_HANDLER(WalletProxyRejectPay, rpc_command::WALLET_REJECT_PAY, AuthSampleObject);
+
 	return true;
 }
 
@@ -12,7 +17,8 @@ bool supernode::AuthSampleObject::WalletProxyPay(const RTA_TransactionRecord& sr
 
 	// TODO: send LOCK. WTF?? all our nodes got this packet by sub-net broadcast. so only top node must send broad cast
 
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
+	ADD_RTA_OBJECT_HANDLER(WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
+	//m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
 
 	out.Sign = GenerateSignForWallet();
 	out.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
@@ -38,6 +44,13 @@ bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PU
 bool supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
 	out.DataForClientWallet = TransactionRecord.DataForClientWallet;
 	return true;
+}
+
+bool supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
+	rpc_command::WALLET_REJECT_PAY::request in2 = in;
+	bool ret = SendDAPICall(PosIP, PosPort, dapi_call::AuthWalletRejectPay, in2, out);
+	// TODO: remove self
+	return ret;
 }
 
 string supernode::AuthSampleObject::GenerateSignForWallet() {

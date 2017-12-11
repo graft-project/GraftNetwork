@@ -9,10 +9,10 @@ namespace supernode {
 
 	namespace dapi_call {
 		extern const string Pay;
-        extern const string RejectPay;
+
 		extern const string GetPayStatus;
 		extern const string Sale;
-        extern const string RejectSale;
+        extern const string PosRejectSale;
 		extern const string GetSaleStatus;
 
 		extern const string WalletProxyPay;
@@ -30,6 +30,10 @@ namespace supernode {
         extern const string CreateAccount;
         extern const string GetSeed;
         extern const string RestoreAccount;
+
+        extern const string WalletRejectPay;
+        extern const string WalletProxyRejectPay;
+        extern const string AuthWalletRejectPay;
 	};
 
 
@@ -120,8 +124,10 @@ namespace supernode {
             struct request : public SubNetData {
                 BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(PaymentID)
+                    KV_SERIALIZE(BlockNum)
                 END_KV_SERIALIZE_MAP()
 
+                uint64_t BlockNum;
             };
             struct response {
                 int64_t Result;

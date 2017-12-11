@@ -1,6 +1,8 @@
 #include "WalletPayObject.h"
 #include "graft_defines.h"
 
+void supernode::WalletPayObject::Owner(WalletProxy* o) { m_Owner = o; }
+
 bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 	bool ret = _Init(src);
     m_Status = ret ? NTransactionStatus::Success : NTransactionStatus::Fail;
@@ -9,9 +11,6 @@ bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 
 bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	BaseRTAObject::Init(src);
-
-	m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
-    m_DAPIServer->ADD_DAPI_GLOBAL_METHOD_HANDLER(TransactionRecord.PaymentID, RejectPay, rpc_command::WALLET_REJECT_PAY, WalletPayObject);
 
 	// we allready have block num
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
@@ -45,6 +44,9 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 
 	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
 
+
+	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
+
 	return true;
 }
 
@@ -53,15 +55,7 @@ bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRAN
     return true;
 }
 
-bool supernode::WalletPayObject::RejectPay(const supernode::rpc_command::WALLET_REJECT_PAY::request &in, supernode::rpc_command::WALLET_REJECT_PAY::response &out)
-{
-    m_Status = NTransactionStatus::Fail;
 
-    //TODO: Add impl
-
-    out.Result = STATUS_OK;
-    return true;
-}
 
 
 bool supernode::WalletPayObject::PutTXToPool() {

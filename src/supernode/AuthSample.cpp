@@ -1,6 +1,7 @@
 #include "AuthSample.h"
 
 
+
 void supernode::AuthSample::Init()  {
 	m_DAPIServer->ADD_DAPI_HANDLER(PosProxySale, rpc_command::POS_PROXY_SALE, AuthSample);
 	m_DAPIServer->ADD_DAPI_HANDLER(WalletProxyPay, rpc_command::WALLET_PROXY_PAY, AuthSample);
@@ -14,6 +15,7 @@ bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::requ
 	if( !Check(tr) ) return false;
 
 	boost::shared_ptr<AuthSampleObject> data = boost::shared_ptr<AuthSampleObject>( new AuthSampleObject() );
+	data->Owner(this);
 	Setup(data);
 	if( !data->Init(tr) ) return false;
 

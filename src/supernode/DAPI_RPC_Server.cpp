@@ -1,7 +1,9 @@
 #include "DAPI_RPC_Server.h"
 
 bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) {
-	LOG_PRINT_L5("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI);
+	LOG_PRINT_L4("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI);
+
+	//LOG_PRINT_L5("Got request");
 
 	response.m_response_code = 200;
 	response.m_response_comment = "Ok";
@@ -19,6 +21,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     uint64_t ticks = epee::misc_utils::get_tick_count();
     epee::serialization::portable_storage ps;
     if( !ps.load_from_json(query_info.m_body) ) {
+		LOG_PRINT_L5("!load_from_json");
        boost::value_initialized<epee::json_rpc::error_response> rsp;
        static_cast<epee::json_rpc::error_response&>(rsp).error.code = -32700;
        static_cast<epee::json_rpc::error_response&>(rsp).error.message = "Parse error";
@@ -36,6 +39,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
       rsp.error.code = -32600;
       rsp.error.message = "Invalid Request";
       epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(rsp), response_info.m_body);
+      LOG_PRINT_L5("!get_value");
       return true;
     }
 
@@ -61,8 +65,8 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     	}
     }
 
-    if(!handler) { return false; }
-    if( !handler->Process(ps, response_info.m_body) ) { return false; }
+    if(!handler) { LOG_PRINT_L5("!handler: "<<callback_name); return false; }
+    if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L5("!Process: "<<callback_name); return false; }
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
@@ -78,6 +82,10 @@ void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int n
 	m_IP = ip;
 	init(port, ip);
 	m_NumThreads = numThreads;
+
+	//m_net_server.acceptor_.max_connections
+	//LOG_PRINT_L5("MAX_CON: "<<boost::asio::ip::tcp::acceptor::max_connections);
+
 }
 
 void supernode::DAPI_RPC_Server::Start() { run(m_NumThreads); }

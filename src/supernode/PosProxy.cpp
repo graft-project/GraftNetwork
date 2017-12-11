@@ -13,6 +13,7 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
 {
     //TODO: Add input data validation
 	boost::shared_ptr<PosSaleObject> data = boost::shared_ptr<PosSaleObject>( new PosSaleObject() );
+	data->Owner(this);
 	Setup(data);
     if (!data->Init(in))
     {
