@@ -85,22 +85,30 @@ monero_add_library(supernode
     ${supernode_sources}
     ${supernode_api_headers}
     ${supernode_private_headers})
-target_link_libraries(supernode
-    PUBLIC
-    common
-    cryptonote_core
-    mnemonics
-    p2p
-    uuid
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_SERIALIZATION_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_REGEX_LIBRARY}
-    PRIVATE
-    ${EXTRA_LIBRARIES})
-add_dependencies(supernode version)
+
+# static libs cant be linked with another libs
+#target_link_libraries(supernode
+#    PUBLIC
+#    rpc
+#    daemon_lib
+#    common
+#    cryptonote_core
+#    mnemonics
+#    p2p
+#    uuid
+#    blockchain_db
+#    cncrypto
+#    cryptonote_protocol
+#    daemonizer
+#    ${Boost_CHRONO_LIBRARY}
+#    ${Boost_SERIALIZATION_LIBRARY}
+#    ${Boost_FILESYSTEM_LIBRARY}
+#    ${Boost_SYSTEM_LIBRARY}
+#    ${Boost_THREAD_LIBRARY}
+#    ${Boost_REGEX_LIBRARY}
+#    PRIVATE
+#    ${EXTRA_LIBRARIES})
+#add_dependencies(supernode version)
 
 if (NOT BUILD_GUI_DEPS)
     set(supernode_rpc_sources
@@ -136,13 +144,20 @@ if (NOT BUILD_GUI_DEPS)
     target_link_libraries(supernode_rpc_server
         PRIVATE
         supernode
+        daemon_lib
         wallet
         epee
         rpc
         cryptonote_core
+        cryptonote_protocol
         cncrypto
         common
         uuid
+        daemonizer
+        mnemonics
+        p2p
+        uuid
+        blockchain_db
         ${Boost_CHRONO_LIBRARY}
         ${Boost_PROGRAM_OPTIONS_LIBRARY}
         ${Boost_FILESYSTEM_LIBRARY}
