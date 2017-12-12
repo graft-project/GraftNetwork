@@ -1,5 +1,6 @@
 #include "WalletPayObject.h"
 #include "graft_defines.h"
+#include "WalletProxy.h"
 
 void supernode::WalletPayObject::Owner(WalletProxy* o) { m_Owner = o; }
 
@@ -47,11 +48,13 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 
 	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
 
+
 	return true;
 }
 
 bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out) {
 	out.Status = int(m_Status);
+	//TimeMark -= boost::posix_time::hours(3);
     return true;
 }
 
