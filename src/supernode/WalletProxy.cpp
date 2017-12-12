@@ -1,3 +1,4 @@
+#include "graft_defines.h"
 #include "WalletProxy.h"
 
 void supernode::WalletProxy::Init()
@@ -15,6 +16,7 @@ bool supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PA
 	sub.Set( m_DAPIServer, in.PaymentID, m_Servant->GetAuthSample(in.BlockNum) );
 	vector<rpc_command::WALLET_REJECT_PAY::response> vout;
 	bool ret = sub.Send( dapi_call::WalletProxyRejectPay, in, vout );
+    out.Result = ret ? STATUS_OK : ERROR_CANNOT_REJECT_PAY;
 	return ret;
 }
 
@@ -32,7 +34,8 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
     //std::unique_ptr<tools::GraftWallet> wal = initWallet(in.Account, in.Password);
     //PendingTransaction *transaction = wal->createTransaction(in.POSAddress, in.PaymentID, in.Amount, 0);
 
-	return true;
+    out.Result = STATUS_OK;
+    return true;
 }
 
 bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {

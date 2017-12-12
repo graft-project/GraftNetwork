@@ -23,6 +23,7 @@
 #define ERROR_ELECTRUM_SEED_EMPTY           -14
 #define ERROR_ELECTRUM_SEED_INVALID         -15
 #define ERROR_BALANCE_NOT_AVAILABLE         -16
+#define ERROR_CANNOT_REJECT_PAY             -17
 
 
 #endif // GRAFT_DEFINES_H
