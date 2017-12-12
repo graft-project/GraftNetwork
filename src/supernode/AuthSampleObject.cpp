@@ -42,7 +42,7 @@ bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PU
 }
 
 bool supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
-	out.DataForClientWallet = TransactionRecord.DataForClientWallet;
+    out.POSSaleDetails = TransactionRecord.POSSaleDetails;
 	return true;
 }
 

@@ -55,6 +55,7 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out) {
 	out.Status = int(m_Status);
 	//TimeMark -= boost::posix_time::hours(3);
+    out.Result = STATUS_OK;
     return true;
 }
 
