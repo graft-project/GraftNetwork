@@ -874,14 +874,19 @@ namespace cryptonote
 
   bool add_graft_tx_extra_to_extra(transaction &tx, const supernode::GraftTxExtra &graft_extra)
   {
+      return add_graft_tx_extra_to_extra(tx.extra, graft_extra);
+  }
+
+  bool add_graft_tx_extra_to_extra(std::vector<uint8_t>& extra, const supernode::GraftTxExtra &graft_extra)
+  {
       std::string blob;
       ::serialization::dump_binary(const_cast<supernode::GraftTxExtra&>(graft_extra), blob);
       tx_extra_graft_extra container;
       container.data = blob;
       blob.clear();
       ::serialization::dump_binary(container, blob);
-      tx.extra.push_back(TX_EXTRA_GRAFT_EXTRA_TAG);
-      std::copy(blob.begin(), blob.end(), std::back_inserter(tx.extra));
+      extra.push_back(TX_EXTRA_GRAFT_EXTRA_TAG);
+      std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
       return true;
   }
 
