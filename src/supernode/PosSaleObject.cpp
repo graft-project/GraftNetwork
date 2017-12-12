@@ -57,7 +57,7 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
 
 
 bool supernode::PosSaleObject::PosRejectSale(const supernode::rpc_command::POS_REJECT_SALE::request &in, supernode::rpc_command::POS_REJECT_SALE::response &out) {
-    m_Status = NTransactionStatus::Fail;
+    m_Status = NTransactionStatus::RejectedByPOS;
 
     //TODO: Add impl
 

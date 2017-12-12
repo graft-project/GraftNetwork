@@ -19,7 +19,8 @@ namespace supernode {
 		InProgress=1,
 		Success=2,
 		Fail=3,
-		RejectedByWallet=4
+        RejectedByWallet=4,
+        RejectedByPOS=5
 	};
 
 
