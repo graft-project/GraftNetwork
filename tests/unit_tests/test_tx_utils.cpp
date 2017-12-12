@@ -214,7 +214,11 @@ TEST(parse_tx_extra, handles_graft_tx_extra)
 
     graft_tx_extra1.BlockNum = 123;
     graft_tx_extra1.PaymentID = "1234567890";
-    graft_tx_extra1.Signs = { "1234567890", "0987654321" };
+
+    for (int i = 0; i < 100; ++i) {
+        graft_tx_extra1.Signs.push_back("SigV1iVT74Y4h8LVLj3WA3HtXHEgaWBvVxVvZwcjbykkSJwjM2rqFPNUWA8JH2QRnpMCHJv8QSe4oi62t58BWBXT1BGor");
+    }
+
 
     ASSERT_TRUE(cryptonote::add_graft_tx_extra_to_extra(tx, graft_tx_extra1));
     supernode::GraftTxExtra graft_tx_extra2;
@@ -236,7 +240,9 @@ TEST(parse_tx_extra, handles_graft_tx_extra_and_pubkey)
     supernode::GraftTxExtra graft_tx_extra1;
     graft_tx_extra1.BlockNum = 123;
     graft_tx_extra1.PaymentID = "1234567890";
-    graft_tx_extra1.Signs = { "1234567890", "0987654321" };
+    for (int i = 0; i < 100; ++i) {
+        graft_tx_extra1.Signs.push_back("SigV1iVT74Y4h8LVLj3WA3HtXHEgaWBvVxVvZwcjbykkSJwjM2rqFPNUWA8JH2QRnpMCHJv8QSe4oi62t58BWBXT1BGor");
+    }
     ASSERT_TRUE(cryptonote::add_graft_tx_extra_to_extra(tx, graft_tx_extra1));
     crypto::public_key tx_pub_key = cryptonote::get_tx_pub_key_from_extra(tx);
     ASSERT_NE(tx_pub_key, cryptonote::null_pkey);
