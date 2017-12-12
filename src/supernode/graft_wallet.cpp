@@ -67,6 +67,7 @@ extern "C"
 #include "crypto/crypto-ops.h"
 }
 using namespace cryptonote;
+using namespace supernode;
 
 static const size_t DEFAULT_MIXIN = 4;
 
@@ -2424,7 +2425,7 @@ void GraftWallet::load_graft(const string &data, const string &password)
 }
 
 PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const string &payment_id,
-                                                   optional<uint64_t> amount, uint32_t mixin_count,
+                                                   optional<uint64_t> amount, uint32_t mixin_count, const GraftTxExtra &graftExtra,
                                                    PendingTransaction::Priority priority)
 {
     int status = 0;

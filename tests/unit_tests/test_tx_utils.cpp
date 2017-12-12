@@ -1,3 +1,4 @@
+// Copyright (c) 2017, The Graft Project
 // Copyright (c) 2014-2017, The Monero Project
 // 
 // All rights reserved.
@@ -34,6 +35,7 @@
 
 #include "common/util.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
+
 
 namespace
 {
@@ -202,4 +204,43 @@ TEST(validate_parse_amount_case, validate_parse_amount)
 
   r = cryptonote::parse_amount(res, "1 00.00 00");
   ASSERT_FALSE(r);
+}
+
+
+TEST(parse_tx_extra, handles_graft_tx_extra)
+{
+    cryptonote::transaction tx = AUTO_VAL_INIT(tx);
+    supernode::GraftTxExtra graft_tx_extra1;
+
+    graft_tx_extra1.BlockNum = 123;
+    graft_tx_extra1.PaymentID = "1234567890";
+    graft_tx_extra1.Signs = { "1234567890", "0987654321" };
+
+    ASSERT_TRUE(cryptonote::add_graft_tx_extra_to_extra(tx, graft_tx_extra1));
+    supernode::GraftTxExtra graft_tx_extra2;
+    ASSERT_TRUE(cryptonote::get_graft_tx_extra_from_extra(tx, graft_tx_extra2));
+    ASSERT_EQ(graft_tx_extra1, graft_tx_extra2);
+
+}
+
+
+TEST(parse_tx_extra, handles_graft_tx_extra_and_pubkey)
+{
+    cryptonote::transaction tx = AUTO_VAL_INIT(tx);
+    cryptonote::account_base acc;
+    acc.generate();
+    cryptonote::blobdata b = "dsdsdfsdfsf";
+    // NOTE 1. construct_miner_tx clears extra
+    // NOTE 2. this is just for test, nosense in real world - we wont be adding graft extra fields into miner tx
+    ASSERT_TRUE(cryptonote::construct_miner_tx(0, 0, 10000000000000, 1000, TEST_FEE, acc.get_keys().m_account_address, tx, b, 1));
+    supernode::GraftTxExtra graft_tx_extra1;
+    graft_tx_extra1.BlockNum = 123;
+    graft_tx_extra1.PaymentID = "1234567890";
+    graft_tx_extra1.Signs = { "1234567890", "0987654321" };
+    ASSERT_TRUE(cryptonote::add_graft_tx_extra_to_extra(tx, graft_tx_extra1));
+    crypto::public_key tx_pub_key = cryptonote::get_tx_pub_key_from_extra(tx);
+    ASSERT_NE(tx_pub_key, cryptonote::null_pkey);
+    supernode::GraftTxExtra graft_tx_extra2;
+    ASSERT_TRUE(cryptonote::get_graft_tx_extra_from_extra(tx, graft_tx_extra2));
+    ASSERT_EQ(graft_tx_extra1, graft_tx_extra2);
 }

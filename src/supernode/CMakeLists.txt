@@ -53,7 +53,8 @@ set(supernode_sources
     P2P_Broadcast.cpp
     supernode_common_struct.cpp
     supernode_rpc_command.cpp
-    FSN_ServantBase.cpp)
+    FSN_ServantBase.cpp
+    grafttxextra.cpp)
 
 set(supernode_api_headers)
 

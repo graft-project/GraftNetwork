@@ -57,6 +57,7 @@
 #include "wallet_errors.h"
 #include "common/password.h"
 #include "node_rpc_proxy.h"
+#include "grafttxextra.h"
 
 #include <iostream>
 
@@ -340,8 +341,11 @@ namespace tools
                                       bool recover, bool two_random);
     void load_graft(const std::string& data, const std::string& password);
 
+
+
     PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
                                                        optional<uint64_t> amount, uint32_t mixin_count,
+                                                       const supernode::GraftTxExtra &graftExtra,
                                                        PendingTransaction::Priority priority = PendingTransaction::Priority_Low);
 
     void generate(const std::string& wallet, const std::string& password,
