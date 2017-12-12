@@ -62,11 +62,11 @@ namespace supernode {
 			};
 			struct response {
                 int64_t Result;
-                string DataForClientWallet;
+                string POSSaleDetails;
 
                 BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(Result)
-					KV_SERIALIZE(DataForClientWallet)
+                    KV_SERIALIZE(POSSaleDetails)
 				END_KV_SERIALIZE_MAP()
 
 			};
@@ -81,9 +81,9 @@ namespace supernode {
 				BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(Account)
                     KV_SERIALIZE(Password)
-					KV_SERIALIZE(POS_Wallet)
+                    KV_SERIALIZE(POSAddress)
 					KV_SERIALIZE(BlockNum)
-					KV_SERIALIZE(Sum)
+                    KV_SERIALIZE(Amount)
 					KV_SERIALIZE(PaymentID)
 				END_KV_SERIALIZE_MAP()
 			};
@@ -100,9 +100,9 @@ namespace supernode {
 		struct WALLET_PROXY_PAY {
 			struct request : public RTA_TransactionRecordRequest {
 				BEGIN_KV_SERIALIZE_MAP()
-					KV_SERIALIZE(POS_Wallet)
+                    KV_SERIALIZE(POSAddress)
 					KV_SERIALIZE(BlockNum)
-					KV_SERIALIZE(Sum)
+                    KV_SERIALIZE(Amount)
 					KV_SERIALIZE(PaymentID)
 					KV_SERIALIZE(NodesWallet)
 				END_KV_SERIALIZE_MAP()
@@ -182,9 +182,9 @@ namespace supernode {
 		struct POS_SALE {
 			struct request : public RTA_TransactionRecordBase {
 				BEGIN_KV_SERIALIZE_MAP()
-					KV_SERIALIZE(POS_Wallet)
-					KV_SERIALIZE(DataForClientWallet)
-					KV_SERIALIZE(Sum)
+                    KV_SERIALIZE(POSAddress)
+                    KV_SERIALIZE(POSSaleDetails)
+                    KV_SERIALIZE(Amount)
 				END_KV_SERIALIZE_MAP()
 
 			};
@@ -209,10 +209,10 @@ namespace supernode {
 					KV_SERIALIZE(SenderPort)
 
 
-					KV_SERIALIZE(POS_Wallet)
-					KV_SERIALIZE(DataForClientWallet)
+                    KV_SERIALIZE(POSAddress)
+                    KV_SERIALIZE(POSSaleDetails)
 					KV_SERIALIZE(BlockNum)
-					KV_SERIALIZE(Sum)
+                    KV_SERIALIZE(Amount)
 					KV_SERIALIZE(PaymentID)
 					KV_SERIALIZE(NodesWallet)
 				END_KV_SERIALIZE_MAP()

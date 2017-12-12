@@ -35,7 +35,7 @@ bool supernode::AuthSample::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::
 
 	RTA_TransactionRecord tr;
 	rpc_command::ConvertToTR(tr, in, m_Servant);
-	if( !data->WalletProxyPay(tr, out) ) { LOG_PRINT_L5("!WalletProxyPay"); RemoveRecord(data); return false; }
+	if( !data->WalletProxyPay(tr, out) ) { LOG_PRINT_L5("!WalletProxyPay"); Remove(data); return false; }
 
 
 	return true;
@@ -49,7 +49,6 @@ bool supernode::AuthSample::Check(RTA_TransactionRecord& tr) {
 
 
 
-void supernode::AuthSample::RemoveRecord(boost::shared_ptr<AuthSampleObject> record) {}
 
 
 

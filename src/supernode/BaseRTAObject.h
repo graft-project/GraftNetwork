@@ -16,10 +16,15 @@ namespace supernode {
 		RTA_TransactionRecord TransactionRecord;
 
 		public:
+		BaseRTAObject();
 		virtual bool Init(const RTA_TransactionRecordBase& src);
 		virtual void Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi);
-		virtual void RemoveAllHandlers();
 		virtual ~BaseRTAObject();
+		void MarkForDelete();
+
+		boost::posix_time::ptime TimeMark;
+
+
 
 		protected:
 		void InitSubnet();
@@ -36,7 +41,7 @@ namespace supernode {
 
 		template<class IN_t, class OUT_t>
 		void AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
-			boost::lock_guard<boost::mutex> lock(m_HanlderIdxGuard);
+			boost::lock_guard<boost::recursive_mutex> lock(m_HanlderIdxGuard);
 			if(m_ReadyForDelete) return;
 			int idx = m_DAPIServer->Add_UUID_MethodHandler<IN_t, OUT_t>( TransactionRecord.PaymentID, method, handler );
 			m_HanlderIdx.push_back(idx);
@@ -47,13 +52,12 @@ namespace supernode {
 			AddHandler<data::request, data::response>(dapi_call::method, bind( &class_owner::method, this, _1, _2))
 
 
-
 		protected:
 		SubNetBroadcast m_SubNetBroadcast;
 		const FSN_ServantBase* m_Servant = nullptr;
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
 
-		mutable boost::mutex m_HanlderIdxGuard;
+		mutable boost::recursive_mutex m_HanlderIdxGuard;
 		vector<int> m_HanlderIdx;
 		bool m_ReadyForDelete = false;
 

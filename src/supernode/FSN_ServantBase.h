@@ -35,7 +35,7 @@ namespace supernode {
 
 	protected:
 	    // next two fields may be references
-	    mutable boost::mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
+	    mutable boost::recursive_mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
 	    // TODO: store FSN_Data and corresponding wallet in single map
 	    vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 

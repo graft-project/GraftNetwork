@@ -308,9 +308,9 @@ struct Test_RTA_Flow {
 
 		rpc_command::POS_SALE::request sale_in;
 		rpc_command::POS_SALE::response sale_out;
-		sale_in.Sum = 11;
-		sale_in.DataForClientWallet = "Some data";
-		sale_in.POS_Wallet = "0xFF";
+        sale_in.Amount = 11;
+        sale_in.POSSaleDetails = "Some data";
+        sale_in.POSAddress = "0xFF";
 
 		unsigned repeatCount = 10;
 
@@ -342,7 +342,7 @@ struct Test_RTA_Flow {
 			DAPI_RPC_Client call;
 			call.Set(IP, WalletProxyPort);
 			bb = call.Invoke("WalletGetPosData", in, out, chrono::seconds(10));
-			bb = bb && out.DataForClientWallet==sale_in.DataForClientWallet;
+            bb = bb && out.POSSaleDetails==sale_in.POSSaleDetails;
 			if( Assert(bb, "WalletGetPosData") ) break;
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
 
@@ -354,8 +354,8 @@ struct Test_RTA_Flow {
 		// after use push Pay button, send Pay call
 		rpc_command::WALLET_PAY::request pay_in;
 		rpc_command::WALLET_PAY::response pay_out;
-		pay_in.Sum = sale_in.Sum;
-		pay_in.POS_Wallet = sale_in.POS_Wallet;
+        pay_in.Amount = sale_in.Amount;
+        pay_in.POSAddress = sale_in.POSAddress;
 		pay_in.BlockNum = sale_out.BlockNum;
 		pay_in.PaymentID = sale_out.PaymentID;
 		for(unsigned i=0;i<repeatCount;i++) {
@@ -397,9 +397,9 @@ struct Test_RTA_Flow {
 
 		rpc_command::POS_SALE::request sale_in;
 		rpc_command::POS_SALE::response sale_out;
-		sale_in.Sum = 11;
-		sale_in.DataForClientWallet = "Some data";
-		sale_in.POS_Wallet = "0xFF";
+        sale_in.Amount = 11;
+        sale_in.POSSaleDetails = "Some data";
+        sale_in.POSAddress = "0xFF";
 
 		unsigned repeatCount = 10;
 
@@ -466,7 +466,7 @@ struct Test_RTA_Flow {
 		TestWalletReject();
 
 
-		/*
+
 
 		boost::thread_group workers;
 		for(int i=0;i<10;i++) {
@@ -474,7 +474,7 @@ struct Test_RTA_Flow {
 		}
 		workers.join_all();
 		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
-*/
+
 
 		wallet_proxy.Stop();
 		pos_proxy.Stop();
