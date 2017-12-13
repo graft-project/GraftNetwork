@@ -67,6 +67,7 @@ extern "C"
 #include "crypto/crypto-ops.h"
 }
 using namespace cryptonote;
+using namespace supernode;
 
 static const size_t DEFAULT_MIXIN = 4;
 
@@ -2424,7 +2425,7 @@ void GraftWallet::load_graft(const string &data, const string &password)
 }
 
 PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const string &payment_id,
-                                                   optional<uint64_t> amount, uint32_t mixin_count,
+                                                   optional<uint64_t> amount, uint32_t mixin_count, const GraftTxExtra &graftExtra,
                                                    PendingTransaction::Priority priority)
 {
     int status = 0;
@@ -2481,6 +2482,14 @@ PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const
                 break;
             }
         }
+
+        // add graft extra fields to tx extra
+        if (!cryptonote::add_graft_tx_extra_to_extra(extra, graftExtra)) {
+            LOG_ERROR("Error adding graft fields to tx extra");
+            delete transaction;
+            return nullptr;
+        }
+
 
         try {
             if (amount) {
@@ -4860,7 +4869,9 @@ static uint32_t get_count_above(const std::vector<GraftWallet::transfer_details>
 // This system allows for sending (almost) the entire balance, since it does
 // not generate spurious change in all txes, thus decreasing the instantaneous
 // usable balance.
-std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
+std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
+                                                                        const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra,
+                                                                        bool trusted_daemon)
 {
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
