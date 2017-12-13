@@ -90,6 +90,294 @@ struct Test_FSN_Servant : public supernode::FSN_ServantBase {
 
 };
 
+struct Test_RTA_Flow {
+	public:
+	struct Supernode {
+		Test_FSN_Servant Servant;
+		boost::thread* WorkerThread = nullptr;
+		supernode::DAPI_RPC_Server dapi_server;
+
+		string Port;
+		string IP;
+
+		void Run() {
+			dapi_server.Set( IP, Port, 500 );
+
+
+			vector<supernode::BaseRTAProcessor*> objs;
+			objs.push_back( new supernode::WalletProxy() );
+			objs.push_back( new supernode::PosProxy() );
+			objs.push_back( new supernode::AuthSample() );
+
+			for(unsigned i=0;i<objs.size();i++) {
+				objs[i]->Set(&Servant, &dapi_server);
+				objs[i]->Start();
+			}
+
+			dapi_server.Start();// block execution
+
+
+			// -----------------------------------------------------------------
+
+			for(unsigned i=0;i<objs.size();i++) {
+				objs[i]->Stop();
+				delete objs[i];
+			}
+
+		}
+
+
+		void Start(string p1, string p2, string mp) {
+			IP = "127.0.0.1";
+			Port = mp;
+
+			Servant.m_AuthSampleSize = 2;
+			Servant.m_GetCurrentBlockHeight = 13;
+
+			boost::shared_ptr<FSN_Data> d1 = boost::shared_ptr<FSN_Data>(new FSN_Data());
+			boost::shared_ptr<FSN_Data> d2 = boost::shared_ptr<FSN_Data>(new FSN_Data());
+			d1->IP = IP;
+			d1->Port = p1;
+			d1->Stake.Addr = "1_fsn";
+			d2->IP = IP;
+			d2->Port = p2;
+			d2->Stake.Addr = "2_fsn";
+
+			Servant.m_GetAuthSample.push_back(d1);
+			Servant.m_GetAuthSample.push_back(d2);
+
+
+			WorkerThread = new boost::thread(&Supernode::Run, this);
+		}
+
+		void Stop() {
+			dapi_server.Stop();
+			WorkerThread->join();
+		}
+
+
+
+	};
+
+
+
+	NTransactionStatus GetPayStatus(const string& payID) {
+		DAPI_RPC_Client call;
+		call.Set(IP, WalletProxyPort);
+
+		rpc_command::WALLET_GET_TRANSACTION_STATUS::request in;
+		rpc_command::WALLET_GET_TRANSACTION_STATUS::response out;
+		in.PaymentID = payID;
+		bool ret = call.Invoke(dapi_call::GetPayStatus, in, out, chrono::seconds(10));
+
+        if(!ret) return NTransactionStatus::Fail;
+        return NTransactionStatus(out.Status);
+	}
+
+	NTransactionStatus GetSaleStatus(const string& payID) {
+		DAPI_RPC_Client call;
+		call.Set(IP, PosProxyPort);
+
+		rpc_command::POS_GET_SALE_STATUS::request in;
+		rpc_command::POS_GET_SALE_STATUS::response out;
+		in.PaymentID = payID;
+		bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out, chrono::seconds(10));
+
+        if(!ret) return NTransactionStatus::Fail;
+        return NTransactionStatus(out.Status);
+	}
+
+	string IP = "127.0.0.1";;
+	string WalletProxyPort = "7500";;
+	string PosProxyPort = "8500";;
+	bool Verbose = true;
+
+	bool Assert(bool bb, const string& str) {
+		if(!Verbose) return bb;
+		LOG_PRINT_L5(str<<" - "<<(bb?"OK":"Fail"));
+		return bb;
+	}
+
+	bool DoTest() {
+		bool bb;
+
+		rpc_command::POS_SALE::request sale_in;
+		rpc_command::POS_SALE::response sale_out;
+        sale_in.Amount = 11;
+        sale_in.POSSaleDetails = "Some data";
+        sale_in.POSAddress = "0xFF";
+
+		unsigned repeatCount = 10;
+
+
+		for(unsigned i=0;i<repeatCount;i++) {// transaction must started from Sale call
+			DAPI_RPC_Client pos_sale;
+			pos_sale.Set(IP, PosProxyPort);
+			bb = pos_sale.Invoke("Sale", sale_in, sale_out, chrono::seconds(10));
+			if( Assert(bb, "Sale") ) break;
+
+			//LOG_PRINT_L5("Sale ret: "<<ret<<"  BlockNum: "<<sale_out.BlockNum<<"  uuid: "<<sale_out.PaymentID);
+		}
+		if(!bb) return false;
+
+		for(unsigned i=0;i<repeatCount;i++) {// after sale call you get PaymentID and BlockNum and can start poll status by GetSaleStatus call
+			NTransactionStatus trs =  GetSaleStatus(sale_out.PaymentID);
+			bb = trs==NTransactionStatus::InProgress;
+			if( Assert(bb, "GetSaleStatus") ) break;
+			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+			//LOG_PRINT_L5("GetSaleStatus: "<<()<<"  int: "<<int(trs));
+		}
+		if(!bb) return false;
+
+		for(unsigned i=0;i<repeatCount;i++) {// in any time after Sale call you can get PoS data by WalletGetPosData call
+			rpc_command::WALLET_GET_POS_DATA::request in;
+			rpc_command::WALLET_GET_POS_DATA::response out;
+			in.BlockNum = sale_out.BlockNum;
+			in.PaymentID = sale_out.PaymentID;
+			DAPI_RPC_Client call;
+			call.Set(IP, WalletProxyPort);
+			bb = call.Invoke("WalletGetPosData", in, out, chrono::seconds(10));
+            bb = bb && out.POSSaleDetails==sale_in.POSSaleDetails;
+			if( Assert(bb, "WalletGetPosData") ) break;
+			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+
+			//LOG_PRINT_L5("WalletGetPosData ret: "<<ret<<"  data: "<<out.DataForClientWallet);
+		}
+		if(!bb) return false;
+
+
+		// after use push Pay button, send Pay call
+		rpc_command::WALLET_PAY::request pay_in;
+		rpc_command::WALLET_PAY::response pay_out;
+        pay_in.Amount = sale_in.Amount;
+        pay_in.POSAddress = sale_in.POSAddress;
+		pay_in.BlockNum = sale_out.BlockNum;
+		pay_in.PaymentID = sale_out.PaymentID;
+		for(unsigned i=0;i<repeatCount;i++) {
+			DAPI_RPC_Client wallet_pay;
+			wallet_pay.Set(IP, WalletProxyPort);
+			bb = wallet_pay.Invoke("Pay", pay_in, pay_out, chrono::seconds(10));
+			if( Assert(bb, "Pay") ) break;
+			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+			//LOG_PRINT_L5("Pay ret: "<<ret);
+		}
+		if(!bb) return false;
+
+		for(unsigned i=0;i<repeatCount;i++) {// after Pay call you can can start poll status by GetPayStatus call
+			NTransactionStatus trs =  GetPayStatus(sale_out.PaymentID);
+			bb = trs==NTransactionStatus::Success;
+			if( Assert(bb, "GetPayStatus") ) break;
+			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+			//LOG_PRINT_L5("GetPayStatus: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+
+		}
+		if(!bb) return false;
+
+
+		for(unsigned i=0;i<repeatCount;i++) {
+			NTransactionStatus trs =  GetSaleStatus(sale_out.PaymentID);
+			bb = trs==NTransactionStatus::Success;
+			if( Assert(bb, "GetSaleStatus") ) break;
+			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+			//LOG_PRINT_L5("GetSaleStatus2: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+		}
+		if(!bb) return false;
+
+
+		return true;
+	}
+
+	void TestWalletReject() {
+		bool bb;
+
+		rpc_command::POS_SALE::request sale_in;
+		rpc_command::POS_SALE::response sale_out;
+        sale_in.Amount = 11;
+        sale_in.POSSaleDetails = "Some data";
+        sale_in.POSAddress = "0xFF";
+
+		unsigned repeatCount = 10;
+
+
+		for(unsigned i=0;i<repeatCount;i++) {// transaction must started from Sale call
+			DAPI_RPC_Client pos_sale;
+			pos_sale.Set(IP, PosProxyPort);
+			bb = pos_sale.Invoke("Sale", sale_in, sale_out, chrono::seconds(10));
+			if( Assert(bb, "Sale") ) break;
+		}
+		if(!bb) return;
+
+		for(unsigned i=0;i<repeatCount;i++) {// after sale call you get PaymentID and BlockNum and can start poll status by GetSaleStatus call
+			NTransactionStatus trs =  GetSaleStatus(sale_out.PaymentID);
+			bb = trs==NTransactionStatus::InProgress;
+			if( Assert(bb, "GetSaleStatus") ) break;
+		}
+		if(!bb) return;
+
+		for(unsigned i=0;i<repeatCount;i++) {// in any time after Sale call you can get PoS data by WalletGetPosData call
+			rpc_command::WALLET_REJECT_PAY::request in;
+			rpc_command::WALLET_REJECT_PAY::response out;
+			in.BlockNum = sale_out.BlockNum;
+			in.PaymentID = sale_out.PaymentID;
+			DAPI_RPC_Client call;
+			call.Set(IP, WalletProxyPort);
+			bb = call.Invoke("WalletRejectPay", in, out, chrono::seconds(10));
+			if( Assert(bb, "WalletRejectPay") ) break;
+		}
+		if(!bb) return;
+
+
+
+		for(unsigned i=0;i<repeatCount;i++) {// after Pay call you can can start poll status by GetPayStatus call
+			NTransactionStatus trs =  GetSaleStatus(sale_out.PaymentID);
+			bb = trs==NTransactionStatus::RejectedByWallet;
+			if( Assert(bb, "GetSaleStatus : RejectedByWallet") ) break;
+		}
+		if(!bb) return;
+
+		LOG_PRINT_L5("WalletRejectPay - OK ");
+
+	}
+
+	unsigned m_RunInTread = 10;
+	atomic_uint m_Fail = {0};
+
+	void TestThread() {
+		for(unsigned i=0;i<m_RunInTread;i++) {
+			LOG_PRINT_L5("\n");
+			if( !DoTest() ) { m_Fail++; }
+			//boost::this_thread::sleep_for(boost::chrono::milliseconds(1000));
+		}
+	}
+
+	void Test() {
+		Supernode wallet_proxy;
+		wallet_proxy.Start(WalletProxyPort, PosProxyPort, WalletProxyPort);
+
+		Supernode pos_proxy;
+		pos_proxy.Start(WalletProxyPort, PosProxyPort, PosProxyPort);
+
+		sleep(1);
+
+		//TestWalletReject();
+
+
+		boost::thread_group workers;
+		for(int i=0;i<10;i++) {
+			workers.create_thread( boost::bind(&Test_RTA_Flow::TestThread, this) );
+		}
+		workers.join_all();
+
+		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
+
+
+		wallet_proxy.Stop();
+		pos_proxy.Stop();
+	}
+
+};
+
+
 
 };
 
@@ -97,16 +385,13 @@ int main(int argc, char** argv) {
 	mlog_configure("", true);
     mlog_set_log_level(5);
 
-//	supernode::Test_RTA_Flow test_flow;
-//	test_flow.Test();
-//	return 0;
+// ---------------------------
 
-
-/*
-	TestDAPI_Server_And_Client tt1;
-	tt1.Test();
+	supernode::Test_RTA_Flow test_flow;
+	test_flow.Test();
 	return 0;
-*/
+
+// ---------------------------
 
 	string conf_file("conf.ini");
 	if(argc>1) conf_file = argv[1];
