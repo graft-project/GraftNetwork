@@ -17,7 +17,7 @@ namespace supernode {
 
 
 		protected:
-		bool PutTXToPool();
+		virtual bool PutTXToPool();
 		bool _Init(const RTA_TransactionRecordBase& src);
 
 		protected:
