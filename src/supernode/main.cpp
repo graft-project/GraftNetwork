@@ -366,7 +366,10 @@ struct Test_RTA_Flow {
 
 		sleep(1);
 
-		//TestWalletReject();
+		TestWalletReject();
+
+		//m_RunInTread=1;
+		//TestThread();
 
 
 		boost::thread_group workers;
@@ -393,11 +396,11 @@ int main(int argc, const char** argv) {
     mlog_set_log_level(5);
 
 // ---------------------------
-
+/*
 	supernode::Test_RTA_Flow test_flow;
 	test_flow.Test();
 	return 0;
-
+*/
 // ---------------------------
 
 	string conf_file("conf.ini");

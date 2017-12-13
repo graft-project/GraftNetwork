@@ -161,13 +161,11 @@ namespace supernode {
 		struct WALLET_PUT_TX_IN_POOL {
 			struct request : public SubNetData {
 				BEGIN_KV_SERIALIZE_MAP()
-					KV_SERIALIZE(Signs)
 					KV_SERIALIZE(PaymentID)
-					KV_SERIALIZE(FSN_Wallets)
+					KV_SERIALIZE(TransactionPoolID)
 				END_KV_SERIALIZE_MAP()
 
-				vector<string> Signs;
-				vector<string> FSN_Wallets;
+				string TransactionPoolID;
 			};
 			struct response {
 				BEGIN_KV_SERIALIZE_MAP()
@@ -269,13 +267,10 @@ namespace supernode {
 		struct POS_TR_SIGNED {
 			struct request : public SubNetData {
 				BEGIN_KV_SERIALIZE_MAP()
-					KV_SERIALIZE(Sign)
-					KV_SERIALIZE(FSN_StakeWalletAddr)
 					KV_SERIALIZE(PaymentID)
+					KV_SERIALIZE(TransactionPoolID);
 				END_KV_SERIALIZE_MAP()
-
-				string Sign;
-				string FSN_StakeWalletAddr;
+				string TransactionPoolID;
 			};
 			struct response {
 				BEGIN_KV_SERIALIZE_MAP()

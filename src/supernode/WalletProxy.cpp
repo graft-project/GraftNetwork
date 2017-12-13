@@ -33,7 +33,7 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
     supernode::GraftTxExtra graft_extra;
     // TODO: fill graft extra fields
 
-    bool result = false;
+    bool result = true;
 //    PendingTransaction *transaction = wal->createTransaction(in.POSAddress, in.PaymentID, in.Amount, 0, graft_extra);
 //    LOG_PRINT_L2("About to send  tx: " << transaction->txid() << ", amount: " << cryptonote::print_money(transaction->amount()));
 //    bool result = transaction->commit();

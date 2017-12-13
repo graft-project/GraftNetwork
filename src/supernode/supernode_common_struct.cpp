@@ -35,4 +35,8 @@ bool RTA_TransactionRecord::operator==(const RTA_TransactionRecord& s) const {
 
 }
 
+string RTA_TransactionRecord::MessageForSign() const {
+	return boost::lexical_cast<string>(Amount)+string("-")+boost::lexical_cast<string>(BlockNum)+string("-")+PaymentID;
+}
+
 };

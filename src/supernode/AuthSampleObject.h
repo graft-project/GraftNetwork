@@ -23,8 +23,7 @@ namespace supernode {
 		bool WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out);
 
 		protected:
-		string GenerateSignForWallet();
-		string GenerateSignForPos();
+		string GenerateSignForTransaction();
 
 		protected:
 		virtual bool Init(const RTA_TransactionRecordBase& src);
