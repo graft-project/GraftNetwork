@@ -33,6 +33,8 @@
 #include "wallet/wallet2_api.h"
 #include "wallet/wallet2.h"
 #include "supernode/FSN_Servant.h"
+#include "supernode/DAPI_RPC_Server.h"
+#include "supernode/DAPI_RPC_Client.h"
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
 
@@ -59,6 +61,101 @@ using namespace std;
 namespace consts {
 
 }
+
+
+struct TestDAPI_Server_And_ClientBase : public testing::Test {
+	struct TEST_RPC_CALL {
+		struct request {
+			BEGIN_KV_SERIALIZE_MAP()
+				KV_SERIALIZE(Data)
+				KV_SERIALIZE(PaymentID)
+			END_KV_SERIALIZE_MAP()
+
+			int Data;
+			string PaymentID;
+		};
+		struct response {
+			BEGIN_KV_SERIALIZE_MAP()
+				KV_SERIALIZE(Data)
+				KV_SERIALIZE(PaymentID)
+			END_KV_SERIALIZE_MAP()
+
+			int Data;
+			string PaymentID;
+		};
+	};
+
+	bool MyTestCall(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
+		out.Data = req.Data*2;
+		return true;
+	}
+
+	bool Pay1(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
+		if(req.PaymentID!="1") return false;
+		out.Data = 1;
+		return true;
+	}
+
+	bool Pay2(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
+		if(req.PaymentID!="2") return false;
+		out.Data = 2;
+		return true;
+	}
+
+};
+
+TEST_F(TestDAPI_Server_And_ClientBase, TestDAPI_Server_And_Client) {
+		string ip = "127.0.0.1";
+		string port = "7555";
+
+
+		supernode::DAPI_RPC_Server dapi_server;
+		dapi_server.Set( ip, port, 5 );
+
+		boost::thread workerThread(&supernode::DAPI_RPC_Server::Start, &dapi_server);
+		dapi_server.ADD_DAPI_HANDLER(MyTestCall, TestDAPI_Server_And_ClientBase::TEST_RPC_CALL, TestDAPI_Server_And_ClientBase);
+
+		dapi_server.Add_UUID_MethodHandler<TEST_RPC_CALL::request, TEST_RPC_CALL::response>( "1", "Payment", bind( &TestDAPI_Server_And_ClientBase::Pay1, this, _1, _2) );
+		dapi_server.Add_UUID_MethodHandler<TEST_RPC_CALL::request, TEST_RPC_CALL::response>( "2", "Payment", bind( &TestDAPI_Server_And_ClientBase::Pay2, this, _1, _2) );
+
+
+
+		sleep(1);
+
+		supernode::DAPI_RPC_Client client;
+		client.Set(ip, port);
+
+		TEST_RPC_CALL::request in;
+		TEST_RPC_CALL::response out;
+		in.Data = 10;
+		out.Data = 0;
+		bool ret = client.Invoke("MyTestCall", in, out);
+
+		ASSERT_TRUE(ret && out.Data==20);
+
+//		LOG_PRINT_L5("ret: "<<ret<<"  out.D: "<<out.Data);
+
+		in.PaymentID = "1";
+		out.Data = 0;
+		ret = client.Invoke("Payment", in, out);
+
+		ASSERT_TRUE(ret && out.Data==1);
+//		LOG_PRINT_L5("ret: "<<ret<<"  out.D: "<<out.Data);
+
+		in.PaymentID = "2";
+		ret = client.Invoke("Payment", in, out);
+
+		ASSERT_TRUE(ret && out.Data==2);
+//		LOG_PRINT_L5("ret: "<<ret<<"  out.D: "<<out.Data);
+
+
+		dapi_server.Stop();
+
+		workerThread.join();
+
+};
+
+
 
 struct FSNServantTest : public testing::Test
 {

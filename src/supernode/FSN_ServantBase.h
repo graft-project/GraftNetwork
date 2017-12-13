@@ -23,6 +23,7 @@ namespace supernode {
 	    virtual uint64_t GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const=0;
 
 	public:
+	    // Add WITHOUT any checks. And child add WITHOUT any checks for stake, ping or any other req FSN attrs
 	    virtual void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn);
 	    virtual bool RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn);
 	    virtual boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const;
