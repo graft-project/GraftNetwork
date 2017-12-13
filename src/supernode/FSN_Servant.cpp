@@ -273,7 +273,7 @@ bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &addr
 {
     // public transaction key is combined with our viewkey
     // to create, so called, derived key.
-
+    // TODO: check why block.hash is invalid here;
     // LOG_PRINT_L3("checking block: " << epee::string_tools::pod_to_hex(block.hash) << ", hash valid: " << block.is_hash_valid());
 
     crypto::public_key tx_pubkey = helpers::get_tx_pub_key_from_received_outs(block.miner_tx);
@@ -288,6 +288,7 @@ bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &addr
 
     LOG_PRINT_L3("view_pub_key: " << epee::string_tools::pod_to_hex(address.m_view_public_key));
     LOG_PRINT_L3("priv_viewkey: " << epee::string_tools::pod_to_hex(viewkey));
+    // TODO: check why tx_id is invalid here
     LOG_PRINT_L3("tx_id: " << epee::string_tools::pod_to_hex(block.miner_tx.hash));
     public_key output_pubkey = helpers::get_tx_gen_pub_key(block.miner_tx);
     public_key tx_pubkey_derived;
