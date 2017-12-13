@@ -29,11 +29,20 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
     }
 	Add(data);
 
-    // std::unique_ptr<tools::GraftWallet> wal = initWallet(in.Account, in.Password);
-    // supernode::GraftTxExtra graft_extra;
-    // PendingTransaction *transaction = wal->createTransaction(in.POSAddress, in.PaymentID, in.Amount, graft_extra);
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(in.Account, in.Password);
+    supernode::GraftTxExtra graft_extra;
+    // TODO: fill graft extra fields
 
-	return true;
+    bool result = false;
+//    PendingTransaction *transaction = wal->createTransaction(in.POSAddress, in.PaymentID, in.Amount, 0, graft_extra);
+//    LOG_PRINT_L2("About to send  tx: " << transaction->txid() << ", amount: " << cryptonote::print_money(transaction->amount()));
+//    bool result = transaction->commit();
+//    if (!result) {
+//        LOG_PRINT_L2("Error sending tx: " << transaction->errorString());
+//    }
+
+
+    return result;
 }
 
 bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
