@@ -26,11 +26,11 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <boost/bind.hpp>
-#include <string>
-#include <iostream>
-#include <boost/property_tree/ini_parser.hpp>
-#include <boost/tokenizer.hpp>
+
+#include "daemon/command_server.h"
+#include "daemon/daemon.h"
+#include "daemon/executor.h"
+#include "daemonizer/daemonizer.h"
 #include "misc_log_ex.h"
 #include "DAPI_RPC_Server.h"
 #include "DAPI_RPC_Client.h"
@@ -39,6 +39,13 @@
 #include "WalletProxy.h"
 #include "AuthSample.h"
 #include "P2P_Broadcast.h"
+
+#include <boost/bind.hpp>
+#include <string>
+#include <iostream>
+#include <boost/property_tree/ini_parser.hpp>
+#include <boost/tokenizer.hpp>
+
 using namespace std;
 
 namespace supernode {
@@ -93,7 +100,7 @@ struct Test_FSN_Servant : public supernode::FSN_ServantBase {
 
 };
 
-int main(int argc, char** argv) {
+int main(int argc, const char** argv) {
 	mlog_configure("", true);
     mlog_set_log_level(5);
 
@@ -118,6 +125,12 @@ int main(int argc, char** argv) {
 
 
 	// TODO: Init all monero staff here
+    // TODO:
+    // 1. implement daemon as a library
+    // 2. design and implement interface so supernode can talk with the daemon running in the same process
+    boost::program_options::variables_map vm;
+    daemonizer::daemonize(argc, argv, daemonize::t_executor{}, vm);
+
 
 	// init p2p
 	const boost::property_tree::ptree& p2p_conf = config.get_child("p2p");

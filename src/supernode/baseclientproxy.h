@@ -21,7 +21,7 @@ protected:
 
     std::unique_ptr<tools::GraftWallet> initWallet(const std::string &account, const std::string &password) const;
 
-private:
+protected:
     bool m_testnet;
     std::string m_daemon_ip;
     int m_daemon_port;
