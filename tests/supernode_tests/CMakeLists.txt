@@ -48,6 +48,7 @@ target_link_libraries(supernode_tests
     epee
     supernode
     wallet
+		uuid
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}

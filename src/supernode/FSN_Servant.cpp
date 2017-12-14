@@ -37,7 +37,7 @@
 using namespace cryptonote;
 using namespace Monero;
 
-static const unsigned s_uAuthSampleSize = 8;
+static unsigned s_AuthSampleSize = 8;
 
 namespace supernode {
 
@@ -411,9 +411,10 @@ Wallet *FSN_Servant::getMyWalletByAddress(const string &address) const
     return wallet;
 }
 
-unsigned FSN_Servant::AuthSampleSize() const { return s_uAuthSampleSize; }
+
 
 FSN_ServantBase::~FSN_ServantBase() {}
 
+unsigned FSN_Servant::AuthSampleSize() const { return s_AuthSampleSize; }
 
 } // namespace supernode

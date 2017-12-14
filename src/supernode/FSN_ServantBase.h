@@ -40,8 +40,6 @@ namespace supernode {
 	    // TODO: store FSN_Data and corresponding wallet in single map
 	    vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 
-
-
 	};
 
 
