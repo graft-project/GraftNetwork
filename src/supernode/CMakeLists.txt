@@ -91,49 +91,33 @@ monero_add_library(supernode
     ${supernode_api_headers}
     ${supernode_private_headers})
 
-# static libs cant be linked with another libs
-#target_link_libraries(supernode
-#    PUBLIC
-#    rpc
-#    daemon_lib
-#    common
-#    cryptonote_core
-#    mnemonics
-#    p2p
-#    uuid
-#    blockchain_db
-#    cncrypto
-#    cryptonote_protocol
-#    daemonizer
-#    ${Boost_CHRONO_LIBRARY}
-#    ${Boost_SERIALIZATION_LIBRARY}
-#    ${Boost_FILESYSTEM_LIBRARY}
-#    ${Boost_SYSTEM_LIBRARY}
-#    ${Boost_THREAD_LIBRARY}
-#    ${Boost_REGEX_LIBRARY}
-#    PRIVATE
-#    ${EXTRA_LIBRARIES})
-#add_dependencies(supernode version)
+target_link_libraries(supernode
+    PUBLIC
+    rpc
+    daemon_lib
+    common
+    cryptonote_core
+    mnemonics
+    p2p
+    uuid
+    blockchain_db
+    cncrypto
+    cryptonote_protocol
+    daemonizer
+    ${Boost_CHRONO_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+    PRIVATE
+    ${EXTRA_LIBRARIES})
+add_dependencies(supernode version)
 
 if (NOT BUILD_GUI_DEPS)
     set(supernode_rpc_sources
         main.cpp
-        AuthSample.cpp
-        AuthSampleObject.cpp
-        BaseRTAObject.cpp
-        BaseRTAProcessor.cpp
-        DAPI_RPC_Client.cpp
-        DAPI_RPC_Server.cpp
-        FSN_Servant.cpp
-        PosProxy.cpp
-        PosSaleObject.cpp
-        SubNetBroadcast.cpp
-        WalletPayObject.cpp
-        WalletProxy.cpp
-        P2P_Broadcast.cpp
-        supernode_common_struct.cpp
-        supernode_rpc_command.cpp
-        FSN_ServantBase.cpp)
+        )
 
     set(supernode_rpc_headers)
 
@@ -157,11 +141,9 @@ if (NOT BUILD_GUI_DEPS)
         cryptonote_protocol
         cncrypto
         common
-        uuid
         daemonizer
         mnemonics
         p2p
-        uuid
         blockchain_db
         ${Boost_CHRONO_LIBRARY}
         ${Boost_PROGRAM_OPTIONS_LIBRARY}
