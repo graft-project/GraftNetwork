@@ -26,9 +26,6 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-
-
 set(blocksdat "")
 if(PER_BLOCK_CHECKPOINT)
   if(APPLE)
@@ -47,13 +44,6 @@ set(daemon_sources
   main.cpp
   rpc_command_executor.cpp
 )
-
-set(libdaemon_sources
-    command_parser_executor.cpp
-    command_server.cpp
-    daemon.cpp
-    executor.cpp
-    rpc_command_executor.cpp)
 
 set(daemon_headers)
 
@@ -92,19 +82,6 @@ monero_add_executable(daemon
   ${daemon_private_headers}
   ${blocksdat}
 )
-
-# libdaemon
-monero_add_library(daemon_lib
-  ${libdaemon_sources}
-  ${daemon_headers}
-  ${daemon_private_headers}
-  ${blocksdat}
-)
-
-set_property(TARGET daemon_lib
-  PROPERTY
-    OUTPUT_NAME "daemon")
-
 target_link_libraries(daemon
   PRIVATE
     rpc
@@ -123,7 +100,6 @@ target_link_libraries(daemon
     ${CMAKE_THREAD_LIBS_INIT}
     ${EXTRA_LIBRARIES})
 add_dependencies(daemon version)
-
 set_property(TARGET daemon
   PROPERTY
     OUTPUT_NAME "graftnoded")

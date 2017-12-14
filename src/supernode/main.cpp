@@ -27,10 +27,6 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-#include "daemon/command_server.h"
-#include "daemon/daemon.h"
-#include "daemon/executor.h"
-#include "daemonizer/daemonizer.h"
 #include "misc_log_ex.h"
 #include "DAPI_RPC_Server.h"
 #include "DAPI_RPC_Client.h"
@@ -60,9 +56,9 @@ vector<string> StrTok(const string& str, const string& sep) {
 }
 };
 };
-/*
 
-*/
+
+
 int main(int argc, const char** argv) {
 	mlog_configure("", true);
     mlog_set_log_level(5);
@@ -86,14 +82,15 @@ int main(int argc, const char** argv) {
 	boost::property_tree::ptree config;
 	boost::property_tree::ini_parser::read_ini(conf_file, config);
 
-/*
+
 	// TODO: Init all monero staff here
     // TODO:
     // 1. implement daemon as a library
     // 2. design and implement interface so supernode can talk with the daemon running in the same process
-    boost::program_options::variables_map vm;
-    daemonizer::daemonize(argc, argv, daemonize::t_executor{}, vm);
-*/
+    // boost::program_options::variables_map vm;
+    // daemonizer::daemonize(argc, argv, daemonize::t_executor{}, vm);
+
+
 
 	// init p2p
 	const boost::property_tree::ptree& p2p_conf = config.get_child("p2p");
