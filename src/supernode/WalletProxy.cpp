@@ -22,14 +22,14 @@ bool supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PA
 
 bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out)
 {
-	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
-	data->Owner(this);
-	Setup(data);
+    boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
+    data->Owner(this);
+    Setup(data);
     if(!data->Init(in))
     {
         return false;
     }
-	Add(data);
+    Add(data);
 
     //std::unique_ptr<tools::GraftWallet> wal = initWallet(in.Account, in.Password);
     //PendingTransaction *transaction = wal->createTransaction(in.POSAddress, in.PaymentID, in.Amount, 0);
