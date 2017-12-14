@@ -94,7 +94,6 @@ monero_add_library(supernode
 target_link_libraries(supernode
     PUBLIC
     rpc
-    daemon_lib
     common
     cryptonote_core
     mnemonics
@@ -103,7 +102,6 @@ target_link_libraries(supernode
     blockchain_db
     cncrypto
     cryptonote_protocol
-    daemonizer
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
@@ -133,7 +131,6 @@ if (NOT BUILD_GUI_DEPS)
     target_link_libraries(supernode_rpc_server
         PRIVATE
         supernode
-        daemon_lib
         wallet
         epee
         rpc
@@ -141,7 +138,6 @@ if (NOT BUILD_GUI_DEPS)
         cryptonote_protocol
         cncrypto
         common
-        daemonizer
         mnemonics
         p2p
         blockchain_db

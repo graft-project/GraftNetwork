@@ -27,10 +27,6 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-#include "daemon/command_server.h"
-#include "daemon/daemon.h"
-#include "daemon/executor.h"
-#include "daemonizer/daemonizer.h"
 #include "misc_log_ex.h"
 #include "DAPI_RPC_Server.h"
 #include "DAPI_RPC_Client.h"
@@ -416,8 +412,8 @@ int main(int argc, const char** argv) {
     // TODO:
     // 1. implement daemon as a library
     // 2. design and implement interface so supernode can talk with the daemon running in the same process
-    boost::program_options::variables_map vm;
-    daemonizer::daemonize(argc, argv, daemonize::t_executor{}, vm);
+    // boost::program_options::variables_map vm;
+    // daemonizer::daemonize(argc, argv, daemonize::t_executor{}, vm);
 
 
 	// init p2p
