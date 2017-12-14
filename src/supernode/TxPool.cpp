@@ -23,6 +23,11 @@ TxPool::TxPool(const std::string &daemon_addr, const std::string &daemon_login, 
     }
 }
 
+TxPool::~TxPool()
+{
+
+}
+
 bool TxPool::get(const string &hash_str, cryptonote::transaction &out_tx)
 {
     crypto::hash hash;
