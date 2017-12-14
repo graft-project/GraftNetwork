@@ -357,6 +357,11 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
 Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool testnet) const
 {
 
+    if (walletData.Addr.empty()) {
+        LOG_ERROR("Adding wallet with empty address");
+        return nullptr;
+    }
+
     const auto & walletIter = m_viewOnlyWallets.find(walletData.Addr);
     if (walletIter != m_viewOnlyWallets.end())
         return walletIter->second;
@@ -383,7 +388,6 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
     } else {
         w->setAutoRefreshInterval(consts::DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS);
         w->startRefresh();
-
         w->refresh();
     }
 
