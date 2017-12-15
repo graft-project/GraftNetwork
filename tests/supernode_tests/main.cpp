@@ -449,37 +449,6 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(1000));
 		}
 	}
-/*
-	void Test() {
-		Supernode wallet_proxy;
-		wallet_proxy.Start(WalletProxyPort, PosProxyPort, false);
-
-		Supernode pos_proxy;
-		pos_proxy.Start(WalletProxyPort, PosProxyPort, true);
-
-		while(!wallet_proxy.Started || !pos_proxy.Started) boost::this_thread::sleep( boost::posix_time::milliseconds(100) );
-		sleep(1);
-
-
-		TestWalletReject();
-
-		//m_RunInTread=1;
-		//TestThread();
-
-
-		boost::thread_group workers;
-		for(int i=0;i<10;i++) {
-			workers.create_thread( boost::bind(&Test_RTA_FlowBlockChain::TestThread, this) );
-		}
-		workers.join_all();
-
-		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
-
-
-		wallet_proxy.Stop();
-		pos_proxy.Stop();
-	}
-*/
 };
 
 };
@@ -499,8 +468,8 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 
 //	TestWalletReject();
 
-		//m_RunInTread=1;
-		//TestThread();
+	//m_RunInTread=1;
+	//TestThread();
 
 	ASSERT_TRUE( TestWalletReject() );
 
