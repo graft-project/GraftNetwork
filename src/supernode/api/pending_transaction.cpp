@@ -98,12 +98,10 @@ bool GraftPendingTransactionImpl::commit(const std::string &filename, bool overw
       }
       // Commit tx
       else {
-        while (!m_pending_tx.empty()) {
-            auto & ptx = m_pending_tx.back();
-            mWallet->commit_tx(ptx);
-            // if no exception, remove element from vector
-            m_pending_tx.pop_back();
-        } // TODO: extract method;
+        auto reverse_it = m_pending_tx.rbegin();
+        for (; reverse_it != m_pending_tx.rend(); ++reverse_it) {
+              mWallet->commit_tx(*reverse_it);
+        }
       }
     } catch (const tools::error::daemon_busy&) {
         // TODO: make it translatable with "tr"?
