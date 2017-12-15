@@ -79,6 +79,15 @@ struct TxPoolTest : public testing::Test
         wallet->load(wallet_path, "");
     }
 
+    ~TxPoolTest()
+    {
+        // XXX !!! ::store() needs to be called explicitly.
+        // otherwise it will be "double spent" error before first tx got mined from pool
+        wallet->store();
+
+        delete wallet;
+    }
+
 
 };
 
@@ -92,7 +101,7 @@ TEST_F(TxPoolTest, GetTx)
     ASSERT_TRUE(wallet->init(DAEMON_ADDR));
     wallet->refresh();
     GraftTxExtra tx_extra;
-    uint64_t AMOUNT = 10000000000000;
+    uint64_t AMOUNT = 10000000000000; // 10 GRF
 
     tx_extra.BlockNum = 123;
     tx_extra.PaymentID = "Hello";
@@ -105,7 +114,9 @@ TEST_F(TxPoolTest, GetTx)
                                       "",
                                       AMOUNT,
                                       0,
-                                      tx_extra);
+                                      tx_extra,
+                                      Monero::PendingTransaction::Priority_Medium
+                                      );
     ASSERT_TRUE(ptx != nullptr);
     ASSERT_TRUE(ptx->status() == Monero::PendingTransaction::Status_Ok);
     std::cout << "sending : " << Wallet::displayAmount(ptx->amount()) << std::endl;
@@ -113,12 +124,8 @@ TEST_F(TxPoolTest, GetTx)
     wallet->refresh();
     std::cout << "ptx error: " << ptx->errorString() << std::endl;
     std::cout << "commit  status: " << commit_result << std::endl;
-
     ASSERT_TRUE(ptx->txid().size() > 0);
-
     std::cout << "sent tx: " << ptx->txid()[0] << std::endl;
-
-
     TxPool * txPool = new TxPool(DAEMON_ADDR, "", "");
     ASSERT_TRUE(ptx->txid().size() > 0);
     cryptonote::transaction tx;
@@ -133,6 +140,7 @@ TEST_F(TxPoolTest, GetTx)
 
     GraftTxExtra out_extra;
     ASSERT_TRUE(cryptonote::get_graft_tx_extra_from_extra(tx, out_extra));
+    delete ptx;
 
     ASSERT_EQ(tx_extra, out_extra);
 }
@@ -165,16 +173,16 @@ TEST_F(TxPoolTest, TestMoneroTx)
                                                                              0,
                                                                              Monero::PendingTransaction::Priority_Medium);
     ASSERT_TRUE(transaction->status() == Monero::PendingTransaction::Status_Ok);
-    wallet1->refresh();
 
     ASSERT_TRUE(wallet1->balance() == balance);
     ASSERT_TRUE(transaction->amount() == AMOUNT);
     std::cout << "sending : " << Wallet::displayAmount(transaction->amount()) << std::endl ;
     ASSERT_TRUE(transaction->commit());
+
     ASSERT_TRUE(transaction->txid().size() > 0);
+    std::cout << "sent, tx id : " << transaction->txid()[0] << std::endl;
 
     ASSERT_FALSE(wallet1->balance() == balance);
     ASSERT_TRUE(wmgr->closeWallet(wallet1));
-
 }
 */
