@@ -73,6 +73,9 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     }
     out.Account = wal->store_keys_graft(in.Password);
     out.Address = wal->get_account().get_public_address_str(wal->testnet());
+    std::string seed;
+    wal->get_seed(seed);
+    out.Seed = seed;
     out.Result = STATUS_OK;
     return true;
 }
@@ -121,6 +124,9 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         wal->generate_graft(in.Password, recovery_key, true, false);
         out.Account = wal->store_keys_graft(in.Password);
         out.Address = wal->get_account().get_public_address_str(wal->testnet());
+        std::string seed;
+        wal->get_seed(seed);
+        out.Seed = seed;
     }
     catch (const std::exception &e)
     {
