@@ -53,7 +53,9 @@ set(supernode_sources
     P2P_Broadcast.cpp
     supernode_common_struct.cpp
     supernode_rpc_command.cpp
-    FSN_ServantBase.cpp)
+    FSN_ServantBase.cpp
+    grafttxextra.cpp
+    TxPool.cpp)
 
 set(supernode_api_headers)
 
@@ -79,7 +81,8 @@ set(supernode_private_headers
     WalletProxy.h
     P2P_Broadcast.h
     supernode_common_struct.h
-    supernode_rpc_command.h)
+    supernode_rpc_command.h
+    TxPool.h)
 
 monero_private_headers(supernode
     ${supernode_private_headers})
@@ -87,13 +90,18 @@ monero_add_library(supernode
     ${supernode_sources}
     ${supernode_api_headers}
     ${supernode_private_headers})
+
 target_link_libraries(supernode
     PUBLIC
+    rpc
     common
     cryptonote_core
     mnemonics
     p2p
     uuid
+    blockchain_db
+    cncrypto
+    cryptonote_protocol
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
@@ -107,22 +115,7 @@ add_dependencies(supernode version)
 if (NOT BUILD_GUI_DEPS)
     set(supernode_rpc_sources
         main.cpp
-        AuthSample.cpp
-        AuthSampleObject.cpp
-        BaseRTAObject.cpp
-        BaseRTAProcessor.cpp
-        DAPI_RPC_Client.cpp
-        DAPI_RPC_Server.cpp
-        FSN_Servant.cpp
-        PosProxy.cpp
-        PosSaleObject.cpp
-        SubNetBroadcast.cpp
-        WalletPayObject.cpp
-        WalletProxy.cpp
-        P2P_Broadcast.cpp
-        supernode_common_struct.cpp
-        supernode_rpc_command.cpp
-        FSN_ServantBase.cpp)
+        )
 
     set(supernode_rpc_headers)
 
@@ -142,9 +135,12 @@ if (NOT BUILD_GUI_DEPS)
         epee
         rpc
         cryptonote_core
+        cryptonote_protocol
         cncrypto
         common
-        uuid
+        mnemonics
+        p2p
+        blockchain_db
         ${Boost_CHRONO_LIBRARY}
         ${Boost_PROGRAM_OPTIONS_LIBRARY}
         ${Boost_FILESYSTEM_LIBRARY}

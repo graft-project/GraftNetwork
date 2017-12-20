@@ -34,7 +34,6 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 
 bool supernode::PosSaleObject::AuthWalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
 	m_Status = NTransactionStatus::RejectedByWallet;
-	// TODO: mark self for delete
 	return true;
 }
 
@@ -47,10 +46,20 @@ bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STA
 
 
 bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out) {
+	{
+		boost::lock_guard<boost::recursive_mutex> lock(m_TxInPoolGotGuard);
+		if(m_TxInPoolGot) return true;
+		m_TxInPoolGot = true;
+	}
+
+	// TODO: get tranaction from pool by in.TransactionPoolID
+	// TODO: check all signs
+
+	/*
 	if( !CheckSign(in.FSN_StakeWalletAddr, in.Sign) ) return false;
 	m_Signs++;
 	if( m_Signs!=m_Servant->AuthSampleSize() ) return true;// not all signs gotted
-
+*/
     m_Status = NTransactionStatus::Success;
     return true;
 }

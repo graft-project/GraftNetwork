@@ -1,5 +1,6 @@
 #include "WalletPayObject.h"
 #include "graft_defines.h"
+#include "WalletProxy.h"
 
 void supernode::WalletPayObject::Owner(WalletProxy* o) { m_Owner = o; }
 
@@ -27,18 +28,16 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	if( outv.size()!=m_Servant->AuthSampleSize() ) return false;// not all signs gotted
 	for(auto& a : outv) {
 		if( !CheckSign(a.FSN_StakeWalletAddr, a.Sign) ) return false;
+		m_Signs.push_back(a.Sign);
 	}
 
-	// m_Signs.push_back(in); ??
 
 	if( !PutTXToPool() ) return false;
 
 	rpc_command::WALLET_PUT_TX_IN_POOL::request req;
 	req.PaymentID = TransactionRecord.PaymentID;
-	for(auto& a : outv) {
-		req.FSN_Wallets.push_back( a.FSN_StakeWalletAddr );
-		req.Signs.push_back( a.Sign );
-	}
+	req.TransactionPoolID = m_TransactionPoolID;
+	//LOG_PRINT_L5("PaymentID: "<<TransactionRecord.PaymentID);
 
 	vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
 
@@ -47,11 +46,13 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 
 	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
 
+
 	return true;
 }
 
 bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out) {
 	out.Status = int(m_Status);
+	//TimeMark -= boost::posix_time::hours(3);
     out.Result = STATUS_OK;
     return true;
 }
@@ -60,7 +61,8 @@ bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRAN
 
 
 bool supernode::WalletPayObject::PutTXToPool() {
-	// TODO: IMPL
+	// TODO: IMPL. all needed data we have in TransactionRecord + m_Signs.
+	// TODO: Result, monero_tranaction_id must be putted to m_TransactionPoolID
 	return true;
 }
 

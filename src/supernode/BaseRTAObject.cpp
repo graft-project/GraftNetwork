@@ -23,8 +23,7 @@ void supernode::BaseRTAObject::InitSubnet() {
 
 
 bool supernode::BaseRTAObject::CheckSign(const string& wallet, const string& sign) {
-	// TODO: IMPL. We need sign string?
-	return true;
+	return m_Servant->IsSignValid( TransactionRecord.MessageForSign(), wallet, sign );
 }
 
 void supernode::BaseRTAObject::MarkForDelete() {

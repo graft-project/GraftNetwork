@@ -54,19 +54,25 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     SCallHandler* handler = nullptr;
 
     {
+    	//LOG_PRINT_L5("\n\n\n");
+
     	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
     	for(unsigned i=0;i<m_vHandlers.size();i++) {
     		SHandlerData& hh = m_vHandlers[i];
+
+    		//LOG_PRINT_L5("Have: '"<<hh.Name<<"' : '"<<hh.PaymentID<<"' need: '"<<callback_name<<"' : '"<<payment_id<<"'");
+
     		if(hh.Name!=callback_name) continue;
     		if(hh.PaymentID.size() &&  hh.PaymentID!=payment_id) continue;
 
     		handler = hh.Handler;
     		break;
     	}
+    	//LOG_PRINT_L5("\n\n\n");
     }
 
-    if(!handler) { LOG_PRINT_L5("!handler: "<<callback_name); return false; }
-    if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L5("!Process: "<<callback_name); return false; }
+    if(!handler) { LOG_PRINT_L5("handler not found for: "<<callback_name); return false; }
+    if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L5("Fail to process (ret false): "<<callback_name); return false; }
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";

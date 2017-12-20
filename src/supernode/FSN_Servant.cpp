@@ -37,7 +37,7 @@
 using namespace cryptonote;
 using namespace Monero;
 
-static const unsigned s_uAuthSampleSize = 8;
+static unsigned s_AuthSampleSize = 8;
 
 namespace supernode {
 
@@ -273,6 +273,8 @@ bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &addr
 {
     // public transaction key is combined with our viewkey
     // to create, so called, derived key.
+    // TODO: check why block.hash is invalid here;
+    // LOG_PRINT_L3("checking block: " << epee::string_tools::pod_to_hex(block.hash) << ", hash valid: " << block.is_hash_valid());
 
     crypto::public_key tx_pubkey = helpers::get_tx_pub_key_from_received_outs(block.miner_tx);
 
@@ -286,6 +288,8 @@ bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &addr
 
     LOG_PRINT_L3("view_pub_key: " << epee::string_tools::pod_to_hex(address.m_view_public_key));
     LOG_PRINT_L3("priv_viewkey: " << epee::string_tools::pod_to_hex(viewkey));
+    // TODO: check why tx_id is invalid here
+    LOG_PRINT_L3("tx_id: " << epee::string_tools::pod_to_hex(block.miner_tx.hash));
     public_key output_pubkey = helpers::get_tx_gen_pub_key(block.miner_tx);
     public_key tx_pubkey_derived;
     derive_public_key(derivation,
@@ -353,6 +357,11 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
 Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool testnet) const
 {
 
+    if (walletData.Addr.empty()) {
+        LOG_ERROR("Adding wallet with empty address");
+        return nullptr;
+    }
+
     const auto & walletIter = m_viewOnlyWallets.find(walletData.Addr);
     if (walletIter != m_viewOnlyWallets.end())
         return walletIter->second;
@@ -379,6 +388,7 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
     } else {
         w->setAutoRefreshInterval(consts::DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS);
         w->startRefresh();
+        w->refresh();
     }
 
     // add wallet to map
@@ -406,9 +416,10 @@ Wallet *FSN_Servant::getMyWalletByAddress(const string &address) const
     return wallet;
 }
 
-unsigned FSN_Servant::AuthSampleSize() const { return s_uAuthSampleSize; }
+
 
 FSN_ServantBase::~FSN_ServantBase() {}
 
+unsigned FSN_Servant::AuthSampleSize() const { return s_AuthSampleSize; }
 
 } // namespace supernode

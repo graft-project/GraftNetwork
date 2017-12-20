@@ -27,30 +27,24 @@ namespace supernode {
 		public:
 		template<class IN_t, class OUT_t>
 		bool Send( const string& method, const IN_t& in, vector<OUT_t>& out ) {
-			// TODO: refactor, use worker thread pool
+			boost::thread_group workers;
+			out.resize( m_Members.size() );
+			vector<int> rets;
+			rets.resize( m_Members.size(), 0 );
 
-			out.clear();
-			bool ret = true;
 			for(unsigned i=0;i<m_Members.size();i++) {
-				bool localcOk = false;
-				for(unsigned k=0;k<4;k++) {
-					DAPI_RPC_Client client;
-					client.Set( m_Members[i]->IP, m_Members[i]->Port );
-					OUT_t outo;
-					if( !client.Invoke<IN_t, OUT_t>(method, in, outo, chrono::seconds(5)) ) {
-						boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
-						continue;
-					}
-					localcOk = true;
-					out.push_back(outo);
-					break;
-				}//for K
-				if(!localcOk) { ret = false; break; }
+				workers.create_thread( boost::bind(&SubNetBroadcast::DoCallInThread<IN_t, OUT_t>, *this, method, in, &out[i], &rets[i], m_Members[i]->IP, m_Members[i]->Port) );
+			}
+			workers.join_all();
+
+			bool ret = true;
+			for(unsigned i=0;i<m_Members.size();i++) if( rets[i]==0 ) {
+				ret = false; break;
 			}
 
-			if(!ret) { out.clear(); return false; }
 
-			return true;
+			if(!ret) out.clear();
+			return ret;
 		}
 
 		template<class IN_t, class OUT_t>
@@ -59,6 +53,24 @@ namespace supernode {
 			m_MyHandlers.push_back(idx);
 		}
 		#define ADD_SUBNET_HANDLER(method, data, class_owner) AddHandler<data::request, data::response>( dapi_call::method, bind( &class_owner::method, this, _1, _2) );
+
+		protected:
+		template<class IN_t, class OUT_t>
+		void DoCallInThread(const string& method, const IN_t& in, OUT_t* outo, int* ret, const string& ip, const string& port) {
+			bool localcOk = false;
+			for(unsigned k=0;k<4;k++) {
+				DAPI_RPC_Client client;
+				client.Set( ip, port );
+				if( !client.Invoke<IN_t, OUT_t>(method, in, *outo, chrono::seconds(5)) ) {
+					boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
+					continue;
+				}
+				localcOk = true;
+				break;
+			}//for K
+			*ret = localcOk?1:0;
+		}//do work
+
 
 		protected:
 		DAPI_RPC_Server* m_DAPIServer = nullptr;

@@ -83,6 +83,7 @@ namespace supernode {
 	struct RTA_TransactionRecord : public RTA_TransactionRecordBase {
 		bool operator!=(const RTA_TransactionRecord& s) const;
 		bool operator==(const RTA_TransactionRecord& s) const;
+		string MessageForSign() const;
 		vector< boost::shared_ptr<FSN_Data> > AuthNodes;
 	};
 

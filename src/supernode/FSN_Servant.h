@@ -80,7 +80,6 @@ public:
     FSN_WalletData GetMyMinerWallet() const  override;
     unsigned AuthSampleSize() const override;
 
-
 private:
     static bool proofCoinbaseTx(const cryptonote::account_public_address &address, const cryptonote::block &block,
                          const crypto::secret_key &viewkey);
