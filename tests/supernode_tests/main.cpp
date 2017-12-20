@@ -495,6 +495,7 @@ struct FSNServantTest : public testing::Test
 
     FSN_Servant * fsns = nullptr;
     string db_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_blockchain";
+    string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
 
 
     FSNServantTest()
@@ -514,6 +515,7 @@ TEST_F(FSNServantTest, CreateDestroyInstance)
 {
     ASSERT_TRUE(fsns);
 }
+
 
 TEST_F(FSNServantTest, ProofOfStakeTestMiner)
 {
@@ -566,19 +568,19 @@ TEST_F(FSNServantTest, ProofOfStakeTestMiner)
 
 TEST_F(FSNServantTest, SetStakeAndMinerWallets)
 {
-    string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
-    bool set_failed = false;
-    try {
-        fsns->Set(wallet_root_path + "/stake_wallet", "", wallet_root_path + "/miner_wallet", "");
-    } catch (...) {
-        set_failed = true;
-    }
-    ASSERT_FALSE(set_failed);
+    ASSERT_NO_THROW(fsns->Set(wallet_root_path + "/stake_wallet", "", wallet_root_path + "/miner_wallet", ""));
+
     ASSERT_TRUE(fsns->GetMyMinerWallet().Addr == "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE");
     ASSERT_TRUE(fsns->GetMyMinerWallet().ViewKey == "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
     ASSERT_TRUE(fsns->GetMyStakeWallet().Addr == "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa");
     ASSERT_TRUE(fsns->GetMyStakeWallet().ViewKey == "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
 }
+
+TEST_F(FSNServantTest, SetStakeAndMinerWalletsWrongPath)
+{
+    ASSERT_ANY_THROW(fsns->Set(wallet_root_path + "/no_such_wallet1", "", wallet_root_path + "/no_such_wallet2", ""));
+}
+
 
 TEST_F(FSNServantTest, SignAndVerify)
 {
