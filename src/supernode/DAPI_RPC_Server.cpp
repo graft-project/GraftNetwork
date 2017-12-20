@@ -1,3 +1,5 @@
+#include <string>
+using namespace std;
 #include "DAPI_RPC_Server.h"
 
 bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) {
