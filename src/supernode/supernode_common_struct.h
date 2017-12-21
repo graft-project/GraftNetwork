@@ -72,8 +72,9 @@ namespace supernode {
 
 	// ------------------------------------------
 	struct RTA_TransactionRecordBase : public SubNetData {
-        unsigned Amount;
+        uint64_t Amount;
         string POSAddress;
+        string POSViewKey;
         string POSSaleDetails;// empty in wallet call
         uint64_t BlockNum;// empty in pos call
 	};
