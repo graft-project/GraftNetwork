@@ -34,8 +34,16 @@ namespace supernode {
         extern const string WalletRejectPay;
         extern const string WalletProxyRejectPay;
         extern const string AuthWalletRejectPay;
+
+        extern const string FSN_CheckWalletOwnership;
 	};
 
+	namespace p2p_call {
+		extern const string AddFSN;
+		extern const string LostFSNStatus;
+		extern const string GetFSNList;
+
+	};
 
 	namespace rpc_command {
 		extern const string DAPI_URI;//  /dapi
@@ -381,6 +389,76 @@ namespace supernode {
 		void ConvertFromTR(RTA_TransactionRecordRequest& dst, const RTA_TransactionRecord& src);
 
 		void ConvertToTR(RTA_TransactionRecord& dst, const RTA_TransactionRecordRequest& src, const FSN_ServantBase* servant);
+
+		// -----------------------------------------------
+		struct P2P_DUMMY_RESP {
+			BEGIN_KV_SERIALIZE_MAP()
+			END_KV_SERIALIZE_MAP()
+		};
+
+		struct BROADCACT_ADD_FULL_SUPER_NODE : public SubNetData {
+			BEGIN_KV_SERIALIZE_MAP()
+				KV_SERIALIZE(IP)
+				KV_SERIALIZE(Port)
+				KV_SERIALIZE(PaymentID)
+			END_KV_SERIALIZE_MAP()
+
+			string IP;
+			string Port;
+
+			string StakeAddr;
+			string StakeViewKey;
+			string MinerAddr;
+			string MinerViewKey;
+		};
+
+		struct BROADCACT_LOST_STATUS_FULL_SUPER_NODE {
+			BEGIN_KV_SERIALIZE_MAP()
+				KV_SERIALIZE(StakeAddr)
+			END_KV_SERIALIZE_MAP()
+
+
+			string StakeAddr;
+		};
+
+
+		struct FSN_CHECK_WALLET_OWNERSHIP {
+			struct request {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(WalletAddr)
+					KV_SERIALIZE(Str)
+				END_KV_SERIALIZE_MAP()
+
+				string WalletAddr;
+				string Str;
+			};
+
+			struct response {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(Sign)
+				END_KV_SERIALIZE_MAP()
+
+				string Sign;// sign ip:port:wallet addr by wallet private key
+			};
+		};
+
+		struct BROADCAST_NEAR_GET_ACTUAL_FSN_LIST {
+			struct request : public SubNetData {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(PaymentID)
+				END_KV_SERIALIZE_MAP()
+			};
+
+			struct response {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(List)
+				END_KV_SERIALIZE_MAP()
+
+				vector<BROADCACT_ADD_FULL_SUPER_NODE> List;
+			};
+		};
+
+
     }
 }
 
