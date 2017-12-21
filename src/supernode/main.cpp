@@ -59,11 +59,10 @@ struct TestActualList {
 		vv.push_back(  ip+string(":")+p2 );
 		m_P2P.Set(m_DAPIServer, vv);
 
-		Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28281", "", true);
-		Servant->Set(basePath+sw, swp, basePath+mw, mwp);
+        Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28981", "", true);
+        Servant->Set(basePath+string("/test_wallets")+sw, swp, basePath+string("/test_wallets")+mw, mwp);
 
 		List = new FSN_ActualList(Servant, &m_P2P, m_DAPIServer);
-		List->Start();
 
 		Tr = new boost::thread(&TestActualList::Run, this);
 
@@ -80,11 +79,20 @@ struct TestActualList {
 		Tr->join();
 	}
 
+    bool FindFSN(const string& port, const string& stakeW, const string& stakeKey) {
+        for(unsigned i=0;i<Servant->All_FSN.size();i++) {
+            auto a = Servant->All_FSN[i];
+            //LOG_PRINT_L5(a->IP<<":"<<a->Port<<"  "<<a->Stake.Addr<<"  "<<a->Stake.ViewKey);
+            if( a->IP=="127.0.0.1" && a->Port==port && a->Stake.Addr==stakeW && a->Stake.ViewKey==stakeKey ) return true;
+        }
+        return false;
+    }
+
 	DAPI_RPC_Server* m_DAPIServer = nullptr;
 	P2P_Broadcast m_P2P;
 	boost::thread* Tr = nullptr;
-	FSN_ActualList* List;
-	FSN_Servant* Servant;
+    FSN_ActualList* List = nullptr;
+    FSN_Servant* Servant = nullptr;
 
 };
 
@@ -142,15 +150,16 @@ main() {
 */
 
 };
-
+/*
 static void TestHandler(const supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& data) {
 	LOG_PRINT_L5("GOT: "<<data.IP<<":"<<data.Port);
 }
+*/
 
 int main(int argc, const char** argv) {
 	mlog_configure("", true);
     mlog_set_log_level(5);
-
+/*
 
 // ---------------------------
     LOG_PRINT_L5("START");
@@ -171,7 +180,7 @@ int main(int argc, const char** argv) {
 
     LOG_PRINT_L5("END");
 	return 0;
-
+*/
 // ---------------------------
 
 	string conf_file("conf.ini");
