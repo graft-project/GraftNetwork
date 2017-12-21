@@ -3,16 +3,29 @@ using namespace std;
 #include "DAPI_RPC_Server.h"
 
 bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) {
-	LOG_PRINT_L4("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI);
+	//LOG_PRINT_L4("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI);
 
 	//LOG_PRINT_L5("Got request");
 
+	//LOG_PRINT_L5("req in "<<Port()<<"  =1");
+
 	response.m_response_code = 200;
 	response.m_response_comment = "Ok";
+
+	response.m_additional_fields.push_back( make_pair("Access-Control-Allow-Origin", "*") );
+	response.m_additional_fields.push_back( make_pair("Access-Control-Allow-Credentials", "true") );
+	response.m_additional_fields.push_back( make_pair("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS") );
+	response.m_additional_fields.push_back( make_pair("Access-Control-Max-Age", "1728000") );
+	response.m_additional_fields.push_back( make_pair("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Origin, Cache-Control, Pragma, Authorization, Accept, Accept-Encoding") );
+
 	if( !HandleRequest(query_info, response, m_conn_context) ) {
 		response.m_response_code = 500;
 		response.m_response_comment = "Internal server error";
 	}
+
+
+
+	//LOG_PRINT_L5("req in "<<Port()<<"  =2");
 
 	return true;
 }
@@ -74,7 +87,9 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     }
 
     if(!handler) { LOG_PRINT_L5("handler not found for: "<<callback_name); return false; }
+    //LOG_PRINT_L5("Befor process: "<<callback_name<<"  in: "<<Port());
     if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L5("Fail to process (ret false): "<<callback_name); return false; }
+    //LOG_PRINT_L5("After process: "<<callback_name<<"  in: "<<Port());
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
