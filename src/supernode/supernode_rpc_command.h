@@ -377,12 +377,14 @@ namespace supernode {
             struct response {
                 int64_t Result;
                 std::string Address;
+                std::string ViewKey;
                 std::string Account;
                 std::string Seed;
 
                 BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(Result)
                     KV_SERIALIZE(Address)
+                    KV_SERIALIZE(ViewKey)
                     KV_SERIALIZE(Account)
                     KV_SERIALIZE(Seed)
                 END_KV_SERIALIZE_MAP()
