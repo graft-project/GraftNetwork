@@ -36,6 +36,8 @@
 #include <vector>
 
 #include "common/pod-class.h"
+#include "common/util.h"
+#include "memwipe.h"
 #include "generic-ops.h"
 #include "hash.h"
 
