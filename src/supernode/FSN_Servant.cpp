@@ -345,8 +345,14 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
     if (existingWallet)
         wmgr->closeWallet(existingWallet);
     Wallet * wallet = wmgr->openWallet(path, password, testnet);
-    if (wallet->status() != Wallet::Status_Ok)
-        throw runtime_error(string("error opening wallet: ") + wallet->errorString());
+    // we couldn't open wallet, delete the wallet object and throw exception
+    if (wallet->status() != Wallet::Status_Ok) {
+        string error_msg = wallet->errorString();
+        // in case closeWallet failure, wallet object wont be deleted by 'closeWallet'
+        if (!wmgr->closeWallet(wallet))
+            delete wallet;
+        throw runtime_error(string("error opening wallet: ") + error_msg);
+    }
 
     if (!wallet->init(m_daemonAddr, 0)) {
         MERROR("Can't connect to a daemon.");
