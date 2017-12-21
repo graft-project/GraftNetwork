@@ -345,6 +345,7 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
     if (existingWallet)
         wmgr->closeWallet(existingWallet);
     Wallet * wallet = wmgr->openWallet(path, password, testnet);
+
     // we couldn't open wallet, delete the wallet object and throw exception
     if (wallet->status() != Wallet::Status_Ok) {
         string error_msg = wallet->errorString();
@@ -372,13 +373,14 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
     if (walletIter != m_viewOnlyWallets.end())
         return walletIter->second;
 
+    // No luck, somehow caller requested the address we don't have view-only wallet yet
     boost::filesystem::path wallet_path (m_fsnWalletsDir);
     wallet_path /= walletData.Addr;
     Monero::Wallet * w = nullptr;
     Monero::WalletManager * wmgr = Monero::WalletManagerFactory::getWalletManager();
 
     if (!wmgr->walletExists(wallet_path.string())) {
-        // create view only wallet
+        // create new view only wallet
         w = wmgr->createWalletFromKeys(wallet_path.string(), "English", m_testnet, 0, walletData.Addr, walletData.ViewKey);
     } else {
         // open existing
@@ -399,6 +401,7 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
 
     // add wallet to map
     m_viewOnlyWallets[walletData.Addr] = w;
+    // TODO: should have opened wallets in sync with the All_FSN ???
     return w;
 }
 

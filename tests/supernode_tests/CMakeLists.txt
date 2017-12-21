@@ -33,6 +33,7 @@
 set(supernode_tests_sources
   main.cpp
   tx_pool_tests.cpp
+  walletproxy_test.cpp
 )
 
 set(supernode_tests_headers

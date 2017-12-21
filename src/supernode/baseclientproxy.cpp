@@ -136,7 +136,7 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
     std::unique_ptr<tools::GraftWallet> wal;
     try
     {
-        wal = tools::GraftWallet::createWallet(account, password, std::string(), m_daemon_ip,
+        wal = tools::GraftWallet::createWallet(account, password, m_daemon_address, m_daemon_ip,
                                                m_daemon_port, m_daemon_login, m_testnet);
     }
     catch (const std::exception& e)
@@ -144,4 +144,15 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
         wal = nullptr;
     }
     return wal;
+}
+
+void supernode::BaseClientProxy::SetDaemonAddress(const string &host, int port)
+{
+    m_daemon_ip = host;
+    m_daemon_port = port;
+}
+
+void supernode::BaseClientProxy::SetDaemonAddress(const string &address)
+{
+    m_daemon_address = address;
 }
