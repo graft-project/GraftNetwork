@@ -269,6 +269,7 @@ struct WalletProxyTest : public testing::Test
         pay_in.POSAddress = sale_in.POSAddress;
         pay_in.BlockNum = sale_out.BlockNum;
         pay_in.PaymentID = sale_out.PaymentID;
+        pay_in.Account = wallet_account;
 
         // 2. where do we get .Account field here ?
 
