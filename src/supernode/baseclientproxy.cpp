@@ -5,8 +5,6 @@
 
 supernode::BaseClientProxy::BaseClientProxy()
 {
-    m_testnet = true;
-    m_daemon_port = 0;
 }
 
 void supernode::BaseClientProxy::Init()
@@ -52,8 +50,8 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     }
 
     std::unique_ptr<tools::GraftWallet> wal =
-            tools::GraftWallet::createWallet(std::string(), m_daemon_ip, m_daemon_port,
-                                             m_daemon_login, m_testnet);
+            tools::GraftWallet::createWallet(std::string(), m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
+                                             m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
     if (!wal)
     {
         out.Result = ERROR_CREATE_WALLET_FAILED;
@@ -113,8 +111,8 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         return false;
     }
     std::unique_ptr<tools::GraftWallet> wal =
-            tools::GraftWallet::createWallet(std::string(), m_daemon_ip, m_daemon_port,
-                                             m_daemon_login, m_testnet);
+        tools::GraftWallet::createWallet(std::string(), m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
+                                             m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
     if (!wal)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
@@ -146,8 +144,10 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
     std::unique_ptr<tools::GraftWallet> wal;
     try
     {
-        wal = tools::GraftWallet::createWallet(account, password, std::string(), m_daemon_ip,
-                                               m_daemon_port, m_daemon_login, m_testnet);
+        wal = tools::GraftWallet::createWallet(account, password, "",
+                                               m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
+                                         m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
+
     }
     catch (const std::exception& e)
     {

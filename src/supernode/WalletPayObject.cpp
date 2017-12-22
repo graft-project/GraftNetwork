@@ -4,6 +4,19 @@
 
 void supernode::WalletPayObject::Owner(WalletProxy* o) { m_Owner = o; }
 
+bool supernode::WalletPayObject::OpenSenderWallet(const string &wallet, const string &walletPass)
+{
+    // m_Owner is WalletProxy here
+    m_wallet = m_Owner->initWallet(wallet, walletPass);
+    if (!m_wallet) {
+        LOG_ERROR("Error initializing wallet");
+        return false;
+    }
+    m_wallet->refresh();
+    return true;
+}
+
+
 bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
 	bool ret = _Init(src);
     m_Status = ret ? NTransactionStatus::Success : NTransactionStatus::Fail;
@@ -15,14 +28,20 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 
 	// we allready have block num
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
-	if( TransactionRecord.AuthNodes.empty() ) return false;
+    if ( TransactionRecord.AuthNodes.empty() ) {
+        LOG_ERROR("Failed to get auth sample");
+        return false;
+    }
 
 	InitSubnet();
 
 	vector<rpc_command::WALLET_PROXY_PAY::response> outv;
 	rpc_command::WALLET_PROXY_PAY::request inbr;
 	rpc_command::ConvertFromTR(inbr, TransactionRecord);
-	if( !m_SubNetBroadcast.Send(dapi_call::WalletProxyPay, inbr, outv) || outv.empty() ) return false;
+    if( !m_SubNetBroadcast.Send(dapi_call::WalletProxyPay, inbr, outv) || outv.empty() )  {
+        LOG_ERROR("Failed to send WalletProxyPay broadcast");
+        return false;
+    }
 
 
 	if( outv.size()!=m_Servant->AuthSampleSize() ) return false;// not all signs gotted
@@ -30,6 +49,7 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 		if( !CheckSign(a.FSN_StakeWalletAddr, a.Sign) ) return false;
 		m_Signs.push_back(a.Sign);
 	}
+
 
 
 	if( !PutTXToPool() ) return false;
@@ -63,7 +83,45 @@ bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRAN
 bool supernode::WalletPayObject::PutTXToPool() {
 	// TODO: IMPL. all needed data we have in TransactionRecord + m_Signs.
 	// TODO: Result, monero_tranaction_id must be putted to m_TransactionPoolID
-	return true;
+
+    // TODO: send tx to blockchain
+    // Things we need here here
+
+    // 1. destination address:
+    // TransactionRecord.POSAddress;
+    // 2. amount
+    // TransactionRecord.Amount;
+    // 3. wallet -> we opened it previously with OpenSenderWallet
+    if (!m_wallet) {
+        LOG_ERROR("Wallet needs to be opened with OpenSenderWallet before this call");
+        return false;
+    }
+
+    GraftTxExtra tx_extra;
+    tx_extra.BlockNum = 123;
+    tx_extra.PaymentID = TransactionRecord.PaymentID;
+    tx_extra.Signs = m_Signs;
+
+    std::unique_ptr<PendingTransaction> ptx {
+            m_wallet->createTransaction(TransactionRecord.POSAddress,
+                                      "",
+                                      TransactionRecord.Amount,
+                                      0,
+                                      tx_extra,
+                                      Monero::PendingTransaction::Priority_Medium
+                                      )};
+
+    if (ptx->status() != PendingTransaction::Status_Ok) {
+        LOG_ERROR("Failed to create tx: " << ptx->errorString());
+        return false;
+    }
+
+    if (!ptx->commit()) {
+        LOG_ERROR("Failed to send tx: " << ptx->errorString());
+        return false;
+    }
+
+    return true;
 }
 
 

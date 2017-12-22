@@ -59,7 +59,7 @@ struct TestActualList {
 		vv.push_back(  ip+string(":")+p2 );
 		m_P2P.Set(m_DAPIServer, vv);
 
-        Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28981", "", true);
+        Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28981", "", "", "", true);
         Servant->Set(basePath+string("/test_wallets")+sw, swp, basePath+string("/test_wallets")+mw, mwp);
 
 		List = new FSN_ActualList(Servant, &m_P2P, m_DAPIServer);
