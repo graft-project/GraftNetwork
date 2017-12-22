@@ -114,11 +114,14 @@ FSN_Servant::FSN_Servant(const FSN_Servant &other)
 
 }
 
-FSN_Servant::FSN_Servant(const string &bdb_path, const string &daemon_addr, const string &fsn_wallets_dir, bool testnet)
+FSN_Servant::FSN_Servant(const string &bdb_path, const string &node_addr, const string &node_login, const string &node_password,
+                         const string &fsn_wallets_dir, bool testnet)
     : m_fsnWalletsDir(fsn_wallets_dir)
 {
-    FSN_ServantBase::m_testnet = testnet;
-    SetNodeAddress(daemon_addr);
+    FSN_ServantBase::m_testnet      = testnet;
+    FSN_ServantBase::m_nodelogin    = node_login;
+    FSN_ServantBase::m_nodePassword = node_password;
+    SetNodeAddress(node_addr);
 
     if (m_fsnWalletsDir.empty())
         m_fsnWalletsDir = consts::DEFAULT_FSN_WALLETS_DIR;
@@ -235,21 +238,21 @@ void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
 }
 
 bool FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
-	boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);// we use one mutex for All_FSN && for m_viewOnlyWallets
+    boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);// we use one mutex for All_FSN && for m_viewOnlyWallets
 
-	if( !FSN_ServantBase::RemoveFsnAccount(fsn) ) return false;
+    if( !FSN_ServantBase::RemoveFsnAccount(fsn) ) return false;
 
     // TODO: RAII based (scoped) locks
-        const auto &it = m_viewOnlyWallets.find(fsn->Stake.Addr);
-        if (it != m_viewOnlyWallets.end()) {
-            Monero::Wallet * w = it->second;
-            Monero::WalletManagerFactory::getWalletManager()->closeWallet(w);
-            m_viewOnlyWallets.erase(it);
-        } else {
-            LOG_ERROR("Internal error: All_FSN doesn't have corresponding wallet: " << fsn->Stake.Addr);
-        }
+    const auto &it = m_viewOnlyWallets.find(fsn->Stake.Addr);
+    if (it != m_viewOnlyWallets.end()) {
+        Monero::Wallet * w = it->second;
+        Monero::WalletManagerFactory::getWalletManager()->closeWallet(w);
+        m_viewOnlyWallets.erase(it);
+    } else {
+        LOG_ERROR("Internal error: All_FSN doesn't have corresponding wallet: " << fsn->Stake.Addr);
+    }
 
-        return true;
+    return true;
 
 }
 

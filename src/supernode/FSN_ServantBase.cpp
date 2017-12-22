@@ -26,6 +26,16 @@ string FSN_ServantBase::GetNodeAddress() const
     return m_nodeIp + ":" + std::to_string(m_nodePort);
 }
 
+string FSN_ServantBase::GetNodeLogin() const
+{
+    return m_nodelogin;
+}
+
+string FSN_ServantBase::GetNodePassword() const
+{
+    return m_nodePassword;
+}
+
 bool FSN_ServantBase::IsTestnet() const
 {
     return m_testnet;

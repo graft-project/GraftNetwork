@@ -43,6 +43,19 @@ namespace supernode {
          * \return
          */
         std::string GetNodeAddress() const;
+
+        /*!
+         * \brief GetNodeLogin - login for remote node
+         * \return
+         */
+        std::string GetNodeLogin() const;
+
+        /*!
+         * \brief GetNodePassword -  password for remote node
+         * \return
+         */
+        std::string GetNodePassword() const;
+
         /*!
          * \brief IsTestnet - indicates if
          * \return
@@ -71,9 +84,11 @@ namespace supernode {
     protected:
         bool  m_testnet = false;
         // IP address for access to graft node
-        std::string    m_nodeIp;
+        std::string m_nodeIp;
         // TCP port  for access to graft node
         int m_nodePort;
+        std::string m_nodelogin;
+        std::string m_nodePassword;
 	};
 
 
