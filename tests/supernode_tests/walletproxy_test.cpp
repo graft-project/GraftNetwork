@@ -168,6 +168,8 @@ struct WalletProxyTest : public testing::Test
     std::string bdb_path;
     const std::string DAEMON_ADDR = "localhost:28281";
     const uint64_t AMOUNT_10_GRF = 10000000000000;
+    const std::string DST_WALLET_ADDR = "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa";
+
 
     string IP = "127.0.0.1";
     string WalletProxyPort = "7500";
@@ -235,7 +237,7 @@ struct WalletProxyTest : public testing::Test
         sale_in.Amount = AMOUNT_10_GRF;
         sale_in.POSSaleDetails = "Some data";
         // 1. what is POS address here?
-        sale_in.POSAddress = "0xFF";
+        sale_in.POSAddress = DST_WALLET_ADDR;
 
         unsigned repeatCount = 1;
 
@@ -267,6 +269,7 @@ struct WalletProxyTest : public testing::Test
         pay_in.POSAddress = sale_in.POSAddress;
         pay_in.BlockNum = sale_out.BlockNum;
         pay_in.PaymentID = sale_out.PaymentID;
+        pay_in.Account = wallet_account;
 
         // 2. where do we get .Account field here ?
 
@@ -315,17 +318,19 @@ struct WalletProxyTest : public testing::Test
 TEST_F(WalletProxyTest, SendTx)
 {
     ASSERT_FALSE(wallet_account.empty());
-    const std::string DST_WALLET_ADDR = "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa";
 
 
     FSN_Servant * servant = new FSN_Servant(bdb_path, DAEMON_ADDR, "", "", "/tmp/graft/fsn-wallets", true);
     DAPI_RPC_Server * dapi = new DAPI_RPC_Server();
     WalletProxy * walletProxy = new WalletProxy();
 
+    ASSERT_EQ(servant->IsTestnet(), true);
+    ASSERT_EQ(servant->GetNodeAddress(), DAEMON_ADDR);
+    ASSERT_TRUE(servant->GetNodeIp() == "localhost");
+    ASSERT_TRUE(servant->GetNodePort() == 28281);
 
-    // should we get daemon address / login from servant?
+
     walletProxy->Set(servant, dapi);
-    walletProxy->SetDaemonAddress(DAEMON_ADDR);
 
 
     std::unique_ptr<GraftWallet> wallet = walletProxy->initWallet(wallet_account, "");
