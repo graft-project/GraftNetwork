@@ -147,7 +147,7 @@ TEST_F(TxPoolTest, GetTx)
 
 
 
-/*
+
 TEST_F(TxPoolTest, TestMoneroTx)
 {
     const std::string DAEMON_ADDR = "localhost:28281";
@@ -185,4 +185,4 @@ TEST_F(TxPoolTest, TestMoneroTx)
     ASSERT_FALSE(wallet1->balance() == balance);
     ASSERT_TRUE(wmgr->closeWallet(wallet1));
 }
-*/
+

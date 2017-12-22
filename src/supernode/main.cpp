@@ -35,7 +35,9 @@
 #include "WalletProxy.h"
 #include "AuthSample.h"
 #include "P2P_Broadcast.h"
+#include "FSN_ActualList.h"
 
+#include "supernode_helpers.h"
 #include <boost/bind.hpp>
 #include <string>
 #include <iostream>
@@ -44,34 +46,141 @@
 
 using namespace std;
 
+
 namespace supernode {
-namespace helpers {
-vector<string> StrTok(const string& str, const string& sep) {
-	vector<string> ret;
-	typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
-	boost::char_separator<char> sep1(sep.c_str());
-	tokenizer tokens(str, sep1);
-	for(auto i=tokens.begin();i!=tokens.end();i++) ret.push_back( *i );
-	return ret;
+
+struct TestActualList {
+	void Set(const string& p1, const string& p2, bool first, const string& basePath, const string& sw, const string& swp, const string& mw, const string& mwp) {
+		string ip("127.0.0.1");
+		m_DAPIServer = new DAPI_RPC_Server();
+		m_DAPIServer->Set(ip, first?p1:p2, 10);
+		vector<string> vv;
+		vv.push_back(  ip+string(":")+p1 );
+		vv.push_back(  ip+string(":")+p2 );
+		m_P2P.Set(m_DAPIServer, vv);
+
+        Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28981", "", true);
+        Servant->Set(basePath+string("/test_wallets")+sw, swp, basePath+string("/test_wallets")+mw, mwp);
+
+		List = new FSN_ActualList(Servant, &m_P2P, m_DAPIServer);
+
+		Tr = new boost::thread(&TestActualList::Run, this);
+
+	}
+
+	void Run() {
+
+		m_DAPIServer->Start();
+	}
+
+	void Stop() {
+		List->Stop();
+		m_DAPIServer->Stop();
+		Tr->join();
+	}
+
+    bool FindFSN(const string& port, const string& stakeW, const string& stakeKey) {
+        for(unsigned i=0;i<Servant->All_FSN.size();i++) {
+            auto a = Servant->All_FSN[i];
+            //LOG_PRINT_L5(a->IP<<":"<<a->Port<<"  "<<a->Stake.Addr<<"  "<<a->Stake.ViewKey);
+            if( a->IP=="127.0.0.1" && a->Port==port && a->Stake.Addr==stakeW && a->Stake.ViewKey==stakeKey ) return true;
+        }
+        return false;
+    }
+
+	DAPI_RPC_Server* m_DAPIServer = nullptr;
+	P2P_Broadcast m_P2P;
+	boost::thread* Tr = nullptr;
+    FSN_ActualList* List = nullptr;
+    FSN_Servant* Servant = nullptr;
+
+};
+
+/*
+struct P2PTestNode {
+	void Set(const string& p1, const string& p2, bool first=true) {
+		string ip("127.0.0.1");
+		m_DAPIServer = new DAPI_RPC_Server();
+		m_DAPIServer->Set(ip, first?p1:p2, 10);
+		vector<string> vv;
+		vv.push_back(  ip+string(":")+p1 );
+		vv.push_back(  ip+string(":")+p2 );
+		m_P2P.Set(m_DAPIServer, vv);
+
+		Tr = new boost::thread(&P2PTestNode::Run, this);
+
+	}
+	void Run() {
+		m_DAPIServer->Start();
+	}
+
+	void Stop() {
+		m_DAPIServer->Stop();
+		Tr->join();
+	}
+
+	DAPI_RPC_Server* m_DAPIServer = nullptr;
+	P2P_Broadcast m_P2P;
+	boost::thread* Tr = nullptr;
+
+};
+
+main() {
+    supernode::P2PTestNode node1;
+    node1.Set("7500", "8500", true);
+    supernode::P2PTestNode node2;
+    node2.Set("7500", "8500", false);
+    sleep(1);
+
+    node2.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(TestHandler, _1) );
+    node1.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(TestHandler, _1) );
+
+    supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE data;
+    data.IP = "192.168.45.45";
+    data.Port = "0xFFDDCC";
+
+    node1.m_P2P.Send("TestP2PHandler", data);
+
+    sleep(1);
+    node1.Stop();
+    node2.Stop();
+
 }
-};
-};
 
+*/
 
+};
+/*
+static void TestHandler(const supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& data) {
+	LOG_PRINT_L5("GOT: "<<data.IP<<":"<<data.Port);
+}
+*/
 
 int main(int argc, const char** argv) {
 	mlog_configure("", true);
     mlog_set_log_level(5);
+/*
 
 // ---------------------------
-//	supernode::Test_RTA_FlowBlockChain test_flow_chain;
-//	test_flow_chain.Test();
-//	return 0;
+    LOG_PRINT_L5("START");
 
-//	supernode::Test_RTA_Flow test_flow;
-//	test_flow.Test();
-//	return 0;
+    string basePath = "/home/laid/Dev/Graft/GraftNetwork/tests/data/supernode";
+    supernode::TestActualList node1;
+    node1.Set("7500", "8500", true, basePath, "/stake_wallet", "", "/miner_wallet", "");
+    supernode::TestActualList node2;
+    node2.Set("7500", "8500", false, basePath, "/miner_wallet", "", "/stake_wallet", "");
+    sleep(1);
 
+
+
+    sleep(1);
+    node1.Stop();
+    node2.Stop();
+
+
+    LOG_PRINT_L5("END");
+	return 0;
+*/
 // ---------------------------
 
 	string conf_file("conf.ini");
@@ -106,8 +215,8 @@ int main(int argc, const char** argv) {
 
 
 	supernode::P2P_Broadcast broadcast;
-	broadcast.Set( p2p_conf.get<string>("ip"), p2p_conf.get<string>("port"), p2p_conf.get<int>("threads"), p2p_seeds );
-	broadcast.Start();
+	//broadcast.Set( p2p_conf.get<string>("ip"), p2p_conf.get<string>("port"), p2p_conf.get<int>("threads"), p2p_seeds );
+	//broadcast.Start();
 
 
 	// Init super node objects

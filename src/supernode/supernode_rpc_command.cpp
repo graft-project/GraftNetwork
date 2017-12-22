@@ -25,7 +25,14 @@ DCALL(RestoreAccount)
 DCALL(WalletRejectPay)
 DCALL(WalletProxyRejectPay)
 DCALL(AuthWalletRejectPay)
+DCALL(FSN_CheckWalletOwnership);
 #undef DCALL
+
+#define P2P_CALL(xx) const string supernode::p2p_call::xx = #xx;
+P2P_CALL(AddFSN);
+P2P_CALL(LostFSNStatus);
+P2P_CALL(GetFSNList);
+#undef P2P_CALL
 
 
 void supernode::rpc_command::ConvertFromTR(RTA_TransactionRecordRequest& in_dst, const RTA_TransactionRecord& in_src) {

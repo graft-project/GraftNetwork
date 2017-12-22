@@ -55,7 +55,9 @@ set(supernode_sources
     supernode_rpc_command.cpp
     FSN_ServantBase.cpp
     grafttxextra.cpp
-    TxPool.cpp)
+    TxPool.cpp
+		supernode_helpers.cpp
+		FSN_ActualList.cpp)
 
 set(supernode_api_headers)
 

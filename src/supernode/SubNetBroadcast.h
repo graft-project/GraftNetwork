@@ -21,19 +21,21 @@ namespace supernode {
 		// as subnet_id we use PaymentID, generated as UUID in PoS
 		// ALL data structs (IN and OUT) must be child form sub_net_data
 		void Set( DAPI_RPC_Server* pa, string subnet_id, const vector< boost::shared_ptr<FSN_Data> >& members );
+		void Set( DAPI_RPC_Server* pa, string subnet_id, const vector<string>& members );
 
-
+		vector< pair<string, string> > Members();//port, ip
 
 		public:
 		template<class IN_t, class OUT_t>
 		bool Send( const string& method, const IN_t& in, vector<OUT_t>& out ) {
+			LOG_PRINT_L5("SEND. size: "<<m_Members.size());
 			boost::thread_group workers;
 			out.resize( m_Members.size() );
 			vector<int> rets;
 			rets.resize( m_Members.size(), 0 );
 
 			for(unsigned i=0;i<m_Members.size();i++) {
-				workers.create_thread( boost::bind(&SubNetBroadcast::DoCallInThread<IN_t, OUT_t>, *this, method, in, &out[i], &rets[i], m_Members[i]->IP, m_Members[i]->Port) );
+				workers.create_thread( boost::bind(&SubNetBroadcast::DoCallInThread<IN_t, OUT_t>, *this, method, in, &out[i], &rets[i], m_Members[i].first, m_Members[i].second) );
 			}
 			workers.join_all();
 
@@ -57,6 +59,7 @@ namespace supernode {
 		protected:
 		template<class IN_t, class OUT_t>
 		void DoCallInThread(const string& method, const IN_t& in, OUT_t* outo, int* ret, const string& ip, const string& port) {
+			LOG_PRINT_L5("call to: "<<ip<<"  : "<<port);
 			bool localcOk = false;
 			for(unsigned k=0;k<4;k++) {
 				DAPI_RPC_Client client;
@@ -74,7 +77,8 @@ namespace supernode {
 
 		protected:
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
-		vector< boost::shared_ptr<FSN_Data> > m_Members;
+		vector< pair<string, string> > m_Members;//port, ip
+		//vector< boost::shared_ptr<FSN_Data> > m_Members;
 		string m_PaymentID;
 		vector<int> m_MyHandlers;
 
