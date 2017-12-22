@@ -1,6 +1,9 @@
 #include "PosSaleObject.h"
+#include "TxPool.h"
 #include "graft_defines.h"
 #include <uuid/uuid.h>
+
+using namespace cryptonote;
 
 void supernode::PosSaleObject::Owner(PosProxy* o) { m_Owner = o; }
 
@@ -52,14 +55,46 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
 		m_TxInPoolGot = true;
 	}
 
-	// TODO: get tranaction from pool by in.TransactionPoolID
-	// TODO: check all signs
+    // get tranaction from pool by in.TransactionPoolID
+    // TODO: make txPool as a member of PosProxy or FSN_Servant?
+    TxPool txPool(m_Servant->GetNodeAddress(), m_Servant->GetNodeLogin(), m_Servant->GetNodePassword());
+    cryptonote::transaction tx;
+    if (!txPool.get(in.TransactionPoolID, tx)) {
+        LOG_ERROR("TX " << in.TransactionPoolID << " was not found in pool");
+        return false;
+    }
+    // Get the tx extra
+    GraftTxExtra graft_tx_extra;
+    if (!cryptonote::get_graft_tx_extra_from_extra(tx, graft_tx_extra)) {
+        LOG_ERROR("TX " << in.TransactionPoolID << " : error reading graft extra");
+        return false;
+    }
+    // check all signs
+    LOG_PRINT_L2("AuthNodes.size : " << TransactionRecord.AuthNodes.size());
 
-	/*
-	if( !CheckSign(in.FSN_StakeWalletAddr, in.Sign) ) return false;
-	m_Signs++;
-	if( m_Signs!=m_Servant->AuthSampleSize() ) return true;// not all signs gotted
-*/
+    if (TransactionRecord.AuthNodes.size() != graft_tx_extra.Signs.size()) {
+        LOG_ERROR("TX " << in.TransactionPoolID << " : number of auth nodes and number of signs mismatch");
+        return false;
+    }
+
+    for (unsigned i = 0; i < graft_tx_extra.Signs.size(); ++i) {
+
+        const string &sign = graft_tx_extra.Signs.at(i);
+        bool check_result = false;
+        // TODO: in some reasons TransactionRecord.AuthNodes order and Signs order mismatch, so it can't be checked
+        // by the same index
+        for (const auto & authNode : TransactionRecord.AuthNodes) {
+            LOG_PRINT_L2("Checking signature with wallet: " << authNode->Stake.Addr << " [" << sign << "]");
+            check_result = CheckSign(authNode->Stake.Addr, sign);
+            if (check_result)
+                break;
+        }
+        if (!check_result) {
+            LOG_ERROR("TX " << in.TransactionPoolID << " : signature failed to check for all nodes: " << sign);
+            return false;
+        }
+    }
+
     m_Status = NTransactionStatus::Success;
     return true;
 }

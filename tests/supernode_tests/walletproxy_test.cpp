@@ -182,6 +182,7 @@ struct WalletProxyTest : public testing::Test
         string wallet_path = wallet_root_path + "/miner_wallet";
         bdb_path  = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_blockchain";
         wallet->load(wallet_path, "");
+        // serialize test wallet
         wallet_account = wallet->store_keys_graft("", false);
         delete wallet;
     }
@@ -301,14 +302,10 @@ struct WalletProxyTest : public testing::Test
 
         for (unsigned i=0; i <repeatCount; i++) {// after Pay call you can can start poll status by GetPayStatus call
             NTransactionStatus trs =  GetSaleStatus(sale_out.PaymentID);
-            result = trs==NTransactionStatus::RejectedByWallet;
-            if( Assert(result, "GetSaleStatus : RejectedByWallet") ) break;
+            result = trs==NTransactionStatus::Success;
+            if( Assert(result, "GetSaleStatus : Success") ) break;
         }
-        if (!result)
-            return false;
-
-
-        return true;
+        return result;
 
     }
 
@@ -436,12 +433,11 @@ TEST_F(WalletProxyTest, TestWalletProxyPay)
 
     sleep(1);
 
-    testWalletProxyPay();
+    bool result = testWalletProxyPay();
 
     wallet_proxy.Stop();
     pos_proxy.Stop();
-
-
+    ASSERT_TRUE(result);
 
 }
 

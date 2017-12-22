@@ -43,11 +43,23 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
         return false;
     }
 
+    LOG_PRINT_L2("obtained " << outv.size() << " WALLET_PROXY_PAY responses");
+    if (outv.size() == 0) {
+        LOG_ERROR("NO WALLET_PROXY_PAY responses obtained");
+        return false;
+    }
 
-	if( outv.size()!=m_Servant->AuthSampleSize() ) return false;// not all signs gotted
-	for(auto& a : outv) {
+    if (outv.size() != m_Servant->AuthSampleSize()) {
+        LOG_ERROR("outv.size != AuthSampleSize");
+        return false;// not all signs gotted
+    }
+
+    for (auto& a : outv) {
+
 		if( !CheckSign(a.FSN_StakeWalletAddr, a.Sign) ) return false;
 		m_Signs.push_back(a.Sign);
+        LOG_PRINT_L0("pushing sign " << a.Sign << " to tx,  checked with address: " << a.FSN_StakeWalletAddr);
+
 	}
 
 
@@ -102,6 +114,10 @@ bool supernode::WalletPayObject::PutTXToPool() {
     tx_extra.PaymentID = TransactionRecord.PaymentID;
     tx_extra.Signs = m_Signs;
 
+//    for (auto &sign : tx_extra.Signs) {
+//        LOG_PRINT_L0("pushing sign to tx extra: " << sign);
+//    }
+
     std::unique_ptr<PendingTransaction> ptx {
             m_wallet->createTransaction(TransactionRecord.POSAddress,
                                       "",
@@ -121,6 +137,16 @@ bool supernode::WalletPayObject::PutTXToPool() {
         return false;
     }
 
+    if (ptx->txCount() == 0) {
+        LOG_ERROR("Interlal error: txCount == 0");
+        return false;
+    }
+    if (ptx->txCount() > 1) {
+        LOG_ERROR("TODO: we should handle this somehow");
+        throw std::runtime_error(std::string("tx was splitted by ") + std::to_string(ptx->txCount()) + " transactions, we dont hadle it now");
+    }
+
+    m_TransactionPoolID = ptx->txid()[0];
     return true;
 }
 

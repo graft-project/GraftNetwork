@@ -5,6 +5,7 @@
 
 namespace supernode {
 	class PosProxy;
+    class TxPool;
 	class PosSaleObject : public BaseRTAObject {
 		public:
 		void Owner(PosProxy* o);
