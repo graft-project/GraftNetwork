@@ -695,7 +695,7 @@ struct FSNServantTest : public testing::Test
 
     FSNServantTest()
     {
-        fsns = new FSN_Servant(db_path, "localhost:28281", "", true);
+        fsns = new FSN_Servant(db_path, "localhost:28281", "", "", "", true);
 
     }
 

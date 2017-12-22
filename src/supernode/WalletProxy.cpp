@@ -1,3 +1,4 @@
+#include "graft_defines.h"
 #include "WalletProxy.h"
 
 void supernode::WalletProxy::Init()
@@ -15,6 +16,7 @@ bool supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PA
 	sub.Set( m_DAPIServer, in.PaymentID, m_Servant->GetAuthSample(in.BlockNum) );
 	vector<rpc_command::WALLET_REJECT_PAY::response> vout;
 	bool ret = sub.Send( dapi_call::WalletProxyRejectPay, in, vout );
+    out.Result = ret ? STATUS_OK : ERROR_CANNOT_REJECT_PAY;
 	return ret;
 }
 
@@ -24,26 +26,16 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
 	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
 	data->Owner(this);
 	Setup(data);
+    data->OpenSenderWallet(in.Account, in.Password);
+
     if (!data->Init(in))
     {
+        LOG_ERROR("Failed to init WalletPayObject");
         return false;
     }
+
 	Add(data);
-
-    std::unique_ptr<tools::GraftWallet> wal = initWallet(in.Account, in.Password);
-    supernode::GraftTxExtra graft_extra;
-    // TODO: fill graft extra fields
-
-    bool result = true;
-//    PendingTransaction *transaction = wal->createTransaction(in.POSAddress, in.PaymentID, in.Amount, 0, graft_extra);
-//    LOG_PRINT_L2("About to send  tx: " << transaction->txid() << ", amount: " << cryptonote::print_money(transaction->amount()));
-//    bool result = transaction->commit();
-//    if (!result) {
-//        LOG_PRINT_L2("Error sending tx: " << transaction->errorString());
-//    }
-
-
-    return result;
+    return true;
 }
 
 bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {

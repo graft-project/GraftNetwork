@@ -48,20 +48,12 @@ using namespace std;
 
 
 namespace supernode {
-
-
-
-
-
-};
-
+}
 
 
 int main(int argc, const char** argv) {
 	mlog_configure("", true);
     mlog_set_log_level(5);
-
-
 
 	string conf_file("conf.ini");
 	if(argc>1) conf_file = argv[1];
@@ -120,21 +112,6 @@ int main(int argc, const char** argv) {
 	}
 	// TODO: end
 
-
-	/*
-
-//    supernode::FSN_Servant servant;
-//    servant.Set( wc.get<string>("stake_file"), wc.get<string>("stake_passwd"), wc.get<string>("miner_file"), wc.get<string>("miner_passwd") );
-    //TODO: Remove next code, it only for testing
-    supernode::Test_FSN_Servant servant;
-    servant.m_AuthSampleSize = 1;
-    boost::shared_ptr<supernode::FSN_Data> d1 = boost::shared_ptr<supernode::FSN_Data>(new supernode::FSN_Data());
-    d1->IP = dapi_conf.get<string>("ip");
-    d1->Port = dapi_conf.get<string>("port");
-    d1->Stake.Addr = "1_fsn";
-    servant.m_GetAuthSample.push_back(d1);
-    //TODO: end
-    */
 
 
 	vector<supernode::BaseRTAProcessor*> objs;

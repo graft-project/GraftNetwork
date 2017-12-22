@@ -34,6 +34,7 @@
 #include <cryptonote_core/blockchain.h>
 #include <exception>
 
+
 using namespace cryptonote;
 using namespace Monero;
 
@@ -113,11 +114,14 @@ FSN_Servant::FSN_Servant(const FSN_Servant &other)
 
 }
 
-FSN_Servant::FSN_Servant(const string &bdb_path, const string &daemon_addr, const string &fsn_wallets_dir, bool testnet)
-    : m_testnet{testnet}
-    , m_daemonAddr{daemon_addr}
-    , m_fsnWalletsDir(fsn_wallets_dir)
+FSN_Servant::FSN_Servant(const string &bdb_path, const string &node_addr, const string &node_login, const string &node_password,
+                         const string &fsn_wallets_dir, bool testnet)
+    : m_fsnWalletsDir(fsn_wallets_dir)
 {
+    FSN_ServantBase::m_testnet      = testnet;
+    FSN_ServantBase::m_nodelogin    = node_login;
+    FSN_ServantBase::m_nodePassword = node_password;
+    SetNodeAddress(node_addr);
 
     if (m_fsnWalletsDir.empty())
         m_fsnWalletsDir = consts::DEFAULT_FSN_WALLETS_DIR;
@@ -236,21 +240,21 @@ void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
 }
 
 bool FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
-	boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);// we use one mutex for All_FSN && for m_viewOnlyWallets
+    boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);// we use one mutex for All_FSN && for m_viewOnlyWallets
 
-	if( !FSN_ServantBase::RemoveFsnAccount(fsn) ) return false;
+    if( !FSN_ServantBase::RemoveFsnAccount(fsn) ) return false;
 
     // TODO: RAII based (scoped) locks
-        const auto &it = m_viewOnlyWallets.find(fsn->Stake.Addr);
-        if (it != m_viewOnlyWallets.end()) {
-            Monero::Wallet * w = it->second;
-            Monero::WalletManagerFactory::getWalletManager()->closeWallet(w);
-            m_viewOnlyWallets.erase(it);
-        } else {
-            LOG_ERROR("Internal error: All_FSN doesn't have corresponding wallet: " << fsn->Stake.Addr);
-        }
+    const auto &it = m_viewOnlyWallets.find(fsn->Stake.Addr);
+    if (it != m_viewOnlyWallets.end()) {
+        Monero::Wallet * w = it->second;
+        Monero::WalletManagerFactory::getWalletManager()->closeWallet(w);
+        m_viewOnlyWallets.erase(it);
+    } else {
+        LOG_ERROR("Internal error: All_FSN doesn't have corresponding wallet: " << fsn->Stake.Addr);
+    }
 
-        return true;
+    return true;
 
 }
 
@@ -347,6 +351,7 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
     if (existingWallet)
         wmgr->closeWallet(existingWallet);
     Wallet * wallet = wmgr->openWallet(path, password, testnet);
+
     // we couldn't open wallet, delete the wallet object and throw exception
     if (wallet->status() != Wallet::Status_Ok) {
         string error_msg = wallet->errorString();
@@ -356,7 +361,7 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
         throw runtime_error(string("error opening wallet: ") + error_msg);
     }
 
-    if (!wallet->init(m_daemonAddr, 0)) {
+    if (!wallet->init(GetNodeAddress(), 0)) {
         MERROR("Can't connect to a daemon.");
     }
     return wallet;
@@ -374,13 +379,14 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
     if (walletIter != m_viewOnlyWallets.end())
         return walletIter->second;
 
+    // No luck, somehow caller requested the address we don't have view-only wallet yet
     boost::filesystem::path wallet_path (m_fsnWalletsDir);
     wallet_path /= walletData.Addr;
     Monero::Wallet * w = nullptr;
     Monero::WalletManager * wmgr = Monero::WalletManagerFactory::getWalletManager();
 
     if (!wmgr->walletExists(wallet_path.string())) {
-        // create view only wallet
+        // create new view only wallet
         w = wmgr->createWalletFromKeys(wallet_path.string(), "English", m_testnet, 0, walletData.Addr, walletData.ViewKey);
     } else {
         // open existing
@@ -391,7 +397,7 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
         throw std::runtime_error(std::string("unable to open/create view only wallet: " + wmgr->errorString()));
 
 
-    if (!w->init(m_daemonAddr, 0)) {
+    if (!w->init(GetNodeAddress(), 0)) {
         MERROR("Can't connect to a daemon.");
     } else {
         w->setAutoRefreshInterval(consts::DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS);
@@ -401,6 +407,7 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
 
     // add wallet to map
     m_viewOnlyWallets[walletData.Addr] = w;
+    // TODO: should have opened wallets in sync with the All_FSN ???
     return w;
 }
 
