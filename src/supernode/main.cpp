@@ -230,7 +230,7 @@ int main(int argc, const char** argv) {
 	servant.Set( cf_ser.get<string>("stake_wallet_path"), "", cf_ser.get<string>("miner_wallet_path"), "");
 	// TODO: Remove next code, it only for testing
 	const boost::property_tree::ptree& fsn_hardcoded = config.get_child("fsn_hardcoded");
-	for(unsigned i=0;i<10000;i++) {
+    for(unsigned i=1;i<10000;i++) {
 		string key = string("data")+boost::lexical_cast<string>(i);
 		string val = fsn_hardcoded.get<string>(key, "");
 		if(val=="") break;
