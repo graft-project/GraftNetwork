@@ -397,6 +397,11 @@ namespace supernode {
 				KV_SERIALIZE(IP)
 				KV_SERIALIZE(Port)
 				KV_SERIALIZE(PaymentID)
+
+				KV_SERIALIZE(StakeAddr)
+				KV_SERIALIZE(StakeViewKey)
+				KV_SERIALIZE(MinerAddr)
+				KV_SERIALIZE(MinerViewKey)
 			END_KV_SERIALIZE_MAP()
 
 			string IP;
@@ -408,9 +413,10 @@ namespace supernode {
 			string MinerViewKey;
 		};
 
-		struct BROADCACT_LOST_STATUS_FULL_SUPER_NODE {
+		struct BROADCACT_LOST_STATUS_FULL_SUPER_NODE : public SubNetData {
 			BEGIN_KV_SERIALIZE_MAP()
 				KV_SERIALIZE(StakeAddr)
+				KV_SERIALIZE(PaymentID)
 			END_KV_SERIALIZE_MAP()
 
 

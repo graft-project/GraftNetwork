@@ -28,7 +28,7 @@ namespace supernode {
 		public:
 		template<class IN_t, class OUT_t>
 		bool Send( const string& method, const IN_t& in, vector<OUT_t>& out ) {
-			LOG_PRINT_L5("SEND. size: "<<m_Members.size());
+			//LOG_PRINT_L5("SEND. size: "<<m_Members.size());
 			boost::thread_group workers;
 			out.resize( m_Members.size() );
 			vector<int> rets;
@@ -59,7 +59,7 @@ namespace supernode {
 		protected:
 		template<class IN_t, class OUT_t>
 		void DoCallInThread(const string& method, const IN_t& in, OUT_t* outo, int* ret, const string& ip, const string& port) {
-			LOG_PRINT_L5("call to: "<<ip<<"  : "<<port);
+			//LOG_PRINT_L5("call to: "<<ip<<"  : "<<port<<"/"<<method<<"  from: "<<m_DAPIServer->Port());
 			bool localcOk = false;
 			for(unsigned k=0;k<4;k++) {
 				DAPI_RPC_Client client;

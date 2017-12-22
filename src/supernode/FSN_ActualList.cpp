@@ -3,9 +3,12 @@
 #include "DAPI_RPC_Server.h"
 #include "DAPI_RPC_Client.h"
 
+static const unsigned s_AuditTime = 50*60*1000;//50 min
+static const uint64_t s_MinStakeBalance = 0;
+
 namespace supernode {
 
-FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAPI_RPC_Server* dapi) : m_All_FSN_Guard(servant->All_FSN_Guard), m_All_FSN(servant->All_FSN) {
+FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAPI_RPC_Server* dapi) : m_All_FSN_Guard(servant->All_FSN_Guard), m_All_FSN(servant->All_FSN), m_Work(m_IOService) {
 	m_Servant = servant;
 	m_P2P = p2p;
 	m_DAPIServer = dapi;
@@ -17,6 +20,13 @@ FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAP
 }
 
 void FSN_ActualList::Start() {
+	CheckIfIamFSN(true);// may be very slow operation
+
+	for(unsigned i=0;i<10;i++) {
+		m_Threadpool.create_thread( boost::bind(&boost::asio::io_service::run, &m_IOService) );
+	}
+
+
 	m_Running = true;
 	m_Thread = new boost::thread(&FSN_ActualList::Run, this);
 }
@@ -24,6 +34,8 @@ void FSN_ActualList::Start() {
 void FSN_ActualList::Stop() {
 	m_Running = false;
 	m_Thread->join();
+	m_IOService.stop();
+	m_Threadpool.join_all();
 }
 
 void FSN_ActualList::GetFSNList(const rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request& in, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response& out) {
@@ -39,10 +51,12 @@ void FSN_ActualList::GetFSNList(const rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN
 		out.List.push_back(data);
 	}
 
+
 }
 
 
 void FSN_ActualList::Run() {
+
 	{
 		rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request in;
 		vector<rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response> outv;
@@ -51,30 +65,59 @@ void FSN_ActualList::Run() {
 		boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
 		for(auto aa : outv)
 			for(auto a : aa.List) _OnAddFSN(a);
+
 	}
 
 
 
 	while(m_Running) {
 		CheckIfIamFSN();
-		sleep(1);
-//		DoAudit();
+
+		while(m_Running) {
+			auto now = boost::posix_time::second_clock::local_time();
+			if( (now-m_AuditStartAt).total_milliseconds()>s_AuditTime ) break;
+			sleep(1);
+		}
+		if(!m_Running) break;
+
+		m_AuditStartAt = boost::posix_time::second_clock::local_time();
+		DoAudit();
 	}
 
 
 }
 
-void FSN_ActualList::CheckIfIamFSN() {
+void FSN_ActualList::DoAudit() {
+	vector< boost::shared_ptr<FSN_Data> > all;
+	{
+		boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
+		all = m_All_FSN;
+	}
+
+	for(unsigned i=0;i<all.size() && m_Running;i++) {
+		if( CheckIsFSN(all[i]) ) continue;
+		auto data = m_Servant->FSN_DataByStakeAddr( all[i]->Stake.Addr );
+		if( !data ) continue;// was deleted
+
+		rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE in;
+		in.StakeAddr = data->Stake.Addr;
+		m_P2P->Send(p2p_call::LostFSNStatus, in);
+		m_Servant->RemoveFsnAccount(data);
+	}//for
+
+}
+
+void FSN_ActualList::CheckIfIamFSN(bool checkOnly) {
 	boost::shared_ptr<FSN_Data> data = boost::shared_ptr<FSN_Data>( new FSN_Data(m_Servant->GetMyStakeWallet(), m_Servant->GetMyMinerWallet(), m_DAPIServer->IP(), m_DAPIServer->Port()) );
 	if( !CheckIsFSN(data) ) return;
+
+	if(checkOnly) return;
 
 	{
 		boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
 		for(auto a : m_All_FSN) if( a->IP==data->IP && a->Port==data->Port ) return;
 		m_Servant->AddFsnAccount(data);
 	}
-
-
 
 	rpc_command::BROADCACT_ADD_FULL_SUPER_NODE in;
 	in.IP = data->IP;
@@ -83,32 +126,46 @@ void FSN_ActualList::CheckIfIamFSN() {
 	in.StakeViewKey = data->Stake.ViewKey;
 	in.MinerAddr = data->Miner.Addr;
 	in.MinerViewKey = data->Miner.ViewKey;
+
+	//LOG_PRINT_L5("=1 Send AddFSN: "<<m_DAPIServer->Port());
 	m_P2P->Send(p2p_call::AddFSN, in);
+	//LOG_PRINT_L5("=2 Send AddFSN: "<<m_DAPIServer->Port());
 }
 
 boost::shared_ptr<FSN_Data> FSN_ActualList::_OnAddFSN(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in ) {
 	for(auto a : m_All_FSN) if( a->IP==in.IP && a->Port==in.Port ) return nullptr;
 
 	boost::shared_ptr<FSN_Data> data = boost::shared_ptr<FSN_Data>( new FSN_Data( FSN_WalletData(in.StakeAddr, in.StakeViewKey), FSN_WalletData(in.MinerAddr, in.MinerViewKey), in.IP, in.Port) );
-	m_Servant->AddFsnAccount(data);
 
 	return data;
 }
 
 void FSN_ActualList::OnAddFSN(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in ) {
+	//LOG_PRINT_L5("=1 OnAddFSN: "<<m_DAPIServer->Port());
+	m_IOService.post( [this, in](){
+		OnAddFSNFromWorker(in);
+	} );
+}
+
+void FSN_ActualList::OnAddFSNFromWorker(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in ) {
+	//LOG_PRINT_L5("=1 OnAddFSNFromWorker: "<<m_DAPIServer->Port());
+
 	boost::shared_ptr<FSN_Data> data;
 	{
 		boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
 		data = _OnAddFSN(in);
 	}
 
-	if(!data) return;
-
-
-	if( !CheckIsFSN(data) ) m_Servant->RemoveFsnAccount(data);
+	if( data && CheckIsFSN(data) ) m_Servant->AddFsnAccount(data);// VERY SLOW!!!
 }
 
 void FSN_ActualList::OnLostFSNStatus(const rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE& in) {
+	m_IOService.post( [this, in](){
+		OnLostFSNStatusFromWorker(in);
+	} );
+}
+
+void FSN_ActualList::OnLostFSNStatusFromWorker(const rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE& in) {
 	boost::shared_ptr<FSN_Data> data = m_Servant->FSN_DataByStakeAddr(in.StakeAddr);
 	if(!data) return;
 	if( CheckIsFSN(data) ) return;
@@ -123,6 +180,7 @@ bool FSN_ActualList::CheckWalletOwner(boost::shared_ptr<FSN_Data> data, const st
 
 	DAPI_RPC_Client call;
 	call.Set(data->IP, data->Port);
+	//LOG_PRINT_L5("call to: "<<data->IP<<":"<<data->Port);
 	if( !call.Invoke(dapi_call::FSN_CheckWalletOwnership, in, out) ) return false;
 	return m_Servant->IsSignValid(in.Str, in.WalletAddr, out.Sign);
 
@@ -132,10 +190,9 @@ bool FSN_ActualList::CheckIsFSN(boost::shared_ptr<FSN_Data> data) {
 	if( !CheckWalletOwner(data, data->Stake.Addr) ) return false;
 	if( !CheckWalletOwner(data, data->Miner.Addr) ) return false;
 
+
 	uint64_t bal = m_Servant->GetWalletBalance( m_Servant->GetCurrentBlockHeight(), data->Stake );
-
-	// TODO: check balance
-
+	if(bal<s_MinStakeBalance) return false;
 
 	return true;
 }

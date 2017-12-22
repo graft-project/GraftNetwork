@@ -35,7 +35,7 @@ namespace supernode {
 	    	const epee::net_utils::http::http_response_info* pri = NULL;
 
 	    	if(!invoke(rpc_command::DAPI_URI, rpc_command::DAPI_METHOD, req_param, timeout, std::addressof(pri))) {
-	    		LOG_PRINT_L5("Failed to invoke http request to  " << call);
+	    		LOG_PRINT_L5("Failed to invoke http request to  " << call<<"  URI: "<<m_URI);
 	    		return false;
 	    	}
 
@@ -61,6 +61,9 @@ namespace supernode {
 
 
 		}
+
+		protected:
+		string m_URI;
 
 
 	};

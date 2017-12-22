@@ -137,6 +137,8 @@ void FSN_Servant::Set(const string& stakeFileName, const string& stakePasswd, co
 {
     m_stakeWallet = initWallet(m_stakeWallet, stakeFileName, stakePasswd, m_testnet);
     m_minerWallet = initWallet(m_minerWallet, minerFileName, minerPasswd, m_testnet);
+    m_stakeWallet->refresh();
+    m_minerWallet->refresh();
 }
 
 

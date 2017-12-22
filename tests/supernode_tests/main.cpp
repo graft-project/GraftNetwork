@@ -61,6 +61,7 @@
 #include "supernode/AuthSample.h"
 #include "supernode/P2P_Broadcast.h"
 #include "supernode/FSN_Servant_Test.h"
+#include "supernode/FSN_ActualList.h"
 
 
 using namespace supernode;
@@ -451,7 +452,201 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 	}
 };
 
+struct P2PTestNode {
+	void Set(const string& p1, const string& p2, bool first=true) {
+		string ip("127.0.0.1");
+		m_DAPIServer = new DAPI_RPC_Server();
+		m_DAPIServer->Set(ip, first?p1:p2, 10);
+		vector<string> vv;
+		vv.push_back(  ip+string(":")+p1 );
+		vv.push_back(  ip+string(":")+p2 );
+		m_P2P.Set(m_DAPIServer, vv);
+
+		Tr = new boost::thread(&P2PTestNode::Run, this);
+
+	}
+	void Run() {
+		m_DAPIServer->Start();
+	}
+
+	void Stop() {
+		m_DAPIServer->Stop();
+		Tr->join();
+	}
+
+	DAPI_RPC_Server* m_DAPIServer = nullptr;
+	P2P_Broadcast m_P2P;
+	boost::thread* Tr = nullptr;
+
 };
+
+struct TestHanlerP2P : testing::Test {
+
+	void TestHandler(const supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& data) {
+		GotData.push_back( data );
+	}
+
+	vector<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE> GotData;
+};
+
+
+struct FSN_ActualList_Test : public FSN_ActualList {
+	FSN_ActualList_Test(FSN_ServantBase* s, P2P_Broadcast* p, DAPI_RPC_Server* d) : FSN_ActualList(s,p,d), AuditStartAt(m_AuditStartAt) {}
+	boost::posix_time::ptime& AuditStartAt;
+
+	bool AuditDone = false;
+	void DoAudit() override {
+		FSN_ActualList::DoAudit();
+		AuditDone = true;
+	}
+
+};
+
+struct TestActualList {
+	void Set(const string& p1, const string& p2, bool first, const string& basePath, const string& sw, const string& swp, const string& mw, const string& mwp) {
+		string ip("127.0.0.1");
+		m_DAPIServer = new DAPI_RPC_Server();
+		m_DAPIServer->Set(ip, first?p1:p2, 10);
+		vector<string> vv;
+		vv.push_back(  ip+string(":")+p1 );
+		vv.push_back(  ip+string(":")+p2 );
+		m_P2P.Set(m_DAPIServer, vv);
+
+		Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28281", "", true);
+		Servant->Set(basePath+string("/test_wallets")+sw, swp, basePath+string("/test_wallets")+mw, mwp);
+
+		List = new FSN_ActualList_Test(Servant, &m_P2P, m_DAPIServer);
+
+		Tr = new boost::thread(&TestActualList::Run, this);
+
+	}
+
+	void Run() {
+
+		m_DAPIServer->Start();
+	}
+
+	void Stop() {
+		List->Stop();
+		m_DAPIServer->Stop();
+		Tr->join();
+	}
+
+	bool FindFSN(const string& port, const string& stakeW, const string& stakeKey) {
+		for(unsigned i=0;i<Servant->All_FSN.size();i++) {
+			auto a = Servant->All_FSN[i];
+			//LOG_PRINT_L5(a->IP<<":"<<a->Port<<"  "<<a->Stake.Addr<<"  "<<a->Stake.ViewKey);
+			if( a->IP=="127.0.0.1" && a->Port==port && a->Stake.Addr==stakeW && a->Stake.ViewKey==stakeKey ) return true;
+		}
+		return false;
+	}
+
+	DAPI_RPC_Server* m_DAPIServer = nullptr;
+	P2P_Broadcast m_P2P;
+	boost::thread* Tr = nullptr;
+	FSN_ActualList_Test* List = nullptr;
+	FSN_Servant* Servant = nullptr;
+
+};
+
+struct Test_ActualFSNList_Strut : public testing::Test {
+};
+
+};
+
+
+TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
+//		mlog_configure("", true);
+//    mlog_set_log_level(5);
+
+    string basePath = epee::string_tools::get_current_module_folder() + "/../data/supernode";
+    supernode::TestActualList node1;
+    node1.Set("7510", "8510", true, basePath, "/stake_wallet", "", "/miner_wallet", "");
+    supernode::TestActualList node2;
+    node2.Set("7510", "8510", false, basePath, "/miner_wallet", "", "/stake_wallet", "");
+    sleep(1);
+
+    node1.List->Start();
+    node2.List->Start();
+
+    while(!node1.List->AuditDone || !node1.List->AuditDone) sleep(1);
+    sleep(25);
+
+    bool found;
+    found = node1.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
+		ASSERT_TRUE(found);
+    LOG_PRINT_L5("=1 FOUND: "<<found);
+    found = node1.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
+		ASSERT_TRUE(found);
+    LOG_PRINT_L5("=2 FOUND: "<<found);
+
+    found = node2.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
+		ASSERT_TRUE(found);
+    LOG_PRINT_L5("=3 FOUND: "<<found);
+    found = node2.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
+		ASSERT_TRUE(found);
+    LOG_PRINT_L5("=4 FOUND: "<<found);
+
+		ASSERT_TRUE( node1.Servant->All_FSN.size()==2 );
+		ASSERT_TRUE( node2.Servant->All_FSN.size()==2 );
+
+    LOG_PRINT_L5("IN "<<node1.m_DAPIServer->Port()<<"  size: "<<node1.Servant->All_FSN.size() );
+    LOG_PRINT_L5("IN "<<node2.m_DAPIServer->Port()<<"  size: "<<node2.Servant->All_FSN.size() );
+
+    // -------------
+
+    node2.Stop();
+
+    node1.List->AuditDone = false;
+    node1.List->AuditStartAt -= boost::posix_time::hours(30);
+    while(!node1.List->AuditDone) sleep(1);
+
+    found = node1.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
+		ASSERT_TRUE(found);
+    LOG_PRINT_L5("=1.2 FOUND: "<<found);
+    found = node1.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
+		ASSERT_TRUE(!found);
+
+		ASSERT_TRUE(node1.Servant->All_FSN.size()==1);
+    LOG_PRINT_L5("=2.2 FOUND: "<<found);
+    LOG_PRINT_L5("2.IN "<<node1.m_DAPIServer->Port()<<"  size: "<<node1.Servant->All_FSN.size() );
+
+
+
+
+    sleep(1);
+    node1.Stop();
+    node2.Stop();
+
+
+//    LOG_PRINT_L5("END");
+}
+
+TEST_F(TestHanlerP2P, Test_P2PTest) {
+    supernode::P2PTestNode node1;
+    node1.Set("7500", "8500", true);
+    supernode::P2PTestNode node2;
+    node2.Set("7500", "8500", false);
+    sleep(1);
+
+    node2.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(&TestHanlerP2P::TestHandler, this, _1) );
+    node1.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(&TestHanlerP2P::TestHandler, this, _1) );
+
+    supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE data;
+    data.IP = "192.168.45.45";
+    data.Port = "0xFFDDCC";
+
+    node1.m_P2P.Send("TestP2PHandler", data);
+
+    sleep(1);
+    node1.Stop();
+    node2.Stop();
+
+	ASSERT_TRUE( GotData.size()==1 && GotData[0].Port==data.Port  );
+
+}
+
+
 
 TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 	s_TestDataPath = epee::string_tools::get_current_module_folder() + "/../data/supernode";
