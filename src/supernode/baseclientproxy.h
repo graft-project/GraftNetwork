@@ -10,8 +10,6 @@ class BaseClientProxy : public BaseRTAProcessor
 public:
     BaseClientProxy();
 
-    void SetDaemonAddress(const std::string &host, int port);
-    void SetDaemonAddress(const std::string &address);
     std::unique_ptr<tools::GraftWallet> initWallet(const std::string &account, const std::string &password) const;
 
 
@@ -26,11 +24,7 @@ protected:
 
 
 protected:
-    bool m_testnet;
-    std::string m_daemon_ip;
-    int m_daemon_port;
-    std::string m_daemon_login;
-    std::string m_daemon_address;
+
 };
 
 }
