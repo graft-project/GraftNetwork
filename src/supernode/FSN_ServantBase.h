@@ -27,6 +27,36 @@ namespace supernode {
 	    virtual void AddFsnAccount(boost::shared_ptr<FSN_Data> fsn);
 	    virtual bool RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn);
 	    virtual boost::shared_ptr<FSN_Data> FSN_DataByStakeAddr(const string& addr) const;
+        /*!
+         * \brief GetNodeIp - returns IP addess of node
+         * \return          string
+         */
+        std::string GetNodeIp() const;
+        /*!
+         * \brief GetNodePort - returns TCP port number of node
+         * \return
+         */
+        int GetNodePort() const;
+
+        /*!
+         * \brief GetNodeAddress - returns
+         * \return
+         */
+        std::string GetNodeAddress() const;
+        /*!
+         * \brief IsTestnet - indicates if
+         * \return
+         */
+        bool IsTestnet() const;
+
+    protected:
+        /*!
+         * \brief SetNodeAddress - accepts address string in form "hostname:port"
+         * \param address - node address
+         */
+        void SetNodeAddress(const std::string &address);
+
+
 
 	public:
 	    virtual FSN_WalletData GetMyStakeWallet() const=0;
@@ -38,10 +68,16 @@ namespace supernode {
 	    mutable boost::recursive_mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
 	    vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 
+    protected:
+        bool  m_testnet = false;
+        // IP address for access to graft node
+        std::string    m_nodeIp;
+        // TCP port  for access to graft node
+        int m_nodePort;
 	};
 
 
-};
+}
 
 
 

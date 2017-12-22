@@ -98,9 +98,6 @@ private:
     Monero::Wallet * getMyWalletByAddress(const std::string &address) const;
 
 private:
-
-    bool                         m_testnet = false;
-    std::string                  m_daemonAddr;
     // directory where view-only wallets for other FSNs will be stored
     std::string                  m_fsnWalletsDir;
     cryptonote::BlockchainDB   * m_bdb     = nullptr;

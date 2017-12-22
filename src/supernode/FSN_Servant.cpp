@@ -34,6 +34,7 @@
 #include <cryptonote_core/blockchain.h>
 #include <exception>
 
+
 using namespace cryptonote;
 using namespace Monero;
 
@@ -114,10 +115,10 @@ FSN_Servant::FSN_Servant(const FSN_Servant &other)
 }
 
 FSN_Servant::FSN_Servant(const string &bdb_path, const string &daemon_addr, const string &fsn_wallets_dir, bool testnet)
-    : m_testnet{testnet}
-    , m_daemonAddr{daemon_addr}
-    , m_fsnWalletsDir(fsn_wallets_dir)
+    : m_fsnWalletsDir(fsn_wallets_dir)
 {
+    FSN_ServantBase::m_testnet = testnet;
+    SetNodeAddress(daemon_addr);
 
     if (m_fsnWalletsDir.empty())
         m_fsnWalletsDir = consts::DEFAULT_FSN_WALLETS_DIR;
@@ -355,7 +356,7 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
         throw runtime_error(string("error opening wallet: ") + error_msg);
     }
 
-    if (!wallet->init(m_daemonAddr, 0)) {
+    if (!wallet->init(GetNodeAddress(), 0)) {
         MERROR("Can't connect to a daemon.");
     }
     return wallet;
@@ -391,7 +392,7 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
         throw std::runtime_error(std::string("unable to open/create view only wallet: " + wmgr->errorString()));
 
 
-    if (!w->init(m_daemonAddr, 0)) {
+    if (!w->init(GetNodeAddress(), 0)) {
         MERROR("Can't connect to a daemon.");
     } else {
         w->setAutoRefreshInterval(consts::DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS);
