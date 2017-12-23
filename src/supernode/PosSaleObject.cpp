@@ -93,6 +93,12 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
             LOG_ERROR("TX " << in.TransactionPoolID << " : signature failed to check for all nodes: " << sign);
             return false;
         }
+        m_Signs++;
+    }
+
+    if (m_Signs != m_Servant->AuthSampleSize()) {
+        LOG_ERROR("Checked signs number mismatch with auth sample size, " << m_Signs << "/" << m_Servant->AuthSampleSize());
+        return false;
     }
 
     m_Status = NTransactionStatus::Success;
