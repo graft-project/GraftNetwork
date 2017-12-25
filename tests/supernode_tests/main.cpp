@@ -512,7 +512,7 @@ struct TestActualList {
 		vv.push_back(  ip+string(":")+p2 );
 		m_P2P.Set(m_DAPIServer, vv);
 
-		Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28281", "", true);
+		Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28281", "", "", "", true);
 		Servant->Set(basePath+string("/test_wallets")+sw, swp, basePath+string("/test_wallets")+mw, mwp);
 
 		List = new FSN_ActualList_Test(Servant, &m_P2P, m_DAPIServer);
@@ -570,7 +570,7 @@ TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
     node2.List->Start();
 
     while(!node1.List->AuditDone || !node1.List->AuditDone) sleep(1);
-    sleep(25);
+    sleep(5);
 
     bool found;
     found = node1.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
