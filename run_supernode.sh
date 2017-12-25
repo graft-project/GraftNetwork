@@ -1,1 +1,1 @@
-nohup ./build/release/bin/graft-supernode --testnet --rpc-bind-port 28900 --disable-rpc-login > /dev/null 2>&1 &
+nohup ./build/release/bin/graft-supernode ./src/supernode/conf.ini > /dev/null 2>&1 &
