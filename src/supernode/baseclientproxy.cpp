@@ -117,7 +117,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
                                              m_daemon_login, m_testnet);
     if (!wal)
     {
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        out.Result = ERROR_CREATE_WALLET_FAILED;
         return false;
     }
     try
