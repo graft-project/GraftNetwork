@@ -169,6 +169,7 @@ struct WalletProxyTest : public testing::Test
     const std::string DAEMON_ADDR = "localhost:28281";
     const uint64_t AMOUNT_10_GRF = 10000000000000;
     const std::string DST_WALLET_ADDR = "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa";
+    const std::string DST_WALLET_VIEWKEY = "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04";
 
 
     string IP = "127.0.0.1";
@@ -239,6 +240,7 @@ struct WalletProxyTest : public testing::Test
         sale_in.POSSaleDetails = "Some data";
         // 1. what is POS address here?
         sale_in.POSAddress = DST_WALLET_ADDR;
+        sale_in.POSViewKey = DST_WALLET_VIEWKEY;
 
         unsigned repeatCount = 1;
 

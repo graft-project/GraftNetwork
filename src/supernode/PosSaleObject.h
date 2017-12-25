@@ -20,7 +20,7 @@ namespace supernode {
 		string GeneratePaymentID();
 
 		protected:
-//		unsigned m_Signs = 0;
+        unsigned m_Signs = 0;
         NTransactionStatus m_Status = NTransactionStatus::None;
         PosProxy* m_Owner = nullptr;
         mutable boost::recursive_mutex m_TxInPoolGotGuard;
