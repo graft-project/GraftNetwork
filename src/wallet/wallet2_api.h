@@ -407,7 +407,7 @@ struct Wallet
     virtual void setTrustedDaemon(bool arg) = 0;
     virtual bool trustedDaemon() const = 0;
     virtual uint64_t balance() const = 0;
-    virtual uint64_t unlockedBalance() const = 0;
+    virtual uint64_t unlockedBalance(uint64_t till_block = 0) const = 0;
 
    /**
     * @brief watchOnly - checks if wallet is watch only

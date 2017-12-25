@@ -76,6 +76,11 @@ file(COPY
   data/signed_monero_tx
   DESTINATION data)
 
+# graft supernode data
+file(COPY
+    data/supernode
+    DESTINATION data)
+
 add_subdirectory(core_tests)
 add_subdirectory(fuzz)
 add_subdirectory(crypto)
@@ -87,6 +92,7 @@ add_subdirectory(difficulty)
 add_subdirectory(hash)
 add_subdirectory(net_load_tests)
 add_subdirectory(libwallet_api_tests)
+add_subdirectory(supernode_tests)
 
 # add_subdirectory(daemon_tests)
 

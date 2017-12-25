@@ -2687,12 +2687,18 @@ void wallet2::store_to(const std::string &path, const std::string &password)
   }
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::unlocked_balance() const
+uint64_t wallet2::unlocked_balance(uint64_t till_block) const
 {
   uint64_t amount = 0;
-  for(const transfer_details& td: m_transfers)
+  uint64_t block_height = 0;
+  for(const transfer_details& td: m_transfers) {
+    THROW_WALLET_EXCEPTION_IF(block_height > td.m_block_height, error::wallet_internal_error, "unsorted transfers");
+    if (till_block > 0 && td.m_block_height > till_block)
+        break;
+    block_height = td.m_block_height;
     if(!td.m_spent && is_transfer_unlocked(td))
       amount += td.amount();
+  }
 
   return amount;
 }

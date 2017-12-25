@@ -1,3 +1,4 @@
+// Copyright (c) 2017, The Graft Project
 // Copyright (c) 2014-2017, The Monero Project
 // 
 // All rights reserved.
@@ -37,6 +38,7 @@ using namespace epee;
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include "ringct/rctSigs.h"
+#include "serialization/binary_utils.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "cn"
@@ -869,4 +871,34 @@ namespace cryptonote
     block_hashes_calculated = block_hashes_calculated_count;
     block_hashes_cached = block_hashes_cached_count;
   }
+
+  bool add_graft_tx_extra_to_extra(transaction &tx, const supernode::GraftTxExtra &graft_extra)
+  {
+      return add_graft_tx_extra_to_extra(tx.extra, graft_extra);
+  }
+
+  bool add_graft_tx_extra_to_extra(std::vector<uint8_t>& extra, const supernode::GraftTxExtra &graft_extra)
+  {
+      std::string blob;
+      ::serialization::dump_binary(const_cast<supernode::GraftTxExtra&>(graft_extra), blob);
+      tx_extra_graft_extra container;
+      container.data = blob;
+      blob.clear();
+      ::serialization::dump_binary(container, blob);
+      extra.push_back(TX_EXTRA_GRAFT_EXTRA_TAG);
+      std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
+      return true;
+  }
+
+  bool get_graft_tx_extra_from_extra(const transaction &tx, supernode::GraftTxExtra &graft_tx_extra)
+  {
+      std::vector<tx_extra_field> tx_extra_fields;
+      parse_tx_extra(tx.extra, tx_extra_fields);
+      tx_extra_graft_extra graft_extra;
+      if(!find_tx_extra_field_by_type(tx_extra_fields, graft_extra))
+        return false;
+      return ::serialization::parse_binary(graft_extra.data, graft_tx_extra);
+  }
+
+
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2017, The Graft Project
 // 
 // All rights reserved.
 // 
@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
-// Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
+// Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
 #pragma once
 
@@ -52,12 +52,16 @@
 #include "crypto/hash.h"
 #include "ringct/rctTypes.h"
 #include "ringct/rctOps.h"
+#include "wallet/wallet2_api.h"
 
 #include "wallet_errors.h"
 #include "common/password.h"
 #include "node_rpc_proxy.h"
+#include "grafttxextra.h"
 
 #include <iostream>
+
+using namespace Monero;
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.graftwallet"
@@ -124,6 +128,19 @@ namespace tools
       make_from_file(const boost::program_options::variables_map& vm, const std::string& wallet_file);
 
     //Graft Test
+    static std::unique_ptr<GraftWallet> createWallet(const std::string &daemon_address = std::string(),
+                                                     const std::string &daemon_host = std::string(),
+                                                     int daemon_port = 0,
+                                                     const std::string &daemon_login = std::string(),
+                                                     bool testnet = false, bool restricted = false);
+    static std::unique_ptr<GraftWallet> createWallet(const std::string &account_data,
+                                                     const std::string &password,
+                                                     const std::string &daemon_address = std::string(),
+                                                     const std::string &daemon_host = std::string(),
+                                                     int daemon_port = 0,
+                                                     const std::string &daemon_login = std::string(),
+                                                     bool testnet = false, bool restricted = false);
+
     static std::pair<std::unique_ptr<GraftWallet>, password_container>
       make_from_data(const boost::program_options::variables_map& vm, const std::string& data);
 
@@ -324,6 +341,13 @@ namespace tools
                                       bool recover, bool two_random);
     void load_graft(const std::string& data, const std::string& password);
 
+
+
+    PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
+                                                       optional<uint64_t> amount, uint32_t mixin_count,
+                                                       const supernode::GraftTxExtra &graftExtra,
+                                                       PendingTransaction::Priority priority = PendingTransaction::Priority_Low);
+
     void generate(const std::string& wallet, const std::string& password,
       const cryptonote::account_public_address &account_public_address,
       const crypto::secret_key& spendkey, const crypto::secret_key& viewkey);
@@ -435,7 +459,9 @@ namespace tools
     bool load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs);
     bool load_tx(const std::string &signed_filename, std::vector<tools::GraftWallet::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
     std::vector<pending_tx> create_transactions(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
-    std::vector<GraftWallet::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
+    std::vector<GraftWallet::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
+                                                               const uint64_t unlock_time, uint32_t priority,
+                                                               const std::vector<uint8_t> extra, bool trusted_daemon);
     std::vector<GraftWallet::pending_tx> create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
     std::vector<GraftWallet::pending_tx> create_transactions_from(const cryptonote::account_public_address &address, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
     std::vector<pending_tx> create_unmixable_sweep_transactions(bool trusted_daemon);
