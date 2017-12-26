@@ -533,6 +533,7 @@ namespace cryptonote
     switch (decimal_point)
     {
       case 12:
+      case 10:
       case 9:
       case 6:
       case 3:
