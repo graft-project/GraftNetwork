@@ -142,7 +142,12 @@ namespace supernode {
                     KV_SERIALIZE(Amount)
 					KV_SERIALIZE(PaymentID)
 					KV_SERIALIZE(NodesWallet)
+					KV_SERIALIZE(CustomerWalletAddr)
+					KV_SERIALIZE(CustomerWalletSign)
 				END_KV_SERIALIZE_MAP()
+
+				string CustomerWalletAddr;
+				string CustomerWalletSign;
 			};
 
 			struct response {

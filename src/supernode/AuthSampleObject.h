@@ -40,7 +40,7 @@ namespace supernode {
 		public:
 		void Owner(AuthSample* o);
 		bool Init(const RTA_TransactionRecord& src);
-		bool WalletProxyPay(const RTA_TransactionRecord& src, rpc_command::WALLET_PROXY_PAY::response& out);
+		bool WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out);
 
 		public:
 		string PosIP;

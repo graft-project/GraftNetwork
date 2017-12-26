@@ -663,9 +663,9 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 
 //	TestWalletReject();
 
-	//m_RunInTread=1;
-	//TestThread();
-
+	m_RunInTread=1;
+	TestThread();
+/*
 	ASSERT_TRUE( TestWalletReject() );
 
 	boost::thread_group workers;
@@ -673,7 +673,7 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 		workers.create_thread( boost::bind(&Test_RTA_FlowBlockChain::TestThread, this) );
 	}
 	workers.join_all();
-
+*/
 	ASSERT_TRUE( m_Fail==0 );
 
 //		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);

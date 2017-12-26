@@ -55,7 +55,7 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
 	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
 	data->Owner(this);
 	Setup(data);
-    data->OpenSenderWallet(in.Account, in.Password);
+    if( !data->OpenSenderWallet(in.Account, in.Password) ) return false;
 
     if (!data->Init(in))
     {
