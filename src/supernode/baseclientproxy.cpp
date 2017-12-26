@@ -53,6 +53,7 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     }
     try
     {
+        wal->refresh();
         out.Balance = wal->balance();
         out.UnlockedBalance = wal->unlocked_balance();
     }
