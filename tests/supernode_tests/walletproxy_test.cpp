@@ -313,7 +313,7 @@ struct WalletProxyTest : public testing::Test
 
 };
 
-
+/*
 TEST_F(WalletProxyTest, SendTx)
 {
     ASSERT_FALSE(wallet_account.empty());
@@ -392,7 +392,7 @@ TEST_F(WalletProxyTest, SendTx)
     //    ASSERT_TRUE(walletProxy->Pay(req, resp));
 
 }
-
+*/
 
 TEST_F(WalletProxyTest, TestWalletProxyPay)
 {
