@@ -40,6 +40,7 @@ namespace
   uint64_t const TEST_FEE = 5000000000; // 5 * 10^9
 }
 
+
 TEST(parse_tx_extra, handles_empty_extra)
 {
   std::vector<uint8_t> extra;;
@@ -151,6 +152,7 @@ TEST(parse_and_validate_tx_extra, fails_on_big_extra_nonce)
   cryptonote::blobdata b(TX_EXTRA_NONCE_MAX_COUNT + 1, 0);
   ASSERT_FALSE(cryptonote::construct_miner_tx(0, 0, 10000000000000, 1000, TEST_FEE, acc.get_keys().m_account_address, tx, b, 1));
 }
+
 TEST(parse_and_validate_tx_extra, fails_on_wrong_size_in_extra_nonce)
 {
   cryptonote::transaction tx = AUTO_VAL_INIT(tx);
@@ -162,14 +164,18 @@ TEST(parse_and_validate_tx_extra, fails_on_wrong_size_in_extra_nonce)
 }
 TEST(validate_parse_amount_case, validate_parse_amount)
 {
+  // some test re-set it with 12;
+  cryptonote::set_default_decimal_point(CRYPTONOTE_DISPLAY_DECIMAL_POINT);
   uint64_t res = 0;
+
   bool r = cryptonote::parse_amount(res, "0.0001");
   ASSERT_TRUE(r);
-  ASSERT_EQ(res, 100000000);
+
+  ASSERT_EQ(res, 1000000);
 
   r = cryptonote::parse_amount(res, "100.0001");
   ASSERT_TRUE(r);
-  ASSERT_EQ(res, 100000100000000);
+  ASSERT_EQ(res, 1000001000000);
 
   r = cryptonote::parse_amount(res, "000.0000");
   ASSERT_TRUE(r);
@@ -182,11 +188,11 @@ TEST(validate_parse_amount_case, validate_parse_amount)
 
   r = cryptonote::parse_amount(res, "   100.0001    ");
   ASSERT_TRUE(r);
-  ASSERT_EQ(res, 100000100000000);
+  ASSERT_EQ(res, 1000001000000);
 
   r = cryptonote::parse_amount(res, "   100.0000    ");
   ASSERT_TRUE(r);
-  ASSERT_EQ(res, 100000000000000);
+  ASSERT_EQ(res, 1000000000000);
 
   r = cryptonote::parse_amount(res, "   100. 0000    ");
   ASSERT_FALSE(r);
