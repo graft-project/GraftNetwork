@@ -61,11 +61,7 @@ bool supernode::AuthSample::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::
 	boost::shared_ptr<AuthSampleObject> data = boost::dynamic_pointer_cast<AuthSampleObject>(ff);
 	if(!data) { LOG_PRINT_L5("not found object"); return false; }
 
-
-	RTA_TransactionRecord tr;
-	rpc_command::ConvertToTR(tr, in, m_Servant);
-	if( !data->WalletProxyPay(tr, out) ) { LOG_PRINT_L5("!WalletProxyPay"); Remove(data); return false; }
-
+	if( !data->WalletProxyPay(in, out) ) { LOG_PRINT_L5("!WalletProxyPay"); Remove(data); return false; }
 
 	return true;
 }

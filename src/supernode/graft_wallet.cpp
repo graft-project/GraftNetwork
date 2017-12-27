@@ -60,6 +60,7 @@ using namespace epee;
 #include "common/scoped_message_writer.h"
 #include "ringct/rctSigs.h"
 #include "api/pending_transaction.h"
+#include "supernode_common_struct.h"
 
 extern "C"
 {
@@ -5665,7 +5666,20 @@ std::string GraftWallet::sign(const std::string &data) const
   return std::string("SigV1") + tools::base58::encode(std::string((const char *)&signature, sizeof(signature)));
 }
 
-bool GraftWallet::verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature) const
+bool GraftWallet::verifySignedMessage(const std::string &message, const std::string &address, const std::string &signature, bool isTestnet) {
+	  cryptonote::account_public_address addr;
+	  bool has_payment_id;
+	  crypto::hash8 payment_id;
+
+	  if (!cryptonote::get_account_integrated_address_from_str(addr, has_payment_id, payment_id, isTestnet, address)) {
+		  LOG_PRINT_L5("!get_account_integrated_address_from_str");
+	    return false;
+	  }
+
+	  return verify(message, addr, signature);
+}
+
+bool GraftWallet::verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature)
 {
   const size_t header_len = strlen("SigV1");
   if (signature.size() < header_len || signature.substr(0, header_len) != "SigV1") {
