@@ -60,6 +60,7 @@ using namespace epee;
 #include "common/scoped_message_writer.h"
 #include "ringct/rctSigs.h"
 #include "api/pending_transaction.h"
+#include "supernode_common_struct.h"
 
 extern "C"
 {
@@ -5670,8 +5671,10 @@ bool GraftWallet::verifySignedMessage(const std::string &message, const std::str
 	  bool has_payment_id;
 	  crypto::hash8 payment_id;
 
-	  if (!cryptonote::get_account_integrated_address_from_str(addr, has_payment_id, payment_id, isTestnet, address))
+	  if (!cryptonote::get_account_integrated_address_from_str(addr, has_payment_id, payment_id, isTestnet, address)) {
+		  LOG_PRINT_L5("!get_account_integrated_address_from_str");
 	    return false;
+	  }
 
 	  return verify(message, addr, signature);
 }

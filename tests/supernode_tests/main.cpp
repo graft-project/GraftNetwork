@@ -658,6 +658,9 @@ TEST_F(TestHanlerP2P, Test_P2PTest) {
 
 
 TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
+	mlog_configure("", true);
+	mlog_set_log_level(5);
+
 	s_TestDataPath = epee::string_tools::get_current_module_folder() + "/../data/supernode";
 
 	Supernode wallet_proxy(s_TestDataPath);
