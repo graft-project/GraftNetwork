@@ -62,7 +62,7 @@
 #include "supernode/P2P_Broadcast.h"
 #include "supernode/FSN_Servant_Test.h"
 #include "supernode/FSN_ActualList.h"
-
+#include "supernode/graft_wallet.h"
 
 using namespace supernode;
 using namespace std;
@@ -303,9 +303,10 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 
 		rpc_command::POS_SALE::request sale_in;
 		rpc_command::POS_SALE::response sale_out;
-        sale_in.Amount = 11;
+        sale_in.Amount = 1;
         sale_in.POSSaleDetails = "Some data";
-        sale_in.POSAddress = "0xFF";
+        sale_in.POSAddress = "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE";
+				sale_in.POSViewKey = "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007";
 
 		unsigned repeatCount = 10;
 
@@ -353,6 +354,14 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
         pay_in.POSAddress = sale_in.POSAddress;
 		pay_in.BlockNum = sale_out.BlockNum;
 		pay_in.PaymentID = sale_out.PaymentID;
+		{
+		string wallet_path = s_TestDataPath + "/test_wallets" + "/stake_wallet";
+		tools::GraftWallet wallet(true, false);
+		wallet.load(wallet_path, "");
+		pay_in.Account = wallet.store_keys_graft("", false);
+		}
+
+
 		for(unsigned i=0;i<repeatCount;i++) {
 			DAPI_RPC_Client wallet_pay;
 			wallet_pay.Set(IP, WalletProxyPort);
