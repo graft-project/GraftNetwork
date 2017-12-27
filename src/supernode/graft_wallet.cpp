@@ -3809,14 +3809,21 @@ uint64_t GraftWallet::get_dynamic_per_kb_fee_estimate()
   LOG_PRINT_L1("Failed to query per kB fee, using " << print_money(FEE_PER_KB));
   return FEE_PER_KB;
 }
-//----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::get_per_kb_fee()
-{
-  bool use_dyn_fee = use_fork_rules(HF_VERSION_DYNAMIC_FEE, -720 * 1);
-  if (!use_dyn_fee)
-    return FEE_PER_KB;
 
-  return get_dynamic_per_kb_fee_estimate();
+//----------------------------------------------------------------------------------------------------
+uint64_t wallet2::get_per_kb_fee()
+{
+  // graft: use dynamic fee only
+  /*
+  bool use_dyn_fee = use_fork_rules(HF_VERSION_DYNAMIC_FEE, -720 * 1);
+  if (!use_dyn_fee) {
+    LOG_PRINT_L1("not using dynamic fee per kb: " << FEE_PER_KB << ", (" << print_money(FEE_PER_KB) << ")");
+    return FEE_PER_KB;
+  }
+  */
+  uint64_t result = get_dynamic_per_kb_fee_estimate();
+  LOG_PRINT_L1("using dynamic fee per kb :" << result << ", (" << print_money(result) << ")");
+  return result;
 }
 //----------------------------------------------------------------------------------------------------
 

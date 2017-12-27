@@ -3510,11 +3510,17 @@ uint64_t wallet2::get_dynamic_per_kb_fee_estimate()
 //----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_per_kb_fee()
 {
+  // graft: use dynamic fee only
+  /*
   bool use_dyn_fee = use_fork_rules(HF_VERSION_DYNAMIC_FEE, -720 * 1);
-  if (!use_dyn_fee)
+  if (!use_dyn_fee) {
+    LOG_PRINT_L1("not using dynamic fee per kb: " << FEE_PER_KB << ", (" << print_money(FEE_PER_KB) << ")");
     return FEE_PER_KB;
-
-  return get_dynamic_per_kb_fee_estimate();
+  }
+  */
+  uint64_t result = get_dynamic_per_kb_fee_estimate();
+  LOG_PRINT_L1("using dynamic fee per kb :" << result << ", (" << print_money(result) << ")");
+  return result;
 }
 //----------------------------------------------------------------------------------------------------
 int wallet2::get_fee_algorithm()
@@ -4863,8 +4869,8 @@ bool wallet2::use_fork_rules(uint8_t version, int64_t early_blocks)
   throw_on_rpc_response_error(result, "get_info");
   result = m_node_rpc_proxy.get_earliest_height(version, earliest_height);
   throw_on_rpc_response_error(result, "get_hard_fork_info");
-
   bool close_enough = height >=  earliest_height - early_blocks; // start using the rules that many blocks beforehand
+  LOG_PRINT_L2("height: " << height << ", earliest_height: " << earliest_height);
   if (close_enough)
     LOG_PRINT_L2("Using v" << (unsigned)version << " rules");
   else
