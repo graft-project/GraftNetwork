@@ -2175,6 +2175,9 @@ bool GraftWallet::load_keys(const std::string& keys_file_name, const std::string
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ask_password, int, Int, false, true);
     m_ask_password = field_ask_password;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_decimal_point, int, Int, false, CRYPTONOTE_DISPLAY_DECIMAL_POINT);
+    // x100, we force decimal point = 10 for existing wallets
+    if (field_default_decimal_point != CRYPTONOTE_DISPLAY_DECIMAL_POINT)
+        field_default_decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
     cryptonote::set_default_decimal_point(field_default_decimal_point);
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, min_output_count, uint32_t, Uint, false, 0);
     m_min_output_count = field_min_output_count;
