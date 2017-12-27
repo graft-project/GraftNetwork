@@ -49,7 +49,7 @@ bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY
 
 	string data = TransactionRecord.PaymentID + string(":") + inp.CustomerWalletAddr;
 	bool signok = tools::GraftWallet::verifySignedMessage(data, inp.CustomerWalletAddr, inp.CustomerWalletSign, m_Servant->IsTestnet());
-	LOG_PRINT_L5("Check sign: "<<signok<<"  data: "<<data<<"  sign: "<<inp.CustomerWalletSign);
+	//LOG_PRINT_L5("Check sign: "<<signok<<"  data: "<<data<<"  sign: "<<inp.CustomerWalletSign);
 
 
 	//LOG_PRINT_L5("PaymentID: "<<TransactionRecord.PaymentID<<"  m_ReadyForDelete: "<<m_ReadyForDelete);

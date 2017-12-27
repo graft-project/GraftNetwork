@@ -142,7 +142,9 @@ void FSN_Servant::Set(const string& stakeFileName, const string& stakePasswd, co
     m_stakeWallet = initWallet(m_stakeWallet, stakeFileName, stakePasswd, m_testnet);
     m_minerWallet = initWallet(m_minerWallet, minerFileName, minerPasswd, m_testnet);
     m_stakeWallet->refresh();
+    m_stakeWallet->store("");
     m_minerWallet->refresh();
+    m_minerWallet->store("");
 }
 
 
@@ -364,6 +366,7 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
     if (!wallet->init(GetNodeAddress(), 0)) {
         MERROR("Can't connect to a daemon.");
     }
+
     return wallet;
 }
 

@@ -72,6 +72,8 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	inbr.CustomerWalletAddr = cwa;
 	inbr.CustomerWalletSign = m_wallet->sign(cwa);
 
+	//LOG_PRINT_L5("CWA: "<<data);
+
     if( !m_SubNetBroadcast.Send(dapi_call::WalletProxyPay, inbr, outv) || outv.empty() )  {
         LOG_ERROR("Failed to send WalletProxyPay broadcast");
         return false;
