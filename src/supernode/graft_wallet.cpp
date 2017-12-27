@@ -3812,7 +3812,7 @@ uint64_t GraftWallet::get_dynamic_per_kb_fee_estimate()
 }
 
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::get_per_kb_fee()
+uint64_t GraftWallet::get_per_kb_fee()
 {
   // graft: use dynamic fee only
   /*
