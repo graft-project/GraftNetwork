@@ -107,7 +107,7 @@ static const struct {
   { 6, 1400000, 0, 1503046577 },
   */
   // GRAFT: start hardfork v6 from 1st block
-  { 7, 1, 0, 1503046577 },
+  { 6, 1, 0, 1503046577 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -132,8 +132,8 @@ static const struct {
 
   { 6, 971400, 0, 1501709789 },
   */
-  // GRAFT: start hardfork v7 from 1st block
-  { 7, 1, 0, 1501709789 },
+  // GRAFT: start hardfork v6 from 1st block
+  { 6, 1, 0, 1501709789 },
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
