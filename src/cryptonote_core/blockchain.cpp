@@ -108,6 +108,8 @@ static const struct {
   */
   // GRAFT: start hardfork v6 from 1st block
   { 6, 1, 0, 1503046577 },
+  // Test HF in private testnet
+  { 7, 11400, 0, 1514459317}
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -134,6 +136,8 @@ static const struct {
   */
   // GRAFT: start hardfork v6 from 1st block
   { 6, 1, 0, 1501709789 },
+  // Test HF in private testnet  (amounts x100, tx fee 1/10)
+  { 7, 11400, 0, 1514459317}
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
@@ -2858,7 +2862,11 @@ uint64_t Blockchain::get_dynamic_per_kb_fee(uint64_t block_reward, size_t median
   uint64_t qlo = (lo + mask - 1) / mask * mask;
   MDEBUG("lo " << print_money(lo) << ", qlo " << print_money(qlo) << ", mask " << mask);
 
-  return qlo / 10;
+  if (version >= 7) {
+      qlo /= 10;
+  }
+
+  return qlo;
 }
 
 //------------------------------------------------------------------
