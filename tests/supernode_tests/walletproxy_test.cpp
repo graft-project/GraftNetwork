@@ -161,7 +161,7 @@ struct Supernode
 };
 
 
-struct WalletProxyTest : public testing::Test
+struct GraftRTATest1 : public testing::Test
 {
     std::string wallet_account;
     std::string wallet_root_path;
@@ -176,7 +176,7 @@ struct WalletProxyTest : public testing::Test
     string WalletProxyPort = "7500";
     string PosProxyPort = "8500";
 
-    WalletProxyTest()
+    GraftRTATest1()
     {
         GraftWallet *wallet = new GraftWallet(true, false);
         wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
@@ -188,7 +188,7 @@ struct WalletProxyTest : public testing::Test
         delete wallet;
     }
 
-    ~WalletProxyTest()
+    ~GraftRTATest1()
     {
 
     }
@@ -394,7 +394,7 @@ TEST_F(WalletProxyTest, SendTx)
 }
 */
 
-TEST_F(WalletProxyTest, TestWalletProxyPay)
+TEST_F(GraftRTATest1, TestWalletProxyPay)
 {
     //    ASSERT_FALSE(wallet_account.empty());
     //    const std::string DST_WALLET_ADDR = "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa";
