@@ -70,7 +70,7 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	string cwa = m_wallet->get_account().get_public_address_str(m_wallet->testnet());;
 	string data = TransactionRecord.PaymentID + string(":") + cwa;
 	inbr.CustomerWalletAddr = cwa;
-	inbr.CustomerWalletSign = m_wallet->sign(cwa);
+	inbr.CustomerWalletSign = m_wallet->sign(data);
 
 	//LOG_PRINT_L5("CWA: "<<data);
 

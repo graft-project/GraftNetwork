@@ -71,13 +71,33 @@ namespace supernode {
 		extern const string AddFSN;
 		extern const string LostFSNStatus;
 		extern const string GetFSNList;
-
+		extern const string AddSeed;
+		extern const string GetSeedsList;
 	};
 
 	namespace rpc_command {
 		extern const string DAPI_URI;//  /dapi
         extern const string DAPI_METHOD;//  POST
 		extern const string DAPI_PROTOCOL;//  http for now
+
+
+		// ---------------------------------------
+	    template<typename t_param>
+	    struct RequestContainer
+	    {
+	      std::string jsonrpc;
+	      std::string method;
+	      string id;
+	      t_param     params;
+
+	      BEGIN_KV_SERIALIZE_MAP()
+	        KV_SERIALIZE(jsonrpc)
+	        KV_SERIALIZE(id)
+	        KV_SERIALIZE(method)
+	        KV_SERIALIZE(params)
+	      END_KV_SERIALIZE_MAP()
+	    };
+
 
 		// ---------------------------------------
 		struct RTA_TransactionRecordRequest : public RTA_TransactionRecordBase {
@@ -502,6 +522,36 @@ namespace supernode {
 				vector<BROADCACT_ADD_FULL_SUPER_NODE> List;
 			};
 		};
+
+		struct P2P_ADD_NODE_TO_LIST : public SubNetData {
+			BEGIN_KV_SERIALIZE_MAP()
+				KV_SERIALIZE(PaymentID)
+				KV_SERIALIZE(IP)
+				KV_SERIALIZE(Port)
+			END_KV_SERIALIZE_MAP()
+
+			string IP;
+			string Port;
+		};
+
+
+		struct P2P_GET_ALL_NODES_LIST {
+			struct request : public SubNetData {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(PaymentID)
+				END_KV_SERIALIZE_MAP()
+			};
+
+			struct response {
+				BEGIN_KV_SERIALIZE_MAP()
+					KV_SERIALIZE(List)
+				END_KV_SERIALIZE_MAP()
+
+				vector<P2P_ADD_NODE_TO_LIST> List;
+			};
+		};
+
+
 
 
     }

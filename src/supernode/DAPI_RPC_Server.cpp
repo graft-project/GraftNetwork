@@ -74,8 +74,11 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     }
 
     epee::serialization::storage_entry id_;
-    id_ = epee::serialization::storage_entry(std::string());
-    ps.get_value("id", id_, nullptr);
+    //id_ = epee::serialization::storage_entry(std::string());
+    //ps.get_value("id", id_, nullptr);
+    string mid;
+    ps.get_value("id", mid, nullptr);
+    id_ = mid;
     std::string callback_name;
     if( !ps.get_value("method", callback_name, nullptr) ) {
       epee::json_rpc::error_response rsp;
@@ -86,6 +89,15 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
       LOG_PRINT_L5("!get_value");
       return true;
     }
+
+    /*
+    if( m_P2P && mid.size() && mid!="0" ) {
+    	if( !m_P2P->ProcessIncomeMessage(mid, callback_name, query_info.m_body) ) {
+    		return true;// allready got this message
+    	}
+    }
+    */
+
 
     std::string payment_id;
     {

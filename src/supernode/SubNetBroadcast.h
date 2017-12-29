@@ -44,6 +44,7 @@ namespace supernode {
 
 	class SubNetBroadcast {
 		public:
+		SubNetBroadcast(unsigned workerThreads=10);
 		virtual ~SubNetBroadcast();
 		// all messages will send with subnet_id
 		// and handler will recieve only messages with subnet_id
@@ -52,31 +53,82 @@ namespace supernode {
 		void Set( DAPI_RPC_Server* pa, string subnet_id, const vector< boost::shared_ptr<FSN_Data> >& members );
 		void Set( DAPI_RPC_Server* pa, string subnet_id, const vector<string>& members );
 
+		struct SMember {
+			SMember(const string& ip, const string& p) { IP = ip; Port = p; }
+			string IP;
+			string Port;
+			unsigned NotAvailCount = 0;
+		};
+
 		vector< pair<string, string> > Members();//port, ip
+		void AddMember(const string& ip, const string& port);
+
+		unsigned RetryCount = 4;
+		std::chrono::milliseconds CallTimeout = std::chrono::seconds(5);
 
 		public:
 		template<class IN_t, class OUT_t>
-		bool Send( const string& method, const IN_t& in, vector<OUT_t>& out ) {
-			//LOG_PRINT_L5("SEND. size: "<<m_Members.size());
-			boost::thread_group workers;
+		bool Send( const string& method, const IN_t& in, vector<OUT_t>& out, bool reqAllResps=true ) {
+			if(m_SendsCount) throw string("m_SendsCount not zero");
+
+			m_MembersGuard.lock();
+
 			out.resize( m_Members.size() );
 			vector<int> rets;
 			rets.resize( m_Members.size(), 0 );
+			m_SendsCount = m_Members.size();
+
 
 			for(unsigned i=0;i<m_Members.size();i++) {
-				workers.create_thread( boost::bind(&SubNetBroadcast::DoCallInThread<IN_t, OUT_t>, *this, method, in, &out[i], &rets[i], m_Members[i].first, m_Members[i].second) );
+				OUT_t* outp = &out[i];
+				int* retp = &rets[i];
+				string ip = m_Members[i].IP;
+				string port = m_Members[i].Port;
+				m_IOService.post(
+					[this, method, in, outp, retp, ip, port]() {
+					DoCallInThread<IN_t, OUT_t>(method, in, outp, retp, ip, port);
+				} );
 			}
-			workers.join_all();
+
+			m_MembersGuard.unlock();
+
+			while(m_SendsCount) boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
 
 			bool ret = true;
-			for(unsigned i=0;i<m_Members.size();i++) if( rets[i]==0 ) {
-				ret = false; break;
+
+			if(reqAllResps) {
+				for(unsigned i=0;i<m_Members.size();i++) if( rets[i]==0 ) {
+					ret = false; break;
+				}
+				if(!ret) out.clear();
+			} else {
+				 vector<OUT_t> vv;
+				 for(unsigned i=0;i<out.size();i++) if( rets[i]!=0 ) vv.push_back( out[i] );
+				 out = vv;
 			}
 
-
-			if(!ret) out.clear();
 			return ret;
 		}
+
+		template<class IN_t>
+		void Send( const string& method, const IN_t& in) {
+			if(m_SendsCount) throw string("m_SendsCount not zero");
+
+			rpc_command::P2P_DUMMY_RESP* outp = &m_DummyOut;
+			int* retp = &m_DummyRet;
+
+			boost::lock_guard<boost::recursive_mutex> lock(m_MembersGuard);
+
+			for(unsigned i=0;i<m_Members.size();i++) {
+				string ip = m_Members[i].IP;
+				string port = m_Members[i].Port;
+				m_IOService.post(
+					[this, method, in, outp, retp, ip, port]() {
+					DoCallInThread<IN_t, rpc_command::P2P_DUMMY_RESP>(method, in, outp, retp, ip, port);
+				} );
+			}//for
+		}
+
 
 		template<class IN_t, class OUT_t>
 		void AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
@@ -85,15 +137,17 @@ namespace supernode {
 		}
 		#define ADD_SUBNET_HANDLER(method, data, class_owner) AddHandler<data::request, data::response>( dapi_call::method, bind( &class_owner::method, this, _1, _2) );
 
-		protected:
+		public:
 		template<class IN_t, class OUT_t>
-		void DoCallInThread(const string& method, const IN_t& in, OUT_t* outo, int* ret, const string& ip, const string& port) {
+		void DoCallInThread(string method, const IN_t in, OUT_t* outo, int* ret, string ip, string port) {
 			//LOG_PRINT_L5("call to: "<<ip<<"  : "<<port<<"/"<<method<<"  from: "<<m_DAPIServer->Port());
 			bool localcOk = false;
-			for(unsigned k=0;k<4;k++) {
+			bool wasNoConnect = false;
+			for(unsigned k=0;k<RetryCount;k++) {
 				DAPI_RPC_Client client;
 				client.Set( ip, port );
-				if( !client.Invoke<IN_t, OUT_t>(method, in, *outo, chrono::seconds(5)) ) {
+				if( !client.Invoke<IN_t, OUT_t>(method, in, *outo, "0", CallTimeout) ) {
+					wasNoConnect = wasNoConnect || !client.WasConnected;
 					boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
 					continue;
 				}
@@ -101,15 +155,34 @@ namespace supernode {
 				break;
 			}//for K
 			*ret = localcOk?1:0;
+			if(!localcOk && wasNoConnect) IncNoConnectAndRemove(ip, port);
+
+			if(m_SendsCount) m_SendsCount--;
 		}//do work
 
 
 		protected:
+		void _AddMember(const string& ip, const string& port);
+		void IncNoConnectAndRemove(const string& ip, const string& port);
+
+		protected:
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
-		vector< pair<string, string> > m_Members;//port, ip
-		//vector< boost::shared_ptr<FSN_Data> > m_Members;
+		boost::recursive_mutex m_MembersGuard;
+		vector<SMember> m_Members;
 		string m_PaymentID;
 		vector<int> m_MyHandlers;
+
+		protected:
+		int m_SendsCount = 0;
+	    boost::asio::io_service m_IOService;
+	    boost::thread_group m_Threadpool;
+	    boost::asio::io_service::work m_Work;
+
+		protected:
+		rpc_command::P2P_DUMMY_RESP m_DummyOut;
+		int m_DummyRet=0;
+
+
 
 };
 

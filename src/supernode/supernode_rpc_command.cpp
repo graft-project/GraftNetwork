@@ -61,6 +61,8 @@ DCALL(FSN_CheckWalletOwnership);
 P2P_CALL(AddFSN);
 P2P_CALL(LostFSNStatus);
 P2P_CALL(GetFSNList);
+P2P_CALL(AddSeed);
+P2P_CALL(GetSeedsList);
 #undef P2P_CALL
 
 

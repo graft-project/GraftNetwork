@@ -200,7 +200,7 @@ struct WalletProxyTest : public testing::Test
         rpc_command::WALLET_GET_TRANSACTION_STATUS::request in;
         rpc_command::WALLET_GET_TRANSACTION_STATUS::response out;
         in.PaymentID = payID;
-        bool ret = call.Invoke(dapi_call::GetPayStatus, in, out, chrono::seconds(10));
+        bool ret = call.Invoke(dapi_call::GetPayStatus, in, out);
 
         if(!ret) return NTransactionStatus::Fail;
         return NTransactionStatus(out.Status);
@@ -213,7 +213,7 @@ struct WalletProxyTest : public testing::Test
         rpc_command::POS_GET_SALE_STATUS::request in;
         rpc_command::POS_GET_SALE_STATUS::response out;
         in.PaymentID = payID;
-        bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out, chrono::seconds(10));
+        bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out);
 
         if(!ret) return NTransactionStatus::Fail;
         return NTransactionStatus(out.Status);
@@ -247,7 +247,7 @@ struct WalletProxyTest : public testing::Test
         for (unsigned i=0; i < repeatCount; i++) {// transaction must started from Sale call
             DAPI_RPC_Client pos_sale;
             pos_sale.Set(IP, PosProxyPort);
-            result = pos_sale.Invoke("Sale", sale_in, sale_out, chrono::seconds(10));
+            result = pos_sale.Invoke("Sale", sale_in, sale_out);
             if (Assert(result, "Sale"))
                 break;
         }
@@ -280,7 +280,7 @@ struct WalletProxyTest : public testing::Test
             DAPI_RPC_Client wallet_pay;
             wallet_pay.Set(IP, WalletProxyPort);
             LOG_PRINT_L0("Invoking 'Pay'");
-            result = wallet_pay.Invoke("Pay", pay_in, pay_out, chrono::seconds(10));
+            result = wallet_pay.Invoke("Pay", pay_in, pay_out);
             if (Assert(result, "Pay"))
                 break;
             //boost::this_thread::sleep_for(boost::chrono::milliseconds(100));

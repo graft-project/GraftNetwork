@@ -268,7 +268,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		rpc_command::WALLET_GET_TRANSACTION_STATUS::request in;
 		rpc_command::WALLET_GET_TRANSACTION_STATUS::response out;
 		in.PaymentID = payID;
-		bool ret = call.Invoke(dapi_call::GetPayStatus, in, out, chrono::seconds(10));
+		bool ret = call.Invoke(dapi_call::GetPayStatus, in, out);
 
         if(!ret) return NTransactionStatus::Fail;
         return NTransactionStatus(out.Status);
@@ -281,7 +281,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		rpc_command::POS_GET_SALE_STATUS::request in;
 		rpc_command::POS_GET_SALE_STATUS::response out;
 		in.PaymentID = payID;
-		bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out, chrono::seconds(10));
+		bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out);
 
         if(!ret) return NTransactionStatus::Fail;
         return NTransactionStatus(out.Status);
@@ -314,7 +314,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		for(unsigned i=0;i<repeatCount;i++) {// transaction must started from Sale call
 			DAPI_RPC_Client pos_sale;
 			pos_sale.Set(IP, PosProxyPort);
-			bb = pos_sale.Invoke("Sale", sale_in, sale_out, chrono::seconds(10));
+			bb = pos_sale.Invoke("Sale", sale_in, sale_out);
 			if( Assert(bb, "Sale") ) break;
 
 			//LOG_PRINT_L5("Sale ret: "<<ret<<"  BlockNum: "<<sale_out.BlockNum<<"  uuid: "<<sale_out.PaymentID);
@@ -337,7 +337,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			in.PaymentID = sale_out.PaymentID;
 			DAPI_RPC_Client call;
 			call.Set(IP, WalletProxyPort);
-			bb = call.Invoke("WalletGetPosData", in, out, chrono::seconds(10));
+			bb = call.Invoke("WalletGetPosData", in, out);
             bb = bb && out.POSSaleDetails==sale_in.POSSaleDetails;
 			if( Assert(bb, "WalletGetPosData") ) break;
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
@@ -365,7 +365,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		for(unsigned i=0;i<repeatCount;i++) {
 			DAPI_RPC_Client wallet_pay;
 			wallet_pay.Set(IP, WalletProxyPort);
-			bb = wallet_pay.Invoke("Pay", pay_in, pay_out, chrono::seconds(10));
+			bb = wallet_pay.Invoke("Pay", pay_in, pay_out);
 			if( Assert(bb, "Pay") ) break;
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
 			//LOG_PRINT_L5("Pay ret: "<<ret);
@@ -411,7 +411,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		for(unsigned i=0;i<repeatCount;i++) {// transaction must started from Sale call
 			DAPI_RPC_Client pos_sale;
 			pos_sale.Set(IP, PosProxyPort);
-			bb = pos_sale.Invoke("Sale", sale_in, sale_out, chrono::seconds(10));
+			bb = pos_sale.Invoke("Sale", sale_in, sale_out);
 			if( Assert(bb, "Sale") ) break;
 		}
 		if(!bb) return false;
@@ -430,7 +430,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			in.PaymentID = sale_out.PaymentID;
 			DAPI_RPC_Client call;
 			call.Set(IP, WalletProxyPort);
-			bb = call.Invoke("WalletRejectPay", in, out, chrono::seconds(10));
+			bb = call.Invoke("WalletRejectPay", in, out);
 			if( Assert(bb, "WalletRejectPay") ) break;
 		}
 		if(!bb) return false;
@@ -461,15 +461,21 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 	}
 };
 
+
+// -------------------------------------------------------------
+
 struct P2PTestNode {
-	void Set(const string& p1, const string& p2, bool first=true) {
+	void Set(const string& p1, const string& p2, const string& p3, int num) {
 		string ip("127.0.0.1");
 		m_DAPIServer = new DAPI_RPC_Server();
-		m_DAPIServer->Set(ip, first?p1:p2, 10);
+		string pp = p1;
+		if(num==1) pp = p2; else if(num==2) pp = p3;
+		m_DAPIServer->Set(ip, pp, 5);
 		vector<string> vv;
 		vv.push_back(  ip+string(":")+p1 );
 		vv.push_back(  ip+string(":")+p2 );
 		m_P2P.Set(m_DAPIServer, vv);
+		m_P2P.Start();
 
 		Tr = new boost::thread(&P2PTestNode::Run, this);
 
@@ -481,6 +487,21 @@ struct P2PTestNode {
 	void Stop() {
 		m_DAPIServer->Stop();
 		Tr->join();
+	}
+
+	bool IsHave(const string& port) {
+		vector< pair<string, string> > vv =  m_P2P.Seeds();
+		for(auto& a : vv) if(a.second==port) return true;
+		return false;
+	}
+
+	void Print() {
+		string str = "\n\n";
+		str += m_DAPIServer->Port() + "\n";
+		vector< pair<string, string> > vv =  m_P2P.Seeds();
+		for(auto& a : vv) str += string("\t") + a.second + string("\n");
+		str += "\n\n";
+		LOG_PRINT_L5(str);
 	}
 
 	DAPI_RPC_Server* m_DAPIServer = nullptr;
@@ -498,6 +519,88 @@ struct TestHanlerP2P : testing::Test {
 	vector<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE> GotData;
 };
 
+TEST_F(TestHanlerP2P, Test_P2PTest) {
+    supernode::P2PTestNode node0;
+    node0.Set("7500", "8500", "9500", 0);
+    supernode::P2PTestNode node1;
+    node1.Set("7500", "8500", "9500", 1);
+    sleep(2);
+
+		bool list1 = node1.m_P2P.Seeds().size()==1 && node0.m_P2P.Seeds().size()==1 && node1.IsHave("7500") && node0.IsHave("8500");
+		
+
+    supernode::P2PTestNode node2;
+    node2.Set("7500", "8500", "9500", 2);
+		sleep(2);
+
+
+		bool have1 = node0.IsHave("8500") && node0.IsHave("9500") && node0.m_P2P.Seeds().size()==2;
+		bool have2 = node1.IsHave("9500") && node1.IsHave("7500") && node1.m_P2P.Seeds().size()==2;
+		bool have3 = node2.IsHave("8500") && node2.IsHave("7500") && node2.m_P2P.Seeds().size()==2;
+		
+
+
+/*
+		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		node0.Print();
+		node1.Print();
+		node2.Print();
+		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+*/
+
+    node2.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(&TestHanlerP2P::TestHandler, this, _1) );
+    node1.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(&TestHanlerP2P::TestHandler, this, _1) );
+		node0.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(&TestHanlerP2P::TestHandler, this, _1) );
+
+    supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE data;
+    data.IP = "192.168.45.45";
+    data.Port = "0xFFDDCC";
+
+    node1.m_P2P.Send("TestP2PHandler", data);
+
+    sleep(2);
+		bool call2 = GotData.size()==2 && GotData[0].Port==data.Port;
+		LOG_PRINT_L5("GotData.size(): "<<GotData.size());
+
+
+		node2.Stop();
+		sleep(2);
+
+		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+
+		node1.m_P2P.Send("TestP2PHandler", data);
+		node1.m_P2P.Send("TestP2PHandler", data);
+		node1.m_P2P.Send("TestP2PHandler", data);
+		node1.m_P2P.Send("TestP2PHandler", data);
+		sleep(6);
+		bool removed = node1.m_P2P.Seeds().size()==1 && node2.m_P2P.Seeds().size()==2 && node1.IsHave("7500") && node0.IsHave("8500") && node0.IsHave("9500");
+
+
+		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		node0.Print();
+		node1.Print();
+		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+
+
+
+	//	ASSERT_TRUE( ret && r2 );
+
+
+
+    node0.Stop();
+    node1.Stop();
+
+
+		ASSERT_TRUE(list1);
+		ASSERT_TRUE(have1);
+		ASSERT_TRUE(have2);
+		ASSERT_TRUE(have3);
+		ASSERT_TRUE(call2);
+		ASSERT_TRUE(removed);
+
+}
+
+// -------------------------------------------------------------
 
 struct FSN_ActualList_Test : public FSN_ActualList {
 	FSN_ActualList_Test(FSN_ServantBase* s, P2P_Broadcast* p, DAPI_RPC_Server* d) : FSN_ActualList(s,p,d), AuditStartAt(m_AuditStartAt) {}
@@ -631,29 +734,6 @@ TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
 //    LOG_PRINT_L5("END");
 }
 
-TEST_F(TestHanlerP2P, Test_P2PTest) {
-    supernode::P2PTestNode node1;
-    node1.Set("7500", "8500", true);
-    supernode::P2PTestNode node2;
-    node2.Set("7500", "8500", false);
-    sleep(1);
-
-    node2.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(&TestHanlerP2P::TestHandler, this, _1) );
-    node1.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(&TestHanlerP2P::TestHandler, this, _1) );
-
-    supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE data;
-    data.IP = "192.168.45.45";
-    data.Port = "0xFFDDCC";
-
-    node1.m_P2P.Send("TestP2PHandler", data);
-
-    sleep(1);
-    node1.Stop();
-    node2.Stop();
-
-	ASSERT_TRUE( GotData.size()==1 && GotData[0].Port==data.Port  );
-
-}
 
 
 
