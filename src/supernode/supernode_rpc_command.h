@@ -82,24 +82,6 @@ namespace supernode {
 
 
 		// ---------------------------------------
-	    template<typename t_param>
-	    struct RequestContainer
-	    {
-	      std::string jsonrpc;
-	      std::string method;
-	      string id;
-	      t_param     params;
-
-	      BEGIN_KV_SERIALIZE_MAP()
-	        KV_SERIALIZE(jsonrpc)
-	        KV_SERIALIZE(id)
-	        KV_SERIALIZE(method)
-	        KV_SERIALIZE(params)
-	      END_KV_SERIALIZE_MAP()
-	    };
-
-
-		// ---------------------------------------
 		struct RTA_TransactionRecordRequest : public RTA_TransactionRecordBase {
 			vector<string> NodesWallet;
 		};

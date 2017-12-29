@@ -52,7 +52,7 @@ namespace supernode {
 		template<class t_request, class t_response>
 		bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, const string& id="0", std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
 
-			rpc_command::RequestContainer<t_request> req;
+			epee::json_rpc::request<t_request> req;
 	    	req.params = out_struct;
 	    	req.method = call;
 	    	req.jsonrpc = "2.0";
@@ -66,20 +66,11 @@ namespace supernode {
 
 	    	const epee::net_utils::http::http_response_info* pri = NULL;
 
-			if( !is_connected() ) {
-				if( !connect(timeout) ) {
-					LOG_PRINT_L5("Failed to connect to " << call << ":" << m_URI);
-					WasConnected = false;
-					return false;
-				}
-			}
-
-
+	    	WasConnected = false;
 	    	if(!invoke(rpc_command::DAPI_URI, rpc_command::DAPI_METHOD, req_param, timeout, std::addressof(pri))) {
 	    		LOG_PRINT_L5("Failed to invoke http request to  " << call<<"  URI: "<<m_URI);
 	    		return false;
 	    	}
-
 	    	WasConnected = true;
 
 	    	if(!pri) {

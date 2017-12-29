@@ -63,8 +63,9 @@ namespace supernode {
 		vector< pair<string, string> > Members();//port, ip
 		void AddMember(const string& ip, const string& port);
 
-		unsigned RetryCount = 4;
+		unsigned RetryCount = 2;
 		std::chrono::milliseconds CallTimeout = std::chrono::seconds(5);
+		bool AllowSendSefl = true;
 
 		public:
 		template<class IN_t, class OUT_t>

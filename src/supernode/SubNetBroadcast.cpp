@@ -62,7 +62,7 @@ void supernode::SubNetBroadcast::AddMember(const string& ip, const string& port)
 }
 
 void supernode::SubNetBroadcast::_AddMember(const string& ip, const string& port) {
-	if( ip==m_DAPIServer->IP() && port==m_DAPIServer->Port() ) return;
+	if( !AllowSendSefl && ip==m_DAPIServer->IP() && port==m_DAPIServer->Port() ) return;
 	for(auto& a : m_Members) if( a.IP==ip && a.Port==port ) return;
 	m_Members.push_back( SMember(ip, port) );
 }

@@ -188,7 +188,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		Supernode(const string& path) { s_TestDataPath = path; }
 
 		void Run() {
-			dapi_server.Set( IP, Port, 500 );
+			dapi_server.Set( IP, Port, 10 );
 
 
 			vector<supernode::BaseRTAProcessor*> objs;
@@ -633,6 +633,14 @@ struct TestActualList {
 
 	}
 
+	void Print() {
+		LOG_PRINT_L5( "\n\n"<<m_DAPIServer->Port() );
+		for(unsigned i=0;i<Servant->All_FSN.size();i++) {
+				auto a = Servant->All_FSN[i];
+				LOG_PRINT_L5(a->Port<<" : "<<a->Stake.Addr<<" : "<<a->Stake.ViewKey);
+		}//for
+	}
+
 	void Run() {
 
 		m_DAPIServer->Start();
@@ -668,8 +676,8 @@ struct Test_ActualFSNList_Strut : public testing::Test {
 
 
 TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
-//		mlog_configure("", true);
-//    mlog_set_log_level(5);
+		mlog_configure("", true);
+    mlog_set_log_level(5);
 
     string basePath = epee::string_tools::get_current_module_folder() + "/../data/supernode";
     supernode::TestActualList node1;
@@ -682,54 +690,59 @@ TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
     node2.List->Start();
 
     while(!node1.List->AuditDone || !node1.List->AuditDone) sleep(1);
-    sleep(5);
+    sleep(2);
+		for(unsigned i=0;i<15;i++) {
+			if( node1.Servant->All_FSN.size()==2 && node2.Servant->All_FSN.size()==2 ) break;
+			sleep(1);
+		}
 
-    bool found;
-    found = node1.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
-		ASSERT_TRUE(found);
-    LOG_PRINT_L5("=1 FOUND: "<<found);
-    found = node1.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
-		ASSERT_TRUE(found);
-    LOG_PRINT_L5("=2 FOUND: "<<found);
+//		node1.Print();
+//		node2.Print();
 
-    found = node2.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
-		ASSERT_TRUE(found);
-    LOG_PRINT_L5("=3 FOUND: "<<found);
-    found = node2.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
-		ASSERT_TRUE(found);
-    LOG_PRINT_L5("=4 FOUND: "<<found);
 
-		ASSERT_TRUE( node1.Servant->All_FSN.size()==2 );
-		ASSERT_TRUE( node2.Servant->All_FSN.size()==2 );
+    bool found1 = node1.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
+//    LOG_PRINT_L5("=1 FOUND: "<<found);
+    bool found2 = node1.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
+    bool found3 = node2.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
+    bool found4 = node2.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
+
+
+		bool size1 = node1.Servant->All_FSN.size()==2;
+		bool size2 = node2.Servant->All_FSN.size()==2;
 
     LOG_PRINT_L5("IN "<<node1.m_DAPIServer->Port()<<"  size: "<<node1.Servant->All_FSN.size() );
     LOG_PRINT_L5("IN "<<node2.m_DAPIServer->Port()<<"  size: "<<node2.Servant->All_FSN.size() );
 
     // -------------
-
     node2.Stop();
 
     node1.List->AuditDone = false;
     node1.List->AuditStartAt -= boost::posix_time::hours(30);
     while(!node1.List->AuditDone) sleep(1);
 
-    found = node1.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
-		ASSERT_TRUE(found);
-    LOG_PRINT_L5("=1.2 FOUND: "<<found);
-    found = node1.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
-		ASSERT_TRUE(!found);
-
-		ASSERT_TRUE(node1.Servant->All_FSN.size()==1);
-    LOG_PRINT_L5("=2.2 FOUND: "<<found);
-    LOG_PRINT_L5("2.IN "<<node1.m_DAPIServer->Port()<<"  size: "<<node1.Servant->All_FSN.size() );
-
-
-
+    bool found5 = node1.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
+    bool found6 = node1.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
+		
+		bool size3 = node1.Servant->All_FSN.size()==1; 
+		
 
     sleep(1);
     node1.Stop();
     node2.Stop();
 
+
+		ASSERT_TRUE(found1);
+		ASSERT_TRUE(found2);
+		ASSERT_TRUE(found3);
+		ASSERT_TRUE(found4);
+
+
+		ASSERT_TRUE( size1 );
+		ASSERT_TRUE( size2 );
+
+		ASSERT_TRUE(found5);
+		ASSERT_TRUE(!found6);
+		ASSERT_TRUE(size3);
 
 //    LOG_PRINT_L5("END");
 }
@@ -738,8 +751,8 @@ TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
 
 
 TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
-	mlog_configure("", true);
-	mlog_set_log_level(5);
+	//mlog_configure("", true);
+	//mlog_set_log_level(5);
 
 	s_TestDataPath = epee::string_tools::get_current_module_folder() + "/../data/supernode";
 
@@ -750,7 +763,8 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 	pos_proxy.Start(WalletProxyPort, PosProxyPort, true);
 
 	while(!wallet_proxy.Started || !pos_proxy.Started) boost::this_thread::sleep( boost::posix_time::milliseconds(100) );
-	sleep(1);
+	LOG_PRINT_L5("-----------------------------------------------------------------");
+	sleep(15);
 
 
 //	TestWalletReject();
@@ -766,13 +780,14 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 	}
 	workers.join_all();
 */
-	ASSERT_TRUE( m_Fail==0 );
 
 //		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
 
 
 	wallet_proxy.Stop();
 	pos_proxy.Stop();
+
+	ASSERT_TRUE( m_Fail==0 );
 }
 
 
