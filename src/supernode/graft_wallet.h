@@ -339,7 +339,7 @@ namespace tools
     crypto::secret_key generate_graft(const std::string& password,
                                       const crypto::secret_key& recovery_param,
                                       bool recover, bool two_random);
-    void load_graft(const std::string& data, const std::string& password);
+    void load_graft(const std::string& data, const std::string& password, const string &cache_file);
 
 
 
@@ -368,11 +368,26 @@ namespace tools
     void rewrite(const std::string& wallet_name, const std::string& password);
     void write_watch_only_wallet(const std::string& wallet_name, const std::string& password);
     void load(const std::string& wallet, const std::string& password);
+    /*!
+     * \brief load_cache - loads cache from given filename.
+     *                     wallet's private keys should be already loaded before this call
+     * \param filename - filename pointing to the file with cache
+     */
+    void load_cache(const std::string &filename);
+    /*!
+     * \brief store - stores wallet's cache, keys and address file using existing password to encrypt the keys
+     */
     void store();
+    /*!
+     * \brief store_cache - stores only cache to the file. cache is encrypted using wallet's private keys
+     * \param path - filename to store the cache
+     */
+    void store_cache(const std::string &filename);
     /*!
      * \brief store_to - stores wallet to another file(s), deleting old ones
      * \param path     - path to the wallet file (keys and address filenames will be generated based on this filename)
      * \param password - password to protect new wallet (TODO: probably better save the password in the wallet object?)
+     * \param
      */
     void store_to(const std::string &path, const std::string &password);
 
@@ -758,6 +773,7 @@ namespace tools
     bool m_is_initialized;
     NodeRPCProxy m_node_rpc_proxy;
     std::unordered_set<crypto::hash> m_scanned_pool_txs[2];
+
   };
 }
 BOOST_CLASS_VERSION(tools::GraftWallet, 18)
