@@ -2176,6 +2176,9 @@ bool GraftWallet::load_keys(const std::string& keys_file_name, const std::string
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ask_password, int, Int, false, true);
     m_ask_password = field_ask_password;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_decimal_point, int, Int, false, CRYPTONOTE_DISPLAY_DECIMAL_POINT);
+    // x100, we force decimal point = 10 for existing wallets
+    if (field_default_decimal_point != CRYPTONOTE_DISPLAY_DECIMAL_POINT)
+        field_default_decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
     cryptonote::set_default_decimal_point(field_default_decimal_point);
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, min_output_count, uint32_t, Uint, false, 0);
     m_min_output_count = field_min_output_count;
@@ -3823,14 +3826,21 @@ uint64_t GraftWallet::get_dynamic_per_kb_fee_estimate()
   LOG_PRINT_L1("Failed to query per kB fee, using " << print_money(FEE_PER_KB));
   return FEE_PER_KB;
 }
+
 //----------------------------------------------------------------------------------------------------
 uint64_t GraftWallet::get_per_kb_fee()
 {
+  // graft: use dynamic fee only
+  /*
   bool use_dyn_fee = use_fork_rules(HF_VERSION_DYNAMIC_FEE, -720 * 1);
-  if (!use_dyn_fee)
+  if (!use_dyn_fee) {
+    LOG_PRINT_L1("not using dynamic fee per kb: " << FEE_PER_KB << ", (" << print_money(FEE_PER_KB) << ")");
     return FEE_PER_KB;
-
-  return get_dynamic_per_kb_fee_estimate();
+  }
+  */
+  uint64_t result = get_dynamic_per_kb_fee_estimate();
+  LOG_PRINT_L1("using dynamic fee per kb :" << result << ", (" << print_money(result) << ")");
+  return result;
 }
 //----------------------------------------------------------------------------------------------------
 
