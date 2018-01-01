@@ -536,7 +536,7 @@ std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &account_dat
                                testnet, restricted);
     if (wallet)
     {
-        wallet->load_graft(account_data, password);
+        wallet->load_graft(account_data, password, "" /*cache_file*/);
     }
     return std::move(wallet);
 }
@@ -545,6 +545,7 @@ std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_fr
         const boost::program_options::variables_map &vm, const string &data)
 {
     const options opts{};
+
     auto pwd = get_password(vm, opts, false);
     if (!pwd)
     {
@@ -553,7 +554,7 @@ std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_fr
     auto wallet = make_basic(vm, opts);
     if (wallet)
     {
-      wallet->load_graft(data, pwd->password());
+      wallet->load_graft(data, pwd->password(), "" /*cache_file*/);
     }
     return {std::move(wallet), std::move(*pwd)};
 }
@@ -2175,6 +2176,9 @@ bool GraftWallet::load_keys(const std::string& keys_file_name, const std::string
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ask_password, int, Int, false, true);
     m_ask_password = field_ask_password;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_decimal_point, int, Int, false, CRYPTONOTE_DISPLAY_DECIMAL_POINT);
+    // x100, we force decimal point = 10 for existing wallets
+    if (field_default_decimal_point != CRYPTONOTE_DISPLAY_DECIMAL_POINT)
+        field_default_decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
     cryptonote::set_default_decimal_point(field_default_decimal_point);
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, min_output_count, uint32_t, Uint, false, 0);
     m_min_output_count = field_min_output_count;
@@ -2396,7 +2400,7 @@ secret_key GraftWallet::generate_graft(const string &password, const secret_key 
     return retval;
 }
 
-void GraftWallet::load_graft(const string &data, const string &password)
+void GraftWallet::load_graft(const string &data, const string &password, const std::string &cache_file)
 {
     clear();
 
@@ -2408,6 +2412,9 @@ void GraftWallet::load_graft(const string &data, const string &password)
 
     //keys loaded ok!
     //try to load wallet file. but even if we failed, it is not big problem
+
+    if (!cache_file.empty())
+      load_cache(cache_file);
 
     cryptonote::block genesis;
     generate_genesis(genesis);
@@ -2792,7 +2799,8 @@ bool GraftWallet::generate_chacha8_key_from_secret_keys(crypto::chacha8_key &key
   memset(data, 0, sizeof(data));
   return true;
 }
-//----------------------------------------------------------------------------------------------------
+
+
 void GraftWallet::load(const std::string& wallet_, const std::string& password)
 {
   clear();
@@ -2815,65 +2823,8 @@ void GraftWallet::load(const std::string& wallet_, const std::string& password)
     LOG_PRINT_L0("file not found: " << m_wallet_file << ", starting with empty blockchain");
     m_account_public_address = m_account.get_keys().m_account_address;
   }
-  else
-  {
-    GraftWallet::cache_file_data cache_file_data;
-    std::string buf;
-    bool r = epee::file_io_utils::load_file_to_string(m_wallet_file, buf);
-    THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, m_wallet_file);
-
-    // try to read it as an encrypted cache
-    try
-    {
-      LOG_PRINT_L1("Trying to decrypt cache data");
-
-      r = ::serialization::parse_binary(buf, cache_file_data);
-      THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + m_wallet_file + '\"');
-      crypto::chacha8_key key;
-      generate_chacha8_key_from_secret_keys(key);
-      std::string cache_data;
-      cache_data.resize(cache_file_data.cache_data.size());
-      crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
-
-      std::stringstream iss;
-      iss << cache_data;
-      try {
-        boost::archive::portable_binary_iarchive ar(iss);
-        ar >> *this;
-      }
-      catch (...)
-      {
-        LOG_PRINT_L0("Failed to open portable binary, trying unportable");
-        boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
-        iss.str("");
-        iss << cache_data;
-        boost::archive::binary_iarchive ar(iss);
-        ar >> *this;
-      }
-    }
-    catch (...)
-    {
-      LOG_PRINT_L1("Failed to load encrypted cache, trying unencrypted");
-      std::stringstream iss;
-      iss << buf;
-      try {
-        boost::archive::portable_binary_iarchive ar(iss);
-        ar >> *this;
-      }
-      catch (...)
-      {
-        LOG_PRINT_L0("Failed to open portable binary, trying unportable");
-        boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
-        iss.str("");
-        iss << buf;
-        boost::archive::binary_iarchive ar(iss);
-        ar >> *this;
-      }
-    }
-    THROW_WALLET_EXCEPTION_IF(
-      m_account_public_address.m_spend_public_key != m_account.get_keys().m_account_address.m_spend_public_key ||
-      m_account_public_address.m_view_public_key  != m_account.get_keys().m_account_address.m_view_public_key,
-      error::wallet_files_doesnt_correspond, m_keys_file, m_wallet_file);
+  else {
+    load_cache(m_wallet_file);
   }
 
   cryptonote::block genesis;
@@ -2892,6 +2843,67 @@ void GraftWallet::load(const std::string& wallet_, const std::string& password)
   m_local_bc_height = m_blockchain.size();
 }
 //----------------------------------------------------------------------------------------------------
+void GraftWallet::load_cache(const std::string &filename)
+{
+    GraftWallet::cache_file_data cache_file_data;
+    std::string buf;
+    bool r = epee::file_io_utils::load_file_to_string(filename, buf);
+    THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, filename);
+    // try to read it as an encrypted cache
+    try
+    {
+        LOG_PRINT_L1("Trying to decrypt cache data");
+        r = ::serialization::parse_binary(buf, cache_file_data);
+        THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + filename + '\"');
+        crypto::chacha8_key key;
+        generate_chacha8_key_from_secret_keys(key);
+        std::string cache_data;
+        cache_data.resize(cache_file_data.cache_data.size());
+        crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
+
+        std::stringstream iss;
+        iss << cache_data;
+        try {
+            boost::archive::portable_binary_iarchive ar(iss);
+            ar >> *this;
+        }
+        catch (...)
+        {
+            LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+            boost::filesystem::copy_file(filename, filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+            iss.str("");
+            iss << cache_data;
+            boost::archive::binary_iarchive ar(iss);
+            ar >> *this;
+        }
+    }
+    catch (...)
+    {
+        LOG_PRINT_L1("Failed to load encrypted cache, trying unencrypted");
+        std::stringstream iss;
+        iss << buf;
+        try {
+            boost::archive::portable_binary_iarchive ar(iss);
+            ar >> *this;
+        }
+        catch (...)
+        {
+            LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+            boost::filesystem::copy_file(filename, filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+            iss.str("");
+            iss << buf;
+            boost::archive::binary_iarchive ar(iss);
+            ar >> *this;
+        }
+    }
+    THROW_WALLET_EXCEPTION_IF(
+                m_account_public_address.m_spend_public_key != m_account.get_keys().m_account_address.m_spend_public_key ||
+            m_account_public_address.m_view_public_key  != m_account.get_keys().m_account_address.m_view_public_key,
+                error::wallet_files_doesnt_correspond, m_keys_file, filename);
+
+}
+
+//----------------------------------------------------------------------------------------------------
 void GraftWallet::check_genesis(const crypto::hash& genesis_hash) const {
   std::string what("Genesis block mismatch. You probably use wallet without testnet flag with blockchain from test network or vice versa");
 
@@ -2905,7 +2917,34 @@ std::string GraftWallet::path() const
 //----------------------------------------------------------------------------------------------------
 void GraftWallet::store()
 {
-  store_to("", "");
+    store_to("", "");
+}
+
+//----------------------------------------------------------------------------------------------------
+void GraftWallet::store_cache(const string &filename)
+{
+    // preparing wallet data
+    std::stringstream oss;
+    boost::archive::portable_binary_oarchive ar(oss);
+    ar << *this;
+
+    GraftWallet::cache_file_data cache_file_data = boost::value_initialized<GraftWallet::cache_file_data>();
+    cache_file_data.cache_data = oss.str();
+    crypto::chacha8_key key;
+    generate_chacha8_key_from_secret_keys(key);
+    std::string cipher;
+    cipher.resize(cache_file_data.cache_data.size());
+    cache_file_data.iv = crypto::rand<crypto::chacha8_iv>();
+    crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
+    cache_file_data.cache_data = cipher;
+
+    // save to new file
+    std::ofstream ostr;
+    ostr.open(filename, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);
+    binary_archive<true> oar(ostr);
+    bool success = ::serialization::serialize(oar, cache_file_data);
+    ostr.close();
+    THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
 }
 //----------------------------------------------------------------------------------------------------
 void GraftWallet::store_to(const std::string &path, const std::string &password)
@@ -2924,7 +2963,6 @@ void GraftWallet::store_to(const std::string &path, const std::string &password)
     same_file = pos != std::string::npos;
   }
 
-
   if (!same_file)
   {
     // check if we want to store to directory which doesn't exists yet
@@ -2940,48 +2978,28 @@ void GraftWallet::store_to(const std::string &path, const std::string &password)
       }
     }
   }
-  // preparing wallet data
-  std::stringstream oss;
-  boost::archive::portable_binary_oarchive ar(oss);
-  ar << *this;
-
-  GraftWallet::cache_file_data cache_file_data = boost::value_initialized<GraftWallet::cache_file_data>();
-  cache_file_data.cache_data = oss.str();
-  crypto::chacha8_key key;
-  generate_chacha8_key_from_secret_keys(key);
-  std::string cipher;
-  cipher.resize(cache_file_data.cache_data.size());
-  cache_file_data.iv = crypto::rand<crypto::chacha8_iv>();
-  crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
-  cache_file_data.cache_data = cipher;
-
   const std::string new_file = same_file ? m_wallet_file + ".new" : path;
   const std::string old_file = m_wallet_file;
   const std::string old_keys_file = m_keys_file;
   const std::string old_address_file = m_wallet_file + ".address.txt";
 
-  // save to new file
-  std::ofstream ostr;
-  ostr.open(new_file, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);
-  binary_archive<true> oar(ostr);
-  bool success = ::serialization::serialize(oar, cache_file_data);
-  ostr.close();
-  THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, new_file);
+  store_cache(new_file);
 
   // save keys to the new file
   // if we here, main wallet file is saved and we only need to save keys and address files
   if (!same_file) {
     prepare_file_names(path);
-    store_keys(m_keys_file, password, false);
-    // save address to the new file
-    const std::string address_file = m_wallet_file + ".address.txt";
-    bool r = file_io_utils::save_string_to_file(address_file, m_account.get_public_address_str(m_testnet));
-    THROW_WALLET_EXCEPTION_IF(!r, error::file_save_error, m_wallet_file);
     // remove old wallet file
-    r = boost::filesystem::remove(old_file);
+    bool r = boost::filesystem::remove(old_file);
     if (!r) {
       LOG_ERROR("error removing file: " << old_file);
     }
+
+    store_keys(m_keys_file, password, false);
+    // save address to the new file
+    const std::string address_file = m_wallet_file + ".address.txt";
+    r = file_io_utils::save_string_to_file(address_file, m_account.get_public_address_str(m_testnet));
+    THROW_WALLET_EXCEPTION_IF(!r, error::file_save_error, m_wallet_file);
     // remove old keys file
     r = boost::filesystem::remove(old_keys_file);
     if (!r) {
@@ -2992,6 +3010,7 @@ void GraftWallet::store_to(const std::string &path, const std::string &password)
     if (!r) {
       LOG_ERROR("error removing file: " << old_address_file);
     }
+
   } else {
     // here we have "*.new" file, we need to rename it to be without ".new"
     std::error_code e = tools::replace_file(new_file, m_wallet_file);
@@ -3807,14 +3826,21 @@ uint64_t GraftWallet::get_dynamic_per_kb_fee_estimate()
   LOG_PRINT_L1("Failed to query per kB fee, using " << print_money(FEE_PER_KB));
   return FEE_PER_KB;
 }
+
 //----------------------------------------------------------------------------------------------------
 uint64_t GraftWallet::get_per_kb_fee()
 {
+  // graft: use dynamic fee only
+  /*
   bool use_dyn_fee = use_fork_rules(HF_VERSION_DYNAMIC_FEE, -720 * 1);
-  if (!use_dyn_fee)
+  if (!use_dyn_fee) {
+    LOG_PRINT_L1("not using dynamic fee per kb: " << FEE_PER_KB << ", (" << print_money(FEE_PER_KB) << ")");
     return FEE_PER_KB;
-
-  return get_dynamic_per_kb_fee_estimate();
+  }
+  */
+  uint64_t result = get_dynamic_per_kb_fee_estimate();
+  LOG_PRINT_L1("using dynamic fee per kb :" << result << ", (" << print_money(result) << ")");
+  return result;
 }
 //----------------------------------------------------------------------------------------------------
 

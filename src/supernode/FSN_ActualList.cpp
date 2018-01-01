@@ -42,6 +42,7 @@ FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAP
 	m_P2P = p2p;
 	m_DAPIServer = dapi;
 
+
 	m_P2P->AddHandler<rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>( p2p_call::AddFSN, bind(&FSN_ActualList::OnAddFSN, this, _1) );
 	m_P2P->AddHandler<rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE>( p2p_call::LostFSNStatus, bind(&FSN_ActualList::OnLostFSNStatus, this, _1) );
 	m_DAPIServer->ADD_DAPI_HANDLER(FSN_CheckWalletOwnership, rpc_command::FSN_CHECK_WALLET_OWNERSHIP, FSN_ActualList);

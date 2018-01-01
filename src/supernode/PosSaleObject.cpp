@@ -119,7 +119,7 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	rpc_command::ConvertFromTR(inbr, TransactionRecord);
 	inbr.SenderIP = m_DAPIServer->IP();
 	inbr.SenderPort = m_DAPIServer->Port();
-	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) { return false; }
+	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) { LOG_PRINT_L5("!Send dapi_call::PosProxySale"); return false; }
 
     m_Status = NTransactionStatus::InProgress;
 

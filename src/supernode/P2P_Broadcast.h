@@ -46,14 +46,13 @@ namespace supernode {
 		// seeds - neighbors from config, ip, port
 		//void Set(const string& ip, const string& port, int threadsNum, const vector< pair<string, string> >& seeds );
 
-		void Set(DAPI_RPC_Server* pa, const vector<string>& seeds );
+		void Set(DAPI_RPC_Server* pa, const vector<string>& trustedRing );
 
 		vector< pair<string, string> > Seeds();
 
 
 		void Start();// start accept connection, NOT blocked call
 		void Stop();//stop all worker threads and wait for it's end (join)
-
 
 
 		// if we can;t use method as string and need to use int, so create class enum p2p_command : int {} in
@@ -76,26 +75,26 @@ namespace supernode {
 
 		template<class IN_t, class OUT_t>
 		bool SendNear( const string& method, IN_t& data, vector<OUT_t>& outv ) {
+			// TODO: need limit number of sends
 			data.PaymentID = "p2p";
-			return m_SubNet.Send(method, data, outv);
+			return m_SubNet.Send(method, data, outv, false);
 		}
 
 
-		// block until send to neighbors. return false if can't send
 		template<class IN_t>
-		bool Send( const string& method, IN_t& data ) {
-			vector<rpc_command::P2P_DUMMY_RESP> out;
+		void Send( const string& method, IN_t& data ) {
 			data.PaymentID = "p2p";
-			return m_SubNet.Send(method, data, out);
+			return m_SubNet.Send(method, data);
 		}
+
+	public:
+		void AddSeed(const rpc_command::P2P_ADD_NODE_TO_LIST& in );
+		void GetSeedsList(const rpc_command::P2P_GET_ALL_NODES_LIST::request& in, rpc_command::P2P_GET_ALL_NODES_LIST::response& out);
+
 
 	protected:
 		SubNetBroadcast m_SubNet;
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
-
-
-
-
 	};
 
 } /* namespace supernode */

@@ -45,7 +45,7 @@ bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& inp, rpc_command::WALLET_PROXY_PAY::response& out) {
 	RTA_TransactionRecord src;
 	rpc_command::ConvertToTR(src, inp, m_Servant);
-	if(src!=TransactionRecord) return false;
+	if(src!=TransactionRecord) { LOG_PRINT_L5("not eq records"); return false; }
 
 	string data = TransactionRecord.PaymentID + string(":") + inp.CustomerWalletAddr;
 	bool signok = tools::GraftWallet::verifySignedMessage(data, inp.CustomerWalletAddr, inp.CustomerWalletSign, m_Servant->IsTestnet());
