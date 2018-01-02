@@ -215,3 +215,8 @@ void supernode::BaseClientProxy::storeWalletState(std::unique_ptr<tools::GraftWa
         wallet->store_cache(lCacheFile);
     }
 }
+
+string supernode::BaseClientProxy::base64_decode(const string &encoded_data)
+{
+    return epee::string_encoding::base64_decode(encoded_data);
+}

@@ -54,7 +54,11 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
 	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
 	data->Owner(this);
 	Setup(data);
-    if( !data->OpenSenderWallet(in.Account, in.Password) ) { LOG_ERROR("!OpenSenderWallet"); return false; }
+    if( !data->OpenSenderWallet(base64_decode(in.Account), in.Password) )
+    {
+        LOG_ERROR("!OpenSenderWallet");
+        return false;
+    }
 
     if (!data->Init(in))
     {
