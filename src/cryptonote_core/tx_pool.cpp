@@ -167,7 +167,7 @@ namespace cryptonote
       fee = tx.rct_signatures.txnFee;
     }
 
-    LOG_PRINT_L0("tx_type: " << tx.type);
+    // LOG_PRINT_L0("tx_type: " << tx.type);
     if (!kept_by_block && (tx.type != transaction::tx_type_zero_fee && !m_blockchain.check_fee(blob_size, fee)))
     {
       tvc.m_verifivation_failed = true;
@@ -284,8 +284,8 @@ namespace cryptonote
         return false;
       }
       tvc.m_added_to_pool = true;
-      LOG_PRINT_L0("!! meta.fee: " << meta.fee);
-      LOG_PRINT_L0("!! do_not_relay: " << do_not_relay);
+      LOG_PRINT_L3("!! meta.fee: " << meta.fee);
+      LOG_PRINT_L3("!! do_not_relay: " << do_not_relay);
       if ((tx.type == transaction::tx_type_zero_fee || meta.fee > 0) && !do_not_relay)
         tvc.m_should_be_relayed = true;
     }
