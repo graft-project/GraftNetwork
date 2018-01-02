@@ -39,6 +39,7 @@ public:
     BaseClientProxy();
 
     std::unique_ptr<tools::GraftWallet> initWallet(const std::string &account, const std::string &password) const;
+    void storeWalletState(std::unique_ptr<tools::GraftWallet> wallet);
 
 
 protected:
