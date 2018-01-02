@@ -2413,6 +2413,8 @@ void GraftWallet::load_graft(const string &data, const string &password, const s
     //keys loaded ok!
     //try to load wallet file. but even if we failed, it is not big problem
 
+    m_account_public_address = m_account.get_keys().m_account_address;
+
     if (!cache_file.empty())
       load_cache(cache_file);
 

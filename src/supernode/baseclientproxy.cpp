@@ -30,6 +30,9 @@
 #include "common/command_line.h"
 #include "baseclientproxy.h"
 #include "graft_defines.h"
+#include "common/util.h"
+
+static const std::string scWalletCachePath("/cache/");
 
 supernode::BaseClientProxy::BaseClientProxy()
 {
@@ -53,8 +56,10 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     }
     try
     {
+        wal->refresh();
         out.Balance = wal->balance();
         out.UnlockedBalance = wal->unlocked_balance();
+        storeWalletState(std::move(wal));
     }
     catch (const std::exception& e)
     {
@@ -99,8 +104,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     }
     out.Account = wal->store_keys_graft(in.Password);
     out.Address = wal->get_account().get_public_address_str(wal->testnet());
-    out.ViewKey = epee::string_tools::pod_to_hex(
-                wal->get_account().get_keys().m_account_address.m_view_public_key);
+    out.ViewKey = epee::string_tools::pod_to_hex(wal->get_account().get_keys().m_view_secret_key);
     std::string seed;
     wal->get_seed(seed);
     out.Seed = seed;
@@ -153,7 +157,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         out.Account = wal->store_keys_graft(in.Password);
         out.Address = wal->get_account().get_public_address_str(wal->testnet());
         out.ViewKey = epee::string_tools::pod_to_hex(
-                    wal->get_account().get_keys().m_account_address.m_view_public_key);
+                    wal->get_account().get_keys().m_view_secret_key);
         std::string seed;
         wal->get_seed(seed);
         out.Seed = seed;
@@ -175,11 +179,36 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
         wal = tools::GraftWallet::createWallet(account, password, "",
                                                m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
                                          m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
-
+        std::string lDataDir = tools::get_default_data_dir() + scWalletCachePath;
+        if (!boost::filesystem::exists(lDataDir))
+        {
+            boost::filesystem::create_directories(lDataDir);
+        }
+        std::string lCacheFile = lDataDir +
+                wal->get_account().get_public_address_str(wal->testnet());
+        if (boost::filesystem::exists(lCacheFile))
+        {
+            wal->load_cache(lCacheFile);
+        }
     }
     catch (const std::exception& e)
     {
         wal = nullptr;
     }
     return wal;
+}
+
+void supernode::BaseClientProxy::storeWalletState(std::unique_ptr<tools::GraftWallet> wallet)
+{
+    if (wallet)
+    {
+        std::string lDataDir = tools::get_default_data_dir() + scWalletCachePath;
+        if (!boost::filesystem::exists(lDataDir))
+        {
+            boost::filesystem::create_directories(lDataDir);
+        }
+        std::string lCacheFile = lDataDir +
+                wallet->get_account().get_public_address_str(wallet->testnet());
+        wallet->store_cache(lCacheFile);
+    }
 }
