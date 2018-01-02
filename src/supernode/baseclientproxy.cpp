@@ -32,7 +32,7 @@
 #include "graft_defines.h"
 #include "common/util.h"
 
-static const std::string scWalletCachePath("/.graft/cache/");
+static const std::string scWalletCachePath("/cache/");
 
 supernode::BaseClientProxy::BaseClientProxy()
 {
