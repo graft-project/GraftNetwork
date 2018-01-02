@@ -30,8 +30,9 @@
 #include "common/command_line.h"
 #include "baseclientproxy.h"
 #include "graft_defines.h"
+#include "common/util.h"
 
-static const std::string scWalletCachePath("~/.graft/cache/");
+static const std::string scWalletCachePath("/.graft/cache/");
 
 supernode::BaseClientProxy::BaseClientProxy()
 {
@@ -178,11 +179,12 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
         wal = tools::GraftWallet::createWallet(account, password, "",
                                                m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
                                          m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
-        if (!boost::filesystem::exists(scWalletCachePath))
+        std::string lDataDir = tools::get_default_data_dir() + scWalletCachePath;
+        if (!boost::filesystem::exists(lDataDir))
         {
-            boost::filesystem::create_directories(scWalletCachePath);
+            boost::filesystem::create_directories(lDataDir);
         }
-        std::string lCacheFile = scWalletCachePath +
+        std::string lCacheFile = lDataDir +
                 wal->get_account().get_public_address_str(wal->testnet());
         if (boost::filesystem::exists(lCacheFile))
         {
@@ -200,11 +202,12 @@ void supernode::BaseClientProxy::storeWalletState(std::unique_ptr<tools::GraftWa
 {
     if (wallet)
     {
-        if (!boost::filesystem::exists(scWalletCachePath))
+        std::string lDataDir = tools::get_default_data_dir() + scWalletCachePath;
+        if (!boost::filesystem::exists(lDataDir))
         {
-            boost::filesystem::create_directories(scWalletCachePath);
+            boost::filesystem::create_directories(lDataDir);
         }
-        std::string lCacheFile = scWalletCachePath +
+        std::string lCacheFile = lDataDir +
                 wallet->get_account().get_public_address_str(wallet->testnet());
         wallet->store_cache(lCacheFile);
     }
