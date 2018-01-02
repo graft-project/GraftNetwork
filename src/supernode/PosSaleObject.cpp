@@ -110,8 +110,16 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	TransactionRecord.PaymentID = GeneratePaymentID();
 	TransactionRecord.BlockNum = m_Servant->GetCurrentBlockHeight();
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
-	if( TransactionRecord.AuthNodes.empty() ) { LOG_PRINT_L5("SALE: AuthNodes.empty"); return false; }
+	if( TransactionRecord.AuthNodes.empty() ) { LOG_PRINT_L5("SALE: AuthNodes.empty"); m_Status = NTransactionStatus::Fail; return false; }
 
+    m_Status = NTransactionStatus::InProgress;
+
+	ADD_RTA_OBJECT_HANDLER(GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
+	ADD_RTA_OBJECT_HANDLER(PoSTRSigned, rpc_command::POS_TR_SIGNED, PosSaleObject);
+	ADD_RTA_OBJECT_HANDLER(PosRejectSale, rpc_command::POS_REJECT_SALE, PosSaleObject);
+	ADD_RTA_OBJECT_HANDLER(AuthWalletRejectPay, rpc_command::WALLET_REJECT_PAY, PosSaleObject);
+
+	/*
 	InitSubnet();
 
 	vector<rpc_command::POS_PROXY_SALE::response> outv;
@@ -128,8 +136,24 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	ADD_RTA_OBJECT_HANDLER(PoSTRSigned, rpc_command::POS_TR_SIGNED, PosSaleObject);
 	ADD_RTA_OBJECT_HANDLER(PosRejectSale, rpc_command::POS_REJECT_SALE, PosSaleObject);
 	ADD_RTA_OBJECT_HANDLER(AuthWalletRejectPay, rpc_command::WALLET_REJECT_PAY, PosSaleObject);
-
+*/
 	return true;
+}
+
+void supernode::PosSaleObject::ContinueInit() {
+	InitSubnet();
+
+	vector<rpc_command::POS_PROXY_SALE::response> outv;
+	rpc_command::POS_PROXY_SALE::request inbr;
+	rpc_command::ConvertFromTR(inbr, TransactionRecord);
+	inbr.SenderIP = m_DAPIServer->IP();
+	inbr.SenderPort = m_DAPIServer->Port();
+	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) {
+		LOG_PRINT_L5("!Send dapi_call::PosProxySale");
+		m_Status = NTransactionStatus::Fail;
+
+	}
+
 }
 
 bool supernode::PosSaleObject::AuthWalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {

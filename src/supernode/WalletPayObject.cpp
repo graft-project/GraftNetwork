@@ -45,15 +45,22 @@ bool supernode::WalletPayObject::OpenSenderWallet(const string &wallet, const st
     return true;
 }
 
+void supernode::WalletPayObject::BeforStart() {
+	m_Status = NTransactionStatus::InProgress;
+	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
+}
 
-bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
+
+bool supernode::WalletPayObject::Init(const rpc_command::WALLET_PAY::request& src) {
 	bool ret = _Init(src);
     m_Status = ret ? NTransactionStatus::Success : NTransactionStatus::Fail;
 	return ret;
 }
 
-bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
+bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& src) {
 	BaseRTAObject::Init(src);
+
+	if( !OpenSenderWallet(src.Account, src.Password) ) { LOG_ERROR("!OpenSenderWallet"); return false; }
 
 	// we allready have block num
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
@@ -110,9 +117,6 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
 
 	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
-
-
-	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
 
 
 	return true;

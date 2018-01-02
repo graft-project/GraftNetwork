@@ -32,19 +32,15 @@
 
 static const unsigned s_MaxNotAvailCount = 4;
 
-supernode::SubNetBroadcast::SubNetBroadcast(unsigned workerThreads) : m_Work(m_IOService) {
-	for(unsigned i=0;i<workerThreads;i++) {
-		m_Threadpool.create_thread( boost::bind(&boost::asio::io_service::run, &m_IOService) );
-	}
+supernode::SubNetBroadcast::SubNetBroadcast(unsigned workerThreads)  {
+	m_Work.Workers(workerThreads);
 
 }
 
 supernode::SubNetBroadcast::~SubNetBroadcast() {
 	for(auto a : m_MyHandlers) m_DAPIServer->RemoveHandler(a);
 	m_MyHandlers.clear();
-
-	m_IOService.stop();
-	m_Threadpool.join_all();
+	m_Work.Stop();
 }
 
 vector< pair<string, string> > supernode::SubNetBroadcast::Members() {
@@ -62,7 +58,11 @@ void supernode::SubNetBroadcast::AddMember(const string& ip, const string& port)
 }
 
 void supernode::SubNetBroadcast::_AddMember(const string& ip, const string& port) {
-	if( !AllowSendSefl && ip==m_DAPIServer->IP() && port==m_DAPIServer->Port() ) return;
+	if( !AllowSendSefl && ip==m_DAPIServer->IP() && port==m_DAPIServer->Port() ) {
+		return;
+	}
+
+
 	for(auto& a : m_Members) if( a.IP==ip && a.Port==port ) return;
 	m_Members.push_back( SMember(ip, port) );
 }

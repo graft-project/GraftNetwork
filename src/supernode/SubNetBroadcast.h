@@ -31,11 +31,10 @@
 #define SUB_NET_BROADCAST_H_
 
 #include "supernode_common_struct.h"
-#include <boost/function.hpp>
-#include <boost/bind.hpp>
 #include <string>
 #include "DAPI_RPC_Client.h"
 #include "DAPI_RPC_Server.h"
+#include "WorkerPool.h"
 using namespace std;
 
 namespace supernode {
@@ -85,7 +84,7 @@ namespace supernode {
 				int* retp = &rets[i];
 				string ip = m_Members[i].IP;
 				string port = m_Members[i].Port;
-				m_IOService.post(
+				m_Work.Service.post(
 					[this, method, in, outp, retp, ip, port]() {
 					DoCallInThread<IN_t, OUT_t>(method, in, outp, retp, ip, port);
 				} );
@@ -123,7 +122,7 @@ namespace supernode {
 			for(unsigned i=0;i<m_Members.size();i++) {
 				string ip = m_Members[i].IP;
 				string port = m_Members[i].Port;
-				m_IOService.post(
+				m_Work.Service.post(
 					[this, method, in, outp, retp, ip, port]() {
 					DoCallInThread<IN_t, rpc_command::P2P_DUMMY_RESP>(method, in, outp, retp, ip, port);
 				} );
@@ -175,9 +174,7 @@ namespace supernode {
 
 		protected:
 		int m_SendsCount = 0;
-	    boost::asio::io_service m_IOService;
-	    boost::thread_group m_Threadpool;
-	    boost::asio::io_service::work m_Work;
+	    WorkerPool m_Work;
 
 		protected:
 		rpc_command::P2P_DUMMY_RESP m_DummyOut;

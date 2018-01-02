@@ -54,14 +54,16 @@ namespace supernode {
          * \param src - transaction details
          * \return    - true if tx sent sucessfully
          */
-		bool Init(const RTA_TransactionRecordBase& src) override;
+		bool Init(const rpc_command::WALLET_PAY::request& src);
+
+		void BeforStart();
 
 		bool GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out);
 
 
 		protected:
 		virtual bool PutTXToPool();
-		bool _Init(const RTA_TransactionRecordBase& src);
+		bool _Init(const rpc_command::WALLET_PAY::request& src);
 
 		protected:
         NTransactionStatus m_Status = NTransactionStatus::None;

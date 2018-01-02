@@ -57,7 +57,8 @@ set(supernode_sources
     grafttxextra.cpp
     TxPool.cpp
 		supernode_helpers.cpp
-		FSN_ActualList.cpp)
+		FSN_ActualList.cpp
+		WorkerPool.cpp)
 
 set(supernode_api_headers)
 
@@ -84,7 +85,8 @@ set(supernode_private_headers
     P2P_Broadcast.h
     supernode_common_struct.h
     supernode_rpc_command.h
-    TxPool.h)
+    TxPool.h
+		WorkerPool.h)
 
 monero_private_headers(supernode
     ${supernode_private_headers})
