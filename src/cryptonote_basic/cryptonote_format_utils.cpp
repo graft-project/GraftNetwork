@@ -413,7 +413,8 @@ namespace cryptonote
         << ", in transaction id=" << get_transaction_hash(tx));
 
     }
-    return true;
+    return true;    //TODO: validate tx
+
   }
   //-----------------------------------------------------------------------------------------------
   bool check_outs_valid(const transaction& tx)
