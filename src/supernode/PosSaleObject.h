@@ -39,6 +39,7 @@ namespace supernode {
 		public:
 		void Owner(PosProxy* o);
 		bool Init(const RTA_TransactionRecordBase& src) override;
+		void ContinueInit();
 		bool GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out);
 		bool PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out);
 

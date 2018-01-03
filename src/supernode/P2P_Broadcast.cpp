@@ -34,10 +34,10 @@ namespace supernode {
 
 void P2P_Broadcast::Set(DAPI_RPC_Server* pa, const vector<string>& trustedRing) {
 	m_DAPIServer = pa;
-	m_SubNet.Set(pa, "p2p", trustedRing);
 	m_SubNet.RetryCount = 1;
 	m_SubNet.CallTimeout = std::chrono::seconds(1);
 	m_SubNet.AllowSendSefl = false;
+	m_SubNet.Set(pa, "p2p", trustedRing);
 
 	AddHandler<rpc_command::P2P_ADD_NODE_TO_LIST>( p2p_call::AddSeed, bind(&P2P_Broadcast::AddSeed, this, _1) );
 	AddNearHandler<rpc_command::P2P_GET_ALL_NODES_LIST::request, rpc_command::P2P_GET_ALL_NODES_LIST::response>( p2p_call::GetSeedsList, bind(&P2P_Broadcast::GetSeedsList, this, _1, _2) );

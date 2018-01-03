@@ -33,6 +33,7 @@
 
 #include "WalletPayObject.h"
 #include "baseclientproxy.h"
+#include "WorkerPool.h"
 
 class WalletProxyTest_SendTx_Test;
 
@@ -43,9 +44,13 @@ namespace supernode {
 		bool Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out);
 		bool WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out);
 		bool WalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out);
+
         protected:
         void Init() override;
         friend class ::WalletProxyTest_SendTx_Test;
+
+        protected:
+        WorkerPool m_Work;
 
 	};
 }

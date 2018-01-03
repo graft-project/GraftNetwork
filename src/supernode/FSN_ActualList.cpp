@@ -37,7 +37,7 @@ static const uint64_t s_MinStakeBalance = 0;
 
 namespace supernode {
 
-FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAPI_RPC_Server* dapi) : m_All_FSN_Guard(servant->All_FSN_Guard), m_All_FSN(servant->All_FSN), m_Work(m_IOService) {
+FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAPI_RPC_Server* dapi) : m_All_FSN_Guard(servant->All_FSN_Guard), m_All_FSN(servant->All_FSN) {
 	m_Servant = servant;
 	m_P2P = p2p;
 	m_DAPIServer = dapi;
@@ -52,10 +52,7 @@ FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAP
 void FSN_ActualList::Start() {
 	CheckIfIamFSN(true);// may be very slow operation
 
-	for(unsigned i=0;i<10;i++) {
-		m_Threadpool.create_thread( boost::bind(&boost::asio::io_service::run, &m_IOService) );
-	}
-
+	m_Work.Workers(10);
 
 	m_Running = true;
 	m_Thread = new boost::thread(&FSN_ActualList::Run, this);
@@ -64,8 +61,7 @@ void FSN_ActualList::Start() {
 void FSN_ActualList::Stop() {
 	m_Running = false;
 	m_Thread->join();
-	m_IOService.stop();
-	m_Threadpool.join_all();
+	m_Work.Stop();
 }
 
 void FSN_ActualList::GetFSNList(const rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request& in, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response& out) {
@@ -172,7 +168,7 @@ boost::shared_ptr<FSN_Data> FSN_ActualList::_OnAddFSN(const rpc_command::BROADCA
 
 void FSN_ActualList::OnAddFSN(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in ) {
 	//LOG_PRINT_L5("=1 OnAddFSN: "<<m_DAPIServer->Port());
-	m_IOService.post( [this, in](){
+	m_Work.Service.post( [this, in](){
 		OnAddFSNFromWorker(in);
 	} );
 }
@@ -190,7 +186,7 @@ void FSN_ActualList::OnAddFSNFromWorker(const rpc_command::BROADCACT_ADD_FULL_SU
 }
 
 void FSN_ActualList::OnLostFSNStatus(const rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE& in) {
-	m_IOService.post( [this, in](){
+	m_Work.Service.post( [this, in](){
 		OnLostFSNStatusFromWorker(in);
 	} );
 }

@@ -32,15 +32,20 @@
 
 #include "PosSaleObject.h"
 #include "baseclientproxy.h"
+#include "WorkerPool.h"
 
 namespace supernode {
     class PosProxy : public BaseClientProxy {
 		public:
+		bool Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out);
 
 		protected:
 		void Init() override;
 
-		bool Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out);
+
+        protected:
+        WorkerPool m_Work;
+
 	};
 }
 

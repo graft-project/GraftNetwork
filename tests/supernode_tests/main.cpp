@@ -319,12 +319,14 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 
 			//LOG_PRINT_L5("Sale ret: "<<ret<<"  BlockNum: "<<sale_out.BlockNum<<"  uuid: "<<sale_out.PaymentID);
 		}
+		sleep(1);
 		if(!bb) return false;
 
-		for(unsigned i=0;i<repeatCount;i++) {// after sale call you get PaymentID and BlockNum and can start poll status by GetSaleStatus call
+		for(unsigned i=0;i<(repeatCount+1);i++) {// after sale call you get PaymentID and BlockNum and can start poll status by GetSaleStatus call
 			NTransactionStatus trs =  GetSaleStatus(sale_out.PaymentID);
 			bb = trs==NTransactionStatus::InProgress;
 			if( Assert(bb, "GetSaleStatus") ) break;
+			sleep(1);
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
 			//LOG_PRINT_L5("GetSaleStatus: "<<()<<"  int: "<<int(trs));
 		}
@@ -372,8 +374,9 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		}
 		if(!bb) return false;
 
-		for(unsigned i=0;i<repeatCount;i++) {// after Pay call you can can start poll status by GetPayStatus call
+		for(unsigned i=0;i<100;i++) {// after Pay call you can can start poll status by GetPayStatus call
 			NTransactionStatus trs =  GetPayStatus(sale_out.PaymentID);
+			if(trs==NTransactionStatus::InProgress) { sleep(1); continue; }
 			bb = trs==NTransactionStatus::Success;
 			if( Assert(bb, "GetPayStatus") ) break;
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
@@ -529,6 +532,13 @@ TEST_F(TestHanlerP2P, Test_P2PTest) {
 		bool list1 = node1.m_P2P.Seeds().size()==1 && node0.m_P2P.Seeds().size()==1 && node1.IsHave("7500") && node0.IsHave("8500");
 		
 
+		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		node0.Print();
+		node1.Print();
+		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+
+
+
     supernode::P2PTestNode node2;
     node2.Set("7500", "8500", "9500", 2);
 		sleep(2);
@@ -575,12 +585,12 @@ TEST_F(TestHanlerP2P, Test_P2PTest) {
 		sleep(6);
 		bool removed = node1.m_P2P.Seeds().size()==1 && node2.m_P2P.Seeds().size()==2 && node1.IsHave("7500") && node0.IsHave("8500") && node0.IsHave("9500");
 
-
+/*
 		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
 		node0.Print();
 		node1.Print();
 		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
-
+*/
 
 
 	//	ASSERT_TRUE( ret && r2 );
