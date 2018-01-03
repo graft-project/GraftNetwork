@@ -614,6 +614,23 @@ namespace tools
       }
     };
     //----------------------------------------------------------------------------------------------------
+    struct graft_fee_too_low : public transfer_error
+    {
+      explicit graft_fee_too_low(std::string&& loc)
+        : transfer_error(std::move(loc), "fee too low")
+      {
+      }
+    };
+    //----------------------------------------------------------------------------------------------------
+    struct graft_invalid_auth_sample : public transfer_error
+    {
+      explicit graft_invalid_auth_sample(std::string&& loc)
+        : transfer_error(std::move(loc), "invalid auth sample")
+      {
+      }
+    };
+    //----------------------------------------------------------------------------------------------------
+
     struct wallet_rpc_error : public wallet_logic_error
     {
       const std::string& request() const { return m_request; }
