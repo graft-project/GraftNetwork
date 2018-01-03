@@ -41,6 +41,8 @@ public:
     std::unique_ptr<tools::GraftWallet> initWallet(const std::string &account, const std::string &password) const;
     void storeWalletState(std::unique_ptr<tools::GraftWallet> wallet);
 
+    static std::string base64_decode(const std::string &encoded_data);
+    static std::string base64_encode(const std::string &data);
 
 protected:
     void Init() override;

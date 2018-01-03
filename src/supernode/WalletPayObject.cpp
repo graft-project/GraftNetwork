@@ -60,7 +60,7 @@ bool supernode::WalletPayObject::Init(const rpc_command::WALLET_PAY::request& sr
 bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& src) {
 	BaseRTAObject::Init(src);
 
-	if( !OpenSenderWallet(src.Account, src.Password) ) { LOG_ERROR("!OpenSenderWallet"); return false; }
+    if( !OpenSenderWallet(m_Owner->base64_decode(src.Account), src.Password) ) { LOG_ERROR("!OpenSenderWallet"); return false; }
 
 	// we allready have block num
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );

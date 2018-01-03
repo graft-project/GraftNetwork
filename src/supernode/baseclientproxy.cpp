@@ -30,6 +30,7 @@
 #include "common/command_line.h"
 #include "baseclientproxy.h"
 #include "graft_defines.h"
+#include "string_coding.h"
 #include "common/util.h"
 
 static const std::string scWalletCachePath("/cache/");
@@ -48,7 +49,7 @@ void supernode::BaseClientProxy::Init()
 
 bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out)
 {
-    std::unique_ptr<tools::GraftWallet> wal = initWallet(in.Account, in.Password);
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
@@ -102,7 +103,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
         out.Result = ERROR_CREATE_WALLET_FAILED;
         return false;
     }
-    out.Account = wal->store_keys_graft(in.Password);
+    out.Account = base64_encode(wal->store_keys_graft(in.Password));
     out.Address = wal->get_account().get_public_address_str(wal->testnet());
     out.ViewKey = epee::string_tools::pod_to_hex(wal->get_account().get_keys().m_view_secret_key);
     std::string seed;
@@ -114,7 +115,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
 
 bool supernode::BaseClientProxy::GetSeed(const supernode::rpc_command::GET_SEED::request &in, supernode::rpc_command::GET_SEED::response &out)
 {
-    std::unique_ptr<tools::GraftWallet> wal = initWallet(in.Account, in.Password);
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
@@ -154,7 +155,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
     {
         wal->set_seed_language(old_language);
         wal->generate_graft(in.Password, recovery_key, true, false);
-        out.Account = wal->store_keys_graft(in.Password);
+        out.Account = base64_encode(wal->store_keys_graft(in.Password));
         out.Address = wal->get_account().get_public_address_str(wal->testnet());
         out.ViewKey = epee::string_tools::pod_to_hex(
                     wal->get_account().get_keys().m_view_secret_key);
@@ -211,4 +212,14 @@ void supernode::BaseClientProxy::storeWalletState(std::unique_ptr<tools::GraftWa
                 wallet->get_account().get_public_address_str(wallet->testnet());
         wallet->store_cache(lCacheFile);
     }
+}
+
+string supernode::BaseClientProxy::base64_decode(const string &encoded_data)
+{
+    return epee::string_encoding::base64_decode(encoded_data);
+}
+
+string supernode::BaseClientProxy::base64_encode(const string &data)
+{
+    return epee::string_encoding::base64_encode(data);
 }
