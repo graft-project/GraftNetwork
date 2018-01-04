@@ -53,6 +53,77 @@
 #include <chrono>
 #include <thread>
 
-#include "supernode/graft_wallet.h"
 
+
+using namespace tools;
+
+static const uint64_t AMOUNT_10_GRF = 10 * COIN;
+
+struct GraftSplittedFeeTest : public testing::Test
+{
+    std::string wallet_account1;
+    std::string wallet_account2;
+    std::string wallet_root_path;
+    std::string bdb_path;
+    const std::string DAEMON_ADDR = "localhost:28281";
+    std::string RECIPIENT_ADDR = "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE";
+
+
+
+    GraftSplittedFeeTest()
+    {
+//        wallet *wallet1 = new GraftWallet(true, false);
+//        e *wallet2 = new GraftWallet(true, false);
+        wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
+//        string wallet_path1 = wallet_root_path + "/miner_wallet";
+//        string wallet_path2 = wallet_root_path + "/stake_wallet";
+//        wallet1->load(wallet_path1, "");
+//        wallet2->load(wallet_path2, "");
+//        RECIPIENT_ADDR = wallet2->address();
+////        // serialize test wallets
+////        wallet_account1 = wallet1->store_keys_graft("", false);
+//        delete wallet1;
+////        wallet_account2 = wallet2->store_keys_graft("", false);
+//        delete wallet2;
+    }
+
+    ~GraftSplittedFeeTest()
+    {
+
+    }
+
+};
+
+TEST_F(GraftSplittedFeeTest, SplitFeeTest)
+{
+
+    vector<string> auth_sample = {
+        "T6SMPhhnQcAGuH74Mc1SwLPHqfjWArgWq9BEHC4n25nAfxMcNHnf6KzHgsQtJGhFjCaYvraFN4QkpKPoLRXTiYx21kZ84cXo7",
+        "T6TQq1wVq45ihKHcpXc82cXTqdcX2BF6ed8DjNmbR74XieV59C31SoVCR32zMYwiWv6Y4F8WXMfBQgFxErza4YYV33ZTVBucu",
+        "T6SKgE9sUqnEf6y2x26HnWPHALAT1hEFgCw6hfDvNiBnZNUoQsML6iFEXKi19fLTh1bh7P2JjiDqT4AZuQ9GLE3z2jGDugZYM",
+        "T6TRpaRPr9HFxZBC6pYj27iKeKnvqUoCS2LNgbkBLabFAwuKBcQ7HRi8BqNDmYaukfhswgqD5KbsiYe7tG8qnkSf1z7MPYTDE",
+//        "T6SQw3DyNkFBMpfVL9dGtTWaJ9ByzF1M2GgyRnidTbfJJS7i8UCvtiFUs4MQXHf51LTRaCrQ25Ekg2ixJBgYLt4a1WrfPTV3c",
+//        "T6TvUxr8EkC1xVT3raHancQGARpKRCSo664GZZw4t5UdVq4jkbaXR7h8pit59hhvThRdAekQZ6Q8bQPCej3p6GCL2GYQhJHxh",
+//        "T6TEMA4tgbJfHmouT4994iiUuHwkNWmUHA89dKiidbPyVK7yQQbyL3FAha2t15h2sudsEELjSxLiL2Pa8CVprSJ51vhEZuhY9",
+//        "T6SEENMa4aHdLevCYrrYykSkdUpKu5y6qHF6FBhfxn7p9WREjvejCgWeSabyMWT5qUhLZT8LJCUaj1pUcQJyBjrQ13DjCi4Ac"
+    };
+
+    tools::wallet2 *wallet = new tools::wallet2(true, false);
+    string wallet_path1 = wallet_root_path + "/stake_wallet";
+    ASSERT_NO_THROW(wallet->load(wallet_path1, ""));
+    // connect to daemon and get the blocks
+    wallet->init(DAEMON_ADDR);
+    wallet->refresh();
+    LOG_PRINT_L0("wallet balance: " <<  cryptonote::print_money(wallet->unlocked_balance()));
+    LOG_PRINT_L0("wallet default mixin: " <<  wallet->default_mixin());
+
+//    wallet2::create_transactions_graft(const string &recipient_address, const std::vector<string> &auth_sample, uint64_t amount,
+//                                                                       double fee_percent, const uint64_t unlock_time, uint32_t priority,
+//                                                                       const std::vector<uint8_t> extra, bool trusted_daemon)
+    vector<uint8_t> extra;
+
+    vector<wallet2::pending_tx> ptx = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, AMOUNT_10_GRF,
+                                                                        0.1, 0, 2, extra, true);
+
+}
 
