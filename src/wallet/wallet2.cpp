@@ -4725,13 +4725,17 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
     const double GRAFT_LOWEST_FEE = 0.005;
     THROW_WALLET_EXCEPTION_IF((fee_percent < GRAFT_LOWEST_FEE), tools::error::graft_fee_too_low);
     const size_t GRAFT_AUTH_SAMPLE_SIZE = 8;
-    THROW_WALLET_EXCEPTION_IF((auth_sample.size() != GRAFT_AUTH_SAMPLE_SIZE), tools::error::graft_invalid_auth_sample);
+    // THROW_WALLET_EXCEPTION_IF((auth_sample.size() != GRAFT_AUTH_SAMPLE_SIZE), tools::error::graft_invalid_auth_sample);
 
     // split amount by recepient and auth sample
     // TODO: use proper math
     uint64_t total_fee = std::round(amount * fee_percent / 100.0);
     uint64_t recipient_amount = amount - total_fee;
     // call create_transactions_2 to create actual transaction(s)
+
+    LOG_PRINT_L0("total fee: " << print_money(total_fee));
+    if (!auth_sample.empty())
+        LOG_PRINT_L0("per node fee: " << print_money(total_fee/auth_sample.size()));
 
     cryptonote::account_public_address address;
     THROW_WALLET_EXCEPTION_IF(false == get_account_address_from_str(address, testnet(), recipient_address),
@@ -4746,7 +4750,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
         tx_dsts.push_back(cryptonote::tx_destination_entry(total_fee / auth_sample.size(), address));
     }
 
-    return create_transactions_2(tx_dsts, 0, unlock_time, priority, extra, trusted_daemon);
+    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, trusted_daemon, true);
 }
 
 std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
