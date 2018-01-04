@@ -146,7 +146,7 @@ namespace supernode {
 			for(unsigned k=0;k<RetryCount;k++) {
 				DAPI_RPC_Client client;
 				client.Set( ip, port );
-				if( !client.Invoke<IN_t, OUT_t>(method, in, *outo, "0", CallTimeout) ) {
+				if( !client.Invoke<IN_t, OUT_t>(method, in, *outo, CallTimeout) ) {
 					wasNoConnect = wasNoConnect || !client.WasConnected;
 					boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
 					continue;

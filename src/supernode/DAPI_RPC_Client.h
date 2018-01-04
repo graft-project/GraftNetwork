@@ -50,13 +50,11 @@ namespace supernode {
 		bool WasConnected = false;
 
 		template<class t_request, class t_response>
-		bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, const string& id="0", std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
+		bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
 
-			epee::json_rpc::request<t_request> req;
+			rpc_command::RequestContainer<t_request> req;
 	    	req.params = out_struct;
 	    	req.method = call;
-	    	req.jsonrpc = "2.0";
-	    	req.id = id;
 
 	    	std::string req_param;
 	    	if(!epee::serialization::store_t_to_json(req, req_param)) return false;

@@ -64,29 +64,34 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
 
     uint64_t ticks = epee::misc_utils::get_tick_count();
     epee::serialization::portable_storage ps;
+
+//    epee::json_rpc::error_response rsp;
+    string version;
+    std::string callback_name;
+    epee::serialization::storage_entry id_ = epee::serialization::storage_entry(std::string());
+
     if( !ps.load_from_json(query_info.m_body) ) {
 		LOG_PRINT_L5("!load_from_json");
-       boost::value_initialized<epee::json_rpc::error_response> rsp;
-       static_cast<epee::json_rpc::error_response&>(rsp).error.code = -32700;
-       static_cast<epee::json_rpc::error_response&>(rsp).error.message = "Parse error";
-       epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(rsp), response_info.m_body);
-       return true;
+		response_info.m_response_code = 500;
+		response_info.m_response_comment = "Parse error";
+    } else if( !ps.get_value("dapi_version", version, nullptr) ) {
+    	response_info.m_response_code = 500;
+    	response_info.m_response_comment = "No DAPI version";
+    } else if( !ps.get_value("method", callback_name, nullptr) ) {
+    	response_info.m_response_code = 500;
+    	response_info.m_response_comment = "No method";
+    } else if( version!=rpc_command::DAPI_VERSION ) {
+    	response_info.m_response_code = 500;
+    	response_info.m_response_comment = "Wrong DAPI version";
     }
 
-    epee::serialization::storage_entry id_ = epee::serialization::storage_entry(std::string());
+    if( response_info.m_response_code!=200 ) {
+    	//epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(rsp), response_info.m_body);
+    	LOG_PRINT_L5( "Error: "<<response_info.m_response_comment );
+    	return true;
+    }
+
     ps.get_value("id", id_, nullptr);
-    std::string callback_name;
-    if( !ps.get_value("method", callback_name, nullptr) ) {
-      epee::json_rpc::error_response rsp;
-      rsp.jsonrpc = "2.0";
-      rsp.error.code = -32600;
-      rsp.error.message = "Invalid Request";
-      epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(rsp), response_info.m_body);
-      LOG_PRINT_L5("!get_value");
-      return true;
-    }
-
-
 
     std::string payment_id;
     {

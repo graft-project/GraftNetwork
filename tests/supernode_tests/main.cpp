@@ -119,6 +119,7 @@ TEST_F(TestDAPI_Server_And_ClientBase, TestDAPI_Server_And_Client) {
 		string port = "7555";
 
 
+		supernode::rpc_command::SetDAPIVersion("v1.0");
 		supernode::DAPI_RPC_Server dapi_server;
 		dapi_server.Set( ip, port, 5 );
 

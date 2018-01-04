@@ -93,6 +93,7 @@ int main(int argc, const char** argv) {
 
 	// Init super node objects
 	const boost::property_tree::ptree& dapi_conf = config.get_child("dapi");
+	supernode::rpc_command::SetDAPIVersion( dapi_conf.get<string>("version") );
 	supernode::DAPI_RPC_Server dapi_server;
 	dapi_server.Set( dapi_conf.get<string>("ip"), dapi_conf.get<string>("port"), dapi_conf.get<int>("threads") );
 

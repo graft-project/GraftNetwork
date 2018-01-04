@@ -33,6 +33,13 @@
 const string supernode::rpc_command::DAPI_URI = "/dapi";
 const string supernode::rpc_command::DAPI_METHOD = "POST";
 const string supernode::rpc_command::DAPI_PROTOCOL = "http";
+const string supernode::rpc_command::DAPI_VERSION = "http";
+
+void supernode::rpc_command::SetDAPIVersion(const string& v) {
+	const string* ptr = &DAPI_VERSION;
+	string* p2 = (string*)ptr;
+	*p2 = v;
+}
 
 #define DCALL(xx) const string supernode::dapi_call::xx = #xx;
 DCALL(Pay);

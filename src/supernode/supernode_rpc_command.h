@@ -31,6 +31,8 @@
 #define SUPERNODE_RPC_COMMAND_H_
 
 #include "supernode_common_struct.h"
+#include "serialization/keyvalue_serialization.h"
+#include "storages/portable_storage_base.h"
 
 
 namespace supernode {
@@ -79,6 +81,34 @@ namespace supernode {
 		extern const string DAPI_URI;//  /dapi
         extern const string DAPI_METHOD;//  POST
 		extern const string DAPI_PROTOCOL;//  http for now
+		extern const string DAPI_VERSION;
+
+		void SetDAPIVersion(const string& v);
+
+	    template<typename t_param>
+	    struct RequestContainer {
+	      std::string jsonrpc;
+	      std::string method;
+	      std::string dapi_version;
+	      epee::serialization::storage_entry id;
+	      t_param     params;
+
+	      RequestContainer() {
+	    	  jsonrpc = "2.0";
+	    	  id = epee::serialization::storage_entry(0);
+	    	  dapi_version = DAPI_VERSION;
+
+	      }
+
+	      BEGIN_KV_SERIALIZE_MAP()
+	        KV_SERIALIZE(jsonrpc)
+	        KV_SERIALIZE(id)
+			KV_SERIALIZE(dapi_version)
+	        KV_SERIALIZE(method)
+	        KV_SERIALIZE(params)
+	      END_KV_SERIALIZE_MAP()
+	    };
+
 
 
 		// ---------------------------------------
