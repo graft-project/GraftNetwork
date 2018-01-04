@@ -56,9 +56,9 @@ set(supernode_sources
     FSN_ServantBase.cpp
     grafttxextra.cpp
     TxPool.cpp
-		supernode_helpers.cpp
-		FSN_ActualList.cpp
-		WorkerPool.cpp)
+    supernode_helpers.cpp
+    FSN_ActualList.cpp
+    WorkerPool.cpp)
 
 set(supernode_api_headers)
 
@@ -86,7 +86,7 @@ set(supernode_private_headers
     supernode_common_struct.h
     supernode_rpc_command.h
     TxPool.h
-		WorkerPool.h)
+    WorkerPool.h)
 
 monero_private_headers(supernode
     ${supernode_private_headers})
@@ -102,7 +102,6 @@ target_link_libraries(supernode
     cryptonote_core
     mnemonics
     p2p
-    uuid
     blockchain_db
     cncrypto
     cryptonote_protocol
