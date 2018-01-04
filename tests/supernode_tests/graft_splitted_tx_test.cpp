@@ -102,10 +102,10 @@ TEST_F(GraftSplittedFeeTest, SplitFeeTest)
         "T6TQq1wVq45ihKHcpXc82cXTqdcX2BF6ed8DjNmbR74XieV59C31SoVCR32zMYwiWv6Y4F8WXMfBQgFxErza4YYV33ZTVBucu",
         "T6SKgE9sUqnEf6y2x26HnWPHALAT1hEFgCw6hfDvNiBnZNUoQsML6iFEXKi19fLTh1bh7P2JjiDqT4AZuQ9GLE3z2jGDugZYM",
         "T6TRpaRPr9HFxZBC6pYj27iKeKnvqUoCS2LNgbkBLabFAwuKBcQ7HRi8BqNDmYaukfhswgqD5KbsiYe7tG8qnkSf1z7MPYTDE",
-//        "T6SQw3DyNkFBMpfVL9dGtTWaJ9ByzF1M2GgyRnidTbfJJS7i8UCvtiFUs4MQXHf51LTRaCrQ25Ekg2ixJBgYLt4a1WrfPTV3c",
-//        "T6TvUxr8EkC1xVT3raHancQGARpKRCSo664GZZw4t5UdVq4jkbaXR7h8pit59hhvThRdAekQZ6Q8bQPCej3p6GCL2GYQhJHxh",
-//        "T6TEMA4tgbJfHmouT4994iiUuHwkNWmUHA89dKiidbPyVK7yQQbyL3FAha2t15h2sudsEELjSxLiL2Pa8CVprSJ51vhEZuhY9",
-//        "T6SEENMa4aHdLevCYrrYykSkdUpKu5y6qHF6FBhfxn7p9WREjvejCgWeSabyMWT5qUhLZT8LJCUaj1pUcQJyBjrQ13DjCi4Ac"
+        "T6SQw3DyNkFBMpfVL9dGtTWaJ9ByzF1M2GgyRnidTbfJJS7i8UCvtiFUs4MQXHf51LTRaCrQ25Ekg2ixJBgYLt4a1WrfPTV3c",
+        "T6TvUxr8EkC1xVT3raHancQGARpKRCSo664GZZw4t5UdVq4jkbaXR7h8pit59hhvThRdAekQZ6Q8bQPCej3p6GCL2GYQhJHxh",
+        "T6TEMA4tgbJfHmouT4994iiUuHwkNWmUHA89dKiidbPyVK7yQQbyL3FAha2t15h2sudsEELjSxLiL2Pa8CVprSJ51vhEZuhY9",
+        "T6SEENMa4aHdLevCYrrYykSkdUpKu5y6qHF6FBhfxn7p9WREjvejCgWeSabyMWT5qUhLZT8LJCUaj1pUcQJyBjrQ13DjCi4Ac"
     };
 
     tools::wallet2 *wallet = new tools::wallet2(true, false);
@@ -114,6 +114,7 @@ TEST_F(GraftSplittedFeeTest, SplitFeeTest)
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
     wallet->refresh();
+    wallet->merge_destinations(true);
     LOG_PRINT_L0("wallet balance: " <<  cryptonote::print_money(wallet->unlocked_balance()));
     LOG_PRINT_L0("wallet default mixin: " <<  wallet->default_mixin());
 
@@ -125,6 +126,7 @@ TEST_F(GraftSplittedFeeTest, SplitFeeTest)
     vector<wallet2::pending_tx> ptxv = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, AMOUNT_10_GRF,
                                                                         0.1, 0, 2, extra, true);
 
+    LOG_PRINT_L0("merged destinations: " << wallet->merge_destinations());
     for (const auto & ptx : ptxv) {
         std::cout << "fee: " <<  ptx.fee << std::endl;
         std::cout << "dust: " << ptx.dust << std::endl;
