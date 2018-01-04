@@ -31,7 +31,9 @@
 #include "TxPool.h"
 #include "graft_defines.h"
 #include <ringct/rctSigs.h>
-#include <uuid/uuid.h>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 
 
 using namespace cryptonote;
@@ -265,10 +267,8 @@ bool supernode::PosSaleObject::PosRejectSale(const supernode::rpc_command::POS_R
 
 
 string supernode::PosSaleObject::GeneratePaymentID() {
-	uuid_t out;
-	uuid_generate_time_safe(out);
-	char uuid_str[37];
-	uuid_unparse_lower(out, uuid_str);
-	return uuid_str;
+    boost::uuids::random_generator gen;
+    boost::uuids::uuid id = gen();
+    return boost::uuids::to_string(id);
 }
 
