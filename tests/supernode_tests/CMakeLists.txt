@@ -35,6 +35,7 @@ set(supernode_tests_sources
   tx_pool_tests.cpp
   walletproxy_test.cpp
   graft_wallet_tests.cpp
+  graft_splitted_tx_test.cpp
 )
 
 set(supernode_tests_headers
