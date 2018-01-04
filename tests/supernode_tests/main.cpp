@@ -35,6 +35,7 @@
 
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
+#include "string_coding.h"
 
 #include <boost/chrono/chrono.hpp>
 #include <boost/filesystem.hpp>
@@ -360,7 +361,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		string wallet_path = s_TestDataPath + "/test_wallets" + "/stake_wallet";
 		tools::GraftWallet wallet(true, false);
 		wallet.load(wallet_path, "");
-		pay_in.Account = wallet.store_keys_graft("", false);
+		pay_in.Account = epee::string_encoding::base64_encode( wallet.store_keys_graft("", false) );
 		}
 
 
