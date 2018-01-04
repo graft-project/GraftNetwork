@@ -122,8 +122,26 @@ TEST_F(GraftSplittedFeeTest, SplitFeeTest)
 //                                                                       const std::vector<uint8_t> extra, bool trusted_daemon)
     vector<uint8_t> extra;
 
-    vector<wallet2::pending_tx> ptx = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, AMOUNT_10_GRF,
+    vector<wallet2::pending_tx> ptxv = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, AMOUNT_10_GRF,
                                                                         0.1, 0, 2, extra, true);
+
+    for (const auto & ptx : ptxv) {
+        std::cout << "fee: " <<  ptx.fee << std::endl;
+        std::cout << "dust: " << ptx.dust << std::endl;
+        std::cout << "rctFee: " << ptx.tx.rct_signatures.txnFee << std::endl;
+        std::cout << "inputs: " << ptx.tx.vin.size() << std::endl;
+
+
+        for (const auto &in : ptx.tx.vin) {
+            std::cout << "   in: " << boost::get<cryptonote::txin_to_key>(in).amount << std::endl;
+        }
+
+        std::cout << "outputs: " << ptx.tx.vout.size() << std::endl;
+        for (const auto &out : ptx.tx.vout) {
+            std::cout << "   out: " << out.amount << std::endl;
+        }
+
+    }
 
 }
 

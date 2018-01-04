@@ -1583,7 +1583,7 @@ void wallet2::update_pool_state(bool refreshed)
               {
                 if (tx_hash == txid)
                 {
-                  process_new_transaction(txid, tx, std::vector<uint64_t>(), 0, time(NULL), false, true);
+                   process_new_transaction(txid, tx, std::vector<uint64_t>(), 0, time(NULL), false, true);
                   m_scanned_pool_txs[0].insert(txid);
                   if (m_scanned_pool_txs[0].size() > 5000)
                   {
@@ -4747,7 +4747,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
         tx_dsts.push_back(cryptonote::tx_destination_entry(total_fee / auth_sample.size(), address));
     }
 
-    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, trusted_daemon, true);
+    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, trusted_daemon, false);
 }
 
 std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
