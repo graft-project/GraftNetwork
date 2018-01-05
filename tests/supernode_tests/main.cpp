@@ -243,7 +243,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 
 
 			Servant->AddFsnAccount(boost::make_shared<FSN_Data>(FSN_WalletData{address1, viewkey1}, FSN_WalletData{address2, viewkey2}, "127.0.0.1", p1));
-			//Servant->AddFsnAccount(boost::make_shared<FSN_Data>(FSN_WalletData{address2, viewkey2}, FSN_WalletData{address1, viewkey1}, "127.0.0.1", p2));
+			Servant->AddFsnAccount(boost::make_shared<FSN_Data>(FSN_WalletData{address2, viewkey2}, FSN_WalletData{address1, viewkey1}, "127.0.0.1", p2));
 
 
 			LOG_PRINT_L5("STARTED: "<<(second?2:1));
@@ -471,17 +471,17 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 	mlog_configure("", true);
 	mlog_set_log_level(5);
 
-	PosProxyPort = WalletProxyPort;
+	//PosProxyPort = WalletProxyPort;
 
 	s_TestDataPath = epee::string_tools::get_current_module_folder() + "/../data/supernode";
 
 	Supernode wallet_proxy(s_TestDataPath);
 	wallet_proxy.Start(WalletProxyPort, PosProxyPort, false);
-/*
+
 	Supernode pos_proxy(s_TestDataPath);
 	pos_proxy.Start(WalletProxyPort, PosProxyPort, true);
-*/
-	while(!wallet_proxy.Started /*|| !pos_proxy.Started*/) boost::this_thread::sleep( boost::posix_time::milliseconds(100) );
+
+	while(!wallet_proxy.Started || !pos_proxy.Started) boost::this_thread::sleep( boost::posix_time::milliseconds(100) );
 	LOG_PRINT_L5("-----------------------------------------------------------------");
 	sleep(15);
 
@@ -504,7 +504,7 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 
 
 	wallet_proxy.Stop();
-//	pos_proxy.Stop();
+	pos_proxy.Stop();
 
 	ASSERT_TRUE( m_Fail==0 );
 }
