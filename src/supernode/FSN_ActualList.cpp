@@ -31,6 +31,7 @@
 #include "P2P_Broadcast.h"
 #include "DAPI_RPC_Server.h"
 #include "DAPI_RPC_Client.h"
+#include <unistd.h>
 
 static const unsigned s_AuditTime = 50*60*1000;//50 min
 static const uint64_t s_MinStakeBalance = 0;
