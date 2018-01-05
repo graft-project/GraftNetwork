@@ -162,8 +162,8 @@ namespace config
 
   namespace testnet
   {
-    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 156; // 'T'
-    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 157;
+    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 84; // 'F'
+    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 85;
     uint16_t const P2P_DEFAULT_PORT = 28980;
     uint16_t const RPC_DEFAULT_PORT = 28981;
     boost::uuids::uuid const NETWORK_ID = { {
