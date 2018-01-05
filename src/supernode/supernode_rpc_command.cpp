@@ -41,6 +41,11 @@ void supernode::rpc_command::SetDAPIVersion(const string& v) {
 	*p2 = v;
 }
 
+static bool s_WalletProxyOnly = false;
+bool supernode::rpc_command::IsWalletProxyOnly() { return s_WalletProxyOnly; }
+void supernode::rpc_command::SetWalletProxyOnly(bool b) { s_WalletProxyOnly = b; }
+
+
 #define DCALL(xx) const string supernode::dapi_call::xx = #xx;
 DCALL(Pay);
 DCALL(GetPayStatus);

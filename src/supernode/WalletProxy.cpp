@@ -68,7 +68,6 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
 }
 
 bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
-
 	// we allready have block num
 	vector< boost::shared_ptr<FSN_Data> > vv = m_Servant->GetAuthSample( in.BlockNum );
 	if( vv.size()!=m_Servant->AuthSampleSize() ) return false;

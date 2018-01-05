@@ -235,15 +235,15 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			Servant->Set(wallet_root_path + wss1, "", wallet_root_path + wss2, "");
 
 		    // wallet1
-		    string address1 = "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE";
-		    string viewkey1 = "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007";
+		    string address2 = "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE";
+		    string viewkey2 = "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007";
 		    // wallet2
-		    string address2 = "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa";
-		    string viewkey2 = "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04";
+		    string address1 = "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa";
+		    string viewkey1 = "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04";
 
 
 			Servant->AddFsnAccount(boost::make_shared<FSN_Data>(FSN_WalletData{address1, viewkey1}, FSN_WalletData{address2, viewkey2}, "127.0.0.1", p1));
-			Servant->AddFsnAccount(boost::make_shared<FSN_Data>(FSN_WalletData{address2, viewkey2}, FSN_WalletData{address1, viewkey1}, "127.0.0.1", p2));
+			//Servant->AddFsnAccount(boost::make_shared<FSN_Data>(FSN_WalletData{address2, viewkey2}, FSN_WalletData{address1, viewkey1}, "127.0.0.1", p2));
 
 
 			LOG_PRINT_L5("STARTED: "<<(second?2:1));
@@ -465,6 +465,49 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		}
 	}
 };
+
+
+TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
+	mlog_configure("", true);
+	mlog_set_log_level(5);
+
+	PosProxyPort = WalletProxyPort;
+
+	s_TestDataPath = epee::string_tools::get_current_module_folder() + "/../data/supernode";
+
+	Supernode wallet_proxy(s_TestDataPath);
+	wallet_proxy.Start(WalletProxyPort, PosProxyPort, false);
+/*
+	Supernode pos_proxy(s_TestDataPath);
+	pos_proxy.Start(WalletProxyPort, PosProxyPort, true);
+*/
+	while(!wallet_proxy.Started /*|| !pos_proxy.Started*/) boost::this_thread::sleep( boost::posix_time::milliseconds(100) );
+	LOG_PRINT_L5("-----------------------------------------------------------------");
+	sleep(15);
+
+
+//	TestWalletReject();
+
+	m_RunInTread=1;
+	TestThread();
+/*
+	ASSERT_TRUE( TestWalletReject() );
+
+	boost::thread_group workers;
+	for(int i=0;i<10;i++) {
+		workers.create_thread( boost::bind(&Test_RTA_FlowBlockChain::TestThread, this) );
+	}
+	workers.join_all();
+*/
+
+//		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
+
+
+	wallet_proxy.Stop();
+//	pos_proxy.Stop();
+
+	ASSERT_TRUE( m_Fail==0 );
+}
 
 
 // -------------------------------------------------------------
@@ -762,45 +805,6 @@ TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
 
 
 
-TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
-	//mlog_configure("", true);
-	//mlog_set_log_level(5);
-
-	s_TestDataPath = epee::string_tools::get_current_module_folder() + "/../data/supernode";
-
-	Supernode wallet_proxy(s_TestDataPath);
-	wallet_proxy.Start(WalletProxyPort, PosProxyPort, false);
-
-	Supernode pos_proxy(s_TestDataPath);
-	pos_proxy.Start(WalletProxyPort, PosProxyPort, true);
-
-	while(!wallet_proxy.Started || !pos_proxy.Started) boost::this_thread::sleep( boost::posix_time::milliseconds(100) );
-	LOG_PRINT_L5("-----------------------------------------------------------------");
-	sleep(15);
-
-
-//	TestWalletReject();
-
-	m_RunInTread=1;
-	TestThread();
-/*
-	ASSERT_TRUE( TestWalletReject() );
-
-	boost::thread_group workers;
-	for(int i=0;i<10;i++) {
-		workers.create_thread( boost::bind(&Test_RTA_FlowBlockChain::TestThread, this) );
-	}
-	workers.join_all();
-*/
-
-//		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
-
-
-	wallet_proxy.Stop();
-	pos_proxy.Stop();
-
-	ASSERT_TRUE( m_Fail==0 );
-}
 
 
 
