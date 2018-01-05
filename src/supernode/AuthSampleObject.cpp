@@ -87,7 +87,9 @@ bool supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET
 }
 
 string supernode::AuthSampleObject::GenerateSignForTransaction() {
-	return m_Servant->SignByWalletPrivateKey( TransactionRecord.MessageForSign(), m_Servant->GetMyStakeWallet().Addr );
+	string sign = m_Servant->SignByWalletPrivateKey( TransactionRecord.MessageForSign(), m_Servant->GetMyStakeWallet().Addr );
+	//LOG_PRINT_L5("GenerateSignForTransaction: mes: "<<TransactionRecord.MessageForSign()<<"  addr: "<<m_Servant->GetMyStakeWallet().Addr<<"  sign: "<<sign)
+	return sign;
 }
 
 

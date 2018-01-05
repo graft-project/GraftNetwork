@@ -121,24 +121,6 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	ADD_RTA_OBJECT_HANDLER(PosRejectSale, rpc_command::POS_REJECT_SALE, PosSaleObject);
 	ADD_RTA_OBJECT_HANDLER(AuthWalletRejectPay, rpc_command::WALLET_REJECT_PAY, PosSaleObject);
 
-	/*
-	InitSubnet();
-
-	vector<rpc_command::POS_PROXY_SALE::response> outv;
-	rpc_command::POS_PROXY_SALE::request inbr;
-	rpc_command::ConvertFromTR(inbr, TransactionRecord);
-	inbr.SenderIP = m_DAPIServer->IP();
-	inbr.SenderPort = m_DAPIServer->Port();
-	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) { LOG_PRINT_L5("!Send dapi_call::PosProxySale"); return false; }
-
-    m_Status = NTransactionStatus::InProgress;
-
-
-	ADD_RTA_OBJECT_HANDLER(GetSaleStatus, rpc_command::POS_GET_SALE_STATUS, PosSaleObject);
-	ADD_RTA_OBJECT_HANDLER(PoSTRSigned, rpc_command::POS_TR_SIGNED, PosSaleObject);
-	ADD_RTA_OBJECT_HANDLER(PosRejectSale, rpc_command::POS_REJECT_SALE, PosSaleObject);
-	ADD_RTA_OBJECT_HANDLER(AuthWalletRejectPay, rpc_command::WALLET_REJECT_PAY, PosSaleObject);
-*/
 	return true;
 }
 
@@ -195,22 +177,33 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
         return false;
     }
     // check all signs
-    LOG_PRINT_L2("AuthNodes.size : " << TransactionRecord.AuthNodes.size());
+    //LOG_PRINT_L2("AuthNodes.size : " << TransactionRecord.AuthNodes.size());
 
     if (TransactionRecord.AuthNodes.size() != graft_tx_extra.Signs.size()) {
         LOG_ERROR("TX " << in.TransactionPoolID << " : number of auth nodes and number of signs mismatch");
         return false;
     }
 
-    for (unsigned i = 0; i < graft_tx_extra.Signs.size(); ++i) {
 
+    //LOG_PRINT_L5("graft_tx_extra.Signs: "<<graft_tx_extra.Signs.size()<<"  TransactionRecord.AuthNodes: "<<TransactionRecord.AuthNodes.size());
+
+
+    for (unsigned i = 0; i < graft_tx_extra.Signs.size(); ++i) {
         const string &sign = graft_tx_extra.Signs.at(i);
+
+        if( CheckSign(TransactionRecord.AuthNodes[i]->Stake.Addr, sign) ) {
+        	m_Signs++;
+        } else {
+        	LOG_ERROR("TX " << in.TransactionPoolID << " : signature failed to check for all nodes: " << sign);
+        }
+
+        /*
         bool check_result = false;
         // TODO: in some reasons TransactionRecord.AuthNodes order and Signs order mismatch, so it can't be checked
         // by the same index
         for (const auto & authNode : TransactionRecord.AuthNodes) {
-            LOG_PRINT_L2("Checking signature with wallet: " << authNode->Stake.Addr << " [" << sign << "]");
             check_result = CheckSign(authNode->Stake.Addr, sign);
+            LOG_PRINT_L5("Checking signature with wallet: " << authNode->Stake.Addr << " [" << sign << "]  result: "<<check_result<<" messag: "<<TransactionRecord.MessageForSign());
             if (check_result)
                 break;
         }
@@ -218,7 +211,9 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
             LOG_ERROR("TX " << in.TransactionPoolID << " : signature failed to check for all nodes: " << sign);
             return false;
         }
+
         m_Signs++;
+           */
     }
 
     if (m_Signs != m_Servant->AuthSampleSize()) {

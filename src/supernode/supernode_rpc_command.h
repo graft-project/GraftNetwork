@@ -83,6 +83,9 @@ namespace supernode {
 		extern const string DAPI_PROTOCOL;//  http for now
 		extern const string DAPI_VERSION;
 
+		bool IsWalletProxyOnly();
+		void SetWalletProxyOnly(bool b);
+
 		void SetDAPIVersion(const string& v);
 
 	    template<typename t_param>
