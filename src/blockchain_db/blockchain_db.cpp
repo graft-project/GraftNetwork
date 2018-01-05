@@ -357,6 +357,7 @@ void BlockchainDB::fixup()
   // The key images below are those from the inputs in those transactions.
   // On testnet, there are no such transactions
   // See commit 533acc30eda7792c802ea8b6417917fa99b8bc2b for the fix
+  // graft: this fix will not take any effect, just keep it in order to have as less difference with monero code
   static const char * const mainnet_genesis_hex = "418015bb9ae982a1975da7d79277c2705727a56894ba0fb246adaabb1f4632e3";
   crypto::hash mainnet_genesis_hash;
   epee::string_tools::hex_to_pod(mainnet_genesis_hex, mainnet_genesis_hash );

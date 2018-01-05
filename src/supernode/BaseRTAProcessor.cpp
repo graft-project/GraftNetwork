@@ -69,6 +69,7 @@ boost::shared_ptr<supernode::BaseRTAObject> supernode::BaseRTAProcessor::ObjectB
 
 void supernode::BaseRTAProcessor::Remove(boost::shared_ptr<BaseRTAObject> obj) {
 	obj->MarkForDelete();
+	LOG_PRINT_L5("Remove: "<<obj->TransactionRecord.PaymentID);
 	{
 		boost::lock_guard<boost::recursive_mutex> lock(m_ObjectsGuard);
 		auto it = find(m_Objects.begin(), m_Objects.end(), obj);

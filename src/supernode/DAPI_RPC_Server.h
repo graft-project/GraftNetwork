@@ -132,8 +132,6 @@ namespace supernode {
 		protected:
 		string m_IP;
 		string m_Port;
-
-
 	};
 
 };

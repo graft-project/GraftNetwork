@@ -51,6 +51,7 @@ set(unit_tests_sources
   mnemonics.cpp
   mul_div.cpp
   parse_amount.cpp
+  premine.cpp
   serialization.cpp
   slow_memmem.cpp
   test_tx_utils.cpp

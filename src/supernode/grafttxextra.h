@@ -1,7 +1,7 @@
 #ifndef GRAFTTXEXTRA_H
 #define GRAFTTXEXTRA_H
 
-#include "serialization/serialization.h"
+#include "cryptonote_basic/account.h"
 
 namespace supernode {
 

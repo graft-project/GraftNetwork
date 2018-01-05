@@ -161,7 +161,7 @@ struct Supernode
 };
 
 
-struct WalletProxyTest : public testing::Test
+struct GraftRTATest1 : public testing::Test
 {
     std::string wallet_account;
     std::string wallet_root_path;
@@ -176,7 +176,7 @@ struct WalletProxyTest : public testing::Test
     string WalletProxyPort = "7500";
     string PosProxyPort = "8500";
 
-    WalletProxyTest()
+    GraftRTATest1()
     {
         GraftWallet *wallet = new GraftWallet(true, false);
         wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
@@ -188,7 +188,7 @@ struct WalletProxyTest : public testing::Test
         delete wallet;
     }
 
-    ~WalletProxyTest()
+    ~GraftRTATest1()
     {
 
     }
@@ -200,7 +200,7 @@ struct WalletProxyTest : public testing::Test
         rpc_command::WALLET_GET_TRANSACTION_STATUS::request in;
         rpc_command::WALLET_GET_TRANSACTION_STATUS::response out;
         in.PaymentID = payID;
-        bool ret = call.Invoke(dapi_call::GetPayStatus, in, out, chrono::seconds(10));
+        bool ret = call.Invoke(dapi_call::GetPayStatus, in, out);
 
         if(!ret) return NTransactionStatus::Fail;
         return NTransactionStatus(out.Status);
@@ -213,7 +213,7 @@ struct WalletProxyTest : public testing::Test
         rpc_command::POS_GET_SALE_STATUS::request in;
         rpc_command::POS_GET_SALE_STATUS::response out;
         in.PaymentID = payID;
-        bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out, chrono::seconds(10));
+        bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out);
 
         if(!ret) return NTransactionStatus::Fail;
         return NTransactionStatus(out.Status);
@@ -247,7 +247,7 @@ struct WalletProxyTest : public testing::Test
         for (unsigned i=0; i < repeatCount; i++) {// transaction must started from Sale call
             DAPI_RPC_Client pos_sale;
             pos_sale.Set(IP, PosProxyPort);
-            result = pos_sale.Invoke("Sale", sale_in, sale_out, chrono::seconds(10));
+            result = pos_sale.Invoke("Sale", sale_in, sale_out);
             if (Assert(result, "Sale"))
                 break;
         }
@@ -280,7 +280,7 @@ struct WalletProxyTest : public testing::Test
             DAPI_RPC_Client wallet_pay;
             wallet_pay.Set(IP, WalletProxyPort);
             LOG_PRINT_L0("Invoking 'Pay'");
-            result = wallet_pay.Invoke("Pay", pay_in, pay_out, chrono::seconds(10));
+            result = wallet_pay.Invoke("Pay", pay_in, pay_out);
             if (Assert(result, "Pay"))
                 break;
             //boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
@@ -313,7 +313,7 @@ struct WalletProxyTest : public testing::Test
 
 };
 
-
+/*
 TEST_F(WalletProxyTest, SendTx)
 {
     ASSERT_FALSE(wallet_account.empty());
@@ -392,9 +392,9 @@ TEST_F(WalletProxyTest, SendTx)
     //    ASSERT_TRUE(walletProxy->Pay(req, resp));
 
 }
+*/
 
-
-TEST_F(WalletProxyTest, TestWalletProxyPay)
+TEST_F(GraftRTATest1, TestWalletProxyPay)
 {
     //    ASSERT_FALSE(wallet_account.empty());
     //    const std::string DST_WALLET_ADDR = "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa";

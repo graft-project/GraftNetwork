@@ -27,41 +27,31 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "graft_defines.h"
-#include "PosProxy.h"
+#ifndef WORKERPOOL_H_
+#define WORKERPOOL_H_
 
-void supernode::PosProxy::Init() {
-    BaseClientProxy::Init();
-    m_Work.Workers(10);
-	m_DAPIServer->ADD_DAPI_HANDLER(Sale, rpc_command::POS_SALE, PosProxy);
-	// TODO: add all other handlers
+#include <boost/asio/io_service.hpp>
+#include <boost/bind.hpp>
+#include <boost/thread/thread.hpp>
+
+
+namespace supernode {
+
+class WorkerPool {
+public:
+	WorkerPool();
+	void Workers(int cnt);
+	void Stop();
+
+public:
+    boost::asio::io_service Service;
+    boost::thread_group Threadpool;
+    boost::asio::io_service::work Work;
+
+};
+
 }
 
-
-bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out) {
-    //TODO: Add input data validation
-	boost::shared_ptr<PosSaleObject> data = boost::shared_ptr<PosSaleObject>( new PosSaleObject() );
-	data->Owner(this);
-	Setup(data);
+#endif
 
 
-    if (!data->Init(in))
-    {
-        out.Result = ERROR_SALE_REQUEST_FAILED;
-        LOG_PRINT_L5("ERROR_SALE_REQUEST_FAILED");
-        return false;
-    }
-	Add(data);
-
-	m_Work.Service.post( [data](){
-		data->ContinueInit();
-	} );
-
-
-//	LOG_PRINT_L5( "ADD: "<<in.PaymentID<<"  data: "<<data->TransactionRecord.PaymentID );
-
-	out.BlockNum = data->TransactionRecord.BlockNum;
-	out.PaymentID = data->TransactionRecord.PaymentID;
-    out.Result = STATUS_OK;
-	return true;
-}

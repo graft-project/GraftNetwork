@@ -53,19 +53,17 @@ bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::requ
 
 	Add(data);
 
+	LOG_PRINT_L5("ADD: "<<in.PaymentID<<"  in: "<<m_DAPIServer->Port());
+
 	return true;
 }
 
 bool supernode::AuthSample::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out) {
 	boost::shared_ptr<BaseRTAObject> ff = ObjectByPayment(in.PaymentID);
 	boost::shared_ptr<AuthSampleObject> data = boost::dynamic_pointer_cast<AuthSampleObject>(ff);
-	if(!data) { LOG_PRINT_L5("not found object"); return false; }
+	if(!data) { LOG_PRINT_L5("not found object: "<<in.PaymentID<<"  in: "<<m_DAPIServer->Port()); return false; }
 
-
-	RTA_TransactionRecord tr;
-	rpc_command::ConvertToTR(tr, in, m_Servant);
-	if( !data->WalletProxyPay(tr, out) ) { LOG_PRINT_L5("!WalletProxyPay"); Remove(data); return false; }
-
+	if( !data->WalletProxyPay(in, out) ) { LOG_PRINT_L5("!WalletProxyPay"); Remove(data); return false; }
 
 	return true;
 }

@@ -32,9 +32,7 @@
 
 #include "FSN_ServantBase.h"
 #include "supernode_rpc_command.h"
-#include <boost/asio/io_service.hpp>
-#include <boost/bind.hpp>
-#include <boost/thread/thread.hpp>
+#include "WorkerPool.h"
 
 namespace supernode {
 
@@ -75,9 +73,7 @@ protected:
     bool m_Running = false;
     boost::thread* m_Thread = nullptr;
 
-    boost::asio::io_service m_IOService;
-    boost::thread_group m_Threadpool;
-    boost::asio::io_service::work m_Work;
+    WorkerPool m_Work;
     boost::posix_time::ptime m_AuditStartAt;
 
 };

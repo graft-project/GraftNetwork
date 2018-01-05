@@ -45,15 +45,22 @@ bool supernode::WalletPayObject::OpenSenderWallet(const string &wallet, const st
     return true;
 }
 
+void supernode::WalletPayObject::BeforStart() {
+	m_Status = NTransactionStatus::InProgress;
+	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
+}
 
-bool supernode::WalletPayObject::Init(const RTA_TransactionRecordBase& src) {
+
+bool supernode::WalletPayObject::Init(const rpc_command::WALLET_PAY::request& src) {
 	bool ret = _Init(src);
     m_Status = ret ? NTransactionStatus::Success : NTransactionStatus::Fail;
 	return ret;
 }
 
-bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
+bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& src) {
 	BaseRTAObject::Init(src);
+
+    if( !OpenSenderWallet(m_Owner->base64_decode(src.Account), src.Password) ) { LOG_ERROR("!OpenSenderWallet"); return false; }
 
 	// we allready have block num
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
@@ -67,6 +74,13 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	vector<rpc_command::WALLET_PROXY_PAY::response> outv;
 	rpc_command::WALLET_PROXY_PAY::request inbr;
 	rpc_command::ConvertFromTR(inbr, TransactionRecord);
+	string cwa = m_wallet->get_account().get_public_address_str(m_wallet->testnet());;
+	string data = TransactionRecord.PaymentID + string(":") + cwa;
+	inbr.CustomerWalletAddr = cwa;
+	inbr.CustomerWalletSign = m_wallet->sign(data);
+
+	//LOG_PRINT_L5("CWA: "<<data);
+
     if( !m_SubNetBroadcast.Send(dapi_call::WalletProxyPay, inbr, outv) || outv.empty() )  {
         LOG_ERROR("Failed to send WalletProxyPay broadcast");
         return false;
@@ -105,9 +119,6 @@ bool supernode::WalletPayObject::_Init(const RTA_TransactionRecordBase& src) {
 	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
 
 
-	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
-
-
 	return true;
 }
 
@@ -137,6 +148,8 @@ bool supernode::WalletPayObject::PutTXToPool() {
         LOG_ERROR("Wallet needs to be opened with OpenSenderWallet before this call");
         return false;
     }
+
+    //for(auto& a : m_Signs) LOG_PRINT_L5("sign in m_Signs: "<<a);
 
     GraftTxExtra tx_extra;
     tx_extra.BlockNum = 123;

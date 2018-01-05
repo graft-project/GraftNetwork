@@ -7,7 +7,6 @@ sudo apt-get install -y \
     libboost-all-dev \
     libssl-dev \
     libunbound-dev \
-    uuid-dev \
     libminiupnpc-dev \
     libunwind8-dev \
     liblzma-dev \
