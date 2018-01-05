@@ -177,7 +177,7 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
         return false;
     }
     // check all signs
-    LOG_PRINT_L2("AuthNodes.size : " << TransactionRecord.AuthNodes.size());
+    //LOG_PRINT_L2("AuthNodes.size : " << TransactionRecord.AuthNodes.size());
 
     if (TransactionRecord.AuthNodes.size() != graft_tx_extra.Signs.size()) {
         LOG_ERROR("TX " << in.TransactionPoolID << " : number of auth nodes and number of signs mismatch");

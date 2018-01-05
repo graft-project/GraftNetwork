@@ -149,7 +149,7 @@ bool supernode::WalletPayObject::PutTXToPool() {
         return false;
     }
 
-    for(auto& a : m_Signs) LOG_PRINT_L5("sign in m_Signs: "<<a);
+    //for(auto& a : m_Signs) LOG_PRINT_L5("sign in m_Signs: "<<a);
 
     GraftTxExtra tx_extra;
     tx_extra.BlockNum = 123;
