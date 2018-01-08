@@ -39,23 +39,23 @@ namespace supernode {
 	class AuthSampleObject: public BaseRTAObject {
 		public:
 		void Owner(AuthSample* o);
-		bool Init(const RTA_TransactionRecord& src);
-		bool WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out);
+		DAPICallResult Init(const RTA_TransactionRecord& src);
+		DAPICallResult WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out);
 
 		public:
 		string PosIP;
 		string PosPort;
 
 		protected:
-		bool WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out);
-		bool WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out);
-		bool WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out);
+		DAPICallResult WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out);
+		DAPICallResult WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out);
+		DAPICallResult WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out);
 
 		protected:
 		string GenerateSignForTransaction();
 
 		protected:
-		virtual bool Init(const RTA_TransactionRecordBase& src);
+		virtual DAPICallResult Init(const RTA_TransactionRecordBase& src);
 
 		protected:
 		AuthSample* m_Owner = nullptr;

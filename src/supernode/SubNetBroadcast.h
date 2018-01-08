@@ -131,7 +131,7 @@ namespace supernode {
 
 
 		template<class IN_t, class OUT_t>
-		void AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
+		void AddHandler( const string& method, boost::function<DAPICallResult (const IN_t&, OUT_t&)> handler ) {
 			int idx = m_DAPIServer->Add_UUID_MethodHandler<IN_t, OUT_t>( m_PaymentID, method, handler );
 			m_MyHandlers.push_back(idx);
 		}

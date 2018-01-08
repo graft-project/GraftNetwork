@@ -106,13 +106,13 @@ bool lookup_acc_outs_rct(const account_keys &acc, const transaction &tx, std::ve
 
 void supernode::PosSaleObject::Owner(PosProxy* o) { m_Owner = o; }
 
-bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
+supernode::DAPICallResult supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	BaseRTAObject::Init(src);
 
 	TransactionRecord.PaymentID = GeneratePaymentID();
 	TransactionRecord.BlockNum = m_Servant->GetCurrentBlockHeight();
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
-	if( TransactionRecord.AuthNodes.empty() ) { LOG_PRINT_L5("SALE: AuthNodes.empty"); m_Status = NTransactionStatus::Fail; return false; }
+	if( TransactionRecord.AuthNodes.empty() ) { m_Status = NTransactionStatus::Fail; return "SALE: AuthNodes.empty"; }
 
     m_Status = NTransactionStatus::InProgress;
 
@@ -121,7 +121,7 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	ADD_RTA_OBJECT_HANDLER(PosRejectSale, rpc_command::POS_REJECT_SALE, PosSaleObject);
 	ADD_RTA_OBJECT_HANDLER(AuthWalletRejectPay, rpc_command::WALLET_REJECT_PAY, PosSaleObject);
 
-	return true;
+	return "";
 }
 
 void supernode::PosSaleObject::ContinueInit() {
@@ -140,23 +140,23 @@ void supernode::PosSaleObject::ContinueInit() {
 
 }
 
-bool supernode::PosSaleObject::AuthWalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
+supernode::DAPICallResult supernode::PosSaleObject::AuthWalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
 	m_Status = NTransactionStatus::RejectedByWallet;
-	return true;
+	return "";
 }
 
-bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out)
+supernode::DAPICallResult supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out)
 {
 	out.Status = int(m_Status);
     out.Result = STATUS_OK;
-	return true;
+	return "";
 }
 
 
-bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out) {
+supernode::DAPICallResult supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out) {
 	{
 		boost::lock_guard<boost::recursive_mutex> lock(m_TxInPoolGotGuard);
-		if(m_TxInPoolGot) return true;
+		if(m_TxInPoolGot) return "";
 		m_TxInPoolGot = true;
 	}
 
@@ -165,23 +165,20 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
     TxPool txPool(m_Servant->GetNodeAddress(), m_Servant->GetNodeLogin(), m_Servant->GetNodePassword());
     cryptonote::transaction tx;
     if (!txPool.get(in.TransactionPoolID, tx)) {
-        LOG_ERROR("TX " << in.TransactionPoolID << " was not found in pool");
-        return false;
+        return string("TX ")+ boost::lexical_cast<string>(in.TransactionPoolID) + string(" was not found in pool");
     }
 
 
     // Get the tx extra
     GraftTxExtra graft_tx_extra;
     if (!cryptonote::get_graft_tx_extra_from_extra(tx, graft_tx_extra)) {
-        LOG_ERROR("TX " << in.TransactionPoolID << " : error reading graft extra");
-        return false;
+    	return string("TX ")+ boost::lexical_cast<string>(in.TransactionPoolID) + string(" : error reading graft extra");
     }
     // check all signs
     //LOG_PRINT_L2("AuthNodes.size : " << TransactionRecord.AuthNodes.size());
 
     if (TransactionRecord.AuthNodes.size() != graft_tx_extra.Signs.size()) {
-        LOG_ERROR("TX " << in.TransactionPoolID << " : number of auth nodes and number of signs mismatch");
-        return false;
+    	return string("TX ")+ boost::lexical_cast<string>(in.TransactionPoolID) + string(" : number of auth nodes and number of signs mismatch");
     }
 
 
@@ -194,31 +191,13 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
         if( CheckSign(TransactionRecord.AuthNodes[i]->Stake.Addr, sign) ) {
         	m_Signs++;
         } else {
-        	LOG_ERROR("TX " << in.TransactionPoolID << " : signature failed to check for all nodes: " << sign);
+        	return string("TX ")+ boost::lexical_cast<string>(in.TransactionPoolID) + string(" : signature failed to check for all nodes: ")+sign;
         }
 
-        /*
-        bool check_result = false;
-        // TODO: in some reasons TransactionRecord.AuthNodes order and Signs order mismatch, so it can't be checked
-        // by the same index
-        for (const auto & authNode : TransactionRecord.AuthNodes) {
-            check_result = CheckSign(authNode->Stake.Addr, sign);
-            LOG_PRINT_L5("Checking signature with wallet: " << authNode->Stake.Addr << " [" << sign << "]  result: "<<check_result<<" messag: "<<TransactionRecord.MessageForSign());
-            if (check_result)
-                break;
-        }
-        if (!check_result) {
-            LOG_ERROR("TX " << in.TransactionPoolID << " : signature failed to check for all nodes: " << sign);
-            return false;
-        }
-
-        m_Signs++;
-           */
     }
 
     if (m_Signs != m_Servant->AuthSampleSize()) {
-        LOG_ERROR("Checked signs number mismatch with auth sample size, " << m_Signs << "/" << m_Servant->AuthSampleSize());
-        return false;
+        return string("Checked signs number mismatch with auth sample size, ") + boost::lexical_cast<string>(m_Signs) + string("/") + boost::lexical_cast<string>(m_Servant->AuthSampleSize());
     }
 
 
@@ -228,8 +207,7 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
     epee::string_tools::hex_to_pod(TransactionRecord.POSViewKey, pos_account.m_view_secret_key);
 
     if (!cryptonote::get_account_address_from_str(pos_account.m_account_address, m_Servant->IsTestnet(), TransactionRecord.POSAddress)) {
-        LOG_ERROR("Error parsing POS Address: " << TransactionRecord.POSAddress);
-        return false;
+        return string("Error parsing POS Address: ") + TransactionRecord.POSAddress;
     }
 
 
@@ -237,27 +215,25 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
     vector<size_t> outputs;
 
     if (!lookup_acc_outs_rct(pos_account, tx, outputs, amount)) {
-        LOG_ERROR("Error checking tx outputs");
-        return false;
+        return("Error checking tx outputs");
     }
 
     if (amount != TransactionRecord.Amount) {
-        LOG_ERROR("Tx amount is not equal to TransactionRecord.Amount: " << amount << "/" << TransactionRecord.Amount);
-        return false;
+        return string("Tx amount is not equal to TransactionRecord.Amount: ") + boost::lexical_cast<string>(amount) + string("/") + boost::lexical_cast<string>(TransactionRecord.Amount);
     }
 
     m_Status = NTransactionStatus::Success;
-    return true;
+    return "";
 }
 
 
-bool supernode::PosSaleObject::PosRejectSale(const supernode::rpc_command::POS_REJECT_SALE::request &in, supernode::rpc_command::POS_REJECT_SALE::response &out) {
+supernode::DAPICallResult supernode::PosSaleObject::PosRejectSale(const supernode::rpc_command::POS_REJECT_SALE::request &in, supernode::rpc_command::POS_REJECT_SALE::response &out) {
     m_Status = NTransactionStatus::RejectedByPOS;
 
     //TODO: Add impl
 
     out.Result = STATUS_OK;
-    return true;
+    return "";
 }
 
 

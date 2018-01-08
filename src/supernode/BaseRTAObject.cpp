@@ -34,10 +34,10 @@ supernode::BaseRTAObject::BaseRTAObject() {
 	TimeMark = boost::posix_time::second_clock::local_time();
 }
 
-bool supernode::BaseRTAObject::Init(const RTA_TransactionRecordBase& src) {
+supernode::DAPICallResult supernode::BaseRTAObject::Init(const RTA_TransactionRecordBase& src) {
 	RTA_TransactionRecordBase& dst = TransactionRecord;
 	dst = src;
-	return true;
+	return "";
 }
 
 void supernode::BaseRTAObject::Set(const FSN_ServantBase* ser, DAPI_RPC_Server* dapi) {

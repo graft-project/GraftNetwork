@@ -60,7 +60,7 @@ namespace supernode {
 		void AddHandler( const string& method, boost::function<void (const IN_t&)> handler ) {
 			m_DAPIServer->Add_UUID_MethodHandler<IN_t, rpc_command::P2P_DUMMY_RESP>("p2p", method, [handler](const IN_t& in, rpc_command::P2P_DUMMY_RESP& out){
 				handler(in);
-				return true;
+				return string("");
 			}
 			);
 		}
@@ -69,7 +69,7 @@ namespace supernode {
 		void AddNearHandler( const string& method, boost::function<void (const IN_t&, OUT_t&)> handler ) {
 			m_DAPIServer->Add_UUID_MethodHandler<IN_t, OUT_t>("p2p", method, [handler](const IN_t& in, OUT_t& out) {
 				handler(in, out);
-				return true;
+				return string("");
 			});
 		}
 

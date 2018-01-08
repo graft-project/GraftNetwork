@@ -47,11 +47,11 @@ public:
 protected:
     void Init() override;
 
-    bool GetWalletBalance(const rpc_command::GET_WALLET_BALANCE::request &in, rpc_command::GET_WALLET_BALANCE::response &out);
+    DAPICallResult GetWalletBalance(const rpc_command::GET_WALLET_BALANCE::request &in, rpc_command::GET_WALLET_BALANCE::response &out);
 
-    bool CreateAccount(const rpc_command::CREATE_ACCOUNT::request &in, rpc_command::CREATE_ACCOUNT::response &out);
-    bool GetSeed(const rpc_command::GET_SEED::request &in, rpc_command::GET_SEED::response &out);
-    bool RestoreAccount(const rpc_command::RESTORE_ACCOUNT::request &in, rpc_command::RESTORE_ACCOUNT::response &out);
+    DAPICallResult CreateAccount(const rpc_command::CREATE_ACCOUNT::request &in, rpc_command::CREATE_ACCOUNT::response &out);
+    DAPICallResult GetSeed(const rpc_command::GET_SEED::request &in, rpc_command::GET_SEED::response &out);
+    DAPICallResult RestoreAccount(const rpc_command::RESTORE_ACCOUNT::request &in, rpc_command::RESTORE_ACCOUNT::response &out);
 
 
 protected:

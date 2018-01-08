@@ -44,8 +44,8 @@ namespace supernode {
 		protected:
 		void Init() override;
 
-		bool PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out);
-		bool WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out);
+		DAPICallResult PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out);
+		DAPICallResult WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out);
 		bool Check(RTA_TransactionRecord& tr);
 
 	};
