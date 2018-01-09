@@ -42,7 +42,7 @@
 
 namespace daemonize
 {
-  std::string const t_executor::NAME = "Monero Daemon";
+  std::string const t_executor::NAME = "Graft Daemon";
 
   void t_executor::init_options(
       boost::program_options::options_description & configurable_options
@@ -60,7 +60,7 @@ namespace daemonize
       boost::program_options::variables_map const & vm
     )
   {
-    LOG_PRINT_L0("Monero '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ") Daemonised");
+    LOG_PRINT_L0("Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ") Daemonised");
     return t_daemon{vm};
   }
 
