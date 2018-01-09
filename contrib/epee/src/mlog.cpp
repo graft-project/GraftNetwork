@@ -1,3 +1,4 @@
+// Copyright (c) 2018, The Graft Project
 // Copyright (c) 2006-2013, Andrey N. Sabelnikov, www.sabelnikov.net
 // All rights reserved.
 //
@@ -134,7 +135,7 @@ void mlog_configure(const std::string &filename_base, bool console)
     rename(name, rname.c_str());
   });
   mlog_set_common_prefix();
-  const char *monero_log = getenv("MONERO_LOGS");
+  const char *monero_log = getenv("GRAFT_LOGS");
   if (!monero_log)
   {
     monero_log = get_default_categories(0);

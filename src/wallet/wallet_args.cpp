@@ -171,7 +171,7 @@ namespace wallet_args
     if (!vm["log-level"].defaulted())
       MINFO("Setting log level = " << command_line::get_arg(vm, arg_log_level));
     else
-      MINFO("Setting log levels = " << getenv("MONERO_LOGS"));
+      MINFO("Setting log levels = " << getenv("GRAFT_LOGS"));
     MINFO(wallet_args::tr("Logging to: ") << log_path);
     tools::scoped_message_writer(epee::console_color_white, true) << boost::format(wallet_args::tr("Logging to %s")) % log_path;
 
