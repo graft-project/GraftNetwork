@@ -101,7 +101,7 @@ namespace daemonizer
     }
     else
     {
-      //LOG_PRINT_L0("Monero '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL);
+      //LOG_PRINT_L0("Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL);
       return executor.run_interactive(vm);
     }
   }
