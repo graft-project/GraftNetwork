@@ -41,6 +41,9 @@ namespace tools
     std::vector<std::string> records;
     bool found = false;
 
+    // graft: disable monero updates
+    return true;
+
     MDEBUG("Checking updates for " << buildtag << " " << software);
 
     // All four MoneroPulse domains have DNSSEC on and valid
