@@ -2302,26 +2302,7 @@ crypto::secret_key GraftWallet::generate(const std::string& wallet_, const std::
 
   // try asking the daemon first
   if(m_refresh_from_block_height == 0 && !recover){
-    std::string err;
-    uint64_t height = 0;
-
-    // we get the max of approximated height and known height
-    // approximated height is the least of daemon target height
-    // (the max of what the other daemons are claiming is their
-    // height) and the theoretical height based on the local
-    // clock. This will be wrong only if both the local clock
-    // is bad *and* a peer daemon claims a highest height than
-    // the real chain.
-    // known height is the height the local daemon is currently
-    // synced to, it will be lower than the real chain height if
-    // the daemon is currently syncing.
-    height = get_approximate_blockchain_height();
-    uint64_t target_height = get_daemon_blockchain_target_height(err);
-    if (err.empty() && target_height < height)
-      height = target_height;
-    uint64_t local_height = get_daemon_blockchain_height(err);
-    if (err.empty() && local_height > height)
-      height = local_height;
+    uint64_t height = estimate_blockchain_height();
     m_refresh_from_block_height = height >= blocks_per_month ? height - blocks_per_month : 0;
   }
 
@@ -2337,6 +2318,38 @@ crypto::secret_key GraftWallet::generate(const std::string& wallet_, const std::
 
   store();
   return retval;
+}
+
+uint64_t GraftWallet::estimate_blockchain_height()
+{
+  // -1 month for fluctuations in block time and machine date/time setup.
+  // avg seconds per block
+  const int seconds_per_block = DIFFICULTY_TARGET_V2;
+  // ~num blocks per month
+  const uint64_t blocks_per_month = 60*60*24*30/seconds_per_block;
+
+  // try asking the daemon first
+  std::string err;
+  uint64_t height = 0;
+
+  // we get the max of approximated height and known height
+  // approximated height is the least of daemon target height
+  // (the max of what the other daemons are claiming is their
+  // height) and the theoretical height based on the local
+  // clock. This will be wrong only if both the local clock
+  // is bad *and* a peer daemon claims a highest height than
+  // the real chain.
+  // known height is the height the local daemon is currently
+  // synced to, it will be lower than the real chain height if
+  // the daemon is currently syncing.
+  height = get_approximate_blockchain_height();
+  uint64_t target_height = get_daemon_blockchain_target_height(err);
+  if (err.empty() && target_height < height)
+    height = target_height;
+  uint64_t local_height = get_daemon_blockchain_height(err);
+  if (err.empty() && local_height > height)
+    height = local_height;
+  return height;
 }
 
 /*!
@@ -5659,10 +5672,10 @@ uint64_t GraftWallet::get_daemon_blockchain_target_height(string &err)
 
 uint64_t GraftWallet::get_approximate_blockchain_height() const
 {
-  // time of v2 fork
-  const time_t fork_time = m_testnet ? 1448285909 : 1458748658;
+  // time of begining: testnet: 2018-01-12, mainnet: 2018-01-18;
+  const time_t fork_time = m_testnet ? 1515715200 : 1516233600;
   // v2 fork block
-  const uint64_t fork_block = m_testnet ? 624634 : 1009827;
+  const uint64_t fork_block = m_testnet ? 1 : 1;
   // avg seconds per block
   const int seconds_per_block = DIFFICULTY_TARGET_V2;
   // Calculated blockchain height
