@@ -33,6 +33,7 @@
 #include <boost/format.hpp>
 #include <boost/optional/optional.hpp>
 #include <boost/utility/value_init.hpp>
+#include <boost/algorithm/string/join.hpp>
 #include "include_base_utils.h"
 using namespace epee;
 
@@ -421,6 +422,20 @@ static void throw_on_rpc_response_error(const boost::optional<std::string> &stat
 
   THROW_WALLET_EXCEPTION_IF(*status == CORE_RPC_STATUS_BUSY, tools::error::daemon_busy, method);
   THROW_WALLET_EXCEPTION_IF(*status != CORE_RPC_STATUS_OK, tools::error::wallet_generic_rpc_error, method, *status);
+}
+
+std::string strjoin(const std::vector<size_t> &V, const char *sep)
+{
+  std::stringstream ss;
+  bool first = true;
+  for (const auto &v: V)
+  {
+    if (!first)
+      ss << sep;
+    ss << std::to_string(v);
+    first = false;
+  }
+  return ss.str();
 }
 
 } //namespace
@@ -4940,7 +4955,8 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
       }
       else
       {
-        THROW_WALLET_EXCEPTION_IF(original_output_index > dsts.size(), error::wallet_internal_error, "original_output_index too large");
+        THROW_WALLET_EXCEPTION_IF(original_output_index > dsts.size(), error::wallet_internal_error,
+            std::string("original_output_index too large: ") + std::to_string(original_output_index) + " > " + std::to_string(dsts.size()));
         if (original_output_index == dsts.size())
           dsts.push_back(tx_destination_entry(0,addr));
         THROW_WALLET_EXCEPTION_IF(memcmp(&dsts[original_output_index].addr, &addr, sizeof(addr)), error::wallet_internal_error, "Mismatched destination address");
@@ -5039,12 +5055,8 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
     TX &tx = txes.back();
 
     LOG_PRINT_L2("Start of loop with " << unused_transfers_indices.size() << " " << unused_dust_indices.size());
-    LOG_PRINT_L2("unused_transfers_indices:");
-    for (auto t: unused_transfers_indices)
-      LOG_PRINT_L2("  " << t);
-    LOG_PRINT_L2("unused_dust_indices:");
-    for (auto t: unused_dust_indices)
-      LOG_PRINT_L2("  " << t);
+    LOG_PRINT_L2("unused_transfers_indices: " << strjoin(unused_transfers_indices, " "));
+    LOG_PRINT_L2("unused_dust_indices:" << strjoin(unused_dust_indices, " "));
     LOG_PRINT_L2("dsts size " << dsts.size() << ", first " << (dsts.empty() ? -1 : dsts[0].amount));
     LOG_PRINT_L2("adding_fee " << adding_fee << ", use_rct " << use_rct);
 
@@ -5105,7 +5117,8 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
     }
     else
     {
-      while (!dsts.empty() && dsts[0].amount <= available_amount && estimate_tx_size(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()) < TX_SIZE_TARGET(upper_transaction_size_limit))
+      while (!dsts.empty() && dsts[0].amount <= available_amount
+             && estimate_tx_size(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()) < TX_SIZE_TARGET(upper_transaction_size_limit))
       {
         // we can fully pay that destination
         LOG_PRINT_L2("We can fully pay " << get_account_address_as_str(m_testnet, dsts[0].addr) <<
@@ -5117,7 +5130,8 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
         ++original_output_index;
       }
 
-      if (available_amount > 0 && !dsts.empty() && estimate_tx_size(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()) < TX_SIZE_TARGET(upper_transaction_size_limit)) {
+      if (available_amount > 0 && !dsts.empty()
+              && estimate_tx_size(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()) < TX_SIZE_TARGET(upper_transaction_size_limit)) {
         // we can partially fill that destination
         LOG_PRINT_L2("We can partially pay " << get_account_address_as_str(m_testnet, dsts[0].addr) <<
           " for " << print_money(available_amount) << "/" << print_money(dsts[0].amount));
@@ -5218,6 +5232,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
         {
           LOG_PRINT_L2("We have more to pay, starting another tx");
           txes.push_back(TX());
+          original_output_index = 0;
         }
       }
     }
