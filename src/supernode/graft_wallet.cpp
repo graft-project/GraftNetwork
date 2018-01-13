@@ -5674,6 +5674,11 @@ uint64_t GraftWallet::get_approximate_blockchain_height() const
 {
   // time of begining: testnet: 2018-01-12, mainnet: 2018-01-18;
   const time_t fork_time = m_testnet ? 1515715200 : 1516233600;
+
+  // in case we not launched mainnet yet
+  if (fork_time > time(nullptr))
+    return 0;
+
   // v2 fork block
   const uint64_t fork_block = m_testnet ? 1 : 1;
   // avg seconds per block
