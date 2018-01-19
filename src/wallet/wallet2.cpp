@@ -4507,11 +4507,6 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     // if we need to spend money and don't have any left, we fail
     if (unused_dust_indices.empty() && unused_transfers_indices.empty()) {
       LOG_PRINT_L2("No more outputs to choose from");
-
-      uint64_t available_outputs = select_available_outputs([](const transfer_details &td) {
-        return true;
-      }).size();
-      LOG_ERROR("can't create transaction(s): available outputs count: " << available_outputs << ", destinations count: " << dsts.size());
       THROW_WALLET_EXCEPTION_IF(1, error::tx_not_possible, unlocked_balance(), needed_money, accumulated_fee + needed_fee);
     }
 
@@ -4900,7 +4895,9 @@ bool wallet2::use_fork_rules(uint8_t version, int64_t early_blocks)
   throw_on_rpc_response_error(result, "get_info");
   result = m_node_rpc_proxy.get_earliest_height(version, earliest_height);
   throw_on_rpc_response_error(result, "get_hard_fork_info");
-  bool close_enough = height >=  earliest_height - early_blocks; // start using the rules that many blocks beforehand
+  // graft: check if we have integer overflow in 'earliest_height - early_blocks' because we started from v7
+  bool close_enough = earliest_height >= static_cast<uint64_t>(std::abs(early_blocks)) ?
+        (height >=  earliest_height - early_blocks) : true; // start using the rules that many blocks beforehand
   LOG_PRINT_L2("height: " << height << ", earliest_height: " << earliest_height);
   if (close_enough)
     LOG_PRINT_L2("Using v" << (unsigned)version << " rules");

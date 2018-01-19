@@ -5451,8 +5451,10 @@ bool GraftWallet::use_fork_rules(uint8_t version, int64_t early_blocks)
   throw_on_rpc_response_error(result, "get_info");
   result = m_node_rpc_proxy.get_earliest_height(version, earliest_height);
   throw_on_rpc_response_error(result, "get_hard_fork_info");
-
-  bool close_enough = height >=  earliest_height - early_blocks; // start using the rules that many blocks beforehand
+  // graft: check if we have integer overflow in 'earliest_height - early_blocks' because we started from v7
+  bool close_enough = earliest_height >= std::abs(early_blocks) ?
+              (height >=  earliest_height - early_blocks) : true; // start using the rules that many blocks beforehand
+  LOG_PRINT_L2("height: " << height << ", earliest_height: " << earliest_height);
   if (close_enough)
     LOG_PRINT_L2("Using v" << (unsigned)version << " rules");
   else
