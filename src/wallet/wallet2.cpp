@@ -4507,11 +4507,6 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     // if we need to spend money and don't have any left, we fail
     if (unused_dust_indices.empty() && unused_transfers_indices.empty()) {
       LOG_PRINT_L2("No more outputs to choose from");
-
-      uint64_t available_outputs = select_available_outputs([](const transfer_details &td) {
-        return true;
-      }).size();
-      LOG_ERROR("can't create transaction(s): available outputs count: " << available_outputs << ", destinations count: " << dsts.size());
       THROW_WALLET_EXCEPTION_IF(1, error::tx_not_possible, unlocked_balance(), needed_money, accumulated_fee + needed_fee);
     }
 
