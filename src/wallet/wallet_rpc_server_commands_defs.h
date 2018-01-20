@@ -995,5 +995,27 @@ namespace wallet_rpc
       END_KV_SERIALIZE_MAP()
     };
   };
+
+  // graft - validate address
+  struct COMMAND_RPC_VALIDATE_ADDRESS
+  {
+    struct request
+    {
+      std::string address;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(address)
+      END_KV_SERIALIZE_MAP()
+    };
+    struct response
+    {
+      std::string viewkey;
+      std::string spendkey;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(viewkey)
+        KV_SERIALIZE(spendkey)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
 }
 }

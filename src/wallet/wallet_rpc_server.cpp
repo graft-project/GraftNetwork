@@ -1792,6 +1792,25 @@ namespace tools
     m_wallet = wal.release();
     return true;
   }
+
+  bool wallet_rpc_server::on_validate_address(const wallet_rpc::COMMAND_RPC_VALIDATE_ADDRESS::request &req, wallet_rpc::COMMAND_RPC_VALIDATE_ADDRESS::response &res, json_rpc::error &er)
+  {
+
+    cryptonote::account_public_address addr;
+    bool has_payment_id;
+    crypto::hash8 payment_id;
+
+    bool ret = get_account_integrated_address_from_str(addr, has_payment_id, payment_id, m_wallet->testnet(), req.address);
+    if (!ret) {
+      er.message = "Invalid Graft address";
+      er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
+      return false;
+    }
+    res.spendkey = epee::string_tools::pod_to_hex(addr.m_spend_public_key);
+    res.viewkey  = epee::string_tools::pod_to_hex(addr.m_view_public_key);
+    return true;
+
+  }
   //------------------------------------------------------------------------------------------------------------------------------
 }
 
