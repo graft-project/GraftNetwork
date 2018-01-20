@@ -35,7 +35,7 @@ cmake_minimum_required(VERSION 2.8.7)
 
 project(graftnetwork)
 
-set(DISABLE_SUPERNODE APPLE)
+set(DISABLE_SUPERNODE ${APPLE})
 
 function (die msg)
   if (NOT WIN32)
