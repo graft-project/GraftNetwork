@@ -190,6 +190,11 @@ t_command_server::t_command_server(
     , "Set max number of out peers"
     );
     m_command_lookup.set_handler(
+      "in_peers"
+    , std::bind(&t_command_parser_executor::in_peers, &m_parser, p::_1)
+    , "in_peers <max_number>"
+    );
+    m_command_lookup.set_handler(
       "start_save_graph"
     , std::bind(&t_command_parser_executor::start_save_graph, &m_parser, p::_1)
     , "Start save data for dr monero"
