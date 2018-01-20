@@ -92,7 +92,9 @@ add_subdirectory(difficulty)
 add_subdirectory(hash)
 add_subdirectory(net_load_tests)
 add_subdirectory(libwallet_api_tests)
+if (NOT APPLE)
 add_subdirectory(supernode_tests)
+endif()
 
 # add_subdirectory(daemon_tests)
 
