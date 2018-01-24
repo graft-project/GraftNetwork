@@ -45,6 +45,7 @@ void supernode::BaseClientProxy::Init()
     m_DAPIServer->ADD_DAPI_HANDLER(CreateAccount, rpc_command::CREATE_ACCOUNT, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(GetSeed, rpc_command::GET_SEED, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(RestoreAccount, rpc_command::RESTORE_ACCOUNT, BaseClientProxy);
+    m_DAPIServer->ADD_DAPI_HANDLER(Transfer, rpc_command::TRANSFER, BaseClientProxy);
 }
 
 bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out)
@@ -174,8 +175,91 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
 
 bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER::request &in, supernode::rpc_command::TRANSFER::response &out)
 {
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
+    if (!wal)
+    {
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+
+    if (wal->restricted())
+    {
+//      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+//      er.message = "Command unavailable in restricted mode.";
+      return false;
+    }
+
+//    std::vector<cryptonote::tx_destination_entry> dsts;
+//    std::vector<uint8_t> extra;
+
+
+//    // validate the transfer requested and populate dsts & extra
+//    if (!validate_transfer(req.destinations, req.payment_id, dsts, extra, er))
+//    {
+//      return false;
+//    }
+
+//    try
+//    {
+//      uint64_t mixin = adjust_mixin(req.mixin);
+//      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, req.priority, extra, m_trusted_daemon);
+
+//      // reject proposed transactions if there are more than one.  see on_transfer_split below.
+//      if (ptx_vector.size() != 1)
+//      {
+//        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+//        er.message = "Transaction would be too large.  try /transfer_split.";
+//        return false;
+//      }
+
+//      if (!req.do_not_relay)
+//        m_wallet->commit_tx(ptx_vector);
+
+//      // populate response with tx hash
+//      res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector.back().tx));
+//      if (req.get_tx_key)
+//      {
+//        res.tx_key = epee::string_tools::pod_to_hex(ptx_vector.back().tx_key);
+//      }
+//      res.fee = ptx_vector.back().fee;
+
+//      if (req.get_tx_hex)
+//      {
+//        cryptonote::blobdata blob;
+//        tx_to_blob(ptx_vector.back().tx, blob);
+//        res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
+//      }
+//      return true;
+//    }
+//    catch (const tools::error::daemon_busy& e)
+//    {
+//      er.code = WALLET_RPC_ERROR_CODE_DAEMON_IS_BUSY;
+//      er.message = e.what();
+//      return false;
+//    }
+//    catch (const std::exception& e)
+//    {
+//      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+//      er.message = e.what();
+//      return false;
+//    }
+//    catch (...)
+//    {
+//      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+//      er.message = "WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR";
+//      return false;
+//    }
+
     out.Result = ERROR_NOT_ENOUGH_COINS;
     return true;
+}
+
+bool supernode::BaseClientProxy::validate_transfer(const string &address, uint64_t amount,
+                                                   const string payment_id,
+                                                   std::vector<cryptonote::tx_destination_entry> &dsts,
+                                                   std::vector<uint8_t> &extra)
+{
+
 }
 
 std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const string &account, const string &password) const

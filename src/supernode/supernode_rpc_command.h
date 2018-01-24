@@ -61,6 +61,7 @@ namespace supernode {
         extern const string CreateAccount;
         extern const string GetSeed;
         extern const string RestoreAccount;
+        extern const string Transfer;
 
         extern const string WalletRejectPay;
         extern const string WalletProxyRejectPay;
