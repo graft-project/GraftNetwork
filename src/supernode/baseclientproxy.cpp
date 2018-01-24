@@ -172,6 +172,12 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
     return true;
 }
 
+bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER::request &in, supernode::rpc_command::TRANSFER::response &out)
+{
+    out.Result = ERROR_NOT_ENOUGH_COINS;
+    return true;
+}
+
 std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const string &account, const string &password) const
 {
     std::unique_ptr<tools::GraftWallet> wal;

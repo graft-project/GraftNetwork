@@ -460,6 +460,29 @@ namespace supernode {
             };
         };
 
+        struct TRANSFER {
+            struct request {
+                std::string Account;
+                std::string Password;
+                std::string Address;
+                std::string Amount;
+
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Account)
+                    KV_SERIALIZE(Password)
+                    KV_SERIALIZE(Address)
+                    KV_SERIALIZE(Amount)
+                END_KV_SERIALIZE_MAP()
+            };
+            struct response {
+                int64_t Result;
+
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Result)
+                END_KV_SERIALIZE_MAP()
+            };
+        };
+
 		void ConvertFromTR(RTA_TransactionRecordRequest& dst, const RTA_TransactionRecord& src);
 
 		void ConvertToTR(RTA_TransactionRecord& dst, const RTA_TransactionRecordRequest& src, const FSN_ServantBase* servant);
