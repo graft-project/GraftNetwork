@@ -67,6 +67,7 @@ namespace cryptonote
   core::core(i_cryptonote_protocol* pprotocol):
               m_mempool(m_blockchain_storage),
               m_blockchain_storage(m_mempool),
+              m_graft_stake_transaction_processor(m_blockchain_storage),
               m_miner(this),
               m_miner_address(boost::value_initialized<account_public_address>()),
               m_starter_message_showed(false),
@@ -406,6 +407,8 @@ namespace cryptonote
 
     r = m_mempool.init();
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize memory pool");
+
+    m_graft_stake_transaction_processor.synchronize();
 
     // now that we have a valid m_blockchain_storage, we can clean out any
     // transactions in the pool that do not conform to the current fork
@@ -1082,9 +1085,28 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::add_new_block(const block& b, block_verification_context& bvc)
   {
-    return m_blockchain_storage.add_new_block(b, bvc);
-  }
+    if (!m_blockchain_storage.add_new_block(b, bvc))
+      return false;
 
+//    if (bvc.m_added_to_main_chain)
+//    {
+//      uint64_t block_height = m_blockchain_storage.get_db().get_block_height(b.hash);
+//      m_graft_stake_transaction_processor.process_block(block_height, b);
+//    }
+    m_graft_stake_transaction_processor.synchronize();
+
+    return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::set_stake_transactions_update_handler(const stake_transactions_update_handler& handler)
+  {
+    m_graft_stake_transaction_processor.set_on_update_handler(handler);
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::invoke_stake_transactions_update_handler()
+  {
+    m_graft_stake_transaction_processor.invoke_update_handler(true);
+  }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::list<block_complete_entry> &blocks)
   {

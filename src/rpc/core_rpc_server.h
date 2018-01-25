@@ -134,7 +134,8 @@ namespace cryptonote
         MAP_JON_RPC_WE("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST)
         MAP_JON_RPC_WE("unicast",                on_unicast,                    COMMAND_RPC_UNICAST)
 
-        MAP_JON_RPC_WE("get_tunnels",            on_get_tunnels,               COMMAND_RPC_TUNNEL_DATA)
+        MAP_JON_RPC_WE("get_tunnels",              on_get_tunnels,              COMMAND_RPC_TUNNEL_DATA)
+        MAP_JON_RPC_WE("send_supernode_stake_txs", on_supernode_stake_txs,      COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -196,6 +197,7 @@ namespace cryptonote
     //-----------------------
     // RTA
     bool on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request& req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response& res, epee::json_rpc::error& error_resp);
+    bool on_supernode_stake_txs(const COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::request& req, COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::response& res, epee::json_rpc::error& error_resp);
     bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
     bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp);
     bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);

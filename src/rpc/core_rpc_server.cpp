@@ -1787,6 +1787,34 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_supernode_stake_txs(const COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::request &req, COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_supernode_stake_txs: start");
+      if (!check_core_busy())
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+        error_resp.message = "Core is busy.";
+        return false;
+      }
+
+      // validate input parameters
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+      if (!validate_wallet(req.address, m_testnet))
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+        error_resp.message = "Failed to parse wallet address";
+        return false;
+      }
+
+      // send p2p announce
+      m_p2p.set_supernode(req.address, req.network_address);
+      m_p2p.send_stake_transactions_to_supernode();
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_supernode_stake_txs: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
   {
       LOG_PRINT_L0("RPC Request: on_broadcast: start");
