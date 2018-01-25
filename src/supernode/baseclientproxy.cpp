@@ -26,6 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "cryptonote_basic/cryptonote_basic.h"
 #include "mnemonics/electrum-words.h"
 #include "common/command_line.h"
 #include "baseclientproxy.h"
@@ -184,82 +185,190 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
 
     if (wal->restricted())
     {
-//      er.code = WALLET_RPC_ERROR_CODE_DENIED;
-//      er.message = "Command unavailable in restricted mode.";
-      return false;
+        //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+        //      er.message = "Command unavailable in restricted mode.";
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
     }
 
-//    std::vector<cryptonote::tx_destination_entry> dsts;
-//    std::vector<uint8_t> extra;
+    std::vector<cryptonote::tx_destination_entry> dsts;
+    std::vector<uint8_t> extra;
 
+    std::string payment_id = "";
 
-//    // validate the transfer requested and populate dsts & extra
-//    if (!validate_transfer(req.destinations, req.payment_id, dsts, extra, er))
-//    {
-//      return false;
-//    }
+    uint64_t amount;
+    std::istringstream iss(in.Amount);
+    iss >> amount;
 
-//    try
-//    {
-//      uint64_t mixin = adjust_mixin(req.mixin);
-//      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, req.priority, extra, m_trusted_daemon);
+    // validate the transfer requested and populate dsts & extra
+    if (!validate_transfer(in.Account, in.Password, in.Address, amount, payment_id, dsts, extra))
+    {
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
 
-//      // reject proposed transactions if there are more than one.  see on_transfer_split below.
-//      if (ptx_vector.size() != 1)
-//      {
-//        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-//        er.message = "Transaction would be too large.  try /transfer_split.";
-//        return false;
-//      }
+    try
+    {
+        uint64_t mixin = 4;
+        uint64_t unlock_time = 0;
+        uint64_t priority = 0;
+        bool do_not_relay = false;
+        bool get_tx_key = false;
+        bool get_tx_hex = false;
+        std::vector<tools::GraftWallet::pending_tx> ptx_vector =
+                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, false);
 
-//      if (!req.do_not_relay)
-//        m_wallet->commit_tx(ptx_vector);
+        // reject proposed transactions if there are more than one.  see on_transfer_split below.
+        if (ptx_vector.size() != 1)
+        {
+            //        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+            //        er.message = "Transaction would be too large.  try /transfer_split.";
+            out.Result = ERROR_OPEN_WALLET_FAILED;
+            return false;
+        }
 
-//      // populate response with tx hash
-//      res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector.back().tx));
-//      if (req.get_tx_key)
-//      {
-//        res.tx_key = epee::string_tools::pod_to_hex(ptx_vector.back().tx_key);
-//      }
-//      res.fee = ptx_vector.back().fee;
+        if (!do_not_relay)
+        {
+            wal->commit_tx(ptx_vector);
+        }
 
-//      if (req.get_tx_hex)
-//      {
-//        cryptonote::blobdata blob;
-//        tx_to_blob(ptx_vector.back().tx, blob);
-//        res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
-//      }
-//      return true;
-//    }
-//    catch (const tools::error::daemon_busy& e)
-//    {
-//      er.code = WALLET_RPC_ERROR_CODE_DAEMON_IS_BUSY;
-//      er.message = e.what();
-//      return false;
-//    }
-//    catch (const std::exception& e)
-//    {
-//      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-//      er.message = e.what();
-//      return false;
-//    }
-//    catch (...)
-//    {
-//      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
-//      er.message = "WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR";
-//      return false;
-//    }
+        // populate response with tx hash
+        //        std::string tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector.back().tx));
+        //        if (get_tx_key)
+        //        {
+        //            std::string tx_key = epee::string_tools::pod_to_hex(ptx_vector.back().tx_key);
+        //        }
+        //        uint64_t fee = ptx_vector.back().fee;
 
-    out.Result = ERROR_NOT_ENOUGH_COINS;
+        //        if (get_tx_hex)
+        //        {
+        //            cryptonote::blobdata blob;
+        //            tx_to_blob(ptx_vector.back().tx, blob);
+        //            res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
+        //        }
+    }
+    catch (const tools::error::daemon_busy& e)
+    {
+        //      er.code = WALLET_RPC_ERROR_CODE_DAEMON_IS_BUSY;
+        //      er.message = e.what();
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+    catch (const std::exception& e)
+    {
+        //      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        //      er.message = e.what();
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+    catch (...)
+    {
+        //      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        //      er.message = "WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR";
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+
+    out.Result = STATUS_OK;
     return true;
 }
 
-bool supernode::BaseClientProxy::validate_transfer(const string &address, uint64_t amount,
+bool supernode::BaseClientProxy::validate_transfer(const string &account, const string &password,
+                                                   const string &address, uint64_t amount,
                                                    const string payment_id,
                                                    std::vector<cryptonote::tx_destination_entry> &dsts,
                                                    std::vector<uint8_t> &extra)
 {
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(account), password);
+    if (!wal)
+    {
+        return false;
+    }
 
+    crypto::hash8 integrated_payment_id = cryptonote::null_hash8;
+    std::string extra_nonce;
+
+    cryptonote::tx_destination_entry de;
+    bool has_payment_id;
+    crypto::hash8 new_payment_id;
+    std::string errorString;
+    if (!get_account_address_from_str_or_url(de.addr, has_payment_id, new_payment_id, wal->testnet(),address,
+                                             [&errorString](const std::string &url, const std::vector<std::string> &addresses, bool dnssec_valid)->std::string {
+                                             if (!dnssec_valid)
+                                             {
+                                                 errorString = std::string("Invalid DNSSEC for ") + url;
+                                                 return {};
+                                             }
+                                             if (addresses.empty())
+                                             {
+                                                 errorString = std::string("No Monero address found at ") + url;
+                                                 return {};
+                                             }
+                                             return addresses[0];
+                                    }))
+    {
+//        er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
+        if (errorString.empty())
+            errorString = std::string("WALLET_RPC_ERROR_CODE_WRONG_ADDRESS: ") + address;
+        return false;
+    }
+    de.amount = amount;
+    dsts.push_back(de);
+
+    if (has_payment_id)
+    {
+        if (!payment_id.empty() || integrated_payment_id != cryptonote::null_hash8)
+        {
+//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
+//            er.message = "A single payment id is allowed per transaction";
+            return false;
+        }
+        integrated_payment_id = new_payment_id;
+        cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, integrated_payment_id);
+
+        /* Append Payment ID data into extra */
+        if (!cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce))
+        {
+//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
+//            er.message = "Something went wrong with integrated payment_id.";
+            return false;
+        }
+    }
+
+    if (!payment_id.empty())
+    {
+        /* Just to clarify */
+        const std::string& payment_id_str = payment_id;
+
+        crypto::hash long_payment_id;
+        crypto::hash8 short_payment_id;
+
+        /* Parse payment ID */
+        if (tools::GraftWallet::parse_long_payment_id(payment_id_str, long_payment_id))
+        {
+            cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, long_payment_id);
+        }
+        /* or short payment ID */
+        else if (tools::GraftWallet::parse_short_payment_id(payment_id_str, short_payment_id))
+        {
+            cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, short_payment_id);
+        }
+        else
+        {
+//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
+//            er.message = "Payment id has invalid format: \"" + payment_id_str + "\", expected 16 or 64 character string";
+            return false;
+        }
+
+        /* Append Payment ID data into extra */
+        if (!cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce))
+        {
+//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
+//            er.message = "Something went wrong with payment_id. Please check its format: \"" + payment_id_str + "\", expected 64-character string";
+            return false;
+        }
+    }
+    return true;
 }
 
 std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const string &account, const string &password) const
