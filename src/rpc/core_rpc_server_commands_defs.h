@@ -1705,6 +1705,66 @@ namespace cryptonote
   };
 
   //---------- Graft RTA commands ---------------------
+  struct COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS
+  {
+    struct request
+    {
+      std::string address;
+      std::string network_address;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(address)
+        KV_SERIALIZE(network_address)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS
+  {
+    struct stake_transaction
+    {
+      crypto::hash hash;
+      uint64_t block_height;
+      uint64_t unlock_time;
+      std::string supernode_public_id;
+      cryptonote::account_public_address supernode_public_address;
+      std::string supernode_signature;
+      crypto::secret_key tx_secret_key;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
+        KV_SERIALIZE(block_height)
+        KV_SERIALIZE(unlock_time)
+        KV_SERIALIZE(supernode_public_id)
+        KV_SERIALIZE(supernode_public_address)
+        KV_SERIALIZE(supernode_signature)
+        KV_SERIALIZE_VAL_POD_AS_BLOB(tx_secret_key)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      std::vector<stake_transaction> stake_txs;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(stake_txs)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
   struct COMMAND_RPC_SUPERNODE_ANNOUNCE
   {
     struct SignedKeyImageStr

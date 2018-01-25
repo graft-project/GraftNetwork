@@ -488,6 +488,10 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::init(const boost::program_options::variables_map& vm)
   {
+    m_payload_handler.get_core().set_stake_transactions_update_handler(
+      [&](const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs) { handle_stake_transactions_update(stake_txs); }
+    );
+
     std::set<std::string> full_addrs;
     m_testnet = command_line::get_arg(vm, command_line::arg_testnet_on);
 
@@ -2771,5 +2775,45 @@ namespace nodetool
     LOG_PRINT_L2("PEER PROMOTED TO WHITE PEER LIST IP address: " << pe.adr.host_str() << " Peer ID: " << peerid_type(pe.id));
 
     return true;
+  }
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::handle_stake_transactions_update(const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs)
+  {
+    static std::string supernode_endpoint("send_supernode_stake_txs");
+
+    boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+
+    if (!m_have_supernode)
+      return;
+
+    LOG_PRINT_L0("handle_stake_transactions_update to supernode");
+
+    cryptonote::COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS::request request;
+
+    request.stake_txs.reserve(stake_txs.size());
+
+    for (const cryptonote::stake_transaction& src_tx : stake_txs)
+    {
+      cryptonote::COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS::stake_transaction dst_tx;
+
+      dst_tx.hash = src_tx.hash;
+      dst_tx.block_height = src_tx.block_height;
+      dst_tx.unlock_time = src_tx.unlock_time;
+      dst_tx.supernode_public_id = src_tx.supernode_public_id;
+      dst_tx.supernode_public_address = src_tx.supernode_public_address;
+      dst_tx.supernode_signature = epee::string_tools::pod_to_hex(src_tx.supernode_signature);
+      dst_tx.tx_secret_key = src_tx.tx_secret_key;
+
+      request.stake_txs.emplace_back(std::move(dst_tx));
+    }
+
+    post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS>(supernode_endpoint, request);
+  }
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::send_stake_transactions_to_supernode()
+  {
+    m_payload_handler.get_core().invoke_stake_transactions_update_handler();
   }
 }
