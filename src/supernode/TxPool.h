@@ -56,7 +56,7 @@ protected:
 
 private:
     epee::net_utils::http::http_simple_client m_http_client;
-    std::chrono::seconds m_rpc_timeout;
+    const std::chrono::seconds m_rpc_timeout = std::chrono::seconds(30);
 
 };
 
