@@ -93,7 +93,7 @@ add_subdirectory(hash)
 add_subdirectory(net_load_tests)
 add_subdirectory(libwallet_api_tests)
 add_subdirectory(supernode_tests)
-
+add_subdirectory(tx_propagation_tests)
 # add_subdirectory(daemon_tests)
 
 set(hash_targets_sources
