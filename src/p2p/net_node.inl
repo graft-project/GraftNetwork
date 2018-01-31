@@ -403,10 +403,6 @@ namespace nodetool
     }
   }
 
-
-
-
-
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet) const
