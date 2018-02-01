@@ -32,10 +32,12 @@
 
 set(tx_tests_sources
   main.cpp
+  DaemonRpcClient.cpp
 )
 
 set(tx_tests_headers
-  )
+  DaemonRpcClient.h
+    )
 
 add_executable(tx_tests
   ${tx_tests_sources}
