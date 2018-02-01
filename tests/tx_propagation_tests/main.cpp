@@ -29,6 +29,7 @@
 // Parts of this file are originally copyright (c) 2014-2017 The Monero Project
 
 #include "wallet/wallet2_api.h"
+#include "cryptonote_basic/account.h"
 
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
@@ -57,13 +58,72 @@
 #include <chrono>
 #include <thread>
 
-using namespace std;
 
-using namespace payment_processor;
+
+
 namespace po = boost::program_options;
-
+namespace fs = ::boost::filesystem;
+using namespace payment_processor;
+using namespace Monero;
+using namespace std;
+using namespace std::chrono;
 
 typedef pair<string, uint64_t> TxRecord;
+
+namespace {
+
+    template <typename T>
+    T gen_random(T lower_bound, T upper_bound)
+    {
+        std::uniform_real_distribution<T> unif(lower_bound,upper_bound);
+        std::random_device rd;
+        std::default_random_engine re(rd());
+        return unif(re);
+    }
+
+
+
+
+
+    // return the filenames of all files that have the specified extension
+    // in the specified directory and all subdirectories
+    void get_all(const fs::path& root, const string& ext, vector<fs::path>& ret)
+    {
+        if(!fs::exists(root) || !fs::is_directory(root)) return;
+
+        fs::recursive_directory_iterator it(root);
+        fs::recursive_directory_iterator endit;
+
+        while (it != endit) {
+            if (fs::is_regular_file(*it) && it->path().extension() == ext)
+                ret.push_back(it->path().filename());
+            ++it;
+        }
+
+    }
+}
+
+Monero::Wallet * open_wallet_helper(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address,
+                                    bool testnet)
+{
+    Monero::WalletManager *wmgr = Monero::WalletManagerFactory::getWalletManager();
+    Monero::Wallet   * w = wmgr->openWallet(wallet_path, wallet_password, testnet);
+
+    if (w->status() != Wallet::Status_Ok) {
+        LOG_ERROR("Error opening wallet " << wallet_path << ", " << w->errorString());
+        delete w;
+        return nullptr;
+    }
+    if (!w->init(daemon_address, 0)) {
+        LOG_ERROR("Error connecting to daemon at " << daemon_address << ", :" << w->errorString());
+        delete w;
+        return nullptr;
+    }
+
+    w->refresh();
+
+    return w;
+}
 
 /*!
  * \brief generate_transactions - generates transactions and stores them to disk
@@ -75,8 +135,49 @@ typedef pair<string, uint64_t> TxRecord;
 bool generate_transactions(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address,
                            bool testnet, size_t num, std::vector<std::string> &out_txes, const std::string &output_dir)
 {
+
+    if (num == 0)
+        return true;
+
     LOG_PRINT_L1("generating transactions");
-    return false;
+    Monero::Wallet * w  = open_wallet_helper(wallet_path, wallet_password, daemon_address, testnet);
+    if (!w)
+        return false;
+
+    for (int i = 0; i < num; ++i) {
+        cryptonote::account_base account;
+        account.generate();
+
+        double amount = gen_random(0.1, 10.0);
+        // get_formatted_value(amount, 5),
+        string address = account.get_public_address_str(testnet);
+        PendingTransaction * ptx = w->createTransaction(address, "", Wallet::amountFromDouble(amount), 4);
+
+        if (ptx->txCount() > 1) {
+            LOG_PRINT_L0("transfer splitted, ignoring");
+        } else {
+            if (ptx->status() == PendingTransaction::Status_Ok) {
+                string filename = output_dir + "/" + ptx->txid()[0] + ".gtx";
+                if (ptx->commit(filename)) {
+                    out_txes.push_back(ptx->txid()[0]);
+                } else {
+                    LOG_ERROR("Error saving tx to file: " << ptx->errorString());
+                }
+//                // testing serializing tx;
+//                UnsignedTransaction * unsigned_tx = w->loadUnsignedTx(filename);
+//                string filename_signed = filename + ".signed";
+//                unsigned_tx->sign(filename + ".signed");
+//                w->submitTransaction(filename_signed);
+//                delete unsigned_tx;
+            }
+        }
+        w->disposeTransaction(ptx);
+    }
+
+    w->store("");
+    Monero::WalletManagerFactory::getWalletManager()->closeWallet(w);
+
+    return true;
 }
 
 /*!
@@ -89,6 +190,34 @@ bool send_transactions(const std::string &wallet_path, const std::string &wallet
                        bool testnet, const string &input_dir, vector<TxRecord> &output_timestamps)
 {
     LOG_PRINT_L1("sending transactions");
+
+    Monero::Wallet * w  = open_wallet_helper(wallet_path, wallet_password, daemon_address, testnet);
+    if (!w)
+        return false;
+
+    // get all tx files in one vector
+    vector<fs::path> tx_files;
+    get_all(input_dir, "gtx", tx_files);
+
+    for (const fs::path &tx_file : tx_files) {
+        UnsignedTransaction * utx = w->loadUnsignedTx(tx_file.string());
+        if (utx->status() != UnsignedTransaction::Status_Ok) {
+            LOG_ERROR("Error loading unsigned transaction from " << tx_file.string() << ", " << utx->errorString());
+            continue;
+        }
+        string signed_tx_filename = tx_file.string() + ".signed";
+        // TODO: add "tx_id" method to unsigned tx;
+        utx->sign(signed_tx_filename);
+
+        w->submitTransaction(signed_tx_filename);
+
+        milliseconds ms = duration_cast< milliseconds >(system_clock::now().time_since_epoch());
+        // filename is the tx_hash, but normally there should be method in UnsignedTransaction;
+        TxRecord tx_record = make_pair(tx_file.filename().string(), ms.count());
+        output_timestamps.push_back(tx_record);
+        delete utx;
+    }
+
     return false;
 }
 
@@ -155,8 +284,8 @@ int main(int argc, char** argv)
     string output_file;
     string input_file;
     int    log_level;
-    int    tx_to_gen_count;
-    size_t monitor_timeout;
+    int    tx_to_gen_count = 1;
+    size_t monitor_timeout = 30;
     bool   testnet;
 
     try {
@@ -183,6 +312,7 @@ int main(int argc, char** argv)
         po::variables_map vm;
         po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 
+        po::notify(vm);
 
         if (vm.count("help") || vm.count("command") == 0) {
             cout << desc << "\n";
@@ -191,7 +321,6 @@ int main(int argc, char** argv)
 
         command = vm["command"].as<string>();
         std::cout << "command: " << command << endl;
-        std::cout << "command: is generate " << (command == "generate") << endl;
 
         if (!(command == "generate" || command == "send" || command == "monitor")) {
             cout << "unknown command: " << command << endl;
@@ -204,7 +333,7 @@ int main(int argc, char** argv)
         mlog_set_log_level(log_level);
 
         if (vm.count("daemon-address") == 0) {
-            cout << "Daemon address is missing for " << command << " command";
+            cout << "Daemon address is missing for " << command << " command\n" ;
             cout << desc << "\n";
             return -1;
         }
