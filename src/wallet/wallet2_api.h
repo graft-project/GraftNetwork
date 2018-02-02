@@ -130,6 +130,7 @@ struct UnsignedTransaction
     * return - true on success
     */
     virtual bool sign(const std::string &signedFileName) = 0;
+    virtual bool sign(const std::string &signedFileName, std::vector<std::string> &tx_ids) = 0;
 };
 
 /**

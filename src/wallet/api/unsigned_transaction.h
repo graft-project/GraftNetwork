@@ -54,6 +54,7 @@ public:
     uint64_t txCount() const;
     // sign txs and save to file
     bool sign(const std::string &signedFileName);
+    bool sign(const std::string &signedFileName, std::vector<std::string> &tx_ids);
     std::string confirmationMessage() const {return m_confirmationMessage;}
     uint64_t minMixinCount() const;
 
@@ -74,3 +75,4 @@ private:
 }
 
 namespace Bitmonero = Monero;
+
