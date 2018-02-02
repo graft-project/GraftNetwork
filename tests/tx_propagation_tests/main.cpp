@@ -69,6 +69,7 @@ using namespace std;
 using namespace std::chrono;
 
 typedef pair<string, uint64_t> TxRecord;
+typedef pair<string, string> Payment;
 
 namespace {
 
@@ -82,6 +83,35 @@ namespace {
     }
 
 
+    bool read_payments(const string &filename, vector<Payment> &payments)
+    {
+        ifstream strm(filename);
+
+        if (!strm.is_open()) {
+            LOG_ERROR("Error opening file " << filename);
+            return false;
+        }
+        LOG_PRINT_L1("reading payments from file: " << filename);
+
+        string line;
+        while (getline(strm, line)) {
+            typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
+            vector<string> tokens;
+            boost::char_separator<char> sep{","};
+            tokenizer tok{line, sep};
+            for (const auto &t : tok)
+                tokens.push_back(t);
+
+            if (tokens.size() != 2) {
+                LOG_ERROR("Error parsing payment: " << line);
+                return false;
+            }
+            Payment p = make_pair(tokens[0], tokens[1]);
+            payments.push_back(p);
+        }
+
+        return true;
+    }
 
 
 
@@ -89,14 +119,23 @@ namespace {
     // in the specified directory and all subdirectories
     void get_all(const fs::path& root, const string& ext, vector<fs::path>& ret)
     {
-        if(!fs::exists(root) || !fs::is_directory(root)) return;
+
+        LOG_PRINT_L2("Checking for transactions files (*." << ext << ") in " << root);
+        if(!fs::exists(root) || !fs::is_directory(root))  {
+            LOG_ERROR("Path " << root.string() << " is not exists nor directory..");
+            return;
+        }
 
         fs::recursive_directory_iterator it(root);
         fs::recursive_directory_iterator endit;
 
         while (it != endit) {
-            if (fs::is_regular_file(*it) && it->path().extension() == ext)
+            LOG_PRINT_L2("checking file " << it->path());
+            LOG_PRINT_L2("ext: " << it->path().extension());
+            if (fs::is_regular_file(*it) && it->path().extension() == ext) {
+                LOG_PRINT_L2("file " << it->path() << " is tx file");
                 ret.push_back(it->path().filename());
+            }
             ++it;
         }
 
@@ -133,45 +172,75 @@ Monero::Wallet * open_wallet_helper(const std::string &wallet_path, const std::s
  * \return                      - true on success
  */
 bool generate_transactions(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address,
-                           bool testnet, size_t num, std::vector<std::string> &out_txes, const std::string &output_dir)
+                           bool testnet, size_t num,
+                           const std::string &input_file,
+                           std::vector<std::string> &out_txes, const std::string &output_dir)
 {
 
     if (num == 0)
         return true;
 
-    LOG_PRINT_L1("generating transactions");
-    Monero::Wallet * w  = open_wallet_helper(wallet_path, wallet_password, daemon_address, testnet);
-    if (!w)
-        return false;
-
-    for (int i = 0; i < num; ++i) {
-        cryptonote::account_base account;
-        account.generate();
-
-        double amount = gen_random(0.1, 10.0);
-        // get_formatted_value(amount, 5),
-        string address = account.get_public_address_str(testnet);
-        PendingTransaction * ptx = w->createTransaction(address, "", Wallet::amountFromDouble(amount), 4);
+    auto gen_tx = [&](Wallet * w, const string &address, uint64_t amount) {
+        PendingTransaction * ptx = w->createTransaction(address, "", amount, 4);
 
         if (ptx->txCount() > 1) {
             LOG_PRINT_L0("transfer splitted, ignoring");
         } else {
             if (ptx->status() == PendingTransaction::Status_Ok) {
-                string filename = output_dir + "/" + ptx->txid()[0] + ".gtx";
-                if (ptx->commit(filename)) {
-                    out_txes.push_back(ptx->txid()[0]);
+                string unsigned_filename = output_dir + "/" + ptx->txid()[0] + ".gtx.unsigned";
+                if (ptx->commit(unsigned_filename)) {
+                    // sign tx;
+                    UnsignedTransaction * utx = w->loadUnsignedTx(unsigned_filename);
+                    vector<string> tx_ids;
+                    string signed_filename_tmp = output_dir + "/" + ptx->txid()[0] + ".gtx";
+                    if (!utx->sign(signed_filename_tmp, tx_ids)) {
+                        LOG_ERROR("Error signing tx " << utx->errorString() );
+                        return false; // memleak, but doesn't really care here
+                    }
+                    delete utx;
+                    string signed_filename = output_dir + "/" + tx_ids[0] + ".gtx";
+                    boost::filesystem::rename(signed_filename_tmp, signed_filename);
+                    boost::filesystem::remove(unsigned_filename);
+                    out_txes.push_back(tx_ids[0]);
+
                 } else {
                     LOG_ERROR("Error saving tx to file: " << ptx->errorString());
                 }
-//                // testing serializing tx;
-//                UnsignedTransaction * unsigned_tx = w->loadUnsignedTx(filename);
-//                string filename_signed = filename + ".signed";
-//                unsigned_tx->sign(filename + ".signed");
-//                w->submitTransaction(filename_signed);
-//                delete unsigned_tx;
             }
         }
         w->disposeTransaction(ptx);
+        return true;
+    };
+
+    LOG_PRINT_L1("generating transactions");
+    // TODO: smart_ptr
+    Monero::Wallet * w  = open_wallet_helper(wallet_path, wallet_password, daemon_address, testnet);
+    if (!w)
+        return false;
+
+    // read payments from file, if passed
+    if (!input_file.empty()) {
+        vector<Payment> payments;
+        if (!read_payments(input_file, payments)) {
+            LOG_ERROR("Error reading payments from " << input_file);
+            return false;
+        }
+        for (const auto &p : payments) {
+            if (!gen_tx(w, p.first, Wallet::amountFromString(p.second))) {
+                return false;
+            }
+        }
+    } else {
+        // otherwise, generate random addresses
+        for (int i = 0; i < num; ++i) {
+            cryptonote::account_base account;
+            account.generate();
+            double amount = gen_random(0.1, 1.0);
+            string address = account.get_public_address_str(testnet);
+            LOG_PRINT_L0("Sending " << amount << " to " << address);
+            if (!gen_tx(w, address, Wallet::amountFromDouble(amount)))
+                return false;
+        }
     }
 
     w->store("");
@@ -192,33 +261,40 @@ bool send_transactions(const std::string &wallet_path, const std::string &wallet
     LOG_PRINT_L1("sending transactions");
 
     Monero::Wallet * w  = open_wallet_helper(wallet_path, wallet_password, daemon_address, testnet);
-    if (!w)
+    if (!w) {
+        LOG_ERROR("Error opening wallet " << wallet_path);
         return false;
+    }
 
     // get all tx files in one vector
     vector<fs::path> tx_files;
-    get_all(input_dir, "gtx", tx_files);
+    get_all(input_dir, ".gtx", tx_files);
+
+
 
     for (const fs::path &tx_file : tx_files) {
-        UnsignedTransaction * utx = w->loadUnsignedTx(tx_file.string());
-        if (utx->status() != UnsignedTransaction::Status_Ok) {
-            LOG_ERROR("Error loading unsigned transaction from " << tx_file.string() << ", " << utx->errorString());
-            continue;
-        }
-        string signed_tx_filename = tx_file.string() + ".signed";
-        // TODO: add "tx_id" method to unsigned tx;
-        utx->sign(signed_tx_filename);
-
-        w->submitTransaction(signed_tx_filename);
+//        UnsignedTransaction * utx = w->loadUnsignedTx(tx_file.string());
+//        if (utx->status() != UnsignedTransaction::Status_Ok) {
+//            LOG_ERROR("Error loading unsigned transaction from " << tx_file.string() << ", " << utx->errorString());
+//            continue;
+//        }
+//        string signed_tx_filename = tx_file.string() + ".signed";
+//        // TODO: add "tx_id" method to unsigned tx;
+//        utx->sign(signed_tx_filename);
+        LOG_PRINT_L1("Sending tx: " << tx_file.filename().string());
+        w->submitTransaction(tx_file.filename().string());
 
         milliseconds ms = duration_cast< milliseconds >(system_clock::now().time_since_epoch());
         // filename is the tx_hash, but normally there should be method in UnsignedTransaction;
-        TxRecord tx_record = make_pair(tx_file.filename().string(), ms.count());
+        TxRecord tx_record = make_pair(tx_file.stem().string(), ms.count());
+        fs::remove(tx_file);
         output_timestamps.push_back(tx_record);
-        delete utx;
-    }
 
-    return false;
+    }
+    w->store("");
+    Monero::WalletManagerFactory::getWalletManager()->closeWallet(w);
+
+    return true;
 }
 
 /*!
@@ -233,23 +309,81 @@ bool monitor_transactions(const std::string &daemon_address, const vector<string
                           vector<TxRecord> &result)
 {
     LOG_PRINT_L1("waiting for transactions");
-    return false;
+
+    DaemonRpcClient rpcClient(daemon_address, "", "");
+    vector<string> txs_to_wait_local = txs_to_wait;
+    std::chrono::time_point<std::chrono::system_clock> start, end;
+    start = std::chrono::system_clock::now();
+
+    while (result.size() < txs_to_wait.size()) {
+        for (auto it = txs_to_wait_local.begin(); it != txs_to_wait_local.end(); ++it) {
+            cryptonote::transaction unused;
+            end = std::chrono::system_clock::now();
+            size_t elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
+            if (elapsed_seconds >= timeout_s) {
+                LOG_PRINT_L0("timeout: " << timeout_s << " passed, quiting..");
+                return false;
+            }
+            bool res = rpcClient.get_tx_from_pool(*it, unused);
+            if (res) {
+                TxRecord txr;
+                txr.first = *it;
+                txr.second = duration_cast< milliseconds >(system_clock::now().time_since_epoch()).count();
+                result.push_back(txr);
+                txs_to_wait_local.erase(it);
+                break;
+            }
+        }
+
+    }
+    return true;
 }
 
 
-bool write_tx_records_to_file(const vector<TxRecord> &txr, const string &filename)
+bool write_tx_records_to_file(const vector<TxRecord> &txrs, const string &filename)
 {
     LOG_PRINT_L1("Saving tx records to a file " << filename);
+    ofstream strm(filename);
+    if (!strm.is_open()) {
+        LOG_ERROR("Error opening file " << filename);
+        return false;
+    }
+    for (const TxRecord & txr : txrs) {
+        strm << txr.first << "," << txr.second << endl;
+    }
+
     return true;
 }
 
 bool read_tx_hashes_from_file(vector<string> &txs, const std::string &filename)
 {
+    ifstream strm(filename);
+
+    if (!strm.is_open()) {
+        LOG_ERROR("Error opening file " << filename);
+        return false;
+    }
+    LOG_PRINT_L1("reading txs from file: " << filename);
+
+    string line;
+    while (getline(strm, line)) {
+        txs.push_back(line);
+    }
+
     return true;
 }
 
 bool write_tx_hashes_to_file(const vector<string> &txs, const std::string &filename)
 {
+    ofstream strm(filename);
+    if (!strm.is_open()) {
+        LOG_ERROR("Error opening file " << filename);
+        return false;
+    }
+
+    for (const string &tx: txs) {
+        strm << tx << endl;
+    }
     return true;
 }
 
@@ -357,21 +491,43 @@ int main(int argc, char** argv)
 
             // handle generate
             if (command == "generate") {
+
                 if (vm.count("output-dir") == 0) {
                     cout << "output dir is missing for " << command << " command";
                     cout << desc << "\n";
                     return -1;
                 }
+
                 output_dir = vm["output-dir"].as<string>();
+                if (vm.count("output-file") == 0) {
+                    cout << "output file is missing for " << command << " command";
+                    cout << desc << "\n";
+                    return -1;
+                }
+                output_file = vm["output-file"].as<string>();
+
+                if (vm.count("input-file")) {
+                    input_file = vm["input-file"].as<string>();
+                }
+
                 vector<string> tx_hashes;
+
 
                 if (!generate_transactions(wallet_path, wallet_password, daemon_address,
                                       testnet,
                                       tx_to_gen_count,
+                                      input_file,
                                       tx_hashes,
-                                           output_dir)) {
+                                      output_dir)) {
                     LOG_ERROR("Error generating transactions");
+                    return -1;
                 }
+
+                if (!write_tx_hashes_to_file(tx_hashes, output_file)) {
+                    LOG_ERROR("Error saving tx hashes");
+                    return -1;
+                }
+
 
             } else if (command == "send") {
                 if (vm.count("input-dir") == 0) {
@@ -405,19 +561,21 @@ int main(int argc, char** argv)
                 return -1;
             }
             input_file = vm["input-file"].as<string>();
+
             if (vm.count("output-file") == 0) {
                 cout << "output file is missing for " << command << " command";
                 cout << desc << "\n";
                 return -1;
             }
             output_file = vm["output-file"].as<string>();
-
             vector<string> tx_hashes;
+
             if (!read_tx_hashes_from_file(tx_hashes, input_file)) {
                 LOG_ERROR("Error reading transactions from file " << input_file);
                 return -1;
             }
             vector<TxRecord> tx_records;
+            LOG_PRINT_L0("waiting for " << tx_hashes.size() << " transactions");
             if (!monitor_transactions(daemon_address, tx_hashes, monitor_timeout, tx_records)) {
                 LOG_ERROR("Error monitor transactions ");
                 return -1;
