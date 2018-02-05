@@ -47,6 +47,7 @@ void supernode::BaseClientProxy::Init()
     m_DAPIServer->ADD_DAPI_HANDLER(GetSeed, rpc_command::GET_SEED, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(RestoreAccount, rpc_command::RESTORE_ACCOUNT, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(Transfer, rpc_command::TRANSFER, BaseClientProxy);
+    m_DAPIServer->ADD_DAPI_HANDLER(GetTransferFee, rpc_command::GET_TRANSFER_FEE, BaseClientProxy);
 }
 
 bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out)
@@ -170,6 +171,84 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         out.Result = ERROR_RESTORE_WALLET_FAILED;
         return false;
     }
+    out.Result = STATUS_OK;
+    return true;
+}
+
+bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GET_TRANSFER_FEE::request &in, supernode::rpc_command::GET_TRANSFER_FEE::response &out)
+{
+    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
+    if (!wal)
+    {
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+
+    if (wal->restricted())
+    {
+        //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+        //      er.message = "Command unavailable in restricted mode.";
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+
+    std::vector<cryptonote::tx_destination_entry> dsts;
+    std::vector<uint8_t> extra;
+
+    std::string payment_id = "";
+
+    uint64_t amount;
+    std::istringstream iss(in.Amount);
+    iss >> amount;
+
+    // validate the transfer requested and populate dsts & extra
+    if (!validate_transfer(in.Account, in.Password, in.Address, amount, payment_id, dsts, extra))
+    {
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+
+    try
+    {
+        uint64_t mixin = 4;
+        uint64_t unlock_time = 0;
+        uint64_t priority = 0;
+        std::vector<tools::GraftWallet::pending_tx> ptx_vector =
+                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, false);
+
+        // reject proposed transactions if there are more than one.  see on_transfer_split below.
+        if (ptx_vector.size() != 1)
+        {
+            //        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+            //        er.message = "Transaction would be too large.  try /transfer_split.";
+            out.Result = ERROR_OPEN_WALLET_FAILED;
+            return false;
+        }
+
+        out.Fee = ptx_vector.back().fee;
+    }
+    catch (const tools::error::daemon_busy& e)
+    {
+        //      er.code = WALLET_RPC_ERROR_CODE_DAEMON_IS_BUSY;
+        //      er.message = e.what();
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+    catch (const std::exception& e)
+    {
+        //      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        //      er.message = e.what();
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+    catch (...)
+    {
+        //      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        //      er.message = "WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR";
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+
     out.Result = STATUS_OK;
     return true;
 }
