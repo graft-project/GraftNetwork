@@ -66,9 +66,8 @@ struct GraftSplittedFeeTest : public testing::Test
     std::string wallet_root_path;
     std::string bdb_path;
     const std::string DAEMON_ADDR = "localhost:28281";
-    std::string RECIPIENT_ADDR = "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE";
-
-
+    // miner_wallet
+    std::string RECIPIENT_ADDR = "F7qe3cg9LxrTFgNGsM9fpS3DYf1UnGNAxUgc7aHyEAAXbyfSbfqzhbH7mzGzAK7vsj3PoETpuqsuMiQcCWeaC61cHkQNz72";
 
     GraftSplittedFeeTest()
     {
@@ -98,14 +97,14 @@ TEST_F(GraftSplittedFeeTest, SplitFeeTest)
 {
 
     vector<string> auth_sample = {
-        "T6SMPhhnQcAGuH74Mc1SwLPHqfjWArgWq9BEHC4n25nAfxMcNHnf6KzHgsQtJGhFjCaYvraFN4QkpKPoLRXTiYx21kZ84cXo7",
-        "T6TQq1wVq45ihKHcpXc82cXTqdcX2BF6ed8DjNmbR74XieV59C31SoVCR32zMYwiWv6Y4F8WXMfBQgFxErza4YYV33ZTVBucu",
-        "T6SKgE9sUqnEf6y2x26HnWPHALAT1hEFgCw6hfDvNiBnZNUoQsML6iFEXKi19fLTh1bh7P2JjiDqT4AZuQ9GLE3z2jGDugZYM",
-        "T6TRpaRPr9HFxZBC6pYj27iKeKnvqUoCS2LNgbkBLabFAwuKBcQ7HRi8BqNDmYaukfhswgqD5KbsiYe7tG8qnkSf1z7MPYTDE",
-        "T6SQw3DyNkFBMpfVL9dGtTWaJ9ByzF1M2GgyRnidTbfJJS7i8UCvtiFUs4MQXHf51LTRaCrQ25Ekg2ixJBgYLt4a1WrfPTV3c",
-        "T6TvUxr8EkC1xVT3raHancQGARpKRCSo664GZZw4t5UdVq4jkbaXR7h8pit59hhvThRdAekQZ6Q8bQPCej3p6GCL2GYQhJHxh",
-        "T6TEMA4tgbJfHmouT4994iiUuHwkNWmUHA89dKiidbPyVK7yQQbyL3FAha2t15h2sudsEELjSxLiL2Pa8CVprSJ51vhEZuhY9",
-        "T6SEENMa4aHdLevCYrrYykSkdUpKu5y6qHF6FBhfxn7p9WREjvejCgWeSabyMWT5qUhLZT8LJCUaj1pUcQJyBjrQ13DjCi4Ac"
+      "F6mnCC9RwgY1bCzPuE9UB8bqxCpyo7sRfWr2uddCy3TVF3vf6CR2SPe9jgVVLCe5c3QTZ7Pkmcf8kXZ2iqH64WREQWu7wTk",
+      "F6KTXGAfqa4MXLTUkSpNfzVoi5U2gzippJdLyZxaHTH8TGm4G5xjRFdSKnsm3HjYKpiHLL7SGc4k2djVP4tVtacn5x61ir7",
+      "F4hqq8sZVy68uo7MzDcTAnamcPX29ZTUseE4oaPMr5DbFr4CjZcESfBW2KYpEzEtL8AV8rqp7WdkaZEDmK8pP7GBExwtABY",
+      "FAY4L4HH9uJEokW3AB6rD5GSA8hw9PkNXMcUeKYf7zUh2kNtzan3m7iJrP743cfEMtMcrToW2R3NUhBaoULHWcJT9NQGJzN",
+      "FBHvywDasez21pTwXqadPBNutDa5dMbnJ4mzyHxSSPD3PwMssZQCZUy5FFriXkM7Y2coofdgQdDdLNYzoVYZzTVuPTLSrHp",
+      "F6c5F67DWduGAE3hmjwjhs8JuvMsVNykqME2Y1X4txdLaV4df9jqodtNbSTwkxUDWZ9s1LaAyBhLuYGvQtoSSLtUHcGRGMc",
+      "F8TugaUuGqXNzg4d9AZJkz1sdhMaEGvRM5LE2KEpVQM9e2eSK4iqX5TWAtcyM35ZWdFTMdGHDJ4n9eHMKW9F8vHr1LZ7ymY",
+      "F6eChDACDPebQZsKocqqrdd91QcVqUQetLaSG3fodpuqBH6bV7aMPPxLpG2jQpp2j6hJECdiBaBroApnHTgUMBMG3vctxeC"
     };
 
     tools::wallet2 *wallet = new tools::wallet2(true, false);
@@ -114,35 +113,72 @@ TEST_F(GraftSplittedFeeTest, SplitFeeTest)
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
     wallet->refresh();
-    wallet->merge_destinations(true);
+    wallet->store();
     LOG_PRINT_L0("wallet balance: " <<  cryptonote::print_money(wallet->unlocked_balance()));
     LOG_PRINT_L0("wallet default mixin: " <<  wallet->default_mixin());
 
-//    wallet2::create_transactions_graft(const string &recipient_address, const std::vector<string> &auth_sample, uint64_t amount,
-//                                                                       double fee_percent, const uint64_t unlock_time, uint32_t priority,
-//                                                                       const std::vector<uint8_t> extra, bool trusted_daemon)
     vector<uint8_t> extra;
+    uint64_t recipient_amount, auth_sample_amount_per_destination;
+    uint64_t amount_to_send = AMOUNT_10_GRF;
+    // fee 0.01
+    {
+      double fee_percentage = 0.01;
+      vector<wallet2::pending_tx> ptxv = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, amount_to_send,
+                                                                           fee_percentage, 0, 2, extra, true,
+                                                                           recipient_amount, auth_sample_amount_per_destination);
+      ASSERT_TRUE(ptxv.size() == 1);
+      const wallet2::pending_tx ptx = ptxv[0];
+      uint64_t amount = 0;
 
-    vector<wallet2::pending_tx> ptxv = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, AMOUNT_10_GRF,
-                                                                        0.1, 0, 2, extra, true);
 
-    LOG_PRINT_L0("merged destinations: " << wallet->merge_destinations());
-    for (const auto & ptx : ptxv) {
-        std::cout << "fee: " <<  ptx.fee << std::endl;
-        std::cout << "dust: " << ptx.dust << std::endl;
-        std::cout << "rctFee: " << ptx.tx.rct_signatures.txnFee << std::endl;
-        std::cout << "inputs: " << ptx.tx.vin.size() << std::endl;
+      for (const auto &dst : ptx.dests) {
+        amount += dst.amount;
+      }
 
 
-        for (const auto &in : ptx.tx.vin) {
-            std::cout << "   in: " << boost::get<cryptonote::txin_to_key>(in).amount << std::endl;
-        }
+      ASSERT_TRUE(amount == amount_to_send);
+      ASSERT_TRUE(recipient_amount + auth_sample_amount_per_destination * auth_sample.size() == amount_to_send);
+    }
 
-        std::cout << "outputs: " << ptx.tx.vout.size() << std::endl;
-        for (const auto &out : ptx.tx.vout) {
-            std::cout << "   out: " << out.amount << std::endl;
-        }
+    // fee 99.99
+    {
+      double fee_percentage = 0.01;
+      vector<wallet2::pending_tx> ptxv = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, amount_to_send,
+                                                                           fee_percentage, 0, 2, extra, true,
+                                                                           recipient_amount, auth_sample_amount_per_destination);
+      ASSERT_TRUE(ptxv.size() == 1);
+      const wallet2::pending_tx ptx = ptxv[0];
+      uint64_t amount = 0;
 
+
+      for (const auto &dst : ptx.dests) {
+        amount += dst.amount;
+      }
+
+
+      ASSERT_TRUE(amount == amount_to_send);
+      ASSERT_TRUE(recipient_amount + auth_sample_amount_per_destination * auth_sample.size() == amount_to_send);
+    }
+
+
+    // fee 1.123
+    {
+      double fee_percentage = 1.123;
+      vector<wallet2::pending_tx> ptxv = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, amount_to_send,
+                                                                           fee_percentage, 0, 2, extra, true,
+                                                                           recipient_amount, auth_sample_amount_per_destination);
+      ASSERT_TRUE(ptxv.size() == 1);
+      const wallet2::pending_tx ptx = ptxv[0];
+      uint64_t amount = 0;
+
+
+      for (const auto &dst : ptx.dests) {
+        amount += dst.amount;
+      }
+
+
+      ASSERT_TRUE(amount == amount_to_send);
+      ASSERT_TRUE(recipient_amount + auth_sample_amount_per_destination * auth_sample.size() == amount_to_send);
     }
 
 }

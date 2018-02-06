@@ -4763,9 +4763,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   return ptx_vector;
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string &recipient_address, const std::vector<string> &auth_sample, uint64_t amount,
+std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string &recipient_address, const std::vector<std::string> &auth_sample, uint64_t amount,
                                                                     double fee_percent, const uint64_t unlock_time, uint32_t priority,
-                                                                    const std::vector<uint8_t> extra, bool trusted_daemon)
+                                                                    const std::vector<uint8_t> extra, bool trusted_daemon,
+                                                                    uint64_t &recipient_amount, uint64_t &fee_per_destination)
 {
 
     std::vector<wallet2::pending_tx> result;
@@ -4781,7 +4782,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
     // split amount by recepient and auth sample
     // TODO: use proper math
     uint64_t total_fee = std::round(amount * fee_percent / 100.0);
-    uint64_t recipient_amount = amount - total_fee;
+    recipient_amount = amount - total_fee;
     // call create_transactions_2 to create actual transaction(s)
 
     LOG_PRINT_L0("total fee: " << print_money(total_fee));
@@ -4798,10 +4799,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
     for (const std::string &auth_sample_addr : auth_sample) {
         THROW_WALLET_EXCEPTION_IF(false == get_account_address_from_str(address, testnet(), auth_sample_addr),
                                   tools::error::graft_fee_too_low);
-        tx_dsts.push_back(cryptonote::tx_destination_entry(total_fee / auth_sample.size(), address));
+        fee_per_destination = total_fee / auth_sample.size();
+        tx_dsts.push_back(cryptonote::tx_destination_entry(fee_per_destination, address));
     }
 
-    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, trusted_daemon, false);
+    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, trusted_daemon);
 }
 
 std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
