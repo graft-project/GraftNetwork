@@ -3255,7 +3255,7 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
   for (auto &tx: ptx_vector)
   {
     tx_construction_data construction_data = tx.construction_data;
-    // Short payment id is encrypted with tx_key. 
+    // Short payment id is encrypted with tx_key.
     // Since sign_tx() generates new tx_keys and encrypts the payment id, we need to save the decrypted payment ID
     // Get decrypted payment id from pending_tx
     crypto::hash8 payment_id = get_short_payment_id(tx);
@@ -3271,12 +3271,12 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
         LOG_ERROR("Failed to add decrypted payment id to tx extra");
         return false;
       }
-      LOG_PRINT_L1("Decrypted payment ID: " << payment_id);       
+      LOG_PRINT_L1("Decrypted payment ID: " << payment_id);
     }
     // Save tx construction_data to unsigned_tx_set
-    txs.txes.push_back(construction_data);      
+    txs.txes.push_back(construction_data);
   }
-  
+
   txs.transfers = m_transfers;
   // save as binary
   std::ostringstream oss;
@@ -3290,8 +3290,42 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
     return false;
   }
   LOG_PRINT_L2("Saving unsigned tx data: " << oss.str());
-  return epee::file_io_utils::save_string_to_file(filename, std::string(UNSIGNED_TX_PREFIX) + oss.str());  
+  return epee::file_io_utils::save_string_to_file(filename, std::string(UNSIGNED_TX_PREFIX) + oss.str());
 }
+
+bool wallet2::save_tx_signed(const std::vector<wallet2::pending_tx> &ptx_vector, ostringstream &oss)
+{
+
+  signed_tx_set signed_txes;
+  signed_txes.ptx = ptx_vector;
+
+  // add key images
+  signed_txes.key_images.resize(m_transfers.size());
+  for (size_t i = 0; i < m_transfers.size(); ++i)
+  {
+    if (!m_transfers[i].m_key_image_known)
+      LOG_PRINT_L0("WARNING: key image not known in signing wallet at index " << i);
+    signed_txes.key_images[i] = m_transfers[i].m_key_image;
+  }
+
+  // save as binary
+  boost::archive::portable_binary_oarchive ar(oss);
+  oss << SIGNED_TX_PREFIX;
+  try
+  {
+    ar << signed_txes;
+  }
+  catch(...)
+  {
+    return false;
+  }
+  LOG_PRINT_L3("Saving signed tx data: " << oss.str());
+  return true;
+
+}
+
+
+
 //----------------------------------------------------------------------------------------------------
 bool wallet2::load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs)
 {
@@ -3440,22 +3474,38 @@ bool wallet2::load_tx(const std::string &signed_filename, std::vector<tools::wal
     LOG_PRINT_L0("Failed to load from " << signed_filename);
     return false;
   }
+  std::istringstream iss(s);
+
+  return load_tx(ptx, iss, accept_func);
+
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::load_tx(std::vector<tools::wallet2::pending_tx> &ptx, std::istringstream &stream, std::function<bool(const signed_tx_set&)> accept_func)
+{
+  // check magic
   const size_t magiclen = strlen(SIGNED_TX_PREFIX);
-  if (strncmp(s.c_str(), SIGNED_TX_PREFIX, magiclen))
-  {
-    LOG_PRINT_L0("Bad magic from " << signed_filename);
+  char magic_buf[magiclen];
+  stream.read(magic_buf, magiclen);
+  if (!stream) {
+    LOG_ERROR("Error reading tx prefix magic from stream");
     return false;
   }
-  s = s.substr(magiclen);
+
+  if (strncmp(magic_buf, SIGNED_TX_PREFIX, magiclen))
+  {
+    LOG_PRINT_L0("Bad magic: " << magic_buf);
+    return false;
+  }
+  stream.seekg(magiclen, stream.beg);
+  signed_tx_set signed_txs;
   try
   {
-    std::istringstream iss(s);
-    boost::archive::portable_binary_iarchive ar(iss);
+    boost::archive::portable_binary_iarchive ar(stream);
     ar >> signed_txs;
   }
   catch (...)
   {
-    LOG_PRINT_L0("Failed to parse data from " << signed_filename);
+    LOG_PRINT_L0("Failed to parse data stream ");
     return false;
   }
   LOG_PRINT_L0("Loaded signed tx data from binary: " << signed_txs.ptx.size() << " transactions");
