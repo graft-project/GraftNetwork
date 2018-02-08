@@ -114,6 +114,7 @@ public:
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename);
     bool exportKeyImages(const std::string &filename);
     bool importKeyImages(const std::string &filename);
+    PendingTransaction * loadSignedTx(std::istream &stream);
 
     virtual void disposeTransaction(PendingTransaction * t);
     virtual TransactionHistory * history() const;
