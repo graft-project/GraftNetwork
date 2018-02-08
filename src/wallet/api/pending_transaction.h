@@ -52,6 +52,7 @@ public:
     std::vector<std::string> txid() const;
     uint64_t txCount() const;
     // TODO: continue with interface;
+    bool serialize(std::ostream &stream);
 
 private:
     friend class WalletImpl;

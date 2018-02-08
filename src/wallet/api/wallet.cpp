@@ -880,6 +880,12 @@ bool WalletImpl::importKeyImages(const string &filename)
   return true;
 }
 
+PendingTransaction *WalletImpl::loadSignedTx(istream &stream)
+{
+  PendingTransactionImpl * result = new PendingTransactionImpl(*this);
+  return result;
+}
+
 // TODO:
 // 1 - properly handle payment id (add another menthod with explicit 'payment_id' param)
 // 2 - check / design how "Transaction" can be single interface
