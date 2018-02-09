@@ -3350,8 +3350,8 @@ bool wallet2::save_tx_signed(const std::vector<wallet2::pending_tx> &ptx_vector,
   }
 
   // save as binary
-  boost::archive::portable_binary_oarchive ar(oss);
   oss << SIGNED_TX_PREFIX;
+  boost::archive::portable_binary_oarchive ar(oss);
   try
   {
     ar << signed_txes;
@@ -3418,6 +3418,7 @@ bool wallet2::sign_tx(const std::string &unsigned_filename, const std::string &s
     return false;
   }
   return sign_tx(exported_txs, signed_filename, txs);
+
 }
 
 //----------------------------------------------------------------------------------------------------
