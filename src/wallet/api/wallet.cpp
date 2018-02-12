@@ -1061,6 +1061,17 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     return transaction;
 }
 
+PendingTransaction *WalletImpl::loadTransaction(istream &iss)
+{
+  clearStatus();
+  PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
+  if (!m_wallet->load_tx(transaction->m_pending_tx, iss)) {
+    transaction->m_status = Status_Error;
+    transaction->m_errorString = "Error loading transaction from stream";
+  }
+  return transaction;
+}
+
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
 
 {
