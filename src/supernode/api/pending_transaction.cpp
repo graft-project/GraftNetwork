@@ -161,7 +161,13 @@ uint64_t GraftPendingTransactionImpl::fee() const
 
 uint64_t GraftPendingTransactionImpl::txCount() const
 {
-    return m_pending_tx.size();
+  return m_pending_tx.size();
+}
+
+bool GraftPendingTransactionImpl::save(ostream &os)
+{
+  // TODO: copy-paste implementation from tools::wallet2 and WalletApi
+  return true;
 }
 
 void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx)

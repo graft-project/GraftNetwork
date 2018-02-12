@@ -3334,7 +3334,7 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
   return epee::file_io_utils::save_string_to_file(filename, std::string(UNSIGNED_TX_PREFIX) + oss.str());
 }
 
-bool wallet2::save_tx_signed(const std::vector<wallet2::pending_tx> &ptx_vector, ostringstream &oss)
+bool wallet2::save_tx_signed(const std::vector<wallet2::pending_tx> &ptx_vector, ostream &oss)
 {
 
   signed_tx_set signed_txes;
@@ -3360,7 +3360,7 @@ bool wallet2::save_tx_signed(const std::vector<wallet2::pending_tx> &ptx_vector,
   {
     return false;
   }
-  LOG_PRINT_L3("Saving signed tx data: " << oss.str());
+  // LOG_PRINT_L3("Saving signed tx data: " << oss.str());
   return true;
 
 }
@@ -3522,7 +3522,7 @@ bool wallet2::load_tx(const std::string &signed_filename, std::vector<tools::wal
 
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::load_tx(std::vector<tools::wallet2::pending_tx> &ptx, std::istringstream &stream, std::function<bool(const signed_tx_set&)> accept_func)
+bool wallet2::load_tx(std::vector<tools::wallet2::pending_tx> &ptx, std::istream &stream, std::function<bool(const signed_tx_set&)> accept_func)
 {
   // check magic
   const size_t magiclen = strlen(SIGNED_TX_PREFIX);

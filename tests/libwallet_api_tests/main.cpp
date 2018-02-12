@@ -1181,6 +1181,39 @@ TEST_F(WalletTest2, wallet2_serialize_ptx)
   string hash2 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx2.tx));
   ASSERT_EQ(hash1, hash2);
 
+  ASSERT_NO_THROW(wallet->commit_tx(ptx2));
+  ASSERT_ANY_THROW(wallet->commit_tx(ptx1));
+}
+
+TEST_F(WalletTest2, PendingTransactionSerialize)
+{
+  string wallet_path = epee::string_tools::get_current_module_folder()
+      + "/../data/supernode/test_wallets/miner_wallet";
+  Monero::Wallet * wallet = wmgr->openWallet(wallet_path, "", true);
+  ASSERT_TRUE(wallet->init("localhost:28281", 0, "", ""));
+  ASSERT_TRUE(wallet->refresh());
+
+  string addr_s = "FAY4L4HH9uJEokW3AB6rD5GSA8hw9PkNXMcUeKYf7zUh2kNtzan3m7iJrP743cfEMtMcrToW2R3NUhBaoULHWcJT9NQGJzN";
+  Monero::PendingTransaction * ptx1 = wallet->createTransaction(addr_s,
+                                                               "",
+                                                               Monero::Wallet::amountFromString("0.123"),
+                                                               4);
+  ASSERT_TRUE(ptx1->status() == Monero::PendingTransaction::Status_Ok);
+  std::ostringstream oss;
+  ASSERT_TRUE(ptx1->save(oss));
+
+  std::istringstream iss(oss.str());
+  Monero::PendingTransaction * ptx2 = wallet->loadTransaction(iss);
+  ASSERT_TRUE(ptx2->status() == Monero::PendingTransaction::Status_Ok);
+  ASSERT_EQ(ptx2->amount(), ptx1->amount());
+  ASSERT_EQ(ptx2->fee(), ptx1->fee());
+  ASSERT_EQ(ptx2->txCount(), ptx1->txCount());
+  ASSERT_EQ(ptx2->txid()[0], ptx1->txid()[0]);
+
+  wallet->disposeTransaction(ptx2);
+  wallet->disposeTransaction(ptx1);
+
+  wmgr->closeWallet(wallet);
 }
 
 int main(int argc, char** argv)
