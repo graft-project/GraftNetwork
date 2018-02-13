@@ -190,6 +190,7 @@ bool supernode::WalletPayObject::PutTXToPool() {
     }
 
     m_TransactionPoolID = ptx->txid()[0];
+    m_Owner->storeWalletState(m_wallet.get());
     return true;
 }
 

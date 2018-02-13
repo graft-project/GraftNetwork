@@ -61,7 +61,7 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
         wal->refresh();
         out.Balance = wal->balance();
         out.UnlockedBalance = wal->unlocked_balance();
-        storeWalletState(std::move(wal));
+        storeWalletState(wal.get());
     }
     catch (const std::exception& e)
     {
@@ -203,7 +203,7 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
     return wal;
 }
 
-void supernode::BaseClientProxy::storeWalletState(std::unique_ptr<tools::GraftWallet> wallet)
+void supernode::BaseClientProxy::storeWalletState(tools::GraftWallet *wallet)
 {
     if (wallet)
     {
