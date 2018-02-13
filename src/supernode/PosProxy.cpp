@@ -39,6 +39,7 @@ void supernode::PosProxy::Init() {
 
 
 bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out) {
+	LOG_PRINT_L0("PosProxy::Sale" << in.POSAddress << in.Amount);
     //TODO: Add input data validation
 	boost::shared_ptr<PosSaleObject> data = boost::shared_ptr<PosSaleObject>( new PosSaleObject() );
 	data->Owner(this);
@@ -48,7 +49,7 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
     if (!data->Init(in))
     {
         out.Result = ERROR_SALE_REQUEST_FAILED;
-        LOG_PRINT_L5("ERROR_SALE_REQUEST_FAILED");
+        LOG_PRINT_L0("ERROR_SALE_REQUEST_FAILED");
         return false;
     }
 	Add(data);

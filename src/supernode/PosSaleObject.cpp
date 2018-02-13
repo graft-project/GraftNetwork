@@ -141,12 +141,14 @@ void supernode::PosSaleObject::ContinueInit() {
 }
 
 bool supernode::PosSaleObject::AuthWalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
+	LOG_PRINT_L0("PosSaleObject::AuthWalletRejectPay" << in.PaymentID);
 	m_Status = NTransactionStatus::RejectedByWallet;
 	return true;
 }
 
 bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out)
 {
+	LOG_PRINT_L0("PosSaleObject::GetSaleStatus" << in.PaymentID);
 	out.Status = int(m_Status);
     out.Result = STATUS_OK;
 	return true;
@@ -154,6 +156,7 @@ bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STA
 
 
 bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out) {
+	LOG_PRINT_L0("PosSaleObject::PoSTRSigned" << in.PaymentID);
 	{
 		boost::lock_guard<boost::recursive_mutex> lock(m_TxInPoolGotGuard);
 		if(m_TxInPoolGot) return true;
@@ -252,6 +255,7 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
 
 
 bool supernode::PosSaleObject::PosRejectSale(const supernode::rpc_command::POS_REJECT_SALE::request &in, supernode::rpc_command::POS_REJECT_SALE::response &out) {
+	LOG_PRINT_L0("PosSaleObject::PosRejectSale" << in.PaymentID);
     m_Status = NTransactionStatus::RejectedByPOS;
 
     //TODO: Add impl
