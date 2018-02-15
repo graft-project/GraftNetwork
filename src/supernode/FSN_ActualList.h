@@ -32,6 +32,7 @@
 
 #include "FSN_ServantBase.h"
 #include "supernode_rpc_command.h"
+#include "net/jsonrpc_structs.h"
 #include "WorkerPool.h"
 
 namespace supernode {
@@ -49,8 +50,8 @@ public:
 public:
 	void OnAddFSN(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in );
 	void OnLostFSNStatus(const rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE& in);
-	bool FSN_CheckWalletOwnership(const rpc_command::FSN_CHECK_WALLET_OWNERSHIP::request& in, rpc_command::FSN_CHECK_WALLET_OWNERSHIP::response& out);
-	void GetFSNList(const rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request& in, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response& out);
+    bool FSN_CheckWalletOwnership(const rpc_command::FSN_CHECK_WALLET_OWNERSHIP::request& in, rpc_command::FSN_CHECK_WALLET_OWNERSHIP::response& out, epee::json_rpc::error &er);
+    void GetFSNList(const rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request& in, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response& out, epee::json_rpc::error &er);
 
 	void OnAddFSNFromWorker(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in );
 	void OnLostFSNStatusFromWorker(const rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE& in);

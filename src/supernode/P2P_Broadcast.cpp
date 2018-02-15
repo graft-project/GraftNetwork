@@ -40,7 +40,7 @@ void P2P_Broadcast::Set(DAPI_RPC_Server* pa, const vector<string>& trustedRing) 
 	m_SubNet.Set(pa, "p2p", trustedRing);
 
 	AddHandler<rpc_command::P2P_ADD_NODE_TO_LIST>( p2p_call::AddSeed, bind(&P2P_Broadcast::AddSeed, this, _1) );
-	AddNearHandler<rpc_command::P2P_GET_ALL_NODES_LIST::request, rpc_command::P2P_GET_ALL_NODES_LIST::response>( p2p_call::GetSeedsList, bind(&P2P_Broadcast::GetSeedsList, this, _1, _2) );
+    AddNearHandler<rpc_command::P2P_GET_ALL_NODES_LIST::request, rpc_command::P2P_GET_ALL_NODES_LIST::response, epee::json_rpc::error>( p2p_call::GetSeedsList, bind(&P2P_Broadcast::GetSeedsList, this, _1, _2, _3) );
 }
 
 vector< pair<string, string> > P2P_Broadcast::Seeds() { return m_SubNet.Members(); }
@@ -70,7 +70,7 @@ void P2P_Broadcast::AddSeed(const rpc_command::P2P_ADD_NODE_TO_LIST& in ) {
 	m_SubNet.AddMember( in.IP, in.Port );
 }
 
-void P2P_Broadcast::GetSeedsList(const rpc_command::P2P_GET_ALL_NODES_LIST::request& in, rpc_command::P2P_GET_ALL_NODES_LIST::response& out) {
+void P2P_Broadcast::GetSeedsList(const rpc_command::P2P_GET_ALL_NODES_LIST::request& in, rpc_command::P2P_GET_ALL_NODES_LIST::response& out, epee::json_rpc::error &err) {
 	vector< pair<string, string> > vv = m_SubNet.Members();
 	for(auto& a : vv) {
 		rpc_command::P2P_ADD_NODE_TO_LIST t;

@@ -47,7 +47,7 @@ FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAP
 	m_P2P->AddHandler<rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>( p2p_call::AddFSN, bind(&FSN_ActualList::OnAddFSN, this, _1) );
 	m_P2P->AddHandler<rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE>( p2p_call::LostFSNStatus, bind(&FSN_ActualList::OnLostFSNStatus, this, _1) );
 	m_DAPIServer->ADD_DAPI_HANDLER(FSN_CheckWalletOwnership, rpc_command::FSN_CHECK_WALLET_OWNERSHIP, FSN_ActualList);
-	m_P2P->AddNearHandler<rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response>( p2p_call::GetFSNList, bind(&FSN_ActualList::GetFSNList, this, _1, _2) );
+    m_P2P->AddNearHandler<rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response, epee::json_rpc::error>( p2p_call::GetFSNList, bind(&FSN_ActualList::GetFSNList, this, _1, _2, _3) );
 }
 
 void FSN_ActualList::Start() {
@@ -65,7 +65,7 @@ void FSN_ActualList::Stop() {
 	m_Work.Stop();
 }
 
-void FSN_ActualList::GetFSNList(const rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request& in, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response& out) {
+void FSN_ActualList::GetFSNList(const rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request& in, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response& out, epee::json_rpc::error &er) {
 	boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
 	for(auto a : m_All_FSN) {
 		rpc_command::BROADCACT_ADD_FULL_SUPER_NODE data;
@@ -224,7 +224,7 @@ bool FSN_ActualList::CheckIsFSN(boost::shared_ptr<FSN_Data> data) {
 	return true;
 }
 
-bool FSN_ActualList::FSN_CheckWalletOwnership(const rpc_command::FSN_CHECK_WALLET_OWNERSHIP::request& in, rpc_command::FSN_CHECK_WALLET_OWNERSHIP::response& out) {
+bool FSN_ActualList::FSN_CheckWalletOwnership(const rpc_command::FSN_CHECK_WALLET_OWNERSHIP::request& in, rpc_command::FSN_CHECK_WALLET_OWNERSHIP::response& out, epee::json_rpc::error &er) {
 	out.Sign = m_Servant->SignByWalletPrivateKey(in.Str, in.WalletAddr);
 	return true;
 }

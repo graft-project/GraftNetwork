@@ -58,17 +58,18 @@ namespace supernode {
 		// if we can;t use method as string and need to use int, so create class enum p2p_command : int {} in
 		template<class IN_t>
 		void AddHandler( const string& method, boost::function<void (const IN_t&)> handler ) {
-			m_DAPIServer->Add_UUID_MethodHandler<IN_t, rpc_command::P2P_DUMMY_RESP>("p2p", method, [handler](const IN_t& in, rpc_command::P2P_DUMMY_RESP& out){
+            m_DAPIServer->Add_UUID_MethodHandler<IN_t, rpc_command::P2P_DUMMY_RESP, epee::json_rpc::error>("p2p", method, [handler](const IN_t& in, rpc_command::P2P_DUMMY_RESP& out, epee::json_rpc::error &err)
+            {
 				handler(in);
 				return true;
 			}
 			);
 		}
 
-		template<class IN_t, class OUT_t>
-		void AddNearHandler( const string& method, boost::function<void (const IN_t&, OUT_t&)> handler ) {
-			m_DAPIServer->Add_UUID_MethodHandler<IN_t, OUT_t>("p2p", method, [handler](const IN_t& in, OUT_t& out) {
-				handler(in, out);
+        template<class IN_t, class OUT_t, class ERR_t>
+        void AddNearHandler( const string& method, boost::function<void (const IN_t&, OUT_t&, ERR_t&)> handler ) {
+            m_DAPIServer->Add_UUID_MethodHandler<IN_t, OUT_t, ERR_t>("p2p", method, [handler](const IN_t& in, OUT_t& out, ERR_t &err) {
+                handler(in, out, err);
 				return true;
 			});
 		}
@@ -89,7 +90,7 @@ namespace supernode {
 
 	public:
 		void AddSeed(const rpc_command::P2P_ADD_NODE_TO_LIST& in );
-		void GetSeedsList(const rpc_command::P2P_GET_ALL_NODES_LIST::request& in, rpc_command::P2P_GET_ALL_NODES_LIST::response& out);
+        void GetSeedsList(const rpc_command::P2P_GET_ALL_NODES_LIST::request& in, rpc_command::P2P_GET_ALL_NODES_LIST::response& out, epee::json_rpc::error &err);
 
 
 	protected:

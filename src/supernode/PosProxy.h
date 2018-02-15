@@ -37,7 +37,7 @@
 namespace supernode {
     class PosProxy : public BaseClientProxy {
 		public:
-		bool Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out);
+        bool Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out, epee::json_rpc::error& er);
 
 		protected:
 		void Init() override;

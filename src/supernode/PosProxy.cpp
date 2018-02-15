@@ -33,12 +33,12 @@
 void supernode::PosProxy::Init() {
     BaseClientProxy::Init();
     m_Work.Workers(10);
-	m_DAPIServer->ADD_DAPI_HANDLER(Sale, rpc_command::POS_SALE, PosProxy);
+    m_DAPIServer->ADD_DAPI_HANDLER(Sale, rpc_command::POS_SALE, PosProxy);
 	// TODO: add all other handlers
 }
 
 
-bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out) {
+bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out, epee::json_rpc::error &er) {
     //TODO: Add input data validation
 	boost::shared_ptr<PosSaleObject> data = boost::shared_ptr<PosSaleObject>( new PosSaleObject() );
 	data->Owner(this);

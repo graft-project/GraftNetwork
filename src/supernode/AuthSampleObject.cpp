@@ -42,7 +42,7 @@ bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 }
 
 
-bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& inp, rpc_command::WALLET_PROXY_PAY::response& out) {
+bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& inp, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er) {
 	RTA_TransactionRecord src;
 	rpc_command::ConvertToTR(src, inp, m_Servant);
 	if(src!=TransactionRecord) { LOG_PRINT_L5("not eq records"); return false; }
@@ -64,7 +64,7 @@ bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY
 	return true;
 }
 
-bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out) {
+bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out, epee::json_rpc::error &er) {
 	// all ok, notify PoS about this
 	rpc_command::POS_TR_SIGNED::request req;
 	rpc_command::POS_TR_SIGNED::response resp;
@@ -75,12 +75,12 @@ bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PU
 	return true;
 }
 
-bool supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
+bool supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er) {
     out.POSSaleDetails = TransactionRecord.POSSaleDetails;
 	return true;
 }
 
-bool supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
+bool supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er) {
 	rpc_command::WALLET_REJECT_PAY::request in2 = in;
 	bool ret = SendDAPICall(PosIP, PosPort, dapi_call::AuthWalletRejectPay, in2, out);
 	return ret;

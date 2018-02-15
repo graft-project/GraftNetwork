@@ -57,28 +57,39 @@ namespace supernode {
 			public:
 			virtual bool Process(epee::serialization::portable_storage& in, string& out_js)=0;
 		};
-		template<class IN_t, class OUT_t>
+
+        template<class IN_t, class OUT_t, class ERR_t>
 		class STemplateHandler : public SCallHandler {
 			public:
-			STemplateHandler( boost::function<bool (const IN_t&, OUT_t&)>& handler) : Handler(handler) {}
+            STemplateHandler( boost::function<bool (const IN_t&, OUT_t&, ERR_t&)>& handler) : Handler(handler) {}
 
 			bool Process(epee::serialization::portable_storage& ps, string& out_js) {
 				  boost::value_initialized<epee::json_rpc::request<IN_t> > req_;
 				  epee::json_rpc::request<IN_t>& req = static_cast<epee::json_rpc::request<IN_t>&>(req_);
 				  if( !req.load(ps) ) return false;
 
-				  boost::value_initialized<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> > resp_;
-				  epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error>& resp =  static_cast<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> &>(resp_);
+                  boost::value_initialized<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> > resp_;
+                  epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error>& resp = static_cast<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> &>(resp_);
 				  resp.jsonrpc = "2.0";
 				  resp.id = req.id;
 
-				  if( !Handler(req.params, resp.result) ) return false;
+                  boost::value_initialized<epee::json_rpc::error_response> initial_err;
+                  epee::json_rpc::error_response err = static_cast<epee::json_rpc::error_response &>(initial_err);
+                  err.jsonrpc = "2.0";
+                  err.id = req.id;
 
-				  epee::serialization::store_t_to_json(resp, out_js);
+                  if (Handler(req.params, resp.result, err.error))
+                  {
+                      epee::serialization::store_t_to_json(resp, out_js);
+                  }
+                  else
+                  {
+                      epee::serialization::store_t_to_json(err, out_js);
+                  }
 				  return true;
 			}
 
-			boost::function<bool (const IN_t&, OUT_t&)> Handler;
+            boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> Handler;
 		};
 
 		struct SHandlerData {
@@ -90,22 +101,22 @@ namespace supernode {
 
 
 		public:
-		template<class IN_t, class OUT_t>
-		int AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
+        template<class IN_t, class OUT_t, class ERR_t>
+        int AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> handler ) {
 			SHandlerData hh;
-			hh.Handler = new STemplateHandler<IN_t, OUT_t>(handler);
+            hh.Handler = new STemplateHandler<IN_t, OUT_t, ERR_t>(handler);
 			hh.Name = method;
 			return AddHandlerData(hh);
 		}
 
-		#define ADD_DAPI_HANDLER(method, data, class_owner) AddHandler<data::request, data::response>( #method, bind( &class_owner::method, this, _1, _2) )
+        #define ADD_DAPI_HANDLER(method, data, class_owner) AddHandler<data::request, data::response, epee::json_rpc::error>( #method, bind( &class_owner::method, this, _1, _2, _3) )
 
 		// IN must be child from sub_net_data
 		// income message filtered by payment_id and method
-		template<class IN_t, class OUT_t>
-		int Add_UUID_MethodHandler( string paymentid, const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
+        template<class IN_t, class OUT_t, class ERR_t>
+        int Add_UUID_MethodHandler( string paymentid, const string& method, boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> handler ) {
 			SHandlerData hh;
-			hh.Handler = new STemplateHandler<IN_t, OUT_t>(handler);
+            hh.Handler = new STemplateHandler<IN_t, OUT_t, ERR_t>(handler);
 			hh.Name = method;
 			hh.PaymentID = paymentid;
 			return AddHandlerData(hh);

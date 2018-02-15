@@ -40,11 +40,11 @@ namespace supernode {
 		void Owner(PosProxy* o);
 		bool Init(const RTA_TransactionRecordBase& src) override;
 		void ContinueInit();
-		bool GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out);
-		bool PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out);
+        bool GetSaleStatus(const rpc_command::POS_GET_SALE_STATUS::request& in, rpc_command::POS_GET_SALE_STATUS::response& out, epee::json_rpc::error &er);
+        bool PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out, epee::json_rpc::error &er);
 
-        bool PosRejectSale(const rpc_command::POS_REJECT_SALE::request &in, rpc_command::POS_REJECT_SALE::response &out);
-        bool AuthWalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out);
+        bool PosRejectSale(const rpc_command::POS_REJECT_SALE::request &in, rpc_command::POS_REJECT_SALE::response &out, epee::json_rpc::error &er);
+        bool AuthWalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er);
 
 		protected:
 		string GeneratePaymentID();

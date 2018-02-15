@@ -53,7 +53,7 @@ namespace supernode {
 
 int main(int argc, const char** argv) {
 	mlog_configure("", true);
-    mlog_set_log_level(5);
+    mlog_set_log_level(0);
 
 	string conf_file("conf.ini");
 	if(argc>1) conf_file = argv[1];

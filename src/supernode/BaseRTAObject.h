@@ -68,17 +68,17 @@ namespace supernode {
 
 		bool CheckSign(const string& wallet, const string& sign);
 
-		template<class IN_t, class OUT_t>
-		void AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
+        template<class IN_t, class OUT_t, class ERR_t>
+        void AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> handler ) {
 			boost::lock_guard<boost::recursive_mutex> lock(m_HanlderIdxGuard);
 			if(m_ReadyForDelete) return;
-			int idx = m_DAPIServer->Add_UUID_MethodHandler<IN_t, OUT_t>( TransactionRecord.PaymentID, method, handler );
+            int idx = m_DAPIServer->Add_UUID_MethodHandler<IN_t, OUT_t, ERR_t>( TransactionRecord.PaymentID, method, handler );
 			m_HanlderIdx.push_back(idx);
 		}
 
 
 		#define ADD_RTA_OBJECT_HANDLER(method, data, class_owner) \
-			AddHandler<data::request, data::response>(dapi_call::method, bind( &class_owner::method, this, _1, _2))
+            AddHandler<data::request, data::response, epee::json_rpc::error>(dapi_call::method, bind( &class_owner::method, this, _1, _2, _3))
 
 
 		protected:

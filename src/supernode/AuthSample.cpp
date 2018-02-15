@@ -37,7 +37,7 @@ void supernode::AuthSample::Init()  {
 }
 
 
-bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out) {
+bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out, epee::json_rpc::error &er) {
 	RTA_TransactionRecord tr;
 	rpc_command::ConvertToTR(tr, in, m_Servant);
 
@@ -58,12 +58,12 @@ bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::requ
 	return true;
 }
 
-bool supernode::AuthSample::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out) {
+bool supernode::AuthSample::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er) {
 	boost::shared_ptr<BaseRTAObject> ff = ObjectByPayment(in.PaymentID);
 	boost::shared_ptr<AuthSampleObject> data = boost::dynamic_pointer_cast<AuthSampleObject>(ff);
 	if(!data) { LOG_PRINT_L5("not found object: "<<in.PaymentID<<"  in: "<<m_DAPIServer->Port()); return false; }
 
-	if( !data->WalletProxyPay(in, out) ) { LOG_PRINT_L5("!WalletProxyPay"); Remove(data); return false; }
+    if( !data->WalletProxyPay(in, out, er) ) { LOG_PRINT_L5("!WalletProxyPay"); Remove(data); return false; }
 
 	return true;
 }

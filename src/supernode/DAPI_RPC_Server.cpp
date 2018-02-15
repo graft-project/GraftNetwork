@@ -123,8 +123,11 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
 
     if(!handler) { LOG_PRINT_L5("handler not found for: "<<callback_name); return false; }
     //LOG_PRINT_L5("Befor process: "<<callback_name<<"  in: "<<Port());
-    if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L5("Fail to process (ret false): "<<callback_name); return false; }
-    //LOG_PRINT_L5("After process: "<<callback_name<<"  in: "<<Port());
+    if( !handler->Process(ps, response_info.m_body) )
+    {
+        LOG_PRINT_L5("Fail to process (ret false): "<<callback_name);
+        return false;
+    }
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";

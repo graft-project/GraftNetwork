@@ -58,7 +58,7 @@ namespace supernode {
 
 		void BeforStart();
 
-		bool GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out);
+        bool GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out, epee::json_rpc::error &er);
 
 
 		protected:

@@ -122,7 +122,7 @@ bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& s
 	return true;
 }
 
-bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out) {
+bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out, epee::json_rpc::error &er) {
 	out.Status = int(m_Status);
 	//TimeMark -= boost::posix_time::hours(3);
     out.Result = STATUS_OK;
