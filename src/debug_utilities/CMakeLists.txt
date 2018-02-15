@@ -72,3 +72,28 @@ set_property(TARGET object_sizes
 	PROPERTY
 	OUTPUT_NAME "monero-utils-object-sizes")
 
+
+
+#
+set(daa_test_sources
+  daa_test.cpp
+  )
+
+monero_add_executable(daa_test
+  ${daa_test_sources}
+  ${daa_test_private_headers})
+
+target_link_libraries(daa_test
+  LINK_PRIVATE
+    cryptonote_core
+    blockchain_db
+    p2p
+    epee
+    ${CMAKE_THREAD_LIBS_INIT})
+
+add_dependencies(daa_test
+        version)
+set_property(TARGET daa_test
+        PROPERTY
+        OUTPUT_NAME "daa_test")
+
