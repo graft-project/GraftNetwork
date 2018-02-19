@@ -52,17 +52,20 @@ namespace supernode {
 
 
 int main(int argc, const char** argv) {
-	mlog_configure("", true);
+    mlog_configure("", true);
     mlog_set_log_level(0);
 
 	string conf_file("conf.ini");
 	if(argc>1) conf_file = argv[1];
-	LOG_PRINT_L5("conf: "<<conf_file);
+    LOG_PRINT_L5("conf: "<<conf_file);
 
 	// load config
 	boost::property_tree::ptree config;
 	boost::property_tree::ini_parser::read_ini(conf_file, config);
 
+    const boost::property_tree::ptree& gen_conf = config.get_child("config");
+    mlog_set_log_level(gen_conf.get<int>("log_level", 0));
+    LOG_PRINT_L1("Log level: " << gen_conf.get<int>("log_level", 0));
 
 	// TODO: Init all monero staff here
     // TODO:
