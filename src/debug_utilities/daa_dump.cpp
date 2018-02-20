@@ -103,12 +103,18 @@ int main(int argc, char **argv)
             LOG_PRINT_L0("Error opening database: " << e.what());
             return -1;
         }
-
+        uint64_t prev_timestamp = 0;
+        output << ";block_height, timestamp, solve_time, difficulty, cumulative_difficulty" << std::endl;
         for (uint64_t h = start_block; h <= end_block; ++h) {
             cryptonote::difficulty_type cum_difficulty = bdb->get_block_cumulative_difficulty(h);
             cryptonote::difficulty_type difficulty = bdb->get_block_difficulty(h);
             uint64_t timestamp = bdb->get_block_timestamp(h);
-            output << h << ", " << timestamp << ", "  << difficulty << ", " << cum_difficulty << endl;
+            uint64_t solve_time = 0;
+            if (h - start_block >= 1)
+                solve_time = timestamp - prev_timestamp;
+            // block_height, timestamp, solve_time, difficulty, cumulative_difficulty
+            output << h << ", " << timestamp << ", " << solve_time << ", "  << difficulty << ", " << cum_difficulty << endl;
+            prev_timestamp = timestamp;
         }
 
         try {
