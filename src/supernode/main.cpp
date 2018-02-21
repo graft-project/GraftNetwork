@@ -57,15 +57,15 @@ int main(int argc, const char** argv) {
 
 	string conf_file("conf.ini");
 	if(argc>1) conf_file = argv[1];
-    LOG_PRINT_L5("conf: "<<conf_file);
+    LOG_PRINT_L0("conf: "<<conf_file);
 
 	// load config
 	boost::property_tree::ptree config;
 	boost::property_tree::ini_parser::read_ini(conf_file, config);
 
     const boost::property_tree::ptree& gen_conf = config.get_child("config");
+    LOG_PRINT_L0("Log level: " << gen_conf.get<int>("log_level", 0));
     mlog_set_log_level(gen_conf.get<int>("log_level", 0));
-    LOG_PRINT_L1("Log level: " << gen_conf.get<int>("log_level", 0));
 
 	// TODO: Init all monero staff here
     // TODO:

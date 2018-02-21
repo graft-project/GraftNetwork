@@ -34,10 +34,6 @@ using namespace std;
 bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) {
 	//LOG_PRINT_L4("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI);
 
-	//LOG_PRINT_L5("Got request");
-
-	//LOG_PRINT_L5("req in "<<Port()<<"  =1");
-
 	response.m_response_code = 200;
 	response.m_response_comment = "Ok";
 
@@ -51,11 +47,6 @@ bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http
 		response.m_response_code = 500;
 		response.m_response_comment = "Internal server error";
 	}
-
-
-
-	//LOG_PRINT_L5("req in "<<Port()<<"  =2");
-
 	return true;
 }
 
@@ -71,7 +62,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     epee::serialization::storage_entry id_ = epee::serialization::storage_entry(std::string());
 
     if( !ps.load_from_json(query_info.m_body) ) {
-		LOG_PRINT_L5("!load_from_json");
+        LOG_PRINT_L0("!load_from_json");
 		response_info.m_response_code = 500;
 		response_info.m_response_comment = "Parse error";
     } else if( !ps.get_value("dapi_version", version, nullptr) ) {
@@ -87,7 +78,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
 
     if( response_info.m_response_code!=200 ) {
     	//epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(rsp), response_info.m_body);
-    	LOG_PRINT_L5( "Error: "<<response_info.m_response_comment );
+        LOG_PRINT_L0( "Error: "<<response_info.m_response_comment );
     	return true;
     }
 
@@ -104,13 +95,9 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     SCallHandler* handler = nullptr;
 
     {
-    	//LOG_PRINT_L5("\n\n\n");
-
     	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
     	for(unsigned i=0;i<m_vHandlers.size();i++) {
     		SHandlerData& hh = m_vHandlers[i];
-
-    		//LOG_PRINT_L5("Have: '"<<hh.Name<<"' : '"<<hh.PaymentID<<"' need: '"<<callback_name<<"' : '"<<payment_id<<"'");
 
     		if(hh.Name!=callback_name) continue;
     		if(hh.PaymentID.size() &&  hh.PaymentID!=payment_id) continue;
@@ -118,13 +105,10 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     		handler = hh.Handler;
     		break;
     	}
-    	//LOG_PRINT_L5("\n\n\n");
     }
 
-    if(!handler) { LOG_PRINT_L5("handler not found for: "<<callback_name); return false; }
-    //LOG_PRINT_L5("Befor process: "<<callback_name<<"  in: "<<Port());
-    if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L5("Fail to process (ret false): "<<callback_name); return false; }
-    //LOG_PRINT_L5("After process: "<<callback_name<<"  in: "<<Port());
+    if(!handler) { LOG_PRINT_L4("handler not found for: "<<callback_name); return false; }
+    if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L4("Fail to process (ret false): "<<callback_name); return false; }
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
@@ -140,10 +124,6 @@ void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int n
 	m_IP = ip;
 	init(port, ip);
 	m_NumThreads = numThreads;
-
-	//m_net_server.acceptor_.max_connections
-	//LOG_PRINT_L5("MAX_CON: "<<boost::asio::ip::tcp::acceptor::max_connections);
-
 }
 
 void supernode::DAPI_RPC_Server::Start() { run(m_NumThreads); }

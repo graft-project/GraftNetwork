@@ -112,7 +112,7 @@ bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
 	TransactionRecord.PaymentID = GeneratePaymentID();
 	TransactionRecord.BlockNum = m_Servant->GetCurrentBlockHeight();
 	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
-	if( TransactionRecord.AuthNodes.empty() ) { LOG_PRINT_L5("SALE: AuthNodes.empty"); m_Status = NTransactionStatus::Fail; return false; }
+    if( TransactionRecord.AuthNodes.empty() ) { LOG_PRINT_L0("SALE: AuthNodes.empty"); m_Status = NTransactionStatus::Fail; return false; }
 
     m_Status = NTransactionStatus::InProgress;
 
@@ -133,7 +133,7 @@ void supernode::PosSaleObject::ContinueInit() {
 	inbr.SenderIP = m_DAPIServer->IP();
 	inbr.SenderPort = m_DAPIServer->Port();
 	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) {
-		LOG_PRINT_L5("!Send dapi_call::PosProxySale");
+        LOG_PRINT_L0("!Send dapi_call::PosProxySale");
 		m_Status = NTransactionStatus::Fail;
 
 	}
@@ -187,10 +187,6 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
         return false;
     }
 
-
-    //LOG_PRINT_L5("graft_tx_extra.Signs: "<<graft_tx_extra.Signs.size()<<"  TransactionRecord.AuthNodes: "<<TransactionRecord.AuthNodes.size());
-
-
     for (unsigned i = 0; i < graft_tx_extra.Signs.size(); ++i) {
         const string &sign = graft_tx_extra.Signs.at(i);
 
@@ -206,7 +202,6 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
         // by the same index
         for (const auto & authNode : TransactionRecord.AuthNodes) {
             check_result = CheckSign(authNode->Stake.Addr, sign);
-            LOG_PRINT_L5("Checking signature with wallet: " << authNode->Stake.Addr << " [" << sign << "]  result: "<<check_result<<" messag: "<<TransactionRecord.MessageForSign());
             if (check_result)
                 break;
         }

@@ -66,18 +66,18 @@ namespace supernode {
 
 	    	WasConnected = false;
 	    	if(!invoke(rpc_command::DAPI_URI, rpc_command::DAPI_METHOD, req_param, timeout, std::addressof(pri))) {
-	    		LOG_PRINT_L5("Failed to invoke http request to  " << call<<"  URI: "<<m_URI);
+                LOG_PRINT_L4("Failed to invoke http request to  " << call<<"  URI: "<<m_URI);
 	    		return false;
 	    	}
 	    	WasConnected = true;
 
 	    	if(!pri) {
-	    		LOG_PRINT_L5("Failed to invoke http request to  " << call << ", internal error (null response ptr)");
+                LOG_PRINT_L4("Failed to invoke http request to  " << call << ", internal error (null response ptr)");
 	    		return false;
 	    	}
 
 	    	if(pri->m_response_code != 200) {
-	    		LOG_PRINT_L5("Failed to invoke http request to  " << call << ", wrong response code: " << pri->m_response_code);
+                LOG_PRINT_L4("Failed to invoke http request to  " << call << ", wrong response code: " << pri->m_response_code);
 	    		return false;
 	    	}
 

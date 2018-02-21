@@ -58,9 +58,6 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
 		data->ContinueInit();
 	} );
 
-
-//	LOG_PRINT_L5( "ADD: "<<in.PaymentID<<"  data: "<<data->TransactionRecord.PaymentID );
-
 	out.BlockNum = data->TransactionRecord.BlockNum;
 	out.PaymentID = data->TransactionRecord.PaymentID;
     out.Result = STATUS_OK;
