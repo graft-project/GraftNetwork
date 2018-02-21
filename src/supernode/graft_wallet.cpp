@@ -5735,7 +5735,7 @@ bool GraftWallet::verifySignedMessage(const std::string &message, const std::str
 	  crypto::hash8 payment_id;
 
 	  if (!cryptonote::get_account_integrated_address_from_str(addr, has_payment_id, payment_id, isTestnet, address)) {
-		  LOG_PRINT_L5("!get_account_integrated_address_from_str");
+          LOG_PRINT_L0("!get_account_integrated_address_from_str");
 	    return false;
 	  }
 
