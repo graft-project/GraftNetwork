@@ -313,6 +313,7 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
         if (!do_not_relay)
         {
             wal->commit_tx(ptx_vector);
+            storeWalletState(wal.get());
         }
 
         // populate response with tx hash
