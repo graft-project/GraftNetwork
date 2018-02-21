@@ -49,7 +49,7 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
     if (!data->Init(in))
     {
         out.Result = ERROR_SALE_REQUEST_FAILED;
-        LOG_PRINT_L0("ERROR_SALE_REQUEST_FAILED");
+        LOG_ERROR("ERROR_SALE_REQUEST_FAILED");
         return false;
     }
 	Add(data);

@@ -66,7 +66,7 @@ namespace supernode {
 
 	    	WasConnected = false;
 	    	if(!invoke(rpc_command::DAPI_URI, rpc_command::DAPI_METHOD, req_param, timeout, std::addressof(pri))) {
-                LOG_PRINT_L4("Failed to invoke http request to  " << call<<"  URI: "<<m_URI);
+                LOG_ERROR("Failed to invoke http request to  " << call<<"  URI: "<<m_URI);
 	    		return false;
 	    	}
 	    	WasConnected = true;

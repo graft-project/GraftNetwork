@@ -133,7 +133,7 @@ void supernode::PosSaleObject::ContinueInit() {
 	inbr.SenderIP = m_DAPIServer->IP();
 	inbr.SenderPort = m_DAPIServer->Port();
 	if( !m_SubNetBroadcast.Send(dapi_call::PosProxySale, inbr, outv) || outv.empty() ) {
-        LOG_PRINT_L0("!Send dapi_call::PosProxySale");
+        LOG_ERROR("!Send dapi_call::PosProxySale");
 		m_Status = NTransactionStatus::Fail;
 
 	}

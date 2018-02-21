@@ -62,7 +62,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     epee::serialization::storage_entry id_ = epee::serialization::storage_entry(std::string());
 
     if( !ps.load_from_json(query_info.m_body) ) {
-        LOG_PRINT_L0("!load_from_json");
+        LOG_ERROR("!load_from_json");
 		response_info.m_response_code = 500;
 		response_info.m_response_comment = "Parse error";
     } else if( !ps.get_value("dapi_version", version, nullptr) ) {
@@ -108,8 +108,8 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     }
     LOG_PRINT_L2(response_info.m_body);
 
-    if(!handler) { LOG_PRINT_L4("handler not found for: "<<callback_name); return false; }
-    if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L4("Fail to process (ret false): "<<callback_name); return false; }
+    if(!handler) { LOG_ERROR("handler not found for: "<<callback_name); return false; }
+    if( !handler->Process(ps, response_info.m_body) ) { LOG_ERROR("Fail to process (ret false): "<<callback_name); return false; }
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
