@@ -53,6 +53,8 @@
 #define ERROR_BALANCE_NOT_AVAILABLE         -16
 #define ERROR_CANNOT_REJECT_PAY             -17
 
+#define ERROR_NOT_ENOUGH_COINS              -20
+
 //Standart JSON-RPC 2.0 Errors
 #define ERROR_PARSE_ERROR                   -32700
 #define ERROR_INVALID_REQUEST               -32600
@@ -66,6 +68,5 @@
 #define ERROR_WRONG_DAPI_VERSION            -32002
 #define ERROR_HANDLER_NOT_FOUND             -32003
 #define ERROR_UNKNOWN_METHOD_ERROR          -32004
-
 
 #endif // GRAFT_DEFINES_H

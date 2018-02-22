@@ -79,8 +79,6 @@ bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& s
 	inbr.CustomerWalletAddr = cwa;
 	inbr.CustomerWalletSign = m_wallet->sign(data);
 
-	//LOG_PRINT_L5("CWA: "<<data);
-
     if( !m_SubNetBroadcast.Send(dapi_call::WalletProxyPay, inbr, outv) || outv.empty() )  {
         LOG_ERROR("Failed to send WalletProxyPay broadcast");
         return false;
@@ -112,7 +110,6 @@ bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& s
 	rpc_command::WALLET_PUT_TX_IN_POOL::request req;
 	req.PaymentID = TransactionRecord.PaymentID;
 	req.TransactionPoolID = m_TransactionPoolID;
-	//LOG_PRINT_L5("PaymentID: "<<TransactionRecord.PaymentID);
 
 	vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
 
@@ -123,6 +120,7 @@ bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& s
 }
 
 bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out, epee::json_rpc::error &er) {
+	LOG_PRINT_L0("WalletPayObject::GetPayStatus" << in.PaymentID);
 	out.Status = int(m_Status);
 	//TimeMark -= boost::posix_time::hours(3);
     out.Result = STATUS_OK;
@@ -148,8 +146,6 @@ bool supernode::WalletPayObject::PutTXToPool() {
         LOG_ERROR("Wallet needs to be opened with OpenSenderWallet before this call");
         return false;
     }
-
-    //for(auto& a : m_Signs) LOG_PRINT_L5("sign in m_Signs: "<<a);
 
     GraftTxExtra tx_extra;
     tx_extra.BlockNum = 123;
@@ -189,6 +185,7 @@ bool supernode::WalletPayObject::PutTXToPool() {
     }
 
     m_TransactionPoolID = ptx->txid()[0];
+    m_Owner->storeWalletState(m_wallet.get());
     return true;
 }
 

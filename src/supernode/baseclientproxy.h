@@ -39,7 +39,7 @@ public:
     BaseClientProxy();
 
     std::unique_ptr<tools::GraftWallet> initWallet(const std::string &account, const std::string &password) const;
-    void storeWalletState(std::unique_ptr<tools::GraftWallet> wallet);
+    void storeWalletState(tools::GraftWallet *wallet);
 
     static std::string base64_decode(const std::string &encoded_data);
     static std::string base64_encode(const std::string &data);
@@ -53,9 +53,15 @@ protected:
     bool GetSeed(const rpc_command::GET_SEED::request &in, rpc_command::GET_SEED::response &out, epee::json_rpc::error &er);
     bool RestoreAccount(const rpc_command::RESTORE_ACCOUNT::request &in, rpc_command::RESTORE_ACCOUNT::response &out, epee::json_rpc::error &er);
 
+    bool GetTransferFee(const rpc_command::GET_TRANSFER_FEE::request &in, rpc_command::GET_TRANSFER_FEE::response &out, epee::json_rpc::error &er);
+    bool Transfer(const rpc_command::TRANSFER::request &in, rpc_command::TRANSFER::response &out, epee::json_rpc::error &er);
 
-protected:
-
+private:
+    bool validate_transfer(const string &account, const string &password,
+                           const std::string &address, uint64_t amount,
+                           const std::string payment_id,
+                           std::vector<cryptonote::tx_destination_entry>& dsts,
+                           std::vector<uint8_t>& extra);
 };
 
 }

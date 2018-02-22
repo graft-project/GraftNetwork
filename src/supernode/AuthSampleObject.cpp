@@ -45,14 +45,10 @@ bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& inp, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er) {
 	RTA_TransactionRecord src;
 	rpc_command::ConvertToTR(src, inp, m_Servant);
-	if(src!=TransactionRecord) { LOG_PRINT_L5("not eq records"); return false; }
+    if(src!=TransactionRecord) { LOG_PRINT_L4("not eq records"); return false; }
 
 	string data = TransactionRecord.PaymentID + string(":") + inp.CustomerWalletAddr;
 	bool signok = tools::GraftWallet::verifySignedMessage(data, inp.CustomerWalletAddr, inp.CustomerWalletSign, m_Servant->IsTestnet());
-	//LOG_PRINT_L5("Check sign: "<<signok<<"  data: "<<data<<"  sign: "<<inp.CustomerWalletSign);
-
-
-	//LOG_PRINT_L5("PaymentID: "<<TransactionRecord.PaymentID<<"  m_ReadyForDelete: "<<m_ReadyForDelete);
 
 	// TODO: send LOCK. WTF?? all our nodes got this packet by sub-net broadcast. so only top node must send broad cast
 
@@ -87,8 +83,7 @@ bool supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET
 }
 
 string supernode::AuthSampleObject::GenerateSignForTransaction() {
-	string sign = m_Servant->SignByWalletPrivateKey( TransactionRecord.MessageForSign(), m_Servant->GetMyStakeWallet().Addr );
-	//LOG_PRINT_L5("GenerateSignForTransaction: mes: "<<TransactionRecord.MessageForSign()<<"  addr: "<<m_Servant->GetMyStakeWallet().Addr<<"  sign: "<<sign)
+    string sign = m_Servant->SignByWalletPrivateKey( TransactionRecord.MessageForSign(), m_Servant->GetMyStakeWallet().Addr );
 	return sign;
 }
 

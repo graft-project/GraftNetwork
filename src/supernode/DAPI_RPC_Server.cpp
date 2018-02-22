@@ -36,10 +36,6 @@ using namespace std;
 bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) {
     //LOG_PRINT_L4("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI);
 
-    //LOG_PRINT_L5("Got request");
-
-    //LOG_PRINT_L5("req in "<<Port()<<"  =1");
-
     response.m_response_code = 200;
     response.m_response_comment = "Ok";
 
@@ -53,7 +49,6 @@ bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http
         response.m_response_code = 500;
         response.m_response_comment = "Internal server error";
     }
-    //LOG_PRINT_L5("req in "<<Port()<<"  =2");
 
     return true;
 }
@@ -63,7 +58,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
                                                connection_context& m_conn_context)
 {
     epee::json_rpc::error_response rsp;
-
+    LOG_PRINT_L2(query_info.m_body);
     if (query_info.m_URI != rpc_command::DAPI_URI)
     {
         rsp.error.code = ERROR_WRONG_DAPI_URI;
@@ -115,8 +110,6 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
                 {
                     SHandlerData& hh = m_vHandlers[i];
 
-                    //LOG_PRINT_L5("Have: '"<<hh.Name<<"' : '"<<hh.PaymentID<<"' need: '"<<callback_name<<"' : '"<<payment_id<<"'");
-
                     if(hh.Name!=callback_name) continue;
                     if(hh.PaymentID.size() &&  hh.PaymentID!=payment_id) continue;
 
@@ -125,20 +118,22 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
                 }
             }
 
+            LOG_PRINT_L2(response_info.m_body);
             if (!handler)
             {
-                LOG_PRINT_L5("handler not found for: " << callback_name);
+                LOG_ERROR("handler not found for: " << callback_name);
                 rsp.error.code = ERROR_HANDLER_NOT_FOUND;
                 rsp.error.message = "Method not found";
             }
             else if (!handler->Process(ps, response_info.m_body))
             {
-                LOG_PRINT_L5("Fail to process (ret false): " << callback_name);
+                LOG_ERROR("Fail to process (ret false): " << callback_name);
                 rsp.error.code = ERROR_UNKNOWN_METHOD_ERROR;
                 rsp.error.message = "Unknown method error";
             }
         }
     }
+
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
 //    epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(rsp), response_info.m_body);
@@ -155,10 +150,6 @@ void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int n
     m_IP = ip;
     init(port, ip);
     m_NumThreads = numThreads;
-
-    //m_net_server.acceptor_.max_connections
-    //LOG_PRINT_L5("MAX_CON: "<<boost::asio::ip::tcp::acceptor::max_connections);
-
 }
 
 void supernode::DAPI_RPC_Server::Start() { run(m_NumThreads); }

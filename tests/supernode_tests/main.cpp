@@ -144,20 +144,20 @@ TEST_F(TestDAPI_Server_And_ClientBase, TestDAPI_Server_And_Client) {
 
 		ASSERT_TRUE(ret && out.Data==20);
 
-//		LOG_PRINT_L5("ret: "<<ret<<"  out.D: "<<out.Data);
+//		LOG_PRINT_L0("ret: "<<ret<<"  out.D: "<<out.Data);
 
 		in.PaymentID = "1";
 		out.Data = 0;
 		ret = client.Invoke("Payment", in, out);
 
 		ASSERT_TRUE(ret && out.Data==1);
-//		LOG_PRINT_L5("ret: "<<ret<<"  out.D: "<<out.Data);
+//		LOG_PRINT_L0("ret: "<<ret<<"  out.D: "<<out.Data);
 
 		in.PaymentID = "2";
 		ret = client.Invoke("Payment", in, out);
 
 		ASSERT_TRUE(ret && out.Data==2);
-//		LOG_PRINT_L5("ret: "<<ret<<"  out.D: "<<out.Data);
+//		LOG_PRINT_L0("ret: "<<ret<<"  out.D: "<<out.Data);
 
 
 		dapi_server.Stop();
@@ -203,7 +203,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 				objs[i]->Start();
 			}
 
-			LOG_PRINT_L5("DAPI START on: "<<Port);
+			LOG_PRINT_L0("DAPI START on: "<<Port);
 			Started = 1;
 			dapi_server.Start();// block execution
 
@@ -246,7 +246,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			Servant->AddFsnAccount(boost::make_shared<FSN_Data>(FSN_WalletData{address2, viewkey2}, FSN_WalletData{address1, viewkey1}, "127.0.0.1", p2));
 
 
-			LOG_PRINT_L5("STARTED: "<<(second?2:1));
+			LOG_PRINT_L0("STARTED: "<<(second?2:1));
 
 
 			WorkerThread = new boost::thread(&Supernode::Run, this);
@@ -296,7 +296,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 
 	bool Assert(bool bb, const string& str) {
 		if(!Verbose) return bb;
-		LOG_PRINT_L5(str<<" - "<<(bb?"OK":"Fail"));
+		LOG_PRINT_L0(str<<" - "<<(bb?"OK":"Fail"));
 		return bb;
 	}
 
@@ -319,7 +319,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			bb = pos_sale.Invoke("Sale", sale_in, sale_out);
 			if( Assert(bb, "Sale") ) break;
 
-			//LOG_PRINT_L5("Sale ret: "<<ret<<"  BlockNum: "<<sale_out.BlockNum<<"  uuid: "<<sale_out.PaymentID);
+			//LOG_PRINT_L0("Sale ret: "<<ret<<"  BlockNum: "<<sale_out.BlockNum<<"  uuid: "<<sale_out.PaymentID);
 		}
 		sleep(1);
 		if(!bb) return false;
@@ -330,7 +330,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			if( Assert(bb, "GetSaleStatus") ) break;
 			sleep(1);
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-			//LOG_PRINT_L5("GetSaleStatus: "<<()<<"  int: "<<int(trs));
+			//LOG_PRINT_L0("GetSaleStatus: "<<()<<"  int: "<<int(trs));
 		}
 		if(!bb) return false;
 
@@ -346,7 +346,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			if( Assert(bb, "WalletGetPosData") ) break;
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
 
-			//LOG_PRINT_L5("WalletGetPosData ret: "<<ret<<"  data: "<<out.DataForClientWallet);
+			//LOG_PRINT_L0("WalletGetPosData ret: "<<ret<<"  data: "<<out.DataForClientWallet);
 		}
 		if(!bb) return false;
 
@@ -372,7 +372,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			bb = wallet_pay.Invoke("Pay", pay_in, pay_out);
 			if( Assert(bb, "Pay") ) break;
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-			//LOG_PRINT_L5("Pay ret: "<<ret);
+			//LOG_PRINT_L0("Pay ret: "<<ret);
 		}
 		if(!bb) return false;
 
@@ -382,7 +382,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			bb = trs==NTransactionStatus::Success;
 			if( Assert(bb, "GetPayStatus") ) break;
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-			//LOG_PRINT_L5("GetPayStatus: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+			//LOG_PRINT_L0("GetPayStatus: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
 
 		}
 		if(!bb) return false;
@@ -393,7 +393,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			bb = trs==NTransactionStatus::Success;
 			if( Assert(bb, "GetSaleStatus") ) break;
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-			//LOG_PRINT_L5("GetSaleStatus2: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+			//LOG_PRINT_L0("GetSaleStatus2: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
 		}
 		if(!bb) return false;
 
@@ -449,7 +449,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		}
 		if(!bb) return false;
 
-		LOG_PRINT_L5("WalletRejectPay - OK ");
+		LOG_PRINT_L0("WalletRejectPay - OK ");
 		return true;
 
 	}
@@ -459,7 +459,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 
 	void TestThread() {
 		for(unsigned i=0;i<m_RunInTread;i++) {
-			LOG_PRINT_L5("\n");
+			LOG_PRINT_L0("\n");
 			if( !DoTest() ) { m_Fail++; }
 			//boost::this_thread::sleep_for(boost::chrono::milliseconds(1000));
 		}
@@ -482,7 +482,7 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 	pos_proxy.Start(WalletProxyPort, PosProxyPort, true);
 
 	while(!wallet_proxy.Started || !pos_proxy.Started) boost::this_thread::sleep( boost::posix_time::milliseconds(100) );
-	LOG_PRINT_L5("-----------------------------------------------------------------");
+	LOG_PRINT_L0("-----------------------------------------------------------------");
 	sleep(15);
 
 
@@ -500,7 +500,7 @@ TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
 	workers.join_all();
 */
 
-//		LOG_PRINT_L5("\n\nFAILED count: "<<m_Fail);
+//		LOG_PRINT_L0("\n\nFAILED count: "<<m_Fail);
 
 
 	wallet_proxy.Stop();
@@ -549,7 +549,7 @@ struct P2PTestNode {
 		vector< pair<string, string> > vv =  m_P2P.Seeds();
 		for(auto& a : vv) str += string("\t") + a.second + string("\n");
 		str += "\n\n";
-		LOG_PRINT_L5(str);
+		LOG_PRINT_L0(str);
 	}
 
 	DAPI_RPC_Server* m_DAPIServer = nullptr;
@@ -577,10 +577,10 @@ TEST_F(TestHanlerP2P, Test_P2PTest) {
 		bool list1 = node1.m_P2P.Seeds().size()==1 && node0.m_P2P.Seeds().size()==1 && node1.IsHave("7500") && node0.IsHave("8500");
 		
 
-		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		LOG_PRINT_L0("\n-----------------------------------------------------------\n");
 		node0.Print();
 		node1.Print();
-		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		LOG_PRINT_L0("\n-----------------------------------------------------------\n");
 
 
 
@@ -596,11 +596,11 @@ TEST_F(TestHanlerP2P, Test_P2PTest) {
 
 
 /*
-		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		LOG_PRINT_L0("\n-----------------------------------------------------------\n");
 		node0.Print();
 		node1.Print();
 		node2.Print();
-		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		LOG_PRINT_L0("\n-----------------------------------------------------------\n");
 */
 
     node2.m_P2P.AddHandler<supernode::rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>("TestP2PHandler", bind(&TestHanlerP2P::TestHandler, this, _1) );
@@ -615,13 +615,13 @@ TEST_F(TestHanlerP2P, Test_P2PTest) {
 
     sleep(2);
 		bool call2 = GotData.size()==2 && GotData[0].Port==data.Port;
-		LOG_PRINT_L5("GotData.size(): "<<GotData.size());
+		LOG_PRINT_L0("GotData.size(): "<<GotData.size());
 
 
 		node2.Stop();
 		sleep(2);
 
-		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		LOG_PRINT_L0("\n-----------------------------------------------------------\n");
 
 		node1.m_P2P.Send("TestP2PHandler", data);
 		node1.m_P2P.Send("TestP2PHandler", data);
@@ -631,10 +631,10 @@ TEST_F(TestHanlerP2P, Test_P2PTest) {
 		bool removed = node1.m_P2P.Seeds().size()==1 && node2.m_P2P.Seeds().size()==2 && node1.IsHave("7500") && node0.IsHave("8500") && node0.IsHave("9500");
 
 /*
-		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		LOG_PRINT_L0("\n-----------------------------------------------------------\n");
 		node0.Print();
 		node1.Print();
-		LOG_PRINT_L5("\n-----------------------------------------------------------\n");
+		LOG_PRINT_L0("\n-----------------------------------------------------------\n");
 */
 
 
@@ -689,10 +689,10 @@ struct TestActualList {
 	}
 
 	void Print() {
-		LOG_PRINT_L5( "\n\n"<<m_DAPIServer->Port() );
+		LOG_PRINT_L0( "\n\n"<<m_DAPIServer->Port() );
 		for(unsigned i=0;i<Servant->All_FSN.size();i++) {
 				auto a = Servant->All_FSN[i];
-				LOG_PRINT_L5(a->Port<<" : "<<a->Stake.Addr<<" : "<<a->Stake.ViewKey);
+				LOG_PRINT_L0(a->Port<<" : "<<a->Stake.Addr<<" : "<<a->Stake.ViewKey);
 		}//for
 	}
 
@@ -710,7 +710,7 @@ struct TestActualList {
 	bool FindFSN(const string& port, const string& stakeW, const string& stakeKey) {
 		for(unsigned i=0;i<Servant->All_FSN.size();i++) {
 			auto a = Servant->All_FSN[i];
-			//LOG_PRINT_L5(a->IP<<":"<<a->Port<<"  "<<a->Stake.Addr<<"  "<<a->Stake.ViewKey);
+			//LOG_PRINT_L0(a->IP<<":"<<a->Port<<"  "<<a->Stake.Addr<<"  "<<a->Stake.ViewKey);
 			if( a->IP=="127.0.0.1" && a->Port==port && a->Stake.Addr==stakeW && a->Stake.ViewKey==stakeKey ) return true;
 		}
 		return false;
@@ -756,7 +756,7 @@ TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
 
 
     bool found1 = node1.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
-//    LOG_PRINT_L5("=1 FOUND: "<<found);
+//    LOG_PRINT_L0("=1 FOUND: "<<found);
     bool found2 = node1.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
     bool found3 = node2.FindFSN("7510", "T6SnKmirXp6geLAoB7fn2eV51Ctr1WH1xWDnEGzS9pvQARTJQUXupiRKGR7czL7b5XdDnYXosVJu6Wj3Y3NYfiEA2sU2QiGVa", "8c0ccff03e9f2a9805e200f887731129495ff793dc678db6c5b53df814084f04");
     bool found4 = node2.FindFSN("8510", "T6T2LeLmi6hf58g7MeTA8i4rdbVY8WngXBK3oWS7pjjq9qPbcze1gvV32x7GaHx8uWHQGNFBy1JCY1qBofv56Vwb26Xr998SE", "0ae7176e5332974de64713c329d406956e8ff2fd60c85e7ee6d8c88318111007");
@@ -765,8 +765,8 @@ TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
 		bool size1 = node1.Servant->All_FSN.size()==2;
 		bool size2 = node2.Servant->All_FSN.size()==2;
 
-    LOG_PRINT_L5("IN "<<node1.m_DAPIServer->Port()<<"  size: "<<node1.Servant->All_FSN.size() );
-    LOG_PRINT_L5("IN "<<node2.m_DAPIServer->Port()<<"  size: "<<node2.Servant->All_FSN.size() );
+    LOG_PRINT_L0("IN "<<node1.m_DAPIServer->Port()<<"  size: "<<node1.Servant->All_FSN.size() );
+    LOG_PRINT_L0("IN "<<node2.m_DAPIServer->Port()<<"  size: "<<node2.Servant->All_FSN.size() );
 
     // -------------
     node2.Stop();
@@ -799,7 +799,7 @@ TEST_F(Test_ActualFSNList_Strut, Test_ActualFSNList) {
 		ASSERT_TRUE(!found6);
 		ASSERT_TRUE(size3);
 
-//    LOG_PRINT_L5("END");
+//    LOG_PRINT_L0("END");
 }
 
 
