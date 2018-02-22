@@ -28,6 +28,7 @@
 
 #include <cryptonote_core/cryptonote_core.h>
 #include <crypto/hash.h>
+#include "common/int-util.h"
 #include <boost/scoped_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
@@ -226,7 +227,7 @@ int main(int argc, char **argv)
 
         if (vm.count("algorithm")) {
             string algo_s = vm["algorithm"].as<string>();
-            if (also_s == "masari") {
+            if (algo_s == "masari") {
                 daa_tester.setDifficultyFunc(next_difficulty_masari);
             }
 
