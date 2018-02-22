@@ -53,9 +53,15 @@ protected:
     bool GetSeed(const rpc_command::GET_SEED::request &in, rpc_command::GET_SEED::response &out);
     bool RestoreAccount(const rpc_command::RESTORE_ACCOUNT::request &in, rpc_command::RESTORE_ACCOUNT::response &out);
 
+    bool GetTransferFee(const rpc_command::GET_TRANSFER_FEE::request &in, rpc_command::GET_TRANSFER_FEE::response &out);
+    bool Transfer(const rpc_command::TRANSFER::request &in, rpc_command::TRANSFER::response &out);
 
-protected:
-
+private:
+    bool validate_transfer(const string &account, const string &password,
+                           const std::string &address, uint64_t amount,
+                           const std::string payment_id,
+                           std::vector<cryptonote::tx_destination_entry>& dsts,
+                           std::vector<uint8_t>& extra);
 };
 
 }
