@@ -49,10 +49,6 @@ class graft_ddmutex
 {
 	class ddgraph
 	{
-	private:
-		using graph_t = boost::labeled_graph<
-			boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS>, thread_id_t>;
-
 	public:
 		static ddgraph& get()
 		{
@@ -60,17 +56,16 @@ class graft_ddmutex
 			return graph;
 		}
 
-	public:
 		ddgraph() = default;
 		ddgraph(const ddgraph&) = delete;
 		ddgraph& operator=(const ddgraph&) = delete;
 		ddgraph(ddgraph&&) = delete;
 		ddgraph& operator=(ddgraph&&) = delete;
 
-	public:
 		void add_node(const thread_id_t& tid) 
 		{
 			boost::lock_guard<boost::mutex> lg{m_mutex};
+
 			boost::add_vertex(tid, m_graph);
 		}
 
@@ -83,8 +78,8 @@ class graft_ddmutex
 			std::vector<int> sccs(boost::num_vertices(m_graph));
 			if (boost::connected_components(m_graph, sccs.data()) != 0)
 			{
-				std::cerr << "lock @ " << file << ":" << line << " - DEADLOCK DETECTED: "
-					<< from_tid << " -> " << to_tid << "\n";
+				std::cerr << file << ":" << line << " -- DEADLOCK -- "
+							<< from_tid << " -> " << to_tid << "\n";
 			}
 		}
 
@@ -96,7 +91,8 @@ class graft_ddmutex
 
 	private:
 		boost::mutex m_mutex;
-		graph_t m_graph;
+		boost::labeled_graph<boost::adjacency_list<boost::vecS,
+					boost::vecS, boost::directedS>, thread_id_t> m_graph;
 	};
 
 public:
@@ -107,27 +103,27 @@ public:
 		thread_id_t ctid = std::this_thread::get_id();
 		ddgraph::get().add_node(ctid);
 
-		if (m_is_owned)
+		if (m_owned)
 		{
 			ddgraph::get().add_edge(m_owner_id, ctid, m_file, m_line);
 		}
 
 		m_mutex.lock();
 		m_owner_id = ctid;
-		m_is_owned = true;
+		m_owned = true;
 	}
 
 	void unlock()
 	{
 		ddgraph::get().remove_node(m_owner_id);
-		m_is_owned = false;
+		m_owned = false;
 		m_mutex.unlock();
 	}
 
 private:
 	boost::mutex m_mutex;
 	thread_id_t m_owner_id;
-	bool m_is_owned = false;
+	bool m_owned = false;
 	const char *m_file;
 	int m_line;
 };
