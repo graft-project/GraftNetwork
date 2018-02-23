@@ -96,6 +96,7 @@ std::string MAINNET_DAEMON_ADDRESS = "localhost:"  + std::to_string(config::RPC_
 
 
 using namespace Consts;
+using namespace tools;
 
 struct Utils
 {
@@ -199,6 +200,17 @@ struct WalletTest2 : public testing::Test
     Monero::WalletManager * wmgr;
 
     WalletTest2()
+    {
+        wmgr = Monero::WalletManagerFactory::getWalletManager();
+    }
+
+};
+
+struct PendingTxTest : public testing::Test
+{
+    Monero::WalletManager * wmgr;
+
+    PendingTxTest()
     {
         wmgr = Monero::WalletManagerFactory::getWalletManager();
     }
@@ -1142,6 +1154,80 @@ TEST_F(WalletTest2, EmissionPrint)
     std::cout << "DYNAMIC_FEE_PER_KB_BASE_FEE_V5: " << Monero::Wallet::displayAmount(DYNAMIC_FEE_PER_KB_BASE_FEE_V5) << std::endl;
 }
 
+TEST_F(PendingTxTest, wallet2_serialize_ptx)
+{
+  boost::scoped_ptr<tools::wallet2> wallet { new tools::wallet2(true) };
+  string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
+
+  wallet->load(wallet_root_path + "/miner_wallet", "");
+  ASSERT_TRUE(wallet->init(TESTNET_DAEMON_ADDRESS));
+  wallet->refresh();
+  wallet->store();
+  std::cout << wallet->get_account().get_public_address_str(wallet->testnet()) << std::endl;
+  vector<cryptonote::tx_destination_entry> dsts;
+
+  cryptonote::tx_destination_entry de;
+  cryptonote::account_public_address address;
+  string addr_s = "FAY4L4HH9uJEokW3AB6rD5GSA8hw9PkNXMcUeKYf7zUh2kNtzan3m7iJrP743cfEMtMcrToW2R3NUhBaoULHWcJT9NQGJzN";
+  cryptonote::get_account_address_from_str(address, true, addr_s);
+  de.addr = address;
+  de.amount = Monero::Wallet::amountFromString("0.123");
+  dsts.push_back(de);
+  vector<uint8_t> extra;
+  vector<tools::wallet2::pending_tx> ptx1 = wallet->create_transactions_2(dsts, 4, 0, 1, extra, true);
+  ASSERT_TRUE(ptx1.size() == 1);
+  std::ostringstream oss;
+  ASSERT_TRUE(wallet->save_tx_signed(ptx1, oss));
+  ASSERT_TRUE(oss.str().length() > 0);
+  vector<wallet2::pending_tx> ptx2;
+  std::string ptx1_serialized = oss.str();
+  std::istringstream iss(ptx1_serialized);
+  ASSERT_TRUE(wallet->load_tx(ptx2, iss));
+
+  ASSERT_EQ(ptx1.size() , ptx2.size());
+  const wallet2::pending_tx & tx1 = ptx1.at(0);
+  const wallet2::pending_tx & tx2 = ptx2.at(0);
+
+  string hash1 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx1.tx));
+  string hash2 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx2.tx));
+  ASSERT_EQ(hash1, hash2);
+  LOG_PRINT_L0("sending restored tx: " << hash2);
+  ASSERT_NO_THROW(wallet->commit_tx(ptx2));
+
+}
+
+TEST_F(PendingTxTest, PendingTransactionSerialize)
+{
+  string wallet_path = epee::string_tools::get_current_module_folder()
+      + "/../data/supernode/test_wallets/miner_wallet";
+  Monero::Wallet * wallet = wmgr->openWallet(wallet_path, "", true);
+  ASSERT_TRUE(wallet->init(TESTNET_DAEMON_ADDRESS, 0, "", ""));
+  ASSERT_TRUE(wallet->refresh());
+
+  string addr_s = "FAY4L4HH9uJEokW3AB6rD5GSA8hw9PkNXMcUeKYf7zUh2kNtzan3m7iJrP743cfEMtMcrToW2R3NUhBaoULHWcJT9NQGJzN";
+  Monero::PendingTransaction * ptx1 = wallet->createTransaction(addr_s,
+                                                               "",
+                                                               Monero::Wallet::amountFromString("0.123"),
+                                                               4);
+  ASSERT_TRUE(ptx1->status() == Monero::PendingTransaction::Status_Ok);
+  std::ostringstream oss;
+  ASSERT_TRUE(ptx1->save(oss));
+
+  std::istringstream iss(oss.str());
+  Monero::PendingTransaction * ptx2 = wallet->loadTransaction(iss);
+  ASSERT_TRUE(ptx2->status() == Monero::PendingTransaction::Status_Ok);
+  ASSERT_EQ(ptx2->amount(), ptx1->amount());
+  ASSERT_EQ(ptx2->fee(), ptx1->fee());
+  ASSERT_EQ(ptx2->txCount(), ptx1->txCount());
+  ASSERT_EQ(ptx2->txid()[0], ptx1->txid()[0]);
+
+  ASSERT_TRUE(ptx2->commit());
+
+  wallet->disposeTransaction(ptx2);
+  wallet->disposeTransaction(ptx1);
+
+  wmgr->closeWallet(wallet);
+}
 
 int main(int argc, char** argv)
 {
@@ -1149,6 +1235,9 @@ int main(int argc, char** argv)
 
     // std::cout << "*** libwallet_api_tests currently DISABLED ***" << std::endl;
     // return 0;
+
+    epee::string_tools::set_module_name_and_folder(argv[0]);
+
 
     const char * testnet_daemon_addr = std::getenv("TESTNET_DAEMON_ADDRESS");
     if (testnet_daemon_addr) {
@@ -1159,8 +1248,6 @@ int main(int argc, char** argv)
     if (mainnet_daemon_addr) {
         MAINNET_DAEMON_ADDRESS = mainnet_daemon_addr;
     }
-
-
 
 
     const char * wallets_root_dir = std::getenv("WALLETS_ROOT_DIR");
@@ -1178,8 +1265,9 @@ int main(int argc, char** argv)
 
     CURRENT_SRC_WALLET = TESTNET_WALLET5_NAME;
     CURRENT_DST_WALLET = TESTNET_WALLET1_NAME;
-
+    mlog_configure("", true);
+    mlog_set_log_level(2);
     ::testing::InitGoogleTest(&argc, argv);
-    Monero::WalletManagerFactory::setLogLevel(Monero::WalletManagerFactory::LogLevel_Max);
+    // Monero::WalletManagerFactory::setLogLevel(Monero::WalletManagerFactory::LogLevel_Max);
     return RUN_ALL_TESTS();
 }

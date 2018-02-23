@@ -79,6 +79,12 @@ struct PendingTransaction
     virtual std::string errorString() const = 0;
     // commit transaction or save to file if filename is provided.
     virtual bool commit(const std::string &filename = "", bool overwrite = false) = 0;
+    /*!
+     * @brief save - serializes transaction to the stream. Can be loaded back with Wallet::loadTransaction
+     * @param oss    stream object to save to
+     * @return       true if saved successfully
+     */
+    virtual bool save(std::ostream &oss) = 0;
     virtual uint64_t amount() const = 0;
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
@@ -507,6 +513,14 @@ struct Wallet
     virtual PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
                                                    optional<uint64_t> amount, uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
+
+    /*!
+     * \brief loadTransaction loads previously serialized transaction from stream
+     * \param iss               stream to load from
+     * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
+     *                          after object returned
+     */
+    virtual PendingTransaction * loadTransaction(std::istream &iss) = 0;
 
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.

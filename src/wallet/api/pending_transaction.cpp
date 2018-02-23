@@ -167,7 +167,12 @@ uint64_t PendingTransactionImpl::fee() const
 
 uint64_t PendingTransactionImpl::txCount() const
 {
-    return m_pending_tx.size();
+  return m_pending_tx.size();
+}
+
+bool PendingTransactionImpl::save(std::ostream &stream)
+{
+  return m_wallet.m_wallet->save_tx_signed(m_pending_tx, stream);
 }
 
 }
