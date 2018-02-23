@@ -206,6 +206,17 @@ struct WalletTest2 : public testing::Test
 
 };
 
+struct PendingTxTest : public testing::Test
+{
+    Monero::WalletManager * wmgr;
+
+    PendingTxTest()
+    {
+        wmgr = Monero::WalletManagerFactory::getWalletManager();
+    }
+
+};
+
 TEST_F(WalletManagerTest, WalletManagerCreatesWallet)
 {
 
@@ -1143,16 +1154,16 @@ TEST_F(WalletTest2, EmissionPrint)
     std::cout << "DYNAMIC_FEE_PER_KB_BASE_FEE_V5: " << Monero::Wallet::displayAmount(DYNAMIC_FEE_PER_KB_BASE_FEE_V5) << std::endl;
 }
 
-TEST_F(WalletTest2, wallet2_serialize_ptx)
+TEST_F(PendingTxTest, wallet2_serialize_ptx)
 {
   boost::scoped_ptr<tools::wallet2> wallet { new tools::wallet2(true) };
   string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
 
   wallet->load(wallet_root_path + "/miner_wallet", "");
-  ASSERT_TRUE(wallet->init("localhost:28281"));
+  ASSERT_TRUE(wallet->init(TESTNET_DAEMON_ADDRESS));
   wallet->refresh();
   wallet->store();
-
+  std::cout << wallet->get_account().get_public_address_str(wallet->testnet()) << std::endl;
   vector<cryptonote::tx_destination_entry> dsts;
 
   cryptonote::tx_destination_entry de;
@@ -1180,17 +1191,17 @@ TEST_F(WalletTest2, wallet2_serialize_ptx)
   string hash1 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx1.tx));
   string hash2 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx2.tx));
   ASSERT_EQ(hash1, hash2);
-
+  LOG_PRINT_L0("sending restored tx: " << hash2);
   ASSERT_NO_THROW(wallet->commit_tx(ptx2));
-  ASSERT_ANY_THROW(wallet->commit_tx(ptx1));
+
 }
 
-TEST_F(WalletTest2, PendingTransactionSerialize)
+TEST_F(PendingTxTest, PendingTransactionSerialize)
 {
   string wallet_path = epee::string_tools::get_current_module_folder()
       + "/../data/supernode/test_wallets/miner_wallet";
   Monero::Wallet * wallet = wmgr->openWallet(wallet_path, "", true);
-  ASSERT_TRUE(wallet->init("localhost:28281", 0, "", ""));
+  ASSERT_TRUE(wallet->init(TESTNET_DAEMON_ADDRESS, 0, "", ""));
   ASSERT_TRUE(wallet->refresh());
 
   string addr_s = "FAY4L4HH9uJEokW3AB6rD5GSA8hw9PkNXMcUeKYf7zUh2kNtzan3m7iJrP743cfEMtMcrToW2R3NUhBaoULHWcJT9NQGJzN";
@@ -1209,6 +1220,8 @@ TEST_F(WalletTest2, PendingTransactionSerialize)
   ASSERT_EQ(ptx2->fee(), ptx1->fee());
   ASSERT_EQ(ptx2->txCount(), ptx1->txCount());
   ASSERT_EQ(ptx2->txid()[0], ptx1->txid()[0]);
+
+  ASSERT_TRUE(ptx2->commit());
 
   wallet->disposeTransaction(ptx2);
   wallet->disposeTransaction(ptx1);
@@ -1253,7 +1266,7 @@ int main(int argc, char** argv)
     CURRENT_SRC_WALLET = TESTNET_WALLET5_NAME;
     CURRENT_DST_WALLET = TESTNET_WALLET1_NAME;
     mlog_configure("", true);
-    mlog_set_log_level(1);
+    mlog_set_log_level(2);
     ::testing::InitGoogleTest(&argc, argv);
     // Monero::WalletManagerFactory::setLogLevel(Monero::WalletManagerFactory::LogLevel_Max);
     return RUN_ALL_TESTS();
