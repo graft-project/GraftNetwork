@@ -47,13 +47,13 @@ void supernode::BaseClientProxy::Init()
     m_DAPIServer->ADD_DAPI_HANDLER(RestoreAccount, rpc_command::RESTORE_ACCOUNT, BaseClientProxy);
 }
 
-bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out)
+supernode::DAPICallResult supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out)
 {
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
-        return false;
+        return "ERROR_OPEN_WALLET_FAILED";
     }
     try
     {
@@ -65,13 +65,13 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     catch (const std::exception& e)
     {
         out.Result = ERROR_BALANCE_NOT_AVAILABLE;
-        return false;
+        return "ERROR_BALANCE_NOT_AVAILABLE";
     }
     out.Result = STATUS_OK;
-    return true;
+    return "";
 }
 
-bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CREATE_ACCOUNT::request &in, supernode::rpc_command::CREATE_ACCOUNT::response &out)
+supernode::DAPICallResult supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CREATE_ACCOUNT::request &in, supernode::rpc_command::CREATE_ACCOUNT::response &out)
 {
     std::vector<std::string> languages;
     crypto::ElectrumWords::get_language_list(languages);
@@ -80,7 +80,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     if (it == languages.end())
     {
         out.Result = ERROR_LANGUAGE_IS_NOT_FOUND;
-        return false;
+        return "ERROR_LANGUAGE_IS_NOT_FOUND";
     }
 
     std::unique_ptr<tools::GraftWallet> wal =
@@ -89,7 +89,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     if (!wal)
     {
         out.Result = ERROR_CREATE_WALLET_FAILED;
-        return false;
+        return "ERROR_CREATE_WALLET_FAILED";
     }
     wal->set_seed_language(in.Language);
     wal->set_refresh_from_block_height(m_Servant->GetCurrentBlockHeight());
@@ -101,7 +101,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     catch (const std::exception& e)
     {
         out.Result = ERROR_CREATE_WALLET_FAILED;
-        return false;
+        return "ERROR_CREATE_WALLET_FAILED";
     }
     out.Account = base64_encode(wal->store_keys_graft(in.Password));
     out.Address = wal->get_account().get_public_address_str(wal->testnet());
@@ -110,38 +110,38 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     wal->get_seed(seed);
     out.Seed = seed;
     out.Result = STATUS_OK;
-    return true;
+    return "";
 }
 
-bool supernode::BaseClientProxy::GetSeed(const supernode::rpc_command::GET_SEED::request &in, supernode::rpc_command::GET_SEED::response &out)
+supernode::DAPICallResult supernode::BaseClientProxy::GetSeed(const supernode::rpc_command::GET_SEED::request &in, supernode::rpc_command::GET_SEED::response &out)
 {
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
-        return false;
+        return "ERROR_OPEN_WALLET_FAILED";
     }
     wal->set_seed_language(in.Language);
     std::string seed;
     wal->get_seed(seed);
     out.Seed = seed;
     out.Result = STATUS_OK;
-    return true;
+    return "";
 }
 
-bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RESTORE_ACCOUNT::request &in, supernode::rpc_command::RESTORE_ACCOUNT::response &out)
+supernode::DAPICallResult supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RESTORE_ACCOUNT::request &in, supernode::rpc_command::RESTORE_ACCOUNT::response &out)
 {
     if (in.Seed.empty())
     {
         out.Result = ERROR_ELECTRUM_SEED_EMPTY;
-        return false;
+        return "ERROR_ELECTRUM_SEED_EMPTY";
     }
     crypto::secret_key recovery_key;
     std::string old_language;
     if (!crypto::ElectrumWords::words_to_bytes(in.Seed, recovery_key, old_language))
     {
         out.Result = ERROR_ELECTRUM_SEED_INVALID;
-        return false;
+        return "ERROR_ELECTRUM_SEED_INVALID";
     }
     std::unique_ptr<tools::GraftWallet> wal =
         tools::GraftWallet::createWallet(std::string(), m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
@@ -149,7 +149,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
     if (!wal)
     {
         out.Result = ERROR_CREATE_WALLET_FAILED;
-        return false;
+        return "ERROR_CREATE_WALLET_FAILED";
     }
     try
     {
@@ -166,10 +166,10 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
     catch (const std::exception &e)
     {
         out.Result = ERROR_RESTORE_WALLET_FAILED;
-        return false;
+        return "ERROR_RESTORE_WALLET_FAILED";
     }
     out.Result = STATUS_OK;
-    return true;
+    return "";
 }
 
 std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const string &account, const string &password) const

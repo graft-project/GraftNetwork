@@ -95,21 +95,21 @@ struct TestDAPI_Server_And_ClientBase : public testing::Test {
 		};
 	};
 
-	bool MyTestCall(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
+	DAPICallResult MyTestCall(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
 		out.Data = req.Data*2;
-		return true;
+		return "";
 	}
 
-	bool Pay1(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
-		if(req.PaymentID!="1") return false;
+	DAPICallResult Pay1(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
+		if(req.PaymentID!="1") return "PaymentID mismatch-1";
 		out.Data = 1;
-		return true;
+		return "";
 	}
 
-	bool Pay2(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
-		if(req.PaymentID!="2") return false;
+	DAPICallResult Pay2(const TEST_RPC_CALL::request& req, TEST_RPC_CALL::response& out) {
+		if(req.PaymentID!="2") return "PaymentID mismatch-2";
 		out.Data = 2;
-		return true;
+		return "";
 	}
 
 };

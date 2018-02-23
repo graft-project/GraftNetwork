@@ -32,20 +32,20 @@
 
 void supernode::AuthSampleObject::Owner(AuthSample* o) { m_Owner = o; }
 
-bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
+supernode::DAPICallResult supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
 	TransactionRecord = src;
 
 	ADD_RTA_OBJECT_HANDLER(WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
 	ADD_RTA_OBJECT_HANDLER(WalletProxyRejectPay, rpc_command::WALLET_REJECT_PAY, AuthSampleObject);
 
-	return true;
+	return "";
 }
 
 
-bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& inp, rpc_command::WALLET_PROXY_PAY::response& out) {
+supernode::DAPICallResult supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& inp, rpc_command::WALLET_PROXY_PAY::response& out) {
 	RTA_TransactionRecord src;
 	rpc_command::ConvertToTR(src, inp, m_Servant);
-	if(src!=TransactionRecord) { LOG_PRINT_L5("not eq records"); return false; }
+	if(src!=TransactionRecord) { return "not eq records"; }
 
 	string data = TransactionRecord.PaymentID + string(":") + inp.CustomerWalletAddr;
 	bool signok = tools::GraftWallet::verifySignedMessage(data, inp.CustomerWalletAddr, inp.CustomerWalletSign, m_Servant->IsTestnet());
@@ -61,29 +61,28 @@ bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY
 	out.Sign = GenerateSignForTransaction();
 	out.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
 
-	return true;
+	return "";
 }
 
-bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out) {
+supernode::DAPICallResult supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out) {
 	// all ok, notify PoS about this
 	rpc_command::POS_TR_SIGNED::request req;
 	rpc_command::POS_TR_SIGNED::response resp;
 	req.TransactionPoolID = in.TransactionPoolID;
-	if( !SendDAPICall(PosIP, PosPort, dapi_call::PoSTRSigned, req, resp) ) return false;
+	if( !SendDAPICall(PosIP, PosPort, dapi_call::PoSTRSigned, req, resp) ) return "Can't send dapi_call::PoSTRSigned";
 
-
-	return true;
+	return "";
 }
 
-bool supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
+supernode::DAPICallResult supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
     out.POSSaleDetails = TransactionRecord.POSSaleDetails;
-	return true;
+	return "";
 }
 
-bool supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
+supernode::DAPICallResult supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
 	rpc_command::WALLET_REJECT_PAY::request in2 = in;
 	bool ret = SendDAPICall(PosIP, PosPort, dapi_call::AuthWalletRejectPay, in2, out);
-	return ret;
+	return ret?"":"Can't send dapi_call::AuthWalletRejectPay";
 }
 
 string supernode::AuthSampleObject::GenerateSignForTransaction() {
@@ -93,7 +92,7 @@ string supernode::AuthSampleObject::GenerateSignForTransaction() {
 }
 
 
-bool supernode::AuthSampleObject::Init(const RTA_TransactionRecordBase& src) { return false; }
+supernode::DAPICallResult supernode::AuthSampleObject::Init(const RTA_TransactionRecordBase& src) { return ""; }
 
 
 

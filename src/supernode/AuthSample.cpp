@@ -37,35 +37,37 @@ void supernode::AuthSample::Init()  {
 }
 
 
-bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out) {
+supernode::DAPICallResult supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out) {
 	RTA_TransactionRecord tr;
 	rpc_command::ConvertToTR(tr, in, m_Servant);
 
-	if( !Check(tr) ) return false;
+	if( !Check(tr) ) return "Check incoming transaction record fail";
 
 	boost::shared_ptr<AuthSampleObject> data = boost::shared_ptr<AuthSampleObject>( new AuthSampleObject() );
 	data->Owner(this);
 	Setup(data);
-	if( !data->Init(tr) ) return false;
+	DAPICallResult ret = data->Init(tr);
+	if( ret!="" ) return string("Can't init AuthSampleObject: ")+ret;
 
 	data->PosIP = in.SenderIP;
 	data->PosPort = in.SenderPort;
 
 	Add(data);
 
-	LOG_PRINT_L5("ADD: "<<in.PaymentID<<"  in: "<<m_DAPIServer->Port());
+	//LOG_PRINT_L5("ADD: "<<in.PaymentID<<"  in: "<<m_DAPIServer->Port());
 
-	return true;
+	return "";
 }
 
-bool supernode::AuthSample::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out) {
+supernode::DAPICallResult supernode::AuthSample::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out) {
 	boost::shared_ptr<BaseRTAObject> ff = ObjectByPayment(in.PaymentID);
 	boost::shared_ptr<AuthSampleObject> data = boost::dynamic_pointer_cast<AuthSampleObject>(ff);
-	if(!data) { LOG_PRINT_L5("not found object: "<<in.PaymentID<<"  in: "<<m_DAPIServer->Port()); return false; }
+	if(!data) { return string("not found object: ") + boost::lexical_cast<string>(in.PaymentID) + string("  in: ") + boost::lexical_cast<string>(m_DAPIServer->Port()); }
 
-	if( !data->WalletProxyPay(in, out) ) { LOG_PRINT_L5("!WalletProxyPay"); Remove(data); return false; }
+	DAPICallResult ret = data->WalletProxyPay(in, out);
+	if( ret!="" ) { Remove(data); return ret; }
 
-	return true;
+	return "";
 }
 
 

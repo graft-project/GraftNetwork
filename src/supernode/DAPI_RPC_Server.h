@@ -55,30 +55,32 @@ namespace supernode {
 		protected:
 		class SCallHandler {
 			public:
-			virtual bool Process(epee::serialization::portable_storage& in, string& out_js)=0;
+			virtual DAPICallResult Process(epee::serialization::portable_storage& in, string& out_js)=0;
 		};
 		template<class IN_t, class OUT_t>
 		class STemplateHandler : public SCallHandler {
 			public:
-			STemplateHandler( boost::function<bool (const IN_t&, OUT_t&)>& handler) : Handler(handler) {}
+			STemplateHandler( boost::function<DAPICallResult (const IN_t&, OUT_t&)>& handler) : Handler(handler) {}
 
-			bool Process(epee::serialization::portable_storage& ps, string& out_js) {
+			DAPICallResult Process(epee::serialization::portable_storage& ps, string& out_js) {
 				  boost::value_initialized<epee::json_rpc::request<IN_t> > req_;
 				  epee::json_rpc::request<IN_t>& req = static_cast<epee::json_rpc::request<IN_t>&>(req_);
-				  if( !req.load(ps) ) return false;
+				  if( !req.load(ps) ) return "Can't load data from request";
 
 				  boost::value_initialized<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> > resp_;
 				  epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error>& resp =  static_cast<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> &>(resp_);
 				  resp.jsonrpc = "2.0";
 				  resp.id = req.id;
 
-				  if( !Handler(req.params, resp.result) ) return false;
+				  DAPICallResult ret;
+				  ret = Handler(req.params, resp.result);
+				  if( ret!="" ) return ret;
 
 				  epee::serialization::store_t_to_json(resp, out_js);
-				  return true;
+				  return ret;
 			}
 
-			boost::function<bool (const IN_t&, OUT_t&)> Handler;
+			boost::function<DAPICallResult (const IN_t&, OUT_t&)> Handler;
 		};
 
 		struct SHandlerData {
@@ -91,7 +93,7 @@ namespace supernode {
 
 		public:
 		template<class IN_t, class OUT_t>
-		int AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
+		int AddHandler( const string& method, boost::function<DAPICallResult (const IN_t&, OUT_t&)> handler ) {
 			SHandlerData hh;
 			hh.Handler = new STemplateHandler<IN_t, OUT_t>(handler);
 			hh.Name = method;
@@ -103,7 +105,7 @@ namespace supernode {
 		// IN must be child from sub_net_data
 		// income message filtered by payment_id and method
 		template<class IN_t, class OUT_t>
-		int Add_UUID_MethodHandler( string paymentid, const string& method, boost::function<bool (const IN_t&, OUT_t&)> handler ) {
+		int Add_UUID_MethodHandler( string paymentid, const string& method, boost::function<DAPICallResult (const IN_t&, OUT_t&)> handler ) {
 			SHandlerData hh;
 			hh.Handler = new STemplateHandler<IN_t, OUT_t>(handler);
 			hh.Name = method;
@@ -118,7 +120,7 @@ namespace supernode {
 
 		protected:
 		bool handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) override;
-		bool HandleRequest(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response_info, connection_context& m_conn_context);
+		DAPICallResult HandleRequest(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response_info, connection_context& m_conn_context);
 		int AddHandlerData(const SHandlerData& h);
 
 		protected:

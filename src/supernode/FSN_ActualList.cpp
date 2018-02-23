@@ -224,9 +224,9 @@ bool FSN_ActualList::CheckIsFSN(boost::shared_ptr<FSN_Data> data) {
 	return true;
 }
 
-bool FSN_ActualList::FSN_CheckWalletOwnership(const rpc_command::FSN_CHECK_WALLET_OWNERSHIP::request& in, rpc_command::FSN_CHECK_WALLET_OWNERSHIP::response& out) {
+DAPICallResult FSN_ActualList::FSN_CheckWalletOwnership(const rpc_command::FSN_CHECK_WALLET_OWNERSHIP::request& in, rpc_command::FSN_CHECK_WALLET_OWNERSHIP::response& out) {
 	out.Sign = m_Servant->SignByWalletPrivateKey(in.Str, in.WalletAddr);
-	return true;
+	return "";
 }
 
 string FSN_ActualList::GenStrForSign(const string& dapiIP, const string& dapiPort, const string& walletAddr) {

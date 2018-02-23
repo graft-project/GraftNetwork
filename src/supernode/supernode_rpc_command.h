@@ -77,6 +77,8 @@ namespace supernode {
 		extern const string GetSeedsList;
 	};
 
+	typedef string DAPICallResult;
+
 	namespace rpc_command {
 		extern const string DAPI_URI;//  /dapi
         extern const string DAPI_METHOD;//  POST

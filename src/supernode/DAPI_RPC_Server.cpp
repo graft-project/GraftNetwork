@@ -47,9 +47,10 @@ bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http
 	response.m_additional_fields.push_back( make_pair("Access-Control-Max-Age", "1728000") );
 	response.m_additional_fields.push_back( make_pair("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Origin, Cache-Control, Pragma, Authorization, Accept, Accept-Encoding") );
 
-	if( !HandleRequest(query_info, response, m_conn_context) ) {
+	DAPICallResult ret = HandleRequest(query_info, response, m_conn_context);
+	if( ret!="" ) {
 		response.m_response_code = 500;
-		response.m_response_comment = "Internal server error";
+		response.m_response_comment = ret;;
 	}
 
 
@@ -59,8 +60,8 @@ bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http
 	return true;
 }
 
-bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response_info, connection_context& m_conn_context) {
-	if( query_info.m_URI!=rpc_command::DAPI_URI ) return false;
+supernode::DAPICallResult supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response_info, connection_context& m_conn_context) {
+	if( query_info.m_URI!=rpc_command::DAPI_URI ) return "not DAPI URI";
 
     uint64_t ticks = epee::misc_utils::get_tick_count();
     epee::serialization::portable_storage ps;
@@ -71,25 +72,15 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     epee::serialization::storage_entry id_ = epee::serialization::storage_entry(std::string());
 
     if( !ps.load_from_json(query_info.m_body) ) {
-		LOG_PRINT_L5("!load_from_json");
-		response_info.m_response_code = 500;
-		response_info.m_response_comment = "Parse error";
+		return "Parse error: can't load_from_json";
     } else if( !ps.get_value("dapi_version", version, nullptr) ) {
-    	response_info.m_response_code = 500;
-    	response_info.m_response_comment = "No DAPI version";
+     	return "No DAPI version";
     } else if( !ps.get_value("method", callback_name, nullptr) ) {
-    	response_info.m_response_code = 500;
-    	response_info.m_response_comment = "No method";
+    	return "No method";
     } else if( version!=rpc_command::DAPI_VERSION ) {
-    	response_info.m_response_code = 500;
-    	response_info.m_response_comment = "Wrong DAPI version";
+    	return "Wrong DAPI version";
     }
 
-    if( response_info.m_response_code!=200 ) {
-    	//epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(rsp), response_info.m_body);
-    	LOG_PRINT_L5( "Error: "<<response_info.m_response_comment );
-    	return true;
-    }
 
     ps.get_value("id", id_, nullptr);
 
@@ -121,14 +112,15 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     	//LOG_PRINT_L5("\n\n\n");
     }
 
-    if(!handler) { LOG_PRINT_L5("handler not found for: "<<callback_name); return false; }
+    if(!handler) { return string("No handler not found for: ")+callback_name; }
     //LOG_PRINT_L5("Befor process: "<<callback_name<<"  in: "<<Port());
-    if( !handler->Process(ps, response_info.m_body) ) { LOG_PRINT_L5("Fail to process (ret false): "<<callback_name); return false; }
+    DAPICallResult ret = handler->Process(ps, response_info.m_body);
+    if( ret!="" ) { return ret; }
     //LOG_PRINT_L5("After process: "<<callback_name<<"  in: "<<Port());
 
     response_info.m_mime_tipe = "application/json";
     response_info.m_header_info.m_content_type = " application/json";
-    return true;
+    return "";
 }
 
 const string& supernode::DAPI_RPC_Server::IP() const { return m_IP; }

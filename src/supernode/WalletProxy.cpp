@@ -38,7 +38,7 @@ void supernode::WalletProxy::Init() {
 	m_DAPIServer->ADD_DAPI_HANDLER(WalletRejectPay, rpc_command::WALLET_REJECT_PAY, WalletProxy);
 }
 
-bool supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
+supernode::DAPICallResult supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out) {
 	// TODO: if have PayID, don't call
 
 	SubNetBroadcast sub;
@@ -46,11 +46,11 @@ bool supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PA
 	vector<rpc_command::WALLET_REJECT_PAY::response> vout;
 	bool ret = sub.Send( dapi_call::WalletProxyRejectPay, in, vout );
     out.Result = ret ? STATUS_OK : ERROR_CANNOT_REJECT_PAY;
-	return ret;
+	return "";
 }
 
 
-bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out) {
+supernode::DAPICallResult supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out) {
 	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
 	data->Owner(this);
 	Setup(data);
@@ -64,17 +64,18 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
 	    }
 	} );
 
-    return true;
+    return "";
 }
 
-bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
+supernode::DAPICallResult supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out) {
 	// we allready have block num
 	vector< boost::shared_ptr<FSN_Data> > vv = m_Servant->GetAuthSample( in.BlockNum );
-	if( vv.size()!=m_Servant->AuthSampleSize() ) return false;
+	if( vv.size()!=m_Servant->AuthSampleSize() ) return "Wrong AuthSampleSize";
 
 	boost::shared_ptr<FSN_Data> data = *vv.begin();
 
 	DAPI_RPC_Client call;
 	call.Set(data->IP, data->Port);
-	return call.Invoke(dapi_call::WalletProxyGetPosData, in, out);
+	bool ret = call.Invoke(dapi_call::WalletProxyGetPosData, in, out);
+	return ret?"":"Can't invoke call to AuthSample";
 }
