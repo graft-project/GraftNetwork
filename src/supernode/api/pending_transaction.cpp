@@ -166,8 +166,7 @@ uint64_t GraftPendingTransactionImpl::txCount() const
 
 bool GraftPendingTransactionImpl::save(ostream &os)
 {
-  // TODO: copy-paste implementation from tools::wallet2 and WalletApi
-  return true;
+  return mWallet->save_tx_signed(m_pending_tx, os);
 }
 
 void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx)
