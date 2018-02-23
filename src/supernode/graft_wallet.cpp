@@ -3614,6 +3614,37 @@ bool GraftWallet::save_tx(const std::vector<pending_tx>& ptx_vector, const std::
   return epee::file_io_utils::save_string_to_file(filename, std::string(UNSIGNED_TX_PREFIX) + oss.str());  
 }
 //----------------------------------------------------------------------------------------------------
+bool GraftWallet::save_tx_signed(const std::vector<GraftWallet::pending_tx> &ptx_vector, ostream &oss)
+{
+
+  signed_tx_set signed_txes;
+  signed_txes.ptx = ptx_vector;
+
+  // add key images
+  signed_txes.key_images.resize(m_transfers.size());
+  for (size_t i = 0; i < m_transfers.size(); ++i)
+  {
+    if (!m_transfers[i].m_key_image_known)
+      LOG_PRINT_L0("WARNING: key image not known in signing wallet at index " << i);
+    signed_txes.key_images[i] = m_transfers[i].m_key_image;
+  }
+
+  // save as binary
+  oss << SIGNED_TX_PREFIX;
+  boost::archive::portable_binary_oarchive ar(oss);
+  try
+  {
+    ar << signed_txes;
+  }
+  catch(...)
+  {
+    return false;
+  }
+  // LOG_PRINT_L3("Saving signed tx data: " << oss.str());
+  return true;
+
+}
+//----------------------------------------------------------------------------------------------------
 bool GraftWallet::load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs)
 {
   std::string s;
@@ -3777,6 +3808,65 @@ bool GraftWallet::load_tx(const std::string &signed_filename, std::vector<tools:
   catch (...)
   {
     LOG_PRINT_L0("Failed to parse data from " << signed_filename);
+    return false;
+  }
+  LOG_PRINT_L0("Loaded signed tx data from binary: " << signed_txs.ptx.size() << " transactions");
+  for (auto &ptx: signed_txs.ptx) LOG_PRINT_L0(cryptonote::obj_to_json_str(ptx.tx));
+
+  if (accept_func && !accept_func(signed_txs))
+  {
+    LOG_PRINT_L1("Transactions rejected by callback");
+    return false;
+  }
+
+  // import key images
+  if (signed_txs.key_images.size() > m_transfers.size())
+  {
+    LOG_PRINT_L1("More key images returned that we know outputs for");
+    return false;
+  }
+  for (size_t i = 0; i < signed_txs.key_images.size(); ++i)
+  {
+    transfer_details &td = m_transfers[i];
+    if (td.m_key_image_known && td.m_key_image != signed_txs.key_images[i])
+      LOG_PRINT_L0("WARNING: imported key image differs from previously known key image at index " << i << ": trusting imported one");
+    td.m_key_image = signed_txs.key_images[i];
+    m_key_images[m_transfers[i].m_key_image] = i;
+    td.m_key_image_known = true;
+    m_pub_keys[m_transfers[i].get_public_key()] = i;
+  }
+
+  ptx = signed_txs.ptx;
+
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool GraftWallet::load_tx(std::vector<tools::GraftWallet::pending_tx> &ptx, std::istream &stream, std::function<bool(const signed_tx_set&)> accept_func)
+{
+  // check magic
+  const size_t magiclen = strlen(SIGNED_TX_PREFIX);
+  char magic_buf[magiclen];
+  stream.read(magic_buf, magiclen);
+  if (!stream) {
+    LOG_ERROR("Error reading tx prefix magic from stream");
+    return false;
+  }
+
+  if (strncmp(magic_buf, SIGNED_TX_PREFIX, magiclen))
+  {
+    LOG_PRINT_L0("Bad magic: " << magic_buf);
+    return false;
+  }
+  stream.seekg(magiclen, stream.beg);
+  signed_tx_set signed_txs;
+  try
+  {
+    boost::archive::portable_binary_iarchive ar(stream);
+    ar >> signed_txs;
+  }
+  catch (...)
+  {
+    LOG_PRINT_L0("Failed to parse data stream ");
     return false;
   }
   LOG_PRINT_L0("Loaded signed tx data from binary: " << signed_txs.ptx.size() << " transactions");
