@@ -258,6 +258,8 @@ namespace supernode {
 		// --------------- POS ------------------------
 		struct POS_SALE {
 			struct request : public RTA_TransactionRecordBase {
+                std::string Amount;
+
 				BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(POSAddress)
                     KV_SERIALIZE(POSViewKey)

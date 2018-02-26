@@ -45,8 +45,14 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
 	data->Owner(this);
 	Setup(data);
 
+    uint64_t value;
+    std::istringstream iss(in.Amount);
+    iss >> value;
+    LOG_PRINT_L0(value);
+    RTA_TransactionRecordBase input = in;
+    input.Amount = value;
 
-    if (!data->Init(in))
+    if (!data->Init(input))
     {
         out.Result = ERROR_SALE_REQUEST_FAILED;
         LOG_ERROR("ERROR_SALE_REQUEST_FAILED");
