@@ -372,12 +372,10 @@ namespace supernode {
                 END_KV_SERIALIZE_MAP()
             };
             struct response {
-                int64_t Result;
                 uint64_t Balance;
                 uint64_t UnlockedBalance;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                     KV_SERIALIZE(Balance)
                     KV_SERIALIZE(UnlockedBalance)
                 END_KV_SERIALIZE_MAP()

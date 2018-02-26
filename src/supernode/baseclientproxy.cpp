@@ -56,7 +56,7 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_OPEN_WALLET_FAILED;
         return false;
     }
     try
@@ -68,10 +68,10 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     }
     catch (const std::exception& e)
     {
-        out.Result = ERROR_BALANCE_NOT_AVAILABLE;
+//        out.Result = ERROR_BALANCE_NOT_AVAILABLE;
         return false;
     }
-    out.Result = STATUS_OK;
+//    out.Result = STATUS_OK;
     return true;
 }
 

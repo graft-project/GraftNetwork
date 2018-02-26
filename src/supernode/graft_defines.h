@@ -46,7 +46,6 @@
 #define ERROR_SALE_REQUEST_FAILED           -9
 #define ERROR_LANGUAGE_IS_NOT_FOUND         -10
 #define ERROR_CREATE_WALLET_FAILED          -11
-#define ERROR_OPEN_WALLET_FAILED            -12
 #define ERROR_RESTORE_WALLET_FAILED         -13
 #define ERROR_ELECTRUM_SEED_EMPTY           -14
 #define ERROR_ELECTRUM_SEED_INVALID         -15
@@ -68,5 +67,8 @@
 #define ERROR_WRONG_DAPI_VERSION            -32002
 #define ERROR_HANDLER_NOT_FOUND             -32003
 #define ERROR_UNKNOWN_METHOD_ERROR          -32004
+
+//DAPI Wallet Errors
+#define ERROR_OPEN_WALLET_FAILED            -32010
 
 #endif // GRAFT_DEFINES_H
