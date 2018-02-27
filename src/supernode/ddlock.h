@@ -97,6 +97,14 @@ class graft_ddmutex
 
 public:
 	graft_ddmutex(const char *file, int line) : m_file(file), m_line(line) {}
+    graft_ddmutex() {}
+
+    graft_ddmutex& operator=(const graft_ddmutex &dd)
+    {
+        m_file = dd.file();
+        m_line = dd.line();
+        return *this;
+    }
 
 	void lock()
 	{
@@ -120,6 +128,10 @@ public:
 		m_mutex.unlock();
 	}
 
+    const char *file() const { return m_file; }
+
+    int line() const { return m_line; }
+
 private:
 	boost::mutex m_mutex;
 	thread_id_t m_owner_id;
@@ -132,6 +144,7 @@ private:
 
 #define GRAFT_DEBUG_LOCK_T supernode::graft_ddmutex
 #define GRAFT_DEBUG_LOCK(lock) GRAFT_DEBUG_LOCK_T lock(__FILE__, __LINE__)
+#define GRAFT_LOCK_INIT GRAFT_DEBUG_LOCK_T(__FILE__, __LINE__)
 
 #ifdef GRAFT_DEBUG
 #define GRAFT_LOCK_T GRAFT_DEBUG_LOCK_T

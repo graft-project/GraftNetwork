@@ -31,6 +31,7 @@
 #define FSN_SERVANTBASE_H_H_H_
 
 #include "supernode_common_struct.h"
+#include "ddlock.h"
 
 namespace supernode {
 	class FSN_ServantBase {
@@ -107,7 +108,7 @@ namespace supernode {
 
 
 	public:
-	    mutable boost::recursive_mutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
+        mutable supernode::graft_ddmutex All_FSN_Guard;// DO NOT block for long time. if need - use copy
 	    vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 
     protected:

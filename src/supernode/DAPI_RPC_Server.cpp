@@ -106,7 +106,8 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     {
     	//LOG_PRINT_L5("\n\n\n");
 
-    	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
+//    	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
+        boost::lock_guard<supernode::graft_ddmutex> lock(m_Handlers_Guard);
     	for(unsigned i=0;i<m_vHandlers.size();i++) {
     		SHandlerData& hh = m_vHandlers[i];
 
@@ -134,6 +135,11 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
 const string& supernode::DAPI_RPC_Server::IP() const { return m_IP; }
 const string& supernode::DAPI_RPC_Server::Port() const { return m_Port; }
 
+supernode::DAPI_RPC_Server::DAPI_RPC_Server()
+    : epee::http_server_impl_base<supernode::DAPI_RPC_Server>()
+{
+    m_Handlers_Guard = GRAFT_LOCK_INIT;
+}
 
 void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int numThreads) {
 	m_Port = port;
@@ -151,7 +157,7 @@ void supernode::DAPI_RPC_Server::Start() { run(m_NumThreads); }
 void supernode::DAPI_RPC_Server::Stop() { send_stop_signal(); }
 
 int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h) {
-	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
+    boost::lock_guard<supernode::graft_ddmutex> lock(m_Handlers_Guard);
 	int idx = m_HandlerIdx;
 	m_HandlerIdx++;
 	m_vHandlers.push_back(h);
@@ -160,7 +166,7 @@ int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h) {
 }
 
 void supernode::DAPI_RPC_Server::RemoveHandler(int idx) {
-	boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
+    boost::lock_guard<supernode::graft_ddmutex> lock(m_Handlers_Guard);
 	for(unsigned i=0;i<m_vHandlers.size();i++) if( m_vHandlers[i].Idx==idx ) {
 		m_vHandlers.erase( m_vHandlers.begin()+i );
 		break;

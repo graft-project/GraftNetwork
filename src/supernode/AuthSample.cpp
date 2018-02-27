@@ -53,7 +53,7 @@ bool supernode::AuthSample::PosProxySale(const rpc_command::POS_PROXY_SALE::requ
 
 	Add(data);
 
-	LOG_PRINT_L5("ADD: "<<in.PaymentID<<"  in: "<<m_DAPIServer->Port());
+        LOG_PRINT_L0("ADD: "<<in.PaymentID<<"  in: "<<m_DAPIServer->Port());
 
 	return true;
 }

@@ -66,7 +66,7 @@ void FSN_ActualList::Stop() {
 }
 
 void FSN_ActualList::GetFSNList(const rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request& in, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response& out) {
-	boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
+    boost::lock_guard<supernode::graft_ddmutex> lock(m_All_FSN_Guard);
 	for(auto a : m_All_FSN) {
 		rpc_command::BROADCACT_ADD_FULL_SUPER_NODE data;
 		data.IP = a->IP;
@@ -89,7 +89,7 @@ void FSN_ActualList::Run() {
 		vector<rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response> outv;
 		m_P2P->SendNear(p2p_call::GetFSNList, in, outv);
 
-		boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
+        boost::lock_guard<supernode::graft_ddmutex> lock(m_All_FSN_Guard);
 		for(auto aa : outv)
 			for(auto a : aa.List) _OnAddFSN(a);
 
@@ -117,7 +117,7 @@ void FSN_ActualList::Run() {
 void FSN_ActualList::DoAudit() {
 	vector< boost::shared_ptr<FSN_Data> > all;
 	{
-		boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
+        boost::lock_guard<supernode::graft_ddmutex> lock(m_All_FSN_Guard);
 		all = m_All_FSN;
 	}
 
@@ -141,7 +141,7 @@ void FSN_ActualList::CheckIfIamFSN(bool checkOnly) {
 	if(checkOnly) return;
 
 	{
-		boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
+        boost::lock_guard<supernode::graft_ddmutex> lock(m_All_FSN_Guard);
 		for(auto a : m_All_FSN) if( a->IP==data->IP && a->Port==data->Port ) return;
 		m_Servant->AddFsnAccount(data);
 	}
@@ -179,7 +179,7 @@ void FSN_ActualList::OnAddFSNFromWorker(const rpc_command::BROADCACT_ADD_FULL_SU
 
 	boost::shared_ptr<FSN_Data> data;
 	{
-		boost::lock_guard<boost::recursive_mutex> lock(m_All_FSN_Guard);
+        boost::lock_guard<supernode::graft_ddmutex> lock(m_All_FSN_Guard);
 		data = _OnAddFSN(in);
 	}
 

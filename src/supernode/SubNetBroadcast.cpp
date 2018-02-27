@@ -46,14 +46,14 @@ supernode::SubNetBroadcast::~SubNetBroadcast() {
 vector< pair<string, string> > supernode::SubNetBroadcast::Members() {
 	vector< pair<string, string> > ret;
 	{
-		boost::lock_guard<boost::recursive_mutex> lock(m_MembersGuard);
+        boost::lock_guard<supernode::graft_ddmutex> lock(m_MembersGuard);
 		for(auto& a : m_Members) ret.push_back( make_pair(a.IP, a.Port) );
 	}
 	return ret;
 }
 
 void supernode::SubNetBroadcast::AddMember(const string& ip, const string& port) {
-	boost::lock_guard<boost::recursive_mutex> lock(m_MembersGuard);
+    boost::lock_guard<supernode::graft_ddmutex> lock(m_MembersGuard);
 	_AddMember(ip, port);
 }
 
@@ -70,14 +70,14 @@ void supernode::SubNetBroadcast::_AddMember(const string& ip, const string& port
 void supernode::SubNetBroadcast::Set( DAPI_RPC_Server* pa, string subnet_id, const vector< boost::shared_ptr<FSN_Data> >& members ) {
 	m_DAPIServer = pa;
 	m_PaymentID = subnet_id;
-	boost::lock_guard<boost::recursive_mutex> lock(m_MembersGuard);
+    boost::lock_guard<supernode::graft_ddmutex> lock(m_MembersGuard);
 	for(auto a : members) _AddMember(a->IP, a->Port);
 }
 
 void supernode::SubNetBroadcast::Set( DAPI_RPC_Server* pa, string subnet_id, const vector<string>& members ) {
 	m_DAPIServer = pa;
 	m_PaymentID = subnet_id;
-	boost::lock_guard<boost::recursive_mutex> lock(m_MembersGuard);
+    boost::lock_guard<supernode::graft_ddmutex> lock(m_MembersGuard);
 	for(auto a : members) {
 		vector<string> vv = helpers::StrTok(a, ":");
 		_AddMember( vv[0], vv[1] );
@@ -86,7 +86,7 @@ void supernode::SubNetBroadcast::Set( DAPI_RPC_Server* pa, string subnet_id, con
 
 void supernode::SubNetBroadcast::IncNoConnectAndRemove(const string& ip, const string& port) {
 //	LOG_PRINT_L5("IncNoConnectAndRemove =1 : "<<m_DAPIServer->Port()<<"  REM: "<<port);
-	boost::lock_guard<boost::recursive_mutex> lock(m_MembersGuard);
+    boost::lock_guard<supernode::graft_ddmutex> lock(m_MembersGuard);
 	for(unsigned i=0;i<m_Members.size();i++) if( m_Members[i].IP==ip && m_Members[i].Port==port ) {
 		m_Members[i].NotAvailCount++;
 //		LOG_PRINT_L5("IncNoConnectAndRemove =2 : "<<m_DAPIServer->Port()<<"  REM: "<<port);

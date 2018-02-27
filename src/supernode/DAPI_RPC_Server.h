@@ -36,6 +36,7 @@
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include "net/http_server_impl_base.h"
+#include "ddlock.h"
 #include <string>
 using namespace std;
 
@@ -45,8 +46,10 @@ namespace supernode {
 		public:
 		typedef epee::net_utils::connection_context_base connection_context;
 
-		public:
-		void Set(const string& ip, const string& port, int numThreads);
+        public:
+        DAPI_RPC_Server();
+
+        void Set(const string& ip, const string& port, int numThreads);
 		void Start();//block
 		void Stop();
 		const string& IP() const;
@@ -122,7 +125,7 @@ namespace supernode {
 		int AddHandlerData(const SHandlerData& h);
 
 		protected:
-		boost::recursive_mutex m_Handlers_Guard;
+        supernode::graft_ddmutex m_Handlers_Guard;
 		vector<SHandlerData> m_vHandlers;
 		int m_HandlerIdx = 0;
 

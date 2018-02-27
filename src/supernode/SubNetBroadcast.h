@@ -35,6 +35,7 @@
 #include "DAPI_RPC_Client.h"
 #include "DAPI_RPC_Server.h"
 #include "WorkerPool.h"
+#include "ddlock.h"
 using namespace std;
 
 namespace supernode {
@@ -117,7 +118,7 @@ namespace supernode {
 			rpc_command::P2P_DUMMY_RESP* outp = &m_DummyOut;
 			int* retp = &m_DummyRet;
 
-			boost::lock_guard<boost::recursive_mutex> lock(m_MembersGuard);
+            boost::lock_guard<supernode::graft_ddmutex> lock(m_MembersGuard);
 
 			for(unsigned i=0;i<m_Members.size();i++) {
 				string ip = m_Members[i].IP;
@@ -167,7 +168,7 @@ namespace supernode {
 
 		protected:
 		DAPI_RPC_Server* m_DAPIServer = nullptr;
-		boost::recursive_mutex m_MembersGuard;
+        supernode::graft_ddmutex m_MembersGuard;
 		vector<SMember> m_Members;
 		string m_PaymentID;
 		vector<int> m_MyHandlers;

@@ -53,7 +53,7 @@ namespace supernode {
         unsigned m_Signs = 0;
         NTransactionStatus m_Status = NTransactionStatus::None;
         PosProxy* m_Owner = nullptr;
-        mutable boost::recursive_mutex m_TxInPoolGotGuard;
+        mutable supernode::graft_ddmutex m_TxInPoolGotGuard;
         bool m_TxInPoolGot = false;
 	};
 }

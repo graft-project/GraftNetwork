@@ -65,7 +65,7 @@ protected:
 	virtual void DoAudit();
 
 protected:
-    boost::recursive_mutex& m_All_FSN_Guard;// DO NOT block for long time. if need - use copy
+    supernode::graft_ddmutex& m_All_FSN_Guard;// DO NOT block for long time. if need - use copy
     vector< boost::shared_ptr<FSN_Data> >& m_All_FSN;// access to this data may be done from different threads
     P2P_Broadcast* m_P2P = nullptr;
     DAPI_RPC_Server* m_DAPIServer = nullptr;

@@ -155,7 +155,7 @@ bool supernode::PosSaleObject::GetSaleStatus(const rpc_command::POS_GET_SALE_STA
 
 bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::request& in, rpc_command::POS_TR_SIGNED::response& out) {
 	{
-		boost::lock_guard<boost::recursive_mutex> lock(m_TxInPoolGotGuard);
+        boost::lock_guard<supernode::graft_ddmutex> lock(m_TxInPoolGotGuard);
 		if(m_TxInPoolGot) return true;
 		m_TxInPoolGot = true;
 	}
