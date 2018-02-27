@@ -69,7 +69,7 @@ boost::shared_ptr<supernode::BaseRTAObject> supernode::BaseRTAProcessor::ObjectB
 
 void supernode::BaseRTAProcessor::Remove(boost::shared_ptr<BaseRTAObject> obj) {
 	obj->MarkForDelete();
-	LOG_PRINT_L5("Remove: "<<obj->TransactionRecord.PaymentID);
+    LOG_PRINT_L4("Remove: "<<obj->TransactionRecord.PaymentID);
 	{
 		boost::lock_guard<boost::recursive_mutex> lock(m_ObjectsGuard);
 		auto it = find(m_Objects.begin(), m_Objects.end(), obj);
@@ -99,7 +99,6 @@ void supernode::BaseRTAProcessor::Tick() {
 		boost::lock_guard<boost::recursive_mutex> lock(m_RemoveObjectsGuard);
 		for(int i=0;i<int(m_RemoveObjects.size());i++) if( (now-m_RemoveObjects[i]->TimeMark).total_milliseconds()>(5*60*1000) ) {
 			m_RemoveObjects.erase( m_RemoveObjects.begin()+i );
-			//LOG_PRINT_L5("---- ERASE ----");
 			i--;
 		}
 	}

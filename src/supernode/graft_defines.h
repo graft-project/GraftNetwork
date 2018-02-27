@@ -53,5 +53,7 @@
 #define ERROR_BALANCE_NOT_AVAILABLE         -16
 #define ERROR_CANNOT_REJECT_PAY             -17
 
+#define ERROR_NOT_ENOUGH_COINS              -20
+
 
 #endif // GRAFT_DEFINES_H

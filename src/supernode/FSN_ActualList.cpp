@@ -154,9 +154,7 @@ void FSN_ActualList::CheckIfIamFSN(bool checkOnly) {
 	in.MinerAddr = data->Miner.Addr;
 	in.MinerViewKey = data->Miner.ViewKey;
 
-	//LOG_PRINT_L5("=1 Send AddFSN: "<<m_DAPIServer->Port());
 	m_P2P->Send(p2p_call::AddFSN, in);
-	//LOG_PRINT_L5("=2 Send AddFSN: "<<m_DAPIServer->Port());
 }
 
 boost::shared_ptr<FSN_Data> FSN_ActualList::_OnAddFSN(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in ) {
@@ -168,15 +166,12 @@ boost::shared_ptr<FSN_Data> FSN_ActualList::_OnAddFSN(const rpc_command::BROADCA
 }
 
 void FSN_ActualList::OnAddFSN(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in ) {
-	//LOG_PRINT_L5("=1 OnAddFSN: "<<m_DAPIServer->Port());
 	m_Work.Service.post( [this, in](){
 		OnAddFSNFromWorker(in);
 	} );
 }
 
 void FSN_ActualList::OnAddFSNFromWorker(const rpc_command::BROADCACT_ADD_FULL_SUPER_NODE& in ) {
-	//LOG_PRINT_L5("=1 OnAddFSNFromWorker: "<<m_DAPIServer->Port());
-
 	boost::shared_ptr<FSN_Data> data;
 	{
         boost::lock_guard<supernode::graft_ddmutex> lock(m_All_FSN_Guard);
@@ -207,7 +202,6 @@ bool FSN_ActualList::CheckWalletOwner(boost::shared_ptr<FSN_Data> data, const st
 
 	DAPI_RPC_Client call;
 	call.Set(data->IP, data->Port);
-	//LOG_PRINT_L5("call to: "<<data->IP<<":"<<data->Port);
 	if( !call.Invoke(dapi_call::FSN_CheckWalletOwnership, in, out) ) return false;
 	return m_Servant->IsSignValid(in.Str, in.WalletAddr, out.Sign);
 
