@@ -1583,7 +1583,7 @@ void wallet2::update_pool_state(bool refreshed)
               {
                 if (tx_hash == txid)
                 {
-                  process_new_transaction(txid, tx, std::vector<uint64_t>(), 0, time(NULL), false, true);
+                   process_new_transaction(txid, tx, std::vector<uint64_t>(), 0, time(NULL), false, true);
                   m_scanned_pool_txs[0].insert(txid);
                   if (m_scanned_pool_txs[0].size() > 5000)
                   {
@@ -3255,7 +3255,7 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
   for (auto &tx: ptx_vector)
   {
     tx_construction_data construction_data = tx.construction_data;
-    // Short payment id is encrypted with tx_key. 
+    // Short payment id is encrypted with tx_key.
     // Since sign_tx() generates new tx_keys and encrypts the payment id, we need to save the decrypted payment ID
     // Get decrypted payment id from pending_tx
     crypto::hash8 payment_id = get_short_payment_id(tx);
@@ -3271,12 +3271,12 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
         LOG_ERROR("Failed to add decrypted payment id to tx extra");
         return false;
       }
-      LOG_PRINT_L1("Decrypted payment ID: " << payment_id);       
+      LOG_PRINT_L1("Decrypted payment ID: " << payment_id);
     }
     // Save tx construction_data to unsigned_tx_set
-    txs.txes.push_back(construction_data);      
+    txs.txes.push_back(construction_data);
   }
-  
+
   txs.transfers = m_transfers;
   // save as binary
   std::ostringstream oss;
@@ -3290,8 +3290,42 @@ bool wallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::stri
     return false;
   }
   LOG_PRINT_L2("Saving unsigned tx data: " << oss.str());
-  return epee::file_io_utils::save_string_to_file(filename, std::string(UNSIGNED_TX_PREFIX) + oss.str());  
+  return epee::file_io_utils::save_string_to_file(filename, std::string(UNSIGNED_TX_PREFIX) + oss.str());
 }
+
+bool wallet2::save_tx_signed(const std::vector<wallet2::pending_tx> &ptx_vector, ostream &oss)
+{
+
+  signed_tx_set signed_txes;
+  signed_txes.ptx = ptx_vector;
+
+  // add key images
+  signed_txes.key_images.resize(m_transfers.size());
+  for (size_t i = 0; i < m_transfers.size(); ++i)
+  {
+    if (!m_transfers[i].m_key_image_known)
+      LOG_PRINT_L0("WARNING: key image not known in signing wallet at index " << i);
+    signed_txes.key_images[i] = m_transfers[i].m_key_image;
+  }
+
+  // save as binary
+  oss << SIGNED_TX_PREFIX;
+  boost::archive::portable_binary_oarchive ar(oss);
+  try
+  {
+    ar << signed_txes;
+  }
+  catch(...)
+  {
+    return false;
+  }
+  // LOG_PRINT_L3("Saving signed tx data: " << oss.str());
+  return true;
+
+}
+
+
+
 //----------------------------------------------------------------------------------------------------
 bool wallet2::load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs)
 {
@@ -3343,6 +3377,7 @@ bool wallet2::sign_tx(const std::string &unsigned_filename, const std::string &s
     return false;
   }
   return sign_tx(exported_txs, signed_filename, txs);
+
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -3440,22 +3475,38 @@ bool wallet2::load_tx(const std::string &signed_filename, std::vector<tools::wal
     LOG_PRINT_L0("Failed to load from " << signed_filename);
     return false;
   }
+  std::istringstream iss(s);
+
+  return load_tx(ptx, iss, accept_func);
+
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::load_tx(std::vector<tools::wallet2::pending_tx> &ptx, std::istream &stream, std::function<bool(const signed_tx_set&)> accept_func)
+{
+  // check magic
   const size_t magiclen = strlen(SIGNED_TX_PREFIX);
-  if (strncmp(s.c_str(), SIGNED_TX_PREFIX, magiclen))
-  {
-    LOG_PRINT_L0("Bad magic from " << signed_filename);
+  char magic_buf[magiclen];
+  stream.read(magic_buf, magiclen);
+  if (!stream) {
+    LOG_ERROR("Error reading tx prefix magic from stream");
     return false;
   }
-  s = s.substr(magiclen);
+
+  if (strncmp(magic_buf, SIGNED_TX_PREFIX, magiclen))
+  {
+    LOG_PRINT_L0("Bad magic: " << magic_buf);
+    return false;
+  }
+  stream.seekg(magiclen, stream.beg);
+  signed_tx_set signed_txs;
   try
   {
-    std::istringstream iss(s);
-    boost::archive::portable_binary_iarchive ar(iss);
+    boost::archive::portable_binary_iarchive ar(stream);
     ar >> signed_txs;
   }
   catch (...)
   {
-    LOG_PRINT_L0("Failed to parse data from " << signed_filename);
+    LOG_PRINT_L0("Failed to parse data stream ");
     return false;
   }
   LOG_PRINT_L0("Loaded signed tx data from binary: " << signed_txs.ptx.size() << " transactions");
@@ -4451,8 +4502,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   // early out if we know we can't make it anyway
   // we could also check for being within FEE_PER_KB, but if the fee calculation
   // ever changes, this might be missed, so let this go through
-  THROW_WALLET_EXCEPTION_IF(needed_money > unlocked_balance(), error::not_enough_money,
-      unlocked_balance(), needed_money, 0);
+  THROW_WALLET_EXCEPTION_IF(needed_money > unlocked_balance(), error::not_enough_money, unlocked_balance(), needed_money, 0);
+
 
   if (unused_dust_indices.empty() && unused_transfers_indices.empty())
     return std::vector<wallet2::pending_tx>();
@@ -4707,6 +4758,49 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
 
   // if we made it this far, we're OK to actually send the transactions
   return ptx_vector;
+}
+
+std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string &recipient_address, const std::vector<std::string> &auth_sample, uint64_t amount,
+                                                                    double fee_percent, const uint64_t unlock_time, uint32_t priority,
+                                                                    const std::vector<uint8_t> extra, bool trusted_daemon,
+                                                                    uint64_t &recipient_amount, uint64_t &fee_per_destination)
+{
+
+    std::vector<wallet2::pending_tx> result;
+    // check amount
+    THROW_WALLET_EXCEPTION_IF((amount == 0), tools::error::zero_destination);
+    // check fee percentage
+    // TODO: constant for lowest possible fee
+    const double GRAFT_LOWEST_FEE = 0.005;
+    THROW_WALLET_EXCEPTION_IF((fee_percent < GRAFT_LOWEST_FEE), tools::error::graft_fee_too_low);
+    const size_t GRAFT_AUTH_SAMPLE_SIZE = 8;
+    // THROW_WALLET_EXCEPTION_IF((auth_sample.size() != GRAFT_AUTH_SAMPLE_SIZE), tools::error::graft_invalid_auth_sample);
+
+    // split amount by recepient and auth sample
+    // TODO: use proper math
+    uint64_t total_fee = std::round(amount * fee_percent / 100.0);
+    recipient_amount = amount - total_fee;
+    // call create_transactions_2 to create actual transaction(s)
+
+    LOG_PRINT_L0("total fee: " << print_money(total_fee));
+    if (!auth_sample.empty())
+        LOG_PRINT_L0("per node fee: " << print_money(total_fee/auth_sample.size()));
+
+    cryptonote::account_public_address address;
+    THROW_WALLET_EXCEPTION_IF(false == get_account_address_from_str(address, testnet(), recipient_address),
+                                  tools::error::graft_fee_too_low);
+
+
+    std::vector<cryptonote::tx_destination_entry> tx_dsts;
+    tx_dsts.push_back(tx_destination_entry(recipient_amount, address));
+    for (const std::string &auth_sample_addr : auth_sample) {
+        THROW_WALLET_EXCEPTION_IF(false == get_account_address_from_str(address, testnet(), auth_sample_addr),
+                                  tools::error::graft_fee_too_low);
+        fee_per_destination = total_fee / auth_sample.size();
+        tx_dsts.push_back(cryptonote::tx_destination_entry(fee_per_destination, address));
+    }
+
+    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, trusted_daemon);
 }
 
 std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)

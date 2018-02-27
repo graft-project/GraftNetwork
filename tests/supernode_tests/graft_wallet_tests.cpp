@@ -65,7 +65,7 @@ struct GraftWalletTest : public testing::Test
     std::string wallet_account2;
     std::string wallet_root_path;
     std::string bdb_path;
-    const std::string DAEMON_ADDR = "localhost:28281";
+    const std::string DAEMON_ADDR = "localhost:28981";
 
 
     GraftWalletTest()
@@ -165,3 +165,43 @@ TEST_F(GraftWalletTest, UseForkRule)
     ASSERT_FALSE(wallet->use_fork_rules(8, 10));
 }
 
+TEST_F(GraftWalletTest, PendingTxSerialization1)
+{
+    GraftWallet *wallet = new GraftWallet(true, false);
+    ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
+    // connect to daemon and get the blocks
+    wallet->init(DAEMON_ADDR);
+    wallet->refresh();
+    vector<cryptonote::tx_destination_entry> dsts;
+
+    cryptonote::tx_destination_entry de;
+    cryptonote::account_public_address address;
+    string addr_s = "FAY4L4HH9uJEokW3AB6rD5GSA8hw9PkNXMcUeKYf7zUh2kNtzan3m7iJrP743cfEMtMcrToW2R3NUhBaoULHWcJT9NQGJzN";
+    cryptonote::get_account_address_from_str(address, true, addr_s);
+    de.addr = address;
+    de.amount = Monero::Wallet::amountFromString("0.123");
+    dsts.push_back(de);
+    vector<uint8_t> extra;
+    vector<tools::GraftWallet::pending_tx> ptx1 = wallet->create_transactions_2(dsts, 4, 0, 1, extra, true);
+    ASSERT_TRUE(ptx1.size() == 1);
+    std::ostringstream oss;
+    ASSERT_TRUE(wallet->save_tx_signed(ptx1, oss));
+    ASSERT_TRUE(oss.str().length() > 0);
+    vector<GraftWallet::pending_tx> ptx2;
+    std::string ptx1_serialized = oss.str();
+    std::istringstream iss(ptx1_serialized);
+    ASSERT_TRUE(wallet->load_tx(ptx2, iss));
+
+    ASSERT_EQ(ptx1.size() , ptx2.size());
+    const GraftWallet::pending_tx & tx1 = ptx1.at(0);
+    const GraftWallet::pending_tx & tx2 = ptx2.at(0);
+
+    string hash1 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx1.tx));
+    string hash2 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx2.tx));
+    ASSERT_EQ(hash1, hash2);
+    LOG_PRINT_L0("sending restored tx: " << hash2);
+    ASSERT_NO_THROW(wallet->commit_tx(ptx2));
+
+    delete wallet;
+
+}
