@@ -3366,7 +3366,6 @@ bool wallet2::save_tx_signed(const std::vector<wallet2::pending_tx> &ptx_vector,
 }
 
 
-
 //----------------------------------------------------------------------------------------------------
 bool wallet2::load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs)
 {
