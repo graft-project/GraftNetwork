@@ -94,7 +94,7 @@ namespace cryptonote {
 
     const uint64_t first_reward = 8301030000000000000U;
 
-    if (median_size > 0 && already_generated_coins < first_reward) {
+    if (version >= 6  && median_size > 0 && already_generated_coins < first_reward) {
       reward = first_reward;
       return true;
     }
