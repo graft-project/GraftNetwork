@@ -49,6 +49,7 @@
 #include "gtest/gtest.h"
 using namespace std;
 
+
 struct Struct
 {
   int32_t a;
@@ -781,7 +782,6 @@ TEST(Serialization, portability_wallet)
 
   }
 
-  // std::cout << "w.m_tx_keys.size(): " << w.m_tx_keys.size() << std::endl;
   // tx keys
   ASSERT_TRUE(w.m_tx_keys.size() == 1);
   {
