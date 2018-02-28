@@ -107,6 +107,7 @@ target_link_libraries(supernode
     blockchain_db
     cncrypto
     cryptonote_protocol
+    utils
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
