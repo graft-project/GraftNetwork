@@ -119,6 +119,7 @@ if(NOT IOS)
   add_subdirectory(daemonizer)
   add_subdirectory(daemon)
   add_subdirectory(blockchain_utilities)
+  add_subdirectory(utils)
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL Debug)

@@ -30,6 +30,7 @@
 #include "PosSaleObject.h"
 #include "TxPool.h"
 #include "graft_defines.h"
+#include <utils/utils.h>
 #include <ringct/rctSigs.h>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -43,64 +44,7 @@ namespace  {
 
 // TODO: move these functions to some "Utils" class/library
 
-bool decode_ringct(const rct::rctSig& rv, const crypto::public_key pub, const crypto::secret_key &sec, unsigned int i, rct::key & mask, uint64_t & amount)
-{
-    crypto::key_derivation derivation;
-    bool r = crypto::generate_key_derivation(pub, sec, derivation);
-    if (!r)
-    {
-        LOG_ERROR("Failed to generate key derivation to decode rct output " << i);
-        return 0;
-    }
-    crypto::secret_key scalar1;
-    crypto::derivation_to_scalar(derivation, i, scalar1);
-    try
-    {
-        switch (rv.type)
-        {
-        case rct::RCTTypeSimple:
-            amount = rct::decodeRctSimple(rv, rct::sk2rct(scalar1), i, mask);
-            break;
-        case rct::RCTTypeFull:
-            amount = rct::decodeRct(rv, rct::sk2rct(scalar1), i, mask);
-            break;
-        default:
-            LOG_ERROR("Unsupported rct type: " << (int) rv.type);
-            return false;
-        }
-    }
-    catch (const std::exception &e)
-    {
-        LOG_ERROR("Failed to decode input " << i);
-        return false;
-    }
-    return true;
-}
 
-
-bool lookup_acc_outs_rct(const account_keys &acc, const transaction &tx, std::vector<size_t> &outs, uint64_t &money_transfered)
-{
-    crypto::public_key tx_pub_key = get_tx_pub_key_from_extra(tx);
-    if (null_pkey == tx_pub_key)
-        return false;
-
-    money_transfered = 0;
-    size_t output_idx = 0;
-
-    LOG_PRINT_L1("tx pubkey: " << epee::string_tools::pod_to_hex(tx_pub_key));
-    for(const tx_out& o:  tx.vout) {
-        CHECK_AND_ASSERT_MES(o.target.type() ==  typeid(txout_to_key), false, "wrong type id in transaction out" );
-        if (is_out_to_acc(acc, boost::get<txout_to_key>(o.target), tx_pub_key, output_idx)) {
-            uint64_t rct_amount = 0;
-            rct::key mask = tx.rct_signatures.ecdhInfo[output_idx].mask;
-            if (decode_ringct(tx.rct_signatures, tx_pub_key, acc.m_view_secret_key, output_idx,
-                              mask, rct_amount))
-                money_transfered += rct_amount;
-        }
-        output_idx++;
-    }
-    return true;
-}
 
 } // namespace
 
@@ -234,9 +178,9 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
 
 
     uint64_t amount = 0;
-    vector<size_t> outputs;
+    vector<pair<size_t, uint64_t>> outputs;
 
-    if (!lookup_acc_outs_rct(pos_account, tx, outputs, amount)) {
+    if (!Utils::lookup_account_outputs_ringct(pos_account, tx, outputs, amount)) {
         LOG_ERROR("Error checking tx outputs");
         return false;
     }
