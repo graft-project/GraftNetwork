@@ -621,6 +621,10 @@ namespace tools
     uint64_t get_fee_multiplier(uint32_t priority, int fee_algorithm = -1);
     uint64_t get_per_kb_fee();
 
+
+    bool ptx_contains_my_outputs(const pending_tx &ptx, uint64_t &amount);
+
+
   private:
     /*!
      * \brief  Stores wallet information to wallet file.

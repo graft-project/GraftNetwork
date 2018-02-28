@@ -1196,6 +1196,78 @@ TEST_F(PendingTxTest, wallet2_serialize_ptx)
 
 }
 
+TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
+{
+  boost::scoped_ptr<tools::wallet2> wallet1 { new tools::wallet2(true) };
+  boost::scoped_ptr<tools::wallet2> wallet2 { new tools::wallet2(true) };
+
+  string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
+
+  wallet1->load(wallet_root_path + "/miner_wallet", "");
+
+  ASSERT_TRUE(wallet1->init(TESTNET_DAEMON_ADDRESS));
+  wallet1->refresh();
+  wallet1->store();
+  wallet2->load(wallet_root_path + "/stake_wallet", "");
+  ASSERT_TRUE(wallet2->init(TESTNET_DAEMON_ADDRESS));
+  wallet2->refresh();
+  wallet2->store();
+  vector<cryptonote::tx_destination_entry> dsts;
+  cryptonote::tx_destination_entry de;
+  const cryptonote::account_public_address & address  = wallet2->get_account().get_keys().m_account_address;
+
+  de.addr = address;
+  de.amount = Monero::Wallet::amountFromString("0.123");
+  dsts.push_back(de);
+  vector<uint8_t> extra;
+  vector<tools::wallet2::pending_tx> ptx1 = wallet1->create_transactions_2(dsts, 4, 0, 1, extra, true);
+  ASSERT_TRUE(ptx1.size() == 1);
+  std::ostringstream oss;
+  ASSERT_TRUE(wallet1->save_tx_signed(ptx1, oss));
+  ASSERT_TRUE(oss.str().length() > 0);
+  vector<wallet2::pending_tx> ptx2;
+  std::string ptx1_serialized = oss.str();
+  std::istringstream iss(ptx1_serialized);
+  ASSERT_TRUE(wallet1->load_tx(ptx2, iss));
+  uint64_t amount;
+  for (const auto &pt : ptx2) {
+    ASSERT_TRUE(wallet2->ptx_contains_my_outputs(pt, amount));
+    ASSERT_TRUE(amount == de.amount);
+  }
+
+  cryptonote::tx_destination_entry de2;
+
+
+  de2.addr = wallet1->get_account().get_keys().m_account_address;
+  de2.amount = Monero::Wallet::amountFromString("123.456");
+  dsts.clear();
+  dsts.push_back(de2);
+
+  vector<tools::wallet2::pending_tx> ptx3 = wallet2->create_transactions_2(dsts, 4, 0, 1, extra, true);
+
+  for (const auto &pt : ptx3) {
+    ASSERT_TRUE(wallet1->ptx_contains_my_outputs(pt, amount));
+    ASSERT_TRUE(amount == de2.amount);
+  }
+
+
+  cryptonote::account_public_address address3;
+  string address3_str = "FCZ4C2in3agfTSnWSyCZetVi1nrMwSsMmHi1huwBryfPXsXLBVsaoFzdf6nMGLV5iE86hsHTAo3RvHzkwKNt9RHU8rAmKPY";
+  cryptonote::get_account_address_from_str(address3, true, address3_str);
+  de.addr = address3;
+  de.amount = Monero::Wallet::amountFromString("0.981");
+  dsts.clear();
+  dsts.push_back(de);
+
+  vector<tools::wallet2::pending_tx> ptx4 = wallet1->create_transactions_2(dsts, 4, 0, 1, extra, true);
+  for (const auto &pt : ptx4) {
+    ASSERT_FALSE(wallet2->ptx_contains_my_outputs(pt, amount));
+  }
+
+
+
+}
+
 TEST_F(PendingTxTest, PendingTransactionSerialize)
 {
   string wallet_path = epee::string_tools::get_current_module_folder()
@@ -1228,6 +1300,7 @@ TEST_F(PendingTxTest, PendingTransactionSerialize)
 
   wmgr->closeWallet(wallet);
 }
+
 
 int main(int argc, char** argv)
 {

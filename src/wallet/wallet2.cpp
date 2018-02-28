@@ -60,6 +60,7 @@ using namespace epee;
 #include "common/base58.h"
 #include "common/scoped_message_writer.h"
 #include "ringct/rctSigs.h"
+#include "utils/utils.h"
 
 extern "C"
 {
@@ -3601,6 +3602,7 @@ uint64_t wallet2::get_per_kb_fee()
   LOG_PRINT_L1("using dynamic fee per kb :" << result << ", (" << print_money(result) << ")");
   return result;
 }
+
 //----------------------------------------------------------------------------------------------------
 int wallet2::get_fee_algorithm()
 {
@@ -5967,4 +5969,83 @@ void wallet2::generate_genesis(cryptonote::block& b) {
     cryptonote::generate_genesis_block(b, config::GENESIS_TX, config::GENESIS_NONCE);
   }
 }
+//----------------------------------------------------------------------------------------------------
+bool wallet2::ptx_contains_my_outputs(const wallet2::pending_tx &ptx, uint64_t &amount)
+{
+  std::vector<std::pair<size_t, uint64_t>> unused;
+  bool r = Utils::lookup_account_outputs_ringct(this->m_account.get_keys(), ptx.tx, unused, amount);
+  if (!r)
+    return r;
+  return amount > 0;
 }
+
+
+////bool wallet2::is_ptx_ours(const pending_tx &ptx, uint64_t &amount)
+////{
+////  const cryptonote::transaction &tx = ptx.tx;
+
+////  // 1. obtain tx pub key
+////  crypto::public_key tx_pub_key = cryptonote::get_tx_pub_key_from_extra(tx);
+////  // 2. generate key derivation
+////  key_derivation derivation;
+
+////  if (!generate_key_derivation(tx_pub_key, this->m_account.get_keys().m_view_secret_key, derivation)) {
+////    LOG_ERROR("Cant get derived key for: tx pub key: " << string_tools::pod_to_hex(tx_pub_key));
+////    return false;
+////  }
+
+////  // 3. process outputs
+////  //  vector<pair<txout_to_key, uint64_t>> output_with_keys;
+////  std::vector<uint64_t> money_transfered(tx.vout.size(), 0);
+////  uint64_t output_idx = 0;
+
+////  for (uint64_t n = 0; n < tx.vout.size(); ++n) {
+
+////    if (tx.vout[n].target.type() != typeid(txout_to_key)) {
+////      continue;
+////    }
+
+////    // get output key
+////    const txout_to_key& txout_key = boost::get<cryptonote::txout_to_key>(tx.vout[n].target);
+////    crypto::public_key out_pk_derived;
+
+////    if (!derive_public_key(derivation, output_idx, this->m_account.get_keys().m_account_address.m_spend_public_key, out_pk_derived)) {
+////      LOG_ERROR("cant derive output public key for output " << output_idx);
+////      return false;
+////    }
+
+////    bool mine_output = txout_key.key == out_pk_derived;
+////    if (mine_output) {
+////      if (tx.version >= 2) { // rct tx, decode amount
+////        if (!is_coinbase(tx)) {
+
+////            // initialize with regular amount
+////            uint64_t rct_amount = money_transfered[output_idx];
+
+////            bool r;
+
+////            r = decode_ringct(tx.rct_signatures,
+////                              pub_key,
+////                              prv_view_key,
+////                              output_idx,
+////                              tx.rct_signatures.ecdhInfo[output_idx].mask,
+////                              rct_amount);
+
+////            if (!r)
+////            {
+////                cerr << "\nshow_my_outputs: Cant decode ringCT! " << endl;
+////            }
+
+////            outp.second         = rct_amount;
+////            money_transfered[output_idx] = rct_amount;
+////        }
+////      } else {
+////        amount += tx.vout[n].amount;
+////      }
+////    }
+
+//  }
+
+}
+//----------------------------------------------------------------------------------------------------
+
