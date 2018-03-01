@@ -112,13 +112,14 @@ public:
     PendingTransaction * loadTransaction(std::istream &iss);
     virtual PendingTransaction * createSweepUnmixableTransaction();
     bool submitTransaction(const std::string &fileName);
-    bool serialize(PendingTransaction * ptx);
+
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename);
     bool exportKeyImages(const std::string &filename);
     bool importKeyImages(const std::string &filename);
     PendingTransaction * loadSignedTx(std::istream &stream);
-
     virtual void disposeTransaction(PendingTransaction * t);
+    virtual bool getAmountFromTransaction(PendingTransaction * t, uint64_t &amount);
+
     virtual TransactionHistory * history() const;
     virtual AddressBook * addressBook() const;
     virtual void setListener(WalletListener * l);

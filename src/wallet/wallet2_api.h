@@ -550,6 +550,13 @@ struct Wallet
      */
     virtual void disposeTransaction(PendingTransaction * t) = 0;
 
+    /*!
+     * \brief getAmountFromTransaction - returns total amount from transaction addressed to this wallet
+     * \param t - pointer to "PendingTransaction" object
+     * \return  - true on success
+     */
+    virtual bool getAmountFromTransaction(PendingTransaction * t, uint64_t &amount) = 0;
+
    /*!
     * \brief exportKeyImages - exports key images to file
     * \param filename
