@@ -1302,6 +1302,58 @@ TEST_F(PendingTxTest, PendingTransactionSerialize)
   wmgr->closeWallet(wallet);
 }
 
+TEST_F(PendingTxTest, WalletGetAmountFromTx)
+{
+  string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
+
+
+  Monero::Wallet * wallet1= wmgr->openWallet(wallet_root_path + "/miner_wallet", "", true);
+  ASSERT_TRUE(wallet1->init(TESTNET_DAEMON_ADDRESS, 0, "", ""));
+  ASSERT_TRUE(wallet1->refresh());
+
+  Monero::Wallet * wallet2= wmgr->openWallet(wallet_root_path + "/stake_wallet", "", true);
+  ASSERT_TRUE(wallet2->init(TESTNET_DAEMON_ADDRESS, 0, "", ""));
+  ASSERT_TRUE(wallet2->refresh());
+
+  Monero::PendingTransaction * ptx1 = wallet1->createTransaction(wallet2->address(),
+                                                               "",
+                                                               Monero::Wallet::amountFromString("0.123"),
+                                                               4);
+  ASSERT_TRUE(ptx1->status() == Monero::PendingTransaction::Status_Ok);
+  uint64_t tx_amount1 = 0;
+  ASSERT_TRUE(wallet2->getAmountFromTransaction(ptx1, tx_amount1));
+  ASSERT_TRUE(tx_amount1 = Monero::Wallet::amountFromString("0.123"));
+
+
+  Monero::PendingTransaction * ptx2 = wallet2->createTransaction(wallet1->address(),
+                                                               "",
+                                                               Monero::Wallet::amountFromString("123.456"),
+                                                               4);
+  ASSERT_TRUE(ptx2->status() == Monero::PendingTransaction::Status_Ok);
+  uint64_t tx_amount2 = 0;
+  ASSERT_TRUE(wallet1->getAmountFromTransaction(ptx1, tx_amount2));
+  ASSERT_TRUE(tx_amount2 = Monero::Wallet::amountFromString("123.456"));
+
+
+  Monero::PendingTransaction * ptx3 = wallet2->createTransaction("FCZ4C2in3agfTSnWSyCZetVi1nrMwSsMmHi1huwBryfPXsXLBVsaoFzdf6nMGLV5iE86hsHTAo3RvHzkwKNt9RHU8rAmKPY",
+                                                               "",
+                                                               Monero::Wallet::amountFromString("0.956"),
+                                                               4);
+
+  ASSERT_TRUE(ptx3->status() == Monero::PendingTransaction::Status_Ok);
+  uint64_t tx_amount3 = 0;
+  ASSERT_TRUE(wallet1->getAmountFromTransaction(ptx3, tx_amount3));
+  ASSERT_TRUE(tx_amount3 == 0);
+
+  wallet1->disposeTransaction(ptx1);
+  wallet2->disposeTransaction(ptx2);
+  wallet2->disposeTransaction(ptx3);
+
+  wmgr->closeWallet(wallet1);
+  wmgr->closeWallet(wallet2);
+
+}
+
 
 int main(int argc, char** argv)
 {
