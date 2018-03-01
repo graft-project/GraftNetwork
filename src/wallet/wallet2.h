@@ -644,7 +644,7 @@ namespace tools
     uint64_t get_per_kb_fee();
 
 
-    bool ptx_contains_my_outputs(const pending_tx &ptx, uint64_t &amount);
+    bool get_amount_from_tx(const pending_tx &ptx, uint64_t &amount);
 
 
   private:

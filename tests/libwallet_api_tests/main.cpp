@@ -1231,7 +1231,7 @@ TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
   ASSERT_TRUE(wallet1->load_tx(ptx2, iss));
   uint64_t amount;
   for (const auto &pt : ptx2) {
-    ASSERT_TRUE(wallet2->ptx_contains_my_outputs(pt, amount));
+    ASSERT_TRUE(wallet2->get_amount_from_tx(pt, amount));
     ASSERT_TRUE(amount == de.amount);
   }
 
@@ -1246,7 +1246,7 @@ TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
   vector<tools::wallet2::pending_tx> ptx3 = wallet2->create_transactions_2(dsts, 4, 0, 1, extra, true);
 
   for (const auto &pt : ptx3) {
-    ASSERT_TRUE(wallet1->ptx_contains_my_outputs(pt, amount));
+    ASSERT_TRUE(wallet1->get_amount_from_tx(pt, amount));
     ASSERT_TRUE(amount == de2.amount);
   }
 
@@ -1261,7 +1261,8 @@ TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
 
   vector<tools::wallet2::pending_tx> ptx4 = wallet1->create_transactions_2(dsts, 4, 0, 1, extra, true);
   for (const auto &pt : ptx4) {
-    ASSERT_FALSE(wallet2->ptx_contains_my_outputs(pt, amount));
+    ASSERT_TRUE(wallet2->get_amount_from_tx(pt, amount));
+    ASSERT_TRUE(amount == 0);
   }
 
 
