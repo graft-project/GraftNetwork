@@ -677,6 +677,9 @@ namespace tools
     std::string store_keys_graft(const std::string& password, bool watch_only = false);
     bool load_keys_graft(const std::string& data, const std::string& password);
 
+    bool get_amount_from_tx(const pending_tx &ptx, uint64_t &amount);
+
+
   private:
     /*!
      * \brief  Stores wallet information to wallet file.
