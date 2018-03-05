@@ -6027,8 +6027,8 @@ void wallet2::generate_genesis(cryptonote::block& b) {
 bool wallet2::get_amount_from_tx(const wallet2::pending_tx &ptx, uint64_t &amount)
 {
   std::vector<std::pair<size_t, uint64_t>> unused;
-  bool r = Utils::lookup_account_outputs_ringct(this->m_account.get_keys(), ptx.tx, unused, amount);
-  return r;
+  return Utils::lookup_account_outputs_ringct(this->m_account.get_keys(), ptx.tx, unused, amount);
+
 }
 
 
