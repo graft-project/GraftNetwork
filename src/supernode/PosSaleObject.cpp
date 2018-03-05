@@ -39,15 +39,6 @@
 
 using namespace cryptonote;
 
-
-namespace  {
-
-// TODO: move these functions to some "Utils" class/library
-
-
-
-} // namespace
-
 void supernode::PosSaleObject::Owner(PosProxy* o) { m_Owner = o; }
 
 bool supernode::PosSaleObject::Init(const RTA_TransactionRecordBase& src) {
