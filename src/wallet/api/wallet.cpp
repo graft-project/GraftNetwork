@@ -1169,6 +1169,25 @@ void WalletImpl::disposeTransaction(PendingTransaction *t)
     delete t;
 }
 
+bool WalletImpl::getAmountFromTransaction(PendingTransaction *t, uint64_t &amount)
+{
+    bool result = true;
+    PendingTransactionImpl * t_ = static_cast<PendingTransactionImpl*>(t);
+    amount = 0;
+
+    for (const auto & pt : t_->m_pending_tx) {
+        uint64_t tx_amount = 0;
+        result = m_wallet->get_amount_from_tx(pt, tx_amount);
+        if (result) {
+            amount += tx_amount;
+        } else {
+            break;
+        }
+    }
+
+    return result;
+}
+
 TransactionHistory *WalletImpl::history() const
 {
     return m_history;

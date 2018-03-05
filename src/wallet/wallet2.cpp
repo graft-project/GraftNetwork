@@ -60,6 +60,7 @@ using namespace epee;
 #include "common/base58.h"
 #include "common/scoped_message_writer.h"
 #include "ringct/rctSigs.h"
+#include "utils/utils.h"
 
 extern "C"
 {
@@ -3601,6 +3602,7 @@ uint64_t wallet2::get_per_kb_fee()
   LOG_PRINT_L1("using dynamic fee per kb :" << result << ", (" << print_money(result) << ")");
   return result;
 }
+
 //----------------------------------------------------------------------------------------------------
 int wallet2::get_fee_algorithm()
 {
@@ -5967,4 +5969,15 @@ void wallet2::generate_genesis(cryptonote::block& b) {
     cryptonote::generate_genesis_block(b, config::GENESIS_TX, config::GENESIS_NONCE);
   }
 }
+//----------------------------------------------------------------------------------------------------
+bool wallet2::get_amount_from_tx(const wallet2::pending_tx &ptx, uint64_t &amount)
+{
+  std::vector<std::pair<size_t, uint64_t>> unused;
+  return Utils::lookup_account_outputs_ringct(this->m_account.get_keys(), ptx.tx, unused, amount);
+
 }
+
+
+}
+//----------------------------------------------------------------------------------------------------
+

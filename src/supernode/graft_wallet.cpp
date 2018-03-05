@@ -62,6 +62,7 @@ using namespace epee;
 #include "ringct/rctSigs.h"
 #include "api/pending_transaction.h"
 #include "supernode_common_struct.h"
+#include "utils/utils.h"
 
 extern "C"
 {
@@ -4194,6 +4195,13 @@ bool GraftWallet::load_keys_graft(const string &data, const string &password)
     THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
     return true;
 }
+
+bool GraftWallet::get_amount_from_tx(const GraftWallet::pending_tx &ptx, uint64_t &amount)
+{
+  std::vector<std::pair<size_t, uint64_t>> unused;
+  return ::Utils::lookup_account_outputs_ringct(this->m_account.get_keys(), ptx.tx, unused, amount);
+}
+
 
 int GraftWallet::get_fee_algorithm()
 {
