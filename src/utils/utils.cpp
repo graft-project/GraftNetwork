@@ -12,7 +12,7 @@ bool decode_ringct(const rct::rctSig& rv, const crypto::public_key pub, const cr
     if (!r)
     {
         LOG_ERROR("Failed to generate key derivation to decode rct output " << i);
-        return 0;
+        return false;
     }
     crypto::secret_key scalar1;
     crypto::derivation_to_scalar(derivation, i, scalar1);
