@@ -390,9 +390,11 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
 
     if (!wmgr->walletExists(wallet_path.string())) {
         // create new view only wallet
+        LOG_PRINT_L1("creating new wallet in " << wallet_path.string());
         w = wmgr->createWalletFromKeys(wallet_path.string(), "English", m_testnet, 0, walletData.Addr, walletData.ViewKey);
     } else {
         // open existing
+        LOG_PRINT_L1("opening wallet in " << wallet_path.string());
         w = wmgr->openWallet(wallet_path.string(), "", m_testnet);
     }
 
@@ -404,8 +406,9 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
         MERROR("Can't connect to a daemon.");
     } else {
         w->setAutoRefreshInterval(consts::DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS);
-        w->startRefresh();
         w->refresh();
+        w->store("");
+        w->startRefresh();
     }
 
     // add wallet to map
