@@ -49,6 +49,11 @@
 #include "gtest/gtest.h"
 using namespace std;
 
+namespace {
+    static const string ADDRESS1 = "F8ER6NJ6zka6keUKJjX8ry44mVaXuQeVg5dPsuW3gyWRDzxCXpwuHVkMCNmrXZEMVHMFo5zEkoNTeb95hkqWgzMDSWFvana";
+    static const string ADDRESS2 = "F85wjfH5DH6Hyo27TbCG98aBDw5J7xEYpJL2QC2cj5TTdinKu3XE6z1Uojry6aa9py94H9RCnQu4gdM6ywERTvCHVfDcMoE";
+}
+
 struct Struct
 {
   int32_t a;
@@ -781,7 +786,6 @@ TEST(Serialization, portability_wallet)
 
   }
 
-  std::cout << "w.m_tx_keys.size(): " << w.m_tx_keys.size() << std::endl;
   // tx keys
   ASSERT_TRUE(w.m_tx_keys.size() == 1);
   {
@@ -1155,7 +1159,8 @@ TEST(Serialization, portability_unsigned_tx)
   ASSERT_TRUE(epee::string_tools::pod_to_hex(tse.mask) == "796309c7e57439028f111714bd04c8bbe22167bd2f7c04c21dc99b0c16478003");
   // tcd.change_dts
   ASSERT_TRUE(tcd.change_dts.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, tcd.change_dts.addr) == "T6T7VwjLn6f5YEkhDeXKN6BPAyqNEyT1RQGXJohw9D4JerRqYSFLUFKULt2sfMGv8nBnUDRhVx5GbBLWeMQt8HeS1ZK4PVYEU");
+
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, tcd.change_dts.addr) == ADDRESS1);
 
 
 
@@ -1166,8 +1171,9 @@ TEST(Serialization, portability_unsigned_tx)
 
   ASSERT_TRUE(splitted_dst0.amount == 1000000000000);
   ASSERT_TRUE(splitted_dst1.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst0.addr) == "T6T5aczWy2F9w1mYFh3P5L2yEMeShZ9xVTzpztPY7AVr8qaUJQ5pj4HaE9a9w3amXmcptpJsXixiSKNfwJxwxiHu1SPn3QRjd");
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst1.addr) == "T6T7VwjLn6f5YEkhDeXKN6BPAyqNEyT1RQGXJohw9D4JerRqYSFLUFKULt2sfMGv8nBnUDRhVx5GbBLWeMQt8HeS1ZK4PVYEU");
+
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst0.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst1.addr) == ADDRESS1);
   // tcd.selected_transfers
   ASSERT_TRUE(tcd.selected_transfers.size() == 2);
   ASSERT_TRUE(tcd.selected_transfers.front() == 0);
@@ -1181,7 +1187,7 @@ TEST(Serialization, portability_unsigned_tx)
   ASSERT_TRUE(tcd.dests.size() == 1);
   auto& dest = tcd.dests[0];
   ASSERT_TRUE(dest.amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, dest.addr) == "T6T5aczWy2F9w1mYFh3P5L2yEMeShZ9xVTzpztPY7AVr8qaUJQ5pj4HaE9a9w3amXmcptpJsXixiSKNfwJxwxiHu1SPn3QRjd");
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, dest.addr) == ADDRESS2);
   // transfers
   ASSERT_TRUE(exported_txs.transfers.size() == 2);
   auto& td0 = exported_txs.transfers[0];
@@ -1271,7 +1277,7 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_FALSE(ptx.dust_added_to_fee);
   // ptx.change.{amount, addr}
   ASSERT_TRUE(ptx.change_dts.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, ptx.change_dts.addr) == "T6T7VwjLn6f5YEkhDeXKN6BPAyqNEyT1RQGXJohw9D4JerRqYSFLUFKULt2sfMGv8nBnUDRhVx5GbBLWeMQt8HeS1ZK4PVYEU");
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, ptx.change_dts.addr) == ADDRESS1);
 
   // ptx.selected_transfers
   ASSERT_TRUE(ptx.selected_transfers.size() == 2);
@@ -1282,7 +1288,7 @@ TEST(Serialization, portability_signed_tx)
   // ptx.dests
   ASSERT_TRUE(ptx.dests.size() == 1);
   ASSERT_TRUE(ptx.dests[0].amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, ptx.dests[0].addr) == "T6T5aczWy2F9w1mYFh3P5L2yEMeShZ9xVTzpztPY7AVr8qaUJQ5pj4HaE9a9w3amXmcptpJsXixiSKNfwJxwxiHu1SPn3QRjd");
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, ptx.dests[0].addr) == ADDRESS2);
   // ptx.construction_data
   auto& tcd = ptx.construction_data;
   ASSERT_TRUE(tcd.sources.size() == 2);
@@ -1313,15 +1319,15 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE(epee::string_tools::pod_to_hex(tse.mask) == "796309c7e57439028f111714bd04c8bbe22167bd2f7c04c21dc99b0c16478003");
   // ptx.construction_data.change_dts
   ASSERT_TRUE(tcd.change_dts.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, tcd.change_dts.addr) == "T6T7VwjLn6f5YEkhDeXKN6BPAyqNEyT1RQGXJohw9D4JerRqYSFLUFKULt2sfMGv8nBnUDRhVx5GbBLWeMQt8HeS1ZK4PVYEU");
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, tcd.change_dts.addr) == ADDRESS1);
   // ptx.construction_data.splitted_dsts
   ASSERT_TRUE(tcd.splitted_dsts.size() == 2);
   auto& splitted_dst0 = tcd.splitted_dsts[0];
   auto& splitted_dst1 = tcd.splitted_dsts[1];
   ASSERT_TRUE(splitted_dst0.amount == 1000000000000);
   ASSERT_TRUE(splitted_dst1.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst0.addr) == "T6T5aczWy2F9w1mYFh3P5L2yEMeShZ9xVTzpztPY7AVr8qaUJQ5pj4HaE9a9w3amXmcptpJsXixiSKNfwJxwxiHu1SPn3QRjd");
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst1.addr) == "T6T7VwjLn6f5YEkhDeXKN6BPAyqNEyT1RQGXJohw9D4JerRqYSFLUFKULt2sfMGv8nBnUDRhVx5GbBLWeMQt8HeS1ZK4PVYEU");
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst0.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst1.addr) == ADDRESS1);
   // ptx.construction_data.selected_transfers
   ASSERT_TRUE(tcd.selected_transfers.size() == 2);
   ASSERT_TRUE(tcd.selected_transfers.front() == 0);
@@ -1334,7 +1340,7 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE(tcd.dests.size() == 1);
   auto& dest = tcd.dests[0];
   ASSERT_TRUE(dest.amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, dest.addr) == "T6T5aczWy2F9w1mYFh3P5L2yEMeShZ9xVTzpztPY7AVr8qaUJQ5pj4HaE9a9w3amXmcptpJsXixiSKNfwJxwxiHu1SPn3QRjd");
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, dest.addr) == ADDRESS2);
   // key_images
   ASSERT_TRUE(exported_txs.key_images.size() == 2);
   auto& ki0 = exported_txs.key_images[0];
