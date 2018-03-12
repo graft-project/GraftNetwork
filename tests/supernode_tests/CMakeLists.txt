@@ -35,9 +35,11 @@ set(supernode_tests_sources
   tx_pool_tests.cpp
   walletproxy_test.cpp
   graft_wallet_tests.cpp
+  supernode_dapi_tests.cpp
 )
 
 set(supernode_tests_headers
+  supernode_daemon.h
   )
 
 add_executable(supernode_tests
