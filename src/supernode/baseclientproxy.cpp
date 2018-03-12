@@ -52,11 +52,12 @@ void supernode::BaseClientProxy::Init()
 
 bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out, epee::json_rpc::error &er)
 {
-	LOG_PRINT_L0("BaseClientProxy::GetWalletBalance" << in.Account);
+    LOG_PRINT_L0("BaseClientProxy::GetWalletBalance " << in.Account);
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
         er.code = ERROR_OPEN_WALLET_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_OPEN_WALLET_FAILED);
         return false;
     }
     try
@@ -68,23 +69,22 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     }
     catch (const std::exception& e)
     {
-//        out.Result = ERROR_BALANCE_NOT_AVAILABLE;
+        er.code = ERROR_BALANCE_NOT_AVAILABLE;
+        er.message = EXTENDED_ERROR_MESSAGE(MESSAGE_BALANCE_NOT_AVAILABLE, e.what());
         return false;
     }
-//    out.Result = STATUS_OK;
     return true;
 }
 
 bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CREATE_ACCOUNT::request &in, supernode::rpc_command::CREATE_ACCOUNT::response &out, epee::json_rpc::error &er)
 {
-	LOG_PRINT_L0("BaseClientProxy::CreateAccount" << in.Language);
+    LOG_PRINT_L0("BaseClientProxy::CreateAccount " << in.Language);
     std::vector<std::string> languages;
     crypto::ElectrumWords::get_language_list(languages);
-    std::vector<std::string>::iterator it;
-    it = std::find(languages.begin(), languages.end(), in.Language);
-    if (it == languages.end())
+    if (std::find(languages.begin(), languages.end(), in.Language) == languages.end())
     {
-        out.Result = ERROR_LANGUAGE_IS_NOT_FOUND;
+        er.code = ERROR_LANGUAGE_IS_NOT_FOUND;
+        er.message = ERROR_MESSAGE(MESSAGE_LANGUAGE_IS_NOT_FOUND);
         return false;
     }
 
@@ -93,19 +93,22 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
                                              m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
     if (!wal)
     {
-        out.Result = ERROR_CREATE_WALLET_FAILED;
+        er.code = ERROR_CREATE_WALLET_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_CREATE_WALLET_FAILED);
         return false;
     }
-    wal->set_seed_language(in.Language);
-    wal->set_refresh_from_block_height(m_Servant->GetCurrentBlockHeight());
     crypto::secret_key dummy_key;
     try
     {
+        wal->set_seed_language(in.Language);
+        //TODO: Not sure that it works correctly: m_Servant->GetCurrentBlockHeight()
+        wal->set_refresh_from_block_height(m_Servant->GetCurrentBlockHeight());
         wal->generate_graft(in.Password, dummy_key, false, false);
     }
     catch (const std::exception& e)
     {
-        out.Result = ERROR_CREATE_WALLET_FAILED;
+        er.code = ERROR_CREATE_WALLET_FAILED;
+        er.message = EXTENDED_ERROR_MESSAGE(MESSAGE_CREATE_WALLET_FAILED, e.what());
         return false;
     }
     out.Account = base64_encode(wal->store_keys_graft(in.Password));
@@ -114,40 +117,41 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     std::string seed;
     wal->get_seed(seed);
     out.Seed = seed;
-    out.Result = STATUS_OK;
     return true;
 }
 
 bool supernode::BaseClientProxy::GetSeed(const supernode::rpc_command::GET_SEED::request &in, supernode::rpc_command::GET_SEED::response &out, epee::json_rpc::error &er)
 {
-	LOG_PRINT_L0("BaseClientProxy::GetSeed" << in.Account);
+    LOG_PRINT_L0("BaseClientProxy::GetSeed " << in.Account);
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_OPEN_WALLET_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_OPEN_WALLET_FAILED);
         return false;
     }
     wal->set_seed_language(in.Language);
     std::string seed;
     wal->get_seed(seed);
     out.Seed = seed;
-    out.Result = STATUS_OK;
     return true;
 }
 
 bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RESTORE_ACCOUNT::request &in, supernode::rpc_command::RESTORE_ACCOUNT::response &out, epee::json_rpc::error &er)
 {
-	LOG_PRINT_L0("BaseClientProxy::RestoreAccount" << in.Seed);
+    LOG_PRINT_L0("BaseClientProxy::RestoreAccount " << in.Seed);
     if (in.Seed.empty())
     {
-        out.Result = ERROR_ELECTRUM_SEED_EMPTY;
+        er.code = ERROR_ELECTRUM_SEED_EMPTY;
+        er.message = ERROR_MESSAGE(MESSAGE_ELECTRUM_SEED_EMPTY);
         return false;
     }
     crypto::secret_key recovery_key;
     std::string old_language;
     if (!crypto::ElectrumWords::words_to_bytes(in.Seed, recovery_key, old_language))
-    {
-        out.Result = ERROR_ELECTRUM_SEED_INVALID;
+    {   
+        er.code = ERROR_ELECTRUM_SEED_INVALID;
+        er.message = ERROR_MESSAGE(MESSAGE_ELECTRUM_SEED_INVALID);
         return false;
     }
     std::unique_ptr<tools::GraftWallet> wal =
@@ -155,7 +159,8 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
                                              m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
     if (!wal)
     {
-        out.Result = ERROR_CREATE_WALLET_FAILED;
+        er.code = ERROR_RESTORE_WALLET_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_RESTORE_WALLET_FAILED);
         return false;
     }
     try
@@ -171,11 +176,11 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         out.Seed = seed;
     }
     catch (const std::exception &e)
-    {
-        out.Result = ERROR_RESTORE_WALLET_FAILED;
+    {        
+        er.code = ERROR_RESTORE_WALLET_FAILED;
+        er.message = EXTENDED_ERROR_MESSAGE(MESSAGE_RESTORE_WALLET_FAILED, e.what());
         return false;
     }
-    out.Result = STATUS_OK;
     return true;
 }
 
@@ -184,23 +189,21 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_OPEN_WALLET_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_OPEN_WALLET_FAILED);
         return false;
     }
 
     if (wal->restricted())
-    {
-        //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
-        //      er.message = "Command unavailable in restricted mode.";
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+    {       
+        er.code = ERROR_WALLET_RESTRICTED;
+        er.message = ERROR_MESSAGE(MESSAGE_WALLET_RESTRICTED);
         return false;
     }
 
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
-
     std::string payment_id = "";
-
     uint64_t amount;
     std::istringstream iss(in.Amount);
     iss >> amount;
@@ -208,7 +211,8 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
     // validate the transfer requested and populate dsts & extra
     if (!validate_transfer(in.Account, in.Password, in.Address, amount, payment_id, dsts, extra))
     {
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_TRANSACTION_INVALID;
+        er.message = ERROR_MESSAGE(MESSAGE_TRANSACTION_INVALID);
         return false;
     }
 
@@ -222,10 +226,9 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)
-        {
-            //        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-            //        er.message = "Transaction would be too large.  try /transfer_split.";
-            out.Result = ERROR_OPEN_WALLET_FAILED;
+        {   
+            er.code = ERROR_TRANSACTION_TO_LARGE;
+            er.message = ERROR_MESSAGE(MESSAGE_TRANSACTION_TO_LARGE);
             return false;
         }
 
@@ -233,27 +236,22 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
     }
     catch (const tools::error::daemon_busy& e)
     {
-        //      er.code = WALLET_RPC_ERROR_CODE_DAEMON_IS_BUSY;
-        //      er.message = e.what();
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_CRYPTONODE_BUSY;
+        er.message = EXTENDED_ERROR_MESSAGE(MESSAGE_CRYPTONODE_BUSY, e.what());
         return false;
     }
     catch (const std::exception& e)
     {
-        //      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-        //      er.message = e.what();
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_TRANSFER_FAILED;
+        er.message = EXTENDED_ERROR_MESSAGE(MESSAGE_TRANSFER_FAILED, e.what());
         return false;
     }
     catch (...)
     {
-        //      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
-        //      er.message = "WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR";
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_TRANSFER_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_TRANSFER_FAILED);
         return false;
     }
-
-    out.Result = STATUS_OK;
     return true;
 }
 
@@ -262,23 +260,21 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_OPEN_WALLET_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_OPEN_WALLET_FAILED);
         return false;
     }
 
     if (wal->restricted())
     {
-        //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
-        //      er.message = "Command unavailable in restricted mode.";
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_WALLET_RESTRICTED;
+        er.message = ERROR_MESSAGE(MESSAGE_WALLET_RESTRICTED);
         return false;
     }
 
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
-
     std::string payment_id = "";
-
     uint64_t amount;
     std::istringstream iss(in.Amount);
     iss >> amount;
@@ -286,7 +282,8 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
     // validate the transfer requested and populate dsts & extra
     if (!validate_transfer(in.Account, in.Password, in.Address, amount, payment_id, dsts, extra))
     {
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_TRANSACTION_INVALID;
+        er.message = ERROR_MESSAGE(MESSAGE_TRANSACTION_INVALID);
         return false;
     }
 
@@ -296,17 +293,14 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
         bool do_not_relay = false;
-        bool get_tx_key = false;
-        bool get_tx_hex = false;
         std::vector<tools::GraftWallet::pending_tx> ptx_vector =
                 wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, false);
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)
         {
-            //        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-            //        er.message = "Transaction would be too large.  try /transfer_split.";
-            out.Result = ERROR_OPEN_WALLET_FAILED;
+            er.code = ERROR_TRANSACTION_TO_LARGE;
+            er.message = ERROR_MESSAGE(MESSAGE_TRANSACTION_TO_LARGE);
             return false;
         }
 
@@ -315,45 +309,25 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
             wal->commit_tx(ptx_vector);
             storeWalletState(wal.get());
         }
-
-        // populate response with tx hash
-        //        std::string tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector.back().tx));
-        //        if (get_tx_key)
-        //        {
-        //            std::string tx_key = epee::string_tools::pod_to_hex(ptx_vector.back().tx_key);
-        //        }
-        //        uint64_t fee = ptx_vector.back().fee;
-
-        //        if (get_tx_hex)
-        //        {
-        //            cryptonote::blobdata blob;
-        //            tx_to_blob(ptx_vector.back().tx, blob);
-        //            res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
-        //        }
     }
     catch (const tools::error::daemon_busy& e)
     {
-        //      er.code = WALLET_RPC_ERROR_CODE_DAEMON_IS_BUSY;
-        //      er.message = e.what();
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_CRYPTONODE_BUSY;
+        er.message = EXTENDED_ERROR_MESSAGE(MESSAGE_CRYPTONODE_BUSY, e.what());
         return false;
     }
     catch (const std::exception& e)
     {
-        //      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-        //      er.message = e.what();
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_TRANSFER_FAILED;
+        er.message = EXTENDED_ERROR_MESSAGE(MESSAGE_TRANSFER_FAILED, e.what());
         return false;
     }
     catch (...)
     {
-        //      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
-        //      er.message = "WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR";
-        out.Result = ERROR_OPEN_WALLET_FAILED;
+        er.code = ERROR_TRANSFER_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_TRANSFER_FAILED);
         return false;
     }
-
-    out.Result = STATUS_OK;
     return true;
 }
 

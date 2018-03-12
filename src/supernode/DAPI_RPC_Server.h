@@ -84,6 +84,7 @@ namespace supernode {
                   }
                   else
                   {
+                      LOG_ERROR(err.error.message);
                       epee::serialization::store_t_to_json(err, out_js);
                   }
 				  return true;

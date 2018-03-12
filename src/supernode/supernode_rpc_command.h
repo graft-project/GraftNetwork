@@ -135,11 +135,9 @@ namespace supernode {
 
 			};
 			struct response {
-                int64_t Result;
                 string POSSaleDetails;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                     KV_SERIALIZE(POSSaleDetails)
 				END_KV_SERIALIZE_MAP()
 
@@ -162,10 +160,7 @@ namespace supernode {
 				END_KV_SERIALIZE_MAP()
 			};
 			struct response {
-                int64_t Result;
-
 				BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                 END_KV_SERIALIZE_MAP()
 			};
 		};
@@ -209,10 +204,7 @@ namespace supernode {
                 uint64_t BlockNum;
             };
             struct response {
-                int64_t Result;
-
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                 END_KV_SERIALIZE_MAP()
             };
         };
@@ -226,11 +218,9 @@ namespace supernode {
 
 			};
 			struct response {
-                int64_t Result;
                 int Status;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
 					KV_SERIALIZE(Status)
 				END_KV_SERIALIZE_MAP()
 			};
@@ -267,12 +257,10 @@ namespace supernode {
 
 			};
 			struct response {
-                int64_t Result;
                 uint64_t BlockNum;
                 string PaymentID;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
 					KV_SERIALIZE(BlockNum)
 					KV_SERIALIZE(PaymentID)
 				END_KV_SERIALIZE_MAP()
@@ -285,8 +273,6 @@ namespace supernode {
 				BEGIN_KV_SERIALIZE_MAP()
 					KV_SERIALIZE(SenderIP)
 					KV_SERIALIZE(SenderPort)
-
-
                     KV_SERIALIZE(POSAddress)
                     KV_SERIALIZE(POSSaleDetails)
 					KV_SERIALIZE(BlockNum)
@@ -317,10 +303,7 @@ namespace supernode {
 
             };
             struct response {
-                int64_t Result;
-
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                 END_KV_SERIALIZE_MAP()
             };
         };
@@ -333,11 +316,9 @@ namespace supernode {
 				END_KV_SERIALIZE_MAP()
 			};
 			struct response {
-                int64_t Result;
                 int Status;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
 					KV_SERIALIZE(Status)
 				END_KV_SERIALIZE_MAP()
 			};
@@ -394,14 +375,12 @@ namespace supernode {
                 END_KV_SERIALIZE_MAP()
             };
             struct response {
-                int64_t Result;
                 std::string Address;
                 std::string ViewKey;
                 std::string Account;
                 std::string Seed;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                     KV_SERIALIZE(Address)
                     KV_SERIALIZE(ViewKey)
                     KV_SERIALIZE(Account)
@@ -423,11 +402,9 @@ namespace supernode {
                 END_KV_SERIALIZE_MAP()
             };
             struct response {
-                int64_t Result;
                 std::string Seed;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                     KV_SERIALIZE(Seed)
                 END_KV_SERIALIZE_MAP()
             };
@@ -444,14 +421,12 @@ namespace supernode {
                 END_KV_SERIALIZE_MAP()
             };
             struct response {
-                int64_t Result;
                 std::string Address;
                 std::string ViewKey;
                 std::string Account;
                 std::string Seed;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                     KV_SERIALIZE(Address)
                     KV_SERIALIZE(ViewKey)
                     KV_SERIALIZE(Account)
@@ -475,10 +450,7 @@ namespace supernode {
                 END_KV_SERIALIZE_MAP()
             };
             struct response {
-                int64_t Result;
-
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                 END_KV_SERIALIZE_MAP()
             };
         };
@@ -499,11 +471,9 @@ namespace supernode {
                 END_KV_SERIALIZE_MAP()
             };
             struct response {
-                int64_t Result;
                 uint64_t Fee;
 
                 BEGIN_KV_SERIALIZE_MAP()
-                    KV_SERIALIZE(Result)
                     KV_SERIALIZE(Fee)
                 END_KV_SERIALIZE_MAP()
             };

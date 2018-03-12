@@ -59,6 +59,8 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
 {
     epee::json_rpc::error_response rsp;
     LOG_PRINT_L2(query_info.m_body);
+    response_info.m_mime_tipe = "application/json";
+    response_info.m_header_info.m_content_type = " application/json";
     if (query_info.m_URI != rpc_command::DAPI_URI)
     {
         rsp.error.code = ERROR_WRONG_DAPI_URI;
@@ -131,12 +133,9 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
                 rsp.error.code = ERROR_UNKNOWN_METHOD_ERROR;
                 rsp.error.message = "Unknown method error";
             }
+            return true;
         }
     }
-
-    response_info.m_mime_tipe = "application/json";
-    response_info.m_header_info.m_content_type = " application/json";
-//    epee::serialization::store_t_to_json(static_cast<epee::json_rpc::error_response&>(rsp), response_info.m_body);
     epee::serialization::store_t_to_json(rsp, response_info.m_body);
     return true;
 }

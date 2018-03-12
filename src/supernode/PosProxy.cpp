@@ -39,7 +39,7 @@ void supernode::PosProxy::Init() {
 
 
 bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out, epee::json_rpc::error &er) {
-	LOG_PRINT_L0("PosProxy::Sale" << in.POSAddress << in.Amount);
+    LOG_PRINT_L0("PosProxy::Sale " << in.POSAddress << in.Amount);
     //TODO: Add input data validation
 	boost::shared_ptr<PosSaleObject> data = boost::shared_ptr<PosSaleObject>( new PosSaleObject() );
 	data->Owner(this);
@@ -48,8 +48,8 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
 
     if (!data->Init(in))
     {
-        out.Result = ERROR_SALE_REQUEST_FAILED;
-        LOG_ERROR("ERROR_SALE_REQUEST_FAILED");
+        er.code = ERROR_SALE_REQUEST_FAILED;
+        er.message = ERROR_MESSAGE(MESSAGE_SALE_REQUEST_FAILED);
         return false;
     }
 	Add(data);
@@ -60,6 +60,5 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
 
 	out.BlockNum = data->TransactionRecord.BlockNum;
 	out.PaymentID = data->TransactionRecord.PaymentID;
-    out.Result = STATUS_OK;
 	return true;
 }

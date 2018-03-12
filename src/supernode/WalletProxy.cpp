@@ -40,17 +40,21 @@ void supernode::WalletProxy::Init() {
 
 bool supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er) {
 	// TODO: if have PayID, don't call
-    LOG_PRINT_L0("WalletProxy::WalletRejectPay" << in.PaymentID);
+    LOG_PRINT_L0("WalletProxy::WalletRejectPay " << in.PaymentID);
 	SubNetBroadcast sub;
 	sub.Set( m_DAPIServer, in.PaymentID, m_Servant->GetAuthSample(in.BlockNum) );
 	vector<rpc_command::WALLET_REJECT_PAY::response> vout;
 	bool ret = sub.Send( dapi_call::WalletProxyRejectPay, in, vout );
-    out.Result = ret ? STATUS_OK : ERROR_CANNOT_REJECT_PAY;
+    if (!ret)
+    {
+        er.code = ERROR_CANNOT_REJECT_PAY;
+        er.message = ERROR_MESSAGE(MESSAGE_CANNOT_REJECT_PAY);
+    }
 	return ret;
 }
 
 bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out, epee::json_rpc::error &er) {
-	LOG_PRINT_L0("WalletProxy::Pay" << in.POSAddress << in.Amount);
+    LOG_PRINT_L0("WalletProxy::Pay " << in.POSAddress << in.Amount);
 	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
 	data->Owner(this);
 	Setup(data);
@@ -68,7 +72,7 @@ bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc
 }
 
 bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er) {
-	LOG_PRINT_L0("WalletProxy::WalletGetPosData" << in.PaymentID);
+    LOG_PRINT_L0("WalletProxy::WalletGetPosData " << in.PaymentID);
 	// we allready have block num
 	vector< boost::shared_ptr<FSN_Data> > vv = m_Servant->GetAuthSample( in.BlockNum );
 	if( vv.size()!=m_Servant->AuthSampleSize() ) return false;
