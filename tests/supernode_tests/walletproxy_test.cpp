@@ -119,7 +119,7 @@ struct Supernode
     {
         IP = "127.0.0.1";
         Port = second?p2:p1;
-
+        cout << s_TestDataPath << endl;
 
         string db_path = s_TestDataPath + "/test_blockchain";
         string wallet_root_path = s_TestDataPath + "/test_wallets";
@@ -200,7 +200,8 @@ struct GraftRTATest1 : public testing::Test
         rpc_command::WALLET_GET_TRANSACTION_STATUS::request in;
         rpc_command::WALLET_GET_TRANSACTION_STATUS::response out;
         in.PaymentID = payID;
-        bool ret = call.Invoke(dapi_call::GetPayStatus, in, out);
+        epee::json_rpc::error err;
+        bool ret = call.Invoke(dapi_call::GetPayStatus, in, out, err);
 
         if(!ret) return NTransactionStatus::Fail;
         return NTransactionStatus(out.Status);
@@ -213,7 +214,8 @@ struct GraftRTATest1 : public testing::Test
         rpc_command::POS_GET_SALE_STATUS::request in;
         rpc_command::POS_GET_SALE_STATUS::response out;
         in.PaymentID = payID;
-        bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out);
+        epee::json_rpc::error err;
+        bool ret = call.Invoke(dapi_call::GetSaleStatus, in, out, err);
 
         if(!ret) return NTransactionStatus::Fail;
         return NTransactionStatus(out.Status);
@@ -247,7 +249,8 @@ struct GraftRTATest1 : public testing::Test
         for (unsigned i=0; i < repeatCount; i++) {// transaction must started from Sale call
             DAPI_RPC_Client pos_sale;
             pos_sale.Set(IP, PosProxyPort);
-            result = pos_sale.Invoke("Sale", sale_in, sale_out);
+            epee::json_rpc::error err;
+            result = pos_sale.Invoke("Sale", sale_in, sale_out, err);
             if (Assert(result, "Sale"))
                 break;
         }
@@ -280,7 +283,8 @@ struct GraftRTATest1 : public testing::Test
             DAPI_RPC_Client wallet_pay;
             wallet_pay.Set(IP, WalletProxyPort);
             LOG_PRINT_L0("Invoking 'Pay'");
-            result = wallet_pay.Invoke("Pay", pay_in, pay_out);
+            epee::json_rpc::error err;
+            result = wallet_pay.Invoke("Pay", pay_in, pay_out, err);
             if (Assert(result, "Pay"))
                 break;
             //boost::this_thread::sleep_for(boost::chrono::milliseconds(100));

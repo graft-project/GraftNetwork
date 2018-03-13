@@ -63,7 +63,8 @@ namespace supernode {
 			DAPI_RPC_Client call;
 			call.Set(ip, port);
 			req.PaymentID = TransactionRecord.PaymentID;
-			return call.Invoke(method, req, resp);
+            epee::json_rpc::error err;
+            return call.Invoke(method, req, resp, err);
 		}
 
 		bool CheckSign(const string& wallet, const string& sign);

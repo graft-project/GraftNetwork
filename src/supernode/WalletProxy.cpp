@@ -81,5 +81,6 @@ bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_
 
 	DAPI_RPC_Client call;
 	call.Set(data->IP, data->Port);
-	return call.Invoke(dapi_call::WalletProxyGetPosData, in, out);
+    epee::json_rpc::error err;
+    return call.Invoke(dapi_call::WalletProxyGetPosData, in, out, err);
 }

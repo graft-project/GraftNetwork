@@ -49,8 +49,8 @@ namespace supernode {
 
 		bool WasConnected = false;
 
-		template<class t_request, class t_response>
-		bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
+        template<class t_request, class t_response>
+        bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, epee::json_rpc::error &error_struct, std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
 
 			rpc_command::RequestContainer<t_request> req;
 	    	req.params = out_struct;
@@ -81,17 +81,25 @@ namespace supernode {
 	    		return false;
 	    	}
 
-	    	epee::json_rpc::response<t_response, epee::json_rpc::dummy_error> resp;
+            boost::value_initialized<epee::json_rpc::response<t_response, epee::json_rpc::error> > resp_init;
+            epee::json_rpc::response<t_response, epee::json_rpc::error> resp(resp_init);
 
 	    	epee::serialization::portable_storage ps;
 	    	if( !ps.load_from_json(pri->m_body) ) return false;
-	    	if( !resp.load(ps) ) return false;
-
-	    	result_struct = resp.result;
-
-	    	return true;
-
-
+            if( !resp.load(ps) )
+            {
+                return false;
+            }
+            if (resp.error.code == 0)
+            {
+                result_struct = resp.result;
+                return true;
+            }
+            else
+            {
+                error_struct = resp.error;
+                return false;
+            }
 		}
 
 		protected:

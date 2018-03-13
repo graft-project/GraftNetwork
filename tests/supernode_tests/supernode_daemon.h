@@ -12,7 +12,7 @@
 
 using namespace supernode;
 
-struct Supernode
+struct SupernodeDaemon
 {
     FSN_Servant* Servant = nullptr;
     boost::thread* WorkerThread = nullptr;
@@ -21,8 +21,7 @@ struct Supernode
 
     atomic_uint Started = {0};
 
-
-    Supernode(const string& path = std::string()) { s_TestDataPath = path; }
+    SupernodeDaemon(const string& path = std::string()) { s_TestDataPath = path; }
 
     void Run()
     {
@@ -42,7 +41,6 @@ struct Supernode
         Started = 1;
         dapi_server.Start();// block execution
 
-
         // -----------------------------------------------------------------
 
         for (unsigned i=0;i<objs.size();i++)
@@ -57,13 +55,11 @@ struct Supernode
     {
         boost::property_tree::ptree config;
         boost::property_tree::ini_parser::read_ini(conf_file, config);
-
         const boost::property_tree::ptree& dapi_conf = config.get_child("dapi");
         supernode::rpc_command::SetDAPIVersion(dapi_conf.get<string>("version"));
         dapi_server.Set(dapi_conf.get<string>("ip"), dapi_conf.get<string>("port"),
                         dapi_conf.get<int>("threads"));
         supernode::rpc_command::SetWalletProxyOnly( dapi_conf.get<int>("wallet_proxy_only", 0)==1);
-
         const boost::property_tree::ptree& cf_ser = config.get_child("servant");
         Servant = new FSN_Servant_Test(cf_ser.get<string>("bdb_path"),
                                        cf_ser.get<string>("daemon_addr"), "",
@@ -84,7 +80,7 @@ struct Supernode
             }
         }
 
-        WorkerThread = new boost::thread(&Supernode::Run, this);
+        WorkerThread = new boost::thread(&SupernodeDaemon::Run, this);
     }
 
     void Stop()

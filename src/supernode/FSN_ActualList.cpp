@@ -202,7 +202,8 @@ bool FSN_ActualList::CheckWalletOwner(boost::shared_ptr<FSN_Data> data, const st
 
 	DAPI_RPC_Client call;
 	call.Set(data->IP, data->Port);
-	if( !call.Invoke(dapi_call::FSN_CheckWalletOwnership, in, out) ) return false;
+    epee::json_rpc::error err;
+    if( !call.Invoke(dapi_call::FSN_CheckWalletOwnership, in, out, err) ) return false;
 	return m_Servant->IsSignValid(in.Str, in.WalletAddr, out.Sign);
 
 }
