@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef POS_PROXY_H_
 #define POS_PROXY_H_
@@ -35,18 +34,20 @@
 #include "WorkerPool.h"
 
 namespace supernode {
-    class PosProxy : public BaseClientProxy {
-		public:
-        bool Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out, epee::json_rpc::error& er);
 
-		protected:
-		void Init() override;
+class PosProxy : public BaseClientProxy
+{
+public:
+    bool Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out, epee::json_rpc::error& er);
 
+protected:
+    void Init() override;
 
-        protected:
-        WorkerPool m_Work;
+protected:
+    WorkerPool m_Work;
 
-	};
+};
+
 }
 
 #endif /* POS_PROXY_H_ */

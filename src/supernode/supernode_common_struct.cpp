@@ -25,47 +25,54 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #include "supernode_common_struct.h"
 
 namespace supernode {
 
+bool FSN_WalletData::operator!=(const FSN_WalletData& s) const
+{
+    return !(*this==s);
+}
 
+bool FSN_WalletData::operator==(const FSN_WalletData& s) const
+{
+    return s.Addr==Addr && s.ViewKey==ViewKey;
+}
 
+bool FSN_Data::operator!=(const FSN_Data& s) const
+{
+    return !(*this==s);
+}
 
-bool FSN_WalletData::operator!=(const FSN_WalletData& s) const { return !(*this==s); }
-bool FSN_WalletData::operator==(const FSN_WalletData& s) const {
-	return s.Addr==Addr && s.ViewKey==ViewKey;
+bool FSN_Data::operator==(const FSN_Data& s) const
+{
+    return IP==s.IP && Port==s.Port && Stake==s.Stake && Miner==s.Miner;
 }
 
 
-bool FSN_Data::operator!=(const FSN_Data& s) const { return !(*this==s); }
-
-bool FSN_Data::operator==(const FSN_Data& s) const {
-	return IP==s.IP && Port==s.Port && Stake==s.Stake && Miner==s.Miner;
+bool RTA_TransactionRecord::operator!=(const RTA_TransactionRecord& s) const
+{
+    return !(*this==s);
 }
 
-
-bool RTA_TransactionRecord::operator!=(const RTA_TransactionRecord& s) const { return !(*this==s); }
-
-bool RTA_TransactionRecord::operator==(const RTA_TransactionRecord& s) const {
+bool RTA_TransactionRecord::operator==(const RTA_TransactionRecord& s) const
+{
     bool bb = s.Amount != Amount || s.POSAddress!=POSAddress || s.BlockNum!=BlockNum || s.PaymentID!=PaymentID;
-	if(bb) return false;
+    if(bb) return false;
 
-	if( s.AuthNodes.size()!=AuthNodes.size() ) return false;
+    if(s.AuthNodes.size()!=AuthNodes.size()) return false;
 
-	for(unsigned i=0;i<AuthNodes.size();i++) {
-		if( *AuthNodes[i]!=*s.AuthNodes[i] ) return false;
-	}
-
-
-	return true;
-
+    for(unsigned i=0;i<AuthNodes.size();i++)
+    {
+        if( *AuthNodes[i]!=*s.AuthNodes[i] ) return false;
+    }
+    return true;
 }
 
-string RTA_TransactionRecord::MessageForSign() const {
-	return boost::lexical_cast<string>(Amount)+string("-")+boost::lexical_cast<string>(BlockNum)+string("-")+PaymentID;
+string RTA_TransactionRecord::MessageForSign() const
+{
+    return boost::lexical_cast<string>(Amount)+string("-")+boost::lexical_cast<string>(BlockNum)+string("-")+PaymentID;
 }
 
-};
+}

@@ -149,13 +149,13 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
     crypto::secret_key recovery_key;
     std::string old_language;
     if (!crypto::ElectrumWords::words_to_bytes(in.Seed, recovery_key, old_language))
-    {   
+    {
         er.code = ERROR_ELECTRUM_SEED_INVALID;
         er.message = ERROR_MESSAGE(MESSAGE_ELECTRUM_SEED_INVALID);
         return false;
     }
     std::unique_ptr<tools::GraftWallet> wal =
-        tools::GraftWallet::createWallet(std::string(), m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
+            tools::GraftWallet::createWallet(std::string(), m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
                                              m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
     if (!wal)
     {
@@ -176,7 +176,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         out.Seed = seed;
     }
     catch (const std::exception &e)
-    {        
+    {
         er.code = ERROR_RESTORE_WALLET_FAILED;
         er.message = EXTENDED_ERROR_MESSAGE(MESSAGE_RESTORE_WALLET_FAILED, e.what());
         return false;
@@ -195,7 +195,7 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
     }
 
     if (wal->restricted())
-    {       
+    {
         er.code = ERROR_WALLET_RESTRICTED;
         er.message = ERROR_MESSAGE(MESSAGE_WALLET_RESTRICTED);
         return false;
@@ -226,7 +226,7 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)
-        {   
+        {
             er.code = ERROR_TRANSACTION_TO_LARGE;
             er.message = ERROR_MESSAGE(MESSAGE_TRANSACTION_TO_LARGE);
             return false;
@@ -354,18 +354,18 @@ bool supernode::BaseClientProxy::validate_transfer(const string &account, const 
                                              [&errorString](const std::string &url, const std::vector<std::string> &addresses, bool dnssec_valid)->std::string {
                                              if (!dnssec_valid)
                                              {
-                                                 errorString = std::string("Invalid DNSSEC for ") + url;
-                                                 return {};
+                                                errorString = std::string("Invalid DNSSEC for ") + url;
+                                                return {};
                                              }
                                              if (addresses.empty())
                                              {
-                                                 errorString = std::string("No Monero address found at ") + url;
-                                                 return {};
+                                                errorString = std::string("No Monero address found at ") + url;
+                                                return {};
                                              }
                                              return addresses[0];
-                                    }))
+                                         }))
     {
-//        er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
+        //        er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
         if (errorString.empty())
             errorString = std::string("WALLET_RPC_ERROR_CODE_WRONG_ADDRESS: ") + address;
         return false;
@@ -377,8 +377,8 @@ bool supernode::BaseClientProxy::validate_transfer(const string &account, const 
     {
         if (!payment_id.empty() || integrated_payment_id != cryptonote::null_hash8)
         {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "A single payment id is allowed per transaction";
+            //            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
+            //            er.message = "A single payment id is allowed per transaction";
             return false;
         }
         integrated_payment_id = new_payment_id;
@@ -387,8 +387,8 @@ bool supernode::BaseClientProxy::validate_transfer(const string &account, const 
         /* Append Payment ID data into extra */
         if (!cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce))
         {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "Something went wrong with integrated payment_id.";
+            //            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
+            //            er.message = "Something went wrong with integrated payment_id.";
             return false;
         }
     }
@@ -413,16 +413,16 @@ bool supernode::BaseClientProxy::validate_transfer(const string &account, const 
         }
         else
         {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "Payment id has invalid format: \"" + payment_id_str + "\", expected 16 or 64 character string";
+            //            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
+            //            er.message = "Payment id has invalid format: \"" + payment_id_str + "\", expected 16 or 64 character string";
             return false;
         }
 
         /* Append Payment ID data into extra */
         if (!cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce))
         {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "Something went wrong with payment_id. Please check its format: \"" + payment_id_str + "\", expected 64-character string";
+            //            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
+            //            er.message = "Something went wrong with payment_id. Please check its format: \"" + payment_id_str + "\", expected 64-character string";
             return false;
         }
     }
@@ -436,7 +436,7 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
     {
         wal = tools::GraftWallet::createWallet(account, password, "",
                                                m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
-                                         m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
+                                               m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
         std::string lDataDir = tools::get_default_data_dir() + scWalletCachePath;
         if (!boost::filesystem::exists(lDataDir))
         {

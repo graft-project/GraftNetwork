@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef AUTH_SAMPLE_H_
 #define AUTH_SAMPLE_H_
@@ -35,25 +34,21 @@
 #include "supernode_rpc_command.h"
 #include <boost/pointer_cast.hpp>
 
-namespace supernode {
-	class AuthSample : public BaseRTAProcessor {
-		public:
+namespace supernode
+{
 
+class AuthSample : public BaseRTAProcessor
+{
+public:
 
+protected:
+    void Init() override;
 
-		protected:
-		void Init() override;
-
-        bool PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out, epee::json_rpc::error &er);
-        bool WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er);
-		bool Check(RTA_TransactionRecord& tr);
-
-	};
-
-
+    bool PosProxySale(const rpc_command::POS_PROXY_SALE::request& in, rpc_command::POS_PROXY_SALE::response& out, epee::json_rpc::error &er);
+    bool WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er);
+    bool Check(RTA_TransactionRecord& tr);
 };
 
-
-
+}
 
 #endif /* AUTH_SAMPLE_H_ */

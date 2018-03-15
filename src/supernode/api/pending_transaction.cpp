@@ -46,7 +46,7 @@ namespace Monero {
 GraftPendingTransactionImpl::GraftPendingTransactionImpl(tools::GraftWallet *graft_wallet)
     : mWallet(graft_wallet)
 {
-  m_status = Status_Ok;
+    m_status = Status_Ok;
 }
 
 GraftPendingTransactionImpl::~GraftPendingTransactionImpl()
@@ -74,35 +74,34 @@ std::vector<std::string> GraftPendingTransactionImpl::txid() const
 
 bool GraftPendingTransactionImpl::commit(const std::string &filename, bool overwrite)
 {
-
     LOG_PRINT_L3("m_pending_tx size: " << m_pending_tx.size());
 
     try {
-      // Save tx to file
-      if (!filename.empty()) {
-        boost::system::error_code ignore;
-        bool tx_file_exists = boost::filesystem::exists(filename, ignore);
-        if(tx_file_exists && !overwrite){
-          m_errorString = string("Attempting to save transaction to file, but specified file(s) exist. Exiting to not risk overwriting. File:") + filename;
-          m_status = Status_Error;
-          LOG_ERROR(m_errorString);
-          return false;
+        // Save tx to file
+        if (!filename.empty()) {
+            boost::system::error_code ignore;
+            bool tx_file_exists = boost::filesystem::exists(filename, ignore);
+            if(tx_file_exists && !overwrite){
+                m_errorString = string("Attempting to save transaction to file, but specified file(s) exist. Exiting to not risk overwriting. File:") + filename;
+                m_status = Status_Error;
+                LOG_ERROR(m_errorString);
+                return false;
+            }
+            bool r = mWallet->save_tx(m_pending_tx, filename);
+            if (!r) {
+                m_errorString = "Failed to write transaction(s) to file";
+                m_status = Status_Error;
+            } else {
+                m_status = Status_Ok;
+            }
         }
-        bool r = mWallet->save_tx(m_pending_tx, filename);
-        if (!r) {
-          m_errorString = "Failed to write transaction(s) to file";
-          m_status = Status_Error;
-        } else {
-          m_status = Status_Ok;
+        // Commit tx
+        else {
+            auto reverse_it = m_pending_tx.rbegin();
+            for (; reverse_it != m_pending_tx.rend(); ++reverse_it) {
+                mWallet->commit_tx(*reverse_it);
+            }
         }
-      }
-      // Commit tx
-      else {
-        auto reverse_it = m_pending_tx.rbegin();
-        for (; reverse_it != m_pending_tx.rend(); ++reverse_it) {
-              mWallet->commit_tx(*reverse_it);
-        }
-      }
     } catch (const tools::error::daemon_busy&) {
         // TODO: make it translatable with "tr"?
         m_errorString = "daemon is busy. Please try again later.";
@@ -117,7 +116,7 @@ bool GraftPendingTransactionImpl::commit(const std::string &filename, bool overw
         m_status = Status_Error;
         m_errorString = writer.str();
         if (!reason.empty())
-          m_errorString  += string(". Reason: ") + reason;
+            m_errorString  += string(". Reason: ") + reason;
     } catch (const std::exception &e) {
         m_errorString = string("Unknown exception: ") + e.what();
         m_status = Status_Error;
@@ -126,15 +125,16 @@ bool GraftPendingTransactionImpl::commit(const std::string &filename, bool overw
         LOG_ERROR(m_errorString);
         m_status = Status_Error;
     }
-
     return m_status == Status_Ok;
 }
 
 uint64_t GraftPendingTransactionImpl::amount() const
 {
     uint64_t result = 0;
-    for (const auto &ptx : m_pending_tx)   {
-        for (const auto &dest : ptx.dests) {
+    for (const auto &ptx : m_pending_tx)
+    {
+        for (const auto &dest : ptx.dests)
+        {
             result += dest.amount;
         }
     }
@@ -144,7 +144,8 @@ uint64_t GraftPendingTransactionImpl::amount() const
 uint64_t GraftPendingTransactionImpl::dust() const
 {
     uint64_t result = 0;
-    for (const auto & ptx : m_pending_tx) {
+    for (const auto & ptx : m_pending_tx)
+    {
         result += ptx.dust;
     }
     return result;
@@ -153,7 +154,8 @@ uint64_t GraftPendingTransactionImpl::dust() const
 uint64_t GraftPendingTransactionImpl::fee() const
 {
     uint64_t result = 0;
-    for (const auto &ptx : m_pending_tx) {
+    for (const auto &ptx : m_pending_tx)
+    {
         result += ptx.fee;
     }
     return result;
@@ -182,4 +184,3 @@ void GraftPendingTransactionImpl::setErrorString(const string &message)
 }
 
 namespace Bitmonero = Monero;
-

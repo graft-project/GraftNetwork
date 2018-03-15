@@ -25,18 +25,16 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #include "FSN_ServantBase.h"
 #include <boost/algorithm/string.hpp>
 
-
 namespace supernode {
 
-
-boost::shared_ptr<FSN_Data> FSN_ServantBase::FSN_DataByStakeAddr(const string& addr) const {
-	boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);
-	for(auto a : All_FSN) if( a->Stake.Addr==addr ) return a;
+boost::shared_ptr<FSN_Data> FSN_ServantBase::FSN_DataByStakeAddr(const string& addr) const
+{
+    boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);
+    for(auto a : All_FSN) if( a->Stake.Addr==addr ) return a;
     return nullptr;
 }
 
@@ -77,29 +75,30 @@ void FSN_ServantBase::SetNodeAddress(const string &address)
     if (results.size() == 3) // address with protocol prefix (http://localhost:1234)
         results.erase(results.begin());
 
-    if (results.size() == 2) {
+    if (results.size() == 2)
+    {
         m_nodeIp = results[0];
         m_nodePort = std::stoi(results[1]);
     }
 }
 
-void FSN_ServantBase::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
-	boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);
+void FSN_ServantBase::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn)
+{
+    boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);
     All_FSN.push_back(fsn);
 }
 
-bool FSN_ServantBase::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
-	boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);
+bool FSN_ServantBase::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn)
+{
+    boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);
     const auto & it = std::find_if(All_FSN.begin(), All_FSN.end(),
                                    [fsn] (const boost::shared_ptr<FSN_Data> &other) {
-                    return *fsn == *other;
-            });
+        return *fsn == *other;
+    });
 
-    if(it==All_FSN.end()) return false;
+    if (it==All_FSN.end()) return false;
     All_FSN.erase(it);
     return true;
 }
-
-
 
 }

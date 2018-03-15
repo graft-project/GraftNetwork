@@ -63,7 +63,6 @@ private:
     std::vector<tools::GraftWallet::pending_tx> m_pending_tx;
 };
 
-
 }
 
 namespace Bitmonero = Monero;

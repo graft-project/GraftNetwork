@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef DAPI_RPC_SERVER_H_
 #define DAPI_RPC_SERVER_H_
@@ -41,114 +40,117 @@ using namespace std;
 
 namespace supernode {
 
-	class DAPI_RPC_Server : public epee::http_server_impl_base<DAPI_RPC_Server> {
-		public:
-		typedef epee::net_utils::connection_context_base connection_context;
+class DAPI_RPC_Server : public epee::http_server_impl_base<DAPI_RPC_Server>
+{
+public:
+    typedef epee::net_utils::connection_context_base connection_context;
 
-		public:
-		void Set(const string& ip, const string& port, int numThreads);
-		void Start();//block
-		void Stop();
-		const string& IP() const;
-		const string& Port() const;
+public:
+    void Set(const string& ip, const string& port, int numThreads);
+    void Start();//block
+    void Stop();
+    const string& IP() const;
+    const string& Port() const;
 
-		protected:
-		class SCallHandler {
-			public:
-			virtual bool Process(epee::serialization::portable_storage& in, string& out_js)=0;
-		};
+protected:
+    class SCallHandler
+    {
+    public:
+        virtual bool Process(epee::serialization::portable_storage& in, string& out_js)=0;
+    };
 
-        template<class IN_t, class OUT_t, class ERR_t>
-		class STemplateHandler : public SCallHandler {
-			public:
-            STemplateHandler( boost::function<bool (const IN_t&, OUT_t&, ERR_t&)>& handler) : Handler(handler) {}
+    template<class IN_t, class OUT_t, class ERR_t>
+    class STemplateHandler : public SCallHandler
+    {
+    public:
+        STemplateHandler( boost::function<bool (const IN_t&, OUT_t&, ERR_t&)>& handler) : Handler(handler) {}
 
-			bool Process(epee::serialization::portable_storage& ps, string& out_js) {
-				  boost::value_initialized<epee::json_rpc::request<IN_t> > req_;
-				  epee::json_rpc::request<IN_t>& req = static_cast<epee::json_rpc::request<IN_t>&>(req_);
-				  if( !req.load(ps) ) return false;
+        bool Process(epee::serialization::portable_storage& ps, string& out_js)
+        {
+            boost::value_initialized<epee::json_rpc::request<IN_t> > req_;
+            epee::json_rpc::request<IN_t>& req = static_cast<epee::json_rpc::request<IN_t>&>(req_);
+            if (!req.load(ps)) return false;
 
-                  boost::value_initialized<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> > resp_;
-                  epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error>& resp = static_cast<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> &>(resp_);
-				  resp.jsonrpc = "2.0";
-				  resp.id = req.id;
+            boost::value_initialized<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> > resp_;
+            epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error>& resp = static_cast<epee::json_rpc::response<OUT_t, epee::json_rpc::dummy_error> &>(resp_);
+            resp.jsonrpc = "2.0";
+            resp.id = req.id;
 
-                  boost::value_initialized<epee::json_rpc::error_response> initial_err;
-                  epee::json_rpc::error_response err = static_cast<epee::json_rpc::error_response &>(initial_err);
-                  err.jsonrpc = "2.0";
-                  err.id = req.id;
+            boost::value_initialized<epee::json_rpc::error_response> initial_err;
+            epee::json_rpc::error_response err = static_cast<epee::json_rpc::error_response &>(initial_err);
+            err.jsonrpc = "2.0";
+            err.id = req.id;
 
-                  if (Handler(req.params, resp.result, err.error))
-                  {
-                      epee::serialization::store_t_to_json(resp, out_js);
-                  }
-                  else
-                  {
-                      LOG_ERROR(err.error.message);
-                      epee::serialization::store_t_to_json(err, out_js);
-                  }
-				  return true;
-			}
+            if (Handler(req.params, resp.result, err.error))
+            {
+                epee::serialization::store_t_to_json(resp, out_js);
+            }
+            else
+            {
+                LOG_ERROR(err.error.message);
+                epee::serialization::store_t_to_json(err, out_js);
+            }
+            return true;
+        }
 
-            boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> Handler;
-		};
+        boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> Handler;
+    };
 
-		struct SHandlerData {
-			SCallHandler* Handler = nullptr;
-			string Name;
-			int Idx = -1;
-			string PaymentID;
-		};
-
-
-		public:
-        template<class IN_t, class OUT_t, class ERR_t>
-        int AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> handler ) {
-			SHandlerData hh;
-            hh.Handler = new STemplateHandler<IN_t, OUT_t, ERR_t>(handler);
-			hh.Name = method;
-			return AddHandlerData(hh);
-		}
-
-        #define ADD_DAPI_HANDLER(method, data, class_owner) AddHandler<data::request, data::response, epee::json_rpc::error>( #method, bind( &class_owner::method, this, _1, _2, _3) )
-
-		// IN must be child from sub_net_data
-		// income message filtered by payment_id and method
-        template<class IN_t, class OUT_t, class ERR_t>
-        int Add_UUID_MethodHandler( string paymentid, const string& method, boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> handler ) {
-			SHandlerData hh;
-            hh.Handler = new STemplateHandler<IN_t, OUT_t, ERR_t>(handler);
-			hh.Name = method;
-			hh.PaymentID = paymentid;
-			return AddHandlerData(hh);
-		}
-
-		#define ADD_DAPI_GLOBAL_METHOD_HANDLER(payid, method, data, class_owner) Add_UUID_MethodHandler<data::request, data::response>( payid, dapi_call::method, bind( &class_owner::method, this, _1, _2) )
-
-		void RemoveHandler(int idx);
+    struct SHandlerData
+    {
+        SCallHandler* Handler = nullptr;
+        string Name;
+        int Idx = -1;
+        string PaymentID;
+    };
 
 
-		protected:
-		bool handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) override;
-		bool HandleRequest(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response_info, connection_context& m_conn_context);
-		int AddHandlerData(const SHandlerData& h);
+public:
+    template<class IN_t, class OUT_t, class ERR_t>
+    int AddHandler( const string& method, boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> handler )
+    {
+        SHandlerData hh;
+        hh.Handler = new STemplateHandler<IN_t, OUT_t, ERR_t>(handler);
+        hh.Name = method;
+        return AddHandlerData(hh);
+    }
 
-		protected:
-		boost::recursive_mutex m_Handlers_Guard;
-		vector<SHandlerData> m_vHandlers;
-		int m_HandlerIdx = 0;
+#define ADD_DAPI_HANDLER(method, data, class_owner) AddHandler<data::request, data::response, epee::json_rpc::error>( #method, bind( &class_owner::method, this, _1, _2, _3) )
 
-		protected:
-		int m_NumThreads = 5;
+    // IN must be child from sub_net_data
+    // income message filtered by payment_id and method
+    template<class IN_t, class OUT_t, class ERR_t>
+    int Add_UUID_MethodHandler( string paymentid, const string& method, boost::function<bool (const IN_t&, OUT_t&, ERR_t&)> handler )
+    {
+        SHandlerData hh;
+        hh.Handler = new STemplateHandler<IN_t, OUT_t, ERR_t>(handler);
+        hh.Name = method;
+        hh.PaymentID = paymentid;
+        return AddHandlerData(hh);
+    }
 
-		protected:
-		string m_IP;
-		string m_Port;
-	};
+#define ADD_DAPI_GLOBAL_METHOD_HANDLER(payid, method, data, class_owner) Add_UUID_MethodHandler<data::request, data::response>( payid, dapi_call::method, bind( &class_owner::method, this, _1, _2) )
 
+    void RemoveHandler(int idx);
+
+protected:
+    bool handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) override;
+    bool HandleRequest(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response_info, connection_context& m_conn_context);
+    int AddHandlerData(const SHandlerData& h);
+
+protected:
+    boost::recursive_mutex m_Handlers_Guard;
+    vector<SHandlerData> m_vHandlers;
+    int m_HandlerIdx = 0;
+
+protected:
+    int m_NumThreads = 5;
+
+protected:
+    string m_IP;
+    string m_Port;
 };
 
-
-
+}
 
 #endif /* DAPI_RPC_SERVER_H_ */

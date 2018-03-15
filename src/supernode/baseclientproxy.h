@@ -33,6 +33,7 @@
 #include "graft_wallet.h"
 
 namespace supernode {
+
 class BaseClientProxy : public BaseRTAProcessor
 {
 public:

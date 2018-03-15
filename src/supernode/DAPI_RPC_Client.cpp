@@ -25,14 +25,13 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #include "DAPI_RPC_Client.h"
 
-
-void supernode::DAPI_RPC_Client::Set(string ip, string port) {
-	string ss = rpc_command::DAPI_PROTOCOL+string("://")+ip+string(":")+port;
-	m_URI = ss;
-	boost::optional<epee::net_utils::http::login> http_login{};
-	set_server(ss, http_login);
+void supernode::DAPI_RPC_Client::Set(string ip, string port)
+{
+    string ss = rpc_command::DAPI_PROTOCOL+string("://")+ip+string(":")+port;
+    m_URI = ss;
+    boost::optional<epee::net_utils::http::login> http_login{};
+    set_server(ss, http_login);
 }

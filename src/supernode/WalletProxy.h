@@ -26,7 +26,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef WALLET_PROXY_H_
 #define WALLET_PROXY_H_
@@ -37,22 +36,23 @@
 
 class WalletProxyTest_SendTx_Test;
 
-
 namespace supernode {
-    class WalletProxy : public BaseClientProxy {
-		public:
-        bool Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out, epee::json_rpc::error &er);
-        bool WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er);
-        bool WalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er);
 
-        protected:
-        void Init() override;
-        friend class ::WalletProxyTest_SendTx_Test;
+class WalletProxy : public BaseClientProxy
+{
+public:
+    bool Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out, epee::json_rpc::error &er);
+    bool WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er);
+    bool WalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er);
 
-        protected:
-        WorkerPool m_Work;
+protected:
+    void Init() override;
+    friend class ::WalletProxyTest_SendTx_Test;
 
-	};
+protected:
+    WorkerPool m_Work;
+};
+
 }
 
 #endif /* WALLET_PROXY_H_ */

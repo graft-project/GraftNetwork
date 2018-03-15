@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef FSN_SERVANT_H_
 #define FSN_SERVANT_H_
@@ -119,7 +118,7 @@ public:
 
 private:
     static bool proofCoinbaseTx(const cryptonote::account_public_address &address, const cryptonote::block &block,
-                         const crypto::secret_key &viewkey);
+                                const crypto::secret_key &viewkey);
     bool initBlockchain(const std::string &dbpath, bool testnet);
 
     Monero::Wallet * initWallet(Monero::Wallet *existingWallet, const string &path, const string &password, bool testnet);

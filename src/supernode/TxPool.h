@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef TXPOOL_H
 #define TXPOOL_H
@@ -39,7 +38,6 @@
 #include "net/http_auth.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 
-
 namespace supernode {
 
 class TxPool
@@ -49,15 +47,12 @@ public:
     virtual ~TxPool();
     bool get(const std::string &hash_str, cryptonote::transaction &out_tx);
 
-
 protected:
     bool init(const std::string &daemon_address, boost::optional<epee::net_utils::http::login> daemon_login);
-
 
 private:
     epee::net_utils::http::http_simple_client m_http_client;
     static constexpr const std::chrono::seconds m_rpc_timeout = std::chrono::seconds(30);
-
 };
 
 }

@@ -25,12 +25,12 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #include "graft_defines.h"
 #include "WalletProxy.h"
 
-void supernode::WalletProxy::Init() {
+void supernode::WalletProxy::Init()
+{
     BaseClientProxy::Init();
     m_Work.Workers(10);
     m_DAPIServer->ADD_DAPI_HANDLER(Pay, rpc_command::WALLET_PAY, WalletProxy);
@@ -38,49 +38,52 @@ void supernode::WalletProxy::Init() {
     m_DAPIServer->ADD_DAPI_HANDLER(WalletRejectPay, rpc_command::WALLET_REJECT_PAY, WalletProxy);
 }
 
-bool supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er) {
-	// TODO: if have PayID, don't call
+bool supernode::WalletProxy::WalletRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er)
+{
+    // TODO: if have PayID, don't call
     LOG_PRINT_L0("WalletProxy::WalletRejectPay " << in.PaymentID);
-	SubNetBroadcast sub;
-	sub.Set( m_DAPIServer, in.PaymentID, m_Servant->GetAuthSample(in.BlockNum) );
-	vector<rpc_command::WALLET_REJECT_PAY::response> vout;
-	bool ret = sub.Send( dapi_call::WalletProxyRejectPay, in, vout );
+    SubNetBroadcast sub;
+    sub.Set( m_DAPIServer, in.PaymentID, m_Servant->GetAuthSample(in.BlockNum) );
+    vector<rpc_command::WALLET_REJECT_PAY::response> vout;
+    bool ret = sub.Send( dapi_call::WalletProxyRejectPay, in, vout );
     if (!ret)
     {
         er.code = ERROR_CANNOT_REJECT_PAY;
         er.message = ERROR_MESSAGE(MESSAGE_CANNOT_REJECT_PAY);
     }
-	return ret;
+    return ret;
 }
 
-bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out, epee::json_rpc::error &er) {
+bool supernode::WalletProxy::Pay(const rpc_command::WALLET_PAY::request& in, rpc_command::WALLET_PAY::response& out, epee::json_rpc::error &er)
+{
     LOG_PRINT_L0("WalletProxy::Pay " << in.POSAddress << in.Amount);
-	boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
-	data->Owner(this);
-	Setup(data);
-	data->BeforStart();
-	Add(data);
+    boost::shared_ptr<WalletPayObject> data = boost::shared_ptr<WalletPayObject>( new WalletPayObject() );
+    data->Owner(this);
+    Setup(data);
+    data->BeforStart();
+    Add(data);
 
-	m_Work.Service.post( [data, in](){
-	    if (!data->Init(in)) {
-	        LOG_ERROR("Failed to init WalletPayObject");
-	        return;
-	    }
-	} );
+    m_Work.Service.post( [data, in](){
+        if (!data->Init(in)) {
+            LOG_ERROR("Failed to init WalletPayObject");
+            return;
+        }
+    } );
 
     return true;
 }
 
-bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er) {
+bool supernode::WalletProxy::WalletGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er)
+{
     LOG_PRINT_L0("WalletProxy::WalletGetPosData " << in.PaymentID);
-	// we allready have block num
-	vector< boost::shared_ptr<FSN_Data> > vv = m_Servant->GetAuthSample( in.BlockNum );
-	if( vv.size()!=m_Servant->AuthSampleSize() ) return false;
+    // we allready have block num
+    vector< boost::shared_ptr<FSN_Data> > vv = m_Servant->GetAuthSample(in.BlockNum);
+    if( vv.size()!=m_Servant->AuthSampleSize() ) return false;
 
-	boost::shared_ptr<FSN_Data> data = *vv.begin();
+    boost::shared_ptr<FSN_Data> data = *vv.begin();
 
-	DAPI_RPC_Client call;
-	call.Set(data->IP, data->Port);
+    DAPI_RPC_Client call;
+    call.Set(data->IP, data->Port);
     epee::json_rpc::error err;
     return call.Invoke(dapi_call::WalletProxyGetPosData, in, out, err);
 }

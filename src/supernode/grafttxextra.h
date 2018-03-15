@@ -15,7 +15,6 @@ struct GraftTxExtra
     GraftTxExtra(uint64_t _blocknum, const std::string &_payment_id, const std::vector<std::string> _signs);
     bool operator ==(const GraftTxExtra &rhs) const;
 
-
     BEGIN_SERIALIZE_OBJECT()
         FIELD(BlockNum)
         FIELD(PaymentID)
@@ -24,6 +23,5 @@ struct GraftTxExtra
 };
 
 }
-
 
 #endif // GRAFTTXEXTRA_H

@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #include <string>
 #include "DAPI_RPC_Server.h"
@@ -33,7 +32,8 @@
 
 using namespace std;
 
-bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) {
+bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context)
+{
     //LOG_PRINT_L4("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI);
 
     response.m_response_code = 200;
@@ -45,11 +45,11 @@ bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http
     response.m_additional_fields.push_back( make_pair("Access-Control-Max-Age", "1728000") );
     response.m_additional_fields.push_back( make_pair("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Origin, Cache-Control, Pragma, Authorization, Accept, Accept-Encoding") );
 
-    if( !HandleRequest(query_info, response, m_conn_context) ) {
+    if (!HandleRequest(query_info, response, m_conn_context))
+    {
         response.m_response_code = 500;
         response.m_response_comment = "Internal server error";
     }
-
     return true;
 }
 
@@ -140,22 +140,36 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     return true;
 }
 
-const string& supernode::DAPI_RPC_Server::IP() const { return m_IP; }
-const string& supernode::DAPI_RPC_Server::Port() const { return m_Port; }
+const string& supernode::DAPI_RPC_Server::IP() const
+{
+    return m_IP;
+}
 
+const string& supernode::DAPI_RPC_Server::Port() const
+{
+    return m_Port;
+}
 
-void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int numThreads) {
+void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int numThreads)
+{
     m_Port = port;
     m_IP = ip;
     init(port, ip);
     m_NumThreads = numThreads;
 }
 
-void supernode::DAPI_RPC_Server::Start() { run(m_NumThreads); }
+void supernode::DAPI_RPC_Server::Start()
+{
+    run(m_NumThreads);
+}
 
-void supernode::DAPI_RPC_Server::Stop() { send_stop_signal(); }
+void supernode::DAPI_RPC_Server::Stop()
+{
+    send_stop_signal();
+}
 
-int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h) {
+int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h)
+{
     boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
     int idx = m_HandlerIdx;
     m_HandlerIdx++;
@@ -164,11 +178,15 @@ int supernode::DAPI_RPC_Server::AddHandlerData(const SHandlerData& h) {
     return idx;
 }
 
-void supernode::DAPI_RPC_Server::RemoveHandler(int idx) {
+void supernode::DAPI_RPC_Server::RemoveHandler(int idx)
+{
     boost::lock_guard<boost::recursive_mutex> lock(m_Handlers_Guard);
-    for(unsigned i=0;i<m_vHandlers.size();i++) if( m_vHandlers[i].Idx==idx ) {
-        m_vHandlers.erase( m_vHandlers.begin()+i );
-        break;
+    for (unsigned i=0;i<m_vHandlers.size();i++)
+    {
+        if (m_vHandlers[i].Idx==idx)
+        {
+            m_vHandlers.erase( m_vHandlers.begin()+i );
+            break;
+        }
     }
 }
-

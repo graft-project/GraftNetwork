@@ -3,11 +3,10 @@
 
 namespace supernode {
 
-
 GraftTxExtra::GraftTxExtra(uint64_t _blocknum, const std::string &_payment_id, const std::vector<std::string> _signs)
-  : BlockNum(_blocknum)
-  , PaymentID(_payment_id)
-  , Signs(_signs)
+    : BlockNum(_blocknum)
+    , PaymentID(_payment_id)
+    , Signs(_signs)
 {
 
 }

@@ -56,30 +56,29 @@
 
 namespace wallet_args
 {
-  // Create on-demand to prevent static initialization order fiasco issues.
-  command_line::arg_descriptor<std::string> arg_generate_from_json()
-  {
+// Create on-demand to prevent static initialization order fiasco issues.
+command_line::arg_descriptor<std::string> arg_generate_from_json()
+{
     return {"generate-from-json", wallet_args::tr("Generate wallet from JSON format file"), ""};
-  }
-  command_line::arg_descriptor<std::string> arg_wallet_file()
-  {
+}
+command_line::arg_descriptor<std::string> arg_wallet_file()
+{
     return {"wallet-file", wallet_args::tr("Use wallet <arg>"), ""};
-  }
+}
 
-  const char* tr(const char* str)
-  {
+const char* tr(const char* str)
+{
     return i18n_translate(str, "wallet_args");
-  }
+}
 
-  boost::optional<boost::program_options::variables_map> main(
-    int argc, char** argv,
-    const char* const usage,
-    boost::program_options::options_description desc_params,
-    const boost::program_options::positional_options_description& positional_options,
-    const char *default_log_name,
-    bool log_to_console)
-  
-  {
+boost::optional<boost::program_options::variables_map> main(
+        int argc, char** argv,
+        const char* const usage,
+        boost::program_options::options_description desc_params,
+        const boost::program_options::positional_options_description& positional_options,
+        const char *default_log_name,
+        bool log_to_console)
+{
     namespace bf = boost::filesystem;
     namespace po = boost::program_options;
 #ifdef WIN32
@@ -90,7 +89,6 @@ namespace wallet_args
     const command_line::arg_descriptor<uint32_t> arg_max_concurrency = {"max-concurrency", wallet_args::tr("Max number of threads to use for a parallel job"), DEFAULT_MAX_CONCURRENCY};
     const command_line::arg_descriptor<std::string> arg_log_file = {"log-file", wallet_args::tr("Specify log file"), ""};
     const command_line::arg_descriptor<std::string> arg_config_file = {"config-file", wallet_args::tr("Config file"), "", true};
-
 
     std::string lang = i18n_get_language();
     tools::sanitize_locale();
@@ -114,69 +112,69 @@ namespace wallet_args
     po::variables_map vm;
     bool r = command_line::handle_error_helper(desc_all, [&]()
     {
-      auto parser = po::command_line_parser(argc, argv).options(desc_all).positional(positional_options);
-      po::store(parser.run(), vm);
+        auto parser = po::command_line_parser(argc, argv).options(desc_all).positional(positional_options);
+        po::store(parser.run(), vm);
 
-      if(command_line::has_arg(vm, arg_config_file))
-      {
-        std::string config = command_line::get_arg(vm, arg_config_file);
-        bf::path config_path(config);
-        boost::system::error_code ec;
-        if (bf::exists(config_path, ec))
+        if(command_line::has_arg(vm, arg_config_file))
         {
-          po::store(po::parse_config_file<char>(config_path.string<std::string>().c_str(), desc_params), vm);
+            std::string config = command_line::get_arg(vm, arg_config_file);
+            bf::path config_path(config);
+            boost::system::error_code ec;
+            if (bf::exists(config_path, ec))
+            {
+                po::store(po::parse_config_file<char>(config_path.string<std::string>().c_str(), desc_params), vm);
+            }
+            else
+            {
+                tools::fail_msg_writer() << wallet_args::tr("Can't find config file ") << config;
+                return false;
+            }
         }
-        else
-        {
-          tools::fail_msg_writer() << wallet_args::tr("Can't find config file ") << config;
-          return false;
-        }
-      }
 
-      po::notify(vm);
-      return true;
+        po::notify(vm);
+        return true;
     });
     if (!r)
-      return boost::none;
+        return boost::none;
 
     std::string log_path;
     if (!vm["log-file"].defaulted())
-      log_path = command_line::get_arg(vm, arg_log_file);
+        log_path = command_line::get_arg(vm, arg_log_file);
     else
-      log_path = mlog_get_default_log_path(default_log_name);
+        log_path = mlog_get_default_log_path(default_log_name);
     mlog_configure(log_path, log_to_console);
     if (!vm["log-level"].defaulted())
     {
-      mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
+        mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
     }
 
     if (command_line::get_arg(vm, command_line::arg_help))
     {
-      tools::msg_writer() << "Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ")" << ENDL;
-      tools::msg_writer() << wallet_args::tr("This is the command line graft wallet. It needs to connect to a graft\n"
-												"daemon to work correctly.") << ENDL;
-      tools::msg_writer() << wallet_args::tr("Usage:") << ENDL << "  " << usage;
-      tools::msg_writer() << desc_all;
-      return boost::none;
+        tools::msg_writer() << "Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ")" << ENDL;
+        tools::msg_writer() << wallet_args::tr("This is the command line graft wallet. It needs to connect to a graft\n"
+                                               "daemon to work correctly.") << ENDL;
+        tools::msg_writer() << wallet_args::tr("Usage:") << ENDL << "  " << usage;
+        tools::msg_writer() << desc_all;
+        return boost::none;
     }
     else if (command_line::get_arg(vm, command_line::arg_version))
     {
-      tools::msg_writer() << "Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ")";
-      return boost::none;
+        tools::msg_writer() << "Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ")";
+        return boost::none;
     }
 
     if(command_line::has_arg(vm, arg_max_concurrency))
-      tools::set_max_concurrency(command_line::get_arg(vm, arg_max_concurrency));
+        tools::set_max_concurrency(command_line::get_arg(vm, arg_max_concurrency));
 
     tools::scoped_message_writer(epee::console_color_white, true) << "Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ")";
 
     if (!vm["log-level"].defaulted())
-      MINFO("Setting log level = " << command_line::get_arg(vm, arg_log_level));
+        MINFO("Setting log level = " << command_line::get_arg(vm, arg_log_level));
     else
-      MINFO("Setting log levels = " << getenv("GRAFT_LOGS"));
+        MINFO("Setting log levels = " << getenv("GRAFT_LOGS"));
     MINFO(wallet_args::tr("Logging to: ") << log_path);
     tools::scoped_message_writer(epee::console_color_white, true) << boost::format(wallet_args::tr("Logging to %s")) % log_path;
 
     return {std::move(vm)};
-  }
+}
 }

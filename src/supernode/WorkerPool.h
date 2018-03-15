@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef WORKERPOOL_H_
 #define WORKERPOOL_H_
@@ -34,24 +33,21 @@
 #include <boost/bind.hpp>
 #include <boost/thread/thread.hpp>
 
-
 namespace supernode {
 
-class WorkerPool {
+class WorkerPool
+{
 public:
-	WorkerPool();
-	void Workers(int cnt);
-	void Stop();
+    WorkerPool();
+    void Workers(int cnt);
+    void Stop();
 
 public:
     boost::asio::io_service Service;
     boost::thread_group Threadpool;
     boost::asio::io_service::work Work;
-
 };
 
 }
 
 #endif
-
-

@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef SUPERNODE_COMMON_STRUCT_H_
 #define SUPERNODE_COMMON_STRUCT_H_
@@ -41,85 +40,75 @@ using namespace std;
 
 namespace supernode {
 
-    enum class NTransactionStatus : int {
-		None = 0,
-		InProgress=1,
-		Success=2,
-		Fail=3,
-        RejectedByWallet=4,
-        RejectedByPOS=5
-	};
-
-
-	// ------------------------------------------
-	struct FSN_WalletData {
-        FSN_WalletData() = default;
-        FSN_WalletData(const FSN_WalletData &other) = default;
-        FSN_WalletData(const std::string &_addr, const std::string &_viewkey)
-            : Addr{_addr}
-            , ViewKey{_viewkey} {}
-
-        bool operator!=(const FSN_WalletData& s) const;
-        bool operator==(const FSN_WalletData& s) const;
-
-
-        string Addr;
-		string ViewKey;
-	};
-
-
-	// ------------------------------------------
-	struct FSN_Data {
-        FSN_Data(const FSN_WalletData &_stakeWallet, const FSN_WalletData &_minerWallet,
-                 const std::string &_ip = "", const std::string &_port = "")
-            : Stake{_stakeWallet}
-            , Miner{_minerWallet}
-            , IP{_ip}
-            , Port{_port} {}
-        FSN_Data() {}
-
-        bool operator!=(const FSN_Data& s) const;
-        bool operator==(const FSN_Data& s) const;
-		FSN_WalletData Stake;
-		FSN_WalletData Miner;
-		string IP;
-		string Port;
-	};
-
-
-	// ------------------------------------------
-	struct SubNetData {
-		BEGIN_KV_SERIALIZE_MAP()
-			KV_SERIALIZE(PaymentID)
-		END_KV_SERIALIZE_MAP()
-
-		string PaymentID;
-	};
-
-
-	// ------------------------------------------
-	struct RTA_TransactionRecordBase : public SubNetData {
-        uint64_t Amount;
-        string POSAddress;
-        string POSViewKey;
-        string POSSaleDetails;// empty in wallet call
-        uint64_t BlockNum;// empty in pos call
-	};
-
-
-	// ------------------------------------------
-	struct RTA_TransactionRecord : public RTA_TransactionRecordBase {
-		bool operator!=(const RTA_TransactionRecord& s) const;
-		bool operator==(const RTA_TransactionRecord& s) const;
-		string MessageForSign() const;
-		vector< boost::shared_ptr<FSN_Data> > AuthNodes;
-	};
-
-
-
+enum class NTransactionStatus : int
+{
+    None = 0,
+    InProgress=1,
+    Success=2,
+    Fail=3,
+    RejectedByWallet=4,
+    RejectedByPOS=5
 };
 
+struct FSN_WalletData
+{
+    FSN_WalletData() = default;
+    FSN_WalletData(const FSN_WalletData &other) = default;
+    FSN_WalletData(const std::string &_addr, const std::string &_viewkey)
+        : Addr{_addr}
+        , ViewKey{_viewkey} {}
 
+    bool operator!=(const FSN_WalletData& s) const;
+    bool operator==(const FSN_WalletData& s) const;
 
+    string Addr;
+    string ViewKey;
+};
+
+struct FSN_Data
+{
+    FSN_Data(const FSN_WalletData &_stakeWallet, const FSN_WalletData &_minerWallet,
+             const std::string &_ip = "", const std::string &_port = "")
+        : Stake{_stakeWallet}
+        , Miner{_minerWallet}
+        , IP{_ip}
+        , Port{_port} {}
+    FSN_Data() {}
+
+    bool operator!=(const FSN_Data& s) const;
+    bool operator==(const FSN_Data& s) const;
+    FSN_WalletData Stake;
+    FSN_WalletData Miner;
+    string IP;
+    string Port;
+};
+
+struct SubNetData
+{
+    BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(PaymentID)
+    END_KV_SERIALIZE_MAP()
+
+    string PaymentID;
+};
+
+struct RTA_TransactionRecordBase : public SubNetData
+{
+    uint64_t Amount;
+    string POSAddress;
+    string POSViewKey;
+    string POSSaleDetails;// empty in wallet call
+    uint64_t BlockNum;// empty in pos call
+};
+
+struct RTA_TransactionRecord : public RTA_TransactionRecordBase
+{
+    bool operator!=(const RTA_TransactionRecord& s) const;
+    bool operator==(const RTA_TransactionRecord& s) const;
+    string MessageForSign() const;
+    vector< boost::shared_ptr<FSN_Data> > AuthNodes;
+};
+
+}
 
 #endif /* SUPERNODE_COMMON_STRUCT_H_ */

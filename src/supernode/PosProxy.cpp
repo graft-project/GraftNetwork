@@ -25,25 +25,25 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #include "graft_defines.h"
 #include "PosProxy.h"
 
-void supernode::PosProxy::Init() {
+void supernode::PosProxy::Init()
+{
     BaseClientProxy::Init();
     m_Work.Workers(10);
     m_DAPIServer->ADD_DAPI_HANDLER(Sale, rpc_command::POS_SALE, PosProxy);
-	// TODO: add all other handlers
+    // TODO: add all other handlers
 }
 
-
-bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out, epee::json_rpc::error &er) {
+bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out, epee::json_rpc::error &er)
+{
     LOG_PRINT_L0("PosProxy::Sale " << in.POSAddress << in.Amount);
     //TODO: Add input data validation
-	boost::shared_ptr<PosSaleObject> data = boost::shared_ptr<PosSaleObject>( new PosSaleObject() );
-	data->Owner(this);
-	Setup(data);
+    boost::shared_ptr<PosSaleObject> data = boost::shared_ptr<PosSaleObject>( new PosSaleObject() );
+    data->Owner(this);
+    Setup(data);
 
 
     if (!data->Init(in))
@@ -52,13 +52,13 @@ bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_com
         er.message = ERROR_MESSAGE(MESSAGE_SALE_REQUEST_FAILED);
         return false;
     }
-	Add(data);
+    Add(data);
 
-	m_Work.Service.post( [data](){
-		data->ContinueInit();
-	} );
+    m_Work.Service.post([data](){
+        data->ContinueInit();
+    });
 
-	out.BlockNum = data->TransactionRecord.BlockNum;
-	out.PaymentID = data->TransactionRecord.PaymentID;
-	return true;
+    out.BlockNum = data->TransactionRecord.BlockNum;
+    out.PaymentID = data->TransactionRecord.PaymentID;
+    return true;
 }

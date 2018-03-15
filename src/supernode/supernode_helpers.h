@@ -25,32 +25,23 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef SYUPERNODE_HELPERS_H_H__H
 #define SYUPERNODE_HELPERS_H_H__H
 
 #include <boost/tokenizer.hpp>
 #include <string>
+
 using namespace std;
 
 namespace supernode {
+
 namespace helpers {
-	vector<string> StrTok(const string& str, const string& sep);
-};
-};
 
+vector<string> StrTok(const string& str, const string& sep);
 
+}
 
-
-
-
-
-
-
-
-
-
-
+}
 
 #endif

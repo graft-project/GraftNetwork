@@ -25,15 +25,12 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Parts of this file are originally copyright (c) 2014-2017 The Monero Project
 
 #include "FSN_Servant.h"
 #include <blockchain_db/blockchain_db.h>
 #include <cryptonote_core/tx_pool.h>
 #include <cryptonote_core/blockchain.h>
 #include <exception>
-
 
 using namespace cryptonote;
 using namespace Monero;
@@ -42,15 +39,18 @@ static unsigned s_AuthSampleSize = 8;
 
 namespace supernode {
 
-namespace consts {
-    static const string DEFAULT_FSN_WALLETS_DIR = "/tmp/graft/fsn_data/wallets_vo";
-    static const int    DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS = 5000;
+namespace consts
+{
+static const string DEFAULT_FSN_WALLETS_DIR = "/tmp/graft/fsn_data/wallets_vo";
+static const int    DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS = 5000;
 }
 
-namespace helpers {
+namespace helpers
+{
 public_key get_tx_gen_pub_key(const transaction &tx)
 {
-    if (!is_coinbase(tx)) {
+    if (!is_coinbase(tx))
+    {
         return null_pkey;
     }
     const tx_out &out = tx.vout.at(0);
@@ -100,18 +100,16 @@ public_key get_tx_pub_key_from_received_outs(const transaction &tx)
 
     return null_pkey;
 }
+
 } // namespace helpers
 
 
-
 FSN_Servant::FSN_Servant()
-{
-
+{    
 }
 
 FSN_Servant::FSN_Servant(const FSN_Servant &other)
 {
-
 }
 
 FSN_Servant::FSN_Servant(const string &bdb_path, const string &node_addr, const string &node_login, const string &node_password,
@@ -127,14 +125,14 @@ FSN_Servant::FSN_Servant(const string &bdb_path, const string &node_addr, const 
         m_fsnWalletsDir = consts::DEFAULT_FSN_WALLETS_DIR;
 
     // create directory for "view only wallets" if not exists
-    if (!boost::filesystem::exists(m_fsnWalletsDir)) {
+    if (!boost::filesystem::exists(m_fsnWalletsDir))
+    {
         if (!boost::filesystem::create_directories(m_fsnWalletsDir))
             throw std::runtime_error("Error creating FSN view only wallets directory");
     }
 
     if (!initBlockchain(bdb_path, testnet))
         throw std::runtime_error("Failed to open blockchain");
-
 }
 
 void FSN_Servant::Set(const string& stakeFileName, const string& stakePasswd, const string& minerFileName, const string& minerPasswd)
@@ -147,13 +145,13 @@ void FSN_Servant::Set(const string& stakeFileName, const string& stakePasswd, co
     m_minerWallet->store("");
 }
 
-
 vector<pair<uint64_t, boost::shared_ptr<supernode::FSN_Data>>>
 FSN_Servant::LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums) const
 {
     vector<pair<uint64_t, boost::shared_ptr<FSN_Data>>> result;
     uint64_t block_height = m_bc->get_current_blockchain_height();
-    if (startFromBlock >= block_height) {
+    if (startFromBlock >= block_height)
+    {
         LOG_ERROR("starting block is not in blockchain: " << startFromBlock);
         return result;
     }
@@ -168,17 +166,20 @@ FSN_Servant::LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums
     // TODO: read/write lock
     All_FSN_Guard.lock();
 
-    for (uint64_t block_index = endBlock; block_index >= startFromBlock; --block_index) {
+    for (uint64_t block_index = endBlock; block_index >= startFromBlock; --block_index)
+    {
         const cryptonote::block block = m_bdb->get_block_from_height(block_index);
         //2. for each blocks, apply function from xmrblocks (page.h:show_my_outputs)
         // TODO: can be faster algorithm?
-        for (const auto & fsn_wallet : All_FSN) {
+        for (const auto & fsn_wallet : All_FSN)
+        {
             secret_key viewkey;
             epee::string_tools::hex_to_pod(fsn_wallet->Miner.ViewKey, viewkey);
             cryptonote::account_public_address address;
             LOG_PRINT_L3("parsing address : " << fsn_wallet->Miner.Addr << "; testnet: " << m_testnet);
 
-            if (!cryptonote::get_account_address_from_str(address, m_testnet, fsn_wallet->Miner.Addr)) {
+            if (!cryptonote::get_account_address_from_str(address, m_testnet, fsn_wallet->Miner.Addr))
+            {
                 LOG_ERROR("Error parsing address: " << fsn_wallet->Miner.Addr);
                 // throw exception here?
                 continue;
@@ -187,7 +188,8 @@ FSN_Servant::LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums
             LOG_PRINT_L3("pub spend key: " << epee::string_tools::pod_to_hex(address.m_spend_public_key));
             LOG_PRINT_L3("pub view key: " << epee::string_tools::pod_to_hex(address.m_view_public_key));
 
-            if (proofCoinbaseTx(address, block, viewkey)) {
+            if (proofCoinbaseTx(address, block, viewkey))
+            {
                 result.push_back(std::make_pair(block_index, fsn_wallet));
                 // stop wallets loop as we already found the wallet who solved block
                 break;
@@ -203,11 +205,11 @@ vector< boost::shared_ptr<supernode::FSN_Data> > FSN_Servant::GetAuthSample(uint
 {
     return vector< boost::shared_ptr<supernode::FSN_Data> >();
 }
+
 uint64_t FSN_Servant::GetCurrentBlockHeight() const
 {
     return m_bc->get_current_blockchain_height();
 }
-
 
 string FSN_Servant::SignByWalletPrivateKey(const string& str, const string& wallet_addr) const
 {
@@ -225,7 +227,6 @@ bool FSN_Servant::IsSignValid(const string &message, const string &address, cons
     return m_minerWallet->verifySignedMessage(message, address, signature);
 }
 
-
 uint64_t FSN_Servant::GetWalletBalance(uint64_t block_num, const FSN_WalletData& wallet) const
 {
     // create or open view-only wallet;
@@ -235,36 +236,39 @@ uint64_t FSN_Servant::GetWalletBalance(uint64_t block_num, const FSN_WalletData&
     return result;
 }
 
-void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
-	FSN_ServantBase::AddFsnAccount(fsn);
+void FSN_Servant::AddFsnAccount(boost::shared_ptr<FSN_Data> fsn)
+{
+    FSN_ServantBase::AddFsnAccount(fsn);
     // create view-only wallet for stake account
     initViewOnlyWallet(fsn->Stake, m_testnet);
 }
 
-bool FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn) {
+bool FSN_Servant::RemoveFsnAccount(boost::shared_ptr<FSN_Data> fsn)
+{
     boost::lock_guard<boost::recursive_mutex> lock(All_FSN_Guard);// we use one mutex for All_FSN && for m_viewOnlyWallets
 
     if( !FSN_ServantBase::RemoveFsnAccount(fsn) ) return false;
 
     // TODO: RAII based (scoped) locks
     const auto &it = m_viewOnlyWallets.find(fsn->Stake.Addr);
-    if (it != m_viewOnlyWallets.end()) {
+    if (it != m_viewOnlyWallets.end())
+    {
         Monero::Wallet * w = it->second;
         Monero::WalletManagerFactory::getWalletManager()->closeWallet(w);
         m_viewOnlyWallets.erase(it);
-    } else {
+    }
+    else
+    {
         LOG_ERROR("Internal error: All_FSN doesn't have corresponding wallet: " << fsn->Stake.Addr);
     }
 
     return true;
-
 }
 
 FSN_WalletData FSN_Servant::GetMyStakeWallet() const
 {
     if (!m_stakeWallet)
         throw std::runtime_error("Stake wallet non initialized");
-
     return walletData(m_stakeWallet);
 }
 
@@ -272,7 +276,6 @@ FSN_WalletData FSN_Servant::GetMyMinerWallet() const
 {
     if (!m_minerWallet)
         throw std::runtime_error("Miner wallet non initialized");
-
     return walletData(m_minerWallet);
 }
 
@@ -289,8 +292,8 @@ bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &addr
     crypto::key_derivation derivation;
     if (!generate_key_derivation(tx_pubkey, viewkey, derivation)) {
         LOG_ERROR("Cant get derived key for: "  << "\n"
-             << "pub_view_key: " << tx_pubkey << " and "
-             << "prv_view_key" << viewkey);
+                  << "pub_view_key: " << tx_pubkey << " and "
+                  << "prv_view_key" << viewkey);
         return false;
     }
 
@@ -313,7 +316,6 @@ bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &addr
 
 bool FSN_Servant::initBlockchain(const string &dbpath, bool testnet)
 {
-
     m_bc = nullptr;
     m_mempool = new cryptonote::tx_memory_pool(*m_bc);
     m_bc = new cryptonote::Blockchain(*m_mempool);
@@ -363,17 +365,17 @@ Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, con
         throw runtime_error(string("error opening wallet: ") + error_msg);
     }
 
-    if (!wallet->init(GetNodeAddress(), 0)) {
+    if (!wallet->init(GetNodeAddress(), 0))
+    {
         MERROR("Can't connect to a daemon.");
     }
-
     return wallet;
 }
 
 Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool testnet) const
 {
-
-    if (walletData.Addr.empty()) {
+    if (walletData.Addr.empty())
+    {
         LOG_ERROR("Adding wallet with empty address");
         return nullptr;
     }
@@ -388,10 +390,13 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
     Monero::Wallet * w = nullptr;
     Monero::WalletManager * wmgr = Monero::WalletManagerFactory::getWalletManager();
 
-    if (!wmgr->walletExists(wallet_path.string())) {
+    if (!wmgr->walletExists(wallet_path.string()))
+    {
         // create new view only wallet
         w = wmgr->createWalletFromKeys(wallet_path.string(), "English", m_testnet, 0, walletData.Addr, walletData.ViewKey);
-    } else {
+    }
+    else
+    {
         // open existing
         w = wmgr->openWallet(wallet_path.string(), "", m_testnet);
     }
@@ -400,9 +405,12 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
         throw std::runtime_error(std::string("unable to open/create view only wallet: " + wmgr->errorString()));
 
 
-    if (!w->init(GetNodeAddress(), 0)) {
+    if (!w->init(GetNodeAddress(), 0))
+    {
         MERROR("Can't connect to a daemon.");
-    } else {
+    }
+    else
+    {
         w->setAutoRefreshInterval(consts::DEFAULT_FSN_WALLET_REFRESH_INTERVAL_MS);
         w->startRefresh();
         w->refresh();
@@ -414,8 +422,6 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, bool t
     return w;
 }
 
-
-
 FSN_WalletData FSN_Servant::walletData(Wallet *wallet)
 {
     FSN_WalletData result = FSN_WalletData(wallet->address(), wallet->secretViewKey());
@@ -425,19 +431,22 @@ FSN_WalletData FSN_Servant::walletData(Wallet *wallet)
 Wallet *FSN_Servant::getMyWalletByAddress(const string &address) const
 {
     Monero::Wallet * wallet = nullptr;
-    if (address == GetMyMinerWallet().Addr) {
+    if (address == GetMyMinerWallet().Addr)
+    {
         wallet = m_minerWallet;
-    } else if (address == GetMyStakeWallet().Addr) {
+    }
+    else if (address == GetMyStakeWallet().Addr)
+    {
         wallet = m_stakeWallet;
     }
-
     return wallet;
 }
 
-
-
 FSN_ServantBase::~FSN_ServantBase() {}
 
-unsigned FSN_Servant::AuthSampleSize() const { return s_AuthSampleSize; }
+unsigned FSN_Servant::AuthSampleSize() const
+{
+    return s_AuthSampleSize;
+}
 
 } // namespace supernode

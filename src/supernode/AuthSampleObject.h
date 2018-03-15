@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef AUTH_SAMPLE_OBJECT_H_
 #define AUTH_SAMPLE_OBJECT_H_
@@ -35,33 +34,33 @@
 #include "DAPI_RPC_Client.h"
 
 namespace supernode {
-	class AuthSample;
-	class AuthSampleObject: public BaseRTAObject {
-		public:
-		void Owner(AuthSample* o);
-		bool Init(const RTA_TransactionRecord& src);
-        bool WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er);
 
-		public:
-		string PosIP;
-		string PosPort;
+class AuthSample;
+class AuthSampleObject: public BaseRTAObject
+{
+public:
+    void Owner(AuthSample* o);
+    bool Init(const RTA_TransactionRecord& src);
+    bool WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& in, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er);
 
-		protected:
-        bool WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out, epee::json_rpc::error &er);
-        bool WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er);
-        bool WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er);
+public:
+    string PosIP;
+    string PosPort;
 
-		protected:
-		string GenerateSignForTransaction();
+protected:
+    bool WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out, epee::json_rpc::error &er);
+    bool WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er);
+    bool WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er);
 
-		protected:
-		virtual bool Init(const RTA_TransactionRecordBase& src);
+protected:
+    string GenerateSignForTransaction();
 
-		protected:
-		AuthSample* m_Owner = nullptr;
+protected:
+    virtual bool Init(const RTA_TransactionRecordBase& src);
 
-
-	};
+protected:
+    AuthSample* m_Owner = nullptr;
+};
 
 }
 

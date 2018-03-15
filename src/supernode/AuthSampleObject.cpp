@@ -25,71 +25,78 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #include "AuthSampleObject.h"
 #include "graft_wallet.h"
 
-void supernode::AuthSampleObject::Owner(AuthSample* o) { m_Owner = o; }
+void supernode::AuthSampleObject::Owner(AuthSample* o)
+{
+    m_Owner = o;
+}
 
-bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src) {
-	TransactionRecord = src;
-
-	ADD_RTA_OBJECT_HANDLER(WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
-	ADD_RTA_OBJECT_HANDLER(WalletProxyRejectPay, rpc_command::WALLET_REJECT_PAY, AuthSampleObject);
-
-	return true;
+bool supernode::AuthSampleObject::Init(const RTA_TransactionRecord& src)
+{
+    TransactionRecord = src;
+    ADD_RTA_OBJECT_HANDLER(WalletProxyGetPosData, rpc_command::WALLET_GET_POS_DATA, AuthSampleObject);
+    ADD_RTA_OBJECT_HANDLER(WalletProxyRejectPay, rpc_command::WALLET_REJECT_PAY, AuthSampleObject);
+    return true;
 }
 
 
-bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& inp, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er) {
-	RTA_TransactionRecord src;
-	rpc_command::ConvertToTR(src, inp, m_Servant);
-    if(src!=TransactionRecord) { LOG_PRINT_L4("not eq records"); return false; }
+bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY_PAY::request& inp, rpc_command::WALLET_PROXY_PAY::response& out, epee::json_rpc::error &er)
+{
+    RTA_TransactionRecord src;
+    rpc_command::ConvertToTR(src, inp, m_Servant);
+    if (src!=TransactionRecord)
+    {
+        LOG_PRINT_L4("not eq records");
+        return false;
+    }
+    string data = TransactionRecord.PaymentID + string(":") + inp.CustomerWalletAddr;
+    bool signok = tools::GraftWallet::verifySignedMessage(data, inp.CustomerWalletAddr, inp.CustomerWalletSign, m_Servant->IsTestnet());
 
-	string data = TransactionRecord.PaymentID + string(":") + inp.CustomerWalletAddr;
-	bool signok = tools::GraftWallet::verifySignedMessage(data, inp.CustomerWalletAddr, inp.CustomerWalletSign, m_Servant->IsTestnet());
+    // TODO: send LOCK. WTF?? all our nodes got this packet by sub-net broadcast. so only top node must send broad cast
+    ADD_RTA_OBJECT_HANDLER(WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
 
-	// TODO: send LOCK. WTF?? all our nodes got this packet by sub-net broadcast. so only top node must send broad cast
-
-	ADD_RTA_OBJECT_HANDLER(WalletPutTxInPool, rpc_command::WALLET_PUT_TX_IN_POOL, AuthSampleObject);
-
-	out.Sign = GenerateSignForTransaction();
-	out.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
-
-	return true;
+    out.Sign = GenerateSignForTransaction();
+    out.FSN_StakeWalletAddr = m_Servant->GetMyStakeWallet().Addr;
+    return true;
 }
 
-bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out, epee::json_rpc::error &er) {
-	// all ok, notify PoS about this
-	rpc_command::POS_TR_SIGNED::request req;
-	rpc_command::POS_TR_SIGNED::response resp;
-	req.TransactionPoolID = in.TransactionPoolID;
-	if( !SendDAPICall(PosIP, PosPort, dapi_call::PoSTRSigned, req, resp) ) return false;
-
-
-	return true;
+bool supernode::AuthSampleObject::WalletPutTxInPool(const rpc_command::WALLET_PUT_TX_IN_POOL::request& in, rpc_command::WALLET_PUT_TX_IN_POOL::response& out, epee::json_rpc::error &er)
+{
+    // all ok, notify PoS about this
+    rpc_command::POS_TR_SIGNED::request req;
+    rpc_command::POS_TR_SIGNED::response resp;
+    req.TransactionPoolID = in.TransactionPoolID;
+    if (!SendDAPICall(PosIP, PosPort, dapi_call::PoSTRSigned, req, resp))
+    {
+        return false;
+    }
+    return true;
 }
 
-bool supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er) {
+bool supernode::AuthSampleObject::WalletProxyGetPosData(const rpc_command::WALLET_GET_POS_DATA::request& in, rpc_command::WALLET_GET_POS_DATA::response& out, epee::json_rpc::error &er)
+{
     out.POSSaleDetails = TransactionRecord.POSSaleDetails;
-	return true;
+    return true;
 }
 
-bool supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er) {
-	rpc_command::WALLET_REJECT_PAY::request in2 = in;
-	bool ret = SendDAPICall(PosIP, PosPort, dapi_call::AuthWalletRejectPay, in2, out);
-	return ret;
+bool supernode::AuthSampleObject::WalletProxyRejectPay(const rpc_command::WALLET_REJECT_PAY::request &in, rpc_command::WALLET_REJECT_PAY::response &out, epee::json_rpc::error &er)
+{
+    rpc_command::WALLET_REJECT_PAY::request in2 = in;
+    bool ret = SendDAPICall(PosIP, PosPort, dapi_call::AuthWalletRejectPay, in2, out);
+    return ret;
 }
 
-string supernode::AuthSampleObject::GenerateSignForTransaction() {
-    string sign = m_Servant->SignByWalletPrivateKey( TransactionRecord.MessageForSign(), m_Servant->GetMyStakeWallet().Addr );
-	return sign;
+string supernode::AuthSampleObject::GenerateSignForTransaction()
+{
+    string sign = m_Servant->SignByWalletPrivateKey(TransactionRecord.MessageForSign(), m_Servant->GetMyStakeWallet().Addr);
+    return sign;
 }
 
 
-bool supernode::AuthSampleObject::Init(const RTA_TransactionRecordBase& src) { return false; }
-
-
-
-
+bool supernode::AuthSampleObject::Init(const RTA_TransactionRecordBase& src)
+{
+    return false;
+}

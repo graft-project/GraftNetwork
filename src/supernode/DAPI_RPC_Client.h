@@ -25,7 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #ifndef DAPI_RPC_CLIENT_H_
 #define DAPI_RPC_CLIENT_H_
@@ -39,75 +38,72 @@
 #include <string>
 using namespace std;
 
-
 namespace supernode {
 
-	class DAPI_RPC_Client : public epee::net_utils::http::http_simple_client {
-		public:
+class DAPI_RPC_Client : public epee::net_utils::http::http_simple_client
+{
+public:
+    void Set(string ip, string port);
 
-		void Set(string ip, string port);
+    bool WasConnected = false;
 
-		bool WasConnected = false;
+    template<class t_request, class t_response>
+    bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, epee::json_rpc::error &error_struct, std::chrono::milliseconds timeout = std::chrono::seconds(5))
+    {
+        rpc_command::RequestContainer<t_request> req;
+        req.params = out_struct;
+        req.method = call;
 
-        template<class t_request, class t_response>
-        bool Invoke(const string& call, const t_request& out_struct, t_response& result_struct, epee::json_rpc::error &error_struct, std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
+        std::string req_param;
+        if (!epee::serialization::store_t_to_json(req, req_param)) return false;
 
-			rpc_command::RequestContainer<t_request> req;
-	    	req.params = out_struct;
-	    	req.method = call;
+        //req_param = string("{\"method\":\"")+call+("\",\"params\":\"")+req_param+("\"}");
+        const epee::net_utils::http::http_response_info* pri = NULL;
 
-	    	std::string req_param;
-	    	if(!epee::serialization::store_t_to_json(req, req_param)) return false;
+        WasConnected = false;
+        if (!invoke(rpc_command::DAPI_URI, rpc_command::DAPI_METHOD, req_param, timeout, std::addressof(pri)))
+        {
+            LOG_ERROR("Failed to invoke http request to  " << call<<"  URI: "<<m_URI);
+            return false;
+        }
+        WasConnected = true;
 
+        if (!pri)
+        {
+            LOG_PRINT_L4("Failed to invoke http request to  " << call << ", internal error (null response ptr)");
+            return false;
+        }
 
-	    	//req_param = string("{\"method\":\"")+call+("\",\"params\":\"")+req_param+("\"}");
+        if (pri->m_response_code != 200)
+        {
+            LOG_PRINT_L4("Failed to invoke http request to  " << call << ", wrong response code: " << pri->m_response_code);
+            return false;
+        }
 
-	    	const epee::net_utils::http::http_response_info* pri = NULL;
+        boost::value_initialized<epee::json_rpc::response<t_response, epee::json_rpc::error> > resp_init;
+        epee::json_rpc::response<t_response, epee::json_rpc::error> resp(resp_init);
 
-	    	WasConnected = false;
-	    	if(!invoke(rpc_command::DAPI_URI, rpc_command::DAPI_METHOD, req_param, timeout, std::addressof(pri))) {
-                LOG_ERROR("Failed to invoke http request to  " << call<<"  URI: "<<m_URI);
-	    		return false;
-	    	}
-	    	WasConnected = true;
+        epee::serialization::portable_storage ps;
+        if (!ps.load_from_json(pri->m_body)) return false;
+        if (!resp.load(ps))
+        {
+            return false;
+        }
+        if (resp.error.code == 0)
+        {
+            result_struct = resp.result;
+            return true;
+        }
+        else
+        {
+            error_struct = resp.error;
+            return false;
+        }
+    }
 
-	    	if(!pri) {
-                LOG_PRINT_L4("Failed to invoke http request to  " << call << ", internal error (null response ptr)");
-	    		return false;
-	    	}
-
-	    	if(pri->m_response_code != 200) {
-                LOG_PRINT_L4("Failed to invoke http request to  " << call << ", wrong response code: " << pri->m_response_code);
-	    		return false;
-	    	}
-
-            boost::value_initialized<epee::json_rpc::response<t_response, epee::json_rpc::error> > resp_init;
-            epee::json_rpc::response<t_response, epee::json_rpc::error> resp(resp_init);
-
-	    	epee::serialization::portable_storage ps;
-	    	if( !ps.load_from_json(pri->m_body) ) return false;
-            if( !resp.load(ps) )
-            {
-                return false;
-            }
-            if (resp.error.code == 0)
-            {
-                result_struct = resp.result;
-                return true;
-            }
-            else
-            {
-                error_struct = resp.error;
-                return false;
-            }
-		}
-
-		protected:
-		string m_URI;
-
-
-	};
-
+protected:
+    string m_URI;
+};
 
 }
 
