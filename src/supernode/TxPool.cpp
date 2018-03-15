@@ -38,6 +38,7 @@ using namespace std;
 namespace supernode {
 
 TxPool::TxPool(const std::string &daemon_addr, const std::string &daemon_login, const std::string &daemon_pass)
+  : m_rpc_timeout(std::chrono::seconds(30))
 {
     bool result = false;
     boost::optional<epee::net_utils::http::login> login{};
