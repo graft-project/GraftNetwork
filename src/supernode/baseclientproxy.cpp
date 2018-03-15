@@ -52,7 +52,7 @@ void supernode::BaseClientProxy::Init()
 
 bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out, epee::json_rpc::error &er)
 {
-    LOG_PRINT_L0("BaseClientProxy::GetWalletBalance " << in.Account);
+    LOG_PRINT_L0("BaseClientProxy::GetWalletBalance" << in.Account);
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
@@ -122,7 +122,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
 
 bool supernode::BaseClientProxy::GetSeed(const supernode::rpc_command::GET_SEED::request &in, supernode::rpc_command::GET_SEED::response &out, epee::json_rpc::error &er)
 {
-    LOG_PRINT_L0("BaseClientProxy::GetSeed " << in.Account);
+    LOG_PRINT_L0("BaseClientProxy::GetSeed");
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
@@ -139,7 +139,7 @@ bool supernode::BaseClientProxy::GetSeed(const supernode::rpc_command::GET_SEED:
 
 bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RESTORE_ACCOUNT::request &in, supernode::rpc_command::RESTORE_ACCOUNT::response &out, epee::json_rpc::error &er)
 {
-    LOG_PRINT_L0("BaseClientProxy::RestoreAccount " << in.Seed);
+    LOG_PRINT_L0("BaseClientProxy::RestoreAccount");
     if (in.Seed.empty())
     {
         er.code = ERROR_ELECTRUM_SEED_EMPTY;
