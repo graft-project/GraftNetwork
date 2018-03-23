@@ -2514,7 +2514,7 @@ bool wallet2::generate_chacha_key_from_secret_keys(crypto::chacha_key &key) cons
   memcpy(data + sizeof(view_key), &spend_key, sizeof(spend_key));
   data[sizeof(data) - 1] = CHACHA8_KEY_TAIL;
 
-  crypto::generate_chacha_key(data.data(), sizeof(data), key);
+  crypto::generate_chacha_key(data, sizeof(data), key);
 
   return true;
 }
