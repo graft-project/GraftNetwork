@@ -46,6 +46,9 @@
   #include "readline_buffer.h"
 #endif
 
+
+#include "memwipe.h"
+
 namespace
 {
 #if defined(_WIN32)
