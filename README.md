@@ -1,14 +1,14 @@
 # Graft Network
 
-Copyright (c) 2017, The Graft Project
+Copyright (c) 2017-2018, The Graft Project
 
-## Monero Fork (Monero version 0.11.1.0)
+## Monero Fork (Monero version 0.12)
 
-Copyright (c) 2014-2017, The Monero Project
+Copyright (c) 2014-2018, The Monero Project
 
 Portions Copyright (c) 2012-2013, The Cryptonote developers
 
-## Development Resources
+## Development resources
 
 - Web: [graft.network](https://www.graft.network)
 - GitHub: [https://github.com/graft-project/GraftNetwork](https://github.com/graft-project/GraftNetwork)
@@ -35,13 +35,14 @@ Graft Network is a private, secure, untraceable, decentralised digital currency.
 
 **Untraceability:** By taking advantage of ring signatures, a special property of a certain type of cryptography, Graft Network is able to ensure that transactions are not only untraceable, but have an optional measure of ambiguity that ensures that transactions cannot easily be tied back to an individual user or computer.
 
-## About this Project
+## About this project
 
 This is the core implementation of Graft Network. It is open source and completely free to use without restrictions, except for those specified in the license agreement below. There are no restrictions on anyone creating an alternative implementation of Graft Network that uses the protocol and network in a compatible manner.
 
 As with many development projects, the repository on Github is considered to be the "staging" area for the latest changes. Before changes are merged into that branch on the main repository, they are tested by individual developers in their own branches, submitted as a pull request, and then subsequently tested by contributors who focus on testing and code reviews. That having been said, the repository should be carefully considered before using it in a production environment, unless there is a patch in the repository for a particular show-stopping issue you are experiencing. It is generally a better idea to use a tagged release for stability.
 
 **Anyone is welcome to contribute to Graft Network's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
+
 
 ## Supporting the Project
 
@@ -51,7 +52,7 @@ Graft Network development can be supported directly through donations.
 
 See [LICENSE](LICENSE).
 
-# Contributing
+## Contributing
 
 If you want to help out, see [CONTRIBUTING](CONTRIBUTING.md) for a set of guidelines.
 
@@ -59,11 +60,12 @@ If you want to help out, see [CONTRIBUTING](CONTRIBUTING.md) for a set of guidel
 
 See [Vulnerability Response Process](VULNERABILITY_RESPONSE_PROCESS.md).
 
+
 ## Graft Network software updates and consensus protocol changes (hard fork schedule)
+
 
 Graft Network uses a fixed-schedule hard fork mechanism to implement new features. This means that users of Graft Network (end users and service providers) need to run current versions and update their software on a regular schedule. Here is the current schedule, versions, and compatibility.
 Dates are provided in the format YYYY-MM-DD. 
-
 
 | Fork Date              | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |  
 | ----------------- | ----------------- | ---------------------- | -------------------------- | ------------------ |
@@ -76,11 +78,12 @@ Dates are provided in the format YYYY-MM-DD.
 
 Not available yet!
 
+
 ## Compiling Graft Network from Source
 
 ### Dependencies
 
-The following table summarizes the tools and libraries required to build.  A
+The following table summarizes the tools and libraries required to build. A
 few of the libraries are also included in this repository (marked as
 "Vendored"). By default, the build uses the library installed on the system,
 and ignores the vendored sources. However, if no library is found installed on
@@ -89,22 +92,26 @@ sources are also used for statically-linked builds because distribution
 packages often include only shared library binaries (`.so`) but not static
 library archives (`.a`).
 
-| Dep            | Min. Version  | Vendored | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose        |
-| -------------- | ------------- | ---------| ------------------ | -------------- | -------- | -------------- |
-| GCC            | 4.7.3         | NO       | `build-essential`  | `base-devel`   | NO       |                |
-| CMake          | 3.0.0         | NO       | `cmake`            | `cmake`        | NO       |                |
-| pkg-config     | any           | NO       | `pkg-config`       | `base-devel`   | NO       |                |
-| Boost          | 1.58          | NO       | `libboost-all-dev` | `boost`        | NO       | C++ libraries  |
-| OpenSSL        | basically any | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
-| libunbound     | 1.4.16        | YES      | `libunbound-dev`   | `unbound`      | NO       | DNS resolver   |
-| libminiupnpc   | 2.0           | YES      | `libminiupnpc-dev` | `miniupnpc`    | YES      | NAT punching   |
-| libunwind      | any           | NO       | `libunwind8-dev`   | `libunwind`    | YES      | Stack traces   |
-| liblzma        | any           | NO       | `liblzma-dev`      | `xz`           | YES      | For libunwind  |
-| ldns           | 1.6.17        | NO       | `libldns-dev`      | `ldns`         | YES      | SSL toolkit    |
-| expat          | 1.1           | NO       | `libexpat1-dev`    | `expat`        | YES      | XML parsing    |
-| GTest          | 1.5           | YES      | `libgtest-dev`^    | `gtest`        | YES      | Test suite     |
-| Doxygen        | any           | NO       | `doxygen`          | `doxygen`      | YES      | Documentation  |
-| Graphviz       | any           | NO       | `graphviz`         | `graphviz`     | YES      | Documentation  |
+| Dep          | Min. version  | Vendored | Debian/Ubuntu pkg  | Arch pkg     | Fedora            | Optional | Purpose        |
+| ------------ | ------------- | -------- | ------------------ | ------------ | ----------------- | -------- | -------------- |
+| GCC          | 4.7.3         | NO       | `build-essential`  | `base-devel` | `gcc`             | NO       |                |
+| CMake        | 3.0.0         | NO       | `cmake`            | `cmake`      | `cmake`           | NO       |                |
+| pkg-config   | any           | NO       | `pkg-config`       | `base-devel` | `pkgconf`         | NO       |                |
+| Boost        | 1.58          | NO       | `libboost-all-dev` | `boost`      | `boost-devel`     | NO       | C++ libraries  |
+| OpenSSL      | basically any | NO       | `libssl-dev`       | `openssl`    | `openssl-devel`   | NO       | sha256 sum     |
+| libzmq       | 3.0.0         | NO       | `libzmq3-dev`      | `zeromq`     | `cppzmq-devel`    | NO       | ZeroMQ library |
+| libunbound   | 1.4.16        | YES      | `libunbound-dev`   | `unbound`    | `unbound-devel`   | NO       | DNS resolver   |
+| libsodium    | ?             | NO       | `libsodium-dev`    | ?            | `libsodium-devel` | NO       | libsodium      |
+| libminiupnpc | 2.0           | YES      | `libminiupnpc-dev` | `miniupnpc`  | `miniupnpc-devel` | YES      | NAT punching   |
+| libunwind    | any           | NO       | `libunwind8-dev`   | `libunwind`  | `libunwind-devel` | YES      | Stack traces   |
+| liblzma      | any           | NO       | `liblzma-dev`      | `xz`         | `xz-devel`        | YES      | For libunwind  |
+| libreadline  | 6.3.0         | NO       | `libreadline6-dev` | `readline`   | `readline-devel`  | YES      | Input editing  |
+| ldns         | 1.6.17        | NO       | `libldns-dev`      | `ldns`       | `ldns-devel`      | YES      | SSL toolkit    |
+| expat        | 1.1           | NO       | `libexpat1-dev`    | `expat`      | `expat-devel`     | YES      | XML parsing    |
+| GTest        | 1.5           | YES      | `libgtest-dev`^    | `gtest`      | `gtest-devel`     | YES      | Test suite     |
+| Doxygen      | any           | NO       | `doxygen`          | `doxygen`    | `doxygen`         | YES      | Documentation  |
+| Graphviz     | any           | NO       | `graphviz`         | `graphviz`   | `graphviz`        | YES      | Documentation  |
+
 
 [^] On Debian/Ubuntu `libgtest-dev` only includes sources and headers. You must
 build the library binary manually. This can be done with the following command ```sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/ ```
@@ -127,6 +134,9 @@ invokes cmake commands as needed.
     this to be worthwhile, the machine should have one core and about 2GB of RAM
     available per thread.
 
+    *Note*: If cmake can not find zmq.hpp file on OS X, installing `zmq.hpp` from
+    https://github.com/zeromq/cppzmq to `/usr/local/include` should fix that error.
+
 * The resulting executables can be found in `build/release/bin`
 
 * Add `PATH="$PATH:$HOME/GraftNetwork/build/release/bin"` to `.profile`
@@ -137,7 +147,7 @@ invokes cmake commands as needed.
 
         make release-test
 
-    *NOTE*: `coretests` test may take a few hours to complete.
+    *NOTE*: `core_tests` test may take a few hours to complete.
 
 * **Optional**: to build binaries suitable for debugging:
 
@@ -151,12 +161,13 @@ invokes cmake commands as needed.
 
         HAVE_DOT=YES doxygen Doxyfile
 
-#### On the Raspberry Pi 2
+#### On the Raspberry Pi
 
-Tested on a Raspberry Pi 2 with a clean install of minimal Debian Jessie from https://www.raspberrypi.org/downloads/raspbian/
+Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Stretch (2017-09-07 or later) from https://www.raspberrypi.org/downloads/raspbian/. If you are using Raspian Jessie, [please see note in the following section](#note-for-raspbian-jessie-users). 
 
 * `apt-get update && apt-get upgrade` to install all of the latest software
 
+<<<<<<< HEAD
 * Install the dependencies for Graft Network except libunwind and libboost-all-dev
 
 * Increase the system swap size:
@@ -166,6 +177,41 @@ Tested on a Raspberry Pi 2 with a clean install of minimal Debian Jessie from ht
 	CONF_SWAPSIZE=1024  
 	sudo /etc/init.d/dphys-swapfile start  
 ```
+* Clone monero and checkout most recent release version:
+```
+        git clone https://github.com/monero-project/monero.git
+	cd monero
+	git checkout tags/v0.11.1.0
+```
+* Build:
+```
+        make release
+```
+* Wait 4-6 hours
+
+* The resulting executables can be found in `build/release/bin`
+
+* Add `PATH="$PATH:$HOME/monero/build/release/bin"` to `.profile`
+
+* Run Monero with `monerod --detach`
+
+* You may wish to reduce the size of the swap file after the buустановку видеонаблюдения по долиild has finished, and delete the boost directory from your home directory
+
+#### *Note for Raspbian Jessie users:*
+
+If you are using the older Raspbian Jessie image, compiling Monero is a bit more complicated. The version of Boost available in the Debian Jessie repositories is too old to use with Monero, and thus you must compile a newer version yourself. The following explains the extra steps, and has been tested on a Raspberry Pi 2 with a clean install of minimal Raspbian Jessie.
+
+* As before, `apt-get update && apt-get upgrade` to install all of the latest software, and increase the system swap size
+
+```	
+	sudo /etc/init.d/dphys-swapfile stop  
+	sudo nano /etc/dphys-swapfile  
+	CONF_SWAPSIZE=1024  
+	sudo /etc/init.d/dphys-swapfile start  
+```
+
+* Then, install the dependencies for Monero except `libunwind` and `libboost-all-dev`
+
 * Install the latest version of boost (this may first require invoking `apt-get remove --purge libboost*` to remove a previous version if you're not using a clean install):
 ```
 	cd  
@@ -181,6 +227,7 @@ Tested on a Raspberry Pi 2 with a clean install of minimal Debian Jessie from ht
 ```
 * Wait ~4 hours
 
+<<<<<<< HEAD
 * Change to the root of the source code directory and build:
 ```
         cd GraftNetwork
@@ -195,6 +242,24 @@ Tested on a Raspberry Pi 2 with a clean install of minimal Debian Jessie from ht
 * Run Graft Network with `graftnoded --detach`
 
 * You may wish to reduce the size of the swap file after the build has finished, and delete the boost directory from your home directory
+||||||| merged common ancestors
+* Change to the root of the source code directory and build:
+```
+        cd monero
+        make release
+```
+* Wait ~4 hours
+
+* The resulting executables can be found in `build/release/bin`
+
+* Add `PATH="$PATH:$HOME/monero/build/release/bin"` to `.profile`
+
+* Run Monero with `monerod --detach`
+
+* You may wish to reduce the size of the swap file after the build has finished, and delete the boost directory from your home directory
+=======
+* From here, follow the [general Raspberry Pi instructions](#on-the-raspberry-pi) from the "Clone monero and checkout most recent release version" step.
+>>>>>>> monero/release-v0.12
 
 #### On Windows:
 
@@ -204,7 +269,7 @@ POSIX system. The toolchain runs within the environment and *cross-compiles*
 binaries that can run outside of the environment as a regular Windows
 application.
 
-**Preparing the Build Environment**
+**Preparing the build environment**
 
 * Download and install the [MSYS2 installer](http://msys2.github.io), either the 64-bit or the 32-bit package, depending on your system.
 * Open the MSYS shell via the `MSYS2 Shell` shortcut
@@ -223,11 +288,11 @@ application.
 
     To build for 64-bit Windows:
 
-        pacman -S mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-boost
+        pacman -S mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-boost mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium
 
     To build for 32-bit Windows:
  
-        pacman -S mingw-w64-i686-toolchain make mingw-w64-i686-cmake mingw-w64-i686-boost
+        pacman -S mingw-w64-i686-toolchain make mingw-w64-i686-cmake mingw-w64-i686-boost mingw-w64-i686-openssl mingw-w64-i686-zeromq mingw-w64-i686-libsodium
 
 * Open the MingW shell via `MinGW-w64-Win64 Shell` shortcut on 64-bit Windows
   or `MinGW-w64-Win64 Shell` shortcut on 32-bit Windows. Note that if you are
@@ -253,6 +318,8 @@ We expect to add Graft Network into the ports tree in the near future, which wil
 
 ### On OpenBSD:
 
+#### OpenBSD < 6.2
+
 This has been tested on OpenBSD 5.8.
 
 You will need to add a few packages to your system. `pkg_add db cmake gcc gcc-libs g++ miniupnpc gtest`.
@@ -266,15 +333,123 @@ You will have to add the serialization, date_time, and regex modules to Boost wh
 
 To build: `env CC=egcc CXX=eg++ CPP=ecpp DEVELOPER_LOCAL_TOOLS=1 BOOST_ROOT=/path/to/the/boost/you/built make release-static-64`
 
+<<<<<<< HEAD
 ### Building Portable Statically Linked Binaries
+||||||| merged common ancestors
+### On Linux for Android (using docker):
+
+        # Build image (select android64.Dockerfile for aarch64)
+        cd utils/build_scripts/ && docker build -f android32.Dockerfile -t monero-android .
+        # Create container
+        docker create -it --name monero-android monero-android bash
+        # Get binaries
+        docker cp monero-android:/opt/android/monero/build/release/bin .
+
+### Building Portable Statically Linked Binaries
+=======
+#### OpenBSD >= 6.2
+
+You will need to add a few packages to your system. `pkg_add cmake miniupnpc zeromq libiconv`.
+
+The doxygen and graphviz packages are optional and require the xbase set.
+
+
+Build the Boost library using clang. This guide is derived from: https://github.com/bitcoin/bitcoin/blob/master/doc/build-openbsd.md
+
+We assume you are compiling with a non-root user and you have `doas` enabled.
+
+Note: do not use the boost package provided by OpenBSD, as we are installing boost to `/usr/local`.
+
+```
+# Create boost building directory
+mkdir ~/boost
+cd ~/boost
+
+# Fetch boost source
+ftp -o boost_1_64_0.tar.bz2 https://netcologne.dl.sourceforge.net/project/boost/boost/1.64.0/boost_1_64_0.tar.bz2 
+
+# MUST output: (SHA256) boost_1_64_0.tar.bz2: OK
+echo "7bcc5caace97baa948931d712ea5f37038dbb1c5d89b43ad4def4ed7cb683332 boost_1_64_0.tar.bz2" | sha256 -c
+tar xfj boost_1_64_0.tar.bz2
+
+# Fetch and apply boost patches, required for OpenBSD
+ftp -o boost_test_impl_execution_monitor_ipp.patch https://raw.githubusercontent.com/openbsd/ports/bee9e6df517077a7269ff0dfd57995f5c6a10379/devel/boost/patches/patch-boost_test_impl_execution_monitor_ipp
+ftp -o boost_config_platform_bsd_hpp.patch https://raw.githubusercontent.com/openbsd/ports/90658284fb786f5a60dd9d6e8d14500c167bdaa0/devel/boost/patches/patch-boost_config_platform_bsd_hpp
+
+# MUST output: (SHA256) boost_config_platform_bsd_hpp.patch: OK
+echo "1f5e59d1154f16ee1e0cc169395f30d5e7d22a5bd9f86358f738b0ccaea5e51d boost_config_platform_bsd_hpp.patch" | sha256 -c
+# MUST output: (SHA256) boost_test_impl_execution_monitor_ipp.patch: OK
+echo "30cec182a1437d40c3e0bd9a866ab5ddc1400a56185b7e671bb3782634ed0206 boost_test_impl_execution_monitor_ipp.patch" | sha256 -c
+
+cd boost_1_64_0
+patch -p0 < ../boost_test_impl_execution_monitor_ipp.patch
+patch -p0 < ../boost_config_platform_bsd_hpp.patch
+
+# Start building boost
+echo 'using clang : : c++ : <cxxflags>"-fvisibility=hidden -fPIC" <linkflags>"" <archiver>"ar" <striper>"strip"  <ranlib>"ranlib" <rc>"" : ;' > user-config.jam
+./bootstrap.sh --without-icu --with-libraries=chrono,filesystem,program_options,system,thread,test,date_time,regex,serialization,locale --with-toolset=clang
+./b2 toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" -sICONV_PATH=/usr/local
+doas ./b2 -d0 runtime-link=shared threadapi=pthread threading=multi link=static variant=release --layout=tagged --build-type=complete --user-config=user-config.jam -sNO_BZIP2=1 -sICONV_PATH=/usr/local --prefix=/usr/local install
+```
+
+Build cppzmq
+
+Build the cppzmq bindings.
+
+We assume you are compiling with a non-root user and you have `doas` enabled.
+
+```
+# Create cppzmq building directory
+mkdir ~/cppzmq
+cd ~/cppzmq
+
+# Fetch cppzmq source
+ftp -o cppzmq-4.2.3.tar.gz https://github.com/zeromq/cppzmq/archive/v4.2.3.tar.gz
+
+# MUST output: (SHA256) cppzmq-4.2.3.tar.gz: OK
+echo "3e6b57bf49115f4ae893b1ff7848ead7267013087dc7be1ab27636a97144d373 cppzmq-4.2.3.tar.gz" | sha256 -c
+tar xfz cppzmq-4.2.3.tar.gz
+
+# Start building cppzmq
+cd cppzmq-4.2.3
+mkdir build
+cd build
+cmake ..
+doas make install
+```
+
+Build monero: `env DEVELOPER_LOCAL_TOOLS=1 BOOST_ROOT=/usr/local make release-static`
+
+### On Solaris:
+
+The default Solaris linker can't be used, you have to install GNU ld, then run cmake manually with the path to your copy of GNU ld:
+
+        mkdir -p build/release
+        cd build/release
+        cmake -DCMAKE_LINKER=/path/to/ld -D CMAKE_BUILD_TYPE=Release ../..
+        cd ../..
+
+Then you can run make as usual.
+
+### On Linux for Android (using docker):
+
+        # Build image (select android64.Dockerfile for aarch64)
+        cd utils/build_scripts/ && docker build -f android32.Dockerfile -t monero-android .
+        # Create container
+        docker create -it --name monero-android monero-android bash
+        # Get binaries
+        docker cp monero-android:/opt/android/monero/build/release/bin .
+
+### Building portable statically linked binaries
+>>>>>>> monero/release-v0.12
 
 By default, in either dynamically or statically linked builds, binaries target the specific host processor on which the build happens and are not portable to other processors. Portable binaries can be built using the following targets:
 
-* ```make release-static-64``` builds binaries on Linux on x86_64 portable across POSIX systems on x86_64 processors
-* ```make release-static-32``` builds binaries on Linux on x86_64 or i686 portable across POSIX systems on i686 processors
-* ```make release-static-armv8``` builds binaries on Linux portable across POSIX systems on armv8 processors
-* ```make release-static-armv7``` builds binaries on Linux portable across POSIX systems on armv7 processors
-* ```make release-static-armv6``` builds binaries on Linux portable across POSIX systems on armv6 processors
+* ```make release-static-linux-x86_64``` builds binaries on Linux on x86_64 portable across POSIX systems on x86_64 processors
+* ```make release-static-linux-i686``` builds binaries on Linux on x86_64 or i686 portable across POSIX systems on i686 processors
+* ```make release-static-linux-armv8``` builds binaries on Linux portable across POSIX systems on armv8 processors
+* ```make release-static-linux-armv7``` builds binaries on Linux portable across POSIX systems on armv7 processors
+* ```make release-static-linux-armv6``` builds binaries on Linux portable across POSIX systems on armv6 processors
 * ```make release-static-win64``` builds binaries on 64-bit Windows portable across 64-bit Windows systems
 * ```make release-static-win32``` builds binaries on 64-bit or 32-bit Windows portable across 32-bit Windows systems
 
@@ -312,26 +487,79 @@ See [README.i18n.md](README.i18n.md).
 
 ## Using Tor
 
+<<<<<<< HEAD
 While Graft Network isn't made to integrate with Tor, it can be used wrapped with torsocks, if you add --p2p-bind-ip 127.0.0.1 to the graftnoded command line. You also want to set DNS requests to go over TCP, so they'll be routed through Tor, by setting DNS_PUBLIC=tcp. You may also disable IGD (UPnP port forwarding negotiation), which is pointless with Tor. To allow local connections from the wallet, you might have to add TORSOCKS_ALLOW_INBOUND=1, some OSes need it and some don't. Example:
 
 `DNS_PUBLIC=tcp torsocks graftnoded --p2p-bind-ip 127.0.0.1 --no-igd`
+||||||| merged common ancestors
+While Monero isn't made to integrate with Tor, it can be used wrapped with torsocks, if you add --p2p-bind-ip 127.0.0.1 to the monerod command line. You also want to set DNS requests to go over TCP, so they'll be routed through Tor, by setting DNS_PUBLIC=tcp. You may also disable IGD (UPnP port forwarding negotiation), which is pointless with Tor. To allow local connections from the wallet, you might have to add TORSOCKS_ALLOW_INBOUND=1, some OSes need it and some don't. Example:
 
-or:
+`DNS_PUBLIC=tcp torsocks monerod --p2p-bind-ip 127.0.0.1 --no-igd`
+=======
+While Monero isn't made to integrate with Tor, it can be used wrapped with torsocks, by
+setting the following configuration parameters and environment variables:
+>>>>>>> monero/release-v0.12
 
+* `--p2p-bind-ip 127.0.0.1` on the command line or `p2p-bind-ip=127.0.0.1` in
+  monerod.conf to disable listening for connections on external interfaces.
+* `--no-igd` on the command line or `no-igd=1` in monerod.conf to disable IGD
+  (UPnP port forwarding negotiation), which is pointless with Tor.
+* `DNS_PUBLIC=tcp` or `DNS_PUBLIC=tcp://x.x.x.x` where x.x.x.x is the IP of the
+  desired DNS server, for DNS requests to go over TCP, so that they are routed
+  through Tor. When IP is not specified, monerod uses the default list of
+  servers defined in [src/common/dns_utils.cpp](src/common/dns_utils.cpp).
+* `TORSOCKS_ALLOW_INBOUND=1` to tell torsocks to allow monerod to bind to interfaces
+   to accept connections from the wallet. On some Linux systems, torsocks
+   allows binding to localhost by default, so setting this variable is only
+   necessary to allow binding to local LAN/VPN interfaces to allow wallets to
+   connect from remote hosts. On other systems, it may be needed for local wallets
+   as well.
+* Do NOT pass `--detach` when running through torsocks with systemd, (see
+  [utils/systemd/monerod.service](utils/systemd/monerod.service) for details).
+
+<<<<<<< HEAD
 `DNS_PUBLIC=tcp TORSOCKS_ALLOW_INBOUND=1 torsocks graftnoded --p2p-bind-ip 127.0.0.1 --no-igd`
+||||||| merged common ancestors
+`DNS_PUBLIC=tcp TORSOCKS_ALLOW_INBOUND=1 torsocks monerod --p2p-bind-ip 127.0.0.1 --no-igd`
+=======
+Example command line to start monerod through Tor:
+>>>>>>> monero/release-v0.12
 
-TAILS ships with a very restrictive set of firewall rules. Therefore, you need to add a rule to allow this connection too, in addition to telling torsocks to allow inbound connections. Full example:
+    DNS_PUBLIC=tcp torsocks monerod --p2p-bind-ip 127.0.0.1 --no-igd
 
-`sudo iptables -I OUTPUT 2 -p tcp -d 127.0.0.1 -m tcp --dport 18081 -j ACCEPT`
+### Using Tor on Tails
 
+<<<<<<< HEAD
 `DNS_PUBLIC=tcp torsocks ./graftnoded --p2p-bind-ip 127.0.0.1 --no-igd --rpc-bind-ip 127.0.0.1 --data-dir /home/amnesia/Persistent/your/directory/to/the/blockchain`
+||||||| merged common ancestors
+`DNS_PUBLIC=tcp torsocks ./monerod --p2p-bind-ip 127.0.0.1 --no-igd --rpc-bind-ip 127.0.0.1 --data-dir /home/amnesia/Persistent/your/directory/to/the/blockchain`
+=======
+TAILS ships with a very restrictive set of firewall rules. Therefore, you need
+to add a rule to allow this connection too, in addition to telling torsocks to
+allow inbound connections. Full example:
+>>>>>>> monero/release-v0.12
 
+<<<<<<< HEAD
 `./graft-wallet-cli`
+||||||| merged common ancestors
+`./monero-wallet-cli`
+=======
+    sudo iptables -I OUTPUT 2 -p tcp -d 127.0.0.1 -m tcp --dport 18081 -j ACCEPT
+    DNS_PUBLIC=tcp torsocks ./monerod --p2p-bind-ip 127.0.0.1 --no-igd --rpc-bind-ip 127.0.0.1 \
+        --data-dir /home/amnesia/Persistent/your/directory/to/the/blockchain
+>>>>>>> monero/release-v0.12
 
-## Using readline
+## Debugging
 
+<<<<<<< HEAD
 While graftnoded and graft-wallet-cli do not use readline directly, most of the functionality can be obtained by running them via rlwrap. This allows command recall, edit capabilities, etc. It does not give autocompletion without an extra completion file, however. To use rlwrap, simply prepend `rlwrap` to the command line, eg:
+||||||| merged common ancestors
+While monerod and monero-wallet-cli do not use readline directly, most of the functionality can be obtained by running them via rlwrap. This allows command recall, edit capabilities, etc. It does not give autocompletion without an extra completion file, however. To use rlwrap, simply prepend `rlwrap` to the command line, eg:
+=======
+This section contains general instructions for debugging failed installs or problems encountered with Monero. First ensure you are running the latest version built from the Github repo.
+>>>>>>> monero/release-v0.12
 
+<<<<<<< HEAD
 `rlwrap bin/graft-wallet-cli --wallet-file /path/to/wallet`
 
 Note: rlwrap will save things like your seed and private keys, if you supply them on prompt. You may want to not use rlwrap when you use simplewallet to restore from seed, etc.
@@ -341,6 +569,17 @@ Note: rlwrap will save things like your seed and private keys, if you supply the
 This section contains general instructions for debugging failed installs or problems encountered with Graft Network. First ensure you are running the latest version built from the github repo.
 
 ## Obtaining Stack Traces and Core Dumps on Unix Systems
+||||||| merged common ancestors
+`rlwrap bin/monero-wallet-cli --wallet-file /path/to/wallet`
+
+Note: rlwrap will save things like your seed and private keys, if you supply them on prompt. You may want to not use rlwrap when you use simplewallet to restore from seed, etc.
+
+# Debugging
+
+This section contains general instructions for debugging failed installs or problems encountered with Monero. First ensure you are running the latest version built from the github repo.
+
+### Obtaining stack traces and core dumps on Unix systems
+
 
 We generally use the tool `gdb` (GNU debugger) to provide stack trace functionality, and `ulimit` to provide core dumps in builds which crash or segfault.
 
@@ -360,9 +599,12 @@ Type `thread apply all bt` within gdb in order to obtain the stack trace
 
 Enter `ulimit -c unlimited` on the command line to enable unlimited filesizes for core dumps
 
+Enter `echo core | sudo tee /proc/sys/kernel/core_pattern` to stop cores from being hijacked by other tools
+
 Run the build.
 
-When it terminates with an output along the lines of "Segmentation fault (core dumped)", there should be a core dump file in the same directory as graftnoded.
+
+When it terminates with an output along the lines of "Segmentation fault (core dumped)", there should be a core dump file in the same directory as graftnoded. It may be named just `core`, or `core.xxxx` with numbers appended.
 
 You can now analyse this core dump with `gdb` as follows:
 
@@ -378,13 +620,13 @@ Pass command-line options with `--args` followed by the relevant arguments
 
 Type `run` to run graftnoded
 
-## Analysing Memory Corruption
+### Analysing memory corruption
 
 We use the tool `valgrind` for this.
 
 Run with `valgrind /path/to/graftnoded`. It will be slow.
 
-## LMDB
+### LMDB
 
 Instructions for debugging suspected blockchain corruption as per @HYC
 

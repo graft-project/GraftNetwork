@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2017, The Monero Project
+# Copyright (c) 2014-2018, The Monero Project
 # 
 # All rights reserved.
 # 
@@ -30,6 +30,7 @@
 
 # The docs say this only affects grouping in IDEs
 set(folder "tests")
+set(TEST_DATA_DIR "${CMAKE_CURRENT_LIST_DIR}/data")
 
 if (WIN32 AND STATIC)
   add_definitions(-DSTATICLIB)
@@ -93,10 +94,15 @@ endif()
 add_subdirectory(difficulty)
 add_subdirectory(hash)
 add_subdirectory(net_load_tests)
-add_subdirectory(libwallet_api_tests)
+
 if (NOT DISABLE_SUPERNODE)
-add_subdirectory(supernode_tests)
+    add_subdirectory(supernode_tests)
 endif()
+
+if (BUILD_GUI_DEPS)
+  add_subdirectory(libwallet_api_tests)
+endif()
+
 
 # add_subdirectory(daemon_tests)
 
@@ -120,7 +126,7 @@ add_test(
   COMMAND hash-target-tests)
 
 set(enabled_tests
-    coretests
+    core_tests
     difficulty
     hash
     performance_tests

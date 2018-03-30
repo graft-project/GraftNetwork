@@ -29,7 +29,11 @@
 #ifndef _MLOG_H_
 #define _MLOG_H_
 
+#include <time.h>
 #include <atomic>
+#include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
+#include "string_tools.h"
 #include "misc_log_ex.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -56,6 +60,7 @@ static std::string generate_log_filename(const char *base)
     strcpy(tmp, "unknown");
   else
     strftime(tmp, sizeof(tmp), "%Y-%m-%d-%H-%M-%S", &tm);
+  tmp[sizeof(tmp) - 1] = 0;
   filename += "-";
   filename += tmp;
   return filename;
@@ -95,7 +100,7 @@ static const char *get_default_categories(int level)
       categories = "*:WARNING,net:FATAL,net.p2p:FATAL,net.cn:FATAL,global:INFO,verify:FATAL,stacktrace:INFO,logging:INFO,msgwriter:INFO";
       break;
     case 1:
-      categories = "*:WARNING,global:INFO,stacktrace:INFO,logging:INFO,msgwriter:INFO";
+      categories = "*:INFO,global:INFO,stacktrace:INFO,logging:INFO,msgwriter:INFO";
       break;
     case 2:
       categories = "*:DEBUG";
@@ -112,7 +117,7 @@ static const char *get_default_categories(int level)
   return categories;
 }
 
-void mlog_configure(const std::string &filename_base, bool console)
+void mlog_configure(const std::string &filename_base, bool console, const std::size_t max_log_file_size)
 {
   el::Configurations c;
   c.setGlobally(el::ConfigurationType::Filename, filename_base);
@@ -122,7 +127,7 @@ void mlog_configure(const std::string &filename_base, bool console)
     log_format = MLOG_BASE_FORMAT;
   c.setGlobally(el::ConfigurationType::Format, log_format);
   c.setGlobally(el::ConfigurationType::ToStandardOutput, console ? "true" : "false");
-  c.setGlobally(el::ConfigurationType::MaxLogFileSize, "104850000"); // 100 MB - 7600 bytes
+  c.setGlobally(el::ConfigurationType::MaxLogFileSize, std::to_string(max_log_file_size));
   el::Loggers::setDefaultConfigurations(c, true);
 
   el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
@@ -145,16 +150,52 @@ void mlog_configure(const std::string &filename_base, bool console)
 
 void mlog_set_categories(const char *categories)
 {
-  el::Loggers::setCategories(categories);
-  MLOG_LOG("New log categories: " << categories);
+  std::string new_categories;
+  if (*categories)
+  {
+    if (*categories == '+')
+    {
+      ++categories;
+      new_categories = mlog_get_categories();
+      if (*categories)
+      {
+        if (!new_categories.empty())
+          new_categories += ",";
+        new_categories += categories;
+      }
+    }
+    else if (*categories == '-')
+    {
+      ++categories;
+      new_categories = mlog_get_categories();
+      std::vector<std::string> single_categories;
+      boost::split(single_categories, categories, boost::is_any_of(","), boost::token_compress_on);
+      for (const std::string &s: single_categories)
+      {
+        size_t pos = new_categories.find(s);
+        if (pos != std::string::npos)
+          new_categories = new_categories.erase(pos, s.size());
+      }
+    }
+    else
+    {
+      new_categories = categories;
+    }
+  }
+  el::Loggers::setCategories(new_categories.c_str(), true);
+  MLOG_LOG("New log categories: " << el::Loggers::getCategories());
+}
+
+std::string mlog_get_categories()
+{
+  return el::Loggers::getCategories();
 }
 
 // maps epee style log level to new logging system
 void mlog_set_log_level(int level)
 {
   const char *categories = get_default_categories(level);
-  el::Loggers::setCategories(categories);
-  MLOG_LOG("New log categories: " << categories);
+  mlog_set_categories(categories);
 }
 
 void mlog_set_log(const char *log)

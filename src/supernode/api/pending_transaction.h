@@ -28,7 +28,7 @@
 //
 // Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
-#include "wallet/wallet2_api.h"
+#include "wallet/api/wallet2_api.h"
 #include "../graft_wallet.h"
 
 #include <string>

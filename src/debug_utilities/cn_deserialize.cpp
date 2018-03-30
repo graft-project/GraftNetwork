@@ -1,5 +1,5 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -27,6 +27,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <boost/filesystem.hpp>
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/blockchain.h"
@@ -41,12 +42,28 @@ using namespace epee;
 
 using namespace cryptonote;
 
+static void print_extra_fields(const std::vector<cryptonote::tx_extra_field> &fields)
+{
+  std::cout << "tx_extra has " << fields.size() << " field(s)" << std::endl;
+  for (size_t n = 0; n < fields.size(); ++n)
+  {
+    std::cout << "field " << n << ": ";
+    if (typeid(cryptonote::tx_extra_padding) == fields[n].type()) std::cout << "extra padding: " << boost::get<cryptonote::tx_extra_padding>(fields[n]).size << " bytes";
+    else if (typeid(cryptonote::tx_extra_pub_key) == fields[n].type()) std::cout << "extra pub key: " << boost::get<cryptonote::tx_extra_pub_key>(fields[n]).pub_key;
+    else if (typeid(cryptonote::tx_extra_nonce) == fields[n].type()) std::cout << "extra nonce: " << epee::string_tools::buff_to_hex_nodelimer(boost::get<cryptonote::tx_extra_nonce>(fields[n]).nonce);
+    else if (typeid(cryptonote::tx_extra_merge_mining_tag) == fields[n].type()) std::cout << "extra merge mining tag: depth " << boost::get<cryptonote::tx_extra_merge_mining_tag>(fields[n]).depth << ", merkle root " << boost::get<cryptonote::tx_extra_merge_mining_tag>(fields[n]).merkle_root;
+    else if (typeid(cryptonote::tx_extra_mysterious_minergate) == fields[n].type()) std::cout << "extra minergate custom: " << epee::string_tools::buff_to_hex_nodelimer(boost::get<cryptonote::tx_extra_mysterious_minergate>(fields[n]).data);
+    else std::cout << "unknown";
+    std::cout << std::endl;
+  }
+}
+
 int main(int argc, char* argv[])
 {
   uint32_t log_level = 0;
   std::string input;
 
-  tools::sanitize_locale();
+  tools::on_startup();
 
   boost::filesystem::path output_file_path;
 
@@ -154,25 +171,23 @@ int main(int argc, char* argv[])
     std::cout << "Parsed transaction:" << std::endl;
     std::cout << cryptonote::obj_to_json_str(tx) << std::endl;
 
-    if (cryptonote::parse_tx_extra(tx.extra, fields))
+    bool parsed = cryptonote::parse_tx_extra(tx.extra, fields);
+    if (!parsed)
+      std::cout << "Failed to parse tx_extra" << std::endl;
+
+    if (!fields.empty())
     {
-      std::cout << "tx_extra has " << fields.size() << " field(s)" << std::endl;
-      for (size_t n = 0; n < fields.size(); ++n)
-      {
-        std::cout << "field " << n << ": ";
-        if (typeid(cryptonote::tx_extra_padding) == fields[n].type()) std::cout << "extra padding: " << boost::get<cryptonote::tx_extra_padding>(fields[n]).size << " bytes";
-        else if (typeid(cryptonote::tx_extra_pub_key) == fields[n].type()) std::cout << "extra pub key: " << boost::get<cryptonote::tx_extra_pub_key>(fields[n]).pub_key;
-        else if (typeid(cryptonote::tx_extra_nonce) == fields[n].type()) std::cout << "extra nonce: " << epee::string_tools::buff_to_hex_nodelimer(boost::get<cryptonote::tx_extra_nonce>(fields[n]).nonce);
-        else if (typeid(cryptonote::tx_extra_merge_mining_tag) == fields[n].type()) std::cout << "extra merge mining tag: depth " << boost::get<cryptonote::tx_extra_merge_mining_tag>(fields[n]).depth << ", merkle root " << boost::get<cryptonote::tx_extra_merge_mining_tag>(fields[n]).merkle_root;
-        else if (typeid(cryptonote::tx_extra_mysterious_minergate) == fields[n].type()) std::cout << "extra minergate custom: " << epee::string_tools::buff_to_hex_nodelimer(boost::get<cryptonote::tx_extra_mysterious_minergate>(fields[n]).data);
-        else std::cout << "unknown";
-        std::cout << std::endl;
-      }
+      print_extra_fields(fields);
     }
     else
     {
-      std::cout << "Failed to parse tx_extra" << std::endl;
+      std::cout << "No fields were found in tx_extra" << std::endl;
     }
+  }
+  else if (cryptonote::parse_tx_extra(std::vector<uint8_t>(blob.begin(), blob.end()), fields) && !fields.empty())
+  {
+    std::cout << "Parsed tx_extra:" << std::endl;
+    print_extra_fields(fields);
   }
   else
   {

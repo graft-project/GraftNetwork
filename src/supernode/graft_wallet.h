@@ -52,7 +52,7 @@
 #include "crypto/hash.h"
 #include "ringct/rctTypes.h"
 #include "ringct/rctOps.h"
-#include "wallet/wallet2_api.h"
+#include "wallet/api/wallet2_api.h"
 
 #include "wallet_errors.h"
 #include "common/password.h"

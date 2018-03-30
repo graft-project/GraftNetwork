@@ -1,5 +1,5 @@
-// Copyright (c) 2017, The Graft Project
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2017-2018, The Graft Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -144,7 +144,7 @@ TEST(parse_and_validate_tx_extra, is_valid_tx_extra_parsed)
   cryptonote::blobdata b = "dsdsdfsdfsf";
   ASSERT_TRUE(cryptonote::construct_miner_tx(0, 0, 10000000000000, 1000, TEST_FEE, acc.get_keys().m_account_address, tx, b, 1));
   crypto::public_key tx_pub_key = cryptonote::get_tx_pub_key_from_extra(tx);
-  ASSERT_NE(tx_pub_key, cryptonote::null_pkey);
+  ASSERT_NE(tx_pub_key, crypto::null_pkey);
 }
 TEST(parse_and_validate_tx_extra, fails_on_big_extra_nonce)
 {

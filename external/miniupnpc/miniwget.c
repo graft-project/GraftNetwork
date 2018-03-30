@@ -2,7 +2,7 @@
 /* Project : miniupnp
  * Website : http://miniupnp.free.fr/
  * Author : Thomas Bernard
- * Copyright (c) 2005-2016 Thomas Bernard
+ * Copyright (c) 2005-2017 Thomas Bernard
  * This software is subject to the conditions detailed in the
  * LICENCE file provided in this distribution. */
 
@@ -83,8 +83,10 @@ getHTTPResponse(int s, int * size, int * status_code)
 	unsigned int content_buf_used = 0;
 	char chunksize_buf[32];
 	unsigned int chunksize_buf_index;
+#ifdef DEBUG
 	char * reason_phrase = NULL;
 	int reason_phrase_len = 0;
+#endif
 
 	if(status_code) *status_code = -1;
 	header_buf = malloc(header_buf_len);
@@ -109,7 +111,7 @@ getHTTPResponse(int s, int * size, int * status_code)
 	chunksize_buf[0] = '\0';
 	chunksize_buf_index = 0;
 
-	while((n = receivedata(s, buf, 2048, 5000, NULL)) > 0)
+	while((n = receivedata(s, buf, sizeof(buf), 5000, NULL)) > 0)
 	{
 		if(endofheaders == 0)
 		{
@@ -181,8 +183,10 @@ getHTTPResponse(int s, int * size, int * status_code)
 									*status_code = atoi(header_buf + sp + 1);
 								else
 								{
+#ifdef DEBUG
 									reason_phrase = header_buf + sp + 1;
 									reason_phrase_len = i - sp - 1;
+#endif
 									break;
 								}
 							}

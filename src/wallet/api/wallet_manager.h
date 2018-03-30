@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -29,7 +29,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 
-#include "wallet/wallet2_api.h"
+#include "wallet/api/wallet2_api.h"
 #include <string>
 
 namespace Monero {
@@ -38,24 +38,38 @@ class WalletManagerImpl : public WalletManager
 {
 public:
     Wallet * createWallet(const std::string &path, const std::string &password,
-                          const std::string &language, bool testnet);
-    Wallet * openWallet(const std::string &path, const std::string &password, bool testnet);
-    virtual Wallet * recoveryWallet(const std::string &path, const std::string &memo, bool testnet, uint64_t restoreHeight);
+                          const std::string &language, NetworkType nettype);
+    Wallet * openWallet(const std::string &path, const std::string &password, NetworkType nettype);
+    virtual Wallet * recoveryWallet(const std::string &path,
+                                       const std::string &password,
+                                       const std::string &mnemonic,
+                                       NetworkType nettype,
+                                       uint64_t restoreHeight);
+    virtual Wallet * createWalletFromKeys(const std::string &path,
+                                             const std::string &password,
+                                             const std::string &language,
+                                             NetworkType nettype,
+                                             uint64_t restoreHeight,
+                                             const std::string &addressString,
+                                             const std::string &viewKeyString,
+                                             const std::string &spendKeyString = "");
+    // next two methods are deprecated - use the above version which allow setting of a password
+    virtual Wallet * recoveryWallet(const std::string &path, const std::string &mnemonic, NetworkType nettype, uint64_t restoreHeight);
+    // deprecated: use createWalletFromKeys(..., password, ...) instead
     virtual Wallet * createWalletFromKeys(const std::string &path, 
                                                     const std::string &language,
-                                                    bool testnet, 
+                                                    NetworkType nettype, 
                                                     uint64_t restoreHeight,
                                                     const std::string &addressString,
                                                     const std::string &viewKeyString,
                                                     const std::string &spendKeyString = "");
-    virtual bool closeWallet(Wallet *wallet);
+    virtual bool closeWallet(Wallet *wallet, bool store = true);
     bool walletExists(const std::string &path);
-    bool verifyWalletPassword(const std::string &keys_file_name, const std::string &password, bool watch_only) const;
+    bool verifyWalletPassword(const std::string &keys_file_name, const std::string &password, bool no_spend_key) const;
     std::vector<std::string> findWallets(const std::string &path);
     std::string errorString() const;
     void setDaemonAddress(const std::string &address);
     bool connected(uint32_t *version = NULL) const;
-    bool checkPayment(const std::string &address, const std::string &txid, const std::string &txkey, const std::string &daemon_address, uint64_t &received, uint64_t &height, std::string &error) const;
     uint64_t blockchainHeight() const;
     uint64_t blockchainTargetHeight() const;
     uint64_t networkDifficulty() const;

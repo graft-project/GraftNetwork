@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -28,6 +28,7 @@
 
 #include <boost/range/adaptor/reversed.hpp>
 
+#include "string_tools.h"
 #include "blockchain_db.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "profile_tools.h"
@@ -194,6 +195,10 @@ uint64_t BlockchainDB::add_block( const block& blk
                                 , const std::vector<transaction>& txs
                                 )
 {
+  // sanity
+  if (blk.tx_hashes.size() != txs.size())
+    throw std::runtime_error("Inconsistent tx/hashes sizes");
+
   block_txn_start(false);
 
   TIME_MEASURE_START(time1);
@@ -208,7 +213,7 @@ uint64_t BlockchainDB::add_block( const block& blk
   time1 = epee::misc_utils::get_tick_count();
   add_transaction(blk_hash, blk.miner_tx);
   int tx_i = 0;
-  crypto::hash tx_hash = null_hash;
+  crypto::hash tx_hash = crypto::null_hash;
   for (const transaction& tx : txs)
   {
     tx_hash = blk.tx_hashes[tx_i];
@@ -278,7 +283,7 @@ block BlockchainDB::get_block_from_height(const uint64_t& height) const
   blobdata bd = get_block_blob_from_height(height);
   block b;
   if (!parse_and_validate_block_from_blob(bd, b))
-    throw new DB_ERROR("Failed to parse block from blob retrieved from the db");
+    throw DB_ERROR("Failed to parse block from blob retrieved from the db");
 
   return b;
 }
@@ -288,7 +293,7 @@ block BlockchainDB::get_block(const crypto::hash& h) const
   blobdata bd = get_block_blob(h);
   block b;
   if (!parse_and_validate_block_from_blob(bd, b))
-    throw new DB_ERROR("Failed to parse block from blob retrieved from the db");
+    throw DB_ERROR("Failed to parse block from blob retrieved from the db");
 
   return b;
 }
@@ -299,7 +304,7 @@ bool BlockchainDB::get_tx(const crypto::hash& h, cryptonote::transaction &tx) co
   if (!get_tx_blob(h, bd))
     return false;
   if (!parse_and_validate_tx_from_blob(bd, tx))
-    throw new DB_ERROR("Failed to parse transaction from blob retrieved from the db");
+    throw DB_ERROR("Failed to parse transaction from blob retrieved from the db");
 
   return true;
 }
@@ -308,7 +313,7 @@ transaction BlockchainDB::get_tx(const crypto::hash& h) const
 {
   transaction tx;
   if (!get_tx(h, tx))
-    throw new TX_DNE(std::string("tx with hash ").append(epee::string_tools::pod_to_hex(h)).append(" not found in db").c_str());
+    throw TX_DNE(std::string("tx with hash ").append(epee::string_tools::pod_to_hex(h)).append(" not found in db").c_str());
   return tx;
 }
 

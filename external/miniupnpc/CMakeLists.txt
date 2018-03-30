@@ -36,6 +36,9 @@ if (NOT WIN32)
     # add_definitions (-D_POSIX_C_SOURCE=200112L)
     add_definitions (-D_XOPEN_SOURCE=600)
   endif (NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" AND NOT CMAKE_SYSTEM_NAME STREQUAL "DragonFly")
+  if (CMAKE_SYSTEM_NAME MATCHES "(SunOS|Solaris)")
+    add_definitions (-D__EXTENSIONS__ -std=c99)
+  endif ()
 else (NOT WIN32)
   add_definitions (-D_WIN32_WINNT=0x0501) # XP or higher for getnameinfo and friends
 endif (NOT WIN32)
@@ -69,6 +72,13 @@ if (CMAKE_COMPILER_IS_GNUC)
   endif (NOT CONFIGURED)
 endif ()
 endif()
+
+# always add -fPIC
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fPIC")
+set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -fPIC")
+set (CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fPIC")
+set (CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} -fPIC")
 
 configure_file (${CMAKE_CURRENT_SOURCE_DIR}/miniupnpcstrings.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/miniupnpcstrings.h)
 include_directories (${CMAKE_CURRENT_BINARY_DIR})

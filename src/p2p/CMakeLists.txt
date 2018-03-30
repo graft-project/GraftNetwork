@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2017, The Monero Project
+# Copyright (c) 2014-2018, The Monero Project
 #
 # All rights reserved.
 #
@@ -39,13 +39,14 @@ monero_add_library(p2p ${P2P})
 target_link_libraries(p2p
   PUBLIC
     epee
+    version
+    cryptonote_core
     ${UPNP_LIBRARIES}
     ${Boost_CHRONO_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
   PRIVATE
     ${EXTRA_LIBRARIES})
-add_dependencies(p2p
-  version)

@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2017, The Monero Project
+# Copyright (c) 2014-2018, The Monero Project
 #
 # All rights reserved.
 #
@@ -36,6 +36,7 @@ add_executable(hash-tests
   ${hash_headers})
 target_link_libraries(hash-tests
   PRIVATE
+    common
     cncrypto
     ${EXTRA_LIBRARIES})
 set_property(TARGET hash-tests

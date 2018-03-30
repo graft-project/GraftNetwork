@@ -1,5 +1,5 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -38,7 +38,6 @@
 #include "common/updates.h"
 #include "version.h"
 #include "net/http_client.h"
-
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
 
@@ -61,52 +60,76 @@ namespace {
 namespace Monero {
 
 Wallet *WalletManagerImpl::createWallet(const std::string &path, const std::string &password,
-                                    const std::string &language, bool testnet)
+                                    const std::string &language, NetworkType nettype)
 {
-    WalletImpl * wallet = new WalletImpl(testnet);
+    WalletImpl * wallet = new WalletImpl(nettype);
     wallet->create(path, password, language);
     return wallet;
 }
 
-Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, bool testnet)
+Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype)
 {
-    WalletImpl * wallet = new WalletImpl(testnet);
+    WalletImpl * wallet = new WalletImpl(nettype);
     wallet->open(path, password);
     //Refresh addressBook
     wallet->addressBook()->refresh(); 
     return wallet;
 }
 
-Wallet *WalletManagerImpl::recoveryWallet(const std::string &path, const std::string &memo, bool testnet, uint64_t restoreHeight)
+Wallet *WalletManagerImpl::recoveryWallet(const std::string &path, const std::string &mnemonic, NetworkType nettype, uint64_t restoreHeight)
 {
-    WalletImpl * wallet = new WalletImpl(testnet);
-    if(restoreHeight > 0){
-        wallet->setRefreshFromBlockHeight(restoreHeight);
-    }
-    wallet->recover(path, memo);
-    return wallet;
+    return recoveryWallet(path, "", mnemonic, nettype, restoreHeight);
 }
 
-Wallet *WalletManagerImpl::createWalletFromKeys(const std::string &path, 
+Wallet *WalletManagerImpl::createWalletFromKeys(const std::string &path,
                                                 const std::string &language,
-                                                bool testnet, 
+                                                NetworkType nettype,
                                                 uint64_t restoreHeight,
                                                 const std::string &addressString,
                                                 const std::string &viewKeyString,
                                                 const std::string &spendKeyString)
 {
-    WalletImpl * wallet = new WalletImpl(testnet);
+    return createWalletFromKeys(path, "", language, nettype, restoreHeight,
+                                addressString, viewKeyString, spendKeyString);
+}
+
+Wallet *WalletManagerImpl::recoveryWallet(const std::string &path,
+                                                const std::string &password,
+                                                const std::string &mnemonic,
+                                                NetworkType nettype,
+                                                uint64_t restoreHeight)
+{
+    WalletImpl * wallet = new WalletImpl(nettype);
     if(restoreHeight > 0){
         wallet->setRefreshFromBlockHeight(restoreHeight);
     }
-    wallet->recoverFromKeys(path, language, addressString, viewKeyString, spendKeyString);
+    wallet->recover(path, password, mnemonic);
     return wallet;
 }
 
-bool WalletManagerImpl::closeWallet(Wallet *wallet)
+Wallet *WalletManagerImpl::createWalletFromKeys(const std::string &path,
+                                                const std::string &password,
+                                                const std::string &language,
+                                                NetworkType nettype, 
+                                                uint64_t restoreHeight,
+                                                const std::string &addressString,
+                                                const std::string &viewKeyString,
+                                                const std::string &spendKeyString)
+{
+    WalletImpl * wallet = new WalletImpl(nettype);
+    if(restoreHeight > 0){
+        wallet->setRefreshFromBlockHeight(restoreHeight);
+    }
+    wallet->recoverFromKeysWithPassword(path, password, language, addressString, viewKeyString, spendKeyString);
+    return wallet;
+}
+
+bool WalletManagerImpl::closeWallet(Wallet *wallet, bool store)
 {
     WalletImpl * wallet_ = dynamic_cast<WalletImpl*>(wallet);
-    bool result = wallet_->close();
+    if (!wallet_)
+        return false;
+    bool result = wallet_->close(store);
     if (!result) {
         m_errorString = wallet_->errorString();
     } else {
@@ -126,9 +149,9 @@ bool WalletManagerImpl::walletExists(const std::string &path)
     return false;
 }
 
-bool WalletManagerImpl::verifyWalletPassword(const std::string &keys_file_name, const std::string &password, bool watch_only) const
+bool WalletManagerImpl::verifyWalletPassword(const std::string &keys_file_name, const std::string &password, bool no_spend_key) const
 {
-	    return tools::wallet2::verify_password(keys_file_name, password, watch_only);
+	    return tools::wallet2::verify_password(keys_file_name, password, no_spend_key, hw::get_device("default"));
 }
 
 std::vector<std::string> WalletManagerImpl::findWallets(const std::string &path)
@@ -186,157 +209,6 @@ bool WalletManagerImpl::connected(uint32_t *version) const
     if (version)
         *version = resp_t.result.version;
     return true;
-}
-
-bool WalletManagerImpl::checkPayment(const std::string &address_text, const std::string &txid_text, const std::string &txkey_text, const std::string &daemon_address, uint64_t &received, uint64_t &height, std::string &error) const
-{
-  error = "";
-  cryptonote::blobdata txid_data;
-  if(!epee::string_tools::parse_hexstr_to_binbuff(txid_text, txid_data) || txid_data.size() != sizeof(crypto::hash))
-  {
-    error = tr("failed to parse txid");
-    return false;
-  }
-  crypto::hash txid = *reinterpret_cast<const crypto::hash*>(txid_data.data());
-
-  if (txkey_text.size() < 64 || txkey_text.size() % 64)
-  {
-    error = tr("failed to parse tx key");
-    return false;
-  }
-  crypto::secret_key tx_key;
-  cryptonote::blobdata tx_key_data;
-  if(!epee::string_tools::parse_hexstr_to_binbuff(txkey_text, tx_key_data) || tx_key_data.size() != sizeof(crypto::hash))
-  {
-    error = tr("failed to parse tx key");
-    return false;
-  }
-  tx_key = *reinterpret_cast<const crypto::secret_key*>(tx_key_data.data());
-
-  bool testnet = address_text[0] != '4';
-  cryptonote::account_public_address address;
-  bool has_payment_id;
-  crypto::hash8 payment_id;
-  if(!cryptonote::get_account_integrated_address_from_str(address, has_payment_id, payment_id, testnet, address_text))
-  {
-    error = tr("failed to parse address");
-    return false;
-  }
-
-  cryptonote::COMMAND_RPC_GET_TRANSACTIONS::request req;
-  cryptonote::COMMAND_RPC_GET_TRANSACTIONS::response res;
-  req.txs_hashes.push_back(epee::string_tools::pod_to_hex(txid));
-  if (!connect_and_invoke(m_daemonAddress, "/gettransactions", req, res) ||
-      (res.txs.size() != 1 && res.txs_as_hex.size() != 1))
-  {
-    error = tr("failed to get transaction from daemon");
-    return false;
-  }
-  cryptonote::blobdata tx_data;
-  bool ok;
-  if (res.txs.size() == 1)
-    ok = epee::string_tools::parse_hexstr_to_binbuff(res.txs.front().as_hex, tx_data);
-  else
-    ok = epee::string_tools::parse_hexstr_to_binbuff(res.txs_as_hex.front(), tx_data);
-  if (!ok)
-  {
-    error = tr("failed to parse transaction from daemon");
-    return false;
-  }
-  crypto::hash tx_hash, tx_prefix_hash;
-  cryptonote::transaction tx;
-  if (!cryptonote::parse_and_validate_tx_from_blob(tx_data, tx, tx_hash, tx_prefix_hash))
-  {
-    error = tr("failed to validate transaction from daemon");
-    return false;
-  }
-  if (tx_hash != txid)
-  {
-    error = tr("failed to get the right transaction from daemon");
-    return false;
-  }
-
-  crypto::key_derivation derivation;
-  if (!crypto::generate_key_derivation(address.m_view_public_key, tx_key, derivation))
-  {
-    error = tr("failed to generate key derivation from supplied parameters");
-    return false;
-  }
-
-  received = 0;
-  try {
-    for (size_t n = 0; n < tx.vout.size(); ++n)
-    {
-      if (typeid(cryptonote::txout_to_key) != tx.vout[n].target.type())
-        continue;
-      const cryptonote::txout_to_key tx_out_to_key = boost::get<cryptonote::txout_to_key>(tx.vout[n].target);
-      crypto::public_key pubkey;
-      derive_public_key(derivation, n, address.m_spend_public_key, pubkey);
-      if (pubkey == tx_out_to_key.key)
-      {
-        uint64_t amount;
-        if (tx.version == 1)
-        {
-          amount = tx.vout[n].amount;
-        }
-        else
-        {
-          try
-          {
-            rct::key Ctmp;
-            //rct::key amount_key = rct::hash_to_scalar(rct::scalarmultKey(rct::pk2rct(address.m_view_public_key), rct::sk2rct(tx_key)));
-            crypto::key_derivation derivation;
-            bool r = crypto::generate_key_derivation(address.m_view_public_key, tx_key, derivation);
-            if (!r)
-            {
-              LOG_ERROR("Failed to generate key derivation to decode rct output " << n);
-              amount = 0;
-            }
-            else
-            {
-              crypto::secret_key scalar1;
-              crypto::derivation_to_scalar(derivation, n, scalar1);
-              rct::ecdhTuple ecdh_info = tx.rct_signatures.ecdhInfo[n];
-              rct::ecdhDecode(ecdh_info, rct::sk2rct(scalar1));
-              rct::key C = tx.rct_signatures.outPk[n].mask;
-              rct::addKeys2(Ctmp, ecdh_info.mask, ecdh_info.amount, rct::H);
-              if (rct::equalKeys(C, Ctmp))
-                amount = rct::h2d(ecdh_info.amount);
-              else
-                amount = 0;
-            }
-          }
-          catch (...) { amount = 0; }
-        }
-        received += amount;
-      }
-    }
-  }
-  catch(const std::exception &e)
-  {
-    LOG_ERROR("error: " << e.what());
-    error = std::string(tr("error: ")) + e.what();
-    return false;
-  }
-
-  if (received > 0)
-  {
-    LOG_PRINT_L1(get_account_address_as_str(testnet, address) << " " << tr("received") << " " << cryptonote::print_money(received) << " " << tr("in txid") << " " << txid);
-  }
-  else
-  {
-    LOG_PRINT_L1(get_account_address_as_str(testnet, address) << " " << tr("received nothing in txid") << " " << txid);
-  }
-  if (res.txs.front().in_pool)
-  {
-    height = 0;
-  }
-  else
-  {
-    height = res.txs.front().block_height;
-  }
-
-  return true;
 }
 
 uint64_t WalletManagerImpl::blockchainHeight() const
@@ -435,12 +307,14 @@ std::string WalletManagerImpl::resolveOpenAlias(const std::string &address, bool
     return addresses.front();
 }
 
-std::tuple<bool, std::string, std::string, std::string, std::string> WalletManager::checkUpdates(const std::string &software, const std::string &subdir)
+std::tuple<bool, std::string, std::string, std::string, std::string> WalletManager::checkUpdates(const std::string &software, std::string subdir)
 {
 #ifdef BUILD_TAG
     static const char buildtag[] = BOOST_PP_STRINGIZE(BUILD_TAG);
 #else
     static const char buildtag[] = "source";
+    // Override the subdir string when built from source
+    subdir = "source";
 #endif
 
     std::string version, hash;

@@ -1,5 +1,5 @@
 name: graft
-version: 0.10.2-1
+version: 1.1.0-1
 summary: "Graft Network: the secure, private, untraceable cryptocurrency https://www.graft.network"
 description: |
     Graft Network is a private, secure, untraceable, decentralised digital currency.
@@ -46,11 +46,15 @@ parts:
             - libunbound-dev
             - libevent-dev
             - libboost-all-dev
+            - libzmqpp-dev
+            - libzmq3-dev
+            - libsodium-dev
             - libdb-dev
             - libunwind-dev
             - libminiupnpc-dev
             - libldns-dev
             - libexpat1-dev
+            - libreadline6-dev
             - bison
             - doxygen
             - graphviz
