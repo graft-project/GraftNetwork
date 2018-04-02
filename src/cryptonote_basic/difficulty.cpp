@@ -204,7 +204,7 @@ namespace cryptonote {
         previous_max = max_timestamp;
       }
       // adjust = 0.99 for N=60, leaving the + 1 for now as it's not affecting N
-      target = 99 * (((length + 1) / 2) * target_seconds) / 100;
+      target = 0.9909 * (((length + 1) / 2) * target_seconds);
     }
 
     uint64_t minimum_timespan = target_seconds * length / 2;
