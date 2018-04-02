@@ -1,4 +1,4 @@
-// Copyright (c) 2017, The Graft Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -25,9 +25,6 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Parts of this file are originally copyright (c) 2014-2017, The Monero Project
-
 #include <boost/optional/optional.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/positional_options.hpp>
@@ -51,7 +48,9 @@ namespace wallet_args
   boost::optional<boost::program_options::variables_map> main(
     int argc, char** argv,
     const char* const usage,
+    const char* const notice,
     boost::program_options::options_description desc_params,
     const boost::program_options::positional_options_description& positional_options,
+    const std::function<void(const std::string&, bool)> &print,
     const char *default_log_name, bool log_to_console = false);
 }
