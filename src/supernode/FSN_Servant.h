@@ -32,7 +32,7 @@
 
 #include "FSN_ServantBase.h"
 #include <cryptonote_core/cryptonote_core.h>
-#include <wallet/wallet2_api.h>
+#include <wallet/api/wallet2_api.h>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/lock_guard.hpp>
 #include <string>
