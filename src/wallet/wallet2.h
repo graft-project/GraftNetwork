@@ -967,7 +967,7 @@ namespace tools
     void set_account_tag_description(const std::string& tag, const std::string& description);
 
     std::string sign(const std::string &data) const;
-    bool verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature) const;
+    static bool verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature);
 
     // Import/Export wallet data
     std::vector<tools::wallet2::transfer_details> export_outputs() const;
