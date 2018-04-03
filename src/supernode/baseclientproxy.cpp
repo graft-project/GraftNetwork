@@ -90,7 +90,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
 
     std::unique_ptr<tools::GraftWallet> wal =
             tools::GraftWallet::createWallet(std::string(), m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
-                                             m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
+                                             m_Servant->GetNodeLogin(), m_Servant->nettype());
     if (!wal)
     {
         out.Result = ERROR_CREATE_WALLET_FAILED;
@@ -109,7 +109,7 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
         return false;
     }
     out.Account = base64_encode(wal->store_keys_graft(in.Password));
-    out.Address = wal->get_account().get_public_address_str(wal->testnet());
+    out.Address = wal->get_account().get_public_address_str(wal->nettype());
     out.ViewKey = epee::string_tools::pod_to_hex(wal->get_account().get_keys().m_view_secret_key);
     std::string seed;
     wal->get_seed(seed);
@@ -152,7 +152,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
     }
     std::unique_ptr<tools::GraftWallet> wal =
         tools::GraftWallet::createWallet(std::string(), m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
-                                             m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
+                                             m_Servant->GetNodeLogin(), m_Servant->nettype());
     if (!wal)
     {
         out.Result = ERROR_CREATE_WALLET_FAILED;
@@ -163,7 +163,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         wal->set_seed_language(old_language);
         wal->generate_graft(in.Password, recovery_key, true, false);
         out.Account = base64_encode(wal->store_keys_graft(in.Password));
-        out.Address = wal->get_account().get_public_address_str(wal->testnet());
+        out.Address = wal->get_account().get_public_address_str(wal->nettype());
         out.ViewKey = epee::string_tools::pod_to_hex(
                     wal->get_account().get_keys().m_view_secret_key);
         std::string seed;
@@ -217,8 +217,10 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
         uint64_t mixin = 4;
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
+        std::set<uint32_t> subaddr_indices;
+        uint32_t subaddr_account = 0;
         std::vector<tools::GraftWallet::pending_tx> ptx_vector =
-                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, false);
+                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices, false);
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)
@@ -298,8 +300,10 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
         bool do_not_relay = false;
         bool get_tx_key = false;
         bool get_tx_hex = false;
+        std::set<uint32_t> subaddr_indices;
+        uint32_t subaddr_account = 0;
         std::vector<tools::GraftWallet::pending_tx> ptx_vector =
-                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, false);
+                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices, false);
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)
@@ -369,14 +373,13 @@ bool supernode::BaseClientProxy::validate_transfer(const string &account, const 
         return false;
     }
 
-    crypto::hash8 integrated_payment_id = cryptonote::null_hash8;
+    crypto::hash8 integrated_payment_id = crypto::null_hash8;
     std::string extra_nonce;
 
-    cryptonote::tx_destination_entry de;
-    bool has_payment_id;
-    crypto::hash8 new_payment_id;
+
+    cryptonote::address_parse_info address_info;
     std::string errorString;
-    if (!get_account_address_from_str_or_url(de.addr, has_payment_id, new_payment_id, wal->testnet(),address,
+    if (!cryptonote::get_account_address_from_str_or_url(address_info, wal->nettype(), address,
                                              [&errorString](const std::string &url, const std::vector<std::string> &addresses, bool dnssec_valid)->std::string {
                                              if (!dnssec_valid)
                                              {
@@ -396,18 +399,21 @@ bool supernode::BaseClientProxy::validate_transfer(const string &account, const 
             errorString = std::string("WALLET_RPC_ERROR_CODE_WRONG_ADDRESS: ") + address;
         return false;
     }
+    cryptonote::tx_destination_entry de;
+    de.addr = address_info.address;
     de.amount = amount;
     dsts.push_back(de);
 
-    if (has_payment_id)
+    if (address_info.has_payment_id)
     {
-        if (!payment_id.empty() || integrated_payment_id != cryptonote::null_hash8)
+        // TODO: integrated_payment_id != cryptonote::null_hash8 -> always false?
+        if (!payment_id.empty() || integrated_payment_id != crypto::null_hash8)
         {
 //            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
 //            er.message = "A single payment id is allowed per transaction";
             return false;
         }
-        integrated_payment_id = new_payment_id;
+        integrated_payment_id = address_info.payment_id;
         cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, integrated_payment_id);
 
         /* Append Payment ID data into extra */
@@ -462,14 +468,14 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
     {
         wal = tools::GraftWallet::createWallet(account, password, "",
                                                m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
-                                         m_Servant->GetNodeLogin(), m_Servant->IsTestnet());
+                                         m_Servant->GetNodeLogin(), m_Servant->nettype());
         std::string lDataDir = tools::get_default_data_dir() + scWalletCachePath;
         if (!boost::filesystem::exists(lDataDir))
         {
             boost::filesystem::create_directories(lDataDir);
         }
         std::string lCacheFile = lDataDir +
-                wal->get_account().get_public_address_str(wal->testnet());
+                wal->get_account().get_public_address_str(wal->nettype());
         if (boost::filesystem::exists(lCacheFile))
         {
             wal->load_cache(lCacheFile);
@@ -492,7 +498,7 @@ void supernode::BaseClientProxy::storeWalletState(tools::GraftWallet *wallet)
             boost::filesystem::create_directories(lDataDir);
         }
         std::string lCacheFile = lDataDir +
-                wallet->get_account().get_public_address_str(wallet->testnet());
+                wallet->get_account().get_public_address_str(wallet->nettype());
         wallet->store_cache(lCacheFile);
     }
 }

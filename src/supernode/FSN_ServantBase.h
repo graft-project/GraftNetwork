@@ -85,11 +85,12 @@ namespace supernode {
          */
         std::string GetNodePassword() const;
 
+
         /*!
-         * \brief IsTestnet - indicates if
-         * \return
+         * \brief nettype
+         * \return network type
          */
-        bool IsTestnet() const;
+        cryptonote::network_type nettype() const;
 
     protected:
         /*!
@@ -111,7 +112,7 @@ namespace supernode {
 	    vector< boost::shared_ptr<FSN_Data> > All_FSN;// access to this data may be done from different threads
 
     protected:
-        bool  m_testnet = false;
+        cryptonote::network_type  m_nettype = cryptonote::MAINNET;
         // IP address for access to graft node
         std::string m_nodeIp;
         // TCP port  for access to graft node

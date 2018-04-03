@@ -56,7 +56,7 @@ public:
      */
     // TODO: add credentials for the node
     FSN_Servant(const string &bdb_path, const string &node_addr, const string &node_login, const string &node_password,
-                const string &fsn_wallets_dir, bool testnet = false);
+                const string &fsn_wallets_dir, cryptonote::network_type nettype = cryptonote::MAINNET);
     // data for my wallet access
     void Set(const string& stakeFileName, const string& stakePasswd, const string& minerFileName, const string& minerPasswd);
     // start from blockchain top and check, if block solved by one from  full_super_node_servant::all_fsn
@@ -120,16 +120,16 @@ public:
 private:
     static bool proofCoinbaseTx(const cryptonote::account_public_address &address, const cryptonote::block &block,
                          const crypto::secret_key &viewkey);
-    bool initBlockchain(const std::string &dbpath, bool testnet);
+    bool initBlockchain(const std::string &dbpath, cryptonote::network_type nettype);
 
-    Monero::Wallet * initWallet(Monero::Wallet *existingWallet, const string &path, const string &password, bool testnet);
+    Monero::Wallet * initWallet(Monero::Wallet *existingWallet, const string &path, const string &password, cryptonote::network_type nettype);
     /*!
      * \brief initViewOnlyWallet - creates new or opens existing view only wallet
      * \brief walletData         - address and viewkey
-     * \param testnet            - testnet flag
+     * \param nettype            - network type (mainnet/testnet/stagenet)
      * \return                   - pointer to Monero::Wallet obj
      */
-    Monero::Wallet * initViewOnlyWallet(const FSN_WalletData &walletData, bool testnet) const;
+    Monero::Wallet * initViewOnlyWallet(const FSN_WalletData &walletData, cryptonote::network_type nettype) const;
     static FSN_WalletData walletData(Monero::Wallet * wallet);
 
     Monero::Wallet * getMyWalletByAddress(const std::string &address) const;
