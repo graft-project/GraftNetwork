@@ -44,28 +44,28 @@ class Serialization_portability_wallet_Test;
 
 namespace tools
 {
-  class PendingTransaction;
+class PendingTransaction;
 
-  class GraftWallet : public wallet2
-  {
-    friend class ::Serialization_portability_wallet_Test;
-  public:
-    static bool verify(const std::string &message, const std::string &address, const std::string &signature, bool isTestnet);
-    static std::unique_ptr<GraftWallet> createWallet(const std::string &daemon_address = std::string(),
-                                                     const std::string &daemon_host = std::string(),
-                                                     int daemon_port = 0,
-                                                     const std::string &daemon_login = std::string(),
-                                                     bool testnet = false, bool restricted = false);
-    static std::unique_ptr<GraftWallet> createWallet(const std::string &account_data,
-                                                     const std::string &password,
-                                                     const std::string &daemon_address = std::string(),
-                                                     const std::string &daemon_host = std::string(),
-                                                     int daemon_port = 0,
-                                                     const std::string &daemon_login = std::string(),
-                                                     bool testnet = false, bool restricted = false);
+class GraftWallet : public wallet2
+{
+  friend class ::Serialization_portability_wallet_Test;
+public:
+  static bool verify(const std::string &message, const std::string &address, const std::string &signature, cryptonote::network_type nettype);
+  static std::unique_ptr<GraftWallet> createWallet(const std::string &daemon_address = std::string(),
+                                                   const std::string &daemon_host = std::string(),
+                                                   int daemon_port = 0,
+                                                   const std::string &daemon_login = std::string(),
+                                                   cryptonote::network_type nettype = cryptonote::MAINNET , bool restricted = false);
+  static std::unique_ptr<GraftWallet> createWallet(const std::string &account_data,
+                                                   const std::string &password,
+                                                   const std::string &daemon_address = std::string(),
+                                                   const std::string &daemon_host = std::string(),
+                                                   int daemon_port = 0,
+                                                   const std::string &daemon_login = std::string(),
+                                                   cryptonote::network_type = cryptonote::MAINNET, bool restricted = false);
 
 
-    /*!
+  /*!
      * \brief  Generates a wallet or restores one.
      * \param  password       Password of wallet file
      * \param  recovery_param If it is a restore, the recovery key
@@ -73,12 +73,27 @@ namespace tools
      * \param  two_random     Whether it is a non-deterministic wallet
      * \return                The secret key of the generated wallet
      */
-    crypto::secret_key generate_graft(const std::string& password,
-                                      const crypto::secret_key& recovery_param,
-                                      bool recover, bool two_random);
-    void load_graft(const std::string& data, const std::string& password, const std::string &cache_file);
+  crypto::secret_key generate_graft(const std::string& password,
+                                    const crypto::secret_key& recovery_param,
+                                    bool recover, bool two_random);
+  void load_graft(const std::string& data, const std::string& password, const std::string &cache_file);
+
+  //Graft Test
+  std::string store_keys_graft(const std::string& password, bool watch_only = false);
+  bool load_keys_graft(const std::string& data, const std::string& password);
+
+  /*!
+       * \brief load_cache - loads cache from given filename.
+       *                     wallet's private keys should be already loaded before this call
+       * \param filename - filename pointing to the file with cache
+       */
+  void load_cache(const std::string &filename);
+  /*!
+       * \brief store_cache - stores only cache to the file. cache is encrypted using wallet's private keys
+       * \param path - filename to store the cache
+       */
+  void store_cache(const std::string &filename);
 
 
-
-  };
+};
 }
