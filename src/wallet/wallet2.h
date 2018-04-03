@@ -134,9 +134,11 @@ namespace tools
     std::deque<crypto::hash> m_blockchain;
   };
 
+  class GraftWallet;
   class wallet2
   {
     friend class ::Serialization_portability_wallet_Test;
+    friend class GraftWallet;
   public:
     static constexpr const std::chrono::seconds rpc_timeout = std::chrono::minutes(3) + std::chrono::seconds(30);
 
