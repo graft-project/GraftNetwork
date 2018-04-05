@@ -730,16 +730,7 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   auto height = m_db->height();
 
   uint8_t version = get_current_hard_fork_version();
-  size_t difficulty_blocks_count;
-  if (version < 8)
-  {
-      difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT;
-  }
-  else
-  {
-      difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT_V8;
-  }
-
+  size_t difficulty_blocks_count = (version < 8) ? DIFFICULTY_BLOCKS_COUNT : DIFFICULTY_BLOCKS_COUNT_V8;
 
   // ND: Speedup
   // 1. Keep a list of the last 735 (or less) blocks that is used to compute difficulty,
