@@ -731,7 +731,7 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
 
   uint8_t version = get_current_hard_fork_version();
   size_t difficulty_blocks_count;
-  if (version < 1)
+  if (version < 8)
   {
       difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT;
   }
