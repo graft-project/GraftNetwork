@@ -1,21 +1,21 @@
-// Copyright (c) 2017, The Graft Project
-//
+// Copyright (c) 2017, The Monero Project
+// 
 // All rights reserved.
-//
+// 
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-//
+// 
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-//
+// 
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-//
+// 
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-//
+// 
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -25,41 +25,40 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
-#include "graft_defines.h"
-#include "PosProxy.h"
+#include "gtest/gtest.h"
 
-void supernode::PosProxy::Init() {
-    BaseClientProxy::Init();
-    m_Work.Workers(10);
-	m_DAPIServer->ADD_DAPI_HANDLER(Sale, rpc_command::POS_SALE, PosProxy);
-	// TODO: add all other handlers
+#include <stdint.h>
+#include "misc_log_ex.h"
+#include "memwipe.h"
+
+// Probably won't catch the optimized out case, but at least we test
+// it works in the normal case
+static void test(bool wipe)
+{
+  char *foo = (char*)malloc(4);
+  ASSERT_TRUE(foo != NULL);
+  intptr_t foop = (intptr_t)foo;
+  strcpy(foo, "bar");
+  void *bar = wipe ? memwipe(foo, 3) : memset(foo, 0, 3);
+  ASSERT_EQ(foo, bar);
+  free(foo);
+  char *quux = (char*)malloc(4); // same size, just after free, so we're likely to get the same, depending on the allocator
+  if ((intptr_t)quux == foop)
+  {
+    MDEBUG(std::hex << std::setw(8) << std::setfill('0') << *(uint32_t*)quux);
+    if (wipe) { ASSERT_TRUE(memcmp(quux, "bar", 3)); }
+  }
+  else MWARNING("We did not get the same location, cannot check");
+  free(quux);
 }
 
+TEST(memwipe, control)
+{
+  test(false);
+}
 
-bool supernode::PosProxy::Sale(const rpc_command::POS_SALE::request& in, rpc_command::POS_SALE::response& out) {
-	LOG_PRINT_L0("PosProxy::Sale" << in.POSAddress << in.Amount);
-    //TODO: Add input data validation
-	boost::shared_ptr<PosSaleObject> data = boost::shared_ptr<PosSaleObject>( new PosSaleObject() );
-	data->Owner(this);
-	Setup(data);
-
-
-    if (!data->Init(in))
-    {
-        out.Result = ERROR_SALE_REQUEST_FAILED;
-        LOG_ERROR("ERROR_SALE_REQUEST_FAILED");
-        return false;
-    }
-	Add(data);
-
-	m_Work.Service.post( [data](){
-		data->ContinueInit();
-	} );
-
-	out.BlockNum = data->TransactionRecord.BlockNum;
-	out.PaymentID = data->TransactionRecord.PaymentID;
-    out.Result = STATUS_OK;
-	return true;
+TEST(memwipe, works)
+{
+  test(true);
 }

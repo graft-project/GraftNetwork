@@ -2062,11 +2062,11 @@ bool GraftWallet::store_keys(const std::string& keys_file_name, const std::strin
   account_data = buffer.GetString();
 
   // Encrypt the entire JSON object.
-  crypto::chacha8_key key;
-  crypto::generate_chacha8_key(password, key);
+  crypto::chacha_key key;
+  crypto::generate_chacha_key(password, key);
   std::string cipher;
   cipher.resize(account_data.size());
-  keys_file_data.iv = crypto::rand<crypto::chacha8_iv>();
+  keys_file_data.iv = crypto::rand<crypto::chacha_iv>();
   crypto::chacha8(account_data.data(), account_data.size(), key, keys_file_data.iv, &cipher[0]);
   keys_file_data.account_data = cipher;
 
@@ -2104,8 +2104,8 @@ bool GraftWallet::load_keys(const std::string& keys_file_name, const std::string
   // Decrypt the contents
   r = ::serialization::parse_binary(buf, keys_file_data);
   THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + keys_file_name + '\"');
-  crypto::chacha8_key key;
-  crypto::generate_chacha8_key(password, key);
+  crypto::chacha_key key;
+  crypto::generate_chacha_key(password, key);
   std::string account_data;
   account_data.resize(keys_file_data.account_data.size());
   crypto::chacha8(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
@@ -2256,8 +2256,8 @@ bool GraftWallet::verify_password(const std::string& keys_file_name, const std::
   // Decrypt the contents
   r = ::serialization::parse_binary(buf, keys_file_data);
   THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + keys_file_name + '\"');
-  crypto::chacha8_key key;
-  crypto::generate_chacha8_key(password, key);
+  crypto::chacha_key key;
+  crypto::generate_chacha_key(password, key);
   std::string account_data;
   account_data.resize(keys_file_data.account_data.size());
   crypto::chacha8(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
@@ -2816,7 +2816,7 @@ bool GraftWallet::check_connection(uint32_t *version, uint32_t timeout)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::generate_chacha8_key_from_secret_keys(crypto::chacha8_key &key) const
+bool GraftWallet::generate_chacha8_key_from_secret_keys(chacha_key &key) const
 {
   const account_keys &keys = m_account.get_keys();
   const crypto::secret_key &view_key = keys.m_view_secret_key;
@@ -2825,7 +2825,7 @@ bool GraftWallet::generate_chacha8_key_from_secret_keys(crypto::chacha8_key &key
   memcpy(data, &view_key, sizeof(view_key));
   memcpy(data + sizeof(view_key), &spend_key, sizeof(spend_key));
   data[sizeof(data) - 1] = CHACHA8_KEY_TAIL;
-  crypto::generate_chacha8_key(data, sizeof(data), key);
+  crypto::generate_chacha_key(data, sizeof(data), key);
   memset(data, 0, sizeof(data));
   return true;
 }
@@ -2885,7 +2885,7 @@ void GraftWallet::load_cache(const std::string &filename)
         LOG_PRINT_L1("Trying to decrypt cache data");
         r = ::serialization::parse_binary(buf, cache_file_data);
         THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + filename + '\"');
-        crypto::chacha8_key key;
+        crypto::chacha_key key;
         generate_chacha8_key_from_secret_keys(key);
         std::string cache_data;
         cache_data.resize(cache_file_data.cache_data.size());
@@ -2960,11 +2960,11 @@ void GraftWallet::store_cache(const string &filename)
 
     GraftWallet::cache_file_data cache_file_data = boost::value_initialized<GraftWallet::cache_file_data>();
     cache_file_data.cache_data = oss.str();
-    crypto::chacha8_key key;
+    crypto::chacha_key key;
     generate_chacha8_key_from_secret_keys(key);
     std::string cipher;
     cipher.resize(cache_file_data.cache_data.size());
-    cache_file_data.iv = crypto::rand<crypto::chacha8_iv>();
+    cache_file_data.iv = crypto::rand<crypto::chacha_iv>();
     crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
     cache_file_data.cache_data = cipher;
 
@@ -3960,11 +3960,11 @@ std::string GraftWallet::store_keys_graft(const std::string& password, bool watc
   account_data = buffer.GetString();
 
   // Encrypt the entire JSON object.
-  crypto::chacha8_key key;
-  crypto::generate_chacha8_key(password, key);
+  crypto::chacha_key key;
+  crypto::generate_chacha_key(password, key);
   std::string cipher;
   cipher.resize(account_data.size());
-  keys_file_data.iv = crypto::rand<crypto::chacha8_iv>();
+  keys_file_data.iv = crypto::rand<crypto::chacha_iv>();
   crypto::chacha8(account_data.data(), account_data.size(), key, keys_file_data.iv, &cipher[0]);
   keys_file_data.account_data = cipher;
 
@@ -3987,8 +3987,8 @@ bool GraftWallet::load_keys_graft(const string &data, const string &password)
         // Decrypt the contents
         bool r = ::serialization::parse_binary(data, keys_file_data);
         THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize");
-        crypto::chacha8_key key;
-        crypto::generate_chacha8_key(password, key);
+        crypto::chacha_key key;
+        crypto::generate_chacha_key(password, key);
         account_data.resize(keys_file_data.account_data.size());
         crypto::chacha8(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
     }
@@ -5735,7 +5735,7 @@ bool GraftWallet::verifySignedMessage(const std::string &message, const std::str
 	  crypto::hash8 payment_id;
 
 	  if (!cryptonote::get_account_integrated_address_from_str(addr, has_payment_id, payment_id, isTestnet, address)) {
-		  LOG_PRINT_L5("!get_account_integrated_address_from_str");
+          LOG_PRINT_L0("!get_account_integrated_address_from_str");
 	    return false;
 	  }
 
@@ -6073,10 +6073,10 @@ size_t GraftWallet::import_outputs(const std::vector<tools::GraftWallet::transfe
 //----------------------------------------------------------------------------------------------------
 std::string GraftWallet::encrypt(const std::string &plaintext, const crypto::secret_key &skey, bool authenticated) const
 {
-  crypto::chacha8_key key;
-  crypto::generate_chacha8_key(&skey, sizeof(skey), key);
+  crypto::chacha_key key;
+  crypto::generate_chacha_key(&skey, sizeof(skey), key);
   std::string ciphertext;
-  crypto::chacha8_iv iv = crypto::rand<crypto::chacha8_iv>();
+  crypto::chacha_iv iv = crypto::rand<crypto::chacha_iv>();
   ciphertext.resize(plaintext.size() + sizeof(iv) + (authenticated ? sizeof(crypto::signature) : 0));
   crypto::chacha8(plaintext.data(), plaintext.size(), key, iv, &ciphertext[sizeof(iv)]);
   memcpy(&ciphertext[0], &iv, sizeof(iv));
@@ -6099,13 +6099,13 @@ std::string GraftWallet::encrypt_with_view_secret_key(const std::string &plainte
 //----------------------------------------------------------------------------------------------------
 std::string GraftWallet::decrypt(const std::string &ciphertext, const crypto::secret_key &skey, bool authenticated) const
 {
-  const size_t prefix_size = sizeof(chacha8_iv) + (authenticated ? sizeof(crypto::signature) : 0);
+  const size_t prefix_size = sizeof(chacha_iv) + (authenticated ? sizeof(crypto::signature) : 0);
   THROW_WALLET_EXCEPTION_IF(ciphertext.size() < prefix_size,
     error::wallet_internal_error, "Unexpected ciphertext size");
 
-  crypto::chacha8_key key;
-  crypto::generate_chacha8_key(&skey, sizeof(skey), key);
-  const crypto::chacha8_iv &iv = *(const crypto::chacha8_iv*)&ciphertext[0];
+  crypto::chacha_key key;
+  crypto::generate_chacha_key(&skey, sizeof(skey), key);
+  const crypto::chacha_iv &iv = *(const crypto::chacha_iv*)&ciphertext[0];
   std::string plaintext;
   plaintext.resize(ciphertext.size() - prefix_size);
   if (authenticated)

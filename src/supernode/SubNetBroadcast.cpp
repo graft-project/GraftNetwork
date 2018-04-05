@@ -85,14 +85,11 @@ void supernode::SubNetBroadcast::Set( DAPI_RPC_Server* pa, string subnet_id, con
 }
 
 void supernode::SubNetBroadcast::IncNoConnectAndRemove(const string& ip, const string& port) {
-//	LOG_PRINT_L5("IncNoConnectAndRemove =1 : "<<m_DAPIServer->Port()<<"  REM: "<<port);
 	boost::lock_guard<boost::recursive_mutex> lock(m_MembersGuard);
 	for(unsigned i=0;i<m_Members.size();i++) if( m_Members[i].IP==ip && m_Members[i].Port==port ) {
 		m_Members[i].NotAvailCount++;
-//		LOG_PRINT_L5("IncNoConnectAndRemove =2 : "<<m_DAPIServer->Port()<<"  REM: "<<port);
 		if( m_Members[i].NotAvailCount>=s_MaxNotAvailCount ) {
 			m_Members.erase( m_Members.begin()+i );
-//			LOG_PRINT_L5("IncNoConnectAndRemove =3 : "<<m_DAPIServer->Port()<<"  REM: "<<port);
 		}
 		break;
 	}

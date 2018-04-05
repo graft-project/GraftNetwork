@@ -100,7 +100,7 @@ struct Supernode
             objs[i]->Start();
         }
 
-        LOG_PRINT_L5("DAPI START on: "<<Port);
+        LOG_PRINT_L0("DAPI START on: "<<Port);
         Started = 1;
         dapi_server.Start();// block execution
 
@@ -144,7 +144,7 @@ struct Supernode
         Servant->AddFsnAccount(boost::make_shared<FSN_Data>(FSN_WalletData{address2, viewkey2}, FSN_WalletData{address1, viewkey1}, "127.0.0.1", p2));
 
 
-        LOG_PRINT_L5("STARTED: "<<(second?2:1));
+        LOG_PRINT_L0("STARTED: "<<(second?2:1));
 
 
         WorkerThread = new boost::thread(&Supernode::Run, this);
@@ -224,7 +224,7 @@ struct GraftRTATest1 : public testing::Test
 
     bool Assert(bool bb, const string& str) {
         if(!Verbose) return bb;
-        LOG_PRINT_L5(str<<" - "<<(bb?"OK":"Fail"));
+        LOG_PRINT_L0(str<<" - "<<(bb?"OK":"Fail"));
         return bb;
     }
 
@@ -284,7 +284,7 @@ struct GraftRTATest1 : public testing::Test
             if (Assert(result, "Pay"))
                 break;
             //boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-            //LOG_PRINT_L5("Pay ret: "<<ret);
+            //LOG_PRINT_L0("Pay ret: "<<ret);
         }
         if (!result)
             return false;
@@ -295,7 +295,7 @@ struct GraftRTATest1 : public testing::Test
             if (Assert(result, "GetPayStatus"))
                 break;
             //boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-            //LOG_PRINT_L5("GetPayStatus: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
+            //LOG_PRINT_L0("GetPayStatus: "<<(trs==NTRansactionStatus::Success)<<"  int: "<<int(trs));
 
         }
         if (!result)

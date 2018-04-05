@@ -108,6 +108,8 @@ static const struct {
   */
   // GRAFT: start hardfork v7 from 1st block
   { 7, 1, 0, 1503046577 },
+  // GRAFT: v8 starts from 65550 block, time is a few day earlier, 2018-04-10
+  { 8, 65550, 0, 1523318400 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -134,6 +136,8 @@ static const struct {
   */
   // GRAFT: start hardfork v7 from 1st block
   { 7, 1, 0, 1501709789 },
+  // GRAFT: private testnet hardfork v8 from block 57010
+  { 8, 55760, 0, 1522838800 },
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;

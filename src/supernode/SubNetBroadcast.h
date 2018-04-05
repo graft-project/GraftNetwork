@@ -140,7 +140,6 @@ namespace supernode {
 		public:
 		template<class IN_t, class OUT_t>
 		void DoCallInThread(string method, const IN_t in, OUT_t* outo, int* ret, string ip, string port) {
-			//LOG_PRINT_L5("call to: "<<ip<<"  : "<<port<<"/"<<method<<"  from: "<<m_DAPIServer->Port());
 			bool localcOk = false;
 			bool wasNoConnect = false;
 			for(unsigned k=0;k<RetryCount;k++) {
