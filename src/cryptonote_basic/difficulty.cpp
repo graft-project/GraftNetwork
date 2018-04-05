@@ -216,12 +216,7 @@ namespace cryptonote {
     assert(total_work > 0);
 
     uint64_t low, high;
-    // LOG_PRINT_L0("multiplying " << total_work  << " x "  << target  << " " << low << " "  << high);
     mul(total_work, target, low, high);
-    // LOG_PRINT_L0("multiplication result " << low <<  " " <<  high);
-    // LOG_PRINT_L0("weighted_timespans " << weighted_timespans);
-
-    // LOG_ERROR("high == " << high);
     if (high != 0) {
       return 0;
     }
