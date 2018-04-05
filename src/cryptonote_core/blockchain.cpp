@@ -774,12 +774,14 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   }
   size_t target = get_current_hard_fork_version() < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
 
-  if (version == 1) {
+  if (version < 8)
+  {
       return next_difficulty(timestamps, difficulties, target);
-  } else {
+  }
+  else
+  {
       return next_difficulty_v3(timestamps, difficulties, target);
   }
-
 }
 //------------------------------------------------------------------
 // This function removes blocks from the blockchain until it gets to the
