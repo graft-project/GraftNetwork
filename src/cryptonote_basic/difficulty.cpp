@@ -164,12 +164,12 @@ namespace cryptonote {
   }
 
 
-  difficulty_type next_difficulty_v3(std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulative_difficulties, size_t target_seconds) {
+  difficulty_type next_difficulty_v8(std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulative_difficulties, size_t target_seconds) {
 
-    if (timestamps.size() > DIFFICULTY_BLOCKS_COUNT_V3)
+    if (timestamps.size() > DIFFICULTY_BLOCKS_COUNT_V8)
     {
-      timestamps.resize(DIFFICULTY_BLOCKS_COUNT_V3);
-      cumulative_difficulties.resize(DIFFICULTY_BLOCKS_COUNT_V3);
+      timestamps.resize(DIFFICULTY_BLOCKS_COUNT_V8);
+      cumulative_difficulties.resize(DIFFICULTY_BLOCKS_COUNT_V8);
     }
 
     size_t length = timestamps.size();

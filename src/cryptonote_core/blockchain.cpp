@@ -737,7 +737,7 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   }
   else
   {
-      difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT_V3;
+      difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT_V8;
   }
 
 
@@ -787,7 +787,7 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   }
   else
   {
-      return next_difficulty_v3(timestamps, difficulties, target);
+      return next_difficulty_v8(timestamps, difficulties, target);
   }
 }
 //------------------------------------------------------------------
