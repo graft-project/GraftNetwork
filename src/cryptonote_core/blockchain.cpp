@@ -137,7 +137,7 @@ static const struct {
   // GRAFT: start hardfork v7 from 1st block
   { 7, 1, 0, 1501709789 },
   // GRAFT: public testnet hardfork v8 from block 57105
-  { 8, 57105, 0, 1522838800 },
+  { 8, 55705, 0, 1522838800 },
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
@@ -977,12 +977,20 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
         break;
     }
   }
-
+  uint8_t ideal_hardfork_version = get_ideal_hard_fork_version(bei.height);
   // FIXME: This will fail if fork activation heights are subject to voting
-  size_t target = get_ideal_hard_fork_version(bei.height) < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
-
+  size_t target = ideal_hardfork_version < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+  difficulty_type result = 0;
   // calculate the difficulty target for the block and return it
-  return next_difficulty(timestamps, cumulative_difficulties, target);
+  if (ideal_hardfork_version < 8) {
+      LOG_PRINT_L2("old difficulty algo");
+      result = next_difficulty(timestamps, cumulative_difficulties, target);
+  } else {
+      LOG_PRINT_L2("new difficulty algo");
+      result = next_difficulty_v8(timestamps, cumulative_difficulties, target);
+  }
+  LOG_PRINT_L2("difficulty: " << result);
+  return result;
 }
 //------------------------------------------------------------------
 // This function does a sanity check on basic things that all miner
