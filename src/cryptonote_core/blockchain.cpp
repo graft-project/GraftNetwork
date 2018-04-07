@@ -136,8 +136,8 @@ static const struct {
   */
   // GRAFT: start hardfork v7 from 1st block
   { 7, 1, 0, 1501709789 },
-  // GRAFT: public testnet hardfork v8 from block 57105
-  { 8, 55705, 0, 1522838800 },
+  // GRAFT: public testnet hardfork v8 from block 57640
+  { 8, 57640, 0, 1522838800 },
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
