@@ -928,15 +928,26 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   std::vector<uint64_t> timestamps;
   std::vector<difficulty_type> cumulative_difficulties;
 
+  uint8_t ideal_hardfork_version = get_ideal_hard_fork_version(bei.height);
+  size_t difficulty_blocks_count;
+  if (ideal_hardfork_version < 8)
+  {
+      difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT;
+  }
+  else
+  {
+      difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT_V8;
+  }
+
   // if the alt chain isn't long enough to calculate the difficulty target
   // based on its blocks alone, need to get more blocks from the main chain
-  if(alt_chain.size()< DIFFICULTY_BLOCKS_COUNT)
+  if(alt_chain.size()< difficulty_blocks_count)
   {
     CRITICAL_REGION_LOCAL(m_blockchain_lock);
 
     // Figure out start and stop offsets for main chain blocks
     size_t main_chain_stop_offset = alt_chain.size() ? alt_chain.front()->second.height : bei.height;
-    size_t main_chain_count = DIFFICULTY_BLOCKS_COUNT - std::min(static_cast<size_t>(DIFFICULTY_BLOCKS_COUNT), alt_chain.size());
+    size_t main_chain_count = difficulty_blocks_count - std::min(static_cast<size_t>(difficulty_blocks_count), alt_chain.size());
     main_chain_count = std::min(main_chain_count, main_chain_stop_offset);
     size_t main_chain_start_offset = main_chain_stop_offset - main_chain_count;
 
@@ -951,7 +962,7 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
     }
 
     // make sure we haven't accidentally grabbed too many blocks...maybe don't need this check?
-    CHECK_AND_ASSERT_MES((alt_chain.size() + timestamps.size()) <= DIFFICULTY_BLOCKS_COUNT, false, "Internal error, alt_chain.size()[" << alt_chain.size() << "] + vtimestampsec.size()[" << timestamps.size() << "] NOT <= DIFFICULTY_WINDOW[]" << DIFFICULTY_BLOCKS_COUNT);
+    CHECK_AND_ASSERT_MES((alt_chain.size() + timestamps.size()) <= difficulty_blocks_count, false, "Internal error, alt_chain.size()[" << alt_chain.size() << "] + vtimestampsec.size()[" << timestamps.size() << "] NOT <= DIFFICULTY_WINDOW[]" << difficulty_blocks_count);
 
     for (auto it : alt_chain)
     {
@@ -963,8 +974,8 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   // and timestamps from it alone
   else
   {
-    timestamps.resize(static_cast<size_t>(DIFFICULTY_BLOCKS_COUNT));
-    cumulative_difficulties.resize(static_cast<size_t>(DIFFICULTY_BLOCKS_COUNT));
+    timestamps.resize(static_cast<size_t>(difficulty_blocks_count));
+    cumulative_difficulties.resize(static_cast<size_t>(difficulty_blocks_count));
     size_t count = 0;
     size_t max_i = timestamps.size()-1;
     // get difficulties and timestamps from most recent blocks in alt chain
@@ -973,11 +984,10 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
       timestamps[max_i - count] = it->second.bl.timestamp;
       cumulative_difficulties[max_i - count] = it->second.cumulative_difficulty;
       count++;
-      if(count >= DIFFICULTY_BLOCKS_COUNT)
+      if(count >= difficulty_blocks_count)
         break;
     }
   }
-  uint8_t ideal_hardfork_version = get_ideal_hard_fork_version(bei.height);
   // FIXME: This will fail if fork activation heights are subject to voting
   size_t target = ideal_hardfork_version < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
   difficulty_type result = 0;
