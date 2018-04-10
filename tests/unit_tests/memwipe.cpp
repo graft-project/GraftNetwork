@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2017, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -25,34 +25,40 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
-// Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
-#pragma once
+#include "gtest/gtest.h"
 
-#include <cstdint>
-#include <vector>
+#include <stdint.h>
+#include "misc_log_ex.h"
+#include "memwipe.h"
 
-#include "crypto/hash.h"
-
-namespace cryptonote
+// Probably won't catch the optimized out case, but at least we test
+// it works in the normal case
+static void test(bool wipe)
 {
-    typedef std::uint64_t difficulty_type;
+  char *foo = (char*)malloc(4);
+  ASSERT_TRUE(foo != NULL);
+  intptr_t foop = (intptr_t)foo;
+  strcpy(foo, "bar");
+  void *bar = wipe ? memwipe(foo, 3) : memset(foo, 0, 3);
+  ASSERT_EQ(foo, bar);
+  free(foo);
+  char *quux = (char*)malloc(4); // same size, just after free, so we're likely to get the same, depending on the allocator
+  if ((intptr_t)quux == foop)
+  {
+    MDEBUG(std::hex << std::setw(8) << std::setfill('0') << *(uint32_t*)quux);
+    if (wipe) { ASSERT_TRUE(memcmp(quux, "bar", 3)); }
+  }
+  else MWARNING("We did not get the same location, cannot check");
+  free(quux);
+}
 
-    /**
-     * @brief checks if a hash fits the given difficulty
-     *
-     * The hash passes if (hash * difficulty) < 2^256.
-     * Phrased differently, if (hash * difficulty) fits without overflow into
-     * the least significant 256 bits of the 320 bit multiplication result.
-     *
-     * @param hash the hash to check
-     * @param difficulty the difficulty to check against
-     *
-     * @return true if valid, else false
-     */
-    bool check_hash(const crypto::hash &hash, difficulty_type difficulty);
-    difficulty_type next_difficulty(std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulative_difficulties, size_t target_seconds);
-    difficulty_type next_difficulty_v8(std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulative_difficulties, size_t target_seconds);
+TEST(memwipe, control)
+{
+  test(false);
+}
 
+TEST(memwipe, works)
+{
+  test(true);
 }
