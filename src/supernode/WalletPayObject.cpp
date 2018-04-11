@@ -30,6 +30,9 @@
 #include "WalletPayObject.h"
 #include "graft_defines.h"
 #include "WalletProxy.h"
+#include "wallet/api/wallet2_api.h"
+
+using namespace Monero;
 
 void supernode::WalletPayObject::Owner(WalletProxy* o) { m_Owner = o; }
 
@@ -46,38 +49,38 @@ bool supernode::WalletPayObject::OpenSenderWallet(const string &wallet, const st
 }
 
 void supernode::WalletPayObject::BeforStart() {
-	m_Status = NTransactionStatus::InProgress;
-	ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
+    m_Status = NTransactionStatus::InProgress;
+    ADD_RTA_OBJECT_HANDLER(GetPayStatus, rpc_command::WALLET_GET_TRANSACTION_STATUS, WalletPayObject);
 }
 
 
 bool supernode::WalletPayObject::Init(const rpc_command::WALLET_PAY::request& src) {
-	bool ret = _Init(src);
+    bool ret = _Init(src);
     m_Status = ret ? NTransactionStatus::Success : NTransactionStatus::Fail;
-	return ret;
+    return ret;
 }
 
 bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& src) {
-	BaseRTAObject::Init(src);
+    BaseRTAObject::Init(src);
 
     if( !OpenSenderWallet(m_Owner->base64_decode(src.Account), src.Password) ) { LOG_ERROR("!OpenSenderWallet"); return false; }
 
-	// we allready have block num
-	TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
+    // we allready have block num
+    TransactionRecord.AuthNodes = m_Servant->GetAuthSample( TransactionRecord.BlockNum );
     if ( TransactionRecord.AuthNodes.empty() ) {
         LOG_ERROR("Failed to get auth sample");
         return false;
     }
 
-	InitSubnet();
+    InitSubnet();
 
-	vector<rpc_command::WALLET_PROXY_PAY::response> outv;
-	rpc_command::WALLET_PROXY_PAY::request inbr;
-	rpc_command::ConvertFromTR(inbr, TransactionRecord);
-	string cwa = m_wallet->get_account().get_public_address_str(m_wallet->testnet());;
-	string data = TransactionRecord.PaymentID + string(":") + cwa;
-	inbr.CustomerWalletAddr = cwa;
-	inbr.CustomerWalletSign = m_wallet->sign(data);
+    vector<rpc_command::WALLET_PROXY_PAY::response> outv;
+    rpc_command::WALLET_PROXY_PAY::request inbr;
+    rpc_command::ConvertFromTR(inbr, TransactionRecord);
+    string cwa = m_wallet->get_account().get_public_address_str(m_wallet->nettype());
+    string data = TransactionRecord.PaymentID + string(":") + cwa;
+    inbr.CustomerWalletAddr = cwa;
+    inbr.CustomerWalletSign = m_wallet->sign(data);
 
     if( !m_SubNetBroadcast.Send(dapi_call::WalletProxyPay, inbr, outv) || outv.empty() )  {
         LOG_ERROR("Failed to send WalletProxyPay broadcast");
@@ -97,32 +100,32 @@ bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& s
 
     for (auto& a : outv) {
 
-		if( !CheckSign(a.FSN_StakeWalletAddr, a.Sign) ) return false;
-		m_Signs.push_back(a.Sign);
+        if( !CheckSign(a.FSN_StakeWalletAddr, a.Sign) ) return false;
+        m_Signs.push_back(a.Sign);
         LOG_PRINT_L0("pushing sign " << a.Sign << " to tx,  checked with address: " << a.FSN_StakeWalletAddr);
 
-	}
+    }
 
 
 
-	if( !PutTXToPool() ) return false;
+    if( !PutTXToPool() ) return false;
 
-	rpc_command::WALLET_PUT_TX_IN_POOL::request req;
-	req.PaymentID = TransactionRecord.PaymentID;
-	req.TransactionPoolID = m_TransactionPoolID;
+    rpc_command::WALLET_PUT_TX_IN_POOL::request req;
+    req.PaymentID = TransactionRecord.PaymentID;
+    req.TransactionPoolID = m_TransactionPoolID;
 
-	vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
+    vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
 
-	if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
+    if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
 
 
-	return true;
+    return true;
 }
 
 bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out) {
-	LOG_PRINT_L0("WalletPayObject::GetPayStatus" << in.PaymentID);
-	out.Status = int(m_Status);
-	//TimeMark -= boost::posix_time::hours(3);
+    LOG_PRINT_L0("WalletPayObject::GetPayStatus" << in.PaymentID);
+    out.Status = int(m_Status);
+    //TimeMark -= boost::posix_time::hours(3);
     out.Result = STATUS_OK;
     return true;
 }
@@ -131,8 +134,8 @@ bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRAN
 
 
 bool supernode::WalletPayObject::PutTXToPool() {
-	// TODO: IMPL. all needed data we have in TransactionRecord + m_Signs.
-	// TODO: Result, monero_tranaction_id must be putted to m_TransactionPoolID
+    // TODO: IMPL. all needed data we have in TransactionRecord + m_Signs.
+    // TODO: Result, monero_tranaction_id must be putted to m_TransactionPoolID
 
     // TODO: send tx to blockchain
     // Things we need here here
@@ -152,18 +155,18 @@ bool supernode::WalletPayObject::PutTXToPool() {
     tx_extra.PaymentID = TransactionRecord.PaymentID;
     tx_extra.Signs = m_Signs;
 
-//    for (auto &sign : tx_extra.Signs) {
-//        LOG_PRINT_L0("pushing sign to tx extra: " << sign);
-//    }
+    //    for (auto &sign : tx_extra.Signs) {
+    //        LOG_PRINT_L0("pushing sign to tx extra: " << sign);
+    //    }
 
-    std::unique_ptr<PendingTransaction> ptx {
-            m_wallet->createTransaction(TransactionRecord.POSAddress,
-                                      "",
-                                      TransactionRecord.Amount,
-                                      0,
-                                      tx_extra,
-                                      Monero::PendingTransaction::Priority_Medium
-                                      )};
+    std::unique_ptr<Monero::PendingTransaction> ptx {
+        m_wallet->createTransaction(TransactionRecord.POSAddress,
+                                    "",
+                                    TransactionRecord.Amount,
+                                    0,
+                                    tx_extra,
+                                    Monero::PendingTransaction::Priority_Medium
+                                    )};
 
     if (ptx->status() != PendingTransaction::Status_Ok) {
         LOG_ERROR("Failed to create tx: " << ptx->errorString());
