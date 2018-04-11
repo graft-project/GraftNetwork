@@ -59,10 +59,10 @@ bool decode_ringct(const rct::rctSig& rv, const crypto::public_key pub, const cr
         switch (rv.type)
         {
         case rct::RCTTypeSimple:
-            amount = rct::decodeRctSimple(rv, rct::sk2rct(scalar1), i, mask);
+            amount = rct::decodeRctSimple(rv, rct::sk2rct(scalar1), i, mask, hw::get_device("default"));
             break;
         case rct::RCTTypeFull:
-            amount = rct::decodeRct(rv, rct::sk2rct(scalar1), i, mask);
+            amount = rct::decodeRct(rv, rct::sk2rct(scalar1), i, mask, hw::get_device("default"));
             break;
         default:
             LOG_ERROR("Unsupported rct type: " << (int) rv.type);
@@ -81,7 +81,7 @@ bool decode_ringct(const rct::rctSig& rv, const crypto::public_key pub, const cr
 bool lookup_acc_outs_rct(const account_keys &acc, const transaction &tx, std::vector<size_t> &outs, uint64_t &money_transfered)
 {
     crypto::public_key tx_pub_key = get_tx_pub_key_from_extra(tx);
-    if (null_pkey == tx_pub_key)
+    if (crypto::null_pkey == tx_pub_key)
         return false;
 
     money_transfered = 0;
@@ -90,7 +90,7 @@ bool lookup_acc_outs_rct(const account_keys &acc, const transaction &tx, std::ve
     LOG_PRINT_L1("tx pubkey: " << epee::string_tools::pod_to_hex(tx_pub_key));
     for(const tx_out& o:  tx.vout) {
         CHECK_AND_ASSERT_MES(o.target.type() ==  typeid(txout_to_key), false, "wrong type id in transaction out" );
-        if (is_out_to_acc(acc, boost::get<txout_to_key>(o.target), tx_pub_key, output_idx)) {
+        if (is_out_to_acc(acc, boost::get<txout_to_key>(o.target), tx_pub_key, get_additional_tx_pub_keys_from_extra(tx), output_idx)) {
             uint64_t rct_amount = 0;
             rct::key mask = tx.rct_signatures.ecdhInfo[output_idx].mask;
             if (decode_ringct(tx.rct_signatures, tx_pub_key, acc.m_view_secret_key, output_idx,
@@ -224,15 +224,17 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
     // get POS address and view key
     cryptonote::account_keys pos_account;
     epee::string_tools::hex_to_pod(TransactionRecord.POSViewKey, pos_account.m_view_secret_key);
-
-    if (!cryptonote::get_account_address_from_str(pos_account.m_account_address, m_Servant->IsTestnet(), TransactionRecord.POSAddress)) {
+    address_parse_info addr_parse_info;
+    if (!cryptonote::get_account_address_from_str(addr_parse_info, m_Servant->nettype(), TransactionRecord.POSAddress)) {
         LOG_ERROR("Error parsing POS Address: " << TransactionRecord.POSAddress);
         return false;
     }
 
+    pos_account.m_account_address = addr_parse_info.address;
 
     uint64_t amount = 0;
     vector<size_t> outputs;
+
 
     if (!lookup_acc_outs_rct(pos_account, tx, outputs, amount)) {
         LOG_ERROR("Error checking tx outputs");
