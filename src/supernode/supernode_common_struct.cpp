@@ -28,6 +28,7 @@
 //
 
 #include "supernode_common_struct.h"
+#include <boost/lexical_cast.hpp>
 
 namespace supernode {
 

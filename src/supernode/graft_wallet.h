@@ -33,6 +33,7 @@
 
 #include "wallet/wallet2.h"
 #include "grafttxextra.h"
+#include "wallet/api/wallet2_api.h"
 #include <memory>
 // #include <boost/optional.hpp>
 
@@ -44,7 +45,6 @@ class Serialization_portability_wallet_Test;
 
 namespace tools
 {
-class PendingTransaction;
 
 class GraftWallet : public wallet2
 {
@@ -93,6 +93,12 @@ public:
        * \param path - filename to store the cache
        */
   void store_cache(const std::string &filename);
+
+  Monero::PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
+                                                     boost::optional<uint64_t> amount, uint32_t mixin_count,
+                                                     const supernode::GraftTxExtra &graftExtra,
+                                                     Monero::PendingTransaction::Priority priority = Monero::PendingTransaction::Priority_Low);
+
 
 
 };
