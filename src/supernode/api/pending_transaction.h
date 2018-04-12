@@ -60,7 +60,7 @@ private:
 
     int  m_status;
     std::string m_errorString;
-    std::vector<tools::GraftWallet::pending_tx> m_pending_tx;
+    std::vector<tools::wallet2::pending_tx> m_pending_tx;
 };
 
 
