@@ -115,7 +115,16 @@ target_link_libraries(supernode
     ${EXTRA_LIBRARIES})
 add_dependencies(supernode version)
 
-if (NOT BUILD_GUI_DEPS)
+if (USE_READLINE AND GNU_READLINE_FOUND)
+  target_link_libraries(supernode
+    PUBLIC
+    epee_readline
+    PRIVATE
+    ${GNU_READLINE_LIBRARY})
+endif()
+
+
+#if (NOT BUILD_GUI_DEPS)
     set(supernode_rpc_sources
         main.cpp
         )
@@ -135,6 +144,7 @@ if (NOT BUILD_GUI_DEPS)
         PRIVATE
         supernode
         wallet
+        wallet_api
         epee
         rpc
         cryptonote_core
@@ -155,7 +165,7 @@ if (NOT BUILD_GUI_DEPS)
         PROPERTY
         OUTPUT_NAME "graft-supernode")
     install(TARGETS supernode_rpc_server DESTINATION bin)
-endif()
+#endif()
 
 
 # build and install libsupernode_merged only if we building for GUI
