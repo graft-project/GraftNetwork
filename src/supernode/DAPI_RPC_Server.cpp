@@ -52,7 +52,7 @@ bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http
 
 bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response_info, connection_context& m_conn_context) {
 	if( query_info.m_URI!=rpc_command::DAPI_URI ) return false;
-    LOG_PRINT_L2(query_info.m_body);
+    LOG_PRINT_L0(query_info.m_body);
     uint64_t ticks = epee::misc_utils::get_tick_count();
     epee::serialization::portable_storage ps;
 
@@ -106,7 +106,7 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
     		break;
     	}
     }
-    LOG_PRINT_L2(response_info.m_body);
+    LOG_PRINT_L0(response_info.m_body);
 
     if(!handler) { LOG_ERROR("handler not found for: "<<callback_name); return false; }
     if( !handler->Process(ps, response_info.m_body) ) { LOG_ERROR("Fail to process (ret false): "<<callback_name); return false; }
