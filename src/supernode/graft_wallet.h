@@ -50,6 +50,7 @@ class GraftWallet : public wallet2
 {
   friend class ::Serialization_portability_wallet_Test;
 public:
+  GraftWallet(cryptonote::network_type nettype = cryptonote::MAINNET, bool restricted = false);
   static bool verify(const std::string &message, const std::string &address, const std::string &signature, cryptonote::network_type nettype);
   static std::unique_ptr<GraftWallet> createWallet(const std::string &daemon_address = std::string(),
                                                    const std::string &daemon_host = std::string(),
@@ -102,4 +103,5 @@ public:
 
 
 };
+
 }

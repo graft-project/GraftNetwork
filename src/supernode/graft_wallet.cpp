@@ -30,13 +30,27 @@
 
 
 #include "graft_wallet.h"
+#include "api/pending_transaction.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "common/json_util.h"
+#include "common/scoped_message_writer.h"
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
+#include "readline_buffer.h"
+#include "serialization/binary_utils.h"
+
+
+using namespace std;
 
 namespace tools {
+
+
+
+GraftWallet::GraftWallet(cryptonote::network_type nettype, bool restricted)
+    : wallet2(nettype, restricted)
+{
+}
 
 bool GraftWallet::verify(const std::string &message, const std::string &address, const std::string &signature,  cryptonote::network_type nettype)
 {
@@ -48,238 +62,264 @@ bool GraftWallet::verify(const std::string &message, const std::string &address,
   return wallet2::verify(message, info.address, signature);
 }
 
-/*
+
+std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &daemon_address,
+                                                       const string &daemon_host, int daemon_port,
+                                                       const string &daemon_login, cryptonote::network_type nettype,
+                                                       bool restricted)
+{
+    //make_basic() analogue
+    if (!daemon_address.empty() && !daemon_host.empty() && 0 != daemon_port)
+    {
+        tools::fail_msg_writer() << tools::GraftWallet::tr("can't specify daemon host or port more than once");
+        return nullptr;
+    }
+    boost::optional<epee::net_utils::http::login> login{};
+    if (!daemon_login.empty())
+    {
+        std::string ldaemon_login(daemon_login);
+        auto parsed = tools::login::parse(std::move(ldaemon_login), false, [](bool verify) {
+            #ifdef HAVE_READLINE
+            rdln::suspend_readline pause_readline;
+            #endif
+           return tools::password_container::prompt(verify, "Daemon client password");
+        });
+
+        if (!parsed)
+        {
+            return nullptr;
+        }
+        login.emplace(std::move(parsed->username), std::move(parsed->password).password());
+    }
+    std::string ldaemon_host = daemon_host;
+    if (daemon_host.empty())
+    {
+        ldaemon_host = "localhost";
+    }
+    if (!daemon_port)
+    {
+        daemon_port = nettype == cryptonote::MAINNET ? config::RPC_DEFAULT_PORT
+                                                     : nettype == cryptonote::STAGENET ? config::stagenet::RPC_DEFAULT_PORT
+                                                                                       : config::testnet::RPC_DEFAULT_PORT;
+    }
+    std::string ldaemon_address = daemon_address;
+    if (daemon_address.empty())
+    {
+        ldaemon_address = std::string("http://") + ldaemon_host + ":" + std::to_string(daemon_port);
+    }
+    std::unique_ptr<tools::GraftWallet> wallet(new tools::GraftWallet(nettype, restricted));
+    wallet->init(std::move(ldaemon_address), std::move(login));
+    return wallet;
+}
+
+std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &account_data, const string &password,
+                                                       const string &daemon_address, const string &daemon_host,
+                                                       int daemon_port, const string &daemon_login,
+                                                       cryptonote::network_type nettype, bool restricted)
+{
+    auto wallet = createWallet(daemon_address, daemon_host, daemon_port, daemon_login,
+                               nettype, restricted);
+    if (wallet)
+    {
+        wallet->load_graft(account_data, password, "" /*cache_file*/);
+    }
+    return std::move(wallet);
+}
+
+crypto::secret_key GraftWallet::generate_graft(const string &password, const crypto::secret_key &recovery_param, bool recover, bool two_random)
+{
+    clear();
+
+    crypto::secret_key retval = m_account.generate(recovery_param, recover, two_random);
+
+    m_account_public_address = m_account.get_keys().m_account_address;
+    m_watch_only = false;
+
+    // -1 month for fluctuations in block time and machine date/time setup.
+    // avg seconds per block
+    const int seconds_per_block = DIFFICULTY_TARGET_V2;
+    // ~num blocks per month
+    const uint64_t blocks_per_month = 60*60*24*30/seconds_per_block;
+
+    // try asking the daemon first
+    if(m_refresh_from_block_height == 0 && !recover){
+        std::string err;
+        uint64_t height = 0;
+
+        // we get the max of approximated height and known height
+        // approximated height is the least of daemon target height
+        // (the max of what the other daemons are claiming is their
+        // height) and the theoretical height based on the local
+        // clock. This will be wrong only if both the local clock
+        // is bad *and* a peer daemon claims a highest height than
+        // the real chain.
+        // known height is the height the local daemon is currently
+        // synced to, it will be lower than the real chain height if
+        // the daemon is currently syncing.
+        height = get_approximate_blockchain_height();
+        uint64_t target_height = get_daemon_blockchain_target_height(err);
+        if (err.empty() && target_height < height)
+            height = target_height;
+        uint64_t local_height = get_daemon_blockchain_height(err);
+        if (err.empty() && local_height > height)
+            height = local_height;
+        m_refresh_from_block_height = height >= blocks_per_month ? height - blocks_per_month : 0;
+    }
+
+    ///bool r = store_keys(m_keys_file, password, false);
+    ///THROW_WALLET_EXCEPTION_IF(!r, error::file_save_error, m_keys_file);
+
+    cryptonote::block b;
+    generate_genesis(b);
+    m_blockchain.push_back(get_block_hash(b));
+
+    ///store();
+    return retval;
+}
+
+void GraftWallet::load_graft(const string &data, const string &password, const std::string &cache_file)
+{
+    clear();
+
+    if (!load_keys_graft(data, password))
+    {
+      THROW_WALLET_EXCEPTION_IF(true, error::file_read_error, m_keys_file);
+    }
+    LOG_PRINT_L0("Loaded wallet keys file, with public address: " << m_account.get_public_address_str(m_nettype));
+
+    //keys loaded ok!
+    //try to load wallet file. but even if we failed, it is not big problem
+
+    m_account_public_address = m_account.get_keys().m_account_address;
+
+    if (!cache_file.empty())
+      load_cache(cache_file);
+
+    cryptonote::block genesis;
+    generate_genesis(genesis);
+    crypto::hash genesis_hash = cryptonote::get_block_hash(genesis);
+
+    if (m_blockchain.empty())
+    {
+      m_blockchain.push_back(genesis_hash);
+    }
+    else
+    {
+      check_genesis(genesis_hash);
+    }
+
+    m_local_bc_height = m_blockchain.size();
+}
+//----------------------------------------------------------------------------------------------------
+void GraftWallet::load_cache(const std::string &filename)
+{
+    wallet2::cache_file_data cache_file_data;
+    std::string buf;
+    bool r = epee::file_io_utils::load_file_to_string(filename, buf);
+    THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, filename);
+    // try to read it as an encrypted cache
+    try
+    {
+        LOG_PRINT_L1("Trying to decrypt cache data");
+        r = ::serialization::parse_binary(buf, cache_file_data);
+        THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + filename + '\"');
+        crypto::chacha_key key;
+        generate_chacha_key_from_secret_keys(key);
+        std::string cache_data;
+        cache_data.resize(cache_file_data.cache_data.size());
+        crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
+
+        std::stringstream iss;
+        iss << cache_data;
+        try {
+            boost::archive::portable_binary_iarchive ar(iss);
+            ar >> *this;
+        }
+        catch (...)
+        {
+            LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+            boost::filesystem::copy_file(filename, filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+            iss.str("");
+            iss << cache_data;
+            boost::archive::binary_iarchive ar(iss);
+            ar >> *this;
+        }
+    }
+    catch (...)
+    {
+        LOG_PRINT_L1("Failed to load encrypted cache, trying unencrypted");
+        std::stringstream iss;
+        iss << buf;
+        try {
+            boost::archive::portable_binary_iarchive ar(iss);
+            ar >> *this;
+        }
+        catch (...)
+        {
+            LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+            boost::filesystem::copy_file(filename, filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+            iss.str("");
+            iss << buf;
+            boost::archive::binary_iarchive ar(iss);
+            ar >> *this;
+        }
+    }
+    THROW_WALLET_EXCEPTION_IF(
+                m_account_public_address.m_spend_public_key != m_account.get_keys().m_account_address.m_spend_public_key ||
+            m_account_public_address.m_view_public_key  != m_account.get_keys().m_account_address.m_view_public_key,
+                error::wallet_files_doesnt_correspond, m_keys_file, filename);
+
+}
+
+//----------------------------------------------------------------------------------------------------
+void GraftWallet::store_cache(const string &filename)
+{
+    // preparing wallet data
+    std::stringstream oss;
+    boost::archive::portable_binary_oarchive ar(oss);
+    ar << *this;
+
+    GraftWallet::cache_file_data cache_file_data = boost::value_initialized<GraftWallet::cache_file_data>();
+    cache_file_data.cache_data = oss.str();
+    crypto::chacha_key key;
+    generate_chacha_key_from_secret_keys(key);
+    std::string cipher;
+    cipher.resize(cache_file_data.cache_data.size());
+    cache_file_data.iv = crypto::rand<crypto::chacha_iv>();
+    crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
+    cache_file_data.cache_data = cipher;
+
+    // save to new file
+    std::ofstream ostr;
+    ostr.open(filename, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);
+    binary_archive<true> oar(ostr);
+    bool success = ::serialization::serialize(oar, cache_file_data);
+    ostr.close();
+    THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
+}
+
+Monero::PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const string &payment_id, boost::optional<uint64_t> amount,
+                                                           uint32_t mixin_count, const supernode::GraftTxExtra &graftExtra,
+                                                           Monero::PendingTransaction::Priority priority)
+{
+
+}
+
+
+
 std::string GraftWallet::store_keys_graft(const std::string& password, bool watch_only)
 {
-  std::string account_data;
-  cryptonote::account_base account = m_account;
-
-  if (watch_only)
-    account.forget_spend_key();
-  bool r = epee::serialization::store_t_to_binary(account, account_data);
-  CHECK_AND_ASSERT_THROW_MES(r, "failed to serialize wallet keys");
-
-  ///Return only account_data
-  return account_data;
-
-  GraftWallet::keys_file_data keys_file_data = boost::value_initialized<GraftWallet::keys_file_data>();
-
-  // Create a JSON object with "key_data" and "seed_language" as keys.
-  rapidjson::Document json;
-  json.SetObject();
-  rapidjson::Value value(rapidjson::kStringType);
-  value.SetString(account_data.c_str(), account_data.length());
-  json.AddMember("key_data", value, json.GetAllocator());
-  if (!seed_language.empty())
-  {
-    value.SetString(seed_language.c_str(), seed_language.length());
-    json.AddMember("seed_language", value, json.GetAllocator());
-  }
-
-  rapidjson::Value value2(rapidjson::kNumberType);
-  value2.SetInt(watch_only ? 1 :0); // WTF ? JSON has different true and false types, and not boolean ??
-  json.AddMember("watch_only", value2, json.GetAllocator());
-
-  value2.SetInt(m_always_confirm_transfers ? 1 :0);
-  json.AddMember("always_confirm_transfers", value2, json.GetAllocator());
-
-  value2.SetInt(m_print_ring_members ? 1 :0);
-  json.AddMember("print_ring_members", value2, json.GetAllocator());
-
-  value2.SetInt(m_store_tx_info ? 1 :0);
-  json.AddMember("store_tx_info", value2, json.GetAllocator());
-
-  value2.SetUint(m_default_mixin);
-  json.AddMember("default_mixin", value2, json.GetAllocator());
-
-  value2.SetUint(m_default_priority);
-  json.AddMember("default_priority", value2, json.GetAllocator());
-
-  value2.SetInt(m_auto_refresh ? 1 :0);
-  json.AddMember("auto_refresh", value2, json.GetAllocator());
-
-  value2.SetInt(m_refresh_type);
-  json.AddMember("refresh_type", value2, json.GetAllocator());
-
-  value2.SetUint64(m_refresh_from_block_height);
-  json.AddMember("refresh_height", value2, json.GetAllocator());
-
-  value2.SetInt(m_confirm_missing_payment_id ? 1 :0);
-  json.AddMember("confirm_missing_payment_id", value2, json.GetAllocator());
-
-  value2.SetInt(m_ask_password ? 1 :0);
-  json.AddMember("ask_password", value2, json.GetAllocator());
-
-  value2.SetUint(m_min_output_count);
-  json.AddMember("min_output_count", value2, json.GetAllocator());
-
-  value2.SetUint64(m_min_output_value);
-  json.AddMember("min_output_value", value2, json.GetAllocator());
-
-  value2.SetInt(cryptonote::get_default_decimal_point());
-  json.AddMember("default_decimal_point", value2, json.GetAllocator());
-
-  value2.SetInt(m_merge_destinations ? 1 :0);
-  json.AddMember("merge_destinations", value2, json.GetAllocator());
-
-  value2.SetInt(m_confirm_backlog ? 1 :0);
-  json.AddMember("confirm_backlog", value2, json.GetAllocator());
-
-  value2.SetInt(m_testnet ? 1 :0);
-  json.AddMember("testnet", value2, json.GetAllocator());
-
-  // Serialize the JSON object
-  rapidjson::StringBuffer buffer;
-  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-  json.Accept(writer);
-  account_data = buffer.GetString();
-
-  // Encrypt the entire JSON object.
-  crypto::chacha_key key;
-  crypto::generate_chacha_key(password, key);
-  std::string cipher;
-  cipher.resize(account_data.size());
-  keys_file_data.iv = crypto::rand<crypto::chacha_iv>();
-  crypto::chacha8(account_data.data(), account_data.size(), key, keys_file_data.iv, &cipher[0]);
-  keys_file_data.account_data = cipher;
-
-  std::string buf;
-  r = ::serialization::dump_binary(keys_file_data, buf);
-  CHECK_AND_ASSERT_THROW_MES(r, "failed to serialize wallet data");
-
-  ///Return all wallet data
-  LOG_PRINT_L0(sizeof(buf));
-  LOG_PRINT_L0(buf.size());
-  return buf;
+  std::string result;
+  if (wallet2::store_keys_to_buffer(epee::wipeable_string(password), result, watch_only))
+    return result;
+  else
+    return "";
 }
 
 bool GraftWallet::load_keys_graft(const string &data, const string &password)
 {
-    std::string account_data;
-    if (false)
-    {
-        GraftWallet::keys_file_data keys_file_data;
-        // Decrypt the contents
-        bool r = ::serialization::parse_binary(data, keys_file_data);
-        THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize");
-        crypto::chacha_key key;
-        crypto::generate_chacha_key(password, key);
-        account_data.resize(keys_file_data.account_data.size());
-        crypto::chacha8(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
-    }
-    else
-    {
-        account_data = data;
-    }
-
-    // The contents should be JSON if the wallet follows the new format.
-    rapidjson::Document json;
-    if (json.Parse(account_data.c_str()).HasParseError())
-    {
-        is_old_file_format = true;
-        m_watch_only = false;
-        m_always_confirm_transfers = false;
-        m_print_ring_members = false;
-        m_default_mixin = 0;
-        m_default_priority = 0;
-        m_auto_refresh = true;
-        m_refresh_type = RefreshType::RefreshDefault;
-        m_confirm_missing_payment_id = true;
-        m_ask_password = true;
-        m_min_output_count = 0;
-        m_min_output_value = 0;
-        m_merge_destinations = false;
-        m_confirm_backlog = true;
-    }
-    else
-    {
-        if (!json.HasMember("key_data"))
-        {
-            LOG_ERROR("Field key_data not found in JSON");
-            return false;
-        }
-        if (!json["key_data"].IsString())
-        {
-            LOG_ERROR("Field key_data found in JSON, but not String");
-            return false;
-        }
-        const char *field_key_data = json["key_data"].GetString();
-        account_data = std::string(field_key_data, field_key_data + json["key_data"].GetStringLength());
-
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, seed_language, std::string, String, false, std::string());
-        if (field_seed_language_found)
-        {
-            set_seed_language(field_seed_language);
-        }
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, watch_only, int, Int, false, false);
-        m_watch_only = field_watch_only;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, always_confirm_transfers, int, Int, false, true);
-        m_always_confirm_transfers = field_always_confirm_transfers;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, print_ring_members, int, Int, false, true);
-        m_print_ring_members = field_print_ring_members;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, store_tx_keys, int, Int, false, true);
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, store_tx_info, int, Int, false, true);
-        m_store_tx_info = ((field_store_tx_keys != 0) || (field_store_tx_info != 0));
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_mixin, unsigned int, Uint, false, 0);
-        m_default_mixin = field_default_mixin;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_priority, unsigned int, Uint, false, 0);
-        if (field_default_priority_found)
-        {
-            m_default_priority = field_default_priority;
-        }
-        else
-        {
-            GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_fee_multiplier, unsigned int, Uint, false, 0);
-            if (field_default_fee_multiplier_found)
-                m_default_priority = field_default_fee_multiplier;
-            else
-                m_default_priority = 0;
-        }
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, auto_refresh, int, Int, false, true);
-        m_auto_refresh = field_auto_refresh;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, refresh_type, int, Int, false, RefreshType::RefreshDefault);
-        m_refresh_type = RefreshType::RefreshDefault;
-        if (field_refresh_type_found)
-        {
-            if (field_refresh_type == RefreshFull || field_refresh_type == RefreshOptimizeCoinbase || field_refresh_type == RefreshNoCoinbase)
-                m_refresh_type = (RefreshType)field_refresh_type;
-            else
-                LOG_PRINT_L0("Unknown refresh-type value (" << field_refresh_type << "), using default");
-        }
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, refresh_height, uint64_t, Uint64, false, 0);
-        m_refresh_from_block_height = field_refresh_height;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_missing_payment_id, int, Int, false, true);
-        m_confirm_missing_payment_id = field_confirm_missing_payment_id;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ask_password, int, Int, false, true);
-        m_ask_password = field_ask_password;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_decimal_point, int, Int, false, CRYPTONOTE_DISPLAY_DECIMAL_POINT);
-        cryptonote::set_default_decimal_point(field_default_decimal_point);
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, min_output_count, uint32_t, Uint, false, 0);
-        m_min_output_count = field_min_output_count;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, min_output_value, uint64_t, Uint64, false, 0);
-        m_min_output_value = field_min_output_value;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, merge_destinations, int, Int, false, false);
-        m_merge_destinations = field_merge_destinations;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_backlog, int, Int, false, true);
-        m_confirm_backlog = field_confirm_backlog;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, testnet, int, Int, false, m_testnet);
-        // Wallet is being opened with testnet flag, but is saved as a mainnet wallet
-        THROW_WALLET_EXCEPTION_IF(m_testnet && !field_testnet, error::wallet_internal_error, "Mainnet wallet can not be opened as testnet wallet");
-        // Wallet is being opened without testnet flag but is saved as a testnet wallet.
-        THROW_WALLET_EXCEPTION_IF(!m_testnet && field_testnet, error::wallet_internal_error, "Testnet wallet can not be opened as mainnet wallet");
-    }
-
-    const cryptonote::account_keys& keys = m_account.get_keys();
-    bool r = epee::serialization::load_t_from_binary(m_account, account_data);
-    THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
-    r = r && verify_keys(keys.m_view_secret_key,  keys.m_account_address.m_view_public_key);
-    THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
-    if(!m_watch_only)
-        r = r && verify_keys(keys.m_spend_secret_key, keys.m_account_address.m_spend_public_key);
-    THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
-    return true;
+  return wallet2::load_keys_from_buffer(data, epee::wipeable_string(password));
 }
-*/
 
 
 } // namespace tools
