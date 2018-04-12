@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2017, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -30,57 +30,51 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
+#ifdef __cplusplus
+#include <array>
 
-#define CHACHA8_KEY_SIZE 32
-#define CHACHA8_IV_SIZE 8
-
-#if defined(__cplusplus)
-#include <memory.h>
-
-#include "hash.h"
-
-namespace crypto {
-  extern "C" {
+extern "C" {
 #endif
-    void chacha8(const void* data, size_t length, const uint8_t* key, const uint8_t* iv, char* cipher);
-#if defined(__cplusplus)
-  }
 
-#pragma pack(push, 1)
-  struct chacha8_key {
-    uint8_t data[CHACHA8_KEY_SIZE];
+void *memwipe(void *src, size_t n);
 
-    ~chacha8_key()
-    {
-      memset(data, 0, sizeof(data));
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+namespace tools {
+
+  /// Scrubs data in the contained type upon destruction.
+  ///
+  /// Primarily useful for making sure that private keys don't stick around in
+  /// memory after the objects that held them have gone out of scope.
+  template <class T>
+  struct scrubbed : public T {
+    using type = T;
+
+    ~scrubbed() {
+      scrub();
+    }
+
+    /// Destroy the contents of the contained type.
+    void scrub() {
+      static_assert(std::is_pod<T>::value,
+                    "T cannot be auto-scrubbed. T must be POD.");
+      static_assert(std::is_trivially_destructible<T>::value,
+                    "T cannot be auto-scrubbed. T must be trivially destructable.");
+      memwipe(this, sizeof(T));
     }
   };
 
-  // MS VC 2012 doesn't interpret `class chacha8_iv` as POD in spite of [9.0.10], so it is a struct
-  struct chacha8_iv {
-    uint8_t data[CHACHA8_IV_SIZE];
-  };
-#pragma pack(pop)
+  template<typename T>
+  T& unwrap(scrubbed<T>& src) { return src; }
 
-  static_assert(sizeof(chacha8_key) == CHACHA8_KEY_SIZE && sizeof(chacha8_iv) == CHACHA8_IV_SIZE, "Invalid structure size");
+  template<typename T>
+  const T& unwrap(scrubbed<T> const& src) { return src; }
 
-  inline void chacha8(const void* data, std::size_t length, const chacha8_key& key, const chacha8_iv& iv, char* cipher) {
-    chacha8(data, length, reinterpret_cast<const uint8_t*>(&key), reinterpret_cast<const uint8_t*>(&iv), cipher);
-  }
+  template <class T, size_t N>
+  using scrubbed_arr = scrubbed<std::array<T, N>>;
+} // namespace tools
 
-  inline void generate_chacha8_key(const void *data, size_t size, chacha8_key& key) {
-    static_assert(sizeof(chacha8_key) <= sizeof(hash), "Size of hash must be at least that of chacha8_key");
-    char pwd_hash[HASH_SIZE];
-    crypto::cn_slow_hash(data, size, pwd_hash);
-    memcpy(&key, pwd_hash, sizeof(key));
-    memset(pwd_hash, 0, sizeof(pwd_hash));
-  }
-
-  inline void generate_chacha8_key(std::string password, chacha8_key& key) {
-    return generate_chacha8_key(password.data(), password.size(), key);
-  }
-}
-
-#endif
+#endif // __cplusplus

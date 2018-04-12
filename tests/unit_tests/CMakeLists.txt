@@ -35,7 +35,7 @@ set(unit_tests_sources
   block_queue.cpp
   block_reward.cpp
   canonical_amounts.cpp
-  chacha8.cpp
+  chacha.cpp
   checkpoints.cpp
   command_line.cpp
   crypto.cpp
@@ -48,6 +48,7 @@ set(unit_tests_sources
   get_xtype_from_string.cpp
   http.cpp
   main.cpp
+  memwipe.cpp
   mnemonics.cpp
   mul_div.cpp
   parse_amount.cpp
@@ -98,6 +99,8 @@ if (NOT MSVC)
     PROPERTY
       COMPILE_FLAGS " -Wno-undef -Wno-sign-compare")
 endif ()
+
+SET_PROPERTY(SOURCE memwipe.cpp PROPERTY COMPILE_FLAGS -Ofast)
 
 add_test(
   NAME    unit_tests
