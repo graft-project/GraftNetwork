@@ -844,9 +844,10 @@ uint64_t WalletImpl::balance(uint32_t accountIndex) const
 }
 
 
-uint64_t WalletImpl::unlockedBalance(uint32_t accountIndex, uint64_t till_block) const
+uint64_t WalletImpl::unlockedBalance(uint32_t accountIndex, uint64_t /*till_block*/) const
 {
-    return m_wallet->unlocked_balance(accountIndex, till_block);
+    // TODO: implement till_block
+    return m_wallet->unlocked_balance(accountIndex/*, till_block*/);
 }
 
 uint64_t WalletImpl::blockChainHeight() const
