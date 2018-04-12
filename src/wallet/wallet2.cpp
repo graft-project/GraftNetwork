@@ -2493,14 +2493,33 @@ bool wallet2::clear()
  */
 bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable_string& password, bool watch_only)
 {
+  std::string keys_file_data;
+  bool r = store_keys_to_buffer(password, keys_file_data, watch_only);
+  if (!r)
+    return r;
+
+  std::string buf;
+  r = ::serialization::dump_binary(keys_file_data, buf);
+  r = r && epee::file_io_utils::save_string_to_file(keys_file_name, buf); //and never touch wallet_keys_file again, only read
+  CHECK_AND_ASSERT_MES(r, false, "failed to generate wallet keys file " << keys_file_name);
+  return true;
+}
+
+//----------------------------------------------------------------------------------------------------
+bool wallet2::store_keys_to_buffer(const wipeable_string &password, std::string &output_buffer, bool watch_only)
+{
+
   std::string account_data;
   std::string multisig_signers;
   cryptonote::account_base account = m_account;
 
   if (watch_only)
     account.forget_spend_key();
+
   bool r = epee::serialization::store_t_to_binary(account, account_data);
-  CHECK_AND_ASSERT_MES(r, false, "failed to serialize wallet keys");
+
+  CHECK_AND_ASSERT_MES(r, false, "failed to serialize wallet keys" << "");
+
   wallet2::keys_file_data keys_file_data = boost::value_initialized<wallet2::keys_file_data>();
 
   // Create a JSON object with "key_data" and "seed_language" as keys.
@@ -2620,13 +2639,10 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
   crypto::chacha20(account_data.data(), account_data.size(), key, keys_file_data.iv, &cipher[0]);
   keys_file_data.account_data = cipher;
 
-  std::string buf;
-  r = ::serialization::dump_binary(keys_file_data, buf);
-  r = r && epee::file_io_utils::save_string_to_file(keys_file_name, buf); //and never touch wallet_keys_file again, only read
-  CHECK_AND_ASSERT_MES(r, false, "failed to generate wallet keys file " << keys_file_name);
-
+  r = ::serialization::dump_binary(keys_file_data, output_buffer);
   return true;
 }
+
 //----------------------------------------------------------------------------------------------------
 /*!
  * \brief Load wallet information from wallet file.
@@ -2635,15 +2651,23 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
  */
 bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_string& password)
 {
-  rapidjson::Document json;
-  wallet2::keys_file_data keys_file_data;
+
   std::string buf;
   bool r = epee::file_io_utils::load_file_to_string(keys_file_name, buf);
   THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, keys_file_name);
 
+  return load_keys_from_buffer(buf, password, keys_file_name);
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipeable_string &password, const std::string &keys_file_name)
+{
+  rapidjson::Document json;
+  wallet2::keys_file_data keys_file_data;
+
   // Decrypt the contents
-  r = ::serialization::parse_binary(buf, keys_file_data);
+  bool r = ::serialization::parse_binary(encrypted_buf, keys_file_data);
   THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + keys_file_name + '\"');
+
   crypto::chacha_key key;
   crypto::generate_chacha_key(password.data(), password.size(), key);
   std::string account_data;
@@ -2776,7 +2800,7 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_decimal_point, int, Int, false, CRYPTONOTE_DISPLAY_DECIMAL_POINT);
     // x100, we force decimal point = 10 for existing wallets
     if (field_default_decimal_point != CRYPTONOTE_DISPLAY_DECIMAL_POINT)
-        field_default_decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
+      field_default_decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
 
     cryptonote::set_default_decimal_point(field_default_decimal_point);
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, min_output_count, uint32_t, Uint, false, 0);
@@ -2796,9 +2820,9 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, nettype, uint8_t, Uint, false, static_cast<uint8_t>(m_nettype));
     // The network type given in the program argument is inconsistent with the network type saved in the wallet
     THROW_WALLET_EXCEPTION_IF(static_cast<uint8_t>(m_nettype) != field_nettype, error::wallet_internal_error,
-    (boost::format("%s wallet cannot be opened as %s wallet")
-    % (field_nettype == 0 ? "Mainnet" : field_nettype == 1 ? "Testnet" : "Stagenet")
-    % (m_nettype == MAINNET ? "mainnet" : m_nettype == TESTNET ? "testnet" : "stagenet")).str());
+                              (boost::format("%s wallet cannot be opened as %s wallet")
+                               % (field_nettype == 0 ? "Mainnet" : field_nettype == 1 ? "Testnet" : "Stagenet")
+                               % (m_nettype == MAINNET ? "mainnet" : m_nettype == TESTNET ? "testnet" : "stagenet")).str());
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, segregate_pre_fork_outputs, int, Int, false, true);
     m_segregate_pre_fork_outputs = field_segregate_pre_fork_outputs;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, key_reuse_mitigation2, int, Int, false, true);
@@ -2808,8 +2832,8 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
   }
   else
   {
-      THROW_WALLET_EXCEPTION(error::wallet_internal_error, "invalid password");
-      return false;
+    THROW_WALLET_EXCEPTION(error::wallet_internal_error, "invalid password");
+    return false;
   }
 
   r = epee::serialization::load_t_from_binary(m_account, account_data);

@@ -664,6 +664,8 @@ namespace tools
     // locked & unlocked balance of given or current subaddress account
     uint64_t balance(uint32_t subaddr_index_major) const;
     uint64_t unlocked_balance(uint32_t subaddr_index_major) const;
+    //
+    uint64_t unlocked_balance(uint32_t subaddr_index_major, uint64_t till_block) const;
     // locked & unlocked balance per subaddress of given or current subaddress account
     std::map<uint32_t, uint64_t> balance_per_subaddress(uint32_t subaddr_index_major) const;
     std::map<uint32_t, uint64_t> unlocked_balance_per_subaddress(uint32_t subaddr_index_major) const;
@@ -1089,12 +1091,32 @@ namespace tools
      * \return                Whether it was successful.
      */
     bool store_keys(const std::string& keys_file_name, const epee::wipeable_string& password, bool watch_only = false);
+
+
+    /*!
+     * \brief Stores wallet information to an encrypted buffer
+     * \param password        Password to encrypt wallet data
+     * \param output_buffer   Output buffer
+     * \param watch_only      true to save only view key, false to save both spend and view keys
+     * \return                Whether it was successful.
+     */
+    bool store_keys_to_buffer(const epee::wipeable_string& password, std::string &out_buffer, bool watch_only = false);
+
     /*!
      * \brief Load wallet information from wallet file.
      * \param keys_file_name Name of wallet file
      * \param password       Password of wallet file
      */
     bool load_keys(const std::string& keys_file_name, const epee::wipeable_string& password);
+
+    /*!
+     * \brief Load wallet information from string buffer
+     * \param encrypted_keys_data Encrypted keys data
+     * \param password            Password of wallet data
+     * \return
+     */
+    bool load_keys_from_buffer(const std::string& encrypted_buf, const epee::wipeable_string &password, const std::string &keys_file_name = "");
+
     void process_new_transaction(const crypto::hash &txid, const cryptonote::transaction& tx, const std::vector<uint64_t> &o_indices, uint64_t height, uint64_t ts, bool miner_tx, bool pool, bool double_spend_seen);
     void process_new_blockchain_entry(const cryptonote::block& b, const cryptonote::block_complete_entry& bche, const crypto::hash& bl_id, uint64_t height, const cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices &o_indices);
     void detach_blockchain(uint64_t height);
