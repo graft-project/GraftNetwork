@@ -182,7 +182,8 @@ namespace config
     boost::uuids::uuid const NETWORK_ID = { {
           0x54 ,0x68, 0x65, 0x20, 0x41, 0x72 , 0x74, 0x20, 0x6F, 0x66, 0x20, 0x57, 0x61, 0x72, 0x20, 0x36
       } };
-    std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101ceeea76a2485121ecec6a750e9e4d316c65c56e99672501372aeb7165d6fd3b2";
+    // use same constant as for mainnet because of the bug in 'generate_genesis_block()'; see details: https://github.com/monero-project/monero/pull/3261
+    std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101dbb56baf25ba96a9e186214df0725d5aa898514fcce283013338fd9de0ae8f95";
     uint32_t const GENESIS_NONCE = 10001;
   }
 
