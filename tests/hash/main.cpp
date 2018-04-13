@@ -57,12 +57,6 @@ extern "C" {
   static void cn_slow_hash_1(const void *data, size_t length, char *hash) {
     return cn_slow_hash(data, length, hash, 1/*variant*/, 0/*prehashed*/);
   }
-  static void cn_slow_hash_0(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 0/*variant*/, 0/*prehashed*/);
-  }
-  static void cn_slow_hash_1(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 1/*variant*/, 0/*prehashed*/);
-  }
 }
 POP_WARNINGS
 
