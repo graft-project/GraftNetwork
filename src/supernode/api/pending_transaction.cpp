@@ -164,6 +164,23 @@ uint64_t GraftPendingTransactionImpl::txCount() const
     return m_pending_tx.size();
 }
 
+std::vector<uint32_t> GraftPendingTransactionImpl::subaddrAccount() const
+{
+    std::vector<uint32_t> result;
+    for (const auto& ptx : m_pending_tx)
+        result.push_back(ptx.construction_data.subaddr_account);
+    return result;
+}
+
+std::vector<std::set<uint32_t>> GraftPendingTransactionImpl::subaddrIndices() const
+{
+    std::vector<std::set<uint32_t>> result;
+    for (const auto& ptx : m_pending_tx)
+        result.push_back(ptx.construction_data.subaddr_indices);
+    return result;
+}
+
+
 void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx)
 {
     m_pending_tx = pending_tx;

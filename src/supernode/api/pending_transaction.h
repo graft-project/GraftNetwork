@@ -50,6 +50,8 @@ public:
     uint64_t fee() const;
     std::vector<std::string> txid() const;
     uint64_t txCount() const;
+    std::vector<uint32_t> subaddrAccount() const;
+    std::vector<std::set<uint32_t>> subaddrIndices() const;
     // TODO: continue with interface;
     void setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx);
     void setStatus(int status);
