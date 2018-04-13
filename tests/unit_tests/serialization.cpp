@@ -679,7 +679,6 @@ TEST(Serialization, portability_wallet)
 {
   const cryptonote::network_type nettype = cryptonote::TESTNET;
   const bool restricted = false;
-  tools::wallet2 w(testnet, restricted);
   tools::wallet2 w(nettype, restricted);
   const boost::filesystem::path wallet_file = unit_test::data_dir / "wallet_serialization_portability";
   string password = "test";
@@ -1010,7 +1009,7 @@ TEST(Serialization, portability_outputs)
 }
 
 namespace helper {
-    void dump_unsigned_tx(const tools::wallet2::unsigned_tx_set &tx, bool testnet)
+    void dump_unsigned_tx(const tools::wallet2::unsigned_tx_set &tx, cryptonote::network_type nettype)
     {
         std::cout << "txes.size(): " << tx.txes.size() << std::endl;
         for (int i = 0; i < tx.txes.size(); ++i) {
@@ -1032,13 +1031,13 @@ namespace helper {
                 std::cout << "tse[" << j << "].mask: " << epee::string_tools::pod_to_hex(tse.mask) << std::endl;
             }
             std::cout << "tcd[" << i << "].change_dts.amount: "  << tcd.change_dts.amount << std::endl;
-            std::cout << "tcd[" << i << "].change_dts.addr:   "  << cryptonote::get_account_address_as_str(testnet, tcd.change_dts.addr) << std::endl;
+            std::cout << "tcd[" << i << "].change_dts.addr:   "  << cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr) << std::endl;
 
             auto &splitted_dsts = tcd.splitted_dsts;
             for (int j = 0; j < splitted_dsts.size(); ++j) {
                 auto splitted_dst = splitted_dsts[j];
                 std::cout << "tcd[" << i << "].splitted_dsts[" << j << "].amount: " << splitted_dst.amount << std::endl;
-                std::cout << "tcd[" << i << "].splitted_dsts[" << j << "].addr: " <<  cryptonote::get_account_address_as_str(testnet, splitted_dst.addr) << std::endl;
+                std::cout << "tcd[" << i << "].splitted_dsts[" << j << "].addr: " <<  cryptonote::get_account_address_as_str(nettype, false, splitted_dst.addr) << std::endl;
             }
 
             auto &selected_transfers = tcd.selected_transfers;
@@ -1056,7 +1055,7 @@ namespace helper {
             auto &dests = tcd.dests;
             for (int j = 0; j < dests.size(); ++j) {
                 std::cout << "tcd[" << i << "].dests[" << j << "].amount: " <<  tcd.dests[j].amount << std::endl;
-                std::cout << "tcd[" << i << "].dests[" << j << "].addr: " << cryptonote::get_account_address_as_str(testnet, tcd.dests[j].addr) << std::endl;
+                std::cout << "tcd[" << i << "].dests[" << j << "].addr: " << cryptonote::get_account_address_as_str(nettype, false, tcd.dests[j].addr) << std::endl;
             }
         }
 
@@ -1169,7 +1168,7 @@ TEST(Serialization, portability_unsigned_tx)
 
   ASSERT_TRUE(tcd.change_dts.amount == 7784000000000);
 
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, tcd.change_dts.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr) == ADDRESS1);
 
   // tcd.splitted_dsts
   ASSERT_TRUE(tcd.splitted_dsts.size() == 2);
@@ -1179,8 +1178,8 @@ TEST(Serialization, portability_unsigned_tx)
   ASSERT_TRUE(splitted_dst0.amount == 1000000000000);
   ASSERT_TRUE(splitted_dst1.amount == 7784000000000);
 
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, splitted_dst0.addr) == ADDRESS2);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, splitted_dst1.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst0.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst1.addr) == ADDRESS1);
 
   // tcd.selected_transfers
   ASSERT_TRUE(tcd.selected_transfers.size() == 2);
@@ -1196,7 +1195,7 @@ TEST(Serialization, portability_unsigned_tx)
   auto& dest = tcd.dests[0];
 
   ASSERT_TRUE(dest.amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, dest.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, dest.addr) == ADDRESS2);
   // transfers
   ASSERT_TRUE(exported_txs.transfers.size() == 2);
   auto& td0 = exported_txs.transfers[0];
@@ -1287,7 +1286,7 @@ TEST(Serialization, portability_signed_tx)
   // ptx.change.{amount, addr}
 
   ASSERT_TRUE(ptx.change_dts.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, ptx.change_dts.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, ptx.change_dts.addr) == ADDRESS1);
 
   // ptx.selected_transfers
   ASSERT_TRUE(ptx.selected_transfers.size() == 2);
@@ -1299,7 +1298,7 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE(ptx.dests.size() == 1);
 
   ASSERT_TRUE(ptx.dests[0].amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, ptx.dests[0].addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, ptx.dests[0].addr) == ADDRESS2);
   // ptx.construction_data
   auto& tcd = ptx.construction_data;
   ASSERT_TRUE(tcd.sources.size() == 2);
@@ -1331,7 +1330,7 @@ TEST(Serialization, portability_signed_tx)
   // ptx.construction_data.change_dts
 
   ASSERT_TRUE(tcd.change_dts.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, tcd.change_dts.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr) == ADDRESS1);
   // ptx.construction_data.splitted_dsts
   ASSERT_TRUE(tcd.splitted_dsts.size() == 2);
   auto& splitted_dst0 = tcd.splitted_dsts[0];
@@ -1339,8 +1338,8 @@ TEST(Serialization, portability_signed_tx)
 
   ASSERT_TRUE(splitted_dst0.amount == 1000000000000);
   ASSERT_TRUE(splitted_dst1.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, splitted_dst0.addr) == ADDRESS2);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, splitted_dst1.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst0.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst1.addr) == ADDRESS1);
 
   // ptx.construction_data.selected_transfers
   ASSERT_TRUE(tcd.selected_transfers.size() == 2);
@@ -1355,7 +1354,7 @@ TEST(Serialization, portability_signed_tx)
   auto& dest = tcd.dests[0];
 
   ASSERT_TRUE(dest.amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, false, dest.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, dest.addr) == ADDRESS2);
 
   // key_images
   ASSERT_TRUE(exported_txs.key_images.size() == 2);
