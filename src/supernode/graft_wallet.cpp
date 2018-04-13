@@ -39,9 +39,15 @@
 #include "rapidjson/stringbuffer.h"
 #include "readline_buffer.h"
 #include "serialization/binary_utils.h"
+#include <boost/format.hpp>
 
 
 using namespace std;
+using namespace Monero;
+
+namespace {
+static const size_t DEFAULT_MIXIN = 4;
+}
 
 namespace tools {
 
@@ -54,12 +60,12 @@ GraftWallet::GraftWallet(cryptonote::network_type nettype, bool restricted)
 
 bool GraftWallet::verify(const std::string &message, const std::string &address, const std::string &signature,  cryptonote::network_type nettype)
 {
-  cryptonote::address_parse_info info;
-  if (!cryptonote::get_account_address_from_str(info, nettype, address)) {
-    LOG_ERROR("get_account_address_from_str");
-    return false;
-  }
-  return wallet2::verify(message, info.address, signature);
+    cryptonote::address_parse_info info;
+    if (!cryptonote::get_account_address_from_str(info, nettype, address)) {
+        LOG_ERROR("get_account_address_from_str");
+        return false;
+    }
+    return wallet2::verify(message, info.address, signature);
 }
 
 
@@ -79,10 +85,10 @@ std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &daemon_addr
     {
         std::string ldaemon_login(daemon_login);
         auto parsed = tools::login::parse(std::move(ldaemon_login), false, [](bool verify) {
-            #ifdef HAVE_READLINE
+#ifdef HAVE_READLINE
             rdln::suspend_readline pause_readline;
-            #endif
-           return tools::password_container::prompt(verify, "Daemon client password");
+#endif
+            return tools::password_container::prompt(verify, "Daemon client password");
         });
 
         if (!parsed)
@@ -183,7 +189,7 @@ void GraftWallet::load_graft(const string &data, const string &password, const s
 
     if (!load_keys_graft(data, password))
     {
-      THROW_WALLET_EXCEPTION_IF(true, error::file_read_error, m_keys_file);
+        THROW_WALLET_EXCEPTION_IF(true, error::file_read_error, m_keys_file);
     }
     LOG_PRINT_L0("Loaded wallet keys file, with public address: " << m_account.get_public_address_str(m_nettype));
 
@@ -193,7 +199,7 @@ void GraftWallet::load_graft(const string &data, const string &password, const s
     m_account_public_address = m_account.get_keys().m_account_address;
 
     if (!cache_file.empty())
-      load_cache(cache_file);
+        load_cache(cache_file);
 
     cryptonote::block genesis;
     generate_genesis(genesis);
@@ -201,11 +207,11 @@ void GraftWallet::load_graft(const string &data, const string &password, const s
 
     if (m_blockchain.empty())
     {
-      m_blockchain.push_back(genesis_hash);
+        m_blockchain.push_back(genesis_hash);
     }
     else
     {
-      check_genesis(genesis_hash);
+        check_genesis(genesis_hash);
     }
 
     m_local_bc_height = m_blockchain.size();
@@ -298,27 +304,185 @@ void GraftWallet::store_cache(const string &filename)
     THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
 }
 
-Monero::PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const string &payment_id, boost::optional<uint64_t> amount,
-                                                           uint32_t mixin_count, const supernode::GraftTxExtra &graftExtra,
+// TODO: this is a method from different API (libwallet_api); try to remove and re-use libwallet api
+Monero::PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const string &payment_id,
+                                                           boost::optional<uint64_t> amount, uint32_t mixin_count, const supernode::GraftTxExtra &graftExtra,
                                                            Monero::PendingTransaction::Priority priority)
 {
+    int status = 0;
+    std::string errorString;
+    cryptonote::address_parse_info info;
 
+    uint32_t subaddr_account = 0;
+    std::set<uint32_t> subaddr_indices;
+
+    // indicates if dst_addr is integrated address (address + payment_id)
+    // TODO:  (https://bitcointalk.org/index.php?topic=753252.msg9985441#msg9985441)
+    size_t fake_outs_count = mixin_count > 0 ? mixin_count : this->default_mixin();
+    if (fake_outs_count == 0)
+        fake_outs_count = DEFAULT_MIXIN;
+
+    uint32_t adjusted_priority = this->adjust_priority(static_cast<uint32_t>(priority));
+
+    GraftPendingTransactionImpl * transaction = new GraftPendingTransactionImpl(this);
+
+    do {
+        if(!cryptonote::get_account_address_from_str(info, this->nettype(), dst_addr)) {
+            errorString = "Invalid destination address";
+            break;
+        }
+
+
+        std::vector<uint8_t> extra;
+        // if dst_addr is not an integrated address, parse payment_id
+        if (!info.has_payment_id && !payment_id.empty()) {
+            // copy-pasted from simplewallet.cpp:2212
+            crypto::hash payment_id_long;
+            bool r = tools::wallet2::parse_long_payment_id(payment_id, payment_id_long);
+            if (r) {
+                std::string extra_nonce;
+                cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_long);
+                r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
+            } else {
+                r = tools::wallet2::parse_short_payment_id(payment_id, info.payment_id);
+                if (r) {
+                    std::string extra_nonce;
+                    cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, info.payment_id);
+                    r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
+                }
+            }
+
+            if (!r) {
+                errorString = tr("payment id has invalid format, expected 16 or 64 character hex string: ") + payment_id;
+                break;
+            }
+        }
+        else if (info.has_payment_id) {
+            std::string extra_nonce;
+            cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, info.payment_id);
+            bool r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
+            if (!r) {
+                errorString = tr("Failed to add short payment id: ") + epee::string_tools::pod_to_hex(info.payment_id);
+                break;
+            }
+        }
+
+        // add graft extra fields to tx extra
+        if (!cryptonote::add_graft_tx_extra_to_extra(extra, graftExtra)) {
+            LOG_ERROR("Error adding graft fields to tx extra");
+            delete transaction;
+            return nullptr;
+        }
+
+        try {
+            if (amount) {
+                vector<cryptonote::tx_destination_entry> dsts;
+                cryptonote::tx_destination_entry de;
+                de.addr = info.address;
+                de.amount = *amount;
+                de.is_subaddress = info.is_subaddress;
+                dsts.push_back(de);
+                transaction->setPendingTx(this->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
+                                                                            adjusted_priority,
+                                                                            extra, subaddr_account, subaddr_indices, false));
+            } else {
+                // for the GUI, sweep_all (i.e. amount set as "(all)") will always sweep all the funds in all the addresses
+                if (subaddr_indices.empty())
+                {
+                    for (uint32_t index = 0; index < this->get_num_subaddresses(subaddr_account); ++index)
+                        subaddr_indices.insert(index);
+                }
+                transaction->setPendingTx(this->create_transactions_all(0, info.address, info.is_subaddress, fake_outs_count, 0 /* unlock_time */,
+                                                                              adjusted_priority,
+                                                                              extra, subaddr_account, subaddr_indices, false));
+            }
+
+        } catch (const tools::error::daemon_busy&) {
+            // TODO: make it translatable with "tr"?
+            errorString = tr("daemon is busy. Please try again later.");
+        } catch (const tools::error::no_connection_to_daemon&) {
+            errorString = tr("no connection to daemon. Please make sure daemon is running.");
+        } catch (const tools::error::wallet_rpc_error& e) {
+            errorString = tr("RPC error: ") +  e.to_string();
+        } catch (const tools::error::get_random_outs_error &e) {
+            errorString = (boost::format(tr("failed to get random outputs to mix: %s")) % e.what()).str();
+        } catch (const tools::error::not_enough_unlocked_money& e) {
+            std::ostringstream writer;
+            writer << boost::format(tr("not enough money to transfer, available only %s, sent amount %s")) %
+                      cryptonote::print_money(e.available()) %
+                      cryptonote::print_money(e.tx_amount());
+            errorString = writer.str();
+        } catch (const tools::error::not_enough_money& e) {
+            std::ostringstream writer;
+            writer << boost::format(tr("not enough money to transfer, overall balance only %s, sent amount %s")) %
+                      cryptonote::print_money(e.available()) %
+                      cryptonote::print_money(e.tx_amount());
+            errorString = writer.str();
+
+        } catch (const tools::error::tx_not_possible& e) {
+            std::ostringstream writer;
+
+            writer << boost::format(tr("not enough money to transfer, available only %s, transaction amount %s = %s + %s (fee)")) %
+                      cryptonote::print_money(e.available()) %
+                      cryptonote::print_money(e.tx_amount() + e.fee())  %
+                      cryptonote::print_money(e.tx_amount()) %
+                      cryptonote::print_money(e.fee());
+            errorString = writer.str();
+
+        } catch (const tools::error::not_enough_outs_to_mix& e) {
+            std::ostringstream writer;
+            writer << tr("not enough outputs for specified ring size") << " = " << (e.mixin_count() + 1) << ":";
+            for (const std::pair<uint64_t, uint64_t> outs_for_amount : e.scanty_outs()) {
+                writer << "\n" << tr("output amount") << " = " << cryptonote::print_money(outs_for_amount.first) << ", " << tr("found outputs to use") << " = " << outs_for_amount.second;
+            }
+            writer << "\n" << tr("Please sweep unmixable outputs.");
+            errorString = writer.str();
+        } catch (const tools::error::tx_not_constructed&) {
+            errorString = tr("transaction was not constructed");
+        } catch (const tools::error::tx_rejected& e) {
+            std::ostringstream writer;
+            writer << (boost::format(tr("transaction %s was rejected by daemon with status: ")) % cryptonote::get_transaction_hash(e.tx())) <<  e.status();
+            errorString = writer.str();
+        } catch (const tools::error::tx_sum_overflow& e) {
+            errorString = e.what();
+        } catch (const tools::error::zero_destination&) {
+            errorString =  tr("one of destinations is zero");
+        } catch (const tools::error::tx_too_big& e) {
+            errorString =  tr("failed to find a suitable way to split transactions");
+        } catch (const tools::error::transfer_error& e) {
+            errorString = string(tr("unknown transfer error: ")) + e.what();
+        } catch (const tools::error::wallet_internal_error& e) {
+            errorString =  string(tr("internal error: ")) + e.what();
+        } catch (const std::exception& e) {
+            errorString =  string(tr("unexpected error: ")) + e.what();
+        } catch (...) {
+            errorString = tr("unknown error");
+        }
+    } while (false);
+
+    if (!errorString.empty())
+    {
+        status = Wallet::Status_Error;
+    }
+
+    transaction->setStatus(status);
+    transaction->setErrorString(errorString);
+    return transaction;
 }
-
 
 
 std::string GraftWallet::store_keys_graft(const std::string& password, bool watch_only)
 {
-  std::string result;
-  if (wallet2::store_keys_to_buffer(epee::wipeable_string(password), result, watch_only))
-    return result;
-  else
-    return "";
+    std::string result;
+    if (wallet2::store_keys_to_buffer(epee::wipeable_string(password), result, watch_only))
+        return result;
+    else
+        return "";
 }
 
 bool GraftWallet::load_keys_graft(const string &data, const string &password)
 {
-  return wallet2::load_keys_from_buffer(data, epee::wipeable_string(password));
+    return wallet2::load_keys_from_buffer(data, epee::wipeable_string(password));
 }
 
 
