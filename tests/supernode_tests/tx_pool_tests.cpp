@@ -30,8 +30,7 @@
 
 #include "gtest/gtest.h"
 
-#include "wallet/wallet2_api.h"
-//#include "wallet/wallet2.h"
+#include "wallet/api/wallet2_api.h"
 
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
@@ -59,8 +58,6 @@
 #include "supernode/graft_wallet.h"
 #include "supernode/api/pending_transaction.h"
 
-#include "wallet/wallet2_api.h"
-
 
 using namespace supernode;
 using namespace tools;
@@ -73,7 +70,7 @@ struct TxPoolTest : public testing::Test
 
     TxPoolTest()
     {
-        wallet = new GraftWallet(true, false);
+        wallet = new GraftWallet(cryptonote::TESTNET, false);
         string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
         string wallet_path = wallet_root_path + "/miner_wallet";
         wallet->load(wallet_path, "");

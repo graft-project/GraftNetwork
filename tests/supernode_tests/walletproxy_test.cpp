@@ -30,7 +30,7 @@
 
 #include "gtest/gtest.h"
 
-#include "wallet/wallet2_api.h"
+#include "wallet/api/wallet2_api.h"
 //#include "wallet/wallet2.h"
 
 #include "include_base_utils.h"
@@ -62,8 +62,6 @@
 #include "supernode/PosProxy.h"
 #include "supernode/AuthSample.h"
 #include "supernode/api/pending_transaction.h"
-
-#include "wallet/wallet2_api.h"
 
 
 using namespace supernode;
@@ -129,7 +127,7 @@ struct Supernode
         if(second) swap(wss1, wss2);
 
 
-        Servant = new FSN_Servant_Test(db_path, "localhost:28281", "", true);
+        Servant = new FSN_Servant_Test(db_path, "localhost:28281", "", cryptonote::TESTNET);
         Servant->Set(wallet_root_path + wss1, "", wallet_root_path + wss2, "");
 
         // wallet1
@@ -178,7 +176,7 @@ struct GraftRTATest1 : public testing::Test
 
     GraftRTATest1()
     {
-        GraftWallet *wallet = new GraftWallet(true, false);
+        GraftWallet *wallet = new GraftWallet(cryptonote::TESTNET, false);
         wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
         string wallet_path = wallet_root_path + "/miner_wallet";
         bdb_path  = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_blockchain";

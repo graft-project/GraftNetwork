@@ -30,7 +30,7 @@
 
 #include "gtest/gtest.h"
 
-#include "wallet/wallet2_api.h"
+#include "wallet/api/wallet2_api.h"
 
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
@@ -57,6 +57,7 @@
 using namespace supernode;
 using namespace tools;
 using namespace Monero;
+using namespace std;
 
 
 struct GraftWalletTest : public testing::Test
@@ -70,8 +71,8 @@ struct GraftWalletTest : public testing::Test
 
     GraftWalletTest()
     {
-        GraftWallet * wallet1 = new GraftWallet(true, false);
-        GraftWallet *wallet2 = new GraftWallet(true, false);
+        GraftWallet * wallet1 = new GraftWallet(cryptonote::TESTNET, false);
+        GraftWallet *wallet2 = new GraftWallet(cryptonote::TESTNET, false);
         wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
         string wallet_path1 = wallet_root_path + "/miner_wallet";
         string wallet_path2 = wallet_root_path + "/stake_wallet";
@@ -93,7 +94,7 @@ struct GraftWalletTest : public testing::Test
 
 TEST_F(GraftWalletTest, StoreAndLoadCache)
 {
-    GraftWallet *wallet = new GraftWallet(true, false);
+    GraftWallet *wallet = new GraftWallet(cryptonote::TESTNET, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
@@ -109,7 +110,7 @@ TEST_F(GraftWalletTest, StoreAndLoadCache)
     boost::system::error_code ignored_ec;
     ASSERT_TRUE(boost::filesystem::exists(cache_filename, ignored_ec));
     // creating new wallet from serialized keys
-    wallet = new GraftWallet(true, false);
+    wallet = new GraftWallet(cryptonote::TESTNET, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", cache_filename));
     // check if we loaded blocks from cache
     ASSERT_TRUE(wallet->get_blockchain_current_height() > 100);
@@ -120,7 +121,7 @@ TEST_F(GraftWalletTest, StoreAndLoadCache)
 
 TEST_F(GraftWalletTest, LoadWrongCache)
 {
-    GraftWallet *wallet = new GraftWallet(true, false);
+    GraftWallet *wallet = new GraftWallet(cryptonote::TESTNET, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
@@ -136,7 +137,7 @@ TEST_F(GraftWalletTest, LoadWrongCache)
     boost::system::error_code ignored_ec;
     ASSERT_TRUE(boost::filesystem::exists(cache_filename, ignored_ec));
     // creating new wallet object, try to load cache from different one
-    wallet = new GraftWallet(true, false);
+    wallet = new GraftWallet(cryptonote::TESTNET, false);
     ASSERT_ANY_THROW(wallet->load_graft(wallet_account2, "", cache_filename));
     boost::filesystem::remove(temp);
     delete wallet;
@@ -145,7 +146,7 @@ TEST_F(GraftWalletTest, LoadWrongCache)
 // implemented here; normally we need the same for wallet/wallet2.cpp
 TEST_F(GraftWalletTest, UseForkRule)
 {
-    GraftWallet *wallet = new GraftWallet(true, false);
+    GraftWallet *wallet = new GraftWallet(cryptonote::TESTNET, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);

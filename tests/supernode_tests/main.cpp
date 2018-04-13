@@ -30,7 +30,7 @@
 
 #include "gtest/gtest.h"
 
-#include "wallet/wallet2_api.h"
+#include "wallet/api/wallet2_api.h"
 //#include "wallet/wallet2.h"
 
 #include "include_base_utils.h"
@@ -164,7 +164,7 @@ TEST_F(TestDAPI_Server_And_ClientBase, TestDAPI_Server_And_Client) {
 
 		workerThread.join();
 
-};
+}
 
 
 namespace supernode {
@@ -231,7 +231,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 			if(second) swap(wss1, wss2);
 
 
-			Servant = new FSN_Servant_Test(db_path, "localhost:28281", "", true);
+            Servant = new FSN_Servant_Test(db_path, "localhost:28281", "", cryptonote::TESTNET);
 			Servant->Set(wallet_root_path + wss1, "", wallet_root_path + wss2, "");
 
 		    // wallet1
@@ -289,9 +289,9 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
         return NTransactionStatus(out.Status);
 	}
 
-	string IP = "127.0.0.1";;
-	string WalletProxyPort = "7500";;
-	string PosProxyPort = "8500";;
+    string IP = "127.0.0.1";
+    string WalletProxyPort = "7500";
+    string PosProxyPort = "8500";
 	bool Verbose = true;
 
 	bool Assert(bool bb, const string& str) {
@@ -360,7 +360,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		pay_in.PaymentID = sale_out.PaymentID;
 		{
 		string wallet_path = s_TestDataPath + "/test_wallets" + "/stake_wallet";
-		tools::GraftWallet wallet(true, false);
+        tools::GraftWallet wallet(cryptonote::TESTNET, false);
 		wallet.load(wallet_path, "");
 		pay_in.Account = epee::string_encoding::base64_encode( wallet.store_keys_graft("", false) );
 		}
@@ -679,7 +679,7 @@ struct TestActualList {
 		vv.push_back(  ip+string(":")+p2 );
 		m_P2P.Set(m_DAPIServer, vv);
 
-		Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28281", "", "", "", true);
+        Servant = new FSN_Servant(basePath+"/test_blockchain", "localhost:28281", "", "", "", cryptonote::TESTNET);
 		Servant->Set(basePath+string("/test_wallets")+sw, swp, basePath+string("/test_wallets")+mw, mwp);
 
 		List = new FSN_ActualList_Test(Servant, &m_P2P, m_DAPIServer);
@@ -818,7 +818,7 @@ struct FSNServantTest : public testing::Test
 
     FSNServantTest()
     {
-        fsns = new FSN_Servant(db_path, "localhost:28281", "", "", "", true);
+        fsns = new FSN_Servant(db_path, "localhost:28281", "", "", "", cryptonote::TESTNET);
 
     }
 
