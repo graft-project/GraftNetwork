@@ -86,6 +86,7 @@ target_link_libraries(unit_tests
     blockchain_db
     rpc
     wallet
+    wallet_api
     p2p
     version
     epee
