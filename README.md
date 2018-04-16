@@ -68,7 +68,7 @@ Dates are provided in the format YYYY-MM-DD.
 | Fork Date              | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |  
 | ----------------- | ----------------- | ---------------------- | -------------------------- | ------------------ |
 | 2018-01-18        | v7                | 1.0.0                | 1.0.1                    | First release      |
-| 2018-04-10        | v8                | 1.1.0                | 1.1.1                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
+| 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
 
 ## Installing Graft Network from a Package
 
