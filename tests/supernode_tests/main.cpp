@@ -468,8 +468,8 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 
 
 TEST_F(Test_RTA_FlowBlockChain, Test_RTA_With_FlowBlockChain) {
-	mlog_configure("", true);
-	mlog_set_log_level(5);
+    // mlog_configure("", true);
+    // mlog_set_log_level(2);
 
 	//PosProxyPort = WalletProxyPort;
 
@@ -957,7 +957,7 @@ int main(int argc, char** argv)
 {
     epee::string_tools::set_module_name_and_folder(argv[0]);
     mlog_configure("", true);
-    mlog_set_log_level(1);
+    mlog_set_log_level(2);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
