@@ -1,6 +1,12 @@
 # Graft Network
 
+<<<<<<< HEAD
 Copyright (c) 2017-2018, The Graft Project
+||||||| merged common ancestors
+Copyright (c) 2017, The Graft Project
+=======
+Copyright (c) 2018, The Graft Project
+>>>>>>> master
 
 ## Monero Fork (Monero version 0.12)
 
@@ -69,10 +75,8 @@ Dates are provided in the format YYYY-MM-DD.
 
 | Fork Date              | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |  
 | ----------------- | ----------------- | ---------------------- | -------------------------- | ------------------ |
-| 2016-09-21        | v3                | v0.9.4                 | v0.10.0                    | Splits coinbase into denominations  |
-| 2017-01-05        | v4                | v0.10.1                 | v0.10.2.1                   | Allow normal and RingCT transactions |
-| 2017-04-15        | v5                | v0.10.3.0               | v0.10.3.1                    | Adjusted minimum blocksize and fee algorithm      |
-| 2017-09-21        | v6                | Not determined as of 2017-03-27                | Not determined as of 2017-03-27                    | Allow only RingCT transactions      |
+| 2018-01-18        | v7                | 1.0.0                | 1.0.1                    | First release      |
+| 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
 
 ## Installing Graft Network from a Package
 

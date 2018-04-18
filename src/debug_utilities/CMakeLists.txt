@@ -69,3 +69,53 @@ set_property(TARGET object_sizes
 	PROPERTY
 	OUTPUT_NAME "monero-utils-object-sizes")
 
+
+
+#
+set(daa_dump_sources
+  daa_dump.cpp
+  )
+
+monero_add_executable(daa_dump
+  ${daa_dump_sources}
+  ${daa_dump_private_headers})
+
+target_link_libraries(daa_dump
+  LINK_PRIVATE
+    cryptonote_core
+    blockchain_db
+    p2p
+    epee
+    ${CMAKE_THREAD_LIBS_INIT})
+
+add_dependencies(daa_dump
+        version)
+set_property(TARGET daa_dump
+        PROPERTY
+        OUTPUT_NAME "daa_dump_data")
+
+#########################################
+set(daa_process_sources
+        daa_process.cpp
+        )
+
+monero_add_executable(daa_process
+   ${daa_process_sources}
+    ${daa_process_private_headers})
+
+target_link_libraries(daa_process
+        LINK_PRIVATE
+        cryptonote_core
+        blockchain_db
+        p2p
+        epee
+        ${CMAKE_THREAD_LIBS_INIT})
+
+add_dependencies(daa_process
+        version)
+
+set_property(TARGET daa_process
+        PROPERTY
+        OUTPUT_NAME "daa_process_data")
+
+#########################################

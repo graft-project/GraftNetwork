@@ -45,6 +45,7 @@
 #include <boost/tokenizer.hpp>
 
 using namespace std;
+namespace po = boost::program_options;
 
 
 namespace supernode {
