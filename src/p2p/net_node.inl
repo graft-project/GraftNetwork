@@ -1923,7 +1923,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::has_too_many_connections(const epee::net_utils::network_address &address)
   {
-    const size_t max_connections = 1;
+    const size_t max_connections = 100;
     size_t count = 0;
 
     m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)
