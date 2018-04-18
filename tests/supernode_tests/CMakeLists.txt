@@ -48,9 +48,10 @@ add_executable(supernode_tests
 target_link_libraries(supernode_tests
    PRIVATE
     epee
-    supernode
     wallet
     wallet_api
+    supernode # IMPORTANT/TODO: supernode lib should be AFTER wallet in list. Otherwise there will be segfault while opening wallet cache.
+              # same way, segfault will happen in case "wallet" library removed from this list
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
