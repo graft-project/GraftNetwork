@@ -3759,76 +3759,7 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   }
   else
   {
-    wallet2::cache_file_data cache_file_data;
-    std::string buf;
-    bool r = epee::file_io_utils::load_file_to_string(m_wallet_file, buf);
-    THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, m_wallet_file);
-
-    // try to read it as an encrypted cache
-    try
-    {
-      LOG_PRINT_L1("Trying to decrypt cache data");
-
-      r = ::serialization::parse_binary(buf, cache_file_data);
-      THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + m_wallet_file + '\"');
-      crypto::chacha_key key;
-      generate_chacha_key_from_secret_keys(key);
-      std::string cache_data;
-      cache_data.resize(cache_file_data.cache_data.size());
-      crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
-
-      try {
-        std::stringstream iss;
-        iss << cache_data;
-        boost::archive::portable_binary_iarchive ar(iss);
-        ar >> *this;
-      }
-      catch (...)
-      {
-        crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
-        try
-        {
-          std::stringstream iss;
-          iss << cache_data;
-          boost::archive::portable_binary_iarchive ar(iss);
-          ar >> *this;
-        }
-        catch (...)
-        {
-          LOG_PRINT_L0("Failed to open portable binary, trying unportable");
-          boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
-          std::stringstream iss;
-          iss.str("");
-          iss << cache_data;
-          boost::archive::binary_iarchive ar(iss);
-          ar >> *this;
-        }
-      }
-    }
-    catch (...)
-    {
-      LOG_PRINT_L1("Failed to load encrypted cache, trying unencrypted");
-      try {
-        std::stringstream iss;
-        iss << buf;
-        boost::archive::portable_binary_iarchive ar(iss);
-        ar >> *this;
-      }
-      catch (...)
-      {
-        LOG_PRINT_L0("Failed to open portable binary, trying unportable");
-        boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
-        std::stringstream iss;
-        iss.str("");
-        iss << buf;
-        boost::archive::binary_iarchive ar(iss);
-        ar >> *this;
-      }
-    }
-    THROW_WALLET_EXCEPTION_IF(
-      m_account_public_address.m_spend_public_key != m_account.get_keys().m_account_address.m_spend_public_key ||
-      m_account_public_address.m_view_public_key  != m_account.get_keys().m_account_address.m_view_public_key,
-      error::wallet_files_doesnt_correspond, m_keys_file, m_wallet_file);
+    load_cache(m_wallet_file);
   }
 
   cryptonote::block genesis;
@@ -3859,6 +3790,83 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   {
     MERROR("Failed to save rings, will try again next time");
   }
+}
+
+void wallet2::load_cache(const string &cache_filename)
+{
+
+  wallet2::cache_file_data cache_file_data;
+  std::string buf;
+  bool r = epee::file_io_utils::load_file_to_string(cache_filename, buf);
+  THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, cache_filename);
+
+  // try to read it as an encrypted cache
+  try
+  {
+    LOG_PRINT_L1("Trying to decrypt cache data");
+
+    r = ::serialization::parse_binary(buf, cache_file_data);
+    THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + cache_filename + '\"');
+    crypto::chacha_key key;
+    generate_chacha_key_from_secret_keys(key);
+    std::string cache_data;
+    cache_data.resize(cache_file_data.cache_data.size());
+    crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
+
+    try {
+      std::stringstream iss;
+      iss << cache_data;
+      boost::archive::portable_binary_iarchive ar(iss);
+      ar >> *this;
+    }
+    catch (...)
+    {
+      crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
+      try
+      {
+        std::stringstream iss;
+        iss << cache_data;
+        boost::archive::portable_binary_iarchive ar(iss);
+        ar >> *this;
+      }
+      catch (...)
+      {
+        LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+        boost::filesystem::copy_file(cache_filename, cache_filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+        std::stringstream iss;
+        iss.str("");
+        iss << cache_data;
+        boost::archive::binary_iarchive ar(iss);
+        ar >> *this;
+      }
+    }
+  }
+  catch (...)
+  {
+    LOG_PRINT_L1("Failed to load encrypted cache, trying unencrypted");
+    try {
+      std::stringstream iss;
+      iss << buf;
+      boost::archive::portable_binary_iarchive ar(iss);
+      ar >> *this;
+    }
+    catch (...)
+    {
+      LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+      boost::filesystem::copy_file(cache_filename, cache_filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+      std::stringstream iss;
+      iss.str("");
+      iss << buf;
+      boost::archive::binary_iarchive ar(iss);
+      ar >> *this;
+    }
+  }
+  THROW_WALLET_EXCEPTION_IF(
+        m_account_public_address.m_spend_public_key != m_account.get_keys().m_account_address.m_spend_public_key ||
+      m_account_public_address.m_view_public_key  != m_account.get_keys().m_account_address.m_view_public_key,
+        error::wallet_files_doesnt_correspond, m_keys_file, cache_filename);
+
+
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::trim_hashchain()
@@ -3926,7 +3934,6 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
     same_file = pos != std::string::npos;
   }
 
-
   if (!same_file)
   {
     // check if we want to store to directory which doesn't exists yet
@@ -3946,16 +3953,6 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
   std::stringstream oss;
   boost::archive::portable_binary_oarchive ar(oss);
   ar << *this;
-
-  wallet2::cache_file_data cache_file_data = boost::value_initialized<wallet2::cache_file_data>();
-  cache_file_data.cache_data = oss.str();
-  crypto::chacha_key key;
-  generate_chacha_key_from_secret_keys(key);
-  std::string cipher;
-  cipher.resize(cache_file_data.cache_data.size());
-  cache_file_data.iv = crypto::rand<crypto::chacha_iv>();
-  crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
-  cache_file_data.cache_data = cipher;
 
   const std::string new_file = same_file ? m_wallet_file + ".new" : path;
   const std::string old_file = m_wallet_file;
@@ -3991,7 +3988,30 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
       LOG_ERROR("error removing file: " << old_address_file);
     }
   } else {
-    // save to new file
+    store_cache(new_file);
+    // here we have "*.new" file, we need to rename it to be without ".new"
+    std::error_code e = tools::replace_file(new_file, m_wallet_file);
+    THROW_WALLET_EXCEPTION_IF(e, error::file_save_error, m_wallet_file, e);
+  }
+}
+
+void wallet2::store_cache(const string &filename)
+{
+  // preparing wallet data
+  std::stringstream oss;
+  boost::archive::portable_binary_oarchive ar(oss);
+  ar << *this;
+
+  wallet2::cache_file_data cache_file_data = boost::value_initialized<wallet2::cache_file_data>();
+  cache_file_data.cache_data = oss.str();
+  crypto::chacha_key key;
+  generate_chacha_key_from_secret_keys(key);
+  std::string cipher;
+  cipher.resize(cache_file_data.cache_data.size());
+  cache_file_data.iv = crypto::rand<crypto::chacha_iv>();
+  crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
+  cache_file_data.cache_data = cipher;
+
 #ifdef WIN32
     // On Windows avoid using std::ofstream which does not work with UTF-8 filenames
     // The price to pay is temporary higher memory consumption for string stream + binary archive
@@ -4001,20 +4021,16 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
     if (success) {
         success = epee::file_io_utils::save_string_to_file(new_file, oss.str());
     }
-    THROW_WALLET_EXCEPTION_IF(!success, error::file_save_error, new_file);
+    THROW_WALLET_EXCEPTION_IF(!success, error::file_save_error, filename);
 #else
     std::ofstream ostr;
-    ostr.open(new_file, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);
+    ostr.open(filename, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);
     binary_archive<true> oar(ostr);
     bool success = ::serialization::serialize(oar, cache_file_data);
     ostr.close();
-    THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, new_file);
+    THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
 #endif
 
-    // here we have "*.new" file, we need to rename it to be without ".new"
-    std::error_code e = tools::replace_file(new_file, m_wallet_file);
-    THROW_WALLET_EXCEPTION_IF(e, error::file_save_error, m_wallet_file, e);
-  }
 }
 //----------------------------------------------------------------------------------------------------
 // TODO: implement till_block

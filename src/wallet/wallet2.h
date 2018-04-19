@@ -564,6 +564,12 @@ namespace tools
     void rewrite(const std::string& wallet_name, const epee::wipeable_string& password);
     void write_watch_only_wallet(const std::string& wallet_name, const epee::wipeable_string& password, std::string &new_keys_filename);
     void load(const std::string& wallet, const epee::wipeable_string& password);
+    /*!
+     * \brief load_cache - loads cache from given filename.
+     *                     wallet's private keys should be already loaded before this call
+     * \param filename - filename pointing to the file with cache
+     */
+    void load_cache(const std::string &filename);
     void store();
     /*!
      * \brief store_to - stores wallet to another file(s), deleting old ones
@@ -571,6 +577,11 @@ namespace tools
      * \param password - password to protect new wallet (TODO: probably better save the password in the wallet object?)
      */
     void store_to(const std::string &path, const epee::wipeable_string &password);
+    /*!
+     * \brief store_cache - stores only cache to the file. cache is encrypted using wallet's private keys
+     * \param path - filename to store the cache
+     */
+    void store_cache(const std::string &filename);
 
     std::string path() const;
 

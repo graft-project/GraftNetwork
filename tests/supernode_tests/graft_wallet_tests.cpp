@@ -29,8 +29,9 @@
 // Parts of this file are originally copyright (c) 2014-2017 The Monero Project
 
 #include "gtest/gtest.h"
-
+#include "supernode/graft_wallet.h"
 #include "wallet/api/wallet2_api.h"
+#include "wallet/wallet2.h"
 
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
@@ -52,7 +53,7 @@
 #include <chrono>
 #include <thread>
 
-#include "supernode/graft_wallet.h"
+
 
 using namespace supernode;
 using namespace tools;
@@ -77,7 +78,9 @@ struct GraftWalletTest : public testing::Test
         string wallet_path1 = wallet_root_path + "/miner_wallet";
         string wallet_path2 = wallet_root_path + "/stake_wallet";
         wallet1->load(wallet_path1, "");
+
         wallet2->load(wallet_path2, "");
+        std::cout << "test wallets loaded...\n";
         // serialize test wallets
         wallet_account1 = wallet1->store_keys_graft("", false);
         delete wallet1;

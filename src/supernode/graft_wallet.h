@@ -88,12 +88,12 @@ public:
        *                     wallet's private keys should be already loaded before this call
        * \param filename - filename pointing to the file with cache
        */
-  void load_cache(const std::string &filename);
+  // void load_cache(const std::string &filename);
   /*!
-       * \brief store_cache - stores only cache to the file. cache is encrypted using wallet's private keys
-       * \param path - filename to store the cache
-       */
-  void store_cache(const std::string &filename);
+   * \brief store_cache - stores only cache to the file. cache is encrypted using wallet's private keys
+   * \param path - filename to store the cache
+   */
+  // void store_cache(const std::string &filename);
 
   Monero::PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
                                                      boost::optional<uint64_t> amount, uint32_t mixin_count,
