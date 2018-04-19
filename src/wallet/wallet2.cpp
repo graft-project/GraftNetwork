@@ -2493,14 +2493,12 @@ bool wallet2::clear()
  */
 bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable_string& password, bool watch_only)
 {
-  std::string keys_file_data;
-  bool r = store_keys_to_buffer(password, keys_file_data, watch_only);
+  std::string buf;
+  bool r = store_keys_to_buffer(password, buf, watch_only);
   if (!r)
     return r;
 
-  std::string buf;
-  r = ::serialization::dump_binary(keys_file_data, buf);
-  r = r && epee::file_io_utils::save_string_to_file(keys_file_name, buf); //and never touch wallet_keys_file again, only read
+  r = epee::file_io_utils::save_string_to_file(keys_file_name, buf); //and never touch wallet_keys_file again, only read
   CHECK_AND_ASSERT_MES(r, false, "failed to generate wallet keys file " << keys_file_name);
   return true;
 }
