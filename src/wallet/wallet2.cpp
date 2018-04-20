@@ -5310,13 +5310,7 @@ uint64_t wallet2::get_dynamic_per_kb_fee_estimate() const
 //----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_per_kb_fee() const
 {
-  if(m_light_wallet)
-    return m_light_wallet_per_kb_fee;
-  bool use_dyn_fee = use_fork_rules(HF_VERSION_DYNAMIC_FEE, -720 * 1);
-  if (!use_dyn_fee)
-    return FEE_PER_KB;
-
-  return get_dynamic_per_kb_fee_estimate();
+   return get_dynamic_per_kb_fee_estimate();
 }
 //----------------------------------------------------------------------------------------------------
 int wallet2::get_fee_algorithm() const
