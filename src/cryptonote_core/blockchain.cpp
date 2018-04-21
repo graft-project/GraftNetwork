@@ -778,9 +778,13 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   {
       return next_difficulty(timestamps, difficulties, target);
   }
-  else
+  else if (version == 8)
   {
       return next_difficulty_v8(timestamps, difficulties, target);
+  }
+  else
+  {
+      return next_difficulty_v9(timestamps, difficulties, target);
   }
 }
 //------------------------------------------------------------------
@@ -997,9 +1001,12 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   if (ideal_hardfork_version < 8) {
       LOG_PRINT_L2("old difficulty algo");
       result = next_difficulty(timestamps, cumulative_difficulties, target);
-  } else {
+  } else if (ideal_hardfork_version == 8) {
       LOG_PRINT_L2("new difficulty algo");
       result = next_difficulty_v8(timestamps, cumulative_difficulties, target);
+  } else {
+      LOG_PRINT_L2("new difficulty algo with faster decresing difficulty");
+      return next_difficulty_v9(timestamps, cumulative_difficulties, target);
   }
   LOG_PRINT_L2("difficulty: " << result);
   return result;
