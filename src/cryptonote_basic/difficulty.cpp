@@ -163,7 +163,15 @@ namespace cryptonote {
     return (low + time_span - 1) / time_span;
   }
 
-
+  // LWMA difficulty algorithm
+  // Copyright (c) 2017-2018 Zawy
+  // MIT license http://www.opensource.org/licenses/mit-license.php.
+  // Tom Harding, Karbowanec, Masari, Bitcoin Gold, and Bitcoin Candy have contributed.
+  // https://github.com/zawy12/difficulty-algorithms/issues/3
+  // Implementation based on the Masari Project:
+  // https://github.com/masari-project/masari/blob/master/src/cryptonote_basic/difficulty.cpp
+  //
+  // Graft Settings: adjust = 0.9909
   difficulty_type next_difficulty_v8(std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulative_difficulties, size_t target_seconds) {
 
     if (timestamps.size() > DIFFICULTY_BLOCKS_COUNT_V8) {
