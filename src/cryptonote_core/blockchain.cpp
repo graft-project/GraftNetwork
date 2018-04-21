@@ -139,7 +139,7 @@ static const struct {
   { 7, 1, 0, 1501709789 },
   // GRAFT: public testnet hardfork v8 from block 57640
   { 8, 57780, 0, 1522838800 },
-  { 9, 68000, 0, 1524229900 },
+  { 9, 69000, 0, 1524229900 },
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
