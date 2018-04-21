@@ -264,9 +264,8 @@ namespace cryptonote {
       double d_last = 1.0 * (cumulative_difficulties[length - 1] - cumulative_difficulties[length - 2]);
       double d_prev = 1.0 * (cumulative_difficulties[length - 3] - cumulative_difficulties[length - 4]);
       double h = 1.0 * (timestamps[length - 1] - timestamps[0]) / timestamps.size();
-      if (h > 0)
-      {
-          derivative = (d_last - d_prev) / h;
+      if (h > 0) {
+        derivative = (d_last - d_prev) / h;
       }
     }
     // adjust = 0.99 for N=60, leaving the + 1 for now as it's not affecting N
