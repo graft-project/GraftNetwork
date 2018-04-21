@@ -268,7 +268,7 @@ namespace cryptonote {
     }
 
     double derivative = 0;
-    if (length >= 3 && timestamps[length - 1] - timestamps[length - 3] > 0) {
+    if (length >= 4 && timestamps[length - 1] - timestamps[length - 3] > 0) {
       double d_last = 1.0 * (cumulative_difficulties[length - 1] - cumulative_difficulties[length - 2]);
       double d_prev = 1.0 * (cumulative_difficulties[length - 3] - cumulative_difficulties[length - 4]);
       double h = 1.0 * (timestamps[length - 1] - timestamps[0]) / timestamps.size();
