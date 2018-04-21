@@ -45,7 +45,7 @@
 #define CURRENT_BLOCK_MAJOR_VERSION                     1
 #define CURRENT_BLOCK_MINOR_VERSION                     0
 #define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT              60*60*2
-#define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9           500 // https://github.com/zawy12/difficulty-algorithms/issues/3, TimeStamp manipulation
+#define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9           120*7  // 7xT https://github.com/zawy12/difficulty-algorithms/issues/3, TimeStamp manipulation
 #define CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE             10
 
 #define BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW               60
