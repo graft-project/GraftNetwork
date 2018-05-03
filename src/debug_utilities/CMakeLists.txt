@@ -122,3 +122,26 @@ set_property(TARGET daa_process
         OUTPUT_NAME "daa_process_data")
 
 #########################################
+
+
+set(hash_test_sources
+        hash_test.cpp
+        )
+
+monero_add_executable(hash_test
+   ${hash_test_sources})
+
+target_link_libraries(hash_test
+        LINK_PRIVATE
+        cryptonote_core
+        epee
+        ${CMAKE_THREAD_LIBS_INIT})
+
+add_dependencies(hash_test
+        version)
+
+set_property(TARGET hash_test
+        PROPERTY
+        OUTPUT_NAME "hash-test")
+
+#########################################
