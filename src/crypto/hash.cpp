@@ -36,7 +36,7 @@ void cn_slow_hash_variant(const void *data, std::size_t length, hash &hash, int 
     if (variant <= 1) {
         cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), variant, 0/*prehashed*/);
     } else {
-        cn_pow_hash_v2 hash_ctx;
+        static thread_local cn_pow_hash_v2 hash_ctx;
         hash_ctx.hash(data, length, reinterpret_cast<char *>(&hash));
     }
 }
