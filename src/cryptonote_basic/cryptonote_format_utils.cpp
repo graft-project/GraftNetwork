@@ -747,7 +747,10 @@ namespace cryptonote
   {
 
     blobdata bd = get_block_hashing_blob(b);
-    const int cn_variant = b.major_version >= 8 ? b.major_version - 7 : 0;
+    // variant 0: monero v1
+    // variant 1: monero v7
+    // variant 3: cryptonote heavy
+    const int cn_variant = b.major_version == 8 || b.major_version == 9  ? 1 : b.major_version > 9 ? 2 : 0;
     crypto::cn_slow_hash(bd.data(), bd.size(), res, cn_variant);
     return true;
   }

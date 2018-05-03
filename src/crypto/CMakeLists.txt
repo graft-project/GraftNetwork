@@ -39,13 +39,18 @@ set(crypto_sources
   hash-extra-jh.c
   hash-extra-skein.c
   hash.c
+  hash.cpp
   jh.c
   keccak.c
   oaes_lib.c
   random.c
   skein.c
   slow-hash.c
-  tree-hash.c)
+  tree-hash.c
+  cn_slow_hash_hard_arm.cpp
+  cn_slow_hash_hard_intel.cpp
+  cn_slow_hash_soft.cpp
+  )
 
 set(crypto_headers)
 
@@ -66,7 +71,8 @@ set(crypto_private_headers
   oaes_lib.h
   random.h
   skein.h
-  skein_port.h)
+  skein_port.h
+  cn_slow_hash.hpp)
 
 monero_private_headers(cncrypto
   ${crypto_private_headers})
