@@ -1738,6 +1738,18 @@ namespace nodetool
     rsp.peer_id = m_config.m_peer_id;
     return 1;
   }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_command_hop(int command, COMMAND_HOP::request& arg, COMMAND_HOP::response& rsp, p2p_connection_context& context)
+  {
+    LOG_DEBUG_CC(context, "COMMAND_HOP");
+    // TODO: add hop
+    rsp.status = PING_OK_RESPONSE_STATUS_TEXT;
+    rsp.peer_id = m_config.m_peer_id;
+    return 1;
+  }
+
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::log_peerlist()

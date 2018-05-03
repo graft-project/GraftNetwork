@@ -137,6 +137,8 @@ namespace nodetool
     , "seeds.moneroseeds.li"
     };
 
+    std::list<peerlist_entry>& command_hop_peer_list;
+
     bool islimitup=false;
     bool islimitdown=false;
 
@@ -146,6 +148,7 @@ namespace nodetool
     CHAIN_LEVIN_NOTIFY_MAP2(p2p_connection_context); //move levin_commands_handler interface notify(...) callbacks into nothing
 
     BEGIN_INVOKE_MAP2(node_server)
+      HANDLE_INVOKE_T2(COMMAND_HOP, &node_server::handle_command_hop)
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
       HANDLE_INVOKE_T2(COMMAND_PING, &node_server::handle_ping)
@@ -161,6 +164,7 @@ namespace nodetool
     enum PeerType { anchor = 0, white, gray };
 
     //----------------- commands handlers ----------------------------------------------
+    int handle_command_hop(int command, typename COMMAND_HOP::request& arg, typename COMMAND_HOP::response& rsp, p2p_connection_context& context);
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);
