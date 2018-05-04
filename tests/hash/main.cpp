@@ -33,6 +33,10 @@
 #include <iomanip>
 #include <ios>
 #include <string>
+#include <iostream>
+#include <ostream>
+#include <algorithm>
+#include <iterator>
 
 #include "warnings.h"
 #include "crypto/hash.h"
@@ -52,15 +56,16 @@ extern "C" {
     tree_hash((const char (*)[32]) data, length >> 5, hash);
   }
   static void cn_slow_hash_0(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 0/*variant*/, 0/*prehashed*/);
+    return crypto::cn_slow_hash(data, length, hash, 0/*variant*/, 0/*prehashed*/);
   }
   static void cn_slow_hash_1(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 1/*variant*/, 0/*prehashed*/);
+    return crypto::cn_slow_hash(data, length, hash, 1/*variant*/, 0/*prehashed*/);
   }
   static void cn_slow_hash_2(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 2/*variant*/, 0/*prehashed*/);
+    return crypto::cn_slow_hash(data, length, hash, 2/*variant*/, 0/*prehashed*/);
   }
 }
+
 POP_WARNINGS
 
 extern "C" typedef void hash_f(const void *, size_t, char *);
