@@ -110,7 +110,8 @@ static const struct {
   { 7, 1, 0, 1503046577 } ,
   // GRAFT: updated v8 hf block
   { 8, 64445, 0, 1523570400},
-  { 9, 68000, 0, 1524229900}
+  { 9, 68000, 0, 1524229900},
+
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -140,6 +141,8 @@ static const struct {
   // GRAFT: public testnet hardfork v8 from block 57640
   { 8, 57780, 0, 1522838800 },
   { 9, 67350, 0, 1524229900 },
+  // test cn_heavy
+  { 10, 75950, 0, 1525445200}
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
