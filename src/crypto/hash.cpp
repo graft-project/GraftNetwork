@@ -30,16 +30,22 @@
 #include "cn_slow_hash.hpp"
 #include "hash.h"
 
-namespace crypto {
-void cn_slow_hash_variant(const void *data, std::size_t length, hash &hash, int variant)
-{
-    if (variant <= 1) {
-        cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), variant, 0/*prehashed*/);
-    } else {
-        static thread_local cn_pow_hash_v2 hash_ctx;
-        hash_ctx.hash(data, length, reinterpret_cast<char *>(&hash));
-    }
+#include <iostream>
+extern "C" {
+// implemented in hash.c
+void cn_slow_hash_monero(const void *data, std::size_t length, char *hash, int variant, int prehashed);
 }
 
+namespace crypto {
+void cn_slow_hash_wrapper(const void *data, std::size_t length, char *hash, int variant, int prehashed)
+{
+  if (variant <= 1) {
+    cn_slow_hash_monero(data, length, hash, variant, prehashed);
+  } else {
+    static thread_local cn_pow_hash_v2 hash_ctx;
+    hash_ctx.hash(data, length, hash);
+  }
+}
 
 } // namespace crypto
+

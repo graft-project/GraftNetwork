@@ -58,7 +58,11 @@ namespace crypto {
     Cryptonight hash functions
   */
 
-  void cn_slow_hash_variant(const void *data, std::size_t length, hash &hash, int variant);
+  /*!
+   * \brief cn_slow_hash_wrapper - selects actual hash algorithm by variant variable
+   */
+  void cn_slow_hash_wrapper(const void *data, std::size_t length, char *hash, int variant, int prehashed);
+
 
   inline void cn_fast_hash(const void *data, std::size_t length, hash &hash) {
     cn_fast_hash(data, length, reinterpret_cast<char *>(&hash));
@@ -70,16 +74,20 @@ namespace crypto {
     return h;
   }
 
-  inline void cn_slow_hash(const void *data, std::size_t length, hash &hash, int variant = 0) {
+  inline void cn_slow_hash(const void *data, std::size_t length, char * hash, int variant = 0, int prehashed = 0) {
     // variant 0 -> monero v1
     // variant 1 -> monero v7
     // variant 2 -> cryptonote heavy (SUMO implementation)
-    cn_slow_hash_variant(data, length, hash, variant);
+    cn_slow_hash_wrapper(data, length, hash, variant, prehashed);
   }
 
-//  inline void cn_slow_hash_prehashed(const void *data, std::size_t length, hash &hash, int variant = 0) {
-//    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), variant, 1/*prehashed*/);
-//  }
+  inline void cn_slow_hash(const void *data, std::size_t length, hash &hash, int variant = 0, int prehashed = 0) {
+    cn_slow_hash(data, length, reinterpret_cast<char*>(&hash), variant, prehashed);
+  }
+
+  inline void cn_slow_hash_prehashed(const void *data, std::size_t length, hash &hash, int variant = 0) {
+    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), variant, 1/*prehashed*/);
+  }
 
   inline void tree_hash(const hash *hashes, std::size_t count, hash &root_hash) {
     tree_hash(reinterpret_cast<const char (*)[HASH_SIZE]>(hashes), count, reinterpret_cast<char *>(&root_hash));
