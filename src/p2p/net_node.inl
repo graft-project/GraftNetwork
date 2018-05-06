@@ -405,7 +405,7 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet, bool hoptest = false) const
+  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet, bool hoptest) const
   {
     std::set<std::string> full_addrs;
     if (hoptest)
@@ -436,11 +436,24 @@ namespace nodetool
     m_hoptest = command_line::get_arg(vm, command_line::arg_hoptest_on) || m_hopstat;
     m_testnet = m_hoptest|| command_line::get_arg(vm, command_line::arg_testnet_on);
     m_seednode = command_line::get_arg(vm, command_line::arg_seednode);
+    if (m_hopstat)
+    try {
+        std::string state_file_path = m_config_folder + "/" + "hopstat.csv";
+        m_hopstatfile.open( state_file_path , std::ios_base::out);
+    }
+    catch (std::exception & ex) {
+        std::cout << __FUNCTION__ << ": couldn't open hopstatfile: reason " << ex.what() << std::endl;
+        exit(1);
+    }
+    catch(...) {
+        std::cout << __FUNCTION__ << ": couldn't open hopstatfile: unknown exception" << std::endl;
+        exit(1);
+    }
 
     if (m_testnet)
     {
       memcpy(&m_network_id, &::config::testnet::NETWORK_ID, 16);
-      full_addrs = get_seed_nodes(true);
+      full_addrs = get_seed_nodes(true, m_hoptest);
     }
     else
     {
@@ -1194,7 +1207,7 @@ namespace nodetool
           if (!fallback_nodes_added)
           {
             MWARNING("Failed to connect to any of seed peers, trying fallback seeds");
-            for (const auto &peer: get_seed_nodes(m_testnet))
+            for (const auto &peer: get_seed_nodes(m_testnet, m_hoptest))
             {
               MDEBUG("Fallback seed node: " << peer);
               append_net_address(m_seed_nodes, peer);
@@ -1321,12 +1334,23 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::idle_worker()
   {
+      if (m_hopstat) {
+          m_hopstat_interval1.do_call(boost::bind(&node_server<t_payload_net_handler>::hopstat_task, this));
+          m_hopstat_interval2.do_call(boost::bind(&node_server<t_payload_net_handler>::hopstat_task, this));
+      }
     m_peer_handshake_idle_maker_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::peer_sync_idle_maker, this));
     m_connections_maker_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::connections_maker, this));
     m_gray_peerlist_housekeeping_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::gray_peerlist_housekeeping, this));
     m_peerlist_store_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::store_config, this));
     return true;
   }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::hopstat_task()
+  {
+      return true;
+  }
+
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::peer_sync_idle_maker()

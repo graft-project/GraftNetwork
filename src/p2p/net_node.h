@@ -52,6 +52,7 @@
 #include "math_helper.h"
 #include "net_node_common.h"
 #include "common/command_line.h"
+#include <chrono>
 
 PUSH_WARNINGS
 DISABLE_VS_WARNINGS(4355)
@@ -212,6 +213,7 @@ namespace nodetool
 
     bool connections_maker();
     bool peer_sync_idle_maker();
+    bool hopstat_task();
     bool do_handshake_with_peer(peerid_type& pi, p2p_connection_context& context, bool just_take_peerlist = false);
     bool do_peer_timed_sync(const epee::net_utils::connection_context_base& context, peerid_type peer_id);
 
@@ -229,7 +231,7 @@ namespace nodetool
     void cache_connect_fail_info(const epee::net_utils::network_address& addr);
     bool is_addr_recently_failed(const epee::net_utils::network_address& addr);
     bool is_priority_node(const epee::net_utils::network_address& na);
-    std::set<std::string> get_seed_nodes(bool testnet) const;
+    std::set<std::string> get_seed_nodes(bool testnet, bool hoptest = false) const;
     bool connect_to_seed();
 
     template <class Container>
@@ -307,6 +309,11 @@ namespace nodetool
     t_payload_net_handler& m_payload_handler;
     peerlist_manager m_peerlist;
 
+    epee::math_helper::once_a_time_seconds<1> m_hopstat_interval1;
+    epee::math_helper::once_a_time_seconds<1> m_hopstat_interval2;
+    epee::math_helper::once_a_time_seconds<1> m_hopstat_interval3;
+    epee::math_helper::once_a_time_seconds<1> m_hopstat_interval4;
+    epee::math_helper::once_a_time_seconds<1> m_hopstat_interval5;
     epee::math_helper::once_a_time_seconds<P2P_DEFAULT_HANDSHAKE_INTERVAL> m_peer_handshake_idle_maker_interval;
     epee::math_helper::once_a_time_seconds<1> m_connections_maker_interval;
     epee::math_helper::once_a_time_seconds<60*30, false> m_peerlist_store_interval;
@@ -338,7 +345,17 @@ namespace nodetool
     bool m_testnet;
     bool m_hoptest;
     bool m_hopstat;
+    std::ofstream m_hopstatfile;
     std::string m_seednode;
+    uint64_t m_hoprequest_counter;
+    struct hoprequest{
+        uint64_t no;
+        std::chrono::high_resolution_clock t;
+        boost::uuids::uuid return_addr;
+        hoprequest() : no(0), return_addr(0), t(std::chrono::high_resolution_clock::now()) {}
+        hoprequest(uint64_t & count, boost::uuids::uuid addr) : no(count++), return_addr(addr), t(std::chrono::high_resolution_clock::now()) {}
+    };
+    std::map<boost::uuids::uuid, hoprequest> active_requests;
   };
 }
 
