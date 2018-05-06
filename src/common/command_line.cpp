@@ -90,6 +90,22 @@ namespace command_line
   , "Run on testnet. The wallet must be launched with --testnet flag."
   , false
   };
+  const arg_descriptor<bool, false> arg_hoptest_on  = {
+    "hoptest"
+  , "get seednodes from hoptest network"
+  , false
+  };
+  const arg_descriptor<bool, false> arg_hopstat_on  = {
+    "hopstat"
+  , "Send COMMAND_HOP periodicly, save stats to file"
+  , false
+  };
+  const arg_descriptor<std::string> arg_seednode  = {
+    "seednode"
+  , "set seednode for hoptest network"
+  , "127.0.0.1:28880"
+  };
+
   const arg_descriptor<bool> arg_dns_checkpoints  = {
     "enforce-dns-checkpointing"
   , "checkpoints from DNS server will be enforced"

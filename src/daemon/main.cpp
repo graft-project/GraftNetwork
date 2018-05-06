@@ -153,7 +153,9 @@ int main(int argc, char const * argv[])
       return 0;
     }
 
-    bool testnet_mode = command_line::get_arg(vm, command_line::arg_testnet_on);
+    bool hoptest =  command_line::get_arg(vm, command_line::arg_hoptest_on);
+
+    bool testnet_mode = command_line::get_arg(vm, command_line::arg_testnet_on) || hoptest;
 
     auto data_dir_arg = testnet_mode ? command_line::arg_testnet_data_dir : command_line::arg_data_dir;
 

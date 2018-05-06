@@ -336,6 +336,9 @@ namespace nodetool
     std::map<std::string, uint64_t> m_host_fails_score;
 
     bool m_testnet;
+    bool m_hoptest;
+    bool m_hopstat;
+    std::string m_seednode;
   };
 }
 

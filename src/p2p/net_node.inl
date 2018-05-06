@@ -405,10 +405,14 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet) const
+  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet, bool hoptest = false) const
   {
     std::set<std::string> full_addrs;
-    if (testnet)
+    if (hoptest)
+    {
+        full_addrs.insert(m_seednode);
+    }
+    else if (testnet)
     {
       full_addrs.insert("34.204.170.120:28880");
       full_addrs.insert("54.88.58.35:28880");
@@ -428,7 +432,10 @@ namespace nodetool
   bool node_server<t_payload_net_handler>::init(const boost::program_options::variables_map& vm)
   {
     std::set<std::string> full_addrs;
-    m_testnet = command_line::get_arg(vm, command_line::arg_testnet_on);
+    m_hopstat =  command_line::get_arg(vm, command_line::arg_hopstat_on);
+    m_hoptest = command_line::get_arg(vm, command_line::arg_hoptest_on) || m_hopstat;
+    m_testnet = m_hoptest|| command_line::get_arg(vm, command_line::arg_testnet_on);
+    m_seednode = command_line::get_arg(vm, command_line::arg_seednode);
 
     if (m_testnet)
     {

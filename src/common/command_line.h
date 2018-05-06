@@ -211,6 +211,9 @@ namespace command_line
   extern const arg_descriptor<uint64_t>	arg_test_drop_download_height;
   extern const arg_descriptor<int> 		arg_test_dbg_lock_sleep;
   extern const arg_descriptor<bool, false> arg_testnet_on;
+  extern const arg_descriptor<bool, false> arg_hoptest_on;
+  extern const arg_descriptor<bool, false> arg_hopstat_on;
+  extern const arg_descriptor<std::string> arg_seednode;
   extern const arg_descriptor<bool> arg_dns_checkpoints;
   extern const arg_descriptor<uint64_t> arg_fast_block_sync;
   extern const arg_descriptor<uint64_t> arg_prep_blocks_threads;
