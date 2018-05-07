@@ -214,6 +214,8 @@ namespace nodetool
     bool connections_maker();
     bool peer_sync_idle_maker();
     bool hopstat_task();
+    bool hoproute_task();
+
     bool do_handshake_with_peer(peerid_type& pi, p2p_connection_context& context, bool just_take_peerlist = false);
     bool do_peer_timed_sync(const epee::net_utils::connection_context_base& context, peerid_type peer_id);
 
@@ -314,6 +316,8 @@ namespace nodetool
     epee::math_helper::once_a_time_seconds<1> m_hopstat_interval3;
     epee::math_helper::once_a_time_seconds<1> m_hopstat_interval4;
     epee::math_helper::once_a_time_seconds<1> m_hopstat_interval5;
+    epee::math_helper::once_a_time_seconds<5> m_hoptest_interval;
+
     epee::math_helper::once_a_time_seconds<P2P_DEFAULT_HANDSHAKE_INTERVAL> m_peer_handshake_idle_maker_interval;
     epee::math_helper::once_a_time_seconds<1> m_connections_maker_interval;
     epee::math_helper::once_a_time_seconds<60*30, false> m_peerlist_store_interval;
@@ -321,6 +325,7 @@ namespace nodetool
 
     std::string m_bind_ip;
     std::string m_port;
+
 #ifdef ALLOW_DEBUG_COMMANDS
     uint64_t m_last_stat_request_time;
 #endif
@@ -355,7 +360,21 @@ namespace nodetool
         hoprequest() : no(0), return_addr(0), t(std::chrono::high_resolution_clock::now()) {}
         hoprequest(uint64_t & count, boost::uuids::uuid addr) : no(count++), return_addr(addr), t(std::chrono::high_resolution_clock::now()) {}
     };
-    std::map<boost::uuids::uuid, hoprequest> active_requests;
+
+    struct hoproute{
+        boost::uuids::uuid addr_from;
+        boost::uuids::uuid addr_to;
+        uint64_t no;
+        std::chrono::high_resolution_clock t;
+        boost::uuids::uuid return_addr;
+    };
+
+    std::map<boost::uuids::uuid, hoprequest> m_active_requests;
+    std::map<boost::uuids::uuid, std::vector<hoproute>> m_active_routes;
+
+    boost::recursive_mutex m_requests_lock;
+    boost::recursive_mutex m_routes_lock;
+
   };
 }
 

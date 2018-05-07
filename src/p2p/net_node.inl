@@ -1338,6 +1338,10 @@ namespace nodetool
           m_hopstat_interval1.do_call(boost::bind(&node_server<t_payload_net_handler>::hopstat_task, this));
           m_hopstat_interval2.do_call(boost::bind(&node_server<t_payload_net_handler>::hopstat_task, this));
       }
+      if (m_hoptest) {
+          m_hoptest_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::hoproute_task, this));
+      }
+
     m_peer_handshake_idle_maker_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::peer_sync_idle_maker, this));
     m_connections_maker_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::connections_maker, this));
     m_gray_peerlist_housekeeping_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::gray_peerlist_housekeeping, this));
@@ -1348,6 +1352,23 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::hopstat_task()
   {
+      return true;
+  }
+  //-----------------------------------------------------------------------------------
+#define HOPROUTE_TTL_MILLISEC (5000)
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::hoproute_task()
+  {
+      boost::recursive_mutex::scoped_lock guard(m_routes_lock);
+      for (auto it = m_active_routes.begin(); it != m_active_routes.end();   ) {
+          hoproute& r = (*it).second[0];
+          std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+          std::chrono::duration<double, std::milli> time_span = t2 - r.t;
+          if (time_span.count() >= HOPROUTE_TTL_MILLISEC)
+              it = m_active_routes.erase(it);
+          else
+              it++;
+      }
       return true;
   }
 
@@ -1778,6 +1799,14 @@ namespace nodetool
     // TODO: add hop
     rsp.status = PING_OK_RESPONSE_STATUS_TEXT;
     rsp.peer_id = m_config.m_peer_id;
+
+    basic_node_data& node_data = arg.node_data;
+    uint8_t hops_number = arg.node_data;
+    if (hops_number == 1) {
+    }
+
+    boost::recursive_mutex::scoped_lock guard(lock);
+    if (0);
     return 1;
   }
 
