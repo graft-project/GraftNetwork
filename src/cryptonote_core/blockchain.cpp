@@ -142,7 +142,7 @@ static const struct {
   { 8, 57780, 0, 1522838800 },
   { 9, 67350, 0, 1524229900 },
   // test cn_heavy
-  { 10, 75950, 0, 1525445200}
+  { 10, 77870, 0, 1525446200}
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
