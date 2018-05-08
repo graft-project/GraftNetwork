@@ -1359,7 +1359,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::hoproute_task()
   {
-      boost::recursive_mutex::scoped_lock guard(m_routes_lock);
+      boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
       for (auto it = m_active_routes.begin(); it != m_active_routes.end();   ) {
           hoproute& r = (*it).second[0];
           std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
@@ -1801,11 +1801,11 @@ namespace nodetool
     rsp.peer_id = m_config.m_peer_id;
 
     basic_node_data& node_data = arg.node_data;
-    uint8_t hops_number = arg.node_data;
+    uint8_t hops_number = arg.hops_number;
     if (hops_number == 1) {
     }
 
-    boost::recursive_mutex::scoped_lock guard(lock);
+    boost::lock_guard<boost::recursive_mutex> guard(lock);
     if (0);
     return 1;
   }
