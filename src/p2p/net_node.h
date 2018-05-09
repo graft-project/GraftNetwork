@@ -138,8 +138,6 @@ namespace nodetool
     , "seeds.moneroseeds.li"
     };
 
-    std::list<peerlist_entry>& command_hop_peer_list;
-
     bool islimitup=false;
     bool islimitdown=false;
 
@@ -355,7 +353,7 @@ namespace nodetool
     uint64_t m_hoprequest_counter;
     struct hoprequest{
         uint64_t no;
-        std::chrono::high_resolution_clock t;
+        std::chrono::high_resolution_clock::time_point t;
         boost::uuids::uuid return_addr;
         hoprequest() : no(0), return_addr(0), t(std::chrono::high_resolution_clock::now()) {}
         hoprequest(uint64_t & count, boost::uuids::uuid addr) : no(count++), return_addr(addr), t(std::chrono::high_resolution_clock::now()) {}
@@ -365,7 +363,7 @@ namespace nodetool
         boost::uuids::uuid addr_from;
         boost::uuids::uuid addr_to;
         uint64_t no;
-        std::chrono::high_resolution_clock t;
+        std::chrono::high_resolution_clock::time_point t;
         boost::uuids::uuid return_addr;
     };
 

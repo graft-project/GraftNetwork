@@ -1805,7 +1805,7 @@ namespace nodetool
     if (hops_number == 1) {
     }
 
-    boost::lock_guard<boost::recursive_mutex> guard(lock);
+    boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
     if (0);
     return 1;
   }
