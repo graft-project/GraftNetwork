@@ -155,6 +155,9 @@ namespace cryptonote
     command_line::add_arg(desc, command_line::arg_test_drop_download);
     command_line::add_arg(desc, command_line::arg_test_drop_download_height);
 
+    command_line::add_arg(desc, command_line::arg_hoptest_on);
+    command_line::add_arg(desc, command_line::arg_hopstat_on);
+    command_line::add_arg(desc, command_line::arg_seednode);
     command_line::add_arg(desc, command_line::arg_testnet_on);
     command_line::add_arg(desc, command_line::arg_dns_checkpoints);
     command_line::add_arg(desc, command_line::arg_prep_blocks_threads);

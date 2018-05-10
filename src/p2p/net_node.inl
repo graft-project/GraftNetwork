@@ -299,7 +299,7 @@ namespace nodetool
       const boost::program_options::variables_map& vm
     )
   {
-    auto p2p_bind_arg = m_testnet ? arg_testnet_p2p_bind_port : arg_p2p_bind_port;
+    auto p2p_bind_arg = m_testnet ? (m_hoptest? arg_p2p_bind_port: arg_testnet_p2p_bind_port) : arg_p2p_bind_port;
 
     m_bind_ip = command_line::get_arg(vm, arg_p2p_bind_ip);
     m_port = command_line::get_arg(vm, p2p_bind_arg);
@@ -436,19 +436,6 @@ namespace nodetool
     m_hoptest = command_line::get_arg(vm, command_line::arg_hoptest_on) || m_hopstat;
     m_testnet = m_hoptest|| command_line::get_arg(vm, command_line::arg_testnet_on);
     m_seednode = command_line::get_arg(vm, command_line::arg_seednode);
-    if (m_hopstat)
-    try {
-        std::string state_file_path = m_config_folder + "/" + "hopstat.csv";
-        m_hopstatfile.open( state_file_path , std::ios_base::out | std::ios_base::app );
-    }
-    catch (std::exception & ex) {
-        std::cout << __FUNCTION__ << ": couldn't open hopstatfile: reason " << ex.what() << std::endl;
-        exit(1);
-    }
-    catch(...) {
-        std::cout << __FUNCTION__ << ": couldn't open hopstatfile: unknown exception" << std::endl;
-        exit(1);
-    }
 
     if (m_testnet)
     {
@@ -551,11 +538,27 @@ namespace nodetool
 
     auto config_arg = m_testnet ? command_line::arg_testnet_data_dir : command_line::arg_data_dir;
     m_config_folder = command_line::get_arg(vm, config_arg);
-
     if ((!m_testnet && m_port != std::to_string(::config::P2P_DEFAULT_PORT))
         || (m_testnet && m_port != std::to_string(::config::testnet::P2P_DEFAULT_PORT))) {
       m_config_folder = m_config_folder + "/" + m_port;
     }
+
+    if (m_hopstat) {
+        try {
+            std::string state_file_path = m_config_folder + "/" + "hopstat.csv";
+            m_hopstatfile.open( state_file_path , std::ios_base::out | std::ios_base::app );
+        }
+        catch (std::exception & ex) {
+            std::cout << __FUNCTION__ << ": couldn't open hopstatfile: reason " << ex.what() << std::endl;
+            exit(1);
+        }
+        catch(...) {
+            std::cout << __FUNCTION__ << ": couldn't open hopstatfile: unknown exception" << std::endl;
+            exit(1);
+        }
+    }
+
+
 
     res = init_config();
     CHECK_AND_ASSERT_MES(res, false, "Failed to init config.");
