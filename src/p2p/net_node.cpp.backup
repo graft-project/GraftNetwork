@@ -1352,59 +1352,10 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::hopstat_task()
   {
-      COMMAND_HOP::request req;
-      {
-      boost::lock_guard<boost::recursive_mutex> guard(m_requests_lock);
-      hoprequest hopreq(++m_hoprequest_counter, 1 + crypto::rand<size_t>() % 10);
-      req.hops_number = 1 + crypto::rand<size_t>() % 10;
-      req.request_id = m_hoprequest_counter;
-
-      m_active_requests.insert(std::pair<uint64_t,hoprequest>{m_hoprequest_counter, hopreq });
-      req.real_hops = 0;
-      get_local_node_data(req.node_data);
-      }
-
-      nodetool::peerlist_entry pe;
-      bool is_active_connection = false;
-      bool ret = m_peerlist.get_random_white_peer(pe);
-      epee::net_utils::network_address& na = pe.adr;
-      const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
-      typename net_server::t_connection_context con = AUTO_VAL_INIT(con);
-      if (!ret)
-          goto cleanup;
-      is_active_connection = find_connection_context_by_peer_id(pe.id,con);
-      if (!is_active_connection) {
-
-          ret = m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
-                                     epee::string_tools::num_to_string_fast(ipv4.port()),
-                                     m_config.m_net_config.connection_timeout,
-                                     con);
-          if (!ret)
-              goto cleanup;
-      }
-
-      ret = epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(con.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
-        [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
-      { return; },
-      1000 // timeout 1 sec
-      );
-
-      if (!ret)
-          goto cleanup;
-
-      return true;
-
-cleanup:
-      {
-      boost::lock_guard<boost::recursive_mutex> guard(m_requests_lock);
-      auto it = m_active_requests.find(req.request_id);
-      if (it != m_active_requests.end())
-          m_active_requests.erase(it);
-      }
       return true;
   }
   //-----------------------------------------------------------------------------------
-#define HOPROUTE_TTL_MILLISEC (600000)
+#define HOPROUTE_TTL_MILLISEC (5000)
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::hoproute_task()
   {
@@ -1939,21 +1890,6 @@ cleanup:
         return 1;
     }
 
-    typename net_server::t_connection_context con = AUTO_VAL_INIT(con);
-    bool is_active_connection = find_connection_context_by_peer_id(pe.id,con);
-    if (!is_active_connection) {
-        epee::net_utils::network_address& na = pe.adr;
-        const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
-
-        bool ret = m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
-                                   epee::string_tools::num_to_string_fast(ipv4.port()),
-                                   m_config.m_net_config.connection_timeout,
-                                        con);
-        if (!ret) {
-        }
-    }
-
-
     if ( pe.id != context.peer_id ) {
         m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
         {
@@ -1966,14 +1902,11 @@ cleanup:
         });
     }
 
-    bool inv_call_res = false;
-    if (context_found) {
-        inv_call_res = epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(context_next_hop.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
-                                                                                            [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
-        { return; },
-        1000 // timeout 1 sec
-        );
-    }
+    bool inv_call_res = epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(context_next_hop.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
+      [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
+    { return; },
+    1000 // timeout 1 sec
+    );
 
     if (!inv_call_res && arg.hops_number > 1) {
         if (routing_table_record_exists) {

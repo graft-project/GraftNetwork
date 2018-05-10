@@ -233,6 +233,22 @@ namespace nodetool
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(bool testnet, bool hoptest = false) const;
     bool connect_to_seed();
+    bool find_connection_context_by_peer_id(uint64_t id, p2p_connection_context& con)
+    {
+        bool ret = false;
+        m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
+        {
+            if(cntxt.peer_id == id) {
+                con = cntxt;
+                ret = true;
+                return true;
+            }
+            return true;
+        });
+
+        return ret;
+    }
+
 
     template <class Container>
     bool connect_to_peerlist(const Container& peers);
