@@ -439,7 +439,7 @@ namespace nodetool
     if (m_hopstat)
     try {
         std::string state_file_path = m_config_folder + "/" + "hopstat.csv";
-        m_hopstatfile.open( state_file_path , std::ios_base::out);
+        m_hopstatfile.open( state_file_path , std::ios_base::out | std::ios_base::app );
     }
     catch (std::exception & ex) {
         std::cout << __FUNCTION__ << ": couldn't open hopstatfile: reason " << ex.what() << std::endl;
@@ -1359,6 +1359,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::hoproute_task()
   {
+      {
       boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
       for (auto it = m_active_routes.begin(); it != m_active_routes.end();   ) {
           hoproute& r = (*it).second[0];
@@ -1369,6 +1370,20 @@ namespace nodetool
           else
               it++;
       }
+      }
+      {
+      boost::lock_guard<boost::recursive_mutex> guard(m_requests_lock);
+      for (auto it = m_active_requests.begin(); it != m_active_requests.end();   ) {
+          hoprequest& r = (*it).second;
+          std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+          std::chrono::duration<double, std::milli> time_span = t2 - r.t;
+          if (time_span.count() >= HOPROUTE_TTL_MILLISEC)
+              it = m_active_requests.erase(it);
+          else
+              it++;
+      }
+      }
+
       return true;
   }
 
@@ -1800,13 +1815,125 @@ namespace nodetool
     rsp.status = PING_OK_RESPONSE_STATUS_TEXT;
     rsp.peer_id = m_config.m_peer_id;
 
-    basic_node_data& node_data = arg.node_data;
-    uint8_t hops_number = arg.hops_number;
-    if (hops_number == 1) {
-    }
+    COMMAND_HOP::request req;
+    req.node_data.peer_id = arg.node_data.peer_id;
+    req.hops_number = arg.hops_number;
+    req.real_hops = 0;
+    nodetool::peerlist_entry pe;
+    p2p_connection_context context_next_hop;
+    AUTO_VAL_INIT(context_next_hop);
+    bool routing_table_record_exists = false;
+    bool context_found = false;
+    bool got_back = false;
+
+    hopid hop_id(arg.node_data.peer_id, arg.request_id);
+
+    { // lock routing table
 
     boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
-    if (0);
+    auto it = m_active_routes.find(hop_id);
+    if ( it != m_active_routes.end() ) {
+        routing_table_record_exists = true;
+    }
+
+    if (arg.hops_number == 0) { // return pa
+        //context_next_hop = context;
+        if (routing_table_record_exists) {
+            hoproute& route = (*it).second[(*it).second.size() - 1];
+            pe.id = route.peer_id_from;
+            req.real_hops = arg.real_hops;
+            req.hops_number = 0;
+        }
+        else {
+            got_back = true;
+        }
+    }
+    else if (arg.hops_number > 1) {
+        bool ret = m_peerlist.get_random_white_peer(pe);
+        if (!ret) {
+            pe.id = context.peer_id;
+        }
+        else {
+            hoproute route;
+            route.peer_id_from = context.peer_id;
+            route.peer_id_to = pe.id;
+            route.t = std::chrono::high_resolution_clock::now();
+            if (routing_table_record_exists)
+                (*it).second.push_back(route);
+            else {
+                routing_table_record_exists = true;
+                std::vector<hoproute> hopvec(1);
+                hopvec[0] = route;
+                std::pair<hopid,std::vector<hoproute>> routeentry(hop_id,hopvec);
+                m_active_routes.insert(routeentry);
+            }
+        }
+    }
+    else if (arg.hops_number == 1) { //return packet to sender
+        pe.id = context.peer_id;
+        req.real_hops = arg.real_hops;
+        req.hops_number = 0;
+        context_next_hop = context;
+    }
+    } // routing table search
+
+    if (got_back) {
+        boost::lock_guard<boost::recursive_mutex> guard(m_requests_lock);
+        auto it = m_active_requests.find(arg.request_id);
+        if ( it != m_active_requests.end() ) {
+            hoprequest& request = (*it).second;
+            std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> time_span = t2 - request.t;
+            m_hopstatfile << request.no << " " << request.hops_number << " " << request.hops_number - arg.real_hops + 1<< " " << " " << time_span.count() << " " << std::endl;
+        }
+        m_active_requests.erase(it);
+        return 1;
+    }
+
+    if ( pe.id != context.peer_id ) {
+        m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
+        {
+            if(cntxt.peer_id == pe.id) {
+                context_next_hop = cntxt;
+                context_found = true;
+                return true;
+            }
+            return true;
+        });
+    }
+
+    bool inv_call_res = epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(context_next_hop.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
+      [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
+    { return; },
+    1000 // timeout 1 sec
+    );
+
+    if (!inv_call_res && arg.hops_number > 1) {
+        if (routing_table_record_exists) {
+            boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
+            auto it = m_active_routes.find(hop_id);
+            if ( it != m_active_routes.end() ) {
+                hoproute& route = (*it).second[(*it).second.size() - 1];
+                pe.id = route.peer_id_from;
+                req.real_hops = arg.real_hops;
+                req.hops_number = 0;
+                context_next_hop = context;
+
+
+                if ( (*it).second.size() == 1 )
+                    m_active_routes.erase(it);
+                else
+                    (*it).second.resize( (*it).second.size() - 1 );
+            }
+        }
+        epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(context_next_hop.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
+              [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
+            { return; },
+            1000 // timeout 1 sec
+            );
+    }
+
+
     return 1;
   }
 

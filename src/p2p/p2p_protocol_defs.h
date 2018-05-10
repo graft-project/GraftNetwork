@@ -161,37 +161,38 @@ namespace nodetool
   
 
 #define P2P_COMMANDS_POOL_BASE 1000
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
+    /************************************************************************/
+    /*                                                                      */
+    /************************************************************************/
     struct COMMAND_HOP
     {
         const static int ID = P2P_COMMANDS_POOL_BASE + 239;
 
-    struct request
-    {
-      basic_node_data node_data;
-      boost::uuids::uuid request_id;
-      uint8_t hops_number;
+        struct request
+        {
+            basic_node_data node_data;
+            uint64_t request_id;
+            uint8_t hops_number;
+            uint8_t real_hops;
 
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(node_data)
-        KV_SERIALIZE(request_id)
-        KV_SERIALIZE(hops_number)
-      END_KV_SERIALIZE_MAP()
-    };
+            BEGIN_KV_SERIALIZE_MAP()
+                KV_SERIALIZE(node_data)
+                KV_SERIALIZE(request_id)
+                KV_SERIALIZE(hops_number)
+                KV_SERIALIZE(real_hops)
+            END_KV_SERIALIZE_MAP()
+        };
 
-    struct response
-    {
-      std::string status;
-      peerid_type peer_id;
+        struct response
+        {
+            std::string status;
+            peerid_type peer_id;
 
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(status)
-        KV_SERIALIZE(peer_id)
-      END_KV_SERIALIZE_MAP()
-    };
-
+            BEGIN_KV_SERIALIZE_MAP()
+                KV_SERIALIZE(status)
+                KV_SERIALIZE(peer_id)
+            END_KV_SERIALIZE_MAP()
+        };
     };
 
 

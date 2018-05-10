@@ -82,6 +82,7 @@ namespace nodetool
     bool set_peer_unreachable(const peerlist_entry& pr);
     bool is_host_allowed(const epee::net_utils::network_address &address);
     bool get_random_gray_peer(peerlist_entry& pe);
+    bool get_random_white_peer(peerlist_entry& pe);
     bool remove_from_peer_gray(const peerlist_entry& pe);
     bool get_and_empty_anchor_peerlist(std::vector<anchor_peerlist_entry>& apl);
     bool remove_from_peer_anchor(const epee::net_utils::network_address& addr);
@@ -485,6 +486,28 @@ namespace nodetool
 
     CATCH_ENTRY_L0("peerlist_manager::get_random_gray_peer()", false);
   }
+
+  inline
+  bool peerlist_manager::get_random_white_peer(peerlist_entry& pe)
+  {
+    TRY_ENTRY();
+
+    CRITICAL_REGION_LOCAL(m_peerlist_lock);
+
+    if (m_peers_gray.empty()) {
+      return false;
+    }
+
+    size_t random_index = crypto::rand<size_t>() % m_peers_white.size();
+    auto it = m_peers_white.begin();
+    for (size_t i = 0; i < random_index; i++) ++it;
+    pe = *it;
+
+    return true;
+
+    CATCH_ENTRY_L0("peerlist_manager::get_random_gray_peer()", false);
+  }
+
   //--------------------------------------------------------------------------------------------------
   inline
   bool peerlist_manager::remove_from_peer_gray(const peerlist_entry& pe)

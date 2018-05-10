@@ -354,21 +354,27 @@ namespace nodetool
     struct hoprequest{
         uint64_t no;
         std::chrono::high_resolution_clock::time_point t;
-        boost::uuids::uuid return_addr;
-        hoprequest() : no(0), return_addr(0), t(std::chrono::high_resolution_clock::now()) {}
-        hoprequest(uint64_t & count, boost::uuids::uuid addr) : no(count++), return_addr(addr), t(std::chrono::high_resolution_clock::now()) {}
+        uint8_t hops_number;
+        hoprequest() : no(0), t(std::chrono::high_resolution_clock::now()), hops_number(5) {}
+        hoprequest(uint64_t & count, uint8_t max_hops) : no(count++), t(std::chrono::high_resolution_clock::now()), hops_number(max_hops) {}
+    };
+
+    struct hopid {
+        uint64_t peer_id;
+        uint64_t request_id;
+        hopid(uint64_t peer, uint64_t request) : peer_id(peer), request_id(request) {}
+        bool operator> (const hopid& rhs) const { return peer_id > rhs.peer_id ? true : (peer_id == rhs.peer_id ?(request_id > rhs.request_id): false); }
+        bool operator< (const hopid& rhs) const { return peer_id < rhs.peer_id ? true : (peer_id == rhs.peer_id ?(request_id < rhs.request_id): false); }
     };
 
     struct hoproute{
-        boost::uuids::uuid addr_from;
-        boost::uuids::uuid addr_to;
-        uint64_t no;
+        uint64_t peer_id_from;
+        uint64_t peer_id_to;
         std::chrono::high_resolution_clock::time_point t;
-        boost::uuids::uuid return_addr;
     };
 
-    std::map<boost::uuids::uuid, hoprequest> m_active_requests;
-    std::map<boost::uuids::uuid, std::vector<hoproute>> m_active_routes;
+    std::map<uint64_t, hoprequest> m_active_requests;
+    std::map<hopid, std::vector<hoproute>> m_active_routes;
 
     boost::recursive_mutex m_requests_lock;
     boost::recursive_mutex m_routes_lock;
