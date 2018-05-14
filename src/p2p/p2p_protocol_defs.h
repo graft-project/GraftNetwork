@@ -185,12 +185,12 @@ namespace nodetool
 
         struct response
         {
-            std::string status;
-            peerid_type peer_id;
+//            std::string status;
+//            peerid_type peer_id;
 
             BEGIN_KV_SERIALIZE_MAP()
-                KV_SERIALIZE(status)
-                KV_SERIALIZE(peer_id)
+//                KV_SERIALIZE(status)
+//                KV_SERIALIZE(peer_id)
             END_KV_SERIALIZE_MAP()
         };
     };

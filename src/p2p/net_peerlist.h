@@ -494,16 +494,26 @@ namespace nodetool
 
     CRITICAL_REGION_LOCAL(m_peerlist_lock);
 
-    if (m_peers_gray.empty()) {
-      return false;
+    size_t random_index;
+
+    if (!m_peers_white.empty()) {
+        size_t random_index = crypto::rand<size_t>() % m_peers_white.size();
+        auto it = m_peers_white.begin();
+        for (size_t i = 0; i < random_index; i++) ++it;
+        pe = *it;
+
+        return true;
+    }
+    else if (!m_peers_gray.empty()) {
+        size_t random_index = crypto::rand<size_t>() % m_peers_gray.size();
+        auto it = m_peers_gray.begin();
+        for (size_t i = 0; i < random_index; i++) ++it;
+        pe = *it;
     }
 
-    size_t random_index = crypto::rand<size_t>() % m_peers_white.size();
-    auto it = m_peers_white.begin();
-    for (size_t i = 0; i < random_index; i++) ++it;
-    pe = *it;
+    return false;
 
-    return true;
+
 
     CATCH_ENTRY_L0("peerlist_manager::get_random_gray_peer()", false);
   }

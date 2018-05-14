@@ -1339,7 +1339,7 @@ namespace nodetool
   {
       if (m_hopstat) {
           m_hopstat_interval1.do_call(boost::bind(&node_server<t_payload_net_handler>::hopstat_task, this));
-          m_hopstat_interval2.do_call(boost::bind(&node_server<t_payload_net_handler>::hopstat_task, this));
+//          m_hopstat_interval2.do_call(boost::bind(&node_server<t_payload_net_handler>::hopstat_task, this));
       }
       if (m_hoptest) {
           m_hoptest_interval.do_call(boost::bind(&node_server<t_payload_net_handler>::hoproute_task, this));
@@ -1371,12 +1371,11 @@ namespace nodetool
       bool is_active_connection = false;
       bool ret = m_peerlist.get_random_white_peer(pe);
       epee::net_utils::network_address& na = pe.adr;
-      const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
+
       typename net_server::t_connection_context con = AUTO_VAL_INIT(con);
-      if (!ret)
-          goto cleanup;
-      is_active_connection = find_connection_context_by_peer_id(pe.id,con);
-      if (!is_active_connection) {
+      if (ret) is_active_connection = find_connection_context_by_peer_id(pe.id,con);
+      if (ret && !is_active_connection) {
+          const epee::net_utils::ipv4_network_address& ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
 
           ret = m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
                                      epee::string_tools::num_to_string_fast(ipv4.port()),
@@ -1385,6 +1384,10 @@ namespace nodetool
           if (!ret)
               goto cleanup;
       }
+
+      if (!ret)
+          goto cleanup;
+
 
       ret = epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(con.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
         [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
@@ -1862,149 +1865,149 @@ cleanup:
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_command_hop(int command, COMMAND_HOP::request& arg, COMMAND_HOP::response& rsp, p2p_connection_context& context)
   {
-    LOG_DEBUG_CC(context, "COMMAND_HOP");
-    // TODO: add hop
-    rsp.status = PING_OK_RESPONSE_STATUS_TEXT;
-    rsp.peer_id = m_config.m_peer_id;
+      LOG_INFO_CC(context, "COMMAND_HOP: peer_id: " << arg.node_data.peer_id
+                  << "   request_id: " << arg.request_id << "   hops_counter: " << unsigned(arg.hops_number) );
+      COMMAND_HOP::request req;
+      req.node_data.peer_id = arg.node_data.peer_id;
+      req.request_id = arg.request_id;
+      req.hops_number = arg.hops_number;
+      req.real_hops = 0;
+      nodetool::peerlist_entry pe;
+      p2p_connection_context context_next_hop;
+      AUTO_VAL_INIT(context_next_hop);
+      bool routing_table_record_exists = false;
+      bool context_found = false;
+      bool got_back = false;
 
-    COMMAND_HOP::request req;
-    req.node_data.peer_id = arg.node_data.peer_id;
-    req.hops_number = arg.hops_number;
-    req.real_hops = 0;
-    nodetool::peerlist_entry pe;
-    p2p_connection_context context_next_hop;
-    AUTO_VAL_INIT(context_next_hop);
-    bool routing_table_record_exists = false;
-    bool context_found = false;
-    bool got_back = false;
+      hopid hop_id(arg.node_data.peer_id, arg.request_id);
 
-    hopid hop_id(arg.node_data.peer_id, arg.request_id);
+      do { // lock routing table
 
-    { // lock routing table
+          boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
+          auto it = m_active_routes.find(hop_id);
+          if ( it != m_active_routes.end() ) {
+              routing_table_record_exists = true;
+          }
 
-    boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
-    auto it = m_active_routes.find(hop_id);
-    if ( it != m_active_routes.end() ) {
-        routing_table_record_exists = true;
-    }
+          if (arg.hops_number == 0) { // return pa
+              //context_next_hop = context;
+              if (routing_table_record_exists) {
+                  hoproute& route = (*it).second[(*it).second.size() - 1];
+                  pe.id = route.peer_id_from;
+                  req.real_hops = arg.real_hops;
+                  req.hops_number = 0;
+              }
+              else {
+                  got_back = true;
+              }
+          }
+          else if (arg.hops_number > 1) {
+              bool ret = m_peerlist.get_random_white_peer(pe);
+              if (!ret) {
+                  pe.id = context.peer_id;
+              }
+              else {
+                  hoproute route;
+                  route.peer_id_from = context.peer_id;
+                  route.peer_id_to = pe.id;
+                  route.t = std::chrono::high_resolution_clock::now();
+                  if (routing_table_record_exists)
+                      (*it).second.push_back(route);
+                  else {
+                      routing_table_record_exists = true;
+                      std::vector<hoproute> hopvec(1);
+                      hopvec[0] = route;
+                      std::pair<hopid,std::vector<hoproute>> routeentry(hop_id,hopvec);
+                      m_active_routes.insert(routeentry);
+                  }
+              }
+          }
+          else if (arg.hops_number == 1) { //return packet to sender
+              pe.id = context.peer_id;
+              req.real_hops = arg.real_hops;
+              req.hops_number = 0;
+              context_next_hop = context;
+          }
+      } while(0);// end of routing table search, release lock
 
-    if (arg.hops_number == 0) { // return pa
-        //context_next_hop = context;
-        if (routing_table_record_exists) {
-            hoproute& route = (*it).second[(*it).second.size() - 1];
-            pe.id = route.peer_id_from;
-            req.real_hops = arg.real_hops;
-            req.hops_number = 0;
-        }
-        else {
-            got_back = true;
-        }
-    }
-    else if (arg.hops_number > 1) {
-        bool ret = m_peerlist.get_random_white_peer(pe);
-        if (!ret) {
-            pe.id = context.peer_id;
-        }
-        else {
-            hoproute route;
-            route.peer_id_from = context.peer_id;
-            route.peer_id_to = pe.id;
-            route.t = std::chrono::high_resolution_clock::now();
-            if (routing_table_record_exists)
-                (*it).second.push_back(route);
-            else {
-                routing_table_record_exists = true;
-                std::vector<hoproute> hopvec(1);
-                hopvec[0] = route;
-                std::pair<hopid,std::vector<hoproute>> routeentry(hop_id,hopvec);
-                m_active_routes.insert(routeentry);
-            }
-        }
-    }
-    else if (arg.hops_number == 1) { //return packet to sender
-        pe.id = context.peer_id;
-        req.real_hops = arg.real_hops;
-        req.hops_number = 0;
-        context_next_hop = context;
-    }
-    } // routing table search
+      if (got_back) {
+          boost::lock_guard<boost::recursive_mutex> guard(m_requests_lock);
+          auto it = m_active_requests.find(arg.request_id);
+          if ( it != m_active_requests.end() ) {
+              hoprequest& request = (*it).second;
+              std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+              std::chrono::duration<double, std::milli> time_span = t2 - request.t;
+              m_hopstatfile << request.no << "\t" << unsigned(request.hops_number) << "\t" << int(unsigned(request.hops_number)) - int(unsigned(arg.real_hops))<< "\t" << time_span.count() << std::endl;
+              m_active_requests.erase(it);
+          }
 
-    if (got_back) {
-        boost::lock_guard<boost::recursive_mutex> guard(m_requests_lock);
-        auto it = m_active_requests.find(arg.request_id);
-        if ( it != m_active_requests.end() ) {
-            hoprequest& request = (*it).second;
-            std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double, std::milli> time_span = t2 - request.t;
-            m_hopstatfile << request.no << " " << request.hops_number << " " << request.hops_number - arg.real_hops + 1<< " " << " " << time_span.count() << " " << std::endl;
-        }
-        m_active_requests.erase(it);
-        return 1;
-    }
+          return 1;
+      }
 
-    typename net_server::t_connection_context con = AUTO_VAL_INIT(con);
-    bool is_active_connection = find_connection_context_by_peer_id(pe.id,con);
-    if (!is_active_connection) {
-        epee::net_utils::network_address& na = pe.adr;
-        const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
+      typename net_server::t_connection_context con = AUTO_VAL_INIT(con);
+      bool is_active_connection = find_connection_context_by_peer_id(pe.id,con);
+      if (!is_active_connection) {
+          epee::net_utils::network_address& na = pe.adr;
+          const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
 
-        bool ret = m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
-                                   epee::string_tools::num_to_string_fast(ipv4.port()),
-                                   m_config.m_net_config.connection_timeout,
-                                        con);
-        if (!ret) {
-        }
-    }
-
-
-    if ( pe.id != context.peer_id ) {
-        m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
-        {
-            if(cntxt.peer_id == pe.id) {
-                context_next_hop = cntxt;
-                context_found = true;
-                return true;
-            }
-            return true;
-        });
-    }
-
-    bool inv_call_res = false;
-    if (context_found) {
-        inv_call_res = epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(context_next_hop.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
-                                                                                            [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
-        { return; },
-        1000 // timeout 1 sec
-        );
-    }
-
-    if (!inv_call_res && arg.hops_number > 1) {
-        if (routing_table_record_exists) {
-            boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
-            auto it = m_active_routes.find(hop_id);
-            if ( it != m_active_routes.end() ) {
-                hoproute& route = (*it).second[(*it).second.size() - 1];
-                pe.id = route.peer_id_from;
-                req.real_hops = arg.real_hops;
-                req.hops_number = 0;
-                context_next_hop = context;
+          bool ret = m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
+                                          epee::string_tools::num_to_string_fast(ipv4.port()),
+                                          m_config.m_net_config.connection_timeout,
+                                          con);
+          if (!ret) {
+          }
+      }
 
 
-                if ( (*it).second.size() == 1 )
-                    m_active_routes.erase(it);
-                else
-                    (*it).second.resize( (*it).second.size() - 1 );
-            }
-        }
-        epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(context_next_hop.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
-              [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
-            { return; },
-            1000 // timeout 1 sec
-            );
-    }
+      if ( pe.id != context.peer_id ) {
+          m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
+          {
+              if(cntxt.peer_id == pe.id) {
+                  context_next_hop = cntxt;
+                  context_found = true;
+                  return true;
+              }
+              return true;
+          });
+      }
+
+      bool inv_call_res = false;
+      if (context_found) {
+          inv_call_res = epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(context_next_hop.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
+                                                                                              [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
+          { return; },
+          1000 // timeout 1 sec
+          );
+      }
+
+      if (!inv_call_res && arg.hops_number > 1) {
+          if (routing_table_record_exists) {
+              boost::lock_guard<boost::recursive_mutex> guard(m_routes_lock);
+              auto it = m_active_routes.find(hop_id);
+              if ( it != m_active_routes.end() ) {
+                  hoproute& route = (*it).second[(*it).second.size() - 1];
+                  pe.id = route.peer_id_from;
+                  req.real_hops = arg.real_hops;
+                  req.hops_number = 0;
+                  context_next_hop = context;
 
 
-    return 1;
+                  if ( (*it).second.size() == 1 )
+                      m_active_routes.erase(it);
+                  else
+                      (*it).second.resize( (*it).second.size() - 1 );
+              }
+          }
+          bool ret = epee::net_utils::async_invoke_remote_command2<COMMAND_HOP::response>(context_next_hop.m_connection_id, COMMAND_HOP::ID, req, m_net_server.get_config_object(),
+                                                                                          [=](int /*code*/, const COMMAND_HOP::response& /*rsp*/, p2p_connection_context& /*con*/)
+          { return; },
+          1000 // timeout 1 sec
+          );
+          std::cout << __FILE__ << " : " << __FUNCTION__ <<   " : hop retranslated = " << ( ret ? "TRUE" : "FALSE" ) << std::endl;
+      }
+
+
+      return 1;
   }
 
   //-----------------------------------------------------------------------------------
