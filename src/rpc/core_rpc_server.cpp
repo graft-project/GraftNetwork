@@ -1753,7 +1753,6 @@ namespace cryptonote
 
   bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
   {
-      LOG_PRINT_L0(__FUNCTION__);
       if(!check_core_busy())
       {
         error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
@@ -1762,7 +1761,6 @@ namespace cryptonote
       }
 
       // validate input parameters
-
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
       if(!req.wallet_address.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, req.wallet_address))
       {
@@ -1784,10 +1782,9 @@ namespace cryptonote
       crypto::hash hash; crypto::signature sign;
       crypto::cn_fast_hash(message.data(), message.size(), hash);
       epee::string_tools::hex_to_pod(req.signature, sign);
-      bool sign_valid = crypto::check_signature(hash, acc.m_view_public_key, sign);
+      bool sign_valid = crypto::check_signature(hash, acc.m_spend_public_key, sign);
 
       // TODO: uncomment when debug done
-
 //    if (!sign_valid) {
 //      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
 //      error_resp.message = "Empty signature";
