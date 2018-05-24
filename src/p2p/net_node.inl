@@ -1757,6 +1757,25 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::request &req)
+  {
+    LOG_PRINT_L0(__FUNCTION__);
+    // prepare sendout
+    NOTIFY_SUPERNODE_ANNOUNCE::request req_;
+    req_.timestamp = req.timestamp;
+    req_.wallet_address = req.wallet_address;
+    req_.signature = req.signature;
+    std::string blob;
+    epee::serialization::store_t_to_binary(req_, blob);
+    // send to peers
+    m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
+      LOG_PRINT_L0("sending NOTIFY_SUPERNODE_ANNOUNCE to " << context.peer_id);
+      return this->invoke_notify_to_peer(NOTIFY_SUPERNODE_ANNOUNCE::ID, blob, context);
+    });
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
   std::string node_server<t_payload_net_handler>::print_connections_container()
   {
 
@@ -1966,5 +1985,13 @@ namespace nodetool
     LOG_PRINT_L2("PEER PROMOTED TO WHITE PEER LIST IP address: " << pe.adr.host_str() << " Peer ID: " << peerid_type(pe.id));
 
     return true;
+  }
+
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_supernode_announce(int command, NOTIFY_SUPERNODE_ANNOUNCE::request &arg, p2p_connection_context& context)
+  {
+    LOG_PRINT_L0("NOTIFY_SUPERNODE_ANNOUNCE, timestamp: " << arg.timestamp << ", wallet: " << arg.wallet_address << ", signature: " << arg.signature);
+    // TODO: implement logic here
+    return 1;
   }
 }

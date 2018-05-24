@@ -38,6 +38,7 @@
 #ifdef ALLOW_DEBUG_COMMANDS
 #include "crypto/crypto.h"
 #endif
+#include "rpc/core_rpc_server_commands_defs.h"
 
 namespace nodetool
 {
@@ -447,7 +448,14 @@ namespace nodetool
   };
   
 #endif
-
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct NOTIFY_SUPERNODE_ANNOUNCE
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 10;
+      struct request : public cryptonote::COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::request {};
+  };
 
   inline crypto::hash get_proof_of_trust_hash(const nodetool::proof_of_trust& pot)
   {

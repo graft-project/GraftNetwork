@@ -129,6 +129,9 @@ namespace nodetool
     virtual bool block_host(const epee::net_utils::network_address &adress, time_t seconds = P2P_IP_BLOCKTIME);
     virtual bool unblock_host(const epee::net_utils::network_address &address);
     virtual std::map<std::string, time_t> get_blocked_hosts() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_hosts; }
+
+    // Graft RPC methods
+    void do_supernode_announce(const cryptonote::COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::request &req);
   private:
     const std::vector<std::string> m_seed_nodes_list =
     { "seeds.moneroseeds.se"
@@ -155,6 +158,7 @@ namespace nodetool
       HANDLE_INVOKE_T2(COMMAND_REQUEST_PEER_ID, &node_server::handle_get_peer_id)
 #endif
       HANDLE_INVOKE_T2(COMMAND_REQUEST_SUPPORT_FLAGS, &node_server::handle_get_support_flags)
+      HANDLE_NOTIFY_T2(NOTIFY_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
       CHAIN_INVOKE_MAP_TO_OBJ_FORCE_CONTEXT(m_payload_handler, typename t_payload_net_handler::connection_context&)
     END_INVOKE_MAP2()
 
@@ -175,8 +179,7 @@ namespace nodetool
     bool make_default_config();
     bool store_config();
     bool check_trust(const proof_of_trust& tr);
-
-
+    int handle_supernode_announce(int command, NOTIFY_SUPERNODE_ANNOUNCE::request &arg, p2p_connection_context& context);
     //----------------- levin_commands_handler -------------------------------------------------------------
     virtual void on_connection_new(p2p_connection_context& context);
     virtual void on_connection_close(p2p_connection_context& context);
@@ -253,6 +256,7 @@ namespace nodetool
         mPeersLoggerThread->join(); // make sure the thread finishes
       _info("Joined extra background net_node threads");
     }
+
 
     //debug functions
     std::string print_connections_container();
