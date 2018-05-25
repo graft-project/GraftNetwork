@@ -1689,4 +1689,29 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
   };
+
+  //---------- Graft RTA commands ---------------------
+  //
+  struct COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE
+  {
+    struct request
+    {
+      uint64_t timestamp;
+      std::string wallet_address;
+      std::string signature;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(timestamp)
+        KV_SERIALIZE(wallet_address)
+        KV_SERIALIZE(signature)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::string status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
 }

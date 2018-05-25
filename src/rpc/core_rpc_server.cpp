@@ -1750,6 +1750,55 @@ namespace cryptonote
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
+
+  bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0(__FUNCTION__);
+      if(!check_core_busy())
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+        error_resp.message = "Core is busy.";
+        return false;
+      }
+
+      // validate input parameters
+
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+      if(!req.wallet_address.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, req.wallet_address))
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+        error_resp.message = "Failed to parse wallet address";
+        return false;
+      }
+
+      // signature
+      std::string message = to_string(req.timestamp) + req.wallet_address;
+
+      if (!req.signature.size()
+              /*|| !validate_sign(acc,  message, req.signature)*/) {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+        error_resp.message = "Empty signature";
+        return false;
+      }
+
+      crypto::hash hash; crypto::signature sign;
+      crypto::cn_fast_hash(message.data(), message.size(), hash);
+      epee::string_tools::hex_to_pod(req.signature, sign);
+      bool sign_valid = crypto::check_signature(hash, acc.m_view_public_key, sign);
+
+      // TODO: uncomment when debug done
+
+//    if (!sign_valid) {
+//      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+//      error_resp.message = "Empty signature";
+//      return false;
+//    }
+
+      // send p2p announce
+      m_p2p.do_supernode_announce(req);
+      res.status = CORE_RPC_STATUS_OK;
+      return true;
+  }
   //------------------------------------------------------------------------------------------------------------------------------
 
   const command_line::arg_descriptor<std::string> core_rpc_server::arg_rpc_bind_port = {
