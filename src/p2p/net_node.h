@@ -46,6 +46,7 @@
 #include "cryptonote_config.h"
 #include "warnings.h"
 #include "net/levin_server_cp2.h"
+#include "net/http_client.h"
 #include "p2p_protocol_defs.h"
 #include "storages/levin_abstract_invoke2.h"
 #include "net_peerlist.h"
@@ -57,6 +58,7 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <iomanip>
 
 PUSH_WARNINGS
 DISABLE_VS_WARNINGS(4355)
@@ -343,6 +345,9 @@ namespace nodetool
     crypto::public_key m_supernode_addr;
     std::string m_supernode_str;
     bool m_have_supernode;
+    std::string m_supernode_http_addr; // host:port
+    std::string m_supernode_uri;
+//    epee::net_utils::http::http_simple_client m_supernode_client;
     boost::recursive_mutex m_supernode_lock;
 
     std::string m_config_folder;

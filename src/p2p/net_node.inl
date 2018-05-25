@@ -770,6 +770,32 @@ namespace nodetool
               break;
 
           // TODO: http call to Supernode
+          epee::net_utils::http::http_simple_client client;
+          boost::optional<epee::net_utils::http::login> user;
+
+          client.set_server(m_supernode_http_addr,user);
+          std::string uri(m_supernode_uri);
+          m_supernode_lock.unlock();
+
+          std::stringstream ss;
+          ss << COMMAND_TX_TO_SIGN::ID << " " ;
+          for (unsigned i = 0; i < sizeof(arg.auth_supernode_addr.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.auth_supernode_addr.data[i]);
+          for (unsigned i = 0; i < sizeof(arg.requ_supernode_addr.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.requ_supernode_addr.data[i]);
+          ss << " ";
+          for (unsigned i = 0; i < sizeof(arg.tx_request.hash.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.tx_request.hash.data[i]);
+          ss << " ";
+          for (unsigned i = 0; i < sizeof(arg.signature.r.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.signature.r.data[i]);
+          ss << " ";
+
+          client.connect(std::chrono::milliseconds(500));
+          if (client.is_connected()) {
+              client.invoke_post(uri,ss.str(),std::chrono::milliseconds(500));
+              client.disconnect();
+          }
       } while(0);
 
       std::vector<nodetool::peerlist_entry> peers_to_send;
@@ -794,16 +820,49 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_signed_tx(int command, COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context)
   {
-      crypto::public_key destination = arg.requested_supernode_addr;
+      crypto::public_key destination = arg.requ_supernode_addr;
       std::string dest_str = publickey2string(destination);
+      // TODO: signature verification
+      //  if verification failed
+      //    return 1;
       do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (!m_have_supernode)
+          m_supernode_lock.lock();
+          if (!m_have_supernode) {
+              m_supernode_lock.unlock();
               break;
-          if (dest_str != m_supernode_str )
+          }
+          if (dest_str != m_supernode_str ) {
+              m_supernode_lock.unlock();
               break;
+          }
 
           // TODO: http call to Supernode
+          epee::net_utils::http::http_simple_client client;
+          boost::optional<epee::net_utils::http::login> user;
+
+          client.set_server(m_supernode_http_addr,user);
+          std::string uri(m_supernode_uri);
+          m_supernode_lock.unlock();
+
+          std::stringstream ss;
+          ss << COMMAND_SIGNED_TX::ID << " " ;
+          for (unsigned i = 0; i < sizeof(arg.auth_supernode_addr.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.auth_supernode_addr.data[i]);
+          for (unsigned i = 0; i < sizeof(arg.requ_supernode_addr.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.requ_supernode_addr.data[i]);
+          ss << " ";
+          for (unsigned i = 0; i < sizeof(arg.tx_hash.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.tx_hash.data[i]);
+          ss << " ";
+          for (unsigned i = 0; i < sizeof(arg.signature.r.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.signature.r.data[i]);
+          ss << " ";
+
+          client.connect(std::chrono::milliseconds(500));
+          if (client.is_connected()) {
+              client.invoke_post(uri,ss.str(),std::chrono::milliseconds(500));
+              client.disconnect();
+          }
       } while(0);
 
       std::vector<nodetool::peerlist_entry> peers_to_send;
@@ -827,16 +886,50 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_reject_tx(int command, COMMAND_REJECT_TX::request& arg, p2p_connection_context& context)
   {
-      crypto::public_key destination = arg.requested_supernode_addr;
+      crypto::public_key destination = arg.requ_supernode_addr;
       std::string dest_str = publickey2string(destination);
+      // TODO: signature verification
+      //  if verification failed
+      //    return 1;
+
       do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (!m_have_supernode)
+          m_supernode_lock.lock();
+          if (!m_have_supernode) {
+              m_supernode_lock.unlock();
               break;
-          if (dest_str != m_supernode_str )
+          }
+          if (dest_str != m_supernode_str ) {
+              m_supernode_lock.unlock();
               break;
+          }
 
           // TODO: http call to Supernode
+          epee::net_utils::http::http_simple_client client;
+          boost::optional<epee::net_utils::http::login> user;
+
+          client.set_server(m_supernode_http_addr,user);
+          std::string uri(m_supernode_uri);
+          m_supernode_lock.unlock();
+
+          std::stringstream ss;
+          ss << COMMAND_REJECT_TX::ID << " " ;
+          for (unsigned i = 0; i < sizeof(arg.auth_supernode_addr.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.auth_supernode_addr.data[i]);
+          for (unsigned i = 0; i < sizeof(arg.requ_supernode_addr.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.requ_supernode_addr.data[i]);
+          ss << " ";
+          for (unsigned i = 0; i < sizeof(arg.tx_hash.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.tx_hash.data[i]);
+          ss << " ";
+          for (unsigned i = 0; i < sizeof(arg.signature.r.data); i++)
+              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.signature.r.data[i]);
+          ss << " ";
+
+          client.connect(std::chrono::milliseconds(500));
+          if (client.is_connected()) {
+              client.invoke_post(uri,ss.str(),std::chrono::milliseconds(500));
+              client.disconnect();
+          }
       } while(0);
 
       std::vector<nodetool::peerlist_entry> peers_to_send;

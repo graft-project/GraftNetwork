@@ -170,12 +170,14 @@ namespace nodetool
   struct tx_to_sign_request
   {
       crypto::public_key return_addr;
+      crypto::hash hash;
       size_t curr_height;
       uint64_t local_time;
       std::string tx_as_blob;
 
       BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE_VAL_POD_AS_BLOB(return_addr)
+      KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
       KV_SERIALIZE_VAL_POD_AS_BLOB(curr_height)
       KV_SERIALIZE_VAL_POD_AS_BLOB(local_time)
       KV_SERIALIZE(tx_as_blob)
@@ -195,11 +197,13 @@ namespace nodetool
       struct request
       {
           crypto::public_key auth_supernode_addr;
+          crypto::public_key requ_supernode_addr;
           tx_to_sign_request tx_request;
           crypto::signature signature;
 
           BEGIN_KV_SERIALIZE_MAP()
               KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr)
               KV_SERIALIZE(tx_request)
               KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
           END_KV_SERIALIZE_MAP()
@@ -219,12 +223,14 @@ namespace nodetool
 
       struct request
       {
-          crypto::public_key requested_supernode_addr;
+          crypto::public_key auth_supernode_addr;
+          crypto::public_key requ_supernode_addr;
           crypto::hash tx_hash;
           crypto::signature signature; // of transaction
 
           BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE_VAL_POD_AS_BLOB(requested_supernode_addr)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr)
               KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
               KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
           END_KV_SERIALIZE_MAP()
@@ -244,12 +250,14 @@ namespace nodetool
 
       struct request
       {
-          crypto::public_key requested_supernode_addr;
+          crypto::public_key auth_supernode_addr;
+          crypto::public_key requ_supernode_addr;
           crypto::hash tx_hash;
           crypto::signature signature; // of serialized requested_supernode_addr + tx_hash
 
           BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE_VAL_POD_AS_BLOB(requested_supernode_addr)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr)
               KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
               KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
           END_KV_SERIALIZE_MAP()
