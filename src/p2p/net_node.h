@@ -53,6 +53,11 @@
 #include "net_node_common.h"
 #include "common/command_line.h"
 
+#include <map>
+#include <set>
+#include <unordered_map>
+#include <unordered_set>
+
 PUSH_WARNINGS
 DISABLE_VS_WARNINGS(4355)
 
@@ -146,6 +151,11 @@ namespace nodetool
     CHAIN_LEVIN_NOTIFY_MAP2(p2p_connection_context); //move levin_commands_handler interface notify(...) callbacks into nothing
 
     BEGIN_INVOKE_MAP2(node_server)
+      HANDLE_NOTIFY_T2(COMMAND_TX_TO_SIGN, &node_server::handle_tx_to_sign)
+      HANDLE_NOTIFY_T2(COMMAND_SIGNED_TX, &node_server::handle_signed_tx)
+      HANDLE_NOTIFY_T2(COMMAND_REJECT_TX, &node_server::handle_reject_tx)
+      HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANONCE, &node_server::handle_supernode_anonce)
+
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
       HANDLE_INVOKE_T2(COMMAND_PING, &node_server::handle_ping)
@@ -161,6 +171,11 @@ namespace nodetool
     enum PeerType { anchor = 0, white, gray };
 
     //----------------- commands handlers ----------------------------------------------
+    int handle_tx_to_sign(int command, typename COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context);
+    int handle_signed_tx(int command, typename COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context);
+    int handle_reject_tx(int command, typename COMMAND_REJECT_TX::request& arg, p2p_connection_context& context);
+    int handle_supernode_anonce(int command, typename COMMAND_SUPERNODE_ANONCE::request& arg, p2p_connection_context& context);
+
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);
@@ -191,6 +206,8 @@ namespace nodetool
     virtual void for_each_connection(std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool for_connection(const boost::uuids::uuid&, std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool add_host_fail(const epee::net_utils::network_address &address);
+    // added, non virtual
+    bool relay_notify(int command, const std::string& data_buff, const p2p_connection_context& connection);
     //----------------- i_connection_filter  --------------------------------------------------------
     virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address);
     //-----------------------------------------------------------------------------------------------
@@ -227,6 +244,21 @@ namespace nodetool
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(bool testnet) const;
     bool connect_to_seed();
+    bool find_connection_context_by_peer_id(uint64_t id, p2p_connection_context& con)
+    {
+        bool ret = false;
+        m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
+        {
+            if(cntxt.peer_id == id) {
+                con = cntxt;
+                ret = true;
+                return true;
+            }
+            return true;
+        });
+
+        return ret;
+    }
 
     template <class Container>
     bool connect_to_peerlist(const Container& peers);
@@ -282,7 +314,37 @@ namespace nodetool
       m_save_graph = save_graph;
       epee::net_utils::connection_basic::set_save_graph(save_graph);
     }
+
+    void supernode_set(crypto::public_key& addr) {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        m_supernode_addr = addr;
+        m_supernode_str = publickey2string(addr);
+        m_have_supernode = true;
+    }
+
+    void supernode_reset() {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        m_supernode_str.erase();
+        m_have_supernode = false;
+    }
+
+    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send);
+
+
   private:
+    static std::string publickey2string(const crypto::public_key& addr) {
+        std::stringstream ss;
+        for (unsigned i = 0; i < sizeof( addr.data ); i++ )
+            ss << std::hex << std::setw(2) << std::setfill('0') << addr.data[i];
+        return ss.str();
+    }
+
+    std::map<std::string, nodetool::supernode_route> m_supernode_routes;
+    crypto::public_key m_supernode_addr;
+    std::string m_supernode_str;
+    bool m_have_supernode;
+    boost::recursive_mutex m_supernode_lock;
+
     std::string m_config_folder;
 
     bool m_have_address;

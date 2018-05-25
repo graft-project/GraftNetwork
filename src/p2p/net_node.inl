@@ -729,7 +729,191 @@ namespace nodetool
     MDEBUG("[node] Stop signal sent");
     return true;
   }
+
+#define MAX_TUNNEL_PEERS (3u)
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send)
+  {
+      for (unsigned i = 0; i < peers_to_send.size(); i++) {
+          const peerlist_entry &pe = peers_to_send[i];
+          p2p_connection_context con = AUTO_VAL_INIT(con);
+          bool is_conneted = find_connection_context_by_peer_id(pe.id, con);
+          if (is_conneted) {
+              if (relay_notify(command, buf, con) >= 0)
+                  return true;
+          }
+          else {
+              const epee::net_utils::network_address& na = pe.adr;
+              const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
+
+              if (m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
+                                         epee::string_tools::num_to_string_fast(ipv4.port()),
+                                         m_config.m_net_config.connection_timeout, con)
+                      && relay_notify(command, buf, con) >= 0)
+                  return true;
+          }
+      }
+      return false;
+  }
+
   //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_tx_to_sign(int command, COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context)
+  {
+      crypto::public_key destination = arg.auth_supernode_addr;
+      std::string dest_str = publickey2string(destination);
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (!m_have_supernode)
+              break;
+          if (dest_str != m_supernode_str )
+              break;
+
+          // TODO: http call to Supernode
+      } while(0);
+
+      std::vector<nodetool::peerlist_entry> peers_to_send;
+
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = m_supernode_routes.find(dest_str);
+          if ( it == m_supernode_routes.end() )
+              return 1;
+
+          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+      } while(0);
+
+      std::string arg_buff;
+      epee::serialization::store_t_to_binary(arg, arg_buff);
+      notify_peer_list(command,arg_buff,peers_to_send);
+
+      return 1;
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_signed_tx(int command, COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context)
+  {
+      crypto::public_key destination = arg.requested_supernode_addr;
+      std::string dest_str = publickey2string(destination);
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (!m_have_supernode)
+              break;
+          if (dest_str != m_supernode_str )
+              break;
+
+          // TODO: http call to Supernode
+      } while(0);
+
+      std::vector<nodetool::peerlist_entry> peers_to_send;
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = m_supernode_routes.find(dest_str);
+          if ( it == m_supernode_routes.end() )
+              return 1;
+
+          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+      } while(0);
+
+      std::string arg_buff;
+      epee::serialization::store_t_to_binary(arg, arg_buff);
+      notify_peer_list(command,arg_buff,peers_to_send);
+
+      return 1;
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_reject_tx(int command, COMMAND_REJECT_TX::request& arg, p2p_connection_context& context)
+  {
+      crypto::public_key destination = arg.requested_supernode_addr;
+      std::string dest_str = publickey2string(destination);
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (!m_have_supernode)
+              break;
+          if (dest_str != m_supernode_str )
+              break;
+
+          // TODO: http call to Supernode
+      } while(0);
+
+      std::vector<nodetool::peerlist_entry> peers_to_send;
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = m_supernode_routes.find(dest_str);
+          if ( it == m_supernode_routes.end() )
+              return 1;
+
+          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+      } while(0);
+
+      std::string arg_buff;
+      epee::serialization::store_t_to_binary(arg, arg_buff);
+      notify_peer_list(command,arg_buff,peers_to_send);
+
+      return 1;
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_supernode_anonce(int command, COMMAND_SUPERNODE_ANONCE::request& arg, p2p_connection_context& context)
+  {
+      crypto::public_key supernode = arg.supernode_addr;
+      std::string supernode_str = publickey2string(supernode);
+
+      // TODO: signature verification
+      //  if verification failed
+      //    return 1;
+
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (!m_have_supernode)
+              break;
+          if (supernode_str != m_supernode_str )
+              break;
+
+          return 1;
+          // TODO: http call to Supernode
+      } while(0);
+
+      do {
+          peerlist_entry pe;
+          if (!m_peerlist.find_peer(context.peer_id, pe)) { // unknown peer, alternative handshake with it
+                  return 1;
+          }
+
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = m_supernode_routes.find(supernode_str);
+          if (it != m_supernode_routes.end() && (*it).second.last_anonce_time > arg.local_time)
+              return 1;
+
+          if ( it == m_supernode_routes.end() ) {
+              std::vector<peerlist_entry> vec;
+              vec.push_back(pe);
+              break;
+          }
+
+          if ((*it).second.last_anonce_time == arg.local_time && (*it).second.peers.size() < MAX_TUNNEL_PEERS) {
+              (*it).second.peers.push_back(pe);
+              break;
+          }
+          (*it).second.peers.resize(0);
+          (*it).second.peers.push_back(pe);
+
+      } while(0);
+
+      // Notify neighbours about new ANONCE
+      std::string arg_buff;
+      epee::serialization::store_t_to_binary(arg, arg_buff);
+      relay_notify_to_all(command, arg_buff, context /*exclude*/);
+
+      return 1;
+  }
+
+
+//  //-----------------------------------------------------------------------------------
 
 
   template<class t_payload_net_handler>
@@ -1483,6 +1667,12 @@ namespace nodetool
   void node_server<t_payload_net_handler>::request_callback(const epee::net_utils::connection_context_base& context)
   {
     m_net_server.get_config_object().request_callback(context.m_connection_id);
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::relay_notify(int command, const std::string& data_buff, const p2p_connection_context& connection)
+  {
+      return m_net_server.get_config_object().notify(command, data_buff, connection.m_connection_id) >= 0;
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>

@@ -158,9 +158,134 @@ namespace nodetool
       KV_SERIALIZE(my_port)
     END_KV_SERIALIZE_MAP()
   };
-  
+
+
+  struct supernode_route
+  {
+      crypto::public_key addr;
+      uint64_t last_anonce_time;
+      std::vector<peerlist_entry> peers;
+  };
+
+  struct tx_to_sign_request
+  {
+      crypto::public_key return_addr;
+      size_t curr_height;
+      uint64_t local_time;
+      std::string tx_as_blob;
+
+      BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE_VAL_POD_AS_BLOB(return_addr)
+      KV_SERIALIZE_VAL_POD_AS_BLOB(curr_height)
+      KV_SERIALIZE_VAL_POD_AS_BLOB(local_time)
+      KV_SERIALIZE(tx_as_blob)
+      END_KV_SERIALIZE_MAP()
+  };
+
+
 
 #define P2P_COMMANDS_POOL_BASE 1000
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct COMMAND_TX_TO_SIGN
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 17;
+
+      struct request
+      {
+          crypto::public_key auth_supernode_addr;
+          tx_to_sign_request tx_request;
+          crypto::signature signature;
+
+          BEGIN_KV_SERIALIZE_MAP()
+              KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr)
+              KV_SERIALIZE(tx_request)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+      };
+  };
+
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct COMMAND_SIGNED_TX
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 18;
+
+      struct request
+      {
+          crypto::public_key requested_supernode_addr;
+          crypto::hash tx_hash;
+          crypto::signature signature; // of transaction
+
+          BEGIN_KV_SERIALIZE_MAP()
+              KV_SERIALIZE_VAL_POD_AS_BLOB(requested_supernode_addr)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+      };
+  };
+
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct COMMAND_REJECT_TX
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 19;
+
+      struct request
+      {
+          crypto::public_key requested_supernode_addr;
+          crypto::hash tx_hash;
+          crypto::signature signature; // of serialized requested_supernode_addr + tx_hash
+
+          BEGIN_KV_SERIALIZE_MAP()
+              KV_SERIALIZE_VAL_POD_AS_BLOB(requested_supernode_addr)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+      };
+  };
+
+
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct COMMAND_SUPERNODE_ANONCE
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 20;
+
+      struct request
+      {
+          crypto::public_key supernode_addr;
+          uint64_t local_time;
+          crypto::signature signature; // of serialized supernode_addr + local_time
+
+          BEGIN_KV_SERIALIZE_MAP()
+              KV_SERIALIZE_VAL_POD_AS_BLOB(supernode_addr)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(local_time)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+      };
+  };
+
 
   /************************************************************************/
   /*                                                                      */
