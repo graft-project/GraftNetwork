@@ -762,6 +762,7 @@ namespace nodetool
   {
       crypto::public_key destination = arg.auth_supernode_addr;
       std::string dest_str = publickey2string(destination);
+      LOG_PRINT_L0("TX_TO_SIGN from " << context.peer_id);
       do {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (!m_have_supernode)
@@ -822,6 +823,7 @@ namespace nodetool
   {
       crypto::public_key destination = arg.requ_supernode_addr;
       std::string dest_str = publickey2string(destination);
+      LOG_PRINT_L0("SIGNED_TX from " << context.peer_id);
       // TODO: signature verification
       //  if verification failed
       //    return 1;
@@ -888,6 +890,7 @@ namespace nodetool
   {
       crypto::public_key destination = arg.requ_supernode_addr;
       std::string dest_str = publickey2string(destination);
+      LOG_PRINT_L0("REJECT_TX from " << context.peer_id);
       // TODO: signature verification
       //  if verification failed
       //    return 1;
@@ -956,6 +959,8 @@ namespace nodetool
       crypto::public_key supernode = arg.supernode_addr;
       std::string supernode_str = publickey2string(supernode);
 
+      LOG_PRINT_L0("received SUPERNODE_ANNOUNCE from " << context.peer_id << " with time " << arg.local_time);
+
       // TODO: signature verification
       //  if verification failed
       //    return 1;
@@ -974,13 +979,15 @@ namespace nodetool
       do {
           peerlist_entry pe;
           if (!m_peerlist.find_peer(context.peer_id, pe)) { // unknown peer, alternative handshake with it
-                  return 1;
+              return 1;
           }
 
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           auto it = m_supernode_routes.find(supernode_str);
-          if (it != m_supernode_routes.end() && (*it).second.last_anonce_time > arg.local_time)
+          if (it != m_supernode_routes.end() && (*it).second.last_anonce_time > arg.local_time) {
+              LOG_PRINT_L0("SUPERNODE_ANNOUNCE from " << context.peer_id << " too old, corrent route timestamp " << (*it).second.last_anonce_time );
               return 1;
+          }
 
           if ( it == m_supernode_routes.end() ) {
               std::vector<peerlist_entry> vec;
