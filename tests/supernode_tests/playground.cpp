@@ -65,7 +65,8 @@ TEST(MoneroHttpBin, Test1)
   cryptonote::COMMAND_RPC_GET_BLOCKS_BY_HEIGHT::request req;
   cryptonote::COMMAND_RPC_GET_BLOCKS_BY_HEIGHT::response res;
   req.heights = {100, 101, 102};
-  bool r = epee::net_utils::invoke_http_bin("/getblocks_by_height.bin", req, res, http_client);
+
+  bool r = epee::net_utils::invoke_http_bin("/getblocks_by_height.bin", req, res, http_client, std::chrono::milliseconds(500), "POST");
 
   for (const auto & block_entry: res.blocks) {
     cryptonote::block b;
