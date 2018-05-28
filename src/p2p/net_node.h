@@ -138,7 +138,11 @@ namespace nodetool
     virtual std::map<std::string, time_t> get_blocked_hosts() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_hosts; }
 
     // Graft RPC methods
-    void do_supernode_announce(const cryptonote::COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::request &req);
+    void do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req);
+    void do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req);
+    void do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req);
+    void do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req);
+
   private:
     const std::vector<std::string> m_seed_nodes_list =
     { "seeds.moneroseeds.se"
@@ -159,7 +163,7 @@ namespace nodetool
       HANDLE_NOTIFY_T2(COMMAND_TX_TO_SIGN, &node_server::handle_tx_to_sign)
       HANDLE_NOTIFY_T2(COMMAND_SIGNED_TX, &node_server::handle_signed_tx)
       HANDLE_NOTIFY_T2(COMMAND_REJECT_TX, &node_server::handle_reject_tx)
-      HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANONCE, &node_server::handle_supernode_anonce)
+      HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_anonce)
 
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
@@ -180,7 +184,7 @@ namespace nodetool
     int handle_tx_to_sign(int command, typename COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context);
     int handle_signed_tx(int command, typename COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context);
     int handle_reject_tx(int command, typename COMMAND_REJECT_TX::request& arg, p2p_connection_context& context);
-    int handle_supernode_anonce(int command, typename COMMAND_SUPERNODE_ANONCE::request& arg, p2p_connection_context& context);
+    int handle_supernode_anonce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
 
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);

@@ -1692,17 +1692,19 @@ namespace cryptonote
 
   //---------- Graft RTA commands ---------------------
   //
-  struct COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE
+  struct COMMAND_RPC_SUPERNODE_ANNOUNCE
   {
     struct request
     {
       uint64_t timestamp;
       std::string wallet_address;
       std::string signature;
+      std::string callback_uri;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(timestamp)
         KV_SERIALIZE(wallet_address)
         KV_SERIALIZE(signature)
+        KV_SERIALIZE(callback_uri)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -1714,4 +1716,80 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
   };
+
+  struct COMMAND_RPC_TX_TO_SIGN
+  {
+      struct request
+      {
+          std::string requ_wallet_address;
+          std::list<std::string> auth_wallet_addresses;
+          std::vector<uint8_t> tx;
+          std::string signature;
+          BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(requ_wallet_address)
+          KV_SERIALIZE_CONTAINER_POD_AS_BLOB(tx)
+          KV_SERIALIZE(signature)
+          KV_SERIALIZE(auth_wallet_addresses)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+          std::string status;
+          BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(status)
+          END_KV_SERIALIZE_MAP()
+      };
+  };
+
+  struct COMMAND_RPC_SIGNED_TX
+  {
+      struct request
+      {
+          std::string requ_wallet_address;
+          std::string auth_wallet_address;
+          crypto::hash tx_hash;
+          std::string signature;
+          BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(requ_wallet_address)
+          KV_SERIALIZE(auth_wallet_address)
+          KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
+          KV_SERIALIZE(signature)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+          std::string status;
+          BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(status)
+          END_KV_SERIALIZE_MAP()
+      };
+  };
+
+  struct COMMAND_RPC_REJECT_TX
+  {
+      struct request
+      {
+          std::string requ_wallet_address;
+          std::string auth_wallet_address;
+          crypto::hash tx_hash;
+          std::string signature;
+          BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(requ_wallet_address)
+          KV_SERIALIZE(auth_wallet_address)
+          KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
+          KV_SERIALIZE(signature)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+          std::string status;
+          BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(status)
+          END_KV_SERIALIZE_MAP()
+      };
+  };
+
 }

@@ -273,19 +273,19 @@ namespace nodetool
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
-  struct COMMAND_SUPERNODE_ANONCE
+  struct COMMAND_SUPERNODE_ANNOUNCE
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 20;
 
       struct request
       {
           crypto::public_key supernode_addr;
-          uint64_t local_time;
+          uint64_t timestamp;
           crypto::signature signature; // of serialized supernode_addr + local_time
 
           BEGIN_KV_SERIALIZE_MAP()
               KV_SERIALIZE_VAL_POD_AS_BLOB(supernode_addr)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(local_time)
+              KV_SERIALIZE_VAL_POD_AS_BLOB(timestamp)
               KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
           END_KV_SERIALIZE_MAP()
       };
@@ -587,7 +587,7 @@ namespace nodetool
   struct NOTIFY_SUPERNODE_ANNOUNCE
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 10;
-      struct request : public cryptonote::COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::request {};
+      struct request : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request {};
   };
 
   inline crypto::hash get_proof_of_trust_hash(const nodetool::proof_of_trust& pot)

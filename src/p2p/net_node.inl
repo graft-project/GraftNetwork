@@ -954,12 +954,12 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  int node_server<t_payload_net_handler>::handle_supernode_anonce(int command, COMMAND_SUPERNODE_ANONCE::request& arg, p2p_connection_context& context)
+  int node_server<t_payload_net_handler>::handle_supernode_anonce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
       crypto::public_key supernode = arg.supernode_addr;
       std::string supernode_str = publickey2string(supernode);
 
-      LOG_PRINT_L0("received SUPERNODE_ANNOUNCE from " << context.peer_id << " with time " << arg.local_time);
+      LOG_PRINT_L0("received SUPERNODE_ANNOUNCE from " << context.peer_id << " with time " << arg.timestamp);
 
       // TODO: signature verification
       //  if verification failed
@@ -984,7 +984,7 @@ namespace nodetool
 
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           auto it = m_supernode_routes.find(supernode_str);
-          if (it != m_supernode_routes.end() && (*it).second.last_anonce_time > arg.local_time) {
+          if (it != m_supernode_routes.end() && (*it).second.last_anonce_time > arg.timestamp) {
               LOG_PRINT_L0("SUPERNODE_ANNOUNCE from " << context.peer_id << " too old, corrent route timestamp " << (*it).second.last_anonce_time );
               return 1;
           }
@@ -995,7 +995,7 @@ namespace nodetool
               break;
           }
 
-          if ((*it).second.last_anonce_time == arg.local_time && (*it).second.peers.size() < MAX_TUNNEL_PEERS) {
+          if ((*it).second.last_anonce_time == arg.timestamp && (*it).second.peers.size() < MAX_TUNNEL_PEERS) {
               (*it).second.peers.push_back(pe);
               break;
           }
@@ -2047,7 +2047,7 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_RTA_SUPERNODE_ANNOUNCE::request &req)
+  void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
   {
     LOG_PRINT_L0(__FUNCTION__);
     // prepare sendout
@@ -2063,6 +2063,25 @@ namespace nodetool
       return this->invoke_notify_to_peer(NOTIFY_SUPERNODE_ANNOUNCE::ID, blob, context);
     });
   }
+
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req)
+  {
+  }
+
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req)
+  {
+  }
+
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req)
+  {
+  }
+
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
