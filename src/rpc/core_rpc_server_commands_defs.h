@@ -1714,4 +1714,32 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
   };
+
+  struct COMMAND_RPC_RTA_AUTHORIZE_TX
+  {
+    struct request
+    {
+      // TODO: we don't care about data here, just testing flow for now
+      uint64_t timestamp;
+      std::string src_address;
+      std::string dst_address;
+      std::string tx_id;
+      u_int64_t amount;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(timestamp)
+        KV_SERIALIZE(src_address)
+        KV_SERIALIZE(dst_address)
+        KV_SERIALIZE(tx_id)
+        KV_SERIALIZE(amount)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::string status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
 }
