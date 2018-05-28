@@ -1821,4 +1821,87 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
   };
+
+  /*!
+   * \brief The COMMAND_RPC_TX_TO_SIGN_CALLBACK struct - payload to be sent back to supernode
+   *   TODO: move all RTA structs to separate file?
+   */
+  struct COMMAND_RPC_TX_TO_SIGN_CALLBACK
+  {
+    struct request
+    {
+      crypto::public_key auth_supernode_addr;
+      crypto::public_key requ_supernode_addr;
+      crypto::hash hash;
+      crypto::signature signature;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(hash);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(signature);
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::string status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_TX_SIGNED_CALLBACK
+  {
+    struct request
+    {
+      crypto::public_key auth_supernode_addr;
+      crypto::public_key requ_supernode_addr;
+      crypto::hash hash;
+      crypto::signature signature;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(hash);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(signature);
+      END_KV_SERIALIZE_MAP()
+
+    };
+
+    struct response
+    {
+      std::string status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_TX_REJECTED_CALLBACK
+  {
+    struct request
+    {
+      crypto::public_key auth_supernode_addr;
+      crypto::public_key requ_supernode_addr;
+      crypto::hash hash;
+      crypto::signature signature;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(hash);
+        KV_SERIALIZE_VAL_POD_AS_BLOB(signature);
+      END_KV_SERIALIZE_MAP()
+
+    };
+
+    struct response
+    {
+      std::string status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+
 }

@@ -170,18 +170,18 @@ namespace nodetool
 
   struct tx_to_sign_request
   {
-      crypto::public_key return_addr;
+      std::string return_addr;
       crypto::hash hash;
-      size_t curr_height;
+      uint64_t curr_height;
       uint64_t local_time;
       std::string tx_as_blob;
 
       BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE_VAL_POD_AS_BLOB(return_addr)
-      KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
-      KV_SERIALIZE_VAL_POD_AS_BLOB(curr_height)
-      KV_SERIALIZE_VAL_POD_AS_BLOB(local_time)
-      KV_SERIALIZE(tx_as_blob)
+        KV_SERIALIZE(return_addr)
+        KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
+        KV_SERIALIZE_VAL_POD_AS_BLOB(curr_height)
+        KV_SERIALIZE_VAL_POD_AS_BLOB(local_time)
+        KV_SERIALIZE(tx_as_blob)
       END_KV_SERIALIZE_MAP()
   };
 
@@ -279,13 +279,15 @@ namespace nodetool
 
       struct request
       {
+          std::string supernode_url;
           crypto::public_key supernode_addr;
           uint64_t timestamp;
           crypto::signature signature; // of serialized supernode_addr + local_time
 
           BEGIN_KV_SERIALIZE_MAP()
+              KV_SERIALIZE(supernode_url)
               KV_SERIALIZE_VAL_POD_AS_BLOB(supernode_addr)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(timestamp)
+              KV_SERIALIZE(timestamp)
               KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
           END_KV_SERIALIZE_MAP()
       };
