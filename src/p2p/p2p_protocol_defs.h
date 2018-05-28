@@ -279,14 +279,14 @@ namespace nodetool
 
       struct request
       {
-          crypto::public_key supernode_addr;
+          std::string wallet_address;
           uint64_t timestamp;
-          crypto::signature signature; // of serialized supernode_addr + local_time
+          std::string signature; // of serialized supernode_addr + local_time
 
           BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE_VAL_POD_AS_BLOB(supernode_addr)
+              KV_SERIALIZE(wallet_address)
               KV_SERIALIZE_VAL_POD_AS_BLOB(timestamp)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+              KV_SERIALIZE(signature)
           END_KV_SERIALIZE_MAP()
       };
 
