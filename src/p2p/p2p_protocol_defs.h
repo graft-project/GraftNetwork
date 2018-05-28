@@ -273,7 +273,7 @@ namespace nodetool
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
-  struct COMMAND_SUPERNODE_ANONCE
+  struct COMMAND_SUPERNODE_ANNOUNCE
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 20;
 
