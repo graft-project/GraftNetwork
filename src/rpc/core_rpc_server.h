@@ -126,10 +126,12 @@ namespace cryptonote
         MAP_JON_RPC_WE_IF("relay_tx",            on_relay_tx,                   COMMAND_RPC_RELAY_TX, !m_restricted)
         MAP_JON_RPC_WE_IF("sync_info",           on_sync_info,                  COMMAND_RPC_SYNC_INFO, !m_restricted)
         MAP_JON_RPC_WE("get_txpool_backlog",     on_get_txpool_backlog,         COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG)
+    // Graft RTA handlers start here
         MAP_JON_RPC_WE("supernode_announce",     on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
         MAP_JON_RPC_WE("tx_to_sign",             on_tx_to_sign,                 COMMAND_RPC_TX_TO_SIGN)
         MAP_JON_RPC_WE("signed_tx",              on_signed_tx,                  COMMAND_RPC_SIGNED_TX)
         MAP_JON_RPC_WE("reject_tx",              on_reject_tx,                  COMMAND_RPC_REJECT_TX)
+        MAP_JON_RPC_WE("rta_authorize_tx",       on_rta_authorize_tx,           COMMAND_RPC_RTA_AUTHORIZE_TX)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -194,6 +196,7 @@ namespace cryptonote
     bool on_tx_to_sign(const COMMAND_RPC_TX_TO_SIGN::request& req, COMMAND_RPC_TX_TO_SIGN::response& res, epee::json_rpc::error& error_resp);
     bool on_signed_tx(const COMMAND_RPC_SIGNED_TX::request& req, COMMAND_RPC_SIGNED_TX::response& res, epee::json_rpc::error& error_resp);
     bool on_reject_tx(const COMMAND_RPC_REJECT_TX::request& req, COMMAND_RPC_REJECT_TX::response& res, epee::json_rpc::error& error_resp);
+    bool on_rta_authorize_tx(const COMMAND_RPC_RTA_AUTHORIZE_TX::request& req, COMMAND_RPC_RTA_AUTHORIZE_TX::response& res, epee::json_rpc::error& error_resp);
 
 private:
     bool check_core_busy();

@@ -137,11 +137,12 @@ namespace nodetool
     virtual bool unblock_host(const epee::net_utils::network_address &address);
     virtual std::map<std::string, time_t> get_blocked_hosts() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_hosts; }
 
-    // Graft RPC methods
+    // Graft/RTA methods to be called from RPC handlers
     void do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req);
     void do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req);
     void do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req);
     void do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req);
+    void do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req);
 
   private:
     const std::vector<std::string> m_seed_nodes_list =
@@ -163,7 +164,7 @@ namespace nodetool
       HANDLE_NOTIFY_T2(COMMAND_TX_TO_SIGN, &node_server::handle_tx_to_sign)
       HANDLE_NOTIFY_T2(COMMAND_SIGNED_TX, &node_server::handle_signed_tx)
       HANDLE_NOTIFY_T2(COMMAND_REJECT_TX, &node_server::handle_reject_tx)
-      HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_anonce)
+      HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
 
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
@@ -174,7 +175,7 @@ namespace nodetool
       HANDLE_INVOKE_T2(COMMAND_REQUEST_PEER_ID, &node_server::handle_get_peer_id)
 #endif
       HANDLE_INVOKE_T2(COMMAND_REQUEST_SUPPORT_FLAGS, &node_server::handle_get_support_flags)
-      HANDLE_NOTIFY_T2(NOTIFY_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
+      //HANDLE_NOTIFY_T2(NOTIFY_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce_notify)
       CHAIN_INVOKE_MAP_TO_OBJ_FORCE_CONTEXT(m_payload_handler, typename t_payload_net_handler::connection_context&)
     END_INVOKE_MAP2()
 
@@ -184,8 +185,7 @@ namespace nodetool
     int handle_tx_to_sign(int command, typename COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context);
     int handle_signed_tx(int command, typename COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context);
     int handle_reject_tx(int command, typename COMMAND_REJECT_TX::request& arg, p2p_connection_context& context);
-    int handle_supernode_anonce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
-
+    int handle_supernode_announce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);
@@ -200,7 +200,6 @@ namespace nodetool
     bool make_default_config();
     bool store_config();
     bool check_trust(const proof_of_trust& tr);
-    int handle_supernode_announce(int command, NOTIFY_SUPERNODE_ANNOUNCE::request &arg, p2p_connection_context& context);
     //----------------- levin_commands_handler -------------------------------------------------------------
     virtual void on_connection_new(p2p_connection_context& context);
     virtual void on_connection_close(p2p_connection_context& context);
@@ -227,7 +226,7 @@ namespace nodetool
     bool idle_worker();
     bool handle_remote_peerlist(const std::list<peerlist_entry>& peerlist, time_t local_time, const epee::net_utils::connection_context_base& context);
     bool get_local_node_data(basic_node_data& node_data);
-    //bool get_local_handshake_data(handshake_data& hshd);
+    // bool get_local_handshake_data(handshake_data& hshd);
 
     bool merge_peerlist_with_local(const std::list<peerlist_entry>& bs);
     bool fix_time_delta(std::list<peerlist_entry>& local_peerlist, time_t local_time, int64_t& delta);
