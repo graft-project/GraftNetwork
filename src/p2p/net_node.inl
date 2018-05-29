@@ -49,6 +49,7 @@
 #include "net/local_ip.h"
 #include "crypto/crypto.h"
 #include "storages/levin_abstract_invoke2.h"
+#include "storages/http_abstract_invoke.h"
 
 // We have to look for miniupnpc headers in different places, dependent on if its compiled or external
 #ifdef UPNP_STATIC
@@ -764,39 +765,30 @@ namespace nodetool
       std::string dest_str = publickey2string(destination);
       LOG_PRINT_L0("TX_TO_SIGN from " << context.peer_id);
       do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (!m_have_supernode)
-              break;
-          if (dest_str != m_supernode_str )
-              break;
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        if (!m_have_supernode)
+          break;
+        if (dest_str != m_supernode_str )
+          break;
 
-          // TODO: http call to Supernode
-          epee::net_utils::http::http_simple_client client;
-          boost::optional<epee::net_utils::http::login> user;
+        // TODO: JSON-RPC call(callback) to supernode. no reply required
+        epee::net_utils::http::http_simple_client client;
+        boost::optional<epee::net_utils::http::login> user;
+        client.set_server(m_supernode_http_addr,user);
+        std::string uri(m_supernode_uri);
+        m_supernode_lock.unlock();
 
-          client.set_server(m_supernode_http_addr,user);
-          std::string uri(m_supernode_uri);
-          m_supernode_lock.unlock();
+        cryptonote::COMMAND_RPC_TX_TO_SIGN_CALLBACK::request  req;
+        cryptonote::COMMAND_RPC_TX_TO_SIGN_CALLBACK::response res;
+        // TODO: fill request
 
-          std::stringstream ss;
-          ss << COMMAND_TX_TO_SIGN::ID << " " ;
-          for (unsigned i = 0; i < sizeof(arg.auth_supernode_addr.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.auth_supernode_addr.data[i]);
-          for (unsigned i = 0; i < sizeof(arg.requ_supernode_addr.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.requ_supernode_addr.data[i]);
-          ss << " ";
-          for (unsigned i = 0; i < sizeof(arg.tx_request.hash.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.tx_request.hash.data[i]);
-          ss << " ";
-          for (unsigned i = 0; i < sizeof(arg.signature.r.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.signature.r.data[i]);
-          ss << " ";
+        bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_to_sign", req, res, client, std::chrono::milliseconds(500));
 
-          client.connect(std::chrono::milliseconds(500));
-          if (client.is_connected()) {
-              client.invoke_post(uri,ss.str(),std::chrono::milliseconds(500));
-              client.disconnect();
-          }
+        // check response
+        if (!r) {
+          LOG_ERROR("Failed to invoke " << uri);
+        }
+
       } while(0);
 
       std::vector<nodetool::peerlist_entry> peers_to_send;
@@ -846,24 +838,15 @@ namespace nodetool
           std::string uri(m_supernode_uri);
           m_supernode_lock.unlock();
 
-          std::stringstream ss;
-          ss << COMMAND_SIGNED_TX::ID << " " ;
-          for (unsigned i = 0; i < sizeof(arg.auth_supernode_addr.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.auth_supernode_addr.data[i]);
-          for (unsigned i = 0; i < sizeof(arg.requ_supernode_addr.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.requ_supernode_addr.data[i]);
-          ss << " ";
-          for (unsigned i = 0; i < sizeof(arg.tx_hash.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.tx_hash.data[i]);
-          ss << " ";
-          for (unsigned i = 0; i < sizeof(arg.signature.r.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.signature.r.data[i]);
-          ss << " ";
+          cryptonote::COMMAND_RPC_TX_SIGNED_CALLBACK::request  req;
+          cryptonote::COMMAND_RPC_TX_SIGNED_CALLBACK::response res;
+          // TODO: fill request
 
-          client.connect(std::chrono::milliseconds(500));
-          if (client.is_connected()) {
-              client.invoke_post(uri,ss.str(),std::chrono::milliseconds(500));
-              client.disconnect();
+          bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_signed", req, res, client, std::chrono::milliseconds(500));
+
+          // check response
+          if (!r) {
+            LOG_ERROR("Failed to invoke " << uri);
           }
       } while(0);
 
@@ -906,7 +889,7 @@ namespace nodetool
               break;
           }
 
-          // TODO: http call to Supernode
+          // TODO: RPC call to Supernode
           epee::net_utils::http::http_simple_client client;
           boost::optional<epee::net_utils::http::login> user;
 
@@ -914,24 +897,15 @@ namespace nodetool
           std::string uri(m_supernode_uri);
           m_supernode_lock.unlock();
 
-          std::stringstream ss;
-          ss << COMMAND_REJECT_TX::ID << " " ;
-          for (unsigned i = 0; i < sizeof(arg.auth_supernode_addr.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.auth_supernode_addr.data[i]);
-          for (unsigned i = 0; i < sizeof(arg.requ_supernode_addr.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.requ_supernode_addr.data[i]);
-          ss << " ";
-          for (unsigned i = 0; i < sizeof(arg.tx_hash.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.tx_hash.data[i]);
-          ss << " ";
-          for (unsigned i = 0; i < sizeof(arg.signature.r.data); i++)
-              ss<< std::hex << std::setw(2) << std::setfill('0') << unsigned(arg.signature.r.data[i]);
-          ss << " ";
+          cryptonote::COMMAND_RPC_TX_REJECTED_CALLBACK::request  req;
+          cryptonote::COMMAND_RPC_TX_REJECTED_CALLBACK::response res;
+          // TODO: fill request
 
-          client.connect(std::chrono::milliseconds(500));
-          if (client.is_connected()) {
-              client.invoke_post(uri,ss.str(),std::chrono::milliseconds(500));
-              client.disconnect();
+          bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_rejected", req, res, client, std::chrono::milliseconds(500));
+
+          // check response
+          if (!r) {
+            LOG_ERROR("Failed to invoke " << uri);
           }
       } while(0);
 

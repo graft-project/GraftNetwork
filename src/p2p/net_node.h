@@ -138,10 +138,32 @@ namespace nodetool
     virtual std::map<std::string, time_t> get_blocked_hosts() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_hosts; }
 
     // Graft/RTA methods to be called from RPC handlers
+
+    /*!
+     * \brief do_supernode_announce - posts supernode announce to p2p network
+     * \param req
+     */
     void do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req);
+    /*!
+     * \brief do_tx_to_sign - posts "tx_to_sign" command to p2p network?
+     * \param req
+     */
     void do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req);
+    /*!
+     * \brief do_signed_tx - posts "signed tx" to p2p network?
+     * \param req
+     */
     void do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req);
+    /*!
+     * \brief do_reject_tx - posts "reject tx" to p2p network?
+     * \param req
+     */
     void do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req);
+
+    /*!
+     * \brief do_rta_authorize_tx - TBD
+     * \param req
+     */
     void do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req);
 
   private:
