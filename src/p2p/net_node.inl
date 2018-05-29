@@ -49,6 +49,7 @@
 #include "net/local_ip.h"
 #include "crypto/crypto.h"
 #include "storages/levin_abstract_invoke2.h"
+#include "storages/http_abstract_invoke.h"
 
 // We have to look for miniupnpc headers in different places, dependent on if its compiled or external
 #ifdef UPNP_STATIC
@@ -729,7 +730,270 @@ namespace nodetool
     MDEBUG("[node] Stop signal sent");
     return true;
   }
+
+#define MAX_TUNNEL_PEERS (3u)
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send)
+  {
+      for (unsigned i = 0; i < peers_to_send.size(); i++) {
+          const peerlist_entry &pe = peers_to_send[i];
+          p2p_connection_context con = AUTO_VAL_INIT(con);
+          bool is_conneted = find_connection_context_by_peer_id(pe.id, con);
+          if (is_conneted) {
+              if (relay_notify(command, buf, con) >= 0)
+                  return true;
+          }
+          else {
+              const epee::net_utils::network_address& na = pe.adr;
+              const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
+
+              if (m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
+                                         epee::string_tools::num_to_string_fast(ipv4.port()),
+                                         m_config.m_net_config.connection_timeout, con)
+                      && relay_notify(command, buf, con) >= 0)
+                  return true;
+          }
+      }
+      return false;
+  }
+
   //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_tx_to_sign(int command, COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context)
+  {
+      // crypto::public_key destination = arg.auth_supernode_addr;
+      // std::string dest_str = publickey2string(destination);
+      std::string dest_str = arg.auth_supernode_addr;
+      LOG_PRINT_L0("TX_TO_SIGN from " << context.peer_id);
+      do {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        if (!m_have_supernode)
+          break;
+        if (dest_str != m_supernode_str )
+          break;
+
+        // TODO: JSON-RPC call(callback) to supernode. no reply required
+        epee::net_utils::http::http_simple_client client;
+        boost::optional<epee::net_utils::http::login> user;
+        client.set_server(m_supernode_http_addr,user);
+        std::string uri(m_supernode_uri);
+        m_supernode_lock.unlock();
+
+        cryptonote::COMMAND_RPC_TX_TO_SIGN_CALLBACK::request  req;
+        cryptonote::COMMAND_RPC_TX_TO_SIGN_CALLBACK::response res;
+        // TODO: fill request
+
+        bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_to_sign", req, res, client, std::chrono::milliseconds(500));
+
+        // check response
+        if (!r) {
+          LOG_ERROR("Failed to invoke " << uri);
+        }
+
+        return 1;
+
+      } while(0);
+
+      std::vector<nodetool::peerlist_entry> peers_to_send;
+
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = m_supernode_routes.find(dest_str);
+          if ( it == m_supernode_routes.end() )
+              return 1;
+
+          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+      } while(0);
+
+      std::string arg_buff;
+      epee::serialization::store_t_to_binary(arg, arg_buff);
+      notify_peer_list(command, arg_buff, peers_to_send);
+
+      return 1;
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_signed_tx(int command, COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context)
+  {
+      // crypto::public_key destination = arg.requ_supernode_addr;
+      std::string dest_str = arg.requ_supernode_addr;
+      LOG_PRINT_L0("SIGNED_TX from " << context.peer_id);
+      // TODO: signature verification
+      //  if verification failed
+      //    return 1;
+      do {
+          m_supernode_lock.lock();
+          if (!m_have_supernode) {
+              m_supernode_lock.unlock();
+              break;
+          }
+          if (dest_str != m_supernode_str ) {
+              m_supernode_lock.unlock();
+              break;
+          }
+
+          // TODO: http call to Supernode
+          epee::net_utils::http::http_simple_client client;
+          boost::optional<epee::net_utils::http::login> user;
+
+          client.set_server(m_supernode_http_addr,user);
+          std::string uri(m_supernode_uri);
+          m_supernode_lock.unlock();
+
+          cryptonote::COMMAND_RPC_TX_SIGNED_CALLBACK::request  req;
+          cryptonote::COMMAND_RPC_TX_SIGNED_CALLBACK::response res;
+          // TODO: fill request
+
+          bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_signed", req, res, client, std::chrono::milliseconds(500));
+
+          // check response
+          if (!r) {
+            LOG_ERROR("Failed to invoke " << uri);
+          }
+
+          return 1;
+      } while(0);
+
+      std::vector<nodetool::peerlist_entry> peers_to_send;
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = m_supernode_routes.find(dest_str);
+          if ( it == m_supernode_routes.end() )
+              return 1;
+
+          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+      } while(0);
+
+      std::string arg_buff;
+      epee::serialization::store_t_to_binary(arg, arg_buff);
+      notify_peer_list(command,arg_buff,peers_to_send);
+
+      return 1;
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_reject_tx(int command, COMMAND_REJECT_TX::request& arg, p2p_connection_context& context)
+  {
+//      crypto::public_key destination = arg.requ_supernode_addr;
+//      std::string dest_str = publickey2string(destination);
+
+      std::string dest_str = arg.requ_supernode_addr;
+      LOG_PRINT_L0("REJECT_TX from " << context.peer_id);
+      // TODO: signature verification
+      //  if verification failed
+      //    return 1;
+
+      do {
+          m_supernode_lock.lock();
+          if (!m_have_supernode) {
+              m_supernode_lock.unlock();
+              break;
+          }
+          if (dest_str != m_supernode_str ) {
+              m_supernode_lock.unlock();
+              break;
+          }
+
+          // TODO: RPC call to Supernode
+          epee::net_utils::http::http_simple_client client;
+          boost::optional<epee::net_utils::http::login> user;
+
+          client.set_server(m_supernode_http_addr,user);
+          std::string uri(m_supernode_uri);
+          m_supernode_lock.unlock();
+
+          cryptonote::COMMAND_RPC_TX_REJECTED_CALLBACK::request  req;
+          cryptonote::COMMAND_RPC_TX_REJECTED_CALLBACK::response res;
+          // TODO: fill request
+
+          bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_rejected", req, res, client, std::chrono::milliseconds(500));
+
+          // check response
+          if (!r) {
+            LOG_ERROR("Failed to invoke " << uri);
+          }
+          return 1;
+      } while(0);
+
+      std::vector<nodetool::peerlist_entry> peers_to_send;
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = m_supernode_routes.find(dest_str);
+          if ( it == m_supernode_routes.end() )
+              return 1;
+
+          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+      } while(0);
+
+      std::string arg_buff;
+      epee::serialization::store_t_to_binary(arg, arg_buff);
+      notify_peer_list(command,arg_buff,peers_to_send);
+
+      return 1;
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
+  {
+      std::string supernode_str = arg.supernode_addr;
+      LOG_PRINT_L0(__FUNCTION__);
+
+      // TODO: signature verification
+      //  if verification failed
+      //    return 1;
+
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (!m_have_supernode)
+              break;
+          if (supernode_str != m_supernode_str )
+              break;
+
+          return 1;
+          // TODO: http call to Supernode
+      } while(0);
+
+      do {
+          peerlist_entry pe;
+          if (!m_peerlist.find_peer(context.peer_id, pe)) { // unknown peer, alternative handshake with it
+              return 1;
+          }
+
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = m_supernode_routes.find(supernode_str);
+          if (it != m_supernode_routes.end() && (*it).second.last_anonce_time > arg.timestamp) {
+              LOG_PRINT_L0("SUPERNODE_ANNOUNCE from " << context.peer_id << " too old, corrent route timestamp " << (*it).second.last_anonce_time );
+              return 1;
+          }
+
+          if ( it == m_supernode_routes.end() ) {
+              std::vector<peerlist_entry> vec;
+              vec.push_back(pe);
+              break;
+          }
+
+          if ((*it).second.last_anonce_time == arg.timestamp && (*it).second.peers.size() < MAX_TUNNEL_PEERS) {
+              (*it).second.peers.push_back(pe);
+              break;
+          }
+          (*it).second.peers.resize(0);
+          (*it).second.peers.push_back(pe);
+
+      } while(0);
+
+      // Notify neighbours about new ANONCE
+      std::string arg_buff;
+      epee::serialization::store_t_to_binary(arg, arg_buff);
+      relay_notify_to_all(command, arg_buff, context /*exclude*/);
+
+      return 1;
+  }
+
+
+//  //-----------------------------------------------------------------------------------
 
 
   template<class t_payload_net_handler>
@@ -1486,6 +1750,12 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::relay_notify(int command, const std::string& data_buff, const p2p_connection_context& connection)
+  {
+      return m_net_server.get_config_object().notify(command, data_buff, connection.m_connection_id) >= 0;
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::relay_notify_to_list(int command, const std::string& data_buff, const std::list<boost::uuids::uuid> &connections)
   {
     for(const auto& c_id: connections)
@@ -1755,6 +2025,77 @@ namespace nodetool
     MINFO("Connections: \r\n" << print_connections_container() );
     return true;
   }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
+  {
+    LOG_PRINT_L0("Incoming supernode announce request");
+
+    COMMAND_SUPERNODE_ANNOUNCE::request req_;
+    req_.timestamp = req.timestamp;
+    req_.supernode_addr = req.supernode_addr;
+    req_.signature = req.signature;
+    std::string blob;
+    epee::serialization::store_t_to_binary(req_, blob);
+    std::set<peerid_type> announced_peers;
+    // send to peers
+    m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
+        // LOG_PRINT_L0("sending NOTIFY_SUPERNODE_ANNOUNCE to " << context.peer_id);
+        LOG_PRINT_L0("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
+        // return this->invoke_notify_to_peer(NOTIFY_SUPERNODE_ANNOUNCE::ID, blob, context);
+//        std::string resp;
+        if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
+            announced_peers.insert(context.peer_id);
+            return true;
+        }
+        else {
+            return false;
+        }
+        // return this->invoke_notify_to_peer(COMMAND_SUPERNODE_ANONCE::ID, blob, context);
+    });
+
+    std::list<peerlist_entry> peerlist_white, peerlist_gray;
+    m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
+    std::vector<peerlist_entry> peers_to_send;
+    for (auto pe :peerlist_white) {
+        if ( announced_peers.find(pe.id) != announced_peers.end() )
+            continue;
+        peers_to_send.push_back(pe);
+    }
+
+    notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
+
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req)
+  {
+    LOG_PRINT_L0("Incoming rta authorize tx request");
+    // COMMAND_TX_TO_SIGN::request req_;
+    // TODO: implement me;
+
+  }
+
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req)
+  {
+  }
+
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req)
+  {
+  }
+
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req)
+  {
+  }
+
+
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   std::string node_server<t_payload_net_handler>::print_connections_container()
