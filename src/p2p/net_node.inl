@@ -761,8 +761,9 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_tx_to_sign(int command, COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context)
   {
-      crypto::public_key destination = arg.auth_supernode_addr;
-      std::string dest_str = publickey2string(destination);
+      // crypto::public_key destination = arg.auth_supernode_addr;
+      // std::string dest_str = publickey2string(destination);
+      std::string dest_str = arg.auth_supernode_addr;
       LOG_PRINT_L0("TX_TO_SIGN from " << context.peer_id);
       do {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -806,7 +807,7 @@ namespace nodetool
 
       std::string arg_buff;
       epee::serialization::store_t_to_binary(arg, arg_buff);
-      notify_peer_list(command,arg_buff,peers_to_send);
+      notify_peer_list(command, arg_buff, peers_to_send);
 
       return 1;
   }
@@ -815,8 +816,8 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_signed_tx(int command, COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context)
   {
-      crypto::public_key destination = arg.requ_supernode_addr;
-      std::string dest_str = publickey2string(destination);
+      // crypto::public_key destination = arg.requ_supernode_addr;
+      std::string dest_str = arg.requ_supernode_addr;
       LOG_PRINT_L0("SIGNED_TX from " << context.peer_id);
       // TODO: signature verification
       //  if verification failed
@@ -875,8 +876,10 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_reject_tx(int command, COMMAND_REJECT_TX::request& arg, p2p_connection_context& context)
   {
-      crypto::public_key destination = arg.requ_supernode_addr;
-      std::string dest_str = publickey2string(destination);
+//      crypto::public_key destination = arg.requ_supernode_addr;
+//      std::string dest_str = publickey2string(destination);
+
+      std::string dest_str = arg.requ_supernode_addr;
       LOG_PRINT_L0("REJECT_TX from " << context.peer_id);
       // TODO: signature verification
       //  if verification failed
@@ -935,9 +938,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
-      std::string supernode_str = arg.wallet_address;
-//      std::string supernode_str = publickey2string(supernode);
-
+      std::string supernode_str = arg.supernode_addr;
       LOG_PRINT_L0(__FUNCTION__);
 
       // TODO: signature verification
@@ -2032,7 +2033,7 @@ namespace nodetool
 
     COMMAND_SUPERNODE_ANNOUNCE::request req_;
     req_.timestamp = req.timestamp;
-    req_.wallet_address = req.wallet_address;
+    req_.supernode_addr = req.supernode_addr;
     req_.signature = req.signature;
     std::string blob;
     epee::serialization::store_t_to_binary(req_, blob);

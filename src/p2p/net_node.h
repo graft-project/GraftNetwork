@@ -346,10 +346,11 @@ namespace nodetool
       epee::net_utils::connection_basic::set_save_graph(save_graph);
     }
 
-    void supernode_set(const std::string& wallet_addr,const std::string& url) {
+    void supernode_set(const std::string& addr, const std::string& url)
+    {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
 //        m_supernode_addr = addr;
-        m_supernode_str = wallet_addr;//publickey2string(addr);
+        m_supernode_str = addr;//publickey2string(addr);
         epee::net_utils::http::url_content parsed{};
         bool ret = epee::net_utils::parse_url(url, parsed);
         if (ret) {
@@ -370,11 +371,9 @@ namespace nodetool
 
 
   private:
+    // TODO: lets remove it and use epee::string_tools::pod_to_hex() directly?
     static std::string publickey2string(const crypto::public_key& addr) {
-        std::stringstream ss;
-        for (unsigned i = 0; i < sizeof( addr.data ); i++ )
-            ss << std::hex << std::setw(2) << std::setfill('0') << addr.data[i];
-        return ss.str();
+      return epee::string_tools::pod_to_hex(addr);
     }
 
     std::map<std::string, nodetool::supernode_route> m_supernode_routes;

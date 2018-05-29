@@ -1692,19 +1692,20 @@ namespace cryptonote
 
   //---------- Graft RTA commands ---------------------
   //
+  // TODO: probably it make sense to just use one set of structures for both p2p and rpc, structures seems to be the same
   struct COMMAND_RPC_SUPERNODE_ANNOUNCE
   {
     struct request
     {
       uint64_t timestamp;
-      std::string wallet_address;
+      std::string supernode_addr;
       std::string signature;
-      std::string callback_uri;
+      std::string callback_url;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(timestamp)
-        KV_SERIALIZE(wallet_address)
+        KV_SERIALIZE(supernode_addr)
         KV_SERIALIZE(signature)
-        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(callback_url)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -1748,13 +1749,13 @@ namespace cryptonote
       {
           std::string requ_wallet_address;
           std::string auth_wallet_address;
-          crypto::hash tx_hash;
+          std::string tx_hash;
           std::string signature;
           BEGIN_KV_SERIALIZE_MAP()
-          KV_SERIALIZE(requ_wallet_address)
-          KV_SERIALIZE(auth_wallet_address)
-          KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
-          KV_SERIALIZE(signature)
+            KV_SERIALIZE(requ_wallet_address)
+            KV_SERIALIZE(auth_wallet_address)
+            KV_SERIALIZE(tx_hash)
+            KV_SERIALIZE(signature)
           END_KV_SERIALIZE_MAP()
       };
 
@@ -1762,7 +1763,7 @@ namespace cryptonote
       {
           std::string status;
           BEGIN_KV_SERIALIZE_MAP()
-          KV_SERIALIZE(status)
+            KV_SERIALIZE(status)
           END_KV_SERIALIZE_MAP()
       };
   };
@@ -1773,12 +1774,12 @@ namespace cryptonote
       {
           std::string requ_wallet_address;
           std::string auth_wallet_address;
-          crypto::hash tx_hash;
+          std::string tx_hash;
           std::string signature;
           BEGIN_KV_SERIALIZE_MAP()
-          KV_SERIALIZE(requ_wallet_address)
-          KV_SERIALIZE(auth_wallet_address)
-          KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
+            KV_SERIALIZE(requ_wallet_address)
+            KV_SERIALIZE(auth_wallet_address)
+            KV_SERIALIZE(tx_hash)
           KV_SERIALIZE(signature)
           END_KV_SERIALIZE_MAP()
       };
@@ -1787,7 +1788,7 @@ namespace cryptonote
       {
           std::string status;
           BEGIN_KV_SERIALIZE_MAP()
-          KV_SERIALIZE(status)
+            KV_SERIALIZE(status)
           END_KV_SERIALIZE_MAP()
       };
   };
@@ -1830,15 +1831,15 @@ namespace cryptonote
   {
     struct request
     {
-      crypto::public_key auth_supernode_addr;
-      crypto::public_key requ_supernode_addr;
-      crypto::hash hash;
-      crypto::signature signature;
+      std::string auth_supernode_addr;
+      std::string requ_supernode_addr;
+      std::string hash;
+      std::string signature;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(hash);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(signature);
+        KV_SERIALIZE(auth_supernode_addr);
+        KV_SERIALIZE(requ_supernode_addr);
+        KV_SERIALIZE(hash);
+        KV_SERIALIZE(signature);
       END_KV_SERIALIZE_MAP()
     };
 
@@ -1855,15 +1856,15 @@ namespace cryptonote
   {
     struct request
     {
-      crypto::public_key auth_supernode_addr;
-      crypto::public_key requ_supernode_addr;
-      crypto::hash hash;
-      crypto::signature signature;
+      std::string auth_supernode_addr;
+      std::string requ_supernode_addr;
+      std::string hash;
+      std::string signature;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(hash);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(signature);
+        KV_SERIALIZE(auth_supernode_addr);
+        KV_SERIALIZE(requ_supernode_addr);
+        KV_SERIALIZE(hash);
+        KV_SERIALIZE(signature);
       END_KV_SERIALIZE_MAP()
 
     };
@@ -1881,15 +1882,15 @@ namespace cryptonote
   {
     struct request
     {
-      crypto::public_key auth_supernode_addr;
-      crypto::public_key requ_supernode_addr;
-      crypto::hash hash;
-      crypto::signature signature;
+      std::string auth_supernode_addr;
+      std::string requ_supernode_addr;
+      std::string hash;
+      std::string signature;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(hash);
-        KV_SERIALIZE_VAL_POD_AS_BLOB(signature);
+        KV_SERIALIZE(auth_supernode_addr);
+        KV_SERIALIZE(requ_supernode_addr);
+        KV_SERIALIZE(hash);
+        KV_SERIALIZE(signature);
       END_KV_SERIALIZE_MAP()
 
     };

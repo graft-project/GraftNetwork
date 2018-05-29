@@ -171,16 +171,16 @@ namespace nodetool
   struct tx_to_sign_request
   {
       std::string return_addr;
-      crypto::hash hash;
+      std::string hash;
       uint64_t curr_height;
       uint64_t local_time;
       std::string tx_as_blob;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(return_addr)
-        KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
-        KV_SERIALIZE_VAL_POD_AS_BLOB(curr_height)
-        KV_SERIALIZE_VAL_POD_AS_BLOB(local_time)
+        KV_SERIALIZE(hash)
+        KV_SERIALIZE(curr_height)
+        KV_SERIALIZE(local_time)
         KV_SERIALIZE(tx_as_blob)
       END_KV_SERIALIZE_MAP()
   };
@@ -197,16 +197,16 @@ namespace nodetool
 
       struct request
       {
-          crypto::public_key auth_supernode_addr;
-          crypto::public_key requ_supernode_addr;
+          std::string auth_supernode_addr;
+          std::string requ_supernode_addr;
           tx_to_sign_request tx_request;
-          crypto::signature signature;
+          std::string signature;
 
           BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr)
+              KV_SERIALIZE(auth_supernode_addr)
+              KV_SERIALIZE(requ_supernode_addr)
               KV_SERIALIZE(tx_request)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+              KV_SERIALIZE(signature)
           END_KV_SERIALIZE_MAP()
       };
 
@@ -224,16 +224,16 @@ namespace nodetool
 
       struct request
       {
-          crypto::public_key auth_supernode_addr;
-          crypto::public_key requ_supernode_addr;
-          crypto::hash tx_hash;
-          crypto::signature signature; // of transaction
+          std::string auth_supernode_addr;
+          std::string requ_supernode_addr;
+          std::string tx_hash;
+          std::string signature; // of transaction
 
           BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+              KV_SERIALIZE(auth_supernode_addr)
+              KV_SERIALIZE(requ_supernode_addr)
+              KV_SERIALIZE(tx_hash)
+              KV_SERIALIZE(signature)
           END_KV_SERIALIZE_MAP()
       };
 
@@ -251,16 +251,16 @@ namespace nodetool
 
       struct request
       {
-          crypto::public_key auth_supernode_addr;
-          crypto::public_key requ_supernode_addr;
-          crypto::hash tx_hash;
-          crypto::signature signature; // of serialized requested_supernode_addr + tx_hash
+          std::string auth_supernode_addr;
+          std::string requ_supernode_addr;
+          std::string tx_hash;
+          std::string signature; // of serialized requested_supernode_addr + tx_hash
 
           BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE_VAL_POD_AS_BLOB(auth_supernode_addr)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(requ_supernode_addr)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(tx_hash)
-              KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+              KV_SERIALIZE(auth_supernode_addr)
+              KV_SERIALIZE(requ_supernode_addr)
+              KV_SERIALIZE(tx_hash)
+              KV_SERIALIZE(signature)
           END_KV_SERIALIZE_MAP()
       };
 
@@ -279,16 +279,14 @@ namespace nodetool
 
       struct request
       {
-          std::string wallet_address;
-//          std::string supernode_url;
-//          crypto::public_key supernode_addr;
+          std::string supernode_url;
+          std::string supernode_addr;
           uint64_t timestamp;
           std::string signature; // of serialized supernode_addr + local_time
 
           BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE (wallet_address)
-//              KV_SERIALIZE(supernode_url)
-//              KV_SERIALIZE_VAL_POD_AS_BLOB(supernode_addr)
+              KV_SERIALIZE(supernode_url)
+              KV_SERIALIZE(supernode_addr)
               KV_SERIALIZE(timestamp)
               KV_SERIALIZE(signature)
           END_KV_SERIALIZE_MAP()
