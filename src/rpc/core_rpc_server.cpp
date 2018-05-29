@@ -1794,6 +1794,7 @@ namespace cryptonote
 ////    }
 
       // send p2p announce
+      m_p2p.supernode_set(req.wallet_address, req.callback_uri);
       m_p2p.do_supernode_announce(req);
       res.status = CORE_RPC_STATUS_OK;
       return true;

@@ -346,10 +346,16 @@ namespace nodetool
       epee::net_utils::connection_basic::set_save_graph(save_graph);
     }
 
-    void supernode_set(crypto::public_key& addr) {
+    void supernode_set(const std::string& wallet_addr,const std::string& url) {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_supernode_addr = addr;
-        m_supernode_str = publickey2string(addr);
+//        m_supernode_addr = addr;
+        m_supernode_str = wallet_addr;//publickey2string(addr);
+        epee::net_utils::http::url_content parsed{};
+        bool ret = epee::net_utils::parse_url(url, parsed);
+        if (ret) {
+            m_supernode_http_addr = parsed.host + ":" +std::to_string(parsed.port);
+            m_supernode_uri = std::move(parsed.uri);
+        }
         m_have_supernode = true;
     }
 
@@ -357,6 +363,7 @@ namespace nodetool
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
         m_supernode_str.erase();
         m_have_supernode = false;
+
     }
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send);

@@ -789,6 +789,8 @@ namespace nodetool
           LOG_ERROR("Failed to invoke " << uri);
         }
 
+        return 1;
+
       } while(0);
 
       std::vector<nodetool::peerlist_entry> peers_to_send;
@@ -848,6 +850,8 @@ namespace nodetool
           if (!r) {
             LOG_ERROR("Failed to invoke " << uri);
           }
+
+          return 1;
       } while(0);
 
       std::vector<nodetool::peerlist_entry> peers_to_send;
@@ -907,6 +911,7 @@ namespace nodetool
           if (!r) {
             LOG_ERROR("Failed to invoke " << uri);
           }
+          return 1;
       } while(0);
 
       std::vector<nodetool::peerlist_entry> peers_to_send;
