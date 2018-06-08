@@ -32,7 +32,8 @@
 #define WALLET_IMPL_H
 
 #include "wallet/wallet2_api.h"
-#include "wallet/wallet2.h"
+//#include "wallet/wallet2.h"
+#include "wallet/graft_wallet.h"
 
 #include <string>
 #include <boost/thread/mutex.hpp>
@@ -54,15 +55,21 @@ public:
     ~WalletImpl();
     bool create(const std::string &path, const std::string &password,
                 const std::string &language);
+    bool create(const std::string &password, const std::string &language);
     bool createWatchOnly(const std::string &path, const std::string &password,
                             const std::string &language) const;
     bool open(const std::string &path, const std::string &password);
     bool recover(const std::string &path, const std::string &seed);
+    bool recover(const std::string &seed);
     bool recoverFromKeys(const std::string &path,
                             const std::string &language,
                             const std::string &address_string, 
                             const std::string &viewkey_string,
                             const std::string &spendkey_string = "");
+    bool recoverFromData(const std::string &data, const std::string &password,
+                         const std::string &cache_file = std::string(),
+                         bool use_bse64 = true);
+
     bool close();
     std::string seed() const;
     std::string getSeedLanguage() const;
@@ -93,6 +100,10 @@ public:
     uint64_t daemonBlockChainHeight() const;
     uint64_t daemonBlockChainTargetHeight() const;
     bool synchronized() const;
+
+    std::string getWalletData(const std::string &password, bool use_base64 = true) const override;
+    void saveCache(const std::string &cache_file) const override;
+
     bool refresh();
     void refreshAsync();
     void setAutoRefreshInterval(int millis);
@@ -147,7 +158,7 @@ private:
     friend struct Wallet2CallbackImpl;
     friend class AddressBookImpl;
 
-    tools::wallet2 * m_wallet;
+    tools::GraftWallet * m_wallet;
     mutable std::atomic<int>  m_status;
     mutable std::string m_errorString;
     std::string m_password;

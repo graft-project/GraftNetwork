@@ -447,6 +447,20 @@ struct Wallet
      */
     virtual bool synchronized() const = 0;
 
+    /*!
+     * \brief  Returns wallet private data in binary format
+     * \param  password       Password of wallet file
+     * \param  use_base64     Use Base64 for data conversion
+     * \return                Wallet private data in binary format, which can converted to Base64
+     */
+    virtual std::string getWalletData(const std::string &password, bool use_base64 = true) const = 0;
+
+    /*!
+     * \brief  Saves wallet cache in specified cache file
+     * \param  cache_file     Path to the cache file
+     */
+    virtual void saveCache(const std::string &cache_file) const = 0;
+
     static std::string displayAmount(uint64_t amount);
     static uint64_t amountFromString(const std::string &amount);
     static uint64_t amountFromDouble(double amount);
@@ -620,6 +634,13 @@ struct WalletManager
      * \return                Wallet instance (Wallet::status() needs to be called to check if created successfully)
      */
     virtual Wallet * createWallet(const std::string &path, const std::string &password, const std::string &language, bool testnet = false) = 0;
+    /*!
+     * \brief  Creates new wallet
+     * \param  password       Password of wallet file
+     * \param  language       Language to be used to generate electrum seed memo
+     * \return                Wallet instance (Wallet::status() needs to be called to check if created successfully)
+     */
+    virtual Wallet * createNewWallet(const std::string &password, const std::string &language, bool testnet = false) = 0;
 
     /*!
      * \brief  Opens existing wallet
@@ -639,6 +660,15 @@ struct WalletManager
      */
     virtual Wallet * recoveryWallet(const std::string &path, const std::string &memo, bool testnet = false, uint64_t restoreHeight = 0) = 0;
 
+    /*!
+     * \brief  Restore existing wallet using mnemonic seed (electrum seed)
+     * \param  memo           memo (25 words electrum seed)
+     * \param  testnet        testnet
+     * \param  restoreHeight  restore from start height
+     * \return                Wallet instance (Wallet::status() needs to be called to check if recovered successfully)
+     */
+    virtual Wallet *restoreWallet(const std::string &mnemonic, bool testnet = false, uint64_t restoreHeight = 0) = 0;
+
    /*!
     * \brief  recovers existing wallet using keys. Creates a view only wallet if spend key is omitted
     * \param  path           Name of wallet file to be created
@@ -657,6 +687,17 @@ struct WalletManager
                                                     const std::string &addressString,
                                                     const std::string &viewKeyString,
                                                     const std::string &spendKeyString = "") = 0;
+
+    /*!
+     * \brief  Opens existing wallet
+     * \param  data           Account data
+     * \param  password       Password of wallet file
+     * \return                Wallet instance (Wallet::status() needs to be called to check if opened successfully)
+     */
+    virtual Wallet * createWalletFromData(const std::string &data, const std::string &password,
+                                          bool testnet = false,
+                                          std::string cache_file = std::string(),
+                                          bool use_base64 = true) = 0;
 
     /*!
      * \brief Closes wallet. In case operation succeded, wallet object deleted. in case operation failed, wallet object not deleted
