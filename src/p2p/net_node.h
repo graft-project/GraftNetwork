@@ -140,31 +140,16 @@ namespace nodetool
     // Graft/RTA methods to be called from RPC handlers
 
     /*!
-     * \brief do_supernode_announce - posts supernode announce to p2p network
-     * \param req
+     * \brief send_supernode_announce - broadcasts supernode announce to p2p network. called from rpc server
+     * \param req - request
      */
-    void do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req);
-    /*!
-     * \brief do_tx_to_sign - posts "tx_to_sign" command to p2p network?
-     * \param req
-     */
-    void do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req);
-    /*!
-     * \brief do_signed_tx - posts "signed tx" to p2p network?
-     * \param req
-     */
-    void do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req);
-    /*!
-     * \brief do_reject_tx - posts "reject tx" to p2p network?
-     * \param req
-     */
-    void do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req);
+    void send_supernode_announce(const cryptonote::COMMAND_RPC_SEND_SUPERNODE_ANNOUNCE::request &req);
 
     /*!
-     * \brief do_rta_authorize_tx - TBD
-     * \param req
+     * \brief send_tx_auth_request - multicasts transaction (tx_to_sign) to auth sample. called from rpc server
+     * \param req - transaction information and auth sample list
      */
-    void do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req);
+    void send_tx_auth_request(const cryptonote::COMMAND_RPC_SEND_TX_AUTH_REQUEST::request &req);
 
   private:
     const std::vector<std::string> m_seed_nodes_list =
@@ -308,12 +293,13 @@ namespace nodetool
     bool check_connection_and_handshake_with_peer(const epee::net_utils::network_address& na, uint64_t last_seen_stamp);
     bool gray_peerlist_housekeeping();
 
-    void kill() { ///< will be called e.g. from deinit()
-      _info("Killing the net_node");
+    void kill()
+    { ///< will be called e.g. from deinit()
+      MINFO("Killing the net_node");
       is_closing = true;
-      if(mPeersLoggerThread != nullptr)
+      if (mPeersLoggerThread != nullptr)
         mPeersLoggerThread->join(); // make sure the thread finishes
-      _info("Joined extra background net_node threads");
+      MINFO("Joined extra background net_node threads");
     }
 
 
@@ -340,6 +326,7 @@ namespace nodetool
     config m_config; // TODO was private, add getters?
     std::atomic<unsigned int> m_current_number_of_out_peers;
 
+    // TODO: move all implementation to net_node.inl;
     void set_save_graph(bool save_graph)
     {
       m_save_graph = save_graph;
@@ -348,23 +335,23 @@ namespace nodetool
 
     void supernode_set(const std::string& addr, const std::string& url)
     {
-        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-//        m_supernode_addr = addr;
-        m_supernode_str = addr;//publickey2string(addr);
-        epee::net_utils::http::url_content parsed{};
-        bool ret = epee::net_utils::parse_url(url, parsed);
-        if (ret) {
-            m_supernode_http_addr = parsed.host + ":" +std::to_string(parsed.port);
-            m_supernode_uri = std::move(parsed.uri);
-        }
-        m_have_supernode = true;
+      boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+      //        m_supernode_addr = addr;
+      m_supernode_str = addr;//publickey2string(addr);
+      epee::net_utils::http::url_content parsed{};
+      bool ret = epee::net_utils::parse_url(url, parsed);
+      if (ret) {
+        m_supernode_http_addr = parsed.host + ":" +std::to_string(parsed.port);
+        m_supernode_uri = std::move(parsed.uri);
+      }
+      m_have_supernode = true;
     }
 
-    void supernode_reset() {
-        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_supernode_str.erase();
-        m_have_supernode = false;
-
+    void supernode_reset()
+    {
+      boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+      m_supernode_str.erase();
+      m_have_supernode = false;
     }
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send);
@@ -372,7 +359,8 @@ namespace nodetool
 
   private:
     // TODO: lets remove it and use epee::string_tools::pod_to_hex() directly?
-    static std::string publickey2string(const crypto::public_key& addr) {
+    static std::string publickey2string(const crypto::public_key& addr)
+    {
       return epee::string_tools::pod_to_hex(addr);
     }
 

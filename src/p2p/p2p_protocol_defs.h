@@ -197,14 +197,14 @@ namespace nodetool
 
       struct request
       {
-          std::string auth_supernode_addr;
-          std::string requ_supernode_addr;
+          // std::string auth_supernode_addr;
+          // std::string requ_supernode_addr;
+          std::vector<std::string> auth_sample;
           tx_to_sign_request tx_request;
-          std::string signature;
+          std::string signature; // there should be "address:signature" map in response, but not in request;
 
           BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE(auth_supernode_addr)
-              KV_SERIALIZE(requ_supernode_addr)
+              KV_SERIALIZE(auth_sample)
               KV_SERIALIZE(tx_request)
               KV_SERIALIZE(signature)
           END_KV_SERIALIZE_MAP()
@@ -279,10 +279,12 @@ namespace nodetool
 
       struct request
       {
-          std::string supernode_url;
-          std::string supernode_addr;
+          std::string supernode_url; // ip address?
+          std::string supernode_addr; // wallet address?
           uint64_t timestamp;
           std::string signature; // of serialized supernode_addr + local_time
+          // uint64_t amount;       // TODO
+          // key_images
 
           BEGIN_KV_SERIALIZE_MAP()
               KV_SERIALIZE(supernode_url)
@@ -584,13 +586,13 @@ namespace nodetool
   
 #endif
   /************************************************************************/
-  /*                                                                      */
+  /* RTA COMMANDS                                                         */
   /************************************************************************/
-  struct NOTIFY_SUPERNODE_ANNOUNCE
-  {
-      const static int ID = P2P_COMMANDS_POOL_BASE + 10;
-      struct request : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request {};
-  };
+//  struct NOTIFY_SUPERNODE_ANNOUNCE
+//  {
+//      const static int ID = P2P_COMMANDS_POOL_BASE + 10;
+//      struct request : public cryptonote::COMMAND_RPC_SEND_SUPERNODE_ANNOUNCE::request {};
+//  };
 
   inline crypto::hash get_proof_of_trust_hash(const nodetool::proof_of_trust& pot)
   {

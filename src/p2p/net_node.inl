@@ -763,32 +763,41 @@ namespace nodetool
   {
       // crypto::public_key destination = arg.auth_supernode_addr;
       // std::string dest_str = publickey2string(destination);
-      std::string dest_str = arg.auth_supernode_addr;
+      // std::string dest_str = arg.auth_supernode_addr;
+      std::string dest_str; // TODO
+
       LOG_PRINT_L0("TX_TO_SIGN from " << context.peer_id);
       do {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
         if (!m_have_supernode)
           break;
-        if (dest_str != m_supernode_str )
-          break;
+        // TODO:
+        // if we know supernode's address, we can check it request.auth_sample contains it;
+        // if we don't - just pass whole auth_sample to supernode, it will handle it;
+        // if (dest_str != m_supernode_str )
+        //   break;
 
-        // TODO: JSON-RPC call(callback) to supernode. no reply required
         epee::net_utils::http::http_simple_client client;
         boost::optional<epee::net_utils::http::login> user;
         client.set_server(m_supernode_http_addr,user);
         std::string uri(m_supernode_uri);
         m_supernode_lock.unlock();
 
-        cryptonote::COMMAND_RPC_TX_TO_SIGN_CALLBACK::request  req;
-        cryptonote::COMMAND_RPC_TX_TO_SIGN_CALLBACK::response res;
-        // TODO: fill request
+        cryptonote::COMMAND_RTA_AUTHORIZE_RTA_TX::request  req;
+        cryptonote::COMMAND_RTA_AUTHORIZE_RTA_TX::response res;
 
-        bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_to_sign", req, res, client, std::chrono::milliseconds(500));
+        // uri should be http://localhost:<supernode_port>/dapi/v2.0/authorize_rta_tx"
+        LOG_PRINT_L1("calling AuthorizeRtaTx on supernode, uri:" << uri);
+        bool r = epee::net_utils::invoke_http_json_rpc(uri, "AuthorizeRtaTx", req, res, client, std::chrono::milliseconds(500));
 
         // check response
         if (!r) {
           LOG_ERROR("Failed to invoke " << uri);
         }
+
+        // TODO: handle response (signed/rejected)
+        // 1. in case positive response from this supernode, it multicasts "tx_signed" command to the auth sample
+        // 2. in case negative response from this supernode, it broadcasts "tx_rejected" command to the network
 
         return 1;
 
@@ -817,7 +826,8 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_signed_tx(int command, COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context)
   {
       // crypto::public_key destination = arg.requ_supernode_addr;
-      std::string dest_str = arg.requ_supernode_addr;
+      // TODO:
+      std::string dest_str; // = arg.requ_supernode_addr;
       LOG_PRINT_L0("SIGNED_TX from " << context.peer_id);
       // TODO: signature verification
       //  if verification failed
@@ -832,8 +842,13 @@ namespace nodetool
               m_supernode_lock.unlock();
               break;
           }
+          // Once cryptonode receives tx_signed command with all signs from
+          // auth sample, it sends it to the tx pool and broadcast the tx_signed command to
+          // the network. Each cryptonode who receives it - informs connected
+          // supernode by calling "SendTxAuthResponse" method; Same flow for
+          // tx_rejected command;
+          // (TODO: design payload for tx_signed command, algorithm how particular cryptonode who receives this command will check if all the signs are in place)
 
-          // TODO: http call to Supernode
           epee::net_utils::http::http_simple_client client;
           boost::optional<epee::net_utils::http::login> user;
 
@@ -841,11 +856,11 @@ namespace nodetool
           std::string uri(m_supernode_uri);
           m_supernode_lock.unlock();
 
-          cryptonote::COMMAND_RPC_TX_SIGNED_CALLBACK::request  req;
-          cryptonote::COMMAND_RPC_TX_SIGNED_CALLBACK::response res;
-          // TODO: fill request
+          cryptonote::COMMAND_RPC_SEND_TX_AUTH_REQUEST::request  req;
+          cryptonote::COMMAND_RPC_SEND_TX_AUTH_REQUEST::response res;
+          bool r = true;
 
-          bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_signed", req, res, client, std::chrono::milliseconds(500));
+          // bool r = epee::net_utils::invoke_http_json_rpc(uri, "SendTxAuthResponse", req, res, client, std::chrono::milliseconds(500));
 
           // check response
           if (!r) {
@@ -904,11 +919,11 @@ namespace nodetool
           std::string uri(m_supernode_uri);
           m_supernode_lock.unlock();
 
-          cryptonote::COMMAND_RPC_TX_REJECTED_CALLBACK::request  req;
-          cryptonote::COMMAND_RPC_TX_REJECTED_CALLBACK::response res;
+          cryptonote::COMMAND_RPC_SEND_TX_AUTH_RESPONSE::request  req;
+          cryptonote::COMMAND_RPC_SEND_TX_AUTH_RESPONSE::response res;
           // TODO: fill request
 
-          bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_rejected", req, res, client, std::chrono::milliseconds(500));
+          bool r = epee::net_utils::invoke_http_json_rpc(uri, "SendTxAuthResponse", req, res, client, std::chrono::milliseconds(500));
 
           // check response
           if (!r) {
@@ -2027,14 +2042,15 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
+  void node_server<t_payload_net_handler>::send_supernode_announce(const cryptonote::COMMAND_RPC_SEND_SUPERNODE_ANNOUNCE::request &req)
   {
     LOG_PRINT_L0("Incoming supernode announce request");
 
     COMMAND_SUPERNODE_ANNOUNCE::request req_;
     req_.timestamp = req.timestamp;
-    req_.supernode_addr = req.supernode_addr;
+    req_.supernode_addr = req.address;
     req_.signature = req.signature;
+    // TODO: add same fields to COMMAND_SUPERNODE_ANNOUNCE
     std::string blob;
     epee::serialization::store_t_to_binary(req_, blob);
     std::set<peerid_type> announced_peers;
@@ -2069,32 +2085,16 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req)
+  void node_server<t_payload_net_handler>::send_tx_auth_request(const cryptonote::COMMAND_RPC_SEND_TX_AUTH_REQUEST::request &req)
   {
-    LOG_PRINT_L0("Incoming rta authorize tx request");
-    // COMMAND_TX_TO_SIGN::request req_;
-    // TODO: implement me;
-
+    LOG_PRINT_L0("Incoming tx auth request");
+    // TODO:
+    COMMAND_TX_TO_SIGN::request p2p_req;
+    //1. fill the request;
+    p2p_req.auth_sample = req.auth_sample;
+    // p2p_req.tx_to_sign_request = ...
+    //2. milticast to the auth sample;
   }
-
-
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req)
-  {
-  }
-
-
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req)
-  {
-  }
-
-
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req)
-  {
-  }
-
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>

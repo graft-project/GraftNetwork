@@ -1693,18 +1693,22 @@ namespace cryptonote
   //---------- Graft RTA commands ---------------------
   //
   // TODO: probably it make sense to just use one set of structures for both p2p and rpc, structures seems to be the same
-  struct COMMAND_RPC_SUPERNODE_ANNOUNCE
+  struct COMMAND_RPC_SEND_SUPERNODE_ANNOUNCE
   {
     struct request
     {
       uint64_t timestamp;
-      std::string supernode_addr;
+      std::string address; // wallet address
+      uint64_t  stake_amount;
       std::string signature;
-      std::string callback_url;
+      std::string key_images;
+      std::string callback_url; // probably rename it to "supernode_address", which is a string in  "hostname:port"/"ip:port" format
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(timestamp)
-        KV_SERIALIZE(supernode_addr)
+        KV_SERIALIZE(address)
+        KV_SERIALIZE(stake_amount)
         KV_SERIALIZE(signature)
+        KV_SERIALIZE(key_images)
         KV_SERIALIZE(callback_url)
       END_KV_SERIALIZE_MAP()
     };
@@ -1718,99 +1722,35 @@ namespace cryptonote
     };
   };
 
-  struct COMMAND_RPC_TX_TO_SIGN
+  struct transaction_info
   {
-      struct request
-      {
-          std::string requ_wallet_address;
-          std::list<std::string> auth_wallet_addresses;
-          std::vector<uint8_t> tx;
-          std::string signature;
-          BEGIN_KV_SERIALIZE_MAP()
-          KV_SERIALIZE(requ_wallet_address)
-          KV_SERIALIZE_CONTAINER_POD_AS_BLOB(tx)
-          KV_SERIALIZE(signature)
-          KV_SERIALIZE(auth_wallet_addresses)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response
-      {
-          std::string status;
-          BEGIN_KV_SERIALIZE_MAP()
-          KV_SERIALIZE(status)
-          END_KV_SERIALIZE_MAP()
-      };
+    std::string id;
+    uint64_t amount;
+    std::string dst_addr;
+    std::string tx_blob;
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(id)
+      KV_SERIALIZE(amount)
+      KV_SERIALIZE(dst_addr)
+      KV_SERIALIZE(tx_blob)
+    END_KV_SERIALIZE_MAP()
   };
 
-  struct COMMAND_RPC_SIGNED_TX
-  {
-      struct request
-      {
-          std::string requ_wallet_address;
-          std::string auth_wallet_address;
-          std::string tx_hash;
-          std::string signature;
-          BEGIN_KV_SERIALIZE_MAP()
-            KV_SERIALIZE(requ_wallet_address)
-            KV_SERIALIZE(auth_wallet_address)
-            KV_SERIALIZE(tx_hash)
-            KV_SERIALIZE(signature)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response
-      {
-          std::string status;
-          BEGIN_KV_SERIALIZE_MAP()
-            KV_SERIALIZE(status)
-          END_KV_SERIALIZE_MAP()
-      };
-  };
-
-  struct COMMAND_RPC_REJECT_TX
-  {
-      struct request
-      {
-          std::string requ_wallet_address;
-          std::string auth_wallet_address;
-          std::string tx_hash;
-          std::string signature;
-          BEGIN_KV_SERIALIZE_MAP()
-            KV_SERIALIZE(requ_wallet_address)
-            KV_SERIALIZE(auth_wallet_address)
-            KV_SERIALIZE(tx_hash)
-          KV_SERIALIZE(signature)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response
-      {
-          std::string status;
-          BEGIN_KV_SERIALIZE_MAP()
-            KV_SERIALIZE(status)
-          END_KV_SERIALIZE_MAP()
-      };
-  };
-
-  struct COMMAND_RPC_RTA_AUTHORIZE_TX
+  struct COMMAND_RPC_SEND_TX_AUTH_REQUEST
   {
     struct request
     {
       // TODO: we don't care about data here, just testing flow for now
       std::string callback_url;
       uint64_t timestamp;
-      std::string src_address;
-      std::string dst_address;
-      std::string tx_id;
-      u_int64_t amount;
+      transaction_info tx_info;
+      std::vector<std::string> auth_sample;
+
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(callback_url)
         KV_SERIALIZE(timestamp)
-        KV_SERIALIZE(src_address)
-        KV_SERIALIZE(dst_address)
-        KV_SERIALIZE(tx_id)
-        KV_SERIALIZE(amount)
+        KV_SERIALIZE(tx_info)
+        KV_SERIALIZE(auth_sample)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -1824,85 +1764,78 @@ namespace cryptonote
   };
 
   /*!
-   * \brief The COMMAND_RPC_TX_TO_SIGN_CALLBACK struct - payload to be sent back to supernode
-   *   TODO: move all RTA structs to separate file?
+   * \brief The COMMAND_RTA_AUTHORIZE_RTA_TX struct - request and response for dapi AuthorizeRtaTx call. Not served by cryptonode
    */
-  struct COMMAND_RPC_TX_TO_SIGN_CALLBACK
+  struct COMMAND_RTA_AUTHORIZE_RTA_TX
   {
     struct request
     {
-      std::string auth_supernode_addr;
-      std::string requ_supernode_addr;
-      std::string hash;
-      std::string signature;
+      transaction_info tx_info;
+      std::vector<std::string> auth_sample; // supposing cryptonode doesn't know supernode's address it connected to
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(auth_supernode_addr);
-        KV_SERIALIZE(requ_supernode_addr);
-        KV_SERIALIZE(hash);
-        KV_SERIALIZE(signature);
+        KV_SERIALIZE(tx_info)
+        KV_SERIALIZE(auth_sample)
       END_KV_SERIALIZE_MAP()
     };
 
     struct response
     {
-      std::string status;
+      int Status;
+      std::string tx_id;
+      std::string message;
+      std::string supernode_addr;
+      std::string signature;
+
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(status)
+        KV_SERIALIZE(Status)
+        KV_SERIALIZE(tx_id)
+        KV_SERIALIZE(message)
+        KV_SERIALIZE(supernode_addr)
+        KV_SERIALIZE(signature)
       END_KV_SERIALIZE_MAP()
     };
   };
 
-  struct COMMAND_RPC_TX_SIGNED_CALLBACK
+  /*!
+   * \brief The COMMAND_RPC_SEND_TX_AUTH_RESPONSE struct - request and response for dapi SendTxAuthResponse call. Not served by cryptonode
+   */
+  struct COMMAND_RPC_SEND_TX_AUTH_RESPONSE
   {
-    struct request
+    struct supernode_signature
     {
-      std::string auth_supernode_addr;
-      std::string requ_supernode_addr;
-      std::string hash;
+      std::string address;
       std::string signature;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(auth_supernode_addr);
-        KV_SERIALIZE(requ_supernode_addr);
-        KV_SERIALIZE(hash);
-        KV_SERIALIZE(signature);
+        KV_SERIALIZE(address)
+        KV_SERIALIZE(signature)
       END_KV_SERIALIZE_MAP()
+    };
 
+    struct request
+    {
+      // TODO: we don't care about data here, just testing flow for now
+      std::string status;  // "AUTHORIZED | REJECTED"
+      std::string message; //  "<Human readable description for given status>"
+      std::string tx_id;   // transaction hash (id)
+      std::vector<supernode_signature> signatures;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+        KV_SERIALIZE(message)
+        KV_SERIALIZE(tx_id)
+        KV_SERIALIZE(signatures)
+      END_KV_SERIALIZE_MAP()
     };
 
     struct response
     {
-      std::string status;
+      int Status; //
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(status)
+        KV_SERIALIZE(Status)
       END_KV_SERIALIZE_MAP()
     };
   };
 
-  struct COMMAND_RPC_TX_REJECTED_CALLBACK
-  {
-    struct request
-    {
-      std::string auth_supernode_addr;
-      std::string requ_supernode_addr;
-      std::string hash;
-      std::string signature;
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(auth_supernode_addr);
-        KV_SERIALIZE(requ_supernode_addr);
-        KV_SERIALIZE(hash);
-        KV_SERIALIZE(signature);
-      END_KV_SERIALIZE_MAP()
-
-    };
-
-    struct response
-    {
-      std::string status;
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(status)
-      END_KV_SERIALIZE_MAP()
-    };
-  };
 
 
 }
