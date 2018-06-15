@@ -38,7 +38,7 @@
 using namespace epee;
 
 #include "cryptonote_config.h"
-#include "graft_wallet.h"
+#include "graft_wallet2.h"
 #include "wallet/wallet2_api.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "rpc/core_rpc_server_commands_defs.h"
@@ -109,14 +109,14 @@ namespace
 {
 // Create on-demand to prevent static initialization order fiasco issues.
 struct options {
-  const command_line::arg_descriptor<std::string> daemon_address = {"daemon-address", tools::GraftWallet::tr("Use daemon instance at <host>:<port>"), ""};
-  const command_line::arg_descriptor<std::string> daemon_host = {"daemon-host", tools::GraftWallet::tr("Use daemon instance at host <arg> instead of localhost"), ""};
-  const command_line::arg_descriptor<std::string> password = {"password", tools::GraftWallet::tr("Wallet password (escape/quote as needed)"), "", true};
-  const command_line::arg_descriptor<std::string> password_file = {"password-file", tools::GraftWallet::tr("Wallet password file"), "", true};
-  const command_line::arg_descriptor<int> daemon_port = {"daemon-port", tools::GraftWallet::tr("Use daemon instance at port <arg> instead of 18081"), 0};
-  const command_line::arg_descriptor<std::string> daemon_login = {"daemon-login", tools::GraftWallet::tr("Specify username[:password] for daemon RPC client"), "", true};
-  const command_line::arg_descriptor<bool> testnet = {"testnet", tools::GraftWallet::tr("For testnet. Daemon must also be launched with --testnet flag"), false};
-  const command_line::arg_descriptor<bool> restricted = {"restricted-rpc", tools::GraftWallet::tr("Restricts to view-only commands"), false};
+  const command_line::arg_descriptor<std::string> daemon_address = {"daemon-address", tools::GraftWallet2::tr("Use daemon instance at <host>:<port>"), ""};
+  const command_line::arg_descriptor<std::string> daemon_host = {"daemon-host", tools::GraftWallet2::tr("Use daemon instance at host <arg> instead of localhost"), ""};
+  const command_line::arg_descriptor<std::string> password = {"password", tools::GraftWallet2::tr("Wallet password (escape/quote as needed)"), "", true};
+  const command_line::arg_descriptor<std::string> password_file = {"password-file", tools::GraftWallet2::tr("Wallet password file"), "", true};
+  const command_line::arg_descriptor<int> daemon_port = {"daemon-port", tools::GraftWallet2::tr("Use daemon instance at port <arg> instead of 18081"), 0};
+  const command_line::arg_descriptor<std::string> daemon_login = {"daemon-login", tools::GraftWallet2::tr("Specify username[:password] for daemon RPC client"), "", true};
+  const command_line::arg_descriptor<bool> testnet = {"testnet", tools::GraftWallet2::tr("For testnet. Daemon must also be launched with --testnet flag"), false};
+  const command_line::arg_descriptor<bool> restricted = {"restricted-rpc", tools::GraftWallet2::tr("Restricts to view-only commands"), false};
 };
 
 void do_prepare_file_names(const std::string& file_path, std::string& keys_file, std::string& wallet_file)
@@ -144,7 +144,7 @@ uint64_t calculate_fee(uint64_t fee_per_kb, const cryptonote::blobdata &blob, ui
   return calculate_fee(fee_per_kb, blob.size(), fee_multiplier);
 }
 
-std::unique_ptr<tools::GraftWallet> make_basic(const boost::program_options::variables_map& vm, const options& opts)
+std::unique_ptr<tools::GraftWallet2> make_basic(const boost::program_options::variables_map& vm, const options& opts)
 {
   const bool testnet = command_line::get_arg(vm, opts.testnet);
   const bool restricted = command_line::get_arg(vm, opts.restricted);
@@ -153,7 +153,7 @@ std::unique_ptr<tools::GraftWallet> make_basic(const boost::program_options::var
   auto daemon_port = command_line::get_arg(vm, opts.daemon_port);
   if (!daemon_address.empty() && !daemon_host.empty() && 0 != daemon_port)
   {
-    tools::fail_msg_writer() << tools::GraftWallet::tr("can't specify daemon host or port more than once");
+    tools::fail_msg_writer() << tools::GraftWallet2::tr("can't specify daemon host or port more than once");
     return nullptr;
   }
   boost::optional<epee::net_utils::http::login> login{};
@@ -177,7 +177,7 @@ std::unique_ptr<tools::GraftWallet> make_basic(const boost::program_options::var
 
   if (daemon_address.empty())
     daemon_address = std::string("http://") + daemon_host + ":" + std::to_string(daemon_port);
-  std::unique_ptr<tools::GraftWallet> wallet(new tools::GraftWallet(testnet, restricted));
+  std::unique_ptr<tools::GraftWallet2> wallet(new tools::GraftWallet2(testnet, restricted));
   wallet->init(std::move(daemon_address), std::move(login));
   return wallet;
 }
@@ -186,7 +186,7 @@ boost::optional<tools::password_container> get_password(const boost::program_opt
 {
   if (command_line::has_arg(vm, opts.password) && command_line::has_arg(vm, opts.password_file))
   {
-    tools::fail_msg_writer() << tools::GraftWallet::tr("can't specify more than one of --password and --password-file");
+    tools::fail_msg_writer() << tools::GraftWallet2::tr("can't specify more than one of --password and --password-file");
     return boost::none;
   }
   if (command_line::has_arg(vm, opts.password))
@@ -200,7 +200,7 @@ boost::optional<tools::password_container> get_password(const boost::program_opt
                                                       password);
     if (!r)
     {
-      tools::fail_msg_writer() << tools::GraftWallet::tr("the password file specified could not be read");
+      tools::fail_msg_writer() << tools::GraftWallet2::tr("the password file specified could not be read");
       return boost::none;
     }
 
@@ -208,34 +208,34 @@ boost::optional<tools::password_container> get_password(const boost::program_opt
     boost::trim_right_if(password, boost::is_any_of("\r\n"));
     return {tools::password_container{std::move(password)}};
   }
-  return tools::GraftWallet::password_prompt(verify);
+  return tools::GraftWallet2::password_prompt(verify);
 }
 
-std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_file, const boost::program_options::variables_map& vm, const options& opts)
+std::unique_ptr<tools::GraftWallet2> generate_from_json(const std::string& json_file, const boost::program_options::variables_map& vm, const options& opts)
 {
   const bool testnet = command_line::get_arg(vm, opts.testnet);
 
   /* GET_FIELD_FROM_JSON_RETURN_ON_ERROR Is a generic macro that can return
   false. Gcc will coerce this into unique_ptr(nullptr), but clang correctly
   fails. This large wrapper is for the use of that macro */
-  std::unique_ptr<tools::GraftWallet> wallet;
+  std::unique_ptr<tools::GraftWallet2> wallet;
   const auto do_generate = [&]() -> bool {
     std::string buf;
     if (!epee::file_io_utils::load_file_to_string(json_file, buf)) {
-      tools::fail_msg_writer() << tools::GraftWallet::tr("Failed to load file ") << json_file;
+      tools::fail_msg_writer() << tools::GraftWallet2::tr("Failed to load file ") << json_file;
       return false;
     }
 
     rapidjson::Document json;
     if (json.Parse(buf.c_str()).HasParseError()) {
-      tools::fail_msg_writer() << tools::GraftWallet::tr("Failed to parse JSON");
+      tools::fail_msg_writer() << tools::GraftWallet2::tr("Failed to parse JSON");
       return false;
     }
 
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, version, unsigned, Uint, true, 0);
     const int current_version = 1;
     if (field_version > current_version) {
-      tools::fail_msg_writer() << boost::format(tools::GraftWallet::tr("Version %u too new, we can only grok up to %u")) % field_version % current_version;
+      tools::fail_msg_writer() << boost::format(tools::GraftWallet2::tr("Version %u too new, we can only grok up to %u")) % field_version % current_version;
       return false;
     }
 
@@ -253,13 +253,13 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
       cryptonote::blobdata viewkey_data;
       if(!epee::string_tools::parse_hexstr_to_binbuff(field_viewkey, viewkey_data) || viewkey_data.size() != sizeof(crypto::secret_key))
       {
-        tools::fail_msg_writer() << tools::GraftWallet::tr("failed to parse view key secret key");
+        tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to parse view key secret key");
         return false;
       }
       viewkey = *reinterpret_cast<const crypto::secret_key*>(viewkey_data.data());
       crypto::public_key pkey;
       if (!crypto::secret_key_to_public_key(viewkey, pkey)) {
-        tools::fail_msg_writer() << tools::GraftWallet::tr("failed to verify view key secret key");
+        tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to verify view key secret key");
         return false;
       }
     }
@@ -271,13 +271,13 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
       cryptonote::blobdata spendkey_data;
       if(!epee::string_tools::parse_hexstr_to_binbuff(field_spendkey, spendkey_data) || spendkey_data.size() != sizeof(crypto::secret_key))
       {
-        tools::fail_msg_writer() << tools::GraftWallet::tr("failed to parse spend key secret key");
+        tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to parse spend key secret key");
         return false;
       }
       spendkey = *reinterpret_cast<const crypto::secret_key*>(spendkey_data.data());
       crypto::public_key pkey;
       if (!crypto::secret_key_to_public_key(spendkey, pkey)) {
-        tools::fail_msg_writer() << tools::GraftWallet::tr("failed to verify spend key secret key");
+        tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to verify spend key secret key");
         return false;
       }
     }
@@ -290,7 +290,7 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
     {
       if (!crypto::ElectrumWords::words_to_bytes(field_seed, recovery_key, old_language))
       {
-        tools::fail_msg_writer() << tools::GraftWallet::tr("Electrum-style word list failed verification");
+        tools::fail_msg_writer() << tools::GraftWallet2::tr("Electrum-style word list failed verification");
         return false;
       }
       restore_deterministic_wallet = true;
@@ -301,12 +301,12 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
     // compatibility checks
     if (!field_seed_found && !field_viewkey_found)
     {
-      tools::fail_msg_writer() << tools::GraftWallet::tr("At least one of Electrum-style word list and private view key must be specified");
+      tools::fail_msg_writer() << tools::GraftWallet2::tr("At least one of Electrum-style word list and private view key must be specified");
       return false;
     }
     if (field_seed_found && (field_viewkey_found || field_spendkey_found))
     {
-      tools::fail_msg_writer() << tools::GraftWallet::tr("Both Electrum-style word list and private key(s) specified");
+      tools::fail_msg_writer() << tools::GraftWallet2::tr("Both Electrum-style word list and private key(s) specified");
       return false;
     }
 
@@ -319,18 +319,18 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
       crypto::hash8 new_payment_id;
       if(!get_account_integrated_address_from_str(address, has_payment_id, new_payment_id, testnet, field_address))
       {
-        tools::fail_msg_writer() << tools::GraftWallet::tr("invalid address");
+        tools::fail_msg_writer() << tools::GraftWallet2::tr("invalid address");
         return false;
       }
       if (field_viewkey_found)
       {
         crypto::public_key pkey;
         if (!crypto::secret_key_to_public_key(viewkey, pkey)) {
-          tools::fail_msg_writer() << tools::GraftWallet::tr("failed to verify view key secret key");
+          tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to verify view key secret key");
           return false;
         }
         if (address.m_view_public_key != pkey) {
-          tools::fail_msg_writer() << tools::GraftWallet::tr("view key does not match standard address");
+          tools::fail_msg_writer() << tools::GraftWallet2::tr("view key does not match standard address");
           return false;
         }
       }
@@ -338,11 +338,11 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
       {
         crypto::public_key pkey;
         if (!crypto::secret_key_to_public_key(spendkey, pkey)) {
-          tools::fail_msg_writer() << tools::GraftWallet::tr("failed to verify spend key secret key");
+          tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to verify spend key secret key");
           return false;
         }
         if (address.m_spend_public_key != pkey) {
-          tools::fail_msg_writer() << tools::GraftWallet::tr("spend key does not match standard address");
+          tools::fail_msg_writer() << tools::GraftWallet2::tr("spend key does not match standard address");
           return false;
         }
       }
@@ -351,7 +351,7 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
     const bool deprecated_wallet = restore_deterministic_wallet && ((old_language == crypto::ElectrumWords::old_language_name) ||
       crypto::ElectrumWords::get_is_old_style_seed(field_seed));
     if (deprecated_wallet) {
-      tools::fail_msg_writer() << tools::GraftWallet::tr("Cannot create deprecated wallets from JSON");
+      tools::fail_msg_writer() << tools::GraftWallet2::tr("Cannot create deprecated wallets from JSON");
       return false;
     }
 
@@ -368,7 +368,7 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
       {
         cryptonote::account_public_address address;
         if (!crypto::secret_key_to_public_key(viewkey, address.m_view_public_key)) {
-          tools::fail_msg_writer() << tools::GraftWallet::tr("failed to verify view key secret key");
+          tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to verify view key secret key");
           return false;
         }
 
@@ -389,7 +389,7 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
         else
         {
           if (!crypto::secret_key_to_public_key(spendkey, address.m_spend_public_key)) {
-            tools::fail_msg_writer() << tools::GraftWallet::tr("failed to verify spend key secret key");
+            tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to verify spend key secret key");
             return false;
           }
           wallet->generate(field_filename, field_password, address, spendkey, viewkey);
@@ -398,7 +398,7 @@ std::unique_ptr<tools::GraftWallet> generate_from_json(const std::string& json_f
     }
     catch (const std::exception& e)
     {
-      tools::fail_msg_writer() << tools::GraftWallet::tr("failed to generate new wallet: ") << e.what();
+      tools::fail_msg_writer() << tools::GraftWallet2::tr("failed to generate new wallet: ") << e.what();
       return false;
     }
     return true;
@@ -445,15 +445,15 @@ namespace tools
 // for now, limit to 30 attempts.  TODO: discuss a good number to limit to.
 const size_t MAX_SPLIT_ATTEMPTS = 30;
 
-constexpr const std::chrono::seconds GraftWallet::rpc_timeout;
-const char* GraftWallet::tr(const char* str) { return i18n_translate(str, "tools::GraftWallet"); }
+constexpr const std::chrono::seconds GraftWallet2::rpc_timeout;
+const char* GraftWallet2::tr(const char* str) { return i18n_translate(str, "tools::GraftWallet2"); }
 
-bool GraftWallet::has_testnet_option(const boost::program_options::variables_map& vm)
+bool GraftWallet2::has_testnet_option(const boost::program_options::variables_map& vm)
 {
   return command_line::get_arg(vm, options().testnet);
 }
 
-void GraftWallet::init_options(boost::program_options::options_description& desc_params)
+void GraftWallet2::init_options(boost::program_options::options_description& desc_params)
 {
   const options opts{};
   command_line::add_arg(desc_params, opts.daemon_address);
@@ -466,7 +466,7 @@ void GraftWallet::init_options(boost::program_options::options_description& desc
   command_line::add_arg(desc_params, opts.restricted);
 }
 
-boost::optional<password_container> GraftWallet::password_prompt(const bool new_password)
+boost::optional<password_container> GraftWallet2::password_prompt(const bool new_password)
 {
   auto pwd_container = tools::password_container::prompt(
     new_password, (new_password ? tr("Enter new wallet password") : tr("Wallet password"))
@@ -478,13 +478,13 @@ boost::optional<password_container> GraftWallet::password_prompt(const bool new_
   return pwd_container;
 }
 
-std::unique_ptr<GraftWallet> GraftWallet::make_from_json(const boost::program_options::variables_map& vm, const std::string& json_file)
+std::unique_ptr<GraftWallet2> GraftWallet2::make_from_json(const boost::program_options::variables_map& vm, const std::string& json_file)
 {
   const options opts{};
   return generate_from_json(json_file, vm, opts);
 }
 
-std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_from_file(
+std::pair<std::unique_ptr<GraftWallet2>, password_container> GraftWallet2::make_from_file(
   const boost::program_options::variables_map& vm, const std::string& wallet_file)
 {
   const options opts{};
@@ -501,7 +501,7 @@ std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_fr
   return {std::move(wallet), std::move(*pwd)};
 }
 
-std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &daemon_address,
+std::unique_ptr<GraftWallet2> GraftWallet2::createWallet(const string &daemon_address,
                                                        const string &daemon_host, int daemon_port,
                                                        const string &daemon_login, bool testnet,
                                                        bool restricted)
@@ -509,7 +509,7 @@ std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &daemon_addr
     //make_basic() analogue
     if (!daemon_address.empty() && !daemon_host.empty() && 0 != daemon_port)
     {
-        tools::fail_msg_writer() << tools::GraftWallet::tr("can't specify daemon host or port more than once");
+        tools::fail_msg_writer() << tools::GraftWallet2::tr("can't specify daemon host or port more than once");
         return nullptr;
     }
     boost::optional<epee::net_utils::http::login> login{};
@@ -537,12 +537,12 @@ std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &daemon_addr
     {
         ldaemon_address = std::string("http://") + ldaemon_host + ":" + std::to_string(daemon_port);
     }
-    std::unique_ptr<tools::GraftWallet> wallet(new tools::GraftWallet(testnet, restricted));
+    std::unique_ptr<tools::GraftWallet2> wallet(new tools::GraftWallet2(testnet, restricted));
     wallet->init(std::move(ldaemon_address), std::move(login));
     return wallet;
 }
 
-std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &account_data, const string &password,
+std::unique_ptr<GraftWallet2> GraftWallet2::createWallet(const string &account_data, const string &password,
                                                        const string &daemon_address, const string &daemon_host,
                                                        int daemon_port, const string &daemon_login,
                                                        bool testnet, bool restricted)
@@ -556,7 +556,7 @@ std::unique_ptr<GraftWallet> GraftWallet::createWallet(const string &account_dat
     return std::move(wallet);
 }
 
-std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_from_data(
+std::pair<std::unique_ptr<GraftWallet2>, password_container> GraftWallet2::make_from_data(
         const boost::program_options::variables_map &vm, const string &data)
 {
     const options opts{};
@@ -574,7 +574,7 @@ std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_fr
     return {std::move(wallet), std::move(*pwd)};
 }
 
-std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_new(const boost::program_options::variables_map& vm)
+std::pair<std::unique_ptr<GraftWallet2>, password_container> GraftWallet2::make_new(const boost::program_options::variables_map& vm)
 {
   const options opts{};
   auto pwd = get_password(vm, opts, true);
@@ -586,14 +586,14 @@ std::pair<std::unique_ptr<GraftWallet>, password_container> GraftWallet::make_ne
   return {make_basic(vm, opts), std::move(*pwd)};
 }
 
-std::unique_ptr<GraftWallet> GraftWallet::make_dummy(const boost::program_options::variables_map& vm)
+std::unique_ptr<GraftWallet2> GraftWallet2::make_dummy(const boost::program_options::variables_map& vm)
 {
   const options opts{};
   return make_basic(vm, opts);
 }
 
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::init(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, uint64_t upper_transaction_size_limit)
+bool GraftWallet2::init(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, uint64_t upper_transaction_size_limit)
 {
   if(m_http_client.is_connected())
     m_http_client.disconnect();
@@ -604,7 +604,7 @@ bool GraftWallet::init(std::string daemon_address, boost::optional<epee::net_uti
   return m_http_client.set_server(get_daemon_address(), get_daemon_login());
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::is_deterministic() const
+bool GraftWallet2::is_deterministic() const
 {
   crypto::secret_key second;
   keccak((uint8_t *)&get_account().get_keys().m_spend_secret_key, sizeof(crypto::secret_key), (uint8_t *)&second, sizeof(crypto::secret_key));
@@ -613,7 +613,7 @@ bool GraftWallet::is_deterministic() const
   return keys_deterministic;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::get_seed(std::string& electrum_words) const
+bool GraftWallet2::get_seed(std::string& electrum_words) const
 {
   bool keys_deterministic = is_deterministic();
   if (!keys_deterministic)
@@ -634,7 +634,7 @@ bool GraftWallet::get_seed(std::string& electrum_words) const
 /*!
  * \brief Gets the seed language
  */
-const std::string &GraftWallet::get_seed_language() const
+const std::string &GraftWallet2::get_seed_language() const
 {
   return seed_language;
 }
@@ -642,19 +642,19 @@ const std::string &GraftWallet::get_seed_language() const
  * \brief Sets the seed language
  * \param language  Seed language to set to
  */
-void GraftWallet::set_seed_language(const std::string &language)
+void GraftWallet2::set_seed_language(const std::string &language)
 {
   seed_language = language;
 }
 /*!
  * \brief Tells if the wallet file is deprecated.
  */
-bool GraftWallet::is_deprecated() const
+bool GraftWallet2::is_deprecated() const
 {
   return is_old_file_format;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::set_spent(size_t idx, uint64_t height)
+void GraftWallet2::set_spent(size_t idx, uint64_t height)
 {
   transfer_details &td = m_transfers[idx];
   LOG_PRINT_L2("Setting SPENT at " << height << ": ki " << td.m_key_image << ", amount " << print_money(td.m_amount));
@@ -662,7 +662,7 @@ void GraftWallet::set_spent(size_t idx, uint64_t height)
   td.m_spent_height = height;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::set_unspent(size_t idx)
+void GraftWallet2::set_unspent(size_t idx)
 {
   transfer_details &td = m_transfers[idx];
   LOG_PRINT_L2("Setting UNSPENT: ki " << td.m_key_image << ", amount " << print_money(td.m_amount));
@@ -670,7 +670,7 @@ void GraftWallet::set_unspent(size_t idx)
   td.m_spent_height = 0;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::check_acc_out_precomp(const crypto::public_key &spend_public_key, const tx_out &o, const crypto::key_derivation &derivation, size_t i, bool &received, uint64_t &money_transfered, bool &error) const
+void GraftWallet2::check_acc_out_precomp(const crypto::public_key &spend_public_key, const tx_out &o, const crypto::key_derivation &derivation, size_t i, bool &received, uint64_t &money_transfered, bool &error) const
 {
   if (o.target.type() !=  typeid(txout_to_key))
   {
@@ -721,14 +721,14 @@ static uint64_t decodeRct(const rct::rctSig & rv, const crypto::public_key &pub,
   }
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::wallet_generate_key_image_helper(const cryptonote::account_keys& ack, const crypto::public_key& tx_public_key, size_t real_output_index, cryptonote::keypair& in_ephemeral, crypto::key_image& ki)
+bool GraftWallet2::wallet_generate_key_image_helper(const cryptonote::account_keys& ack, const crypto::public_key& tx_public_key, size_t real_output_index, cryptonote::keypair& in_ephemeral, crypto::key_image& ki)
 {
   if (!cryptonote::generate_key_image_helper(ack, tx_public_key, real_output_index, in_ephemeral, ki))
     return false;
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::process_new_transaction(const crypto::hash &txid, const cryptonote::transaction& tx, const std::vector<uint64_t> &o_indices, uint64_t height, uint64_t ts, bool miner_tx, bool pool)
+void GraftWallet2::process_new_transaction(const crypto::hash &txid, const cryptonote::transaction& tx, const std::vector<uint64_t> &o_indices, uint64_t height, uint64_t ts, bool miner_tx, bool pool)
 {
   // In this function, tx (probably) only contains the base information
   // (that is, the prunable stuff may or may not be included)
@@ -820,7 +820,7 @@ void GraftWallet::process_new_transaction(const crypto::hash &txid, const crypto
           // the first one was already checked
           for (size_t i = 1; i < tx.vout.size(); ++i)
           {
-            ioservice.dispatch(boost::bind(&GraftWallet::check_acc_out_precomp, this, std::cref(keys.m_account_address.m_spend_public_key), std::cref(tx.vout[i]), std::cref(derivation), i,
+            ioservice.dispatch(boost::bind(&GraftWallet2::check_acc_out_precomp, this, std::cref(keys.m_account_address.m_spend_public_key), std::cref(tx.vout[i]), std::cref(derivation), i,
               std::ref(received[i]), std::ref(money_transfered[i]), std::ref(error[i])));
           }
           KILL_IOSERVICE();
@@ -865,7 +865,7 @@ void GraftWallet::process_new_transaction(const crypto::hash &txid, const crypto
       std::deque<bool> received(tx.vout.size());
       for (size_t i = 0; i < tx.vout.size(); ++i)
       {
-        ioservice.dispatch(boost::bind(&GraftWallet::check_acc_out_precomp, this, std::cref(keys.m_account_address.m_spend_public_key), std::cref(tx.vout[i]), std::cref(derivation), i,
+        ioservice.dispatch(boost::bind(&GraftWallet2::check_acc_out_precomp, this, std::cref(keys.m_account_address.m_spend_public_key), std::cref(tx.vout[i]), std::cref(derivation), i,
           std::ref(received[i]), std::ref(money_transfered[i]), std::ref(error[i])));
       }
       KILL_IOSERVICE();
@@ -1134,7 +1134,7 @@ void GraftWallet::process_new_transaction(const crypto::hash &txid, const crypto
   }
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::process_unconfirmed(const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t height)
+void GraftWallet2::process_unconfirmed(const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t height)
 {
   if (m_unconfirmed_txs.empty())
     return;
@@ -1154,7 +1154,7 @@ void GraftWallet::process_unconfirmed(const crypto::hash &txid, const cryptonote
   }
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::process_outgoing(const crypto::hash &txid, const cryptonote::transaction &tx, uint64_t height, uint64_t ts, uint64_t spent, uint64_t received)
+void GraftWallet2::process_outgoing(const crypto::hash &txid, const cryptonote::transaction &tx, uint64_t height, uint64_t ts, uint64_t spent, uint64_t received)
 {
   std::pair<std::unordered_map<crypto::hash, confirmed_transfer_details>::iterator, bool> entry = m_confirmed_txs.insert(std::make_pair(txid, confirmed_transfer_details()));
   // fill with the info we know, some info might already be there
@@ -1186,7 +1186,7 @@ void GraftWallet::process_outgoing(const crypto::hash &txid, const cryptonote::t
   entry.first->second.m_unlock_time = tx.unlock_time;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::process_new_blockchain_entry(const cryptonote::block& b, const cryptonote::block_complete_entry& bche, const crypto::hash& bl_id, uint64_t height, const cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices &o_indices)
+void GraftWallet2::process_new_blockchain_entry(const cryptonote::block& b, const cryptonote::block_complete_entry& bche, const crypto::hash& bl_id, uint64_t height, const cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices &o_indices)
 {
   size_t txidx = 0;
   THROW_WALLET_EXCEPTION_IF(bche.txs.size() + 1 != o_indices.indices.size(), error::wallet_internal_error,
@@ -1227,7 +1227,7 @@ void GraftWallet::process_new_blockchain_entry(const cryptonote::block& b, const
     m_callback->on_new_block(height, b);
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::get_short_chain_history(std::list<crypto::hash>& ids) const
+void GraftWallet2::get_short_chain_history(std::list<crypto::hash>& ids) const
 {
   size_t i = 0;
   size_t current_multiplier = 1;
@@ -1254,14 +1254,14 @@ void GraftWallet::get_short_chain_history(std::list<crypto::hash>& ids) const
     ids.push_back(m_blockchain[0]);
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::parse_block_round(const cryptonote::blobdata &blob, cryptonote::block &bl, crypto::hash &bl_id, bool &error) const
+void GraftWallet2::parse_block_round(const cryptonote::blobdata &blob, cryptonote::block &bl, crypto::hash &bl_id, bool &error) const
 {
   error = !cryptonote::parse_and_validate_block_from_blob(blob, bl);
   if (!error)
     bl_id = get_block_hash(bl);
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::pull_blocks(uint64_t start_height, uint64_t &blocks_start_height, const std::list<crypto::hash> &short_chain_history, std::list<cryptonote::block_complete_entry> &blocks, std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices)
+void GraftWallet2::pull_blocks(uint64_t start_height, uint64_t &blocks_start_height, const std::list<crypto::hash> &short_chain_history, std::list<cryptonote::block_complete_entry> &blocks, std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices)
 {
   cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::request req = AUTO_VAL_INIT(req);
   cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::response res = AUTO_VAL_INIT(res);
@@ -1311,7 +1311,7 @@ void GraftWallet::pull_blocks(uint64_t start_height, uint64_t &blocks_start_heig
   o_indices = res.output_indices;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::pull_hashes(uint64_t start_height, uint64_t &blocks_start_height, const std::list<crypto::hash> &short_chain_history, std::list<crypto::hash> &hashes)
+void GraftWallet2::pull_hashes(uint64_t start_height, uint64_t &blocks_start_height, const std::list<crypto::hash> &short_chain_history, std::list<crypto::hash> &hashes)
 {
   cryptonote::COMMAND_RPC_GET_HASHES_FAST::request req = AUTO_VAL_INIT(req);
   cryptonote::COMMAND_RPC_GET_HASHES_FAST::response res = AUTO_VAL_INIT(res);
@@ -1329,7 +1329,7 @@ void GraftWallet::pull_hashes(uint64_t start_height, uint64_t &blocks_start_heig
   hashes = res.m_block_ids;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::process_blocks(uint64_t start_height, const std::list<cryptonote::block_complete_entry> &blocks, const std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices, uint64_t& blocks_added)
+void GraftWallet2::process_blocks(uint64_t start_height, const std::list<cryptonote::block_complete_entry> &blocks, const std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices, uint64_t& blocks_added)
 {
   size_t current_index = start_height;
   blocks_added = 0;
@@ -1360,7 +1360,7 @@ void GraftWallet::process_blocks(uint64_t start_height, const std::list<cryptono
       std::list<block_complete_entry>::const_iterator tmpblocki = blocki;
       for (size_t i = 0; i < round_size; ++i)
       {
-        ioservice.dispatch(boost::bind(&GraftWallet::parse_block_round, this, std::cref(tmpblocki->block),
+        ioservice.dispatch(boost::bind(&GraftWallet2::parse_block_round, this, std::cref(tmpblocki->block),
           std::ref(round_blocks[i]), std::ref(round_block_hashes[i]), std::ref(error[i])));
         ++tmpblocki;
       }
@@ -1437,19 +1437,19 @@ void GraftWallet::process_blocks(uint64_t start_height, const std::list<cryptono
   }
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::refresh()
+void GraftWallet2::refresh()
 {
   uint64_t blocks_fetched = 0;
   refresh(0, blocks_fetched);
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::refresh(uint64_t start_height, uint64_t & blocks_fetched)
+void GraftWallet2::refresh(uint64_t start_height, uint64_t & blocks_fetched)
 {
   bool received_money = false;
   refresh(start_height, blocks_fetched, received_money);
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::pull_next_blocks(uint64_t start_height, uint64_t &blocks_start_height, std::list<crypto::hash> &short_chain_history, const std::list<cryptonote::block_complete_entry> &prev_blocks, std::list<cryptonote::block_complete_entry> &blocks, std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices, bool &error)
+void GraftWallet2::pull_next_blocks(uint64_t start_height, uint64_t &blocks_start_height, std::list<crypto::hash> &short_chain_history, const std::list<cryptonote::block_complete_entry> &prev_blocks, std::list<cryptonote::block_complete_entry> &blocks, std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices, bool &error)
 {
   error = false;
 
@@ -1475,7 +1475,7 @@ void GraftWallet::pull_next_blocks(uint64_t start_height, uint64_t &blocks_start
   }
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::update_pool_state(bool refreshed)
+void GraftWallet2::update_pool_state(bool refreshed)
 {
   MDEBUG("update_pool_state start");
 
@@ -1491,7 +1491,7 @@ void GraftWallet::update_pool_state(bool refreshed)
   MDEBUG("update_pool_state got pool");
 
   // remove any pending tx that's not in the pool
-  std::unordered_map<crypto::hash, GraftWallet::unconfirmed_transfer_details>::iterator it = m_unconfirmed_txs.begin();
+  std::unordered_map<crypto::hash, GraftWallet2::unconfirmed_transfer_details>::iterator it = m_unconfirmed_txs.begin();
   while (it != m_unconfirmed_txs.end())
   {
     const crypto::hash &txid = it->first;
@@ -1513,15 +1513,15 @@ void GraftWallet::update_pool_state(bool refreshed)
       // that the first time we don't see the tx, we set that boolean, and only
       // delete it the second time it is checked (but only when refreshed, so
       // we're sure we've seen the blockchain state first)
-      if (pit->second.m_state == GraftWallet::unconfirmed_transfer_details::pending)
+      if (pit->second.m_state == GraftWallet2::unconfirmed_transfer_details::pending)
       {
         LOG_PRINT_L1("Pending txid " << txid << " not in pool, marking as not in pool");
-        pit->second.m_state = GraftWallet::unconfirmed_transfer_details::pending_not_in_pool;
+        pit->second.m_state = GraftWallet2::unconfirmed_transfer_details::pending_not_in_pool;
       }
-      else if (pit->second.m_state == GraftWallet::unconfirmed_transfer_details::pending_not_in_pool && refreshed)
+      else if (pit->second.m_state == GraftWallet2::unconfirmed_transfer_details::pending_not_in_pool && refreshed)
       {
         LOG_PRINT_L1("Pending txid " << txid << " not in pool, marking as failed");
-        pit->second.m_state = GraftWallet::unconfirmed_transfer_details::failed;
+        pit->second.m_state = GraftWallet2::unconfirmed_transfer_details::failed;
 
         // the inputs aren't spent anymore, since the tx failed
         for (size_t vini = 0; vini < pit->second.m_tx.vin.size(); ++vini)
@@ -1552,7 +1552,7 @@ void GraftWallet::update_pool_state(bool refreshed)
   // disappeared without being mined)
   if (refreshed)
   {
-    std::unordered_map<crypto::hash, GraftWallet::payment_details>::iterator uit = m_unconfirmed_payments.begin();
+    std::unordered_map<crypto::hash, GraftWallet2::payment_details>::iterator uit = m_unconfirmed_payments.begin();
     while (uit != m_unconfirmed_payments.end())
     {
       const crypto::hash &txid = uit->second.m_tx_hash;
@@ -1696,7 +1696,7 @@ void GraftWallet::update_pool_state(bool refreshed)
   MDEBUG("update_pool_state end");
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::fast_refresh(uint64_t stop_height, uint64_t &blocks_start_height, std::list<crypto::hash> &short_chain_history)
+void GraftWallet2::fast_refresh(uint64_t stop_height, uint64_t &blocks_start_height, std::list<crypto::hash> &short_chain_history)
 {
   std::list<crypto::hash> hashes;
   size_t current_index = m_blockchain.size();
@@ -1752,9 +1752,9 @@ void GraftWallet::fast_refresh(uint64_t stop_height, uint64_t &blocks_start_heig
 }
 
 
-bool GraftWallet::add_address_book_row(const cryptonote::account_public_address &address, const crypto::hash &payment_id, const std::string &description)
+bool GraftWallet2::add_address_book_row(const cryptonote::account_public_address &address, const crypto::hash &payment_id, const std::string &description)
 {
-  GraftWallet::address_book_row a;
+  GraftWallet2::address_book_row a;
   a.m_address = address;
   a.m_payment_id = payment_id;
   a.m_description = description;
@@ -1766,7 +1766,7 @@ bool GraftWallet::add_address_book_row(const cryptonote::account_public_address 
   return false;
 }
 
-bool GraftWallet::delete_address_book_row(std::size_t row_id) {
+bool GraftWallet2::delete_address_book_row(std::size_t row_id) {
   if(m_address_book.size() <= row_id)
     return false;
   
@@ -1776,7 +1776,7 @@ bool GraftWallet::delete_address_book_row(std::size_t row_id) {
 }
 
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::refresh(uint64_t start_height, uint64_t & blocks_fetched, bool& received_money)
+void GraftWallet2::refresh(uint64_t start_height, uint64_t & blocks_fetched, bool& received_money)
 {
   received_money = false;
   blocks_fetched = 0;
@@ -1879,7 +1879,7 @@ void GraftWallet::refresh(uint64_t start_height, uint64_t & blocks_fetched, bool
   LOG_PRINT_L1("Refresh done, blocks received: " << blocks_fetched << ", balance: " << print_money(balance()) << ", unlocked: " << print_money(unlocked_balance()));
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::refresh(uint64_t & blocks_fetched, bool& received_money, bool& ok)
+bool GraftWallet2::refresh(uint64_t & blocks_fetched, bool& received_money, bool& ok)
 {
   try
   {
@@ -1893,14 +1893,14 @@ bool GraftWallet::refresh(uint64_t & blocks_fetched, bool& received_money, bool&
   return ok;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::detach_blockchain(uint64_t height)
+void GraftWallet2::detach_blockchain(uint64_t height)
 {
   LOG_PRINT_L0("Detaching blockchain on height " << height);
   size_t transfers_detached = 0;
 
   for (size_t i = 0; i < m_transfers.size(); ++i)
   {
-    GraftWallet::transfer_details &td = m_transfers[i];
+    GraftWallet2::transfer_details &td = m_transfers[i];
     if (td.m_spent && td.m_spent_height >= height)
     {
       LOG_PRINT_L1("Resetting spent status for output " << i << ": " << td.m_key_image);
@@ -1949,13 +1949,13 @@ void GraftWallet::detach_blockchain(uint64_t height)
   LOG_PRINT_L0("Detached blockchain on height " << height << ", transfers detached " << transfers_detached << ", blocks detached " << blocks_detached);
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::deinit()
+bool GraftWallet2::deinit()
 {
   m_is_initialized=false;
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::clear()
+bool GraftWallet2::clear()
 {
   m_blockchain.clear();
   m_transfers.clear();
@@ -1980,7 +1980,7 @@ bool GraftWallet::clear()
  * \param  watch_only     true to save only view key, false to save both spend and view keys
  * \return                Whether it was successful.
  */
-bool GraftWallet::store_keys(const std::string& keys_file_name, const std::string& password, bool watch_only)
+bool GraftWallet2::store_keys(const std::string& keys_file_name, const std::string& password, bool watch_only)
 {
   std::string account_data;
   cryptonote::account_base account = m_account;
@@ -1989,7 +1989,7 @@ bool GraftWallet::store_keys(const std::string& keys_file_name, const std::strin
     account.forget_spend_key();
   bool r = epee::serialization::store_t_to_binary(account, account_data);
   CHECK_AND_ASSERT_MES(r, false, "failed to serialize wallet keys");
-  GraftWallet::keys_file_data keys_file_data = boost::value_initialized<GraftWallet::keys_file_data>();
+  GraftWallet2::keys_file_data keys_file_data = boost::value_initialized<GraftWallet2::keys_file_data>();
 
   // Create a JSON object with "key_data" and "seed_language" as keys.
   rapidjson::Document json;
@@ -2094,9 +2094,9 @@ namespace
  * \param keys_file_name Name of wallet file
  * \param password       Password of wallet file
  */
-bool GraftWallet::load_keys(const std::string& keys_file_name, const std::string& password)
+bool GraftWallet2::load_keys(const std::string& keys_file_name, const std::string& password)
 {
-  GraftWallet::keys_file_data keys_file_data;
+  GraftWallet2::keys_file_data keys_file_data;
   std::string buf;
   bool r = epee::file_io_utils::load_file_to_string(keys_file_name, buf);
   THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, keys_file_name);
@@ -2229,7 +2229,7 @@ bool GraftWallet::load_keys(const std::string& keys_file_name, const std::string
  * can be used prior to rewriting wallet keys file, to ensure user has entered the correct password
  *
  */
-bool GraftWallet::verify_password(const std::string& password) const
+bool GraftWallet2::verify_password(const std::string& password) const
 {
   return verify_password(m_keys_file, password, m_watch_only);
 }
@@ -2246,9 +2246,9 @@ bool GraftWallet::verify_password(const std::string& password) const
  * can be used prior to rewriting wallet keys file, to ensure user has entered the correct password
  *
  */
-bool GraftWallet::verify_password(const std::string& keys_file_name, const std::string& password, bool watch_only)
+bool GraftWallet2::verify_password(const std::string& keys_file_name, const std::string& password, bool watch_only)
 {
-  GraftWallet::keys_file_data keys_file_data;
+  GraftWallet2::keys_file_data keys_file_data;
   std::string buf;
   bool r = epee::file_io_utils::load_file_to_string(keys_file_name, buf);
   THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, keys_file_name);
@@ -2294,7 +2294,7 @@ bool GraftWallet::verify_password(const std::string& keys_file_name, const std::
  * \param  two_random     Whether it is a non-deterministic wallet
  * \return                The secret key of the generated wallet
  */
-crypto::secret_key GraftWallet::generate(const std::string& wallet_, const std::string& password,
+crypto::secret_key GraftWallet2::generate(const std::string& wallet_, const std::string& password,
   const crypto::secret_key& recovery_param, bool recover, bool two_random)
 {
   clear();
@@ -2335,7 +2335,7 @@ crypto::secret_key GraftWallet::generate(const std::string& wallet_, const std::
   return retval;
 }
 
-uint64_t GraftWallet::estimate_blockchain_height()
+uint64_t GraftWallet2::estimate_blockchain_height()
 {
   // -1 month for fluctuations in block time and machine date/time setup.
   // avg seconds per block
@@ -2376,7 +2376,7 @@ uint64_t GraftWallet::estimate_blockchain_height()
  * \param  two_random     Whether it is a non-deterministic wallet
  * \return                The secret key of the generated wallet
  */
-secret_key GraftWallet::generate_graft(const string &password, const secret_key &recovery_param,
+secret_key GraftWallet2::generate_graft(const string &password, const secret_key &recovery_param,
                                    bool recover, bool two_random)
 {
     clear();
@@ -2428,7 +2428,7 @@ secret_key GraftWallet::generate_graft(const string &password, const secret_key 
     return retval;
 }
 
-void GraftWallet::load_graft(const string &data, const string &password, const std::string &cache_file)
+void GraftWallet2::load_graft(const string &data, const string &password, const std::string &cache_file)
 {
     clear();
 
@@ -2462,7 +2462,7 @@ void GraftWallet::load_graft(const string &data, const string &password, const s
     m_local_bc_height = m_blockchain.size();
 }
 
-PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const string &payment_id,
+PendingTransaction *GraftWallet2::createTransaction(const string &dst_addr, const string &payment_id,
                                                    optional<uint64_t> amount, uint32_t mixin_count, const GraftTxExtra &graftExtra,
                                                    PendingTransaction::Priority priority)
 {
@@ -2492,13 +2492,13 @@ PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const
         if (!has_payment_id && !payment_id.empty()) {
             // copy-pasted from simplewallet.cpp:2212
             crypto::hash payment_id_long;
-            bool r = tools::GraftWallet::parse_long_payment_id(payment_id, payment_id_long);
+            bool r = tools::GraftWallet2::parse_long_payment_id(payment_id, payment_id_long);
             if (r) {
                 std::string extra_nonce;
                 cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_long);
                 r = add_extra_nonce_to_tx_extra(extra, extra_nonce);
             } else {
-                r = tools::GraftWallet::parse_short_payment_id(payment_id, payment_id_short);
+                r = tools::GraftWallet2::parse_short_payment_id(payment_id, payment_id_short);
                 if (r) {
                     std::string extra_nonce;
                     set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_short);
@@ -2619,7 +2619,7 @@ PendingTransaction *GraftWallet::createTransaction(const string &dst_addr, const
 * \param  password       Password of wallet file
 * \param  viewkey        view secret key
 */
-void GraftWallet::generate(const std::string& wallet_, const std::string& password,
+void GraftWallet2::generate(const std::string& wallet_, const std::string& password,
   const cryptonote::account_public_address &account_public_address,
   const crypto::secret_key& viewkey)
 {
@@ -2654,7 +2654,7 @@ void GraftWallet::generate(const std::string& wallet_, const std::string& passwo
 * \param  spendkey       spend secret key
 * \param  viewkey        view secret key
 */
-void GraftWallet::generate(const std::string& wallet_, const std::string& password,
+void GraftWallet2::generate(const std::string& wallet_, const std::string& password,
   const cryptonote::account_public_address &account_public_address,
   const crypto::secret_key& spendkey, const crypto::secret_key& viewkey)
 {
@@ -2687,7 +2687,7 @@ void GraftWallet::generate(const std::string& wallet_, const std::string& passwo
  * \param wallet_name Name of wallet file (should exist)
  * \param password    Password for wallet file
  */
-void GraftWallet::rewrite(const std::string& wallet_name, const std::string& password)
+void GraftWallet2::rewrite(const std::string& wallet_name, const std::string& password)
 {
   prepare_file_names(wallet_name);
   boost::system::error_code ignored_ec;
@@ -2700,7 +2700,7 @@ void GraftWallet::rewrite(const std::string& wallet_name, const std::string& pas
  * \param wallet_name Base name of wallet file
  * \param password    Password for wallet file
  */
-void GraftWallet::write_watch_only_wallet(const std::string& wallet_name, const std::string& password)
+void GraftWallet2::write_watch_only_wallet(const std::string& wallet_name, const std::string& password)
 {
   prepare_file_names(wallet_name);
   boost::system::error_code ignored_ec;
@@ -2711,7 +2711,7 @@ void GraftWallet::write_watch_only_wallet(const std::string& wallet_name, const 
   THROW_WALLET_EXCEPTION_IF(!r, error::file_save_error, filename);
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::wallet_exists(const std::string& file_path, bool& keys_file_exists, bool& wallet_file_exists)
+void GraftWallet2::wallet_exists(const std::string& file_path, bool& keys_file_exists, bool& wallet_file_exists)
 {
   std::string keys_file, wallet_file;
   do_prepare_file_names(file_path, keys_file, wallet_file);
@@ -2721,12 +2721,12 @@ void GraftWallet::wallet_exists(const std::string& file_path, bool& keys_file_ex
   wallet_file_exists = boost::filesystem::exists(wallet_file, ignore);
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::wallet_valid_path_format(const std::string& file_path)
+bool GraftWallet2::wallet_valid_path_format(const std::string& file_path)
 {
   return !file_path.empty();
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::parse_long_payment_id(const std::string& payment_id_str, crypto::hash& payment_id)
+bool GraftWallet2::parse_long_payment_id(const std::string& payment_id_str, crypto::hash& payment_id)
 {
   cryptonote::blobdata payment_id_data;
   if(!epee::string_tools::parse_hexstr_to_binbuff(payment_id_str, payment_id_data))
@@ -2739,7 +2739,7 @@ bool GraftWallet::parse_long_payment_id(const std::string& payment_id_str, crypt
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::parse_short_payment_id(const std::string& payment_id_str, crypto::hash8& payment_id)
+bool GraftWallet2::parse_short_payment_id(const std::string& payment_id_str, crypto::hash8& payment_id)
 {
   cryptonote::blobdata payment_id_data;
   if(!epee::string_tools::parse_hexstr_to_binbuff(payment_id_str, payment_id_data))
@@ -2752,7 +2752,7 @@ bool GraftWallet::parse_short_payment_id(const std::string& payment_id_str, cryp
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::parse_payment_id(const std::string& payment_id_str, crypto::hash& payment_id)
+bool GraftWallet2::parse_payment_id(const std::string& payment_id_str, crypto::hash& payment_id)
 {
   if (parse_long_payment_id(payment_id_str, payment_id))
     return true;
@@ -2766,23 +2766,23 @@ bool GraftWallet::parse_payment_id(const std::string& payment_id_str, crypto::ha
   return false;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::set_default_decimal_point(unsigned int decimal_point)
+void GraftWallet2::set_default_decimal_point(unsigned int decimal_point)
 {
   cryptonote::set_default_decimal_point(decimal_point);
 }
 //----------------------------------------------------------------------------------------------------
-unsigned int GraftWallet::get_default_decimal_point() const
+unsigned int GraftWallet2::get_default_decimal_point() const
 {
   return cryptonote::get_default_decimal_point();
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::prepare_file_names(const std::string& file_path)
+bool GraftWallet2::prepare_file_names(const std::string& file_path)
 {
   do_prepare_file_names(file_path, m_keys_file, m_wallet_file);
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::check_connection(uint32_t *version, uint32_t timeout)
+bool GraftWallet2::check_connection(uint32_t *version, uint32_t timeout)
 {
   THROW_WALLET_EXCEPTION_IF(!m_is_initialized, error::wallet_not_initialized);
 
@@ -2816,7 +2816,7 @@ bool GraftWallet::check_connection(uint32_t *version, uint32_t timeout)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::generate_chacha8_key_from_secret_keys(chacha_key &key) const
+bool GraftWallet2::generate_chacha8_key_from_secret_keys(chacha_key &key) const
 {
   const account_keys &keys = m_account.get_keys();
   const crypto::secret_key &view_key = keys.m_view_secret_key;
@@ -2831,7 +2831,7 @@ bool GraftWallet::generate_chacha8_key_from_secret_keys(chacha_key &key) const
 }
 
 
-void GraftWallet::load(const std::string& wallet_, const std::string& password)
+void GraftWallet2::load(const std::string& wallet_, const std::string& password)
 {
   clear();
   prepare_file_names(wallet_);
@@ -2873,9 +2873,9 @@ void GraftWallet::load(const std::string& wallet_, const std::string& password)
   m_local_bc_height = m_blockchain.size();
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::load_cache(const std::string &filename)
+void GraftWallet2::load_cache(const std::string &filename)
 {
-    GraftWallet::cache_file_data cache_file_data;
+    GraftWallet2::cache_file_data cache_file_data;
     std::string buf;
     bool r = epee::file_io_utils::load_file_to_string(filename, buf);
     THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, filename);
@@ -2934,31 +2934,31 @@ void GraftWallet::load_cache(const std::string &filename)
 }
 
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::check_genesis(const crypto::hash& genesis_hash) const {
+void GraftWallet2::check_genesis(const crypto::hash& genesis_hash) const {
   std::string what("Genesis block mismatch. You probably use wallet without testnet flag with blockchain from test network or vice versa");
 
   THROW_WALLET_EXCEPTION_IF(genesis_hash != m_blockchain[0], error::wallet_internal_error, what);
 }
 //----------------------------------------------------------------------------------------------------
-std::string GraftWallet::path() const
+std::string GraftWallet2::path() const
 {
   return m_wallet_file;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::store()
+void GraftWallet2::store()
 {
     store_to("", "");
 }
 
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::store_cache(const string &filename)
+void GraftWallet2::store_cache(const string &filename)
 {
     // preparing wallet data
     std::stringstream oss;
     boost::archive::portable_binary_oarchive ar(oss);
     ar << *this;
 
-    GraftWallet::cache_file_data cache_file_data = boost::value_initialized<GraftWallet::cache_file_data>();
+    GraftWallet2::cache_file_data cache_file_data = boost::value_initialized<GraftWallet2::cache_file_data>();
     cache_file_data.cache_data = oss.str();
     crypto::chacha_key key;
     generate_chacha8_key_from_secret_keys(key);
@@ -2977,7 +2977,7 @@ void GraftWallet::store_cache(const string &filename)
     THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::store_to(const std::string &path, const std::string &password)
+void GraftWallet2::store_to(const std::string &path, const std::string &password)
 {
   // if file is the same, we do:
   // 1. save wallet to the *.new file
@@ -3048,7 +3048,7 @@ void GraftWallet::store_to(const std::string &path, const std::string &password)
   }
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::unlocked_balance() const
+uint64_t GraftWallet2::unlocked_balance() const
 {
   uint64_t amount = 0;
   for(const transfer_details& td: m_transfers)
@@ -3058,7 +3058,7 @@ uint64_t GraftWallet::unlocked_balance() const
   return amount;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::balance() const
+uint64_t GraftWallet2::balance() const
 {
   uint64_t amount = 0;
   for(auto& td: m_transfers)
@@ -3067,18 +3067,18 @@ uint64_t GraftWallet::balance() const
 
 
   for(auto& utx: m_unconfirmed_txs)
-    if (utx.second.m_state != GraftWallet::unconfirmed_transfer_details::failed)
+    if (utx.second.m_state != GraftWallet2::unconfirmed_transfer_details::failed)
       amount+= utx.second.m_change;
 
   return amount;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::get_transfers(GraftWallet::transfer_container& incoming_transfers) const
+void GraftWallet2::get_transfers(GraftWallet2::transfer_container& incoming_transfers) const
 {
   incoming_transfers = m_transfers;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::get_payments(const crypto::hash& payment_id, std::list<GraftWallet::payment_details>& payments, uint64_t min_height) const
+void GraftWallet2::get_payments(const crypto::hash& payment_id, std::list<GraftWallet2::payment_details>& payments, uint64_t min_height) const
 {
   auto range = m_payments.equal_range(payment_id);
   std::for_each(range.first, range.second, [&payments, &min_height](const payment_container::value_type& x) {
@@ -3089,7 +3089,7 @@ void GraftWallet::get_payments(const crypto::hash& payment_id, std::list<GraftWa
   });
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::get_payments(std::list<std::pair<crypto::hash,GraftWallet::payment_details>>& payments, uint64_t min_height, uint64_t max_height) const
+void GraftWallet2::get_payments(std::list<std::pair<crypto::hash,GraftWallet2::payment_details>>& payments, uint64_t min_height, uint64_t max_height) const
 {
   auto range = std::make_pair(m_payments.begin(), m_payments.end());
   std::for_each(range.first, range.second, [&payments, &min_height, &max_height](const payment_container::value_type& x) {
@@ -3100,7 +3100,7 @@ void GraftWallet::get_payments(std::list<std::pair<crypto::hash,GraftWallet::pay
   });
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::get_payments_out(std::list<std::pair<crypto::hash,GraftWallet::confirmed_transfer_details>>& confirmed_payments,
+void GraftWallet2::get_payments_out(std::list<std::pair<crypto::hash,GraftWallet2::confirmed_transfer_details>>& confirmed_payments,
     uint64_t min_height, uint64_t max_height) const
 {
   for (auto i = m_confirmed_txs.begin(); i != m_confirmed_txs.end(); ++i) {
@@ -3110,21 +3110,21 @@ void GraftWallet::get_payments_out(std::list<std::pair<crypto::hash,GraftWallet:
   }
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::get_unconfirmed_payments_out(std::list<std::pair<crypto::hash,GraftWallet::unconfirmed_transfer_details>>& unconfirmed_payments) const
+void GraftWallet2::get_unconfirmed_payments_out(std::list<std::pair<crypto::hash,GraftWallet2::unconfirmed_transfer_details>>& unconfirmed_payments) const
 {
   for (auto i = m_unconfirmed_txs.begin(); i != m_unconfirmed_txs.end(); ++i) {
     unconfirmed_payments.push_back(*i);
   }
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::get_unconfirmed_payments(std::list<std::pair<crypto::hash,GraftWallet::payment_details>>& unconfirmed_payments) const
+void GraftWallet2::get_unconfirmed_payments(std::list<std::pair<crypto::hash,GraftWallet2::payment_details>>& unconfirmed_payments) const
 {
   for (auto i = m_unconfirmed_payments.begin(); i != m_unconfirmed_payments.end(); ++i) {
     unconfirmed_payments.push_back(*i);
   }
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::rescan_spent()
+void GraftWallet2::rescan_spent()
 {
   // This is RPC call that can take a long time if there are many outputs,
   // so we call it several times, in stripes, so we don't time out spuriously
@@ -3176,7 +3176,7 @@ void GraftWallet::rescan_spent()
   }
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::rescan_blockchain(bool refresh)
+void GraftWallet2::rescan_blockchain(bool refresh)
 {
   clear();
 
@@ -3190,7 +3190,7 @@ void GraftWallet::rescan_blockchain(bool refresh)
     this->refresh();
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::is_transfer_unlocked(const transfer_details& td) const
+bool GraftWallet2::is_transfer_unlocked(const transfer_details& td) const
 {
   if(!is_tx_spendtime_unlocked(td.m_tx.unlock_time, td.m_block_height))
     return false;
@@ -3201,7 +3201,7 @@ bool GraftWallet::is_transfer_unlocked(const transfer_details& td) const
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::is_tx_spendtime_unlocked(uint64_t unlock_time, uint64_t block_height) const
+bool GraftWallet2::is_tx_spendtime_unlocked(uint64_t unlock_time, uint64_t block_height) const
 {
   if(unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER)
   {
@@ -3281,7 +3281,7 @@ namespace
 // If they're from the same tx, then they're fully related. From close block
 // heights, they're kinda related. The actual values don't matter, just
 // their ordering, but it could become more murky if we add scores later.
-float GraftWallet::get_output_relatedness(const transfer_details &td0, const transfer_details &td1) const
+float GraftWallet2::get_output_relatedness(const transfer_details &td0, const transfer_details &td1) const
 {
   int dh;
 
@@ -3308,7 +3308,7 @@ float GraftWallet::get_output_relatedness(const transfer_details &td0, const tra
   return 0.0f;
 }
 //----------------------------------------------------------------------------------------------------
-size_t GraftWallet::pop_best_value_from(const transfer_container &transfers, std::vector<size_t> &unused_indices, const std::list<size_t>& selected_transfers, bool smallest) const
+size_t GraftWallet2::pop_best_value_from(const transfer_container &transfers, std::vector<size_t> &unused_indices, const std::list<size_t>& selected_transfers, bool smallest) const
 {
   std::vector<size_t> candidates;
   float best_relatedness = 1.0f;
@@ -3357,7 +3357,7 @@ size_t GraftWallet::pop_best_value_from(const transfer_container &transfers, std
   return pop_index (unused_indices, candidates[idx]);
 }
 //----------------------------------------------------------------------------------------------------
-size_t GraftWallet::pop_best_value(std::vector<size_t> &unused_indices, const std::list<size_t>& selected_transfers, bool smallest) const
+size_t GraftWallet2::pop_best_value(std::vector<size_t> &unused_indices, const std::list<size_t>& selected_transfers, bool smallest) const
 {
   return pop_best_value_from(m_transfers, unused_indices, selected_transfers, smallest);
 }
@@ -3366,7 +3366,7 @@ size_t GraftWallet::pop_best_value(std::vector<size_t> &unused_indices, const st
 // returns:
 //    direct return: amount of money found
 //    modified reference: selected_transfers, a list of iterators/indices of input sources
-uint64_t GraftWallet::select_transfers(uint64_t needed_money, std::vector<size_t> unused_transfers_indices, std::list<size_t>& selected_transfers, bool trusted_daemon)
+uint64_t GraftWallet2::select_transfers(uint64_t needed_money, std::vector<size_t> unused_transfers_indices, std::list<size_t>& selected_transfers, bool trusted_daemon)
 {
   uint64_t found_money = 0;
   while (found_money < needed_money && !unused_transfers_indices.empty())
@@ -3381,7 +3381,7 @@ uint64_t GraftWallet::select_transfers(uint64_t needed_money, std::vector<size_t
   return found_money;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::add_unconfirmed_tx(const cryptonote::transaction& tx, uint64_t amount_in, const std::vector<cryptonote::tx_destination_entry> &dests, const crypto::hash &payment_id, uint64_t change_amount)
+void GraftWallet2::add_unconfirmed_tx(const cryptonote::transaction& tx, uint64_t amount_in, const std::vector<cryptonote::tx_destination_entry> &dests, const crypto::hash &payment_id, uint64_t change_amount)
 {
   unconfirmed_transfer_details& utd = m_unconfirmed_txs[cryptonote::get_transaction_hash(tx)];
   utd.m_amount_in = amount_in;
@@ -3394,18 +3394,18 @@ void GraftWallet::add_unconfirmed_tx(const cryptonote::transaction& tx, uint64_t
   utd.m_tx = (const cryptonote::transaction_prefix&)tx;
   utd.m_dests = dests;
   utd.m_payment_id = payment_id;
-  utd.m_state = GraftWallet::unconfirmed_transfer_details::pending;
+  utd.m_state = GraftWallet2::unconfirmed_transfer_details::pending;
   utd.m_timestamp = time(NULL);
 }
 
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outs_count, const std::vector<size_t> &unused_transfers_indices,
+void GraftWallet2::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outs_count, const std::vector<size_t> &unused_transfers_indices,
                        uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx& ptx, bool trusted_daemon)
 {
   transfer(dsts, fake_outs_count, unused_transfers_indices, unlock_time, fee, extra, detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), tx, ptx, trusted_daemon);
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outs_count, const std::vector<size_t> &unused_transfers_indices,
+void GraftWallet2::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outs_count, const std::vector<size_t> &unused_transfers_indices,
                        uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, bool trusted_daemon)
 {
   cryptonote::transaction tx;
@@ -3462,7 +3462,7 @@ std::vector<std::vector<cryptonote::tx_destination_entry>> split_amounts(
 }
 } // anonymous namespace
 //----------------------------------------------------------------------------------------------------
-crypto::hash GraftWallet::get_payment_id(const pending_tx &ptx) const
+crypto::hash GraftWallet2::get_payment_id(const pending_tx &ptx) const
 {
   std::vector<tx_extra_field> tx_extra_fields;
   if(!parse_tx_extra(ptx.tx.extra, tx_extra_fields))
@@ -3487,7 +3487,7 @@ crypto::hash GraftWallet::get_payment_id(const pending_tx &ptx) const
   return payment_id;
 }
 
-crypto::hash8 GraftWallet::get_short_payment_id(const pending_tx &ptx) const
+crypto::hash8 GraftWallet2::get_short_payment_id(const pending_tx &ptx) const
 {
   crypto::hash8 payment_id8 = null_hash8;
   std::vector<tx_extra_field> tx_extra_fields;
@@ -3506,7 +3506,7 @@ crypto::hash8 GraftWallet::get_short_payment_id(const pending_tx &ptx) const
 
 //----------------------------------------------------------------------------------------------------
 // take a pending tx and actually send it to the daemon
-void GraftWallet::commit_tx(pending_tx& ptx)
+void GraftWallet2::commit_tx(pending_tx& ptx)
 {
   using namespace cryptonote;
   crypto::hash txid;
@@ -3561,7 +3561,7 @@ void GraftWallet::commit_tx(pending_tx& ptx)
             << "Please, wait for confirmation for your balance to be unlocked.");
 }
 
-void GraftWallet::commit_tx(std::vector<pending_tx>& ptx_vector)
+void GraftWallet2::commit_tx(std::vector<pending_tx>& ptx_vector)
 {
   for (auto & ptx : ptx_vector)
   {
@@ -3569,7 +3569,7 @@ void GraftWallet::commit_tx(std::vector<pending_tx>& ptx_vector)
   }
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::save_tx(const std::vector<pending_tx>& ptx_vector, const std::string &filename)
+bool GraftWallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std::string &filename)
 {
   LOG_PRINT_L0("saving " << ptx_vector.size() << " transactions");
   unsigned_tx_set txs;
@@ -3614,7 +3614,7 @@ bool GraftWallet::save_tx(const std::vector<pending_tx>& ptx_vector, const std::
   return epee::file_io_utils::save_string_to_file(filename, std::string(UNSIGNED_TX_PREFIX) + oss.str());  
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs)
+bool GraftWallet2::load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs)
 {
   std::string s;
   boost::system::error_code errcode;
@@ -3652,7 +3652,7 @@ bool GraftWallet::load_unsigned_tx(const std::string &unsigned_filename, unsigne
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::sign_tx(const std::string &unsigned_filename, const std::string &signed_filename, std::vector<GraftWallet::pending_tx> &txs, std::function<bool(const unsigned_tx_set&)> accept_func)
+bool GraftWallet2::sign_tx(const std::string &unsigned_filename, const std::string &signed_filename, std::vector<GraftWallet2::pending_tx> &txs, std::function<bool(const unsigned_tx_set&)> accept_func)
 {
   unsigned_tx_set exported_txs;
   if(!load_unsigned_tx(unsigned_filename, exported_txs))
@@ -3667,7 +3667,7 @@ bool GraftWallet::sign_tx(const std::string &unsigned_filename, const std::strin
 }
 
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::sign_tx(unsigned_tx_set &exported_txs, const std::string &signed_filename, std::vector<GraftWallet::pending_tx> &txs)
+bool GraftWallet2::sign_tx(unsigned_tx_set &exported_txs, const std::string &signed_filename, std::vector<GraftWallet2::pending_tx> &txs)
 {
   import_outputs(exported_txs.transfers);
 
@@ -3675,10 +3675,10 @@ bool GraftWallet::sign_tx(unsigned_tx_set &exported_txs, const std::string &sign
   signed_tx_set signed_txes;
   for (size_t n = 0; n < exported_txs.txes.size(); ++n)
   {
-    const tools::GraftWallet::tx_construction_data &sd = exported_txs.txes[n];
+    const tools::GraftWallet2::tx_construction_data &sd = exported_txs.txes[n];
     LOG_PRINT_L1(" " << (n+1) << ": " << sd.sources.size() << " inputs, ring size " << sd.sources[0].outputs.size());
     signed_txes.ptx.push_back(pending_tx());
-    tools::GraftWallet::pending_tx &ptx = signed_txes.ptx.back();
+    tools::GraftWallet2::pending_tx &ptx = signed_txes.ptx.back();
     crypto::secret_key tx_key;
     bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), sd.sources, sd.splitted_dsts, sd.extra, ptx.tx, sd.unlock_time, tx_key, sd.use_rct);
     THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sd.sources, sd.splitted_dsts, sd.unlock_time, m_testnet);
@@ -3744,7 +3744,7 @@ bool GraftWallet::sign_tx(unsigned_tx_set &exported_txs, const std::string &sign
   return epee::file_io_utils::save_string_to_file(signed_filename, std::string(SIGNED_TX_PREFIX) + oss.str());  
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::load_tx(const std::string &signed_filename, std::vector<tools::GraftWallet::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func)
+bool GraftWallet2::load_tx(const std::string &signed_filename, std::vector<tools::GraftWallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func)
 {
   std::string s;
   boost::system::error_code errcode;
@@ -3810,7 +3810,7 @@ bool GraftWallet::load_tx(const std::string &signed_filename, std::vector<tools:
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::get_fee_multiplier(uint32_t priority, int fee_algorithm)
+uint64_t GraftWallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm)
 {
   static const uint64_t old_multipliers[3] = {1, 2, 3};
   static const uint64_t new_multipliers[3] = {1, 20, 166};
@@ -3847,7 +3847,7 @@ uint64_t GraftWallet::get_fee_multiplier(uint32_t priority, int fee_algorithm)
   return 1;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::get_dynamic_per_kb_fee_estimate()
+uint64_t GraftWallet2::get_dynamic_per_kb_fee_estimate()
 {
   uint64_t fee;
   boost::optional<std::string> result = m_node_rpc_proxy.get_dynamic_per_kb_fee_estimate(FEE_ESTIMATE_GRACE_BLOCKS, fee);
@@ -3858,7 +3858,7 @@ uint64_t GraftWallet::get_dynamic_per_kb_fee_estimate()
 }
 
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::get_per_kb_fee()
+uint64_t GraftWallet2::get_per_kb_fee()
 {
   // graft: use dynamic fee only
   /*
@@ -3874,7 +3874,7 @@ uint64_t GraftWallet::get_per_kb_fee()
 }
 //----------------------------------------------------------------------------------------------------
 
-std::string GraftWallet::store_keys_graft(const std::string& password, bool watch_only)
+std::string GraftWallet2::store_keys_graft(const std::string& password, bool watch_only)
 {
   std::string account_data;
   cryptonote::account_base account = m_account;
@@ -3887,7 +3887,7 @@ std::string GraftWallet::store_keys_graft(const std::string& password, bool watc
   ///Return only account_data
   return account_data;
 
-  GraftWallet::keys_file_data keys_file_data = boost::value_initialized<GraftWallet::keys_file_data>();
+  GraftWallet2::keys_file_data keys_file_data = boost::value_initialized<GraftWallet2::keys_file_data>();
 
   // Create a JSON object with "key_data" and "seed_language" as keys.
   rapidjson::Document json;
@@ -3978,12 +3978,12 @@ std::string GraftWallet::store_keys_graft(const std::string& password, bool watc
   return buf;
 }
 
-bool GraftWallet::load_keys_graft(const string &data, const string &password)
+bool GraftWallet2::load_keys_graft(const string &data, const string &password)
 {
     std::string account_data;
     if (false)
     {
-        GraftWallet::keys_file_data keys_file_data;
+        GraftWallet2::keys_file_data keys_file_data;
         // Decrypt the contents
         bool r = ::serialization::parse_binary(data, keys_file_data);
         THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize");
@@ -4105,7 +4105,7 @@ bool GraftWallet::load_keys_graft(const string &data, const string &password)
     return true;
 }
 
-int GraftWallet::get_fee_algorithm()
+int GraftWallet2::get_fee_algorithm()
 {
   // changes at v3 and v5
   if (use_fork_rules(5, 0))
@@ -4115,11 +4115,11 @@ int GraftWallet::get_fee_algorithm()
   return 0;
 }
 //----------------------------------------------------------------------------------------------------
-// separated the call(s) to GraftWallet::transfer into their own function
+// separated the call(s) to GraftWallet2::transfer into their own function
 //
-// this function will make multiple calls to GraftWallet::transfer if multiple
+// this function will make multiple calls to GraftWallet2::transfer if multiple
 // transactions will be required
-std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
+std::vector<GraftWallet2::pending_tx> GraftWallet2::create_transactions(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
 {
   const std::vector<size_t> unused_transfers_indices = select_available_outputs_from_histogram(fake_outs_count + 1, true, true, true, trusted_daemon);
 
@@ -4223,7 +4223,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions(std::vecto
   }
 }
 
-void GraftWallet::get_outs(std::vector<std::vector<tools::GraftWallet::get_outs_entry>> &outs, const std::list<size_t> &selected_transfers, size_t fake_outputs_count)
+void GraftWallet2::get_outs(std::vector<std::vector<tools::GraftWallet2::get_outs_entry>> &outs, const std::list<size_t> &selected_transfers, size_t fake_outputs_count)
 {
   LOG_PRINT_L2("fake_outputs_count: " << fake_outputs_count);
   outs.clear();
@@ -4459,8 +4459,8 @@ void GraftWallet::get_outs(std::vector<std::vector<tools::GraftWallet::get_outs_
 }
 
 template<typename T>
-void GraftWallet::transfer_selected(const std::vector<cryptonote::tx_destination_entry>& dsts, const std::list<size_t> selected_transfers, size_t fake_outputs_count,
-  std::vector<std::vector<tools::GraftWallet::get_outs_entry>> &outs,
+void GraftWallet2::transfer_selected(const std::vector<cryptonote::tx_destination_entry>& dsts, const std::list<size_t> selected_transfers, size_t fake_outputs_count,
+  std::vector<std::vector<tools::GraftWallet2::get_outs_entry>> &outs,
   uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx)
 {
   using namespace cryptonote;
@@ -4601,8 +4601,8 @@ void GraftWallet::transfer_selected(const std::vector<cryptonote::tx_destination
   LOG_PRINT_L2("transfer_selected done");
 }
 
-void GraftWallet::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::list<size_t> selected_transfers, size_t fake_outputs_count,
-  std::vector<std::vector<tools::GraftWallet::get_outs_entry>> &outs,
+void GraftWallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::list<size_t> selected_transfers, size_t fake_outputs_count,
+  std::vector<std::vector<tools::GraftWallet2::get_outs_entry>> &outs,
   uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx)
 {
   using namespace cryptonote;
@@ -4797,7 +4797,7 @@ static size_t estimate_tx_size(bool use_rct, int n_inputs, int mixin, int n_outp
     return n_inputs * (mixin+1) * APPROXIMATE_INPUT_BYTES;
 }
 
-std::vector<size_t> GraftWallet::pick_preferred_rct_inputs(uint64_t needed_money) const
+std::vector<size_t> GraftWallet2::pick_preferred_rct_inputs(uint64_t needed_money) const
 {
   std::vector<size_t> picks;
   float current_output_relatdness = 1.0f;
@@ -4857,7 +4857,7 @@ std::vector<size_t> GraftWallet::pick_preferred_rct_inputs(uint64_t needed_money
   return picks;
 }
 
-bool GraftWallet::should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const
+bool GraftWallet2::should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const
 {
   if (!use_rct)
     return false;
@@ -4890,7 +4890,7 @@ bool GraftWallet::should_pick_a_second_output(bool use_rct, size_t n_transfers, 
   return true;
 }
 
-std::vector<size_t> GraftWallet::get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const
+std::vector<size_t> GraftWallet2::get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const
 {
   std::vector<size_t> indices;
   for (size_t n: unused_dust_indices)
@@ -4902,7 +4902,7 @@ std::vector<size_t> GraftWallet::get_only_rct(const std::vector<size_t> &unused_
   return indices;
 }
 
-static uint32_t get_count_above(const std::vector<GraftWallet::transfer_details> &transfers, const std::vector<size_t> &indices, uint64_t threshold)
+static uint32_t get_count_above(const std::vector<GraftWallet2::transfer_details> &transfers, const std::vector<size_t> &indices, uint64_t threshold)
 {
   uint32_t count = 0;
   for (size_t idx: indices)
@@ -4926,7 +4926,7 @@ static uint32_t get_count_above(const std::vector<GraftWallet::transfer_details>
 // This system allows for sending (almost) the entire balance, since it does
 // not generate spurious change in all txes, thus decreasing the instantaneous
 // usable balance.
-std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
+std::vector<GraftWallet2::pending_tx> GraftWallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
                                                                         const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra,
                                                                         bool trusted_daemon)
 {
@@ -5011,7 +5011,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
       unlocked_balance(), needed_money, 0);
 
   if (unused_dust_indices.empty() && unused_transfers_indices.empty())
-    return std::vector<GraftWallet::pending_tx>();
+    return std::vector<GraftWallet2::pending_tx>();
 
   // start with an empty tx
   txes.push_back(TX());
@@ -5020,7 +5020,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
   accumulated_change = 0;
   adding_fee = false;
   needed_fee = 0;
-  std::vector<std::vector<tools::GraftWallet::get_outs_entry>> outs;
+  std::vector<std::vector<tools::GraftWallet2::get_outs_entry>> outs;
 
   // for rct, since we don't see the amounts, we will try to make all transactions
   // look the same, with 1 or 2 inputs, and 2 outputs. One input is preferable, as
@@ -5247,7 +5247,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
   LOG_PRINT_L1("Done creating " << txes.size() << " transactions, " << print_money(accumulated_fee) <<
     " total fee, " << print_money(accumulated_change) << " total change");
 
-  std::vector<GraftWallet::pending_tx> ptx_vector;
+  std::vector<GraftWallet2::pending_tx> ptx_vector;
   for (std::vector<TX>::iterator i = txes.begin(); i != txes.end(); ++i)
   {
     TX &tx = *i;
@@ -5265,7 +5265,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_2(std::vec
   return ptx_vector;
 }
 
-std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
+std::vector<GraftWallet2::pending_tx> GraftWallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
 {
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
@@ -5290,7 +5290,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_all(uint64
   return create_transactions_from(address, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra, trusted_daemon);
 }
 
-std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_from(const cryptonote::account_public_address &address, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
+std::vector<GraftWallet2::pending_tx> GraftWallet2::create_transactions_from(const cryptonote::account_public_address &address, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
 {
   uint64_t accumulated_fee, accumulated_outputs, accumulated_change;
   struct TX {
@@ -5312,7 +5312,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_from(const
   LOG_PRINT_L2("Starting with " << unused_transfers_indices.size() << " non-dust outputs and " << unused_dust_indices.size() << " dust outputs");
 
   if (unused_dust_indices.empty() && unused_transfers_indices.empty())
-    return std::vector<GraftWallet::pending_tx>();
+    return std::vector<GraftWallet2::pending_tx>();
 
   // start with an empty tx
   txes.push_back(TX());
@@ -5405,7 +5405,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_from(const
   LOG_PRINT_L1("Done creating " << txes.size() << " transactions, " << print_money(accumulated_fee) <<
     " total fee, " << print_money(accumulated_change) << " total change");
 
-  std::vector<GraftWallet::pending_tx> ptx_vector;
+  std::vector<GraftWallet2::pending_tx> ptx_vector;
   for (std::vector<TX>::iterator i = txes.begin(); i != txes.end(); ++i)
   {
     TX &tx = *i;
@@ -5423,7 +5423,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_transactions_from(const
   return ptx_vector;
 }
 
-uint64_t GraftWallet::unlocked_dust_balance(const tx_dust_policy &dust_policy) const
+uint64_t GraftWallet2::unlocked_dust_balance(const tx_dust_policy &dust_policy) const
 {
   uint64_t money = 0;
   std::list<transfer_container::iterator> selected_transfers;
@@ -5438,13 +5438,13 @@ uint64_t GraftWallet::unlocked_dust_balance(const tx_dust_policy &dust_policy) c
   return money;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::get_hard_fork_info(uint8_t version, uint64_t &earliest_height)
+void GraftWallet2::get_hard_fork_info(uint8_t version, uint64_t &earliest_height)
 {
   boost::optional<std::string> result = m_node_rpc_proxy.get_earliest_height(version, earliest_height);
   throw_on_rpc_response_error(result, "get_hard_fork_info");
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::use_fork_rules(uint8_t version, int64_t early_blocks)
+bool GraftWallet2::use_fork_rules(uint8_t version, int64_t early_blocks)
 {
   uint64_t height, earliest_height;
   boost::optional<std::string> result = m_node_rpc_proxy.get_height(height);
@@ -5462,7 +5462,7 @@ bool GraftWallet::use_fork_rules(uint8_t version, int64_t early_blocks)
   return close_enough;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::get_upper_transaction_size_limit()
+uint64_t GraftWallet2::get_upper_transaction_size_limit()
 {
   if (m_upper_transaction_size_limit > 0)
     return m_upper_transaction_size_limit;
@@ -5470,7 +5470,7 @@ uint64_t GraftWallet::get_upper_transaction_size_limit()
   return full_reward_zone - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<size_t> GraftWallet::select_available_outputs(const std::function<bool(const transfer_details &td)> &f)
+std::vector<size_t> GraftWallet2::select_available_outputs(const std::function<bool(const transfer_details &td)> &f)
 {
   std::vector<size_t> outputs;
   size_t n = 0;
@@ -5486,7 +5486,7 @@ std::vector<size_t> GraftWallet::select_available_outputs(const std::function<bo
   return outputs;
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<uint64_t> GraftWallet::get_unspent_amounts_vector()
+std::vector<uint64_t> GraftWallet2::get_unspent_amounts_vector()
 {
   std::set<uint64_t> set;
   for (const auto &td: m_transfers)
@@ -5503,7 +5503,7 @@ std::vector<uint64_t> GraftWallet::get_unspent_amounts_vector()
   return vector;
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<size_t> GraftWallet::select_available_outputs_from_histogram(uint64_t count, bool atleast, bool unlocked, bool allow_rct, bool trusted_daemon)
+std::vector<size_t> GraftWallet2::select_available_outputs_from_histogram(uint64_t count, bool atleast, bool unlocked, bool allow_rct, bool trusted_daemon)
 {
   epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_OUTPUT_HISTOGRAM::request> req_t = AUTO_VAL_INIT(req_t);
   epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_OUTPUT_HISTOGRAM::response, std::string> resp_t = AUTO_VAL_INIT(resp_t);
@@ -5544,7 +5544,7 @@ std::vector<size_t> GraftWallet::select_available_outputs_from_histogram(uint64_
   });
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::get_num_rct_outputs()
+uint64_t GraftWallet2::get_num_rct_outputs()
 {
   epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_OUTPUT_HISTOGRAM::request> req_t = AUTO_VAL_INIT(req_t);
   epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_OUTPUT_HISTOGRAM::response, std::string> resp_t = AUTO_VAL_INIT(resp_t);
@@ -5566,27 +5566,27 @@ uint64_t GraftWallet::get_num_rct_outputs()
   return resp_t.result.histogram[0].total_instances;
 }
 //----------------------------------------------------------------------------------------------------
-const GraftWallet::transfer_details &GraftWallet::get_transfer_details(size_t idx) const
+const GraftWallet2::transfer_details &GraftWallet2::get_transfer_details(size_t idx) const
 {
   THROW_WALLET_EXCEPTION_IF(idx >= m_transfers.size(), error::wallet_internal_error, "Bad transfer index");
   return m_transfers[idx];
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<size_t> GraftWallet::select_available_unmixable_outputs(bool trusted_daemon)
+std::vector<size_t> GraftWallet2::select_available_unmixable_outputs(bool trusted_daemon)
 {
   // request all outputs with less than 3 instances
   const size_t min_mixin = use_fork_rules(6, 10) ? 4 : 2; // v6 increases min mixin from 2 to 4
   return select_available_outputs_from_histogram(min_mixin + 1, false, true, false, trusted_daemon);
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<size_t> GraftWallet::select_available_mixable_outputs(bool trusted_daemon)
+std::vector<size_t> GraftWallet2::select_available_mixable_outputs(bool trusted_daemon)
 {
   // request all outputs with at least 3 instances, so we can use mixin 2 with
   const size_t min_mixin = use_fork_rules(6, 10) ? 4 : 2; // v6 increases min mixin from 2 to 4
   return select_available_outputs_from_histogram(min_mixin + 1, true, true, true, trusted_daemon);
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<GraftWallet::pending_tx> GraftWallet::create_unmixable_sweep_transactions(bool trusted_daemon)
+std::vector<GraftWallet2::pending_tx> GraftWallet2::create_unmixable_sweep_transactions(bool trusted_daemon)
 {
   // From hard fork 1, we don't consider small amounts to be dust anymore
   const bool hf1_rules = use_fork_rules(2, 10); // first hard fork has version 2
@@ -5600,7 +5600,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_unmixable_sweep_transac
 
   if (num_dust_outputs == 0)
   {
-    return std::vector<GraftWallet::pending_tx>();
+    return std::vector<GraftWallet2::pending_tx>();
   }
 
   // split in "dust" and "non dust" to make it easier to select outputs
@@ -5616,7 +5616,7 @@ std::vector<GraftWallet::pending_tx> GraftWallet::create_unmixable_sweep_transac
   return create_transactions_from(m_account_public_address, unmixable_transfer_outputs, unmixable_dust_outputs, 0 /*fake_outs_count */, 0 /* unlock_time */, 1 /*priority */, std::vector<uint8_t>(), trusted_daemon);
 }
 
-bool GraftWallet::get_tx_key(const crypto::hash &txid, crypto::secret_key &tx_key) const
+bool GraftWallet2::get_tx_key(const crypto::hash &txid, crypto::secret_key &tx_key) const
 {
   const std::unordered_map<crypto::hash, crypto::secret_key>::const_iterator i = m_tx_keys.find(txid);
   if (i == m_tx_keys.end())
@@ -5625,22 +5625,22 @@ bool GraftWallet::get_tx_key(const crypto::hash &txid, crypto::secret_key &tx_ke
   return true;
 }
 
-std::string GraftWallet::get_wallet_file() const
+std::string GraftWallet2::get_wallet_file() const
 {
   return m_wallet_file;
 }
 
-std::string GraftWallet::get_keys_file() const
+std::string GraftWallet2::get_keys_file() const
 {
   return m_keys_file;
 }
 
-std::string GraftWallet::get_daemon_address() const
+std::string GraftWallet2::get_daemon_address() const
 {
   return m_daemon_address;
 }
 
-uint64_t GraftWallet::get_daemon_blockchain_height(string &err)
+uint64_t GraftWallet2::get_daemon_blockchain_height(string &err)
 {
   uint64_t height;
 
@@ -5655,7 +5655,7 @@ uint64_t GraftWallet::get_daemon_blockchain_height(string &err)
   return height;
 }
 
-uint64_t GraftWallet::get_daemon_blockchain_target_height(string &err)
+uint64_t GraftWallet2::get_daemon_blockchain_target_height(string &err)
 {
   epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_INFO::request> req_t = AUTO_VAL_INIT(req_t);
   epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_INFO::response, std::string> resp_t = AUTO_VAL_INIT(resp_t);
@@ -5687,7 +5687,7 @@ uint64_t GraftWallet::get_daemon_blockchain_target_height(string &err)
   return resp_t.result.target_height;
 }
 
-uint64_t GraftWallet::get_approximate_blockchain_height() const
+uint64_t GraftWallet2::get_approximate_blockchain_height() const
 {
   // time of begining: testnet: 2018-01-12, mainnet: 2018-01-18;
   const time_t fork_time = m_testnet ? 1515715200 : 1516233600;
@@ -5706,12 +5706,12 @@ uint64_t GraftWallet::get_approximate_blockchain_height() const
   return approx_blockchain_height;
 }
 
-void GraftWallet::set_tx_note(const crypto::hash &txid, const std::string &note)
+void GraftWallet2::set_tx_note(const crypto::hash &txid, const std::string &note)
 {
   m_tx_notes[txid] = note;
 }
 
-std::string GraftWallet::get_tx_note(const crypto::hash &txid) const
+std::string GraftWallet2::get_tx_note(const crypto::hash &txid) const
 {
   std::unordered_map<crypto::hash, std::string>::const_iterator i = m_tx_notes.find(txid);
   if (i == m_tx_notes.end())
@@ -5719,7 +5719,7 @@ std::string GraftWallet::get_tx_note(const crypto::hash &txid) const
   return i->second;
 }
 
-std::string GraftWallet::sign(const std::string &data) const
+std::string GraftWallet2::sign(const std::string &data) const
 {
   crypto::hash hash;
   crypto::cn_fast_hash(data.data(), data.size(), hash);
@@ -5729,7 +5729,7 @@ std::string GraftWallet::sign(const std::string &data) const
   return std::string("SigV1") + tools::base58::encode(std::string((const char *)&signature, sizeof(signature)));
 }
 
-bool GraftWallet::verifySignedMessage(const std::string &message, const std::string &address, const std::string &signature, bool isTestnet) {
+bool GraftWallet2::verifySignedMessage(const std::string &message, const std::string &address, const std::string &signature, bool isTestnet) {
 	  cryptonote::account_public_address addr;
 	  bool has_payment_id;
 	  crypto::hash8 payment_id;
@@ -5742,7 +5742,7 @@ bool GraftWallet::verifySignedMessage(const std::string &message, const std::str
 	  return verify(message, addr, signature);
 }
 
-bool GraftWallet::verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature)
+bool GraftWallet2::verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature)
 {
   const size_t header_len = strlen("SigV1");
   if (signature.size() < header_len || signature.substr(0, header_len) != "SigV1") {
@@ -5765,7 +5765,7 @@ bool GraftWallet::verify(const std::string &data, const cryptonote::account_publ
   return crypto::check_signature(hash, address.m_spend_public_key, s);
 }
 //----------------------------------------------------------------------------------------------------
-crypto::public_key GraftWallet::get_tx_pub_key_from_received_outs(const tools::GraftWallet::transfer_details &td) const
+crypto::public_key GraftWallet2::get_tx_pub_key_from_received_outs(const tools::GraftWallet2::transfer_details &td) const
 {
   std::vector<tx_extra_field> tx_extra_fields;
   if(!parse_tx_extra(td.m_tx.extra, tx_extra_fields))
@@ -5812,7 +5812,7 @@ crypto::public_key GraftWallet::get_tx_pub_key_from_received_outs(const tools::G
   return cryptonote::null_pkey;
 }
 
-bool GraftWallet::export_key_images(const std::string filename)
+bool GraftWallet2::export_key_images(const std::string filename)
 {
   std::vector<std::pair<crypto::key_image, crypto::signature>> ski = export_key_images();
   std::string magic(KEY_IMAGE_EXPORT_FILE_MAGIC, strlen(KEY_IMAGE_EXPORT_FILE_MAGIC));
@@ -5833,7 +5833,7 @@ bool GraftWallet::export_key_images(const std::string filename)
 }
 
 //----------------------------------------------------------------------------------------------------
-std::vector<std::pair<crypto::key_image, crypto::signature>> GraftWallet::export_key_images() const
+std::vector<std::pair<crypto::key_image, crypto::signature>> GraftWallet2::export_key_images() const
 {
   std::vector<std::pair<crypto::key_image, crypto::signature>> ski;
 
@@ -5883,7 +5883,7 @@ std::vector<std::pair<crypto::key_image, crypto::signature>> GraftWallet::export
   return ski;
 }
 
-uint64_t GraftWallet::import_key_images(const std::string &filename, uint64_t &spent, uint64_t &unspent)
+uint64_t GraftWallet2::import_key_images(const std::string &filename, uint64_t &spent, uint64_t &unspent)
 {
   std::string data;
   bool r = epee::file_io_utils::load_file_to_string(filename, data);
@@ -5947,7 +5947,7 @@ uint64_t GraftWallet::import_key_images(const std::string &filename, uint64_t &s
 }
 
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::import_key_images(const std::vector<std::pair<crypto::key_image, crypto::signature>> &signed_key_images, uint64_t &spent, uint64_t &unspent)
+uint64_t GraftWallet2::import_key_images(const std::vector<std::pair<crypto::key_image, crypto::signature>> &signed_key_images, uint64_t &spent, uint64_t &unspent)
 {
   COMMAND_RPC_IS_KEY_IMAGE_SPENT::request req = AUTO_VAL_INIT(req);
   COMMAND_RPC_IS_KEY_IMAGE_SPENT::response daemon_resp = AUTO_VAL_INIT(daemon_resp);
@@ -6025,9 +6025,9 @@ uint64_t GraftWallet::import_key_images(const std::vector<std::pair<crypto::key_
   return m_transfers[signed_key_images.size() - 1].m_block_height;
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<tools::GraftWallet::transfer_details> GraftWallet::export_outputs() const
+std::vector<tools::GraftWallet2::transfer_details> GraftWallet2::export_outputs() const
 {
-  std::vector<tools::GraftWallet::transfer_details> outs;
+  std::vector<tools::GraftWallet2::transfer_details> outs;
 
   outs.reserve(m_transfers.size());
   for (size_t n = 0; n < m_transfers.size(); ++n)
@@ -6040,7 +6040,7 @@ std::vector<tools::GraftWallet::transfer_details> GraftWallet::export_outputs() 
   return outs;
 }
 //----------------------------------------------------------------------------------------------------
-size_t GraftWallet::import_outputs(const std::vector<tools::GraftWallet::transfer_details> &outputs)
+size_t GraftWallet2::import_outputs(const std::vector<tools::GraftWallet2::transfer_details> &outputs)
 {
   m_transfers.clear();
   m_transfers.reserve(outputs.size());
@@ -6071,7 +6071,7 @@ size_t GraftWallet::import_outputs(const std::vector<tools::GraftWallet::transfe
   return m_transfers.size();
 }
 //----------------------------------------------------------------------------------------------------
-std::string GraftWallet::encrypt(const std::string &plaintext, const crypto::secret_key &skey, bool authenticated) const
+std::string GraftWallet2::encrypt(const std::string &plaintext, const crypto::secret_key &skey, bool authenticated) const
 {
   crypto::chacha_key key;
   crypto::generate_chacha_key(&skey, sizeof(skey), key);
@@ -6092,12 +6092,12 @@ std::string GraftWallet::encrypt(const std::string &plaintext, const crypto::sec
   return ciphertext;
 }
 //----------------------------------------------------------------------------------------------------
-std::string GraftWallet::encrypt_with_view_secret_key(const std::string &plaintext, bool authenticated) const
+std::string GraftWallet2::encrypt_with_view_secret_key(const std::string &plaintext, bool authenticated) const
 {
   return encrypt(plaintext, get_account().get_keys().m_view_secret_key, authenticated);
 }
 //----------------------------------------------------------------------------------------------------
-std::string GraftWallet::decrypt(const std::string &ciphertext, const crypto::secret_key &skey, bool authenticated) const
+std::string GraftWallet2::decrypt(const std::string &ciphertext, const crypto::secret_key &skey, bool authenticated) const
 {
   const size_t prefix_size = sizeof(chacha_iv) + (authenticated ? sizeof(crypto::signature) : 0);
   THROW_WALLET_EXCEPTION_IF(ciphertext.size() < prefix_size,
@@ -6122,12 +6122,12 @@ std::string GraftWallet::decrypt(const std::string &ciphertext, const crypto::se
   return plaintext;
 }
 //----------------------------------------------------------------------------------------------------
-std::string GraftWallet::decrypt_with_view_secret_key(const std::string &ciphertext, bool authenticated) const
+std::string GraftWallet2::decrypt_with_view_secret_key(const std::string &ciphertext, bool authenticated) const
 {
   return decrypt(ciphertext, get_account().get_keys().m_view_secret_key, authenticated);
 }
 //----------------------------------------------------------------------------------------------------
-std::string GraftWallet::make_uri(const std::string &address, const std::string &payment_id, uint64_t amount, const std::string &tx_description, const std::string &recipient_name, std::string &error)
+std::string GraftWallet2::make_uri(const std::string &address, const std::string &payment_id, uint64_t amount, const std::string &tx_description, const std::string &recipient_name, std::string &error)
 {
   cryptonote::account_public_address tmp_address;
   bool has_payment_id;
@@ -6149,7 +6149,7 @@ std::string GraftWallet::make_uri(const std::string &address, const std::string 
   {
     crypto::hash pid32;
     crypto::hash8 pid8;
-    if (!GraftWallet::parse_long_payment_id(payment_id, pid32) && !GraftWallet::parse_short_payment_id(payment_id, pid8))
+    if (!GraftWallet2::parse_long_payment_id(payment_id, pid32) && !GraftWallet2::parse_short_payment_id(payment_id, pid8))
     {
       error = "Invalid payment id";
       return std::string();
@@ -6183,7 +6183,7 @@ std::string GraftWallet::make_uri(const std::string &address, const std::string 
   return uri;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error)
+bool GraftWallet2::parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error)
 {
   if (uri.substr(0, 7) != "monero:")
   {
@@ -6246,7 +6246,7 @@ bool GraftWallet::parse_uri(const std::string &uri, std::string &address, std::s
       }
       crypto::hash hash;
       crypto::hash8 hash8;
-      if (!GraftWallet::parse_long_payment_id(kv[1], hash) && !GraftWallet::parse_short_payment_id(kv[1], hash8))
+      if (!GraftWallet2::parse_long_payment_id(kv[1], hash) && !GraftWallet2::parse_short_payment_id(kv[1], hash8))
       {
         error = "Invalid payment id: " + kv[1];
         return false;
@@ -6269,7 +6269,7 @@ bool GraftWallet::parse_uri(const std::string &uri, std::string &address, std::s
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t GraftWallet::get_blockchain_height_by_date(uint16_t year, uint8_t month, uint8_t day)
+uint64_t GraftWallet2::get_blockchain_height_by_date(uint16_t year, uint8_t month, uint8_t day)
 {
   uint32_t version;
   if (!check_connection(&version))
@@ -6355,7 +6355,7 @@ uint64_t GraftWallet::get_blockchain_height_by_date(uint16_t year, uint8_t month
   }
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet::is_synced() const
+bool GraftWallet2::is_synced() const
 {
   uint64_t height;
   boost::optional<std::string> result = m_node_rpc_proxy.get_target_height(height);
@@ -6364,7 +6364,7 @@ bool GraftWallet::is_synced() const
   return get_blockchain_current_height() >= height;
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<std::pair<uint64_t, uint64_t>> GraftWallet::estimate_backlog(uint64_t min_blob_size, uint64_t max_blob_size, const std::vector<uint64_t> &fees)
+std::vector<std::pair<uint64_t, uint64_t>> GraftWallet2::estimate_backlog(uint64_t min_blob_size, uint64_t max_blob_size, const std::vector<uint64_t> &fees)
 {
   THROW_WALLET_EXCEPTION_IF(min_blob_size == 0, error::wallet_internal_error, "Invalid 0 fee");
   THROW_WALLET_EXCEPTION_IF(max_blob_size == 0, error::wallet_internal_error, "Invalid 0 fee");
@@ -6428,7 +6428,7 @@ std::vector<std::pair<uint64_t, uint64_t>> GraftWallet::estimate_backlog(uint64_
   return blocks;
 }
 //----------------------------------------------------------------------------------------------------
-void GraftWallet::generate_genesis(cryptonote::block& b) {
+void GraftWallet2::generate_genesis(cryptonote::block& b) {
   if (m_testnet)
   {
     cryptonote::generate_genesis_block(b, config::testnet::GENESIS_TX, config::testnet::GENESIS_NONCE);
