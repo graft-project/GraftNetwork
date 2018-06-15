@@ -88,6 +88,11 @@ struct PendingTransaction
      * \return
      */
     virtual uint64_t txCount() const = 0;
+    /*!
+     * \brief getRawTransaction Serializes signed transaction into binary data.
+     * \return                  list of serialized signed transactions
+     */
+    virtual std::vector<std::string> getRawTransaction() const = 0;
 };
 
 /**
@@ -517,7 +522,6 @@ struct Wallet
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
      *                          after object returned
      */
-
     virtual PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
                                                    optional<uint64_t> amount, uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
@@ -527,7 +531,6 @@ struct Wallet
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
      *                          after object returned
      */
-
     virtual PendingTransaction * createSweepUnmixableTransaction() = 0;
     
    /*!

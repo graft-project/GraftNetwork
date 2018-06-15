@@ -50,6 +50,7 @@ public:
     uint64_t fee() const;
     std::vector<std::string> txid() const;
     uint64_t txCount() const;
+    std::vector<std::string> getRawTransaction() const override;
     // TODO: continue with interface;
     void setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx);
     void setStatus(int status);

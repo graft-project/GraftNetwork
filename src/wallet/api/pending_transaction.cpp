@@ -170,6 +170,17 @@ uint64_t PendingTransactionImpl::txCount() const
     return m_pending_tx.size();
 }
 
+std::vector<std::string> PendingTransactionImpl::getRawTransaction() const
+{
+    std::vector<std::string> txs;
+    for (auto rit = m_pending_tx.rbegin(); rit != m_pending_tx.rend(); ++rit)
+    {
+        tools::wallet2::pending_tx ptx = *rit;
+        txs.push_back(epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx)));
+    }
+    return txs;
+}
+
 }
 
 namespace Bitmonero = Monero;

@@ -1154,7 +1154,6 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
 }
 
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
-
 {
     clearStatus();
     vector<cryptonote::tx_destination_entry> dsts;
