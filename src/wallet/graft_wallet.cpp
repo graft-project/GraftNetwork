@@ -29,7 +29,7 @@ tools::GraftWallet::GraftWallet(bool testnet, bool restricted)
 
 }
 
-crypto::secret_key tools::GraftWallet::generateFromData(const std::__cxx11::string &password,
+crypto::secret_key tools::GraftWallet::generateFromData(const std::string &password,
                                                          const crypto::secret_key &recovery_param,
                                                          bool recover, bool two_random)
 {
@@ -59,8 +59,8 @@ crypto::secret_key tools::GraftWallet::generateFromData(const std::__cxx11::stri
     return retval;
 }
 
-void tools::GraftWallet::loadFromData(const string &data, const string &password,
-                                       const string &cache_file, bool use_base64)
+void tools::GraftWallet::loadFromData(const std::string &data, const std::string &password,
+                                       const std::string &cache_file, bool use_base64)
 {
     clear();
     std::string enc_data = data;
@@ -100,7 +100,7 @@ void tools::GraftWallet::loadFromData(const string &data, const string &password
     m_local_bc_height = m_blockchain.size();
 }
 
-void tools::GraftWallet::load_cache(const string &filename)
+void tools::GraftWallet::load_cache(const std::string &filename)
 {
     wallet2::cache_file_data cache_file_data;
     std::string buf;
@@ -159,7 +159,7 @@ void tools::GraftWallet::load_cache(const string &filename)
                 error::wallet_files_doesnt_correspond, m_keys_file, filename);
 }
 
-void tools::GraftWallet::store_cache(const string &filename)
+void tools::GraftWallet::store_cache(const std::string &filename)
 {
     // preparing wallet data
     std::stringstream oss;
@@ -185,7 +185,7 @@ void tools::GraftWallet::store_cache(const string &filename)
     THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
 }
 
-string tools::GraftWallet::getAccountData(const string &password, bool use_base64)
+std::string tools::GraftWallet::getAccountData(const std::string &password, bool use_base64)
 {
     std::string data = store_keys_to_data(password);
     if (use_base64)
@@ -195,7 +195,7 @@ string tools::GraftWallet::getAccountData(const string &password, bool use_base6
     return data;
 }
 
-string tools::GraftWallet::store_keys_to_data(const string &password, bool watch_only)
+std::string tools::GraftWallet::store_keys_to_data(const std::string &password, bool watch_only)
 {
     std::string account_data;
     cryptonote::account_base account = m_account;
@@ -299,7 +299,7 @@ string tools::GraftWallet::store_keys_to_data(const string &password, bool watch
     return buf;
 }
 
-bool tools::GraftWallet::load_keys_from_data(const string &data, const string &password)
+bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std::string &password)
 {
     std::string account_data;
     if (false)
