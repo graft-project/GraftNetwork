@@ -60,9 +60,23 @@ set (CMAKE_C_OSX_CURRENT_VERSION_FLAG "-current_version ")
 set (CMAKE_CXX_OSX_COMPATIBILITY_VERSION_FLAG "${CMAKE_C_OSX_COMPATIBILITY_VERSION_FLAG}")
 set (CMAKE_CXX_OSX_CURRENT_VERSION_FLAG "${CMAKE_C_OSX_CURRENT_VERSION_FLAG}")
 
+set(IOS_BITCODE 1)
+set(IOS_BITCODE_MARKER 0)
+set(CMAKE_XCODE_ATTRIBUTE_ENABLE_BITCODE ${IOS_BITCODE})
+if(IOS_BITCODE)
+  set(CMAKE_XCODE_ATTRIBUTE_BITCODE_GENERATION_MODE "bitcode") # Without this, Xcode adds -fembed-bitcode-marker compile options instead of -fembed-bitcode  set(CMAKE_C_FLAGS "-fembed-bitcode ${CMAKE_C_FLAGS}")
+endif()
+# ld: '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/arc/libarclite_iphonesimulator.a(arclite.o)' does not contain bitcode. You must rebuild it with bitcode enabled (Xcode setting ENABLE_BITCODE), obtain an updated library from the vendor, or disable bitcode for this target. for architecture x86_64
+
+if(IOS_BITCODE)
+  set(BITCODE_FLAGS "-fembed-bitcode")
+elseif(IOS_BITCODE_MARKER)
+  set(BITCODE_FLAGS "-fembed-bitcode-marker")
+endif()
+
 # Hidden visibilty is required for cxx on iOS 
-set (CMAKE_C_FLAGS_INIT "")
-set (CMAKE_CXX_FLAGS_INIT "-fvisibility=hidden -fvisibility-inlines-hidden")
+set (CMAKE_C_FLAGS_INIT "${BITCODE_FLAGS}")
+set (CMAKE_CXX_FLAGS_INIT "${BITCODE_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
 
 set (CMAKE_C_LINK_FLAGS "-Wl,-search_paths_first ${CMAKE_C_LINK_FLAGS}")
 set (CMAKE_CXX_LINK_FLAGS "-Wl,-search_paths_first ${CMAKE_CXX_LINK_FLAGS}")
