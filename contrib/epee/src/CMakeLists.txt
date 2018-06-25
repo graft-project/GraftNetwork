@@ -27,9 +27,9 @@
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 if (USE_READLINE AND GNU_READLINE_FOUND)
-  add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp string_tools.cpp memwipe.c readline_buffer.cpp)
+  add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp string_tools.cpp memwipe.c async_state_machine.cpp readline_buffer.cpp)
 else()
-  add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp string_tools.cpp memwipe.c)
+  add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp string_tools.cpp memwipe.c async_state_machine.cpp)
 endif()
 
 if(HAVE_C11)

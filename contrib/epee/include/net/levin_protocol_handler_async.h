@@ -51,11 +51,17 @@ namespace epee
 namespace levin
 {
 
+using async_state_machine=cblp::async_callback_state_machine;
+
+
 /************************************************************************/
 /*                                                                      */
 /************************************************************************/
 template<class t_connection_context>
 class async_protocol_handler;
+
+template<class t_arg, class t_result, class t_transport, class t_connection_context>
+  struct invoke_remote_command2_state_machine;
 
 template<class t_connection_context>
 class async_protocol_handler_config
@@ -68,9 +74,13 @@ class async_protocol_handler_config
   void del_connection(async_protocol_handler<t_connection_context>* pc);
 
   async_protocol_handler<t_connection_context>* find_connection(boost::uuids::uuid connection_id) const;
+public:
   int find_and_lock_connection(boost::uuids::uuid connection_id, async_protocol_handler<t_connection_context>*& aph);
 
   friend class async_protocol_handler<t_connection_context>;
+//  friend template<class t_arg, class t_result, class t_transport, class t_connection_context>
+//  struct invoke_remote_command2_state_machine<class t_arg : public async_state_machine
+
 
 public:
   typedef t_connection_context connection_context;
@@ -148,15 +158,15 @@ public:
     virtual void reset_timer()=0;
   };
   template <class callback_t>
-  struct anvoke_handler: invoke_response_handler_base
+  struct invoke_handler: invoke_response_handler_base
   {
-    anvoke_handler(const callback_t& cb, uint64_t timeout,  async_protocol_handler& con, int command)
+    invoke_handler(const callback_t& cb, uint64_t timeout,  async_protocol_handler& con, int command)
       :m_cb(cb), m_timeout(timeout), m_con(con), m_timer(con.m_pservice_endpoint->get_io_service()), m_timer_started(false),
       m_cancel_timer_called(false), m_timer_cancelled(false), m_command(command)
     {
       if(m_con.start_outer_call())
       {
-        MDEBUG(con.get_context_ref() << "anvoke_handler, timeout: " << timeout);
+        MDEBUG(con.get_context_ref() << "invoke_handler, timeout: " << timeout);
         m_timer.expires_from_now(boost::posix_time::milliseconds(timeout));
         m_timer.async_wait([&con, command, cb, timeout](const boost::system::error_code& ec)
         {
@@ -171,7 +181,7 @@ public:
         m_timer_started = true;
       }
     }
-    virtual ~anvoke_handler()
+    virtual ~invoke_handler()
     {}
     callback_t m_cb;
     async_protocol_handler& m_con;
@@ -242,7 +252,7 @@ public:
   bool add_invoke_response_handler(callback_t cb, uint64_t timeout,  async_protocol_handler& con, int command)
   {
     CRITICAL_REGION_LOCAL(m_invoke_response_handlers_lock);
-    boost::shared_ptr<invoke_response_handler_base> handler(boost::make_shared<anvoke_handler<callback_t>>(cb, timeout, con, command));
+    boost::shared_ptr<invoke_response_handler_base> handler(boost::make_shared<invoke_handler<callback_t>>(cb, timeout, con, command));
     m_invoke_response_handlers.push_back(handler);
     return handler->is_timer_started();
   }
@@ -563,6 +573,12 @@ public:
         break;
       }
 
+      if(!add_invoke_response_handler(cb, timeout, *this, command))
+      {
+        err_code = LEVIN_ERROR_CONNECTION_DESTROYED;
+        break;
+      }
+
       if(!m_pservice_endpoint->do_send(in_buff.data(), (int)in_buff.size()))
       {
         LOG_ERROR_CC(m_connection_context, "Failed to do_send");
@@ -570,11 +586,6 @@ public:
         break;
       }
 
-      if(!add_invoke_response_handler(cb, timeout, *this, command))
-      {
-        err_code = LEVIN_ERROR_CONNECTION_DESTROYED;
-        break;
-      }
       CRITICAL_REGION_END();
     } while (false);
 
@@ -867,5 +878,9 @@ bool async_protocol_handler_config<t_connection_context>::request_callback(boost
     return false;
   }
 }
+
+
+
+
 }
 }
