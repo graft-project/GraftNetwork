@@ -94,7 +94,7 @@ library archives (`.a`).
 | CMake          | 3.0.0         | NO       | `cmake`            | `cmake`        | NO       |                |
 | pkg-config     | any           | NO       | `pkg-config`       | `base-devel`   | NO       |                |
 | Boost          | 1.58          | NO       | `libboost-all-dev` | `boost`        | NO       | C++ libraries  |
-| OpenSSL        | basically any | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
+| OpenSSL        | 1.0.2^^       | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
 | libunbound     | 1.4.16        | YES      | `libunbound-dev`   | `unbound`      | NO       | DNS resolver   |
 | libminiupnpc   | 2.0           | YES      | `libminiupnpc-dev` | `miniupnpc`    | YES      | NAT punching   |
 | libunwind      | any           | NO       | `libunwind8-dev`   | `libunwind`    | YES      | Stack traces   |
@@ -107,6 +107,8 @@ library archives (`.a`).
 
 [^] On Debian/Ubuntu `libgtest-dev` only includes sources and headers. You must
 build the library binary manually. This can be done with the following command ```sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/ ```
+
+[^^] OpenSSL 1.1.0 is a default version of OpenSSL package for Ubuntu 18.04 LTS Bionic. However, OpenSSL 1.1.0 is not supported by the project as of now (some interfaces have been renamed or removed in version 1.1.0), so be sure you use OpenSSL 1.0.2 or earlier. To install OpenSSL 1.0.2 on Ubuntu 18.04 use `libssl1.0-dev` package.
 
 ### Build instructions
 
