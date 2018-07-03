@@ -423,9 +423,9 @@ namespace nodetool
     }
     else if (testnet)
     {
-      full_addrs.insert("34.204.170.120:28880");
-      full_addrs.insert("54.88.58.35:28880");
-      full_addrs.insert("34.228.64.99:28880");
+      full_addrs.insert("34.239.181.212:28680");
+      full_addrs.insert("54.145.210.249:28680");
+      full_addrs.insert("54.236.111.68:28680");
     }
     else
     {
@@ -963,6 +963,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
+      std::cout << "handle_supernode_announce start" << std::endl;
       std::string supernode_str = arg.supernode_addr;
 //      LOG_PRINT_L0(__FUNCTION__);
       MINFO(__FUNCTION__);
@@ -970,7 +971,8 @@ namespace nodetool
       // TODO: signature verification
       //  if verification failed
       //    return 1;
-
+    std::cout << "handle_supernode_announce" << std::endl;
+    std::cout << arg.supernode_addr << std::endl;
       do {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (!m_have_supernode)
@@ -1015,7 +1017,7 @@ namespace nodetool
       std::string arg_buff;
       epee::serialization::store_t_to_binary(arg, arg_buff);
       relay_notify_to_all(command, arg_buff, context /*exclude*/);
-
+      std::cout << "handle_supernode_announce end" << std::endl;
       return 1;
   }
 
@@ -2061,6 +2063,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
   {
+      std::cout << "do_supernode_announce start" << std::endl;
 //     LOG_PRINT_L0("Incoming supernode announce request");
     MINFO("Incoming supernode announce request");
 
@@ -2074,11 +2077,14 @@ namespace nodetool
     // send to peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
         MINFO("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
+        std::cout << "Send announce" << std::endl;
         if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
+            std::cout << "Add announce" << std::endl;
             announced_peers.insert(context.peer_id);
             return true;
         }
         else {
+            std::cout << "False announce" << std::endl;
             return false;
         }
     });
@@ -2086,14 +2092,17 @@ namespace nodetool
     std::list<peerlist_entry> peerlist_white, peerlist_gray;
     m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
     std::vector<peerlist_entry> peers_to_send;
+    std::cout << "check peers " << announced_peers.size() << std::endl;
     for (auto pe :peerlist_white) {
+        std::cout << "peerlist_white" << std::endl;
         if ( announced_peers.find(pe.id) != announced_peers.end() )
+            std::cout << "find announce" << std::endl;
             continue;
         peers_to_send.push_back(pe);
     }
 
     notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
-
+    std::cout << "do_supernode_announce end" << std::endl;
   }
 
   //-----------------------------------------------------------------------------------

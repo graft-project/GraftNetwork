@@ -453,7 +453,7 @@ namespace net_utils
         }
 
         if(conn->m_was_shutdown)
-          return;// false;
+          return false;
 
         do {
           CRITICAL_REGION_LOCAL(conn->m_throttle_speed_out_mutex);

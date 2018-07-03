@@ -1760,6 +1760,7 @@ namespace cryptonote
 
   bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
   {
+      LOG_PRINT_L0("on_supernode_announce start");
       if(!check_core_busy())
       {
         error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
@@ -1804,6 +1805,7 @@ namespace cryptonote
       m_p2p.supernode_set(req.supernode_addr, req.callback_url);
       m_p2p.do_supernode_announce(req);
       res.status = CORE_RPC_STATUS_OK;
+      LOG_PRINT_L0("on_supernode_announce end");
       return true;
   }
 
