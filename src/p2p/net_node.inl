@@ -978,8 +978,13 @@ namespace nodetool
           if (supernode_str != m_supernode_str )
               break;
 
-          return 1;
           // TODO: http call to Supernode
+          COMMAND_SUPERNODE_ANNOUNCE::response resp = AUTO_VAL_INIT(resp);
+          bool r = epee::net_utils::invoke_http_json(m_supernode_uri, arg, resp, m_supernode_client);
+          if (!r || resp.status == 0) {
+              return 0;
+          }
+          return 1;
       } while(0);
 
       do {

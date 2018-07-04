@@ -356,6 +356,8 @@ namespace nodetool
             m_supernode_http_addr = parsed.host + ":" +std::to_string(parsed.port);
             m_supernode_uri = std::move(parsed.uri);
         }
+        boost::optional<epee::net_utils::http::login> supernode_login;
+        m_supernode_client.set_server(m_supernode_http_addr, supernode_login);
         m_have_supernode = true;
     }
 
@@ -381,7 +383,7 @@ namespace nodetool
     bool m_have_supernode;
     std::string m_supernode_http_addr; // host:port
     std::string m_supernode_uri;
-//    epee::net_utils::http::http_simple_client m_supernode_client;
+    epee::net_utils::http::http_simple_client m_supernode_client;
     boost::recursive_mutex m_supernode_lock;
 
     std::string m_config_folder;
