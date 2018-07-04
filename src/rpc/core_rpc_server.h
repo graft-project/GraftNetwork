@@ -126,7 +126,9 @@ namespace cryptonote
         MAP_JON_RPC_WE_IF("relay_tx",            on_relay_tx,                   COMMAND_RPC_RELAY_TX, !m_restricted)
         MAP_JON_RPC_WE_IF("sync_info",           on_sync_info,                  COMMAND_RPC_SYNC_INFO, !m_restricted)
         MAP_JON_RPC_WE("get_txpool_backlog",     on_get_txpool_backlog,         COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG)
-    // Graft RTA handlers start here
+      END_JSON_RPC_MAP()
+      // Graft RTA handlers start here
+      BEGIN_JSON_RPC_MAP("/json_rpc/rta")
         MAP_JON_RPC_WE("supernode_announce",     on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
         MAP_JON_RPC_WE("tx_to_sign",             on_tx_to_sign,                 COMMAND_RPC_TX_TO_SIGN)
         MAP_JON_RPC_WE("signed_tx",              on_signed_tx,                  COMMAND_RPC_SIGNED_TX)
