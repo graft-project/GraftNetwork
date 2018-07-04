@@ -356,8 +356,14 @@ namespace nodetool
             m_supernode_http_addr = parsed.host + ":" +std::to_string(parsed.port);
             m_supernode_uri = std::move(parsed.uri);
         }
-        boost::optional<epee::net_utils::http::login> supernode_login;
-        m_supernode_client.set_server(m_supernode_http_addr, supernode_login);
+        if ((parsed.host != m_supernode_client.get_host())
+                && (std::to_string(parsed.port) != m_supernode_client.get_port())) {
+            if (m_supernode_client.is_connected()) {
+                m_supernode_client.disconnect();
+            }
+            boost::optional<epee::net_utils::http::login> supernode_login;
+            m_supernode_client.set_server(m_supernode_http_addr, supernode_login);
+        }
         m_have_supernode = true;
     }
 
