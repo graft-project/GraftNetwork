@@ -964,6 +964,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
       std::cout << "handle_supernode_announce start" << std::endl;
+
+      static std::string supernode_endpoint("/send_supernode_announce");
+
       std::string supernode_str = arg.supernode_addr;
 //      LOG_PRINT_L0(__FUNCTION__);
       MINFO(__FUNCTION__);
@@ -981,7 +984,8 @@ namespace nodetool
               break;
 
           COMMAND_SUPERNODE_ANNOUNCE::response resp = AUTO_VAL_INIT(resp);
-          bool r = epee::net_utils::invoke_http_json(m_supernode_uri, arg, resp, m_supernode_client);
+          bool r = epee::net_utils::invoke_http_json(m_supernode_uri + supernode_endpoint,
+                                                     arg, resp, m_supernode_client);
           if (!r || resp.status == 0) {
               return 0;
           }
@@ -2071,12 +2075,12 @@ namespace nodetool
 //     LOG_PRINT_L0("Incoming supernode announce request");
     MINFO("Incoming supernode announce request");
 
-    COMMAND_SUPERNODE_ANNOUNCE::request req_;
-    req_.timestamp = req.timestamp;
-    req_.supernode_addr = req.supernode_addr;
-    req_.signature = req.signature;
+//    COMMAND_SUPERNODE_ANNOUNCE::request req_;
+//    req_.timestamp = req.timestamp;
+//    req_.supernode_addr = req.supernode_addr;
+//    req_.signature = req.signature;
     std::string blob;
-    epee::serialization::store_t_to_binary(req_, blob);
+    epee::serialization::store_t_to_binary(req, blob);
     std::set<peerid_type> announced_peers;
     // send to peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
@@ -2122,6 +2126,46 @@ namespace nodetool
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req)
   {
+      LOG_PRINT_L0("Incoming tx_to_sign request");
+
+//      std::string auth_supernode_addr;
+//      std::string requ_supernode_addr;
+//      tx_to_sign_request tx_request;
+//      std::string signature;
+
+//      std::string requ_wallet_address;
+//      std::list<std::string> auth_wallet_addresses;
+//      std::vector<uint8_t> tx;
+//      std::string signature;
+
+      COMMAND_TX_TO_SIGN::request req_;
+//      req_.supernode_addr = req.supernode_addr;
+//      req_.signature = req.signature;
+//      std::string blob;
+//      epee::serialization::store_t_to_binary(req_, blob);
+//      std::set<peerid_type> announced_peers;
+//          // send to peers
+//          m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
+//              MINFO("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
+//              if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
+//                  announced_peers.insert(context.peer_id);
+//                  return true;
+//              }
+//              else {
+//                  return false;
+//              }
+//          });
+
+//          std::list<peerlist_entry> peerlist_white, peerlist_gray;
+//          m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
+//          std::vector<peerlist_entry> peers_to_send;
+//          for (auto pe :peerlist_white) {
+//              if ( announced_peers.find(pe.id) != announced_peers.end() )
+//                  continue;
+//              peers_to_send.push_back(pe);
+//          }
+
+//          notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
   }
 
 

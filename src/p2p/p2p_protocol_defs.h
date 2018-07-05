@@ -590,6 +590,7 @@ namespace nodetool
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
+  //TODO: Look unused
   struct NOTIFY_SUPERNODE_ANNOUNCE
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 10;
