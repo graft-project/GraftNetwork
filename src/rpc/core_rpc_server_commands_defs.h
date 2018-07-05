@@ -1695,21 +1695,33 @@ namespace cryptonote
   // TODO: probably it make sense to just use one set of structures for both p2p and rpc, structures seems to be the same
   struct COMMAND_RPC_SEND_SUPERNODE_ANNOUNCE
   {
+    struct SignedKeyImageStr
+    {
+      std::string key_image;
+      std::string signature;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(key_image)
+        KV_SERIALIZE(signature)
+      END_KV_SERIALIZE_MAP()
+    };
+
     struct request
     {
+      std::vector<SignedKeyImageStr> signed_key_images;
       uint64_t timestamp;
-      std::string address; // wallet address
-      uint64_t  stake_amount;
-      std::string signature;
-      std::string key_images;
-      std::string callback_url; // probably rename it to "supernode_address", which is a string in  "hostname:port"/"ip:port" format
+      std::string address;
+      uint64_t stake_amount;
+      uint64_t height;
+      std::string secret_viewkey;
+      std::string network_address;
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(signed_key_images)
         KV_SERIALIZE(timestamp)
         KV_SERIALIZE(address)
         KV_SERIALIZE(stake_amount)
-        KV_SERIALIZE(signature)
-        KV_SERIALIZE(key_images)
-        KV_SERIALIZE(callback_url)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(secret_viewkey)
+        KV_SERIALIZE(network_address)
       END_KV_SERIALIZE_MAP()
     };
 

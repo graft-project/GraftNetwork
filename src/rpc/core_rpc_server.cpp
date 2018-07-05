@@ -1767,6 +1767,8 @@ namespace cryptonote
         return false;
       }
 
+      LOG_PRINT_L0("req: " << req.address);
+
       // validate input parameters
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
       if (!validate_wallet_address(req.address, m_testnet))
@@ -1801,7 +1803,7 @@ namespace cryptonote
 ////    }
 
       // send p2p announce
-      m_p2p.supernode_set(req.address, /*req.callback_url*/"");
+      // m_p2p.supernode_set(req.address, /*req.callback_url*/"");
       m_p2p.send_supernode_announce(req);
       res.status = CORE_RPC_STATUS_OK;
       return true;

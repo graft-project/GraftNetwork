@@ -2046,40 +2046,40 @@ namespace nodetool
   {
     LOG_PRINT_L0("Incoming supernode announce request");
 
-    COMMAND_SUPERNODE_ANNOUNCE::request req_;
-    req_.timestamp = req.timestamp;
-    req_.supernode_addr = req.address;
-    req_.signature = req.signature;
-    // TODO: add same fields to COMMAND_SUPERNODE_ANNOUNCE
-    std::string blob;
-    epee::serialization::store_t_to_binary(req_, blob);
-    std::set<peerid_type> announced_peers;
-    // send to peers
-    m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-        // LOG_PRINT_L0("sending NOTIFY_SUPERNODE_ANNOUNCE to " << context.peer_id);
-        LOG_PRINT_L0("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
-        // return this->invoke_notify_to_peer(NOTIFY_SUPERNODE_ANNOUNCE::ID, blob, context);
-//        std::string resp;
-        if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
-            announced_peers.insert(context.peer_id);
-            return true;
-        }
-        else {
-            return false;
-        }
-        // return this->invoke_notify_to_peer(COMMAND_SUPERNODE_ANONCE::ID, blob, context);
-    });
+//    COMMAND_SUPERNODE_ANNOUNCE::request req_;
+//    req_.timestamp = req.timestamp;
+//    req_.supernode_addr = req.address;
+//    req_.signature = req.signature;
+//    // TODO: add same fields to COMMAND_SUPERNODE_ANNOUNCE
+//    std::string blob;
+//    epee::serialization::store_t_to_binary(req_, blob);
+//    std::set<peerid_type> announced_peers;
+//    // send to peers
+//    m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
+//        // LOG_PRINT_L0("sending NOTIFY_SUPERNODE_ANNOUNCE to " << context.peer_id);
+//        LOG_PRINT_L0("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
+//        // return this->invoke_notify_to_peer(NOTIFY_SUPERNODE_ANNOUNCE::ID, blob, context);
+////        std::string resp;
+//        if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
+//            announced_peers.insert(context.peer_id);
+//            return true;
+//        }
+//        else {
+//            return false;
+//        }
+//        // return this->invoke_notify_to_peer(COMMAND_SUPERNODE_ANONCE::ID, blob, context);
+//    });
 
-    std::list<peerlist_entry> peerlist_white, peerlist_gray;
-    m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
-    std::vector<peerlist_entry> peers_to_send;
-    for (auto pe :peerlist_white) {
-        if ( announced_peers.find(pe.id) != announced_peers.end() )
-            continue;
-        peers_to_send.push_back(pe);
-    }
+//    std::list<peerlist_entry> peerlist_white, peerlist_gray;
+//    m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
+//    std::vector<peerlist_entry> peers_to_send;
+//    for (auto pe :peerlist_white) {
+//        if ( announced_peers.find(pe.id) != announced_peers.end() )
+//            continue;
+//        peers_to_send.push_back(pe);
+//    }
 
-    notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
+//    notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
 
   }
 
