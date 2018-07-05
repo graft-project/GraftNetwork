@@ -129,7 +129,7 @@ namespace cryptonote
       END_JSON_RPC_MAP()
       // Graft RTA handlers start here
       BEGIN_JSON_RPC_MAP("/json_rpc/rta")
-        MAP_JON_RPC_WE("supernode_announce",     on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
+        MAP_JON_RPC_WE("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
         MAP_JON_RPC_WE("tx_to_sign",             on_tx_to_sign,                 COMMAND_RPC_TX_TO_SIGN)
         MAP_JON_RPC_WE("signed_tx",              on_signed_tx,                  COMMAND_RPC_SIGNED_TX)
         MAP_JON_RPC_WE("reject_tx",              on_reject_tx,                  COMMAND_RPC_REJECT_TX)
