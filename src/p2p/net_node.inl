@@ -982,7 +982,8 @@ namespace nodetool
 
           COMMAND_SUPERNODE_ANNOUNCE::response resp = AUTO_VAL_INIT(resp);
           bool r = epee::net_utils::invoke_http_json(m_supernode_uri + supernode_endpoint,
-                                                     arg, resp, m_supernode_client);
+                                                     arg, resp, m_supernode_client,
+                                                     std::chrono::seconds(15), "POST");
           if (!r || resp.status == 0) {
               return 0;
           }
