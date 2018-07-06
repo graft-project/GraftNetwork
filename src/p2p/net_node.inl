@@ -967,7 +967,7 @@ namespace nodetool
 
       static std::string supernode_endpoint("/send_supernode_announce");
 
-      std::string supernode_str = arg.supernode_addr;
+      std::string supernode_str = arg.address;
 //      LOG_PRINT_L0(__FUNCTION__);
       MINFO(__FUNCTION__);
 
@@ -975,7 +975,7 @@ namespace nodetool
       //  if verification failed
       //    return 1;
     std::cout << "handle_supernode_announce" << std::endl;
-    std::cout << arg.supernode_addr << std::endl;
+    std::cout << arg.address << std::endl;
       do {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (!m_have_supernode)
