@@ -1726,7 +1726,7 @@ namespace cryptonote
 
     struct response
     {
-      std::string status;
+      int64_t status;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()

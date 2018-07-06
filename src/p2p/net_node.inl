@@ -965,7 +965,7 @@ namespace nodetool
   {
       static std::string supernode_endpoint("/send_supernode_announce");
 
-      std::string supernode_str = arg.supernode_addr;
+      std::string supernode_str = arg.address;
 //      LOG_PRINT_L0(__FUNCTION__);
       MINFO(__FUNCTION__);
 

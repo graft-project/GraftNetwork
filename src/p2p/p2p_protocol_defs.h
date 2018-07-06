@@ -277,28 +277,9 @@ namespace nodetool
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 20;
 
-      struct request
-      {
-          std::string supernode_url;
-          std::string supernode_addr;
-          uint64_t timestamp;
-          std::string signature; // of serialized supernode_addr + local_time
+      struct request : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request { };
 
-          BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE(supernode_url)
-              KV_SERIALIZE(supernode_addr)
-              KV_SERIALIZE(timestamp)
-              KV_SERIALIZE(signature)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response
-      {
-          int status;
-          BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE(status)
-          END_KV_SERIALIZE_MAP()
-      };
+      struct response : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::response { };
   };
 
 
