@@ -1733,6 +1733,73 @@ namespace cryptonote
     };
   };
 
+  struct COMMAND_RPC_BROADCAST
+  {
+    struct request
+    {
+      std::string callback_uri;
+      std::string data;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_MULTICAST
+  {
+    struct request
+    {
+      std::list<std::string> addresses;
+      std::string callback_uri;
+      std::string data;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(addresses)
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_UNICAST
+  {
+    struct request
+    {
+      std::string address;
+      std::string callback_uri;
+      std::string data;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(address)
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
   struct COMMAND_RPC_TX_TO_SIGN
   {
       struct request

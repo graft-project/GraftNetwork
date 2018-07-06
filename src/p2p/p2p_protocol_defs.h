@@ -282,6 +282,23 @@ namespace nodetool
       struct response : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::response { };
   };
 
+  struct COMMAND_BROADCAST
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 21;
+
+      struct request : public cryptonote::COMMAND_RPC_BROADCAST::request { };
+
+      struct response : public cryptonote::COMMAND_RPC_BROADCAST::response { };
+  };
+
+  struct COMMAND_MULTICAST
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 22;
+
+      struct request : public cryptonote::COMMAND_RPC_MULTICAST::request { };
+
+      struct response : public cryptonote::COMMAND_RPC_MULTICAST::response { };
+  };
 
   /************************************************************************/
   /*                                                                      */

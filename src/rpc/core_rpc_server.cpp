@@ -1807,6 +1807,43 @@ namespace cryptonote
       return true;
   }
 
+  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  {
+      if(!check_core_busy())
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+        error_resp.message = "Core is busy.";
+        return false;
+      }
+
+      m_p2p.do_broadcast(req);
+      res.status = 0;
+      return true;
+  }
+
+  bool core_rpc_server::on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, json_rpc::error &error_resp)
+  {
+      if(!check_core_busy())
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+        error_resp.message = "Core is busy.";
+        return false;
+      }
+
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+      for (auto addr : req.addresses) {
+          if(!addr.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, addr)) {
+            error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+            error_resp.message = "Failed to parse wallet address";
+            return false;
+          }
+      }
+
+      m_p2p.do_multicast(req);
+      res.status = 0;
+      return true;
+  }
+
   bool core_rpc_server::on_tx_to_sign(const COMMAND_RPC_TX_TO_SIGN::request& req, COMMAND_RPC_TX_TO_SIGN::response& res, epee::json_rpc::error& error_resp)
   {
       LOG_PRINT_L0(__FUNCTION__);

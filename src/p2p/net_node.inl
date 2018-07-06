@@ -781,6 +781,34 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::multicast_send(int command, const string &data, const std::list<string> &addresses)
+  {
+      std::vector<peerlist_entry> tunnels;
+      {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          for (auto addr : addresses) {
+              auto it = m_supernode_routes.find(addr);
+              if (it == m_supernode_routes.end()) {
+                  continue;
+              }
+              std::vector<peerlist_entry> addr_tunnels = (*it).second.peers;
+              for (peerlist_entry addr_tunnel : addr_tunnels) {
+                  auto tunnel_it = std::find_if(tunnels.begin(), tunnels.end(),
+                                                [addr_tunnel](const peerlist_entry &entry) -> bool {
+                      return entry.id == addr_tunnel.id;
+                  });
+                  if (tunnel_it == tunnels.end()) {
+                      tunnels.push_back(addr_tunnel);
+                  }
+              }
+          }
+      }
+
+      return notify_peer_list(command, data, tunnels);
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_tx_to_sign(int command, COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context)
   {
       // crypto::public_key destination = arg.auth_supernode_addr;
@@ -987,7 +1015,6 @@ namespace nodetool
           if (!r || resp.status == 0) {
               return 0;
           }
-          return 1;
       } while(0);
 
       do {
@@ -1019,7 +1046,7 @@ namespace nodetool
 
       } while(0);
 
-      // Notify neighbours about new ANONCE
+      // Notify neighbours about new ANNOUNCE
       std::string arg_buff;
       epee::serialization::store_t_to_binary(arg, arg_buff);
       relay_notify_to_all(command, arg_buff, context /*exclude*/);
@@ -1027,6 +1054,50 @@ namespace nodetool
       return 1;
   }
 
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
+  {
+      {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (m_have_supernode) {
+              COMMAND_BROADCAST::response resp = AUTO_VAL_INIT(resp);
+              bool r = epee::net_utils::invoke_http_json(m_supernode_uri + arg.callback_uri,
+                                                         arg, resp, m_supernode_client,
+                                                         std::chrono::seconds(15), "POST");
+              if (!r || resp.status == 0) {
+                  return 0;
+              }
+          }
+      }
+
+      std::string buff;
+      epee::serialization::store_t_to_binary(arg, buff);
+      relay_notify_to_all(command, buff, context);
+      return 1;
+  }
+
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
+  {
+      std::list<std::string> addresses = arg.addresses;
+      {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
+          if (m_have_supernode && it != addresses.end()) {
+              COMMAND_MULTICAST::response resp = AUTO_VAL_INIT(resp);
+              bool r = epee::net_utils::invoke_http_json(m_supernode_uri + arg.callback_uri,
+                                                         arg, resp, m_supernode_client,
+                                                         std::chrono::seconds(15), "POST");
+              if (!r || resp.status == 0) {
+                  return 0;
+              }
+          }
+      }
+
+      std::string buff;
+      epee::serialization::store_t_to_binary(arg, buff);
+      multicast_send(command, buff, arg.addresses);
+  }
 
 //  //-----------------------------------------------------------------------------------
 
@@ -2106,6 +2177,50 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req)
+  {
+      LOG_PRINT_L0("Incoming broadcast request");
+
+      std::string blob;
+      epee::serialization::store_t_to_binary(req, blob);
+      std::set<peerid_type> announced_peers;
+      // send to peers
+      m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
+          MINFO("sending COMMAND_BROADCAST to " << context.peer_id);
+          if (invoke_notify_to_peer(COMMAND_BROADCAST::ID, blob, context)) {
+              announced_peers.insert(context.peer_id);
+              return true;
+          }
+          else {
+              return false;
+          }
+      });
+
+      std::list<peerlist_entry> peerlist_white, peerlist_gray;
+      m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
+      std::vector<peerlist_entry> peers_to_send;
+      for (auto pe :peerlist_white) {
+          if ( announced_peers.find(pe.id) != announced_peers.end() )
+              continue;
+          peers_to_send.push_back(pe);
+      }
+
+      notify_peer_list(COMMAND_BROADCAST::ID, blob, peers_to_send);
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_multicast(const cryptonote::COMMAND_RPC_MULTICAST::request &req)
+  {
+      LOG_PRINT_L0("Incoming multicast request");
+
+      std::string blob;
+      epee::serialization::store_t_to_binary(req, blob);
+      multicast_send(COMMAND_MULTICAST::ID, blob, req.addresses);
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req)
   {
     MINFO("Incoming rta authorize tx request");
@@ -2117,46 +2232,6 @@ namespace nodetool
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req)
   {
-      LOG_PRINT_L0("Incoming tx_to_sign request");
-
-//      std::string auth_supernode_addr;
-//      std::string requ_supernode_addr;
-//      tx_to_sign_request tx_request;
-//      std::string signature;
-
-//      std::string requ_wallet_address;
-//      std::list<std::string> auth_wallet_addresses;
-//      std::vector<uint8_t> tx;
-//      std::string signature;
-
-      COMMAND_TX_TO_SIGN::request req_;
-//      req_.supernode_addr = req.supernode_addr;
-//      req_.signature = req.signature;
-//      std::string blob;
-//      epee::serialization::store_t_to_binary(req_, blob);
-//      std::set<peerid_type> announced_peers;
-//          // send to peers
-//          m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-//              MINFO("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
-//              if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
-//                  announced_peers.insert(context.peer_id);
-//                  return true;
-//              }
-//              else {
-//                  return false;
-//              }
-//          });
-
-//          std::list<peerlist_entry> peerlist_white, peerlist_gray;
-//          m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
-//          std::vector<peerlist_entry> peers_to_send;
-//          for (auto pe :peerlist_white) {
-//              if ( announced_peers.find(pe.id) != announced_peers.end() )
-//                  continue;
-//              peers_to_send.push_back(pe);
-//          }
-
-//          notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
   }
 
 
