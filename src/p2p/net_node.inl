@@ -1015,6 +1015,7 @@ namespace nodetool
           if (!r || resp.status == 0) {
               return 0;
           }
+          return 1;
       } while(0);
 
       do {
