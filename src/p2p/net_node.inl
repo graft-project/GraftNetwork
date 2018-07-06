@@ -1026,32 +1026,36 @@ namespace nodetool
 
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           auto it = m_supernode_routes.find(supernode_str);
-          if (it != m_supernode_routes.end() && (*it).second.last_anonce_time > arg.timestamp) {
-//              LOG_PRINT_L0("SUPERNODE_ANNOUNCE from " << context.peer_id << " too old, corrent route timestamp " << (*it).second.last_anonce_time );
-              MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id << " too old, corrent route timestamp " << (*it).second.last_anonce_time );
-              return 1;
-          }
-
-          if ( it == m_supernode_routes.end() ) {
-              std::vector<peerlist_entry> vec;
-              vec.push_back(pe);
+          if (it == m_supernode_routes.end()) {
+              std::vector<peerlist_entry> peer_vec;
+              peer_vec.push_back(pe);
+              nodetool::supernode_route route;
+              route.last_announce_time = arg.timestamp;
+              route.peers = peer_vec;
+              m_supernode_routes[supernode_str] = route;
               break;
           }
 
-          if ((*it).second.last_anonce_time == arg.timestamp && (*it).second.peers.size() < MAX_TUNNEL_PEERS) {
+          if ((*it).second.last_announce_time > arg.timestamp) {
+              MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
+                    << " too old, corrent route timestamp " << (*it).second.last_announce_time);
+              return 1;
+          }
+
+          if ((*it).second.last_announce_time == arg.timestamp
+                  && (*it).second.peers.size() < MAX_TUNNEL_PEERS) {
               (*it).second.peers.push_back(pe);
               break;
           }
           (*it).second.peers.resize(0);
           (*it).second.peers.push_back(pe);
-
+          (*it).second.last_announce_time = arg.timestamp;
       } while(0);
 
       // Notify neighbours about new ANNOUNCE
       std::string arg_buff;
       epee::serialization::store_t_to_binary(arg, arg_buff);
-      relay_notify_to_all(command, arg_buff, context /*exclude*/);
-
+      relay_notify_to_all(command, arg_buff, context);
       return 1;
   }
 

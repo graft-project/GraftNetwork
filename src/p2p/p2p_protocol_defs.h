@@ -164,7 +164,7 @@ namespace nodetool
   struct supernode_route
   {
       crypto::public_key addr;
-      uint64_t last_anonce_time;
+      uint64_t last_announce_time;
       std::vector<peerlist_entry> peers;
   };
 
