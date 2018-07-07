@@ -786,6 +786,15 @@ namespace nodetool
       std::vector<peerlist_entry> tunnels;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          std::cout << "Supernode routes:" << std::endl;
+          std::cout << "Size: " << m_supernode_routes.size() << std::endl;
+          for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it) {
+              std::cout << (*it).first << " " << (*it).second.peers.size() << std::endl;
+              for (auto v : (*it).second.peers) {
+                  std::cout << v.id << " " << v.adr.str() << std::endl;
+              }
+          }
+
           for (auto addr : addresses) {
               auto it = m_supernode_routes.find(addr);
               if (it == m_supernode_routes.end()) {
@@ -1054,6 +1063,14 @@ namespace nodetool
           (*it).second.peers.push_back(pe);
           (*it).second.last_announce_time = arg.timestamp;
       } while(0);
+      std::cout << "Supernode routes:" << std::endl;
+      std::cout << "Size: " << m_supernode_routes.size() << std::endl;
+      for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it) {
+          std::cout << (*it).first << " " << (*it).second.peers.size() << std::endl;
+          for (auto v : (*it).second.peers) {
+              std::cout << v.id << " " << v.adr.str() << std::endl;
+          }
+      }
 
       // Notify neighbours about new ANNOUNCE
       std::string arg_buff;
