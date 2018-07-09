@@ -791,7 +791,7 @@ namespace nodetool
           for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it) {
               std::cout << (*it).first << " " << (*it).second.peers.size() << std::endl;
               for (auto v : (*it).second.peers) {
-                  std::cout << v.id << " " << v.adr.str() << std::endl;
+                  std::cout << v.second.id << " " << v.second.adr.str() << std::endl;
               }
           }
 
@@ -1072,7 +1072,7 @@ namespace nodetool
       for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it) {
           std::cout << (*it).first << " " << (*it).second.peers.size() << std::endl;
           for (auto v : (*it).second.peers) {
-              std::cout << v.id << " " << v.adr.str() << std::endl;
+              std::cout << v.second.id << " " << v.second.adr.str() << std::endl;
           }
       }
 
