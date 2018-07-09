@@ -69,6 +69,8 @@
 
 #define MIN_WANTED_SEED_NODES 12
 
+#define MAX_TUNNEL_PEERS (3u)
+
 namespace nodetool
 {
   namespace
@@ -753,7 +755,6 @@ namespace nodetool
     return true;
   }
 
-#define MAX_TUNNEL_PEERS (3u)
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send)
   {
@@ -762,21 +763,19 @@ namespace nodetool
           p2p_connection_context con = AUTO_VAL_INIT(con);
           bool is_conneted = find_connection_context_by_peer_id(pe.id, con);
           if (is_conneted) {
-              if (relay_notify(command, buf, con) >= 0)
-                  return true;
-          }
-          else {
+              relay_notify(command, buf, con);
+          } else {
               const epee::net_utils::network_address& na = pe.adr;
               const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
 
               if (m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
-                                         epee::string_tools::num_to_string_fast(ipv4.port()),
-                                         m_config.m_net_config.connection_timeout, con, m_bind_ip)
-                      && relay_notify(command, buf, con) >= 0)
-                  return true;
+                                       epee::string_tools::num_to_string_fast(ipv4.port()),
+                                       m_config.m_net_config.connection_timeout, con, m_bind_ip)) {
+                  relay_notify(command, buf, con);
+              }
           }
       }
-      return false;
+      return true;
   }
 
   //-----------------------------------------------------------------------------------
