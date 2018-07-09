@@ -165,7 +165,7 @@ namespace nodetool
   {
       crypto::public_key addr;
       uint64_t last_announce_time;
-      std::vector<peerlist_entry> peers;
+      std::map<peerid_type, peerlist_entry> peers;
   };
 
   struct tx_to_sign_request

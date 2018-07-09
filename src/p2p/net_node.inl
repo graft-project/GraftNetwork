@@ -800,8 +800,9 @@ namespace nodetool
               if (it == m_supernode_routes.end()) {
                   continue;
               }
-              std::vector<peerlist_entry> addr_tunnels = (*it).second.peers;
-              for (peerlist_entry addr_tunnel : addr_tunnels) {
+              std::map<peerid_type, peerlist_entry> addr_tunnels = (*it).second.peers;
+              for (auto peer_it = addr_tunnels.begin(); peer_it != addr_tunnels.end(); ++peer_it) {
+                  peerlist_entry addr_tunnel = (*peer_it).second;
                   auto tunnel_it = std::find_if(tunnels.begin(), tunnels.end(),
                                                 [addr_tunnel](const peerlist_entry &entry) -> bool {
                       return entry.id == addr_tunnel.id;
@@ -861,8 +862,8 @@ namespace nodetool
           auto it = m_supernode_routes.find(dest_str);
           if ( it == m_supernode_routes.end() )
               return 1;
-
-          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+//TODO: Fix
+//          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
       } while(0);
 
       std::string arg_buff;
@@ -922,8 +923,8 @@ namespace nodetool
           auto it = m_supernode_routes.find(dest_str);
           if ( it == m_supernode_routes.end() )
               return 1;
-
-          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+//TODO: Fix
+//          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
       } while(0);
 
       std::string arg_buff;
@@ -985,8 +986,8 @@ namespace nodetool
           auto it = m_supernode_routes.find(dest_str);
           if ( it == m_supernode_routes.end() )
               return 1;
-
-          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
+//TODO: Fix
+//          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
       } while(0);
 
       std::string arg_buff;
@@ -1039,11 +1040,11 @@ namespace nodetool
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           auto it = m_supernode_routes.find(supernode_str);
           if (it == m_supernode_routes.end()) {
-              std::vector<peerlist_entry> peer_vec;
-              peer_vec.push_back(pe);
+              std::map<peerid_type, peerlist_entry> peer_map;
+              peer_map[pe.id] = pe;
               nodetool::supernode_route route;
               route.last_announce_time = arg.timestamp;
-              route.peers = peer_vec;
+              route.peers = peer_map;
               m_supernode_routes[supernode_str] = route;
               break;
           }
@@ -1056,11 +1057,14 @@ namespace nodetool
 
           if ((*it).second.last_announce_time == arg.timestamp
                   && (*it).second.peers.size() < MAX_TUNNEL_PEERS) {
-              (*it).second.peers.push_back(pe);
+              auto peer_it = (*it).second.peers.find(pe.id);
+              if (peer_it == (*it).second.peers.end()) {
+                  (*it).second.peers[pe.id] = pe;
+              }
               break;
           }
-          (*it).second.peers.resize(0);
-          (*it).second.peers.push_back(pe);
+          (*it).second.peers.clear();
+          (*it).second.peers[pe.id] = pe;
           (*it).second.last_announce_time = arg.timestamp;
       } while(0);
       std::cout << "Supernode routes:" << std::endl;
@@ -1122,7 +1126,8 @@ namespace nodetool
 
       std::string buff;
       epee::serialization::store_t_to_binary(arg, buff);
-      multicast_send(command, buff, arg.addresses);
+      multicast_send(command, buff, addresses);
+      return 1;
   }
 
 //  //-----------------------------------------------------------------------------------
