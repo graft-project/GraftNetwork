@@ -1105,6 +1105,7 @@ namespace nodetool
 
       std::string buff;
       epee::serialization::store_t_to_binary(arg, buff);
+      addresses.remove(m_supernode_str);
       multicast_send(command, buff, addresses);
       return 1;
   }
