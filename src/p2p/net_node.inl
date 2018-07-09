@@ -780,7 +780,8 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::multicast_send(int command, const string &data, const std::list<string> &addresses)
+  bool node_server<t_payload_net_handler>::multicast_send(int command, const string &data, const std::list<string> &addresses,
+                                                          const std::list<peerid_type> &exclude_peerids)
   {
       std::vector<peerlist_entry> tunnels;
       {
@@ -808,7 +809,9 @@ namespace nodetool
                       return entry.id == addr_tunnel.id;
                   });
                   std::cout << addr_tunnel.id << std::endl;
-                  if (tunnel_it == tunnels.end()) {
+                  auto exclude_it = std::find(exclude_peerids.begin(), exclude_peerids.end(),
+                                              addr_tunnel.id);
+                  if (tunnel_it == tunnels.end() && exclude_it == exclude_peerids.end()) {
                       std::cout << "Added tunnel" << std::endl;
                       tunnels.push_back(addr_tunnel);
                   }
@@ -1127,11 +1130,13 @@ namespace nodetool
               }
           }
       }
+      std::list<peerid_type> exclude_peers;
+      exclude_peers.push_back(context.peer_id);
 
       std::string buff;
       epee::serialization::store_t_to_binary(arg, buff);
       addresses.remove(m_supernode_str);
-      multicast_send(command, buff, addresses);
+      multicast_send(command, buff, addresses, exclude_peers);
       return 1;
   }
 

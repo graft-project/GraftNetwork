@@ -215,7 +215,8 @@ namespace nodetool
     enum PeerType { anchor = 0, white, gray };
 
     //----------------- helper functions ------------------------------------------------
-    bool multicast_send(int command, const std::string &data, const std::list<std::string> &addresses);
+    bool multicast_send(int command, const std::string &data, const std::list<std::string> &addresses,
+                        const std::list<peerid_type> &exclude_peerids = std::list<peerid_type>());
 
     //----------------- commands handlers ----------------------------------------------
     int handle_tx_to_sign(int command, typename COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context);
