@@ -796,6 +796,7 @@ namespace nodetool
           }
 
           for (auto addr : addresses) {
+              std::cout << addr << std::endl;
               auto it = m_supernode_routes.find(addr);
               if (it == m_supernode_routes.end()) {
                   continue;
@@ -807,7 +808,9 @@ namespace nodetool
                                                 [addr_tunnel](const peerlist_entry &entry) -> bool {
                       return entry.id == addr_tunnel.id;
                   });
+                  std::cout << addr_tunnel.id << std::endl;
                   if (tunnel_it == tunnels.end()) {
+                      std::cout << "Added tunnel" << std::endl;
                       tunnels.push_back(addr_tunnel);
                   }
               }
