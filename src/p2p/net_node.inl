@@ -1112,6 +1112,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
   {
+      std::cout << "handle_multicast " << arg.callback_uri << std::endl;
       std::list<std::string> addresses = arg.addresses;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -1121,6 +1122,7 @@ namespace nodetool
               bool r = epee::net_utils::invoke_http_json(m_supernode_uri + arg.callback_uri,
                                                          arg, resp, m_supernode_client,
                                                          std::chrono::seconds(15), "POST");
+              std::cout << "Status: " << r << " " << resp.status << std::endl;
               if (!r || resp.status == 0) {
                   return 0;
               }
