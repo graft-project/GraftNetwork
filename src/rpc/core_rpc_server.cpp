@@ -1816,6 +1816,15 @@ namespace cryptonote
           return false;
       }
 
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+      std::string sender_address = req.sender_address;
+      if (!sender_address.empty() && !cryptonote::get_account_address_from_str(acc, m_testnet, sender_address))
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+          error_resp.message = "Failed to parse wallet address";
+          return false;
+      }
+
       m_p2p.do_broadcast(req);
       res.status = 0;
       return true;
@@ -1831,14 +1840,22 @@ namespace cryptonote
       }
 
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      for (auto addr : req.addresses)
+      for (auto addr : req.receiver_addresses)
       {
-          if (!addr.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, addr))
+          if (addr.empty() || !cryptonote::get_account_address_from_str(acc, m_testnet, addr))
           {
               error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
               error_resp.message = "Failed to parse wallet address";
               return false;
           }
+      }
+
+      std::string sender_address = req.sender_address;
+      if (!sender_address.empty() && !cryptonote::get_account_address_from_str(acc, m_testnet, sender_address))
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+          error_resp.message = "Failed to parse wallet address";
+          return false;
       }
 
       m_p2p.do_multicast(req);
@@ -1855,9 +1872,18 @@ namespace cryptonote
           return false;
       }
 
-      std::string address = req.address;
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      if (!address.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, address))
+
+      std::string receiver_address = req.receiver_address;
+      if (receiver_address.empty() || !cryptonote::get_account_address_from_str(acc, m_testnet, receiver_address))
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+          error_resp.message = "Failed to parse wallet address";
+          return false;
+      }
+
+      std::string sender_address = req.sender_address;
+      if (!sender_address.empty() && !cryptonote::get_account_address_from_str(acc, m_testnet, sender_address))
       {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
           error_resp.message = "Failed to parse wallet address";

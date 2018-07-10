@@ -1737,11 +1737,15 @@ namespace cryptonote
   {
     struct request
     {
+      std::string sender_address;
       std::string callback_uri;
       std::string data;
+      bool wait_answer;
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(sender_address)
         KV_SERIALIZE(callback_uri)
         KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -1758,13 +1762,17 @@ namespace cryptonote
   {
     struct request
     {
-      std::list<std::string> addresses;
+      std::list<std::string> receiver_addresses;
+      std::string sender_address;
       std::string callback_uri;
       std::string data;
+      bool wait_answer;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(addresses)
+        KV_SERIALIZE(receiver_addresses)
+        KV_SERIALIZE(sender_address)
         KV_SERIALIZE(callback_uri)
         KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -1781,13 +1789,17 @@ namespace cryptonote
   {
     struct request
     {
-      std::string address;
+      std::string receiver_address;
+      std::string sender_address;
       std::string callback_uri;
       std::string data;
+      bool wait_answer;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(address)
+        KV_SERIALIZE(receiver_address)
+        KV_SERIALIZE(sender_address)
         KV_SERIALIZE(callback_uri)
         KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
       END_KV_SERIALIZE_MAP()
     };
 

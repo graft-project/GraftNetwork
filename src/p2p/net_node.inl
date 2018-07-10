@@ -1090,7 +1090,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
   {
-      std::list<std::string> addresses = arg.addresses;
+      std::list<std::string> addresses = arg.receiver_addresses;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
@@ -1117,7 +1117,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context)
   {
-      std::string address = arg.address;
+      std::string address = arg.receiver_address;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (m_have_supernode && address == m_supernode_str) {
@@ -2261,7 +2261,7 @@ namespace nodetool
 
       std::string blob;
       epee::serialization::store_t_to_binary(req, blob);
-      multicast_send(COMMAND_MULTICAST::ID, blob, req.addresses);
+      multicast_send(COMMAND_MULTICAST::ID, blob, req.receiver_addresses);
   }
 
 //-----------------------------------------------------------------------------------
@@ -2271,7 +2271,7 @@ namespace nodetool
       LOG_PRINT_L0("Incoming unicast request");
 
       std::list<std::string> addresses;
-      addresses.push_back(req.address);
+      addresses.push_back(req.receiver_address);
 
       std::string blob;
       epee::serialization::store_t_to_binary(req, blob);
