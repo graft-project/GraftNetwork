@@ -155,6 +155,11 @@ namespace nodetool
      */
     void do_multicast(const cryptonote::COMMAND_RPC_MULTICAST::request &req);
     /*!
+     * \brief do_unicast - posts unicast message to p2p network
+     * \param req
+     */
+    void do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req);
+    /*!
      * \brief do_tx_to_sign - posts "tx_to_sign" command to p2p network?
      * \param req
      */
@@ -199,6 +204,7 @@ namespace nodetool
       HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
       HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_broadcast)
       HANDLE_NOTIFY_T2(COMMAND_MULTICAST, &node_server::handle_multicast)
+      HANDLE_NOTIFY_T2(COMMAND_UNICAST, &node_server::handle_unicast)
 
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
@@ -225,6 +231,7 @@ namespace nodetool
     int handle_supernode_announce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
     int handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
     int handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context);
+    int handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context);
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);

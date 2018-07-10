@@ -1140,8 +1140,38 @@ namespace nodetool
       return 1;
   }
 
-//  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  int node_server<t_payload_net_handler>::handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context)
+  {
+      std::string address = arg.address;
+      {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (m_have_supernode && address == m_supernode_str) {
+              COMMAND_MULTICAST::response resp = AUTO_VAL_INIT(resp);
+              bool r = epee::net_utils::invoke_http_json(m_supernode_uri + arg.callback_uri,
+                                                         arg, resp, m_supernode_client,
+                                                         std::chrono::seconds(15), "POST");
+              if (!r || resp.status == 0) {
+                  return 0;
+              }
+          }
+      }
 
+      if (address != m_supernode_str) {
+          std::list<std::string> addresses;
+          addresses.push_back(address);
+
+          std::list<peerid_type> exclude_peers;
+          exclude_peers.push_back(context.peer_id);
+
+          std::string buff;
+          epee::serialization::store_t_to_binary(arg, buff);
+          multicast_send(command, buff, addresses, exclude_peers);
+      }
+      return 1;
+  }
+
+//  //-----------------------------------------------------------------------------------
 
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::do_handshake_with_peer(peerid_type& pi, p2p_connection_context& context_, bool just_take_peerlist)
@@ -2267,6 +2297,19 @@ namespace nodetool
       multicast_send(COMMAND_MULTICAST::ID, blob, req.addresses);
   }
 
+//-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req)
+  {
+      LOG_PRINT_L0("Incoming unicast request");
+
+      std::list<std::string> addresses;
+      addresses.push_back(req.address);
+
+      std::string blob;
+      epee::serialization::store_t_to_binary(req, blob);
+      multicast_send(COMMAND_UNICAST::ID, blob, addresses);
+  }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req)

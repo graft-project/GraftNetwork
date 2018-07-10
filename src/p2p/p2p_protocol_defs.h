@@ -300,6 +300,15 @@ namespace nodetool
       struct response : public cryptonote::COMMAND_RPC_MULTICAST::response { };
   };
 
+  struct COMMAND_UNICAST
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 23;
+
+      struct request : public cryptonote::COMMAND_RPC_UNICAST::request { };
+
+      struct response : public cryptonote::COMMAND_RPC_UNICAST::response { };
+  };
+
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
