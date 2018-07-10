@@ -200,6 +200,7 @@ namespace cryptonote
     bool on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request& req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response& res, epee::json_rpc::error& error_resp);
     bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
     bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp);
+    bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);
     bool on_tx_to_sign(const COMMAND_RPC_TX_TO_SIGN::request& req, COMMAND_RPC_TX_TO_SIGN::response& res, epee::json_rpc::error& error_resp);
     bool on_signed_tx(const COMMAND_RPC_SIGNED_TX::request& req, COMMAND_RPC_SIGNED_TX::response& res, epee::json_rpc::error& error_resp);
     bool on_reject_tx(const COMMAND_RPC_REJECT_TX::request& req, COMMAND_RPC_REJECT_TX::response& res, epee::json_rpc::error& error_resp);
