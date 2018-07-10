@@ -132,6 +132,7 @@ namespace cryptonote
         MAP_JON_RPC_WE("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
         MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
         MAP_JON_RPC_WE("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST)
+        MAP_JON_RPC_WE("unicast",                on_unicast,                    COMMAND_RPC_UNICAST)
         //TODO: maybe now they are unused
         MAP_JON_RPC_WE("tx_to_sign",             on_tx_to_sign,                 COMMAND_RPC_TX_TO_SIGN)
         MAP_JON_RPC_WE("signed_tx",              on_signed_tx,                  COMMAND_RPC_SIGNED_TX)
