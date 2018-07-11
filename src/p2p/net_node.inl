@@ -1023,7 +1023,7 @@ namespace nodetool
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (!m_have_supernode)
               break;
-          if (supernode_str != m_supernode_str)
+          if (supernode_str == m_supernode_str)
               break;
 
           boost::value_initialized<epee::json_rpc::request<COMMAND_SUPERNODE_ANNOUNCE::request> > init_req;
