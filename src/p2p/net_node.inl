@@ -2215,10 +2215,6 @@ namespace nodetool
 //     LOG_PRINT_L0("Incoming supernode announce request");
     MINFO("Incoming supernode announce request");
 
-//    COMMAND_SUPERNODE_ANNOUNCE::request req_;
-//    req_.timestamp = req.timestamp;
-//    req_.supernode_addr = req.supernode_addr;
-//    req_.signature = req.signature;
     std::string blob;
     epee::serialization::store_t_to_binary(req, blob);
     std::set<peerid_type> announced_peers;
@@ -2231,10 +2227,8 @@ namespace nodetool
             announced_peers.insert(context.peer_id);
             return true;
         }
-        else {
-            std::cout << "False announce" << std::endl;
-            return false;
-        }
+        std::cout << "False announce" << std::endl;
+        return false;
     });
 
     std::list<peerlist_entry> peerlist_white, peerlist_gray;
@@ -2243,9 +2237,10 @@ namespace nodetool
     std::cout << "check peers " << announced_peers.size() << std::endl;
     for (auto pe :peerlist_white) {
         std::cout << "peerlist_white" << std::endl;
-        if ( announced_peers.find(pe.id) != announced_peers.end() )
+        if (announced_peers.find(pe.id) != announced_peers.end()) {
             std::cout << "find announce" << std::endl;
             continue;
+        }
         peers_to_send.push_back(pe);
     }
 
@@ -2269,16 +2264,14 @@ namespace nodetool
               announced_peers.insert(context.peer_id);
               return true;
           }
-          else {
-              return false;
-          }
+          return false;
       });
 
       std::list<peerlist_entry> peerlist_white, peerlist_gray;
       m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
       std::vector<peerlist_entry> peers_to_send;
       for (auto pe :peerlist_white) {
-          if ( announced_peers.find(pe.id) != announced_peers.end() )
+          if (announced_peers.find(pe.id) != announced_peers.end())
               continue;
           peers_to_send.push_back(pe);
       }
