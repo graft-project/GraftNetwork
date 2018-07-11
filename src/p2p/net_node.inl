@@ -2221,9 +2221,9 @@ namespace nodetool
     // send to peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
         MINFO("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
-        std::cout << "Send announce" << std::endl;
+        std::cout << "Send announce " << context.peer_id << std::endl;
         if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
-            std::cout << "Add announce" << std::endl;
+            std::cout << "Add announce " << context.peer_id << std::endl;
             announced_peers.insert(context.peer_id);
             return true;
         }
@@ -2234,11 +2234,11 @@ namespace nodetool
     std::list<peerlist_entry> peerlist_white, peerlist_gray;
     m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
     std::vector<peerlist_entry> peers_to_send;
-    std::cout << "check peers " << announced_peers.size() << std::endl;
-    for (auto pe :peerlist_white) {
-        std::cout << "peerlist_white" << std::endl;
+    std::cout << "check peers " << announced_peers.size() << " " << peerlist_white.size() << std::endl;
+    for (auto pe : peerlist_white) {
+        std::cout << "peerlist_white " << pe.id << std::endl;
         if (announced_peers.find(pe.id) != announced_peers.end()) {
-            std::cout << "find announce" << std::endl;
+            std::cout << "find announce " << pe.id << std::endl;
             continue;
         }
         peers_to_send.push_back(pe);
