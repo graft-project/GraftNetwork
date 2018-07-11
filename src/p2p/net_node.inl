@@ -1008,12 +1008,19 @@ namespace nodetool
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (!m_have_supernode)
               break;
-          if (supernode_str != m_supernode_str )
+          if (supernode_str != m_supernode_str)
               break;
+
+          boost::value_initialized<epee::json_rpc::request<COMMAND_SUPERNODE_ANNOUNCE::request> > init_req;
+          epee::json_rpc::request<COMMAND_SUPERNODE_ANNOUNCE::request>& req = static_cast<epee::json_rpc::request<COMMAND_SUPERNODE_ANNOUNCE::request> &>(init_req);
+          req.jsonrpc = "2.0";
+          req.id = 0;
+          req.method = "send_supernode_announce";
+          req.params = arg;
 
           COMMAND_SUPERNODE_ANNOUNCE::response resp = AUTO_VAL_INIT(resp);
           bool r = epee::net_utils::invoke_http_json(m_supernode_uri + supernode_endpoint,
-                                                     arg, resp, m_supernode_client,
+                                                     req, resp, m_supernode_client,
                                                      std::chrono::seconds(15), "POST");
           if (!r || resp.status == 0) {
               return 0;
