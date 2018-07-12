@@ -53,6 +53,8 @@
 #include "math_helper.h"
 #include "net_node_common.h"
 #include "common/command_line.h"
+#include "net/jsonrpc_structs.h"
+#include "storages/http_abstract_invoke.h"
 
 #include <map>
 #include <set>
@@ -223,6 +225,26 @@ namespace nodetool
     //----------------- helper functions ------------------------------------------------
     bool multicast_send(int command, const std::string &data, const std::list<std::string> &addresses,
                         const std::list<peerid_type> &exclude_peerids = std::list<peerid_type>());
+
+    template<class request_struct>
+    int post_request_to_supernode(const std::string &method, const typename request_struct::request &body)
+    {
+        boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
+        epee::json_rpc::request<typename request_struct::request>& req = static_cast<epee::json_rpc::request<typename request_struct::request> &>(init_req);
+        req.jsonrpc = "2.0";
+        req.id = 0;
+        req.method = method;
+        req.params = body;
+
+        typename request_struct::response resp = AUTO_VAL_INIT(resp);
+        bool r = epee::net_utils::invoke_http_json(m_supernode_uri + "/" + method,
+                                                   req, resp, m_supernode_client,
+                                                   std::chrono::seconds(15), "POST");
+        if (!r || resp.status == 0) {
+            return 0;
+        }
+        return 1;
+    }
 
     //----------------- commands handlers ----------------------------------------------
     int handle_tx_to_sign(int command, typename COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context);
