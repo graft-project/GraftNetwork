@@ -1024,33 +1024,20 @@ namespace nodetool
               break;
           if (supernode_str == m_supernode_str)
               break;
-
-//          boost::value_initialized<epee::json_rpc::request<COMMAND_SUPERNODE_ANNOUNCE::request> > init_req;
-//          epee::json_rpc::request<COMMAND_SUPERNODE_ANNOUNCE::request>& req = static_cast<epee::json_rpc::request<COMMAND_SUPERNODE_ANNOUNCE::request> &>(init_req);
-//          req.jsonrpc = "2.0";
-//          req.id = 0;
-//          req.method = "send_supernode_announce";
-//          req.params = arg;
-
-//          COMMAND_SUPERNODE_ANNOUNCE::response resp = AUTO_VAL_INIT(resp);
-//          bool r = epee::net_utils::invoke_http_json(m_supernode_uri + supernode_endpoint,
-//                                                     req, resp, m_supernode_client,
-//                                                     std::chrono::seconds(15), "POST");
-//          if (!r || resp.status == 0) {
-//              return 0;
-//          }
-          return post_request_to_supernode<COMMAND_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
+          post_request_to_supernode<COMMAND_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
       } while(0);
 
       do {
           peerlist_entry pe;
-          if (!m_peerlist.find_peer(context.peer_id, pe)) { // unknown peer, alternative handshake with it
+          if (!m_peerlist.find_peer(context.peer_id, pe))
+          { // unknown peer, alternative handshake with it
               return 1;
           }
 
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           auto it = m_supernode_routes.find(supernode_str);
-          if (it == m_supernode_routes.end()) {
+          if (it == m_supernode_routes.end())
+          {
               std::map<peerid_type, peerlist_entry> peer_map;
               peer_map[pe.id] = pe;
               nodetool::supernode_route route;
@@ -1060,16 +1047,19 @@ namespace nodetool
               break;
           }
 
-          if ((*it).second.last_announce_time > arg.timestamp) {
+          if ((*it).second.last_announce_time > arg.timestamp)
+          {
               MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
                     << " too old, corrent route timestamp " << (*it).second.last_announce_time);
               return 1;
           }
 
           if ((*it).second.last_announce_time == arg.timestamp
-                  && (*it).second.peers.size() < MAX_TUNNEL_PEERS) {
+                  && (*it).second.peers.size() < MAX_TUNNEL_PEERS)
+          {
               auto peer_it = (*it).second.peers.find(pe.id);
-              if (peer_it == (*it).second.peers.end()) {
+              if (peer_it == (*it).second.peers.end())
+              {
                   (*it).second.peers[pe.id] = pe;
               }
               break;
@@ -1100,14 +1090,9 @@ namespace nodetool
   {
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_have_supernode) {
-              COMMAND_BROADCAST::response resp = AUTO_VAL_INIT(resp);
-              bool r = epee::net_utils::invoke_http_json(m_supernode_uri + arg.callback_uri,
-                                                         arg, resp, m_supernode_client,
-                                                         std::chrono::seconds(15), "POST");
-              if (!r || resp.status == 0) {
-                  return 0;
-              }
+          if (m_have_supernode)
+          {
+              post_request_to_supernode<COMMAND_BROADCAST>("broadcast", arg, arg.callback_uri);
           }
       }
 
@@ -1125,15 +1110,9 @@ namespace nodetool
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
-          if (m_have_supernode && it != addresses.end()) {
-              COMMAND_MULTICAST::response resp = AUTO_VAL_INIT(resp);
-              bool r = epee::net_utils::invoke_http_json(m_supernode_uri + arg.callback_uri,
-                                                         arg, resp, m_supernode_client,
-                                                         std::chrono::seconds(15), "POST");
-              std::cout << "Status: " << r << " " << resp.status << std::endl;
-              if (!r || resp.status == 0) {
-                  return 0;
-              }
+          if (m_have_supernode && it != addresses.end())
+          {
+              post_request_to_supernode<COMMAND_MULTICAST>("multicast", arg, arg.callback_uri);
           }
       }
       std::list<peerid_type> exclude_peers;
@@ -1152,18 +1131,14 @@ namespace nodetool
       std::string address = arg.receiver_address;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_have_supernode && address == m_supernode_str) {
-              COMMAND_MULTICAST::response resp = AUTO_VAL_INIT(resp);
-              bool r = epee::net_utils::invoke_http_json(m_supernode_uri + arg.callback_uri,
-                                                         arg, resp, m_supernode_client,
-                                                         std::chrono::seconds(15), "POST");
-              if (!r || resp.status == 0) {
-                  return 0;
-              }
+          if (m_have_supernode && address == m_supernode_str)
+          {
+              post_request_to_supernode<COMMAND_UNICAST>("unicast", arg, arg.callback_uri);
           }
       }
 
-      if (address != m_supernode_str) {
+      if (address != m_supernode_str)
+      {
           std::list<std::string> addresses;
           addresses.push_back(address);
 

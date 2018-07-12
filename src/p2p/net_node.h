@@ -227,7 +227,8 @@ namespace nodetool
                         const std::list<peerid_type> &exclude_peerids = std::list<peerid_type>());
 
     template<class request_struct>
-    int post_request_to_supernode(const std::string &method, const typename request_struct::request &body)
+    int post_request_to_supernode(const std::string &method, const typename request_struct::request &body,
+                                  const std::string &endpoint = std::string())
     {
         boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
         epee::json_rpc::request<typename request_struct::request>& req = static_cast<epee::json_rpc::request<typename request_struct::request> &>(init_req);
@@ -236,11 +237,17 @@ namespace nodetool
         req.method = method;
         req.params = body;
 
+        std::string uri = "/" + method;
+        if (!endpoint.empty())
+        {
+            uri = endpoint;
+        }
         typename request_struct::response resp = AUTO_VAL_INIT(resp);
-        bool r = epee::net_utils::invoke_http_json(m_supernode_uri + "/" + method,
+        bool r = epee::net_utils::invoke_http_json(m_supernode_uri + uri,
                                                    req, resp, m_supernode_client,
                                                    std::chrono::seconds(15), "POST");
-        if (!r || resp.status == 0) {
+        if (!r || resp.status == 0)
+        {
             return 0;
         }
         return 1;
