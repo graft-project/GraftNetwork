@@ -1008,7 +1008,7 @@ namespace nodetool
           if (!m_have_supernode)
               break;
           if (supernode_str == m_supernode_str)
-              break;
+              return 1;
           post_request_to_supernode<COMMAND_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
       } while(0);
 
