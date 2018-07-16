@@ -1054,15 +1054,18 @@ namespace nodetool
               return 1;
           }
 
-          if ((*it).second.last_announce_time == arg.timestamp
-                  && (*it).second.peers.size() < MAX_TUNNEL_PEERS)
+          if ((*it).second.last_announce_time == arg.timestamp)
           {
               auto peer_it = (*it).second.peers.find(pe.id);
-              if (peer_it == (*it).second.peers.end())
+              if (peer_it != (*it).second.peers.end())
+              {
+                  return 1;
+              }
+              if (peer_it == (*it).second.peers.end() && (*it).second.peers.size() < MAX_TUNNEL_PEERS)
               {
                   (*it).second.peers[pe.id] = pe;
+                  break;
               }
-              break;
           }
           (*it).second.peers.clear();
           (*it).second.peers[pe.id] = pe;
