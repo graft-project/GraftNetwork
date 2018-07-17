@@ -126,7 +126,6 @@ namespace nodetool
     return ss.str();
   }
 
-
   struct network_config
   {
     BEGIN_KV_SERIALIZE_MAP()
@@ -160,7 +159,6 @@ namespace nodetool
     END_KV_SERIALIZE_MAP()
   };
 
-
   struct supernode_route
   {
       crypto::public_key addr;
@@ -168,107 +166,7 @@ namespace nodetool
       std::map<peerid_type, peerlist_entry> peers;
   };
 
-  struct tx_to_sign_request
-  {
-      std::string return_addr;
-      std::string hash;
-      uint64_t curr_height;
-      uint64_t local_time;
-      std::string tx_as_blob;
-
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(return_addr)
-        KV_SERIALIZE(hash)
-        KV_SERIALIZE(curr_height)
-        KV_SERIALIZE(local_time)
-        KV_SERIALIZE(tx_as_blob)
-      END_KV_SERIALIZE_MAP()
-  };
-
-
-
 #define P2P_COMMANDS_POOL_BASE 1000
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
-  struct COMMAND_TX_TO_SIGN
-  {
-      const static int ID = P2P_COMMANDS_POOL_BASE + 17;
-
-      struct request
-      {
-          std::string auth_supernode_addr;
-          std::string requ_supernode_addr;
-          tx_to_sign_request tx_request;
-          std::string signature;
-
-          BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE(auth_supernode_addr)
-              KV_SERIALIZE(requ_supernode_addr)
-              KV_SERIALIZE(tx_request)
-              KV_SERIALIZE(signature)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response
-      {
-      };
-  };
-
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
-  struct COMMAND_SIGNED_TX
-  {
-      const static int ID = P2P_COMMANDS_POOL_BASE + 18;
-
-      struct request
-      {
-          std::string auth_supernode_addr;
-          std::string requ_supernode_addr;
-          std::string tx_hash;
-          std::string signature; // of transaction
-
-          BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE(auth_supernode_addr)
-              KV_SERIALIZE(requ_supernode_addr)
-              KV_SERIALIZE(tx_hash)
-              KV_SERIALIZE(signature)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response
-      {
-      };
-  };
-
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
-  struct COMMAND_REJECT_TX
-  {
-      const static int ID = P2P_COMMANDS_POOL_BASE + 19;
-
-      struct request
-      {
-          std::string auth_supernode_addr;
-          std::string requ_supernode_addr;
-          std::string tx_hash;
-          std::string signature; // of serialized requested_supernode_addr + tx_hash
-
-          BEGIN_KV_SERIALIZE_MAP()
-              KV_SERIALIZE(auth_supernode_addr)
-              KV_SERIALIZE(requ_supernode_addr)
-              KV_SERIALIZE(tx_hash)
-              KV_SERIALIZE(signature)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response
-      {
-      };
-  };
-
 
   /************************************************************************/
   /*                                                                      */

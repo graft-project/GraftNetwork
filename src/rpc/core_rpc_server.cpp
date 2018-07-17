@@ -1756,8 +1756,7 @@ namespace cryptonote
     return true;
   }
 
-
-
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
   {
       if (!check_core_busy())
@@ -1807,6 +1806,7 @@ namespace cryptonote
       return true;
   }
 
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
   {
       if (!check_core_busy())
@@ -1830,6 +1830,7 @@ namespace cryptonote
       return true;
   }
 
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, json_rpc::error &error_resp)
   {
       if (!check_core_busy())
@@ -1863,6 +1864,7 @@ namespace cryptonote
       return true;
   }
 
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, json_rpc::error &error_resp)
   {
       if (!check_core_busy())
@@ -1895,135 +1897,7 @@ namespace cryptonote
       return true;
   }
 
-  bool core_rpc_server::on_tx_to_sign(const COMMAND_RPC_TX_TO_SIGN::request& req, COMMAND_RPC_TX_TO_SIGN::response& res, epee::json_rpc::error& error_resp)
-  {
-      LOG_PRINT_L0(__FUNCTION__);
-      if(!check_core_busy()) {
-        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
-        error_resp.message = "Core is busy.";
-        return false;
-      }
-
-      // validate input parameters
-
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      if(!req.requ_wallet_address.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, req.requ_wallet_address)) {
-        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-        error_resp.message = "Failed to parse wallet address";
-        return false;
-      }
-
-      for (auto addr : req.auth_wallet_addresses ) {
-          if(!addr.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, addr)) {
-            error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-            error_resp.message = "Failed to parse wallet address";
-            return false;
-          }
-      }
-
-      // TODO: supernode check
-      // send p2p tx_to_sign
-      m_p2p.do_tx_to_sign(req);
-      res.status = CORE_RPC_STATUS_OK;
-      return true;
-  }
-
-  bool core_rpc_server::on_signed_tx(const COMMAND_RPC_SIGNED_TX::request& req, COMMAND_RPC_SIGNED_TX::response& res, epee::json_rpc::error& error_resp)
-  {
-      LOG_PRINT_L0(__FUNCTION__);
-      if(!check_core_busy())
-      {
-        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
-        error_resp.message = "Core is busy.";
-        return false;
-      }
-
-      // validate input parameters
-
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      if( (!req.requ_wallet_address.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, req.requ_wallet_address))
-              || (!req.auth_wallet_address.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, req.auth_wallet_address))
-              )  {
-        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-        error_resp.message = "Failed to parse wallet address";
-        return false;
-      }
-
-      // TODO: supernode check
-      // send p2p signed_tx
-      m_p2p.do_signed_tx(req);
-      res.status = CORE_RPC_STATUS_OK;
-      return true;
-  }
-
-  bool core_rpc_server::on_reject_tx(const COMMAND_RPC_REJECT_TX::request& req, COMMAND_RPC_REJECT_TX::response& res, epee::json_rpc::error& error_resp)
-  {
-      LOG_PRINT_L0(__FUNCTION__);
-      if(!check_core_busy())
-      {
-        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
-        error_resp.message = "Core is busy.";
-        return false;
-      }
-
-      // validate input parameters
-
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      if( (!req.requ_wallet_address.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, req.requ_wallet_address))
-              || (!req.auth_wallet_address.size() || !cryptonote::get_account_address_from_str(acc, m_testnet, req.auth_wallet_address))
-              )  {
-        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-        error_resp.message = "Failed to parse wallet address";
-        return false;
-      }
-
-      // TODO: supernode check
-      // send p2p reject_tx
-      m_p2p.do_reject_tx(req);
-      res.status = CORE_RPC_STATUS_OK;
-      return true;
-  }
-
-
-
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_rta_authorize_tx(const COMMAND_RPC_RTA_AUTHORIZE_TX::request &req, COMMAND_RPC_RTA_AUTHORIZE_TX::response &res, json_rpc::error &error_resp)
-  {
-    LOG_PRINT_L0("rta_authorize_tx, req: " << epee::serialization::store_t_to_json(req));
-
-    if(!check_core_busy())
-    {
-      error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
-      error_resp.message = "Core is busy.";
-      return false;
-    }
-
-
-    // validate input parameters:
-    // wallet address
-    if (!validate_wallet(req.src_address, m_testnet))
-    {
-      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-      error_resp.message = "Failed to parse src wallet address";
-      return false;
-    }
-
-    if (!validate_wallet(req.dst_address, m_testnet))
-    {
-      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-      error_resp.message = "Failed to parse dst wallet address";
-      return false;
-    }
-
-    // send p2p announce
-    m_p2p.do_rta_authorize_tx(req);
-    //
-
-    res.status = CORE_RPC_STATUS_OK;
-    return true;
-  }
-  //------------------------------------------------------------------------------------------------------------------------------
-
 
   const command_line::arg_descriptor<std::string> core_rpc_server::arg_rpc_bind_port = {
       "rpc-bind-port"
