@@ -133,11 +133,6 @@ namespace cryptonote
         MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
         MAP_JON_RPC_WE("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST)
         MAP_JON_RPC_WE("unicast",                on_unicast,                    COMMAND_RPC_UNICAST)
-        //TODO: maybe now they are unused
-        MAP_JON_RPC_WE("tx_to_sign",             on_tx_to_sign,                 COMMAND_RPC_TX_TO_SIGN)
-        MAP_JON_RPC_WE("signed_tx",              on_signed_tx,                  COMMAND_RPC_SIGNED_TX)
-        MAP_JON_RPC_WE("reject_tx",              on_reject_tx,                  COMMAND_RPC_REJECT_TX)
-        MAP_JON_RPC_WE("rta_authorize_tx",       on_rta_authorize_tx,           COMMAND_RPC_RTA_AUTHORIZE_TX)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -202,10 +197,6 @@ namespace cryptonote
     bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
     bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp);
     bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_tx_to_sign(const COMMAND_RPC_TX_TO_SIGN::request& req, COMMAND_RPC_TX_TO_SIGN::response& res, epee::json_rpc::error& error_resp);
-    bool on_signed_tx(const COMMAND_RPC_SIGNED_TX::request& req, COMMAND_RPC_SIGNED_TX::response& res, epee::json_rpc::error& error_resp);
-    bool on_reject_tx(const COMMAND_RPC_REJECT_TX::request& req, COMMAND_RPC_REJECT_TX::response& res, epee::json_rpc::error& error_resp);
-    bool on_rta_authorize_tx(const COMMAND_RPC_RTA_AUTHORIZE_TX::request& req, COMMAND_RPC_RTA_AUTHORIZE_TX::response& res, epee::json_rpc::error& error_resp);
 
 private:
     bool check_core_busy();

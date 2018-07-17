@@ -161,27 +161,6 @@ namespace nodetool
      * \param req
      */
     void do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req);
-    /*!
-     * \brief do_tx_to_sign - posts "tx_to_sign" command to p2p network?
-     * \param req
-     */
-    void do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req);
-    /*!
-     * \brief do_signed_tx - posts "signed tx" to p2p network?
-     * \param req
-     */
-    void do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req);
-    /*!
-     * \brief do_reject_tx - posts "reject tx" to p2p network?
-     * \param req
-     */
-    void do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req);
-
-    /*!
-     * \brief do_rta_authorize_tx - TBD
-     * \param req
-     */
-    void do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req);
 
   private:
     const std::vector<std::string> m_seed_nodes_list =
@@ -200,9 +179,6 @@ namespace nodetool
     CHAIN_LEVIN_NOTIFY_MAP2(p2p_connection_context); //move levin_commands_handler interface notify(...) callbacks into nothing
 
     BEGIN_INVOKE_MAP2(node_server)
-      HANDLE_NOTIFY_T2(COMMAND_TX_TO_SIGN, &node_server::handle_tx_to_sign)
-      HANDLE_NOTIFY_T2(COMMAND_SIGNED_TX, &node_server::handle_signed_tx)
-      HANDLE_NOTIFY_T2(COMMAND_REJECT_TX, &node_server::handle_reject_tx)
       HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
       HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_broadcast)
       HANDLE_NOTIFY_T2(COMMAND_MULTICAST, &node_server::handle_multicast)
@@ -254,9 +230,6 @@ namespace nodetool
     }
 
     //----------------- commands handlers ----------------------------------------------
-    int handle_tx_to_sign(int command, typename COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context);
-    int handle_signed_tx(int command, typename COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context);
-    int handle_reject_tx(int command, typename COMMAND_REJECT_TX::request& arg, p2p_connection_context& context);
     int handle_supernode_announce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
     int handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
     int handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context);

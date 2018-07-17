@@ -824,189 +824,9 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  int node_server<t_payload_net_handler>::handle_tx_to_sign(int command, COMMAND_TX_TO_SIGN::request& arg, p2p_connection_context& context)
-  {
-      // crypto::public_key destination = arg.auth_supernode_addr;
-      // std::string dest_str = publickey2string(destination);
-      std::string dest_str = arg.auth_supernode_addr;
-//      LOG_PRINT_L0("TX_TO_SIGN from " << context.peer_id);
-      MINFO("TX_TO_SIGN from " << context.peer_id);
-      do {
-        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        if (!m_have_supernode)
-          break;
-        if (dest_str != m_supernode_str )
-          break;
-
-        // TODO: JSON-RPC call(callback) to supernode. no reply required
-        epee::net_utils::http::http_simple_client client;
-        boost::optional<epee::net_utils::http::login> user;
-        client.set_server(m_supernode_http_addr,user);
-        std::string uri(m_supernode_uri);
-        m_supernode_lock.unlock();
-
-        cryptonote::COMMAND_RPC_TX_TO_SIGN_CALLBACK::request  req;
-        cryptonote::COMMAND_RPC_TX_TO_SIGN_CALLBACK::response res;
-        // TODO: fill request
-
-        bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_to_sign", req, res, client, std::chrono::milliseconds(500));
-
-        // check response
-        if (!r) {
-          LOG_ERROR("Failed to invoke " << uri);
-        }
-
-        return 1;
-
-      } while(0);
-
-      std::vector<nodetool::peerlist_entry> peers_to_send;
-
-      do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          auto it = m_supernode_routes.find(dest_str);
-          if ( it == m_supernode_routes.end() )
-              return 1;
-//TODO: Fix
-//          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
-      } while(0);
-
-      std::string arg_buff;
-      epee::serialization::store_t_to_binary(arg, arg_buff);
-      notify_peer_list(command, arg_buff, peers_to_send);
-
-      return 1;
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  int node_server<t_payload_net_handler>::handle_signed_tx(int command, COMMAND_SIGNED_TX::request& arg, p2p_connection_context& context)
-  {
-      // crypto::public_key destination = arg.requ_supernode_addr;
-      std::string dest_str = arg.requ_supernode_addr;
-//      LOG_PRINT_L0("SIGNED_TX from " << context.peer_id);
-      MINFO("SIGNED_TX from " << context.peer_id);
-      // TODO: signature verification
-      //  if verification failed
-      //    return 1;
-      do {
-          m_supernode_lock.lock();
-          if (!m_have_supernode) {
-              m_supernode_lock.unlock();
-              break;
-          }
-          if (dest_str != m_supernode_str ) {
-              m_supernode_lock.unlock();
-              break;
-          }
-
-          // TODO: http call to Supernode
-          epee::net_utils::http::http_simple_client client;
-          boost::optional<epee::net_utils::http::login> user;
-
-          client.set_server(m_supernode_http_addr,user);
-          std::string uri(m_supernode_uri);
-          m_supernode_lock.unlock();
-
-          cryptonote::COMMAND_RPC_TX_SIGNED_CALLBACK::request  req;
-          cryptonote::COMMAND_RPC_TX_SIGNED_CALLBACK::response res;
-          // TODO: fill request
-
-          bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_signed", req, res, client, std::chrono::milliseconds(500));
-
-          // check response
-          if (!r) {
-            LOG_ERROR("Failed to invoke " << uri);
-          }
-
-          return 1;
-      } while(0);
-
-      std::vector<nodetool::peerlist_entry> peers_to_send;
-      do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          auto it = m_supernode_routes.find(dest_str);
-          if ( it == m_supernode_routes.end() )
-              return 1;
-//TODO: Fix
-//          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
-      } while(0);
-
-      std::string arg_buff;
-      epee::serialization::store_t_to_binary(arg, arg_buff);
-      notify_peer_list(command,arg_buff,peers_to_send);
-
-      return 1;
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  int node_server<t_payload_net_handler>::handle_reject_tx(int command, COMMAND_REJECT_TX::request& arg, p2p_connection_context& context)
-  {
-//      crypto::public_key destination = arg.requ_supernode_addr;
-//      std::string dest_str = publickey2string(destination);
-
-      std::string dest_str = arg.requ_supernode_addr;
-//      LOG_PRINT_L0("REJECT_TX from " << context.peer_id);
-      MINFO("REJECT_TX from " << context.peer_id);
-      // TODO: signature verification
-      //  if verification failed
-      //    return 1;
-
-      do {
-          m_supernode_lock.lock();
-          if (!m_have_supernode) {
-              m_supernode_lock.unlock();
-              break;
-          }
-          if (dest_str != m_supernode_str ) {
-              m_supernode_lock.unlock();
-              break;
-          }
-
-          // TODO: RPC call to Supernode
-          epee::net_utils::http::http_simple_client client;
-          boost::optional<epee::net_utils::http::login> user;
-
-          client.set_server(m_supernode_http_addr,user);
-          std::string uri(m_supernode_uri);
-          m_supernode_lock.unlock();
-
-          cryptonote::COMMAND_RPC_TX_REJECTED_CALLBACK::request  req;
-          cryptonote::COMMAND_RPC_TX_REJECTED_CALLBACK::response res;
-          // TODO: fill request
-
-          bool r = epee::net_utils::invoke_http_json_rpc(uri, "tx_rejected", req, res, client, std::chrono::milliseconds(500));
-
-          // check response
-          if (!r) {
-            LOG_ERROR("Failed to invoke " << uri);
-          }
-          return 1;
-      } while(0);
-
-      std::vector<nodetool::peerlist_entry> peers_to_send;
-      do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          auto it = m_supernode_routes.find(dest_str);
-          if ( it == m_supernode_routes.end() )
-              return 1;
-//TODO: Fix
-//          std::copy((*it).second.peers.begin(),(*it).second.peers.end(), peers_to_send.begin());
-      } while(0);
-
-      std::string arg_buff;
-      epee::serialization::store_t_to_binary(arg, arg_buff);
-      notify_peer_list(command,arg_buff,peers_to_send);
-
-      return 1;
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
-      std::cout << "handle_supernode_announce start" << std::endl;
+      LOG_PRINT_L0("handle_supernode_announce start");
 
       static std::string supernode_endpoint("send_supernode_announce");
 
@@ -1084,13 +904,14 @@ namespace nodetool
       std::string arg_buff;
       epee::serialization::store_t_to_binary(arg, arg_buff);
       relay_notify_to_all(command, arg_buff, context);
-      std::cout << "handle_supernode_announce end" << std::endl;
+      LOG_PRINT_L0("handle_supernode_announce end");
       return 1;
   }
 
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
   {
+      LOG_PRINT_L0("handle_broadcast start "  + arg.callback_uri);
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (m_have_supernode)
@@ -1102,13 +923,14 @@ namespace nodetool
       std::string buff;
       epee::serialization::store_t_to_binary(arg, buff);
       relay_notify_to_all(command, buff, context);
+      LOG_PRINT_L0("handle_broadcast end");
       return 1;
   }
 
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
   {
-      std::cout << "handle_multicast " << arg.callback_uri << std::endl;
+      LOG_PRINT_L0("handle_multicast start " + arg.callback_uri);
       std::list<std::string> addresses = arg.receiver_addresses;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -1125,12 +947,14 @@ namespace nodetool
       epee::serialization::store_t_to_binary(arg, buff);
       addresses.remove(m_supernode_str);
       multicast_send(command, buff, addresses, exclude_peers);
+      LOG_PRINT_L0("handle_multicast end");
       return 1;
   }
 
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context)
   {
+      LOG_PRINT_L0("handle_unicast start " + arg.callback_uri);
       std::string address = arg.receiver_address;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -1152,11 +976,11 @@ namespace nodetool
           epee::serialization::store_t_to_binary(arg, buff);
           multicast_send(command, buff, addresses, exclude_peers);
       }
+      LOG_PRINT_L0("handle_unicast end");
       return 1;
   }
 
-//  //-----------------------------------------------------------------------------------
-
+  //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::do_handshake_with_peer(peerid_type& pi, p2p_connection_context& context_, bool just_take_peerlist)
   {
@@ -2195,9 +2019,8 @@ namespace nodetool
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
   {
-      std::cout << "do_supernode_announce start" << std::endl;
-//     LOG_PRINT_L0("Incoming supernode announce request");
-    MINFO("Incoming supernode announce request");
+    LOG_PRINT_L0("do_supernode_announce start");
+    LOG_PRINT_L0("Incoming supernode announce request");
 
     std::string blob;
     epee::serialization::store_t_to_binary(req, blob);
@@ -2229,13 +2052,14 @@ namespace nodetool
     }
 
     notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
-    std::cout << "do_supernode_announce end" << std::endl;
+    LOG_PRINT_L0("do_supernode_announce end");
   }
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req)
   {
+      LOG_PRINT_L0("do_broadcast start");
       LOG_PRINT_L0("Incoming broadcast request");
 
       std::string blob;
@@ -2261,23 +2085,27 @@ namespace nodetool
       }
 
       notify_peer_list(COMMAND_BROADCAST::ID, blob, peers_to_send);
+      LOG_PRINT_L0("do_broadcast end");
   }
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_multicast(const cryptonote::COMMAND_RPC_MULTICAST::request &req)
   {
+      LOG_PRINT_L0("do_multicast start");
       LOG_PRINT_L0("Incoming multicast request");
 
       std::string blob;
       epee::serialization::store_t_to_binary(req, blob);
       multicast_send(COMMAND_MULTICAST::ID, blob, req.receiver_addresses);
+      LOG_PRINT_L0("do_multicast end");
   }
 
-//-----------------------------------------------------------------------------------
+  //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req)
   {
+      LOG_PRINT_L0("do_unicast start");
       LOG_PRINT_L0("Incoming unicast request");
 
       std::list<std::string> addresses;
@@ -2286,34 +2114,8 @@ namespace nodetool
       std::string blob;
       epee::serialization::store_t_to_binary(req, blob);
       multicast_send(COMMAND_UNICAST::ID, blob, addresses);
+      LOG_PRINT_L0("do_unicast end");
   }
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_rta_authorize_tx(const cryptonote::COMMAND_RPC_RTA_AUTHORIZE_TX::request &req)
-  {
-    MINFO("Incoming rta authorize tx request");
-    // TODO: implement me;
-
-  }
-
-
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_tx_to_sign(const cryptonote::COMMAND_RPC_TX_TO_SIGN::request &req)
-  {
-  }
-
-
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_signed_tx(const cryptonote::COMMAND_RPC_SIGNED_TX::request &req)
-  {
-  }
-
-
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_reject_tx(const cryptonote::COMMAND_RPC_REJECT_TX::request &req)
-  {
-  }
-
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
