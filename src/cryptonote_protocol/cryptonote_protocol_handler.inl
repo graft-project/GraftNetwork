@@ -337,6 +337,7 @@ namespace cryptonote
     int t_cryptonote_protocol_handler<t_core>::handle_notify_new_block(int command, NOTIFY_NEW_BLOCK::request& arg, cryptonote_connection_context& context)
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_NEW_BLOCK (hop " << arg.hop << ", " << arg.b.txs.size() << " txes)");
+    LOG_PRINT_L0("Received NOTIFY_NEW_BLOCK (hop " << arg.hop << ", " << arg.b.txs.size() << " txes)");
     if(context.m_state != cryptonote_connection_context::state_normal)
       return 1;
     if(!is_synchronized()) // can happen if a peer connection goes to normal but another thread still hasn't finished adding queued blocks
@@ -381,6 +382,7 @@ namespace cryptonote
     {
       ++arg.hop;
       //TODO: Add here announce protocol usage
+      LOG_PRINT_L0("handle_notify_new_block --- relay_block");
       relay_block(arg, context);
     }else if(bvc.m_marked_as_orphaned)
     {
@@ -1626,16 +1628,18 @@ skip:
         {
           LOG_DEBUG_CC(context, "PEER SUPPORTS FLUFFY BLOCKS - RELAYING THIN/COMPACT WHATEVER BLOCK");
           fluffyConnections.push_back(context.m_connection_id);
+          LOG_PRINT_L0("fluffyConnections " << context.m_connection_id);
         }
         else
         {
           LOG_DEBUG_CC(context, "PEER DOESN'T SUPPORT FLUFFY BLOCKS - RELAYING FULL BLOCK");
           fullConnections.push_back(context.m_connection_id);
+          LOG_PRINT_L0("fullConnections " << context.m_connection_id);
         }
       }
       return true;
     });
-
+    LOG_PRINT_L0("Connections: full--> " << fullConnections.size() << " fluffy--> " << fluffyConnections.size());
     // send fluffy ones first, we want to encourage people to run that
     m_p2p->relay_notify_to_list(NOTIFY_NEW_FLUFFY_BLOCK::ID, fluffyBlob, fluffyConnections);
     m_p2p->relay_notify_to_list(NOTIFY_NEW_BLOCK::ID, fullBlob, fullConnections);
