@@ -763,6 +763,7 @@ namespace cryptonote
   int t_cryptonote_protocol_handler<t_core>::handle_notify_new_transactions(int command, NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& context)
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_NEW_TRANSACTIONS (" << arg.txs.size() << " txes)");
+    LOG_PRINT_L0("Received NOTIFY_NEW_TRANSACTIONS (" << arg.txs.size() << " txes)");
     if(context.m_state != cryptonote_connection_context::state_normal)
       return 1;
 
@@ -782,18 +783,24 @@ namespace cryptonote
       if(tvc.m_verifivation_failed)
       {
         LOG_PRINT_CCONTEXT_L1("Tx verification failed, dropping connection");
+        LOG_PRINT_L0("Tx verification failed, dropping connection");
         drop_connection(context, false, false);
         return 1;
       }
-      if(tvc.m_should_be_relayed)
+      if(tvc.m_should_be_relayed) {
+          LOG_PRINT_L0("next");
         ++tx_blob_it;
-      else
+      } else {
+          LOG_PRINT_L0("removed?");
         arg.txs.erase(tx_blob_it++);
+      }
     }
 
+    LOG_PRINT_L0("Processed NOTIFY_NEW_TRANSACTIONS (" << arg.txs.size() << " txes)");
     if(arg.txs.size())
     {
       //TODO: add announce usage here
+        LOG_PRINT_L0("start relay_transactions");
       relay_transactions(arg, context);
     }
 
@@ -1653,6 +1660,7 @@ skip:
     // no check for success, so tell core they're relayed unconditionally
     for(auto tx_blob_it = arg.txs.begin(); tx_blob_it!=arg.txs.end(); ++tx_blob_it)
       m_core.on_transaction_relayed(*tx_blob_it);
+    LOG_PRINT_L0("relay_transactions with " << arg.txs.size() << " txs");
     return relay_post_notify<NOTIFY_NEW_TRANSACTIONS>(arg, exclude_context);
   }
   //------------------------------------------------------------------------------------------------------------------------
