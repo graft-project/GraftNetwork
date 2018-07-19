@@ -786,13 +786,17 @@ namespace nodetool
       std::vector<peerlist_entry> tunnels;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          for (auto addr : addresses) {
+          for (auto addr : addresses)
+          {
               auto it = m_supernode_routes.find(addr);
-              if (it == m_supernode_routes.end()) {
+              if (it == m_supernode_routes.end())
+              {
                   continue;
               }
-              std::map<peerid_type, peerlist_entry> addr_tunnels = (*it).second.peers;
-              for (auto peer_it = addr_tunnels.begin(); peer_it != addr_tunnels.end(); ++peer_it) {
+              std::unordered_map<peerid_type, peerlist_entry> addr_tunnels = (*it).second.peers;
+              unsigned int count = 0;
+              for (auto peer_it = addr_tunnels.begin(); peer_it != addr_tunnels.end(); ++peer_it)
+              {
                   peerlist_entry addr_tunnel = (*peer_it).second;
                   auto tunnel_it = std::find_if(tunnels.begin(), tunnels.end(),
                                                 [addr_tunnel](const peerlist_entry &entry) -> bool {
@@ -800,8 +804,14 @@ namespace nodetool
                   });
                   auto exclude_it = std::find(exclude_peerids.begin(), exclude_peerids.end(),
                                               addr_tunnel.id);
-                  if (tunnel_it == tunnels.end() && exclude_it == exclude_peerids.end()) {
+                  if (tunnel_it == tunnels.end() && exclude_it == exclude_peerids.end())
+                  {
                       tunnels.push_back(addr_tunnel);
+                      count++;
+                  }
+                  if (count >= MAX_TUNNEL_PEERS)
+                  {
+                      break;
                   }
               }
           }
@@ -815,23 +825,7 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
       static std::string supernode_endpoint("send_supernode_announce");
-
       std::string supernode_str = arg.address;
-      MINFO(__FUNCTION__);
-
-      // TODO: signature verification
-      //  if verification failed
-      //    return 1;
-
-      do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (!m_have_supernode)
-              break;
-          if (supernode_str == m_supernode_str)
-              return 1;
-          post_request_to_supernode<COMMAND_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
-      } while(0);
-
       do {
           peerlist_entry pe;
           if (!m_peerlist.find_peer(context.peer_id, pe))
@@ -843,10 +837,11 @@ namespace nodetool
           auto it = m_supernode_routes.find(supernode_str);
           if (it == m_supernode_routes.end())
           {
-              std::map<peerid_type, peerlist_entry> peer_map;
+              std::unordered_map<peerid_type, peerlist_entry> peer_map;
               peer_map[pe.id] = pe;
               nodetool::supernode_route route;
               route.last_announce_time = arg.timestamp;
+              route.max_hop = arg.hop;
               route.peers = peer_map;
               m_supernode_routes[supernode_str] = route;
               break;
@@ -866,18 +861,33 @@ namespace nodetool
               {
                   return 1;
               }
-              if (peer_it == (*it).second.peers.end() && (*it).second.peers.size() < MAX_TUNNEL_PEERS)
+              if (peer_it == (*it).second.peers.end())
               {
                   (*it).second.peers[pe.id] = pe;
+                  if ((*it).second.max_hop < arg.hop)
+                  {
+                      (*it).second.max_hop = arg.hop;
+                  }
                   break;
               }
           }
           (*it).second.peers.clear();
           (*it).second.peers[pe.id] = pe;
           (*it).second.last_announce_time = arg.timestamp;
+          (*it).second.max_hop = arg.hop;
+      } while(0);
+
+      do {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (!m_have_supernode)
+              break;
+          if (supernode_str == m_supernode_str)
+              return 1;
+          post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
       } while(0);
 
       // Notify neighbours about new ANNOUNCE
+      arg.hop++;
       std::string arg_buff;
       epee::serialization::store_t_to_binary(arg, arg_buff);
       relay_notify_to_all(command, arg_buff, context);
@@ -1991,8 +2001,18 @@ namespace nodetool
   {
      LOG_PRINT_L0("Incoming supernode announce request");
 
+    COMMAND_SUPERNODE_ANNOUNCE::request p2p_req;
+    p2p_req.signed_key_images = req.signed_key_images;
+    p2p_req.timestamp = req.timestamp;
+    p2p_req.address = req.address;
+    p2p_req.stake_amount = req.stake_amount;
+    p2p_req.height = req.height;
+    p2p_req.secret_viewkey = req.secret_viewkey;
+    p2p_req.network_address = req.network_address;
+    p2p_req.hop = 0;
+
     std::string blob;
-    epee::serialization::store_t_to_binary(req, blob);
+    epee::serialization::store_t_to_binary(p2p_req, blob);
     std::set<peerid_type> announced_peers;
     // send to peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
