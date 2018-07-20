@@ -875,8 +875,7 @@ namespace nodetool
       static std::string supernode_endpoint("send_supernode_announce");
       std::string supernode_str = arg.address;
 
-      std::cout << "handle_supernode_announce" << std::endl;
-      std::cout << arg.address << std::endl;
+      LOG_PRINT_L0("handle_supernode_announce " << arg.hop << " " << arg.address);
 
       do {
           peerlist_entry pe;
@@ -915,6 +914,8 @@ namespace nodetool
               }
               if (peer_it == (*it).second.peers.end())
               {
+                  LOG_PRINT_L0("Added tunnel for " << supernode_str << ". Hop level: "
+                               << arg.hop << "(Max: " << (*it).second.max_hop << ")");
                   (*it).second.peers[pe.id] = pe;
                   if ((*it).second.max_hop < arg.hop)
                   {
