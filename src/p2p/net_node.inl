@@ -927,7 +927,7 @@ namespace nodetool
                   {
                       (*it).second.max_hop = arg.hop;
                   }
-                  break;
+                  return 1;
               }
           }
           LOG_PRINT_L0("new announce");
