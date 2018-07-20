@@ -879,6 +879,7 @@ namespace nodetool
 
       do {
           peerlist_entry pe;
+          // TODO: Need to investigate it and mechanism for adding peer to the peerlist
           if (!m_peerlist.find_peer(context.peer_id, pe))
           { // unknown peer, alternative handshake with it
               LOG_PRINT_L0("unknown peer, alternative handshake with it");
@@ -938,11 +939,11 @@ namespace nodetool
 
       do {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          LOG_PRINT_L0("post " << m_have_supernode << " " << supernode_str << " " << m_supernode_str);
           if (!m_have_supernode)
               break;
           if (supernode_str == m_supernode_str)
               return 1;
-          LOG_PRINT_L0("post " << m_have_supernode << " " << supernode_str << " " << m_supernode_str);
           post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
       } while(0);
       std::cout << "Supernode routes:" << std::endl;
