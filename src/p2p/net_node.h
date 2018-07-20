@@ -201,6 +201,8 @@ namespace nodetool
     //----------------- helper functions ------------------------------------------------
     bool multicast_send(int command, const std::string &data, const std::list<std::string> &addresses,
                         const std::list<peerid_type> &exclude_peerids = std::list<peerid_type>());
+    uint64_t get_max_hop(const std::list<std::string> &addresses);
+    std::list<std::string> get_routes();
 
     template<class request_struct>
     int post_request_to_supernode(const std::string &method, const typename request_struct::request &body,

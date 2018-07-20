@@ -816,8 +816,41 @@ namespace nodetool
               }
           }
       }
-
       return notify_peer_list(command, data, tunnels);
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  uint64_t node_server<t_payload_net_handler>::get_max_hop(const std::list<std::string> &addresses)
+  {
+      uint64_t max_hop = 0;
+      {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          for (auto addr : addresses)
+          {
+              auto it = m_supernode_routes.find(addr);
+              if (it != m_supernode_routes.end() && max_hop < (*it).second.max_hop)
+              {
+                  max_hop = (*it).second.max_hop;
+              }
+          }
+      }
+      return max_hop;
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  std::list<std::string> node_server<t_payload_net_handler>::get_routes()
+  {
+      std::list<std::string> routes;
+      {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it)
+          {
+              routes.push_back((*it).first);
+          }
+      }
+      return routes;
   }
 
   //-----------------------------------------------------------------------------------
@@ -905,9 +938,12 @@ namespace nodetool
           }
       }
 
-      std::string buff;
-      epee::serialization::store_t_to_binary(arg, buff);
-      relay_notify_to_all(command, buff, context);
+      if (--arg.hop >= 0)
+      {
+          std::string buff;
+          epee::serialization::store_t_to_binary(arg, buff);
+          relay_notify_to_all(command, buff, context);
+      }
       return 1;
   }
 
@@ -920,16 +956,19 @@ namespace nodetool
           auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
           if (m_have_supernode && it != addresses.end())
           {
-              post_request_to_supernode<COMMAND_MULTICAST>("multicast", arg, arg.callback_uri);
+              post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
           }
       }
-      std::list<peerid_type> exclude_peers;
-      exclude_peers.push_back(context.peer_id);
+      if (--arg.hop >= 0)
+      {
+          std::list<peerid_type> exclude_peers;
+          exclude_peers.push_back(context.peer_id);
 
-      std::string buff;
-      epee::serialization::store_t_to_binary(arg, buff);
-      addresses.remove(m_supernode_str);
-      multicast_send(command, buff, addresses, exclude_peers);
+          std::string buff;
+          epee::serialization::store_t_to_binary(arg, buff);
+          addresses.remove(m_supernode_str);
+          multicast_send(command, buff, addresses, exclude_peers);
+      }
       return 1;
   }
 
@@ -941,11 +980,11 @@ namespace nodetool
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (m_have_supernode && address == m_supernode_str)
           {
-              post_request_to_supernode<COMMAND_UNICAST>("unicast", arg, arg.callback_uri);
+              post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
           }
       }
 
-      if (address != m_supernode_str)
+      if (address != m_supernode_str && --arg.hop >= 0)
       {
           std::list<std::string> addresses;
           addresses.push_back(address);
@@ -2042,8 +2081,15 @@ namespace nodetool
   {
       LOG_PRINT_L0("Incoming broadcast request");
 
+      COMMAND_BROADCAST::request p2p_req;
+      p2p_req.sender_address = req.sender_address;
+      p2p_req.callback_uri = req.callback_uri;
+      p2p_req.data = req.data;
+      p2p_req.wait_answer = req.wait_answer;
+      p2p_req.hop = get_max_hop(get_routes());
+
       std::string blob;
-      epee::serialization::store_t_to_binary(req, blob);
+      epee::serialization::store_t_to_binary(p2p_req, blob);
       std::set<peerid_type> announced_peers;
       // send to peers
       m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
@@ -2073,9 +2119,17 @@ namespace nodetool
   {
       LOG_PRINT_L0("Incoming multicast request");
 
+      COMMAND_MULTICAST::request p2p_req;
+      p2p_req.receiver_addresses = req.receiver_addresses;
+      p2p_req.sender_address = req.sender_address;
+      p2p_req.callback_uri = req.callback_uri;
+      p2p_req.data = req.data;
+      p2p_req.wait_answer = req.wait_answer;
+      p2p_req.hop = get_max_hop(p2p_req.receiver_addresses);
+
       std::string blob;
-      epee::serialization::store_t_to_binary(req, blob);
-      multicast_send(COMMAND_MULTICAST::ID, blob, req.receiver_addresses);
+      epee::serialization::store_t_to_binary(p2p_req, blob);
+      multicast_send(COMMAND_MULTICAST::ID, blob, p2p_req.receiver_addresses);
   }
 
   //-----------------------------------------------------------------------------------
@@ -2087,8 +2141,16 @@ namespace nodetool
       std::list<std::string> addresses;
       addresses.push_back(req.receiver_address);
 
+      COMMAND_UNICAST::request p2p_req;
+      p2p_req.receiver_address = req.receiver_address;
+      p2p_req.sender_address = req.sender_address;
+      p2p_req.callback_uri = req.callback_uri;
+      p2p_req.data = req.data;
+      p2p_req.wait_answer = req.wait_answer;
+      p2p_req.hop = get_max_hop(addresses);
+
       std::string blob;
-      epee::serialization::store_t_to_binary(req, blob);
+      epee::serialization::store_t_to_binary(p2p_req, blob);
       multicast_send(COMMAND_UNICAST::ID, blob, addresses);
   }
 
