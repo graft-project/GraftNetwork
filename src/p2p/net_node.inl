@@ -877,6 +877,11 @@ namespace nodetool
 
       LOG_PRINT_L0("handle_supernode_announce " << arg.hop << " " << arg.address);
 
+      if (supernode_str == m_supernode_str)
+      {
+          return 1;
+      }
+
       do {
           peerlist_entry pe;
           // TODO: Need to investigate it and mechanism for adding peer to the peerlist
@@ -942,8 +947,6 @@ namespace nodetool
           LOG_PRINT_L0("post " << m_have_supernode << " " << supernode_str << " " << m_supernode_str);
           if (!m_have_supernode)
               break;
-          if (supernode_str == m_supernode_str)
-              return 1;
           post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
       } while(0);
       std::cout << "Supernode routes:" << std::endl;
