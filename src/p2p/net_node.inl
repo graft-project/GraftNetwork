@@ -881,6 +881,7 @@ namespace nodetool
           peerlist_entry pe;
           if (!m_peerlist.find_peer(context.peer_id, pe))
           { // unknown peer, alternative handshake with it
+              LOG_PRINT_L0("unknown peer, alternative handshake with it");
               return 1;
           }
 
@@ -888,6 +889,7 @@ namespace nodetool
           auto it = m_supernode_routes.find(supernode_str);
           if (it == m_supernode_routes.end())
           {
+              LOG_PRINT_L0("create new tunnel " << supernode_str);
               std::unordered_map<peerid_type, peerlist_entry> peer_map;
               peer_map[pe.id] = pe;
               nodetool::supernode_route route;
@@ -902,14 +904,17 @@ namespace nodetool
           {
               MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
                     << " too old, corrent route timestamp " << (*it).second.last_announce_time);
+              LOG_PRINT_L0("announce too old");
               return 1;
           }
 
           if ((*it).second.last_announce_time == arg.timestamp)
           {
+              LOG_PRINT_L0("alternative announce");
               auto peer_it = (*it).second.peers.find(pe.id);
               if (peer_it != (*it).second.peers.end())
               {
+                  LOG_PRINT_L0("already exists");
                   return 1;
               }
               if (peer_it == (*it).second.peers.end())
@@ -924,6 +929,7 @@ namespace nodetool
                   break;
               }
           }
+          LOG_PRINT_L0("new announce");
           (*it).second.peers.clear();
           (*it).second.peers[pe.id] = pe;
           (*it).second.last_announce_time = arg.timestamp;
@@ -936,6 +942,7 @@ namespace nodetool
               break;
           if (supernode_str == m_supernode_str)
               return 1;
+          LOG_PRINT_L0("post " << m_have_supernode << " " << supernode_str << " " << m_supernode_str);
           post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
       } while(0);
       std::cout << "Supernode routes:" << std::endl;
