@@ -970,7 +970,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
   {
-      LOG_PRINT_L0("handle_broadcast start "  + arg.callback_uri);
+      LOG_PRINT_L0("handle_broadcast start " << arg.callback_uri);
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (m_have_supernode)
@@ -978,9 +978,10 @@ namespace nodetool
               post_request_to_supernode<COMMAND_BROADCAST>("broadcast", arg, arg.callback_uri);
           }
       }
-
-      if (--arg.hop >= 0)
+      int next_hop = arg.hop - 1;
+      if (next_hop >= 0)
       {
+          arg.hop = next_hop;
           std::string buff;
           epee::serialization::store_t_to_binary(arg, buff);
           relay_notify_to_all(command, buff, context);
@@ -993,7 +994,12 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
   {
-      LOG_PRINT_L0("handle_multicast start " + arg.callback_uri);
+      LOG_PRINT_L0("handle_multicast start " << arg.callback_uri);
+      //test code
+      std::string test_buff;
+      epee::serialization::store_t_to_json(arg, test_buff);
+      LOG_PRINT_L0("handle_multicast " << test_buff);
+      // end test code
       std::list<std::string> addresses = arg.receiver_addresses;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -1003,8 +1009,10 @@ namespace nodetool
               post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
           }
       }
-      if (--arg.hop >= 0)
+      int next_hop = arg.hop - 1;
+      if (next_hop >= 0)
       {
+          arg.hop = next_hop;
           std::list<peerid_type> exclude_peers;
           exclude_peers.push_back(context.peer_id);
 
@@ -1012,7 +1020,7 @@ namespace nodetool
           epee::serialization::store_t_to_binary(arg, buff);
           addresses.remove(m_supernode_str);
           multicast_send(command, buff, addresses, exclude_peers);
-          LOG_PRINT_L0("handle_multicast end " << buff);
+          LOG_PRINT_L0("handle_multicast data " << buff);
       }
       LOG_PRINT_L0("handle_multicast end");
       return 1;
@@ -1030,9 +1038,10 @@ namespace nodetool
               post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
           }
       }
-
-      if (address != m_supernode_str && --arg.hop >= 0)
+      int next_hop = arg.hop - 1;
+      if (address != m_supernode_str && next_hop >= 0)
       {
+          arg.hop = next_hop;
           std::list<std::string> addresses;
           addresses.push_back(address);
 
@@ -2180,7 +2189,7 @@ namespace nodetool
       LOG_PRINT_L0("do_multicast start");
       LOG_PRINT_L0("Incoming multicast request");
 
-      COMMAND_MULTICAST::request p2p_req;
+      COMMAND_MULTICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.receiver_addresses = req.receiver_addresses;
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
