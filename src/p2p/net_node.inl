@@ -984,6 +984,7 @@ namespace nodetool
           std::string buff;
           epee::serialization::store_t_to_binary(arg, buff);
           relay_notify_to_all(command, buff, context);
+          LOG_PRINT_L0("handle_broadcast end " << buff);
       }
       LOG_PRINT_L0("handle_broadcast end");
       return 1;
@@ -1011,6 +1012,7 @@ namespace nodetool
           epee::serialization::store_t_to_binary(arg, buff);
           addresses.remove(m_supernode_str);
           multicast_send(command, buff, addresses, exclude_peers);
+          LOG_PRINT_L0("handle_multicast end " << buff);
       }
       LOG_PRINT_L0("handle_multicast end");
       return 1;
@@ -1040,6 +1042,7 @@ namespace nodetool
           std::string buff;
           epee::serialization::store_t_to_binary(arg, buff);
           multicast_send(command, buff, addresses, exclude_peers);
+          LOG_PRINT_L0("handle_unicast end " << buff);
       }
       LOG_PRINT_L0("handle_unicast end");
       return 1;
@@ -2167,7 +2170,7 @@ namespace nodetool
       }
 
       notify_peer_list(COMMAND_BROADCAST::ID, blob, peers_to_send);
-      LOG_PRINT_L0("do_broadcast end");
+      LOG_PRINT_L0("do_broadcast end " << blob);
   }
 
   //-----------------------------------------------------------------------------------
@@ -2188,7 +2191,7 @@ namespace nodetool
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
       multicast_send(COMMAND_MULTICAST::ID, blob, p2p_req.receiver_addresses);
-      LOG_PRINT_L0("do_multicast end");
+      LOG_PRINT_L0("do_multicast end " << blob);
   }
 
   //-----------------------------------------------------------------------------------
@@ -2212,7 +2215,7 @@ namespace nodetool
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
       multicast_send(COMMAND_UNICAST::ID, blob, addresses);
-      LOG_PRINT_L0("do_unicast end");
+      LOG_PRINT_L0("do_unicast end " << blob);
   }
 
   //-----------------------------------------------------------------------------------
