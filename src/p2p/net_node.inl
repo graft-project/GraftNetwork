@@ -876,7 +876,6 @@ namespace nodetool
       std::string supernode_str = arg.address;
 
       LOG_PRINT_L0("handle_supernode_announce " << arg.hop << " " << arg.address);
-
       if (supernode_str == m_supernode_str)
       {
           return 1;
@@ -2149,7 +2148,7 @@ namespace nodetool
       LOG_PRINT_L0("do_broadcast start");
       LOG_PRINT_L0("Incoming broadcast request");
 
-      COMMAND_BROADCAST::request p2p_req;
+      COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
       p2p_req.data = req.data;
@@ -2213,7 +2212,7 @@ namespace nodetool
       std::list<std::string> addresses;
       addresses.push_back(req.receiver_address);
 
-      COMMAND_UNICAST::request p2p_req;
+      COMMAND_UNICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.receiver_address = req.receiver_address;
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
