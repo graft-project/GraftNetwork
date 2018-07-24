@@ -859,8 +859,15 @@ namespace nodetool
   {
       static std::string supernode_endpoint("send_supernode_announce");
       std::string supernode_str = arg.address;
+
+      if (supernode_str == m_supernode_str)
+      {
+          return 1;
+      }
+
       do {
           peerlist_entry pe;
+          // TODO: Need to investigate it and mechanism for adding peer to the peerlist
           if (!m_peerlist.find_peer(context.peer_id, pe))
           { // unknown peer, alternative handshake with it
               return 1;
@@ -901,7 +908,7 @@ namespace nodetool
                   {
                       (*it).second.max_hop = arg.hop;
                   }
-                  break;
+                  return 1;
               }
           }
           (*it).second.peers.clear();
@@ -937,9 +944,10 @@ namespace nodetool
               post_request_to_supernode<COMMAND_BROADCAST>("broadcast", arg, arg.callback_uri);
           }
       }
-
-      if (--arg.hop >= 0)
+      int next_hop = arg.hop - 1;
+      if (next_hop >= 0)
       {
+          arg.hop = next_hop;
           std::string buff;
           epee::serialization::store_t_to_binary(arg, buff);
           relay_notify_to_all(command, buff, context);
@@ -959,8 +967,10 @@ namespace nodetool
               post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
           }
       }
-      if (--arg.hop >= 0)
+      int next_hop = arg.hop - 1;
+      if (next_hop >= 0)
       {
+          arg.hop = next_hop;
           std::list<peerid_type> exclude_peers;
           exclude_peers.push_back(context.peer_id);
 
@@ -983,9 +993,10 @@ namespace nodetool
               post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
           }
       }
-
-      if (address != m_supernode_str && --arg.hop >= 0)
+      int next_hop = arg.hop - 1;
+      if (address != m_supernode_str && next_hop >= 0)
       {
+          arg.hop = next_hop;
           std::list<std::string> addresses;
           addresses.push_back(address);
 
@@ -2067,8 +2078,9 @@ namespace nodetool
     m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
     std::vector<peerlist_entry> peers_to_send;
     for (auto pe :peerlist_white) {
-        if (announced_peers.find(pe.id) != announced_peers.end())
+        if (announced_peers.find(pe.id) != announced_peers.end()) {
             continue;
+        }
         peers_to_send.push_back(pe);
     }
 
@@ -2081,7 +2093,7 @@ namespace nodetool
   {
       LOG_PRINT_L0("Incoming broadcast request");
 
-      COMMAND_BROADCAST::request p2p_req;
+      COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
       p2p_req.data = req.data;
@@ -2119,7 +2131,7 @@ namespace nodetool
   {
       LOG_PRINT_L0("Incoming multicast request");
 
-      COMMAND_MULTICAST::request p2p_req;
+      COMMAND_MULTICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.receiver_addresses = req.receiver_addresses;
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
@@ -2141,7 +2153,7 @@ namespace nodetool
       std::list<std::string> addresses;
       addresses.push_back(req.receiver_address);
 
-      COMMAND_UNICAST::request p2p_req;
+      COMMAND_UNICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.receiver_address = req.receiver_address;
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
