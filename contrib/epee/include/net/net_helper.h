@@ -46,6 +46,10 @@
 #include "misc_language.h"
 //#include "profile_tools.h"
 #include "../string_tools.h"
+#include <boost/functional.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/enable_shared_from_this.hpp>
+#include <vector>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net"
@@ -59,6 +63,190 @@ namespace epee
 {
 namespace net_utils
 {
+
+
+  class async_client : public boost::enable_shared_from_this<async_client>
+  {
+  public:
+      enum result_type {
+          suceed
+          , timeouted
+          , resolve_error
+          , connect_error
+          , send_error
+          , recv_error
+      };
+
+      typedef boost::function<bool(const void*, size_t, std::string&)> recv_data_handler_type;
+      typedef boost::function<void(result_type, const std::string&)> final_callback_type;
+
+      struct ignore_call_result : public boost::enable_shared_from_this<ignore_call_result>
+      {
+        static boost::shared_ptr<ignore_call_result> create() {
+          return boost::shared_ptr<ignore_call_result>(new ignore_call_result);
+        }
+        void operator() (result_type, const std::string&) {}
+      protected:
+        ignore_call_result() = default;
+      };
+
+
+      static boost::shared_ptr<async_client> create(boost::asio::io_service& io_service
+                                                    , recv_data_handler_type on_recv_callback/* = boost::bind(&http_recved_data_handler::operator()
+                                                                                                            , http_recved_data_handler::create()
+                                                                                                            , _1, _2, _3)*/
+                                                    , final_callback_type callback = boost::bind(&ignore_call_result::operator()
+                                                                                                 , ignore_call_result::create
+                                                                                                 , _1, _2)
+                                                    , const std::string& bind_ip = "0.0.0.0")
+      {
+        boost::shared_ptr<async_client> ret(new async_client(io_service, on_recv_callback, callback, bind_ip));
+        return ret;
+      }
+
+      void connect_send_wait_answer_and_disconnect(const std::string& addr
+                                                   , const std::string& port
+                                                   , const std::string& data_to_send
+                                                   , int64_t timeout
+                                                   )
+      {
+          if (timeout < 0)
+              timeout = 1;
+
+          boost::asio::ip::tcp::resolver::query query(addr,port);
+          boost::asio::ip::tcp::resolver r(m_io_service);
+
+          r.async_resolve(query, boost::bind(&async_client::on_resolve, shared_from_this(), _1, _2));
+
+          m_request = data_to_send;
+          m_deadline.expires_from_now(std::chrono::milliseconds(timeout));
+          m_deadline.async_wait(boost::bind(&async_client::on_timeout, shared_from_this(), _1));
+      }
+
+  protected:
+      async_client(boost::asio::io_service& io_service
+                   , recv_data_handler_type& on_recv_callback
+                   , final_callback_type callback
+                   , const std::string& bind_ip = "0.0.0.0")
+          : m_io_service(io_service)
+          , m_socket(io_service)
+          , m_initialized(false)
+          , m_connected(false)
+          , m_deadline(m_io_service)
+          , m_on_receive_callback(on_recv_callback)
+          , m_inbuff(8192)
+          , m_finalizer(callback)
+          , m_bind_ip(bind_ip)
+          , m_strand(io_service)
+      {
+        m_initialized = true;
+      }
+
+      void on_resolve(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::iterator _epIt)
+      {
+          if (ec) {
+              shutdown();
+              m_io_service.post(boost::bind(&async_client::on_final, shared_from_this(), result_type::resolve_error, std::string()));
+              return;
+          }
+
+          m_socket.async_connect(*_epIt,boost::bind(&async_client::on_connect, shared_from_this(),_1));
+      }
+
+      void on_connect(const boost::system::error_code& ec)
+      {
+          if (ec) {
+              shutdown();
+              m_io_service.post(boost::bind(&async_client::on_final, shared_from_this(), result_type::resolve_error, std::string()));
+              return;
+          }
+
+          boost::asio::async_read(m_socket, boost::asio::buffer(m_inbuff.data(), m_inbuff.size())
+                                  , m_strand.wrap(boost::bind(&async_client::on_read, shared_from_this(), _1, _2)));
+
+          boost::asio::async_write(m_socket,boost::asio::buffer(m_request.data(), m_request.size())
+                                   , boost::bind(&async_client::on_write, shared_from_this(), _1, _2));
+      }
+
+      void on_read(const boost::system::error_code& ec,
+                       std::size_t bytes_read)
+      {
+        if (!ec) {
+            if ( m_on_receive_callback(m_inbuff.data(), bytes_read, m_responce) ) {
+                shutdown();
+                m_io_service.post(boost::bind(&async_client::on_final, shared_from_this(), result_type::suceed, m_responce));
+            }
+            else {
+                boost::asio::async_read(m_socket, boost::asio::buffer(m_inbuff.data(), m_inbuff.size())
+                                        , m_strand.wrap(boost::bind(&async_client::on_read, shared_from_this(), _1, _2)));
+            }
+        }
+        else if (ec == boost::asio::error::eof) {
+            if ( m_on_receive_callback(m_inbuff.data(), bytes_read, m_responce) ) {
+                shutdown();
+                m_io_service.post(boost::bind(&async_client::on_final, shared_from_this(), result_type::suceed, m_responce));
+            }
+            else {
+                shutdown();
+                m_io_service.post(boost::bind(&async_client::on_final, shared_from_this(), result_type::recv_error, std::string()));
+            }
+        }
+        else {
+            shutdown();
+            m_io_service.post(boost::bind(&async_client::on_final, shared_from_this(), result_type::recv_error, std::string()));
+        }
+      }
+
+      void on_write(const boost::system::error_code& ec,
+                       size_t bytes_sent)
+      {
+          if (ec || bytes_sent != m_request.size() ) {
+              shutdown();
+              m_io_service.post(boost::bind(&async_client::on_final, shared_from_this(), result_type::send_error, std::string()));
+              return;
+          }
+      }
+
+      void on_timeout(const boost::system::error_code& ec)
+      {
+          if (ec == boost::asio::error::operation_aborted)
+              return;
+
+          m_socket.close();
+          m_io_service.post(boost::bind(&async_client::on_final, shared_from_this(), result_type::timeouted, std::string()));
+      }
+
+      void on_final(result_type r, const std::string& resp)
+      {
+          m_finalizer(r, resp);
+      }
+
+
+      void shutdown()
+      {
+          m_socket.close();
+          m_deadline.cancel();
+      }
+
+
+      boost::asio::io_service& m_io_service;
+      boost::asio::ip::tcp::socket m_socket;
+      bool m_initialized;
+      bool m_connected;
+      boost::asio::steady_timer m_deadline;
+      volatile uint32_t m_shutdowned;
+      recv_data_handler_type m_on_receive_callback;
+
+      std::vector<char> m_inbuff;
+      std::string m_request;
+      std::string m_responce;
+
+      final_callback_type m_finalizer;
+
+      const std::string m_bind_ip;
+      boost::asio::io_service::strand m_strand;
+  };
+
 
   class blocked_mode_client
 	{
@@ -670,6 +858,6 @@ namespace net_utils
 			// Put the actor back to sleep.
 			m_send_deadline.async_wait(boost::bind(&async_blocked_mode_client::check_send_deadline, this));
 		}
-	};
+    };
 }
 }

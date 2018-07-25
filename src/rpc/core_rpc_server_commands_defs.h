@@ -484,7 +484,6 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
 
-
     struct response
     {
       std::string status;
@@ -1689,4 +1688,126 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
   };
+
+  //---------- Graft RTA commands ---------------------
+  struct COMMAND_RPC_SUPERNODE_ANNOUNCE
+  {
+    struct SignedKeyImageStr
+    {
+      std::string key_image;
+      std::string signature;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(key_image)
+        KV_SERIALIZE(signature)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      std::vector<SignedKeyImageStr> signed_key_images;
+      uint64_t timestamp;
+      std::string address;
+      uint64_t stake_amount;
+      uint64_t height;
+      std::string secret_viewkey;
+      std::string network_address;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(signed_key_images)
+        KV_SERIALIZE(timestamp)
+        KV_SERIALIZE(address)
+        KV_SERIALIZE(stake_amount)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(secret_viewkey)
+        KV_SERIALIZE(network_address)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_BROADCAST
+  {
+    struct request
+    {
+      std::string sender_address;
+      std::string callback_uri;
+      std::string data;
+      bool wait_answer;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(sender_address)
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_MULTICAST
+  {
+    struct request
+    {
+      std::list<std::string> receiver_addresses;
+      std::string sender_address;
+      std::string callback_uri;
+      std::string data;
+      bool wait_answer;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(receiver_addresses)
+        KV_SERIALIZE(sender_address)
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_UNICAST
+  {
+    struct request
+    {
+      std::string receiver_address;
+      std::string sender_address;
+      std::string callback_uri;
+      std::string data;
+      bool wait_answer;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(receiver_address)
+        KV_SERIALIZE(sender_address)
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
 }
