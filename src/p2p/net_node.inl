@@ -873,7 +873,7 @@ namespace nodetool
   void node_server<t_payload_net_handler>::remove_old_request_cache()
   {
       int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-      for (auto it = m_supernode_requests_timestamps.begin(); it != m_supernode_requests_timestamps.end(); ++it)
+      for (auto it = m_supernode_requests_timestamps.begin(); it != m_supernode_requests_timestamps.end();)
       {
           if ((*it).first + REQUEST_CACHE_TIME < timestamp)
           {
@@ -912,6 +912,8 @@ namespace nodetool
           }
 
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          remove_old_request_cache();
+
           auto it = m_supernode_routes.find(supernode_str);
           if (it == m_supernode_routes.end())
           {
