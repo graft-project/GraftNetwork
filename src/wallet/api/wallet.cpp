@@ -880,6 +880,12 @@ bool WalletImpl::importKeyImages(const string &filename)
   return true;
 }
 
+PendingTransaction *WalletImpl::loadSignedTx(istream &stream)
+{
+  PendingTransactionImpl * result = new PendingTransactionImpl(*this);
+  return result;
+}
+
 // TODO:
 // 1 - properly handle payment id (add another menthod with explicit 'payment_id' param)
 // 2 - check / design how "Transaction" can be single interface
@@ -1055,6 +1061,17 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     return transaction;
 }
 
+PendingTransaction *WalletImpl::loadTransaction(istream &iss)
+{
+  clearStatus();
+  PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
+  if (!m_wallet->load_tx(transaction->m_pending_tx, iss)) {
+    transaction->m_status = Status_Error;
+    transaction->m_errorString = "Error loading transaction from stream";
+  }
+  return transaction;
+}
+
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
 
 {
@@ -1150,6 +1167,25 @@ PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
 void WalletImpl::disposeTransaction(PendingTransaction *t)
 {
     delete t;
+}
+
+bool WalletImpl::getAmountFromTransaction(PendingTransaction *t, uint64_t &amount)
+{
+    bool result = true;
+    PendingTransactionImpl * t_ = static_cast<PendingTransactionImpl*>(t);
+    amount = 0;
+
+    for (const auto & pt : t_->m_pending_tx) {
+        uint64_t tx_amount = 0;
+        result = m_wallet->get_amount_from_tx(pt, tx_amount);
+        if (result) {
+            amount += tx_amount;
+        } else {
+            break;
+        }
+    }
+
+    return result;
 }
 
 TransactionHistory *WalletImpl::history() const

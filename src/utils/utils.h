@@ -1,4 +1,4 @@
-// Copyright (c) 2017, The Graft Project
+// Copyright (c) 2018, The Graft Project
 //
 // All rights reserved.
 //
@@ -26,46 +26,27 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
-#include "wallet/wallet2_api.h"
-#include "../graft_wallet.h"
+#ifndef UTILS_H
+#define UTILS_H
 
-#include <string>
+#include <ringct/rctSigs.h>
+#include <cryptonote_basic/account.h>
+#include <cryptonote_basic/cryptonote_basic.h>
 #include <vector>
 
+namespace Utils {
+/*!
+ * \brief lookup_account_outputs_ringct - returns outputs owned by address in given tx
+ * \param acc                - account to check
+ * \param tx                 - transaction to check
+ * \param outputs            - vector of pairs <output_index, amount>
+ * \param total_transfered   - total amount addressed to given address in given transaction
+ * \return                   - true on success
+ */
+bool lookup_account_outputs_ringct(const cryptonote::account_keys &acc, const cryptonote::transaction &tx,
+                                   std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered);
 
-namespace Monero {
+} // namespace
 
-class GraftPendingTransactionImpl : public PendingTransaction
-{
-public:
-    GraftPendingTransactionImpl(tools::GraftWallet *graft_wallet);
-    ~GraftPendingTransactionImpl();
-    int status() const;
-    std::string errorString() const;
-    bool commit(const std::string &filename = "", bool overwrite = false);
-    uint64_t amount() const;
-    uint64_t dust() const;
-    uint64_t fee() const;
-    std::vector<std::string> txid() const;
-    uint64_t txCount() const;
-    bool save(std::ostream &os);
-
-    // TODO: continue with interface;
-    void setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx);
-    void setStatus(int status);
-    void setErrorString(const std::string &message);
-
-private:
-    tools::GraftWallet *mWallet;
-
-    int  m_status;
-    std::string m_errorString;
-    std::vector<tools::GraftWallet::pending_tx> m_pending_tx;
-};
-
-
-}
-
-namespace Bitmonero = Monero;
+#endif // UTILS_H

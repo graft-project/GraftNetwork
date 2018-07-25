@@ -79,6 +79,12 @@ struct PendingTransaction
     virtual std::string errorString() const = 0;
     // commit transaction or save to file if filename is provided.
     virtual bool commit(const std::string &filename = "", bool overwrite = false) = 0;
+    /*!
+     * @brief save - serializes transaction to the stream. Can be loaded back with Wallet::loadTransaction
+     * @param oss    stream object to save to
+     * @return       true if saved successfully
+     */
+    virtual bool save(std::ostream &oss) = 0;
     virtual uint64_t amount() const = 0;
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
@@ -509,6 +515,14 @@ struct Wallet
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
 
     /*!
+     * \brief loadTransaction loads previously serialized transaction from stream
+     * \param iss               stream to load from
+     * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
+     *                          after object returned
+     */
+    virtual PendingTransaction * loadTransaction(std::istream &iss) = 0;
+
+    /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
      *                          after object returned
@@ -535,6 +549,13 @@ struct Wallet
      * \param t -  pointer to the "PendingTransaction" object. Pointer is not valid after function returned;
      */
     virtual void disposeTransaction(PendingTransaction * t) = 0;
+
+    /*!
+     * \brief getAmountFromTransaction - returns total amount from transaction addressed to this wallet
+     * \param t - pointer to "PendingTransaction" object
+     * \return  - true on success
+     */
+    virtual bool getAmountFromTransaction(PendingTransaction * t, uint64_t &amount) = 0;
 
    /*!
     * \brief exportKeyImages - exports key images to file

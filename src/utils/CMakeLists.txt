@@ -1,4 +1,4 @@
-# Copyright (c) 2017, The Graft Project
+# Copyright (c) 2018, The Graft Project
 #
 # All rights reserved.
 #
@@ -30,47 +30,25 @@
 
 # include (${PROJECT_SOURCE_DIR}/cmake/libutils.cmake)
 
-set(supernode_tests_sources
-  main.cpp
-  tx_pool_tests.cpp
-  walletproxy_test.cpp
-  graft_wallet_tests.cpp
-  graft_splitted_tx_test.cpp
+set(utils_sources
+  utils.cpp
 )
 
-set(supernode_tests_headers
+set(utils_headers)
+
+set(utils_private_headers
+  utils.h
   )
 
-add_executable(supernode_tests
-  ${supernode_tests_sources}
-  ${supernode_tests_headers})
-
-
-target_link_libraries(supernode_tests
-   PRIVATE
-    epee
-    supernode
-    wallet
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_SERIALIZATION_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${GTEST_LIBRARIES}
-    ${CMAKE_THREAD_LIBS_INIT}
+monero_private_headers(utils
+  ${crypto_private_headers})
+monero_add_library(utils
+  ${utils_sources}
+  ${utils_headers}
+  ${utils_private_headers})
+target_link_libraries(utils
+  PUBLIC
+    common
+    cryptonote_basic
+  PRIVATE
     ${EXTRA_LIBRARIES})
-
-set_property(TARGET supernode_tests
-  PROPERTY
-    FOLDER "tests")
-
-if (NOT MSVC)
-  set_property(TARGET supernode_tests
-    APPEND_STRING
-    PROPERTY
-      COMPILE_FLAGS " -Wno-undef -Wno-sign-compare")
-endif ()
-
-add_test(
-  NAME    supernode_tests
-  COMMAND supernode_tests)
