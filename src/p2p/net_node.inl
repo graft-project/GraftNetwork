@@ -34,6 +34,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/thread/thread.hpp>
 #include <atomic>
@@ -70,6 +71,7 @@
 #define MIN_WANTED_SEED_NODES 12
 
 #define MAX_TUNNEL_PEERS (3u)
+#define REQUEST_CACHE_TIME 2 * 60 * 1000
 
 namespace nodetool
 {
@@ -868,6 +870,25 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::remove_old_request_cache()
+  {
+      int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+      for (auto it = m_supernode_requests_timestamps.begin(); it != m_supernode_requests_timestamps.end(); ++it)
+      {
+          if ((*it).first + REQUEST_CACHE_TIME < timestamp)
+          {
+              m_supernode_requests_cache.erase((*it).second);
+              it = m_supernode_requests_timestamps.erase(it);
+          }
+          else
+          {
+              break;
+          }
+      }
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
       LOG_PRINT_L0("handle_supernode_announce start");
@@ -972,10 +993,17 @@ namespace nodetool
       LOG_PRINT_L0("handle_broadcast start " << arg.callback_uri);
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_have_supernode)
+          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              post_request_to_supernode<COMMAND_BROADCAST>("broadcast", arg, arg.callback_uri);
+              m_supernode_requests_cache.insert(arg.message_id);
+              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
+              if (m_have_supernode)
+              {
+                  post_request_to_supernode<COMMAND_BROADCAST>("broadcast", arg, arg.callback_uri);
+              }
           }
+          remove_old_request_cache();
       }
       int next_hop = arg.hop - 1;
       if (next_hop >= 0)
@@ -1002,11 +1030,18 @@ namespace nodetool
       std::list<std::string> addresses = arg.receiver_addresses;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
-          if (m_have_supernode && it != addresses.end())
+          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
+              m_supernode_requests_cache.insert(arg.message_id);
+              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
+              auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
+              if (m_have_supernode && it != addresses.end())
+              {
+                  post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
+              }
           }
+          remove_old_request_cache();
       }
       int next_hop = arg.hop - 1;
       if (next_hop >= 0)
@@ -1032,10 +1067,17 @@ namespace nodetool
       std::string address = arg.receiver_address;
       {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_have_supernode && address == m_supernode_str)
+          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
+              m_supernode_requests_cache.insert(arg.message_id);
+              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
+              if (m_have_supernode && address == m_supernode_str)
+              {
+                  post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
+              }
           }
+          remove_old_request_cache();
       }
       int next_hop = arg.hop - 1;
       if (address != m_supernode_str && next_hop >= 0)
@@ -2148,12 +2190,23 @@ namespace nodetool
       LOG_PRINT_L0("do_broadcast start");
       LOG_PRINT_L0("Incoming broadcast request");
 
+      std::string data_blob;
+      epee::serialization::store_t_to_binary(req, data_blob);
+      std::vector<uint8_t> data_vec(data_blob.begin(), data_blob.end());
+      crypto::hash message_hash;
+      if (!tools::sha256sum(data_vec.data(), data_vec.size(), message_hash))
+      {
+          LOG_ERROR("RTA Broadcast: wrong data format for hashing!");
+          return;
+      }
+
       COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
       p2p_req.data = req.data;
       p2p_req.wait_answer = req.wait_answer;
       p2p_req.hop = get_max_hop(get_routes());
+      p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
 
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
@@ -2188,6 +2241,16 @@ namespace nodetool
       LOG_PRINT_L0("do_multicast start");
       LOG_PRINT_L0("Incoming multicast request");
 
+      std::string data_blob;
+      epee::serialization::store_t_to_binary(req, data_blob);
+      std::vector<uint8_t> data_vec(data_blob.begin(), data_blob.end());
+      crypto::hash message_hash;
+      if (!tools::sha256sum(data_vec.data(), data_vec.size(), message_hash))
+      {
+          LOG_ERROR("RTA Multicast: wrong data format for hashing!");
+          return;
+      }
+
       COMMAND_MULTICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.receiver_addresses = req.receiver_addresses;
       p2p_req.sender_address = req.sender_address;
@@ -2195,6 +2258,7 @@ namespace nodetool
       p2p_req.data = req.data;
       p2p_req.wait_answer = req.wait_answer;
       p2p_req.hop = get_max_hop(p2p_req.receiver_addresses);
+      p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
 
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
@@ -2212,6 +2276,16 @@ namespace nodetool
       std::list<std::string> addresses;
       addresses.push_back(req.receiver_address);
 
+      std::string data_blob;
+      epee::serialization::store_t_to_binary(req, data_blob);
+      std::vector<uint8_t> data_vec(data_blob.begin(), data_blob.end());
+      crypto::hash message_hash;
+      if (!tools::sha256sum(data_vec.data(), data_vec.size(), message_hash))
+      {
+          LOG_ERROR("RTA Unicast: wrong data format for hashing!");
+          return;
+      }
+
       COMMAND_UNICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.receiver_address = req.receiver_address;
       p2p_req.sender_address = req.sender_address;
@@ -2219,6 +2293,7 @@ namespace nodetool
       p2p_req.data = req.data;
       p2p_req.wait_answer = req.wait_answer;
       p2p_req.hop = get_max_hop(addresses);
+      p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
 
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);

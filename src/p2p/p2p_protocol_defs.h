@@ -203,6 +203,7 @@ namespace nodetool
       struct request : public cryptonote::COMMAND_RPC_BROADCAST::request
       {
           uint64_t hop;
+          std::string message_id;
 
           BEGIN_KV_SERIALIZE_MAP()
             KV_SERIALIZE(sender_address)
@@ -210,6 +211,7 @@ namespace nodetool
             KV_SERIALIZE(data)
             KV_SERIALIZE(wait_answer)
             KV_SERIALIZE(hop)
+            KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
       };
 
@@ -223,6 +225,7 @@ namespace nodetool
       struct request : public cryptonote::COMMAND_RPC_MULTICAST::request
       {
           uint64_t hop;
+          std::string message_id;
 
           BEGIN_KV_SERIALIZE_MAP()
             KV_SERIALIZE(receiver_addresses)
@@ -231,6 +234,7 @@ namespace nodetool
             KV_SERIALIZE(data)
             KV_SERIALIZE(wait_answer)
             KV_SERIALIZE(hop)
+            KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
       };
 
@@ -244,6 +248,7 @@ namespace nodetool
       struct request : public cryptonote::COMMAND_RPC_UNICAST::request
       {
           uint64_t hop;
+          std::string message_id;
 
           BEGIN_KV_SERIALIZE_MAP()
             KV_SERIALIZE(receiver_address)
@@ -252,6 +257,7 @@ namespace nodetool
             KV_SERIALIZE(data)
             KV_SERIALIZE(wait_answer)
             KV_SERIALIZE(hop)
+            KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
       };
 
