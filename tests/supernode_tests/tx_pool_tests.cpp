@@ -56,7 +56,7 @@
 #include "supernode/FSN_Servant.h"
 #include "supernode/TxPool.h"
 #include "supernode/WalletProxy.h"
-#include "supernode/graft_wallet.h"
+#include "supernode/graft_wallet2.h"
 #include "supernode/api/pending_transaction.h"
 
 #include "wallet/wallet2_api.h"
@@ -69,11 +69,11 @@ using namespace Monero;
 struct TxPoolTest : public testing::Test
 {
 
-    GraftWallet * wallet = nullptr;
+    GraftWallet2 * wallet = nullptr;
 
     TxPoolTest()
     {
-        wallet = new GraftWallet(true, false);
+        wallet = new GraftWallet2(true, false);
         string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
         string wallet_path = wallet_root_path + "/miner_wallet";
         wallet->load(wallet_path, "");

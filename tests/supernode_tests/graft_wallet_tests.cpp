@@ -52,7 +52,7 @@
 #include <chrono>
 #include <thread>
 
-#include "supernode/graft_wallet.h"
+#include "supernode/graft_wallet2.h"
 
 using namespace supernode;
 using namespace tools;
@@ -70,8 +70,8 @@ struct GraftWalletTest : public testing::Test
 
     GraftWalletTest()
     {
-        GraftWallet * wallet1 = new GraftWallet(true, false);
-        GraftWallet *wallet2 = new GraftWallet(true, false);
+        GraftWallet2 * wallet1 = new GraftWallet2(true, false);
+        GraftWallet2 *wallet2 = new GraftWallet2(true, false);
         wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
         string wallet_path1 = wallet_root_path + "/miner_wallet";
         string wallet_path2 = wallet_root_path + "/stake_wallet";
@@ -93,7 +93,7 @@ struct GraftWalletTest : public testing::Test
 
 TEST_F(GraftWalletTest, StoreAndLoadCache)
 {
-    GraftWallet *wallet = new GraftWallet(true, false);
+    GraftWallet2 *wallet = new GraftWallet2(true, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
@@ -109,7 +109,7 @@ TEST_F(GraftWalletTest, StoreAndLoadCache)
     boost::system::error_code ignored_ec;
     ASSERT_TRUE(boost::filesystem::exists(cache_filename, ignored_ec));
     // creating new wallet from serialized keys
-    wallet = new GraftWallet(true, false);
+    wallet = new GraftWallet2(true, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", cache_filename));
     // check if we loaded blocks from cache
     ASSERT_TRUE(wallet->get_blockchain_current_height() > 100);
@@ -120,7 +120,7 @@ TEST_F(GraftWalletTest, StoreAndLoadCache)
 
 TEST_F(GraftWalletTest, LoadWrongCache)
 {
-    GraftWallet *wallet = new GraftWallet(true, false);
+    GraftWallet2 *wallet = new GraftWallet2(true, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
@@ -136,7 +136,7 @@ TEST_F(GraftWalletTest, LoadWrongCache)
     boost::system::error_code ignored_ec;
     ASSERT_TRUE(boost::filesystem::exists(cache_filename, ignored_ec));
     // creating new wallet object, try to load cache from different one
-    wallet = new GraftWallet(true, false);
+    wallet = new GraftWallet2(true, false);
     ASSERT_ANY_THROW(wallet->load_graft(wallet_account2, "", cache_filename));
     boost::filesystem::remove(temp);
     delete wallet;
@@ -145,7 +145,7 @@ TEST_F(GraftWalletTest, LoadWrongCache)
 // implemented here; normally we need the same for wallet/wallet2.cpp
 TEST_F(GraftWalletTest, UseForkRule)
 {
-    GraftWallet *wallet = new GraftWallet(true, false);
+    GraftWallet2 *wallet = new GraftWallet2(true, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
@@ -167,7 +167,7 @@ TEST_F(GraftWalletTest, UseForkRule)
 
 TEST_F(GraftWalletTest, PendingTxSerialization1)
 {
-    GraftWallet *wallet = new GraftWallet(true, false);
+    GraftWallet2 *wallet = new GraftWallet2(true, false);
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
@@ -182,19 +182,19 @@ TEST_F(GraftWalletTest, PendingTxSerialization1)
     de.amount = Monero::Wallet::amountFromString("0.123");
     dsts.push_back(de);
     vector<uint8_t> extra;
-    vector<tools::GraftWallet::pending_tx> ptx1 = wallet->create_transactions_2(dsts, 4, 0, 1, extra, true);
+    vector<tools::GraftWallet2::pending_tx> ptx1 = wallet->create_transactions_2(dsts, 4, 0, 1, extra, true);
     ASSERT_TRUE(ptx1.size() == 1);
     std::ostringstream oss;
     ASSERT_TRUE(wallet->save_tx_signed(ptx1, oss));
     ASSERT_TRUE(oss.str().length() > 0);
-    vector<GraftWallet::pending_tx> ptx2;
+    vector<GraftWallet2::pending_tx> ptx2;
     std::string ptx1_serialized = oss.str();
     std::istringstream iss(ptx1_serialized);
     ASSERT_TRUE(wallet->load_tx(ptx2, iss));
 
     ASSERT_EQ(ptx1.size() , ptx2.size());
-    const GraftWallet::pending_tx & tx1 = ptx1.at(0);
-    const GraftWallet::pending_tx & tx2 = ptx2.at(0);
+    const GraftWallet2::pending_tx & tx1 = ptx1.at(0);
+    const GraftWallet2::pending_tx & tx2 = ptx2.at(0);
 
     string hash1 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx1.tx));
     string hash2 = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx2.tx));

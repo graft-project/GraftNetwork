@@ -63,7 +63,7 @@
 #include "supernode/P2P_Broadcast.h"
 #include "supernode/FSN_Servant_Test.h"
 #include "supernode/FSN_ActualList.h"
-#include "supernode/graft_wallet.h"
+#include "supernode/graft_wallet2.h"
 
 using namespace supernode;
 using namespace std;
@@ -360,7 +360,7 @@ struct Test_RTA_FlowBlockChain : public testing::Test {
 		pay_in.PaymentID = sale_out.PaymentID;
 		{
 		string wallet_path = s_TestDataPath + "/test_wallets" + "/stake_wallet";
-		tools::GraftWallet wallet(true, false);
+        tools::GraftWallet2 wallet(true, false);
 		wallet.load(wallet_path, "");
 		pay_in.Account = epee::string_encoding::base64_encode( wallet.store_keys_graft("", false) );
 		}

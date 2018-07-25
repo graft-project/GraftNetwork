@@ -3615,7 +3615,7 @@ bool GraftWallet2::save_tx(const std::vector<pending_tx>& ptx_vector, const std:
   return epee::file_io_utils::save_string_to_file(filename, std::string(UNSIGNED_TX_PREFIX) + oss.str());  
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet2::save_tx_signed(const std::vector<GraftWallet::pending_tx> &ptx_vector, ostream &oss)
+bool GraftWallet2::save_tx_signed(const std::vector<GraftWallet2::pending_tx> &ptx_vector, ostream &oss)
 {
 
   signed_tx_set signed_txes;
@@ -3842,7 +3842,7 @@ bool GraftWallet2::load_tx(const std::string &signed_filename, std::vector<tools
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool GraftWallet2::load_tx(std::vector<tools::GraftWallet::pending_tx> &ptx, std::istream &stream, std::function<bool(const signed_tx_set&)> accept_func)
+bool GraftWallet2::load_tx(std::vector<tools::GraftWallet2::pending_tx> &ptx, std::istream &stream, std::function<bool(const signed_tx_set&)> accept_func)
 {
   // check magic
   const size_t magiclen = strlen(SIGNED_TX_PREFIX);
@@ -4196,7 +4196,7 @@ bool GraftWallet2::load_keys_graft(const string &data, const string &password)
     return true;
 }
 
-bool GraftWallet2::get_amount_from_tx(const GraftWallet::pending_tx &ptx, uint64_t &amount)
+bool GraftWallet2::get_amount_from_tx(const GraftWallet2::pending_tx &ptx, uint64_t &amount)
 {
   std::vector<std::pair<size_t, uint64_t>> unused;
   return ::Utils::lookup_account_outputs_ringct(this->m_account.get_keys(), ptx.tx, unused, amount);
