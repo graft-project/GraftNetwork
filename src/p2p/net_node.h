@@ -231,6 +231,8 @@ namespace nodetool
         return 1;
     }
 
+    void remove_old_request_cache();
+
     //----------------- commands handlers ----------------------------------------------
     int handle_supernode_announce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
     int handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
@@ -412,6 +414,8 @@ namespace nodetool
       return epee::string_tools::pod_to_hex(addr);
     }
 
+    std::multimap<int, std::string> m_supernode_requests_timestamps;
+    std::set<std::string> m_supernode_requests_cache;
     std::map<std::string, nodetool::supernode_route> m_supernode_routes;
     crypto::public_key m_supernode_addr;
     std::string m_supernode_str;
