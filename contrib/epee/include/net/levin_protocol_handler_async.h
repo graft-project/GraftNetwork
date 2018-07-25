@@ -35,6 +35,7 @@
 
 #include "levin_base.h"
 #include "misc_language.h"
+#include "async_state_machine.h"
 
 #include <random>
 #include <chrono>
