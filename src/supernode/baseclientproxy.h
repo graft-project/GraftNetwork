@@ -30,7 +30,7 @@
 #define BASECLIENTPROXY_H
 
 #include "BaseRTAProcessor.h"
-#include "graft_wallet.h"
+#include "graft_wallet2.h"
 
 namespace supernode {
 class BaseClientProxy : public BaseRTAProcessor
@@ -38,8 +38,8 @@ class BaseClientProxy : public BaseRTAProcessor
 public:
     BaseClientProxy();
 
-    std::unique_ptr<tools::GraftWallet> initWallet(const std::string &account, const std::string &password) const;
-    void storeWalletState(tools::GraftWallet *wallet);
+    std::unique_ptr<tools::GraftWallet2> initWallet(const std::string &account, const std::string &password) const;
+    void storeWalletState(tools::GraftWallet2 *wallet);
 
     static std::string base64_decode(const std::string &encoded_data);
     static std::string base64_encode(const std::string &data);

@@ -29,7 +29,7 @@
 // Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
 #include "wallet/wallet2_api.h"
-#include "../graft_wallet.h"
+#include "../graft_wallet2.h"
 
 #include <string>
 #include <vector>
@@ -40,7 +40,7 @@ namespace Monero {
 class GraftPendingTransactionImpl : public PendingTransaction
 {
 public:
-    GraftPendingTransactionImpl(tools::GraftWallet *graft_wallet);
+    GraftPendingTransactionImpl(tools::GraftWallet2 *graft_wallet);
     ~GraftPendingTransactionImpl();
     int status() const;
     std::string errorString() const;
@@ -52,17 +52,18 @@ public:
     uint64_t txCount() const;
     bool save(std::ostream &os);
 
+    std::vector<std::string> getRawTransaction() const override;
     // TODO: continue with interface;
-    void setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx);
+    void setPendingTx(std::vector<tools::GraftWallet2::pending_tx> pending_tx);
     void setStatus(int status);
     void setErrorString(const std::string &message);
 
 private:
-    tools::GraftWallet *mWallet;
+    tools::GraftWallet2 *mWallet;
 
     int  m_status;
     std::string m_errorString;
-    std::vector<tools::GraftWallet::pending_tx> m_pending_tx;
+    std::vector<tools::GraftWallet2::pending_tx> m_pending_tx;
 };
 
 

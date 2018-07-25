@@ -43,7 +43,7 @@ using namespace std;
 namespace Monero {
 
 
-GraftPendingTransactionImpl::GraftPendingTransactionImpl(tools::GraftWallet *graft_wallet)
+GraftPendingTransactionImpl::GraftPendingTransactionImpl(tools::GraftWallet2 *graft_wallet)
     : mWallet(graft_wallet)
 {
   m_status = Status_Ok;
@@ -169,7 +169,18 @@ bool GraftPendingTransactionImpl::save(ostream &os)
   return mWallet->save_tx_signed(m_pending_tx, os);
 }
 
-void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx)
+std::vector<string> GraftPendingTransactionImpl::getRawTransaction() const
+{
+    std::vector<std::string> txs;
+    for (auto rit = m_pending_tx.rbegin(); rit != m_pending_tx.rend(); ++rit)
+    {
+        tools::GraftWallet2::pending_tx ptx = *rit;
+        txs.push_back(epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx)));
+    }
+    return txs;
+}
+
+void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet2::pending_tx> pending_tx)
 {
     m_pending_tx = pending_tx;
 }

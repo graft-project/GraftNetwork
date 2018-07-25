@@ -279,7 +279,7 @@ WalletImpl::WalletImpl(bool testnet)
     , m_rebuildWalletCache(false)
     , m_is_connected(false)
 {
-    m_wallet = new tools::wallet2(testnet);
+    m_wallet = new tools::GraftWallet(testnet);
     m_history = new TransactionHistoryImpl(this);
     m_wallet2Callback = new Wallet2CallbackImpl(this);
     m_wallet->callback(m_wallet2Callback);
@@ -350,10 +350,42 @@ bool WalletImpl::create(const std::string &path, const std::string &password, co
     return true;
 }
 
+bool WalletImpl::create(const string &password, const string &language)
+{
+    clearStatus();
+    m_recoveringFromSeed = false;
+    bool keys_file_exists;
+    bool wallet_file_exists;
+    LOG_PRINT_L3("keys_file_exists: " << std::boolalpha << keys_file_exists << std::noboolalpha
+                 << "  wallet_file_exists: " << std::boolalpha << wallet_file_exists << std::noboolalpha);
+
+    // add logic to error out if new wallet requested but named wallet file exists
+    if (keys_file_exists || wallet_file_exists) {
+        m_errorString = "attempting to generate or restore wallet, but specified file(s) exist. Exiting to not risk overwriting.";
+        LOG_ERROR(m_errorString);
+        m_status = Status_Critical;
+        return false;
+    }
+    // TODO: validate language
+    m_wallet->set_seed_language(language);
+    crypto::secret_key recovery_val, secret_key;
+    try {
+        recovery_val = m_wallet->generateFromData(password, secret_key, false, false);
+        m_password = password;
+        m_status = Status_Ok;
+    } catch (const std::exception &e) {
+        LOG_ERROR("Error creating wallet: " << e.what());
+        m_status = Status_Critical;
+        m_errorString = e.what();
+        return false;
+    }
+    return true;
+}
+
 bool WalletImpl::createWatchOnly(const std::string &path, const std::string &password, const std::string &language) const
 {
     clearStatus();
-    std::unique_ptr<tools::wallet2> view_wallet(new tools::wallet2(m_wallet->testnet()));
+    std::unique_ptr<tools::GraftWallet> view_wallet(new tools::GraftWallet(m_wallet->testnet()));
 
     // Store same refresh height as original wallet
     view_wallet->set_refresh_from_block_height(m_wallet->get_refresh_from_block_height());
@@ -482,6 +514,20 @@ bool WalletImpl::recoverFromKeys(const std::string &path,
     return true;
 }
 
+bool WalletImpl::recoverFromData(const string &data, const string &password,
+                                 const string &cache_file, bool use_bse64)
+{
+    try
+    {
+        m_wallet->loadFromData(data, password, cache_file, use_bse64);
+    }
+    catch (const std::exception& e)
+    {
+        return false;
+    }
+    return true;
+}
+
 
 bool WalletImpl::open(const std::string &path, const std::string &password)
 {
@@ -533,6 +579,41 @@ bool WalletImpl::recover(const std::string &path, const std::string &seed)
         m_wallet->generate(path, "", recovery_key, true, false);
 
     } catch (const std::exception &e) {
+        m_status = Status_Critical;
+        m_errorString = e.what();
+    }
+    return m_status == Status_Ok;
+}
+
+bool WalletImpl::recover(const string &seed)
+{
+    clearStatus();
+    m_errorString.clear();
+    if (seed.empty())
+    {
+        m_errorString = "Electrum seed is empty";
+        LOG_ERROR(m_errorString);
+        m_status = Status_Error;
+        return false;
+    }
+
+    m_recoveringFromSeed = true;
+    crypto::secret_key recovery_key;
+    std::string old_language;
+    if (!crypto::ElectrumWords::words_to_bytes(seed, recovery_key, old_language))
+    {
+        m_errorString = "Electrum-style word list failed verification";
+        m_status = Status_Error;
+        return false;
+    }
+
+    try
+    {
+        m_wallet->set_seed_language(old_language);
+        m_wallet->generateFromData("", recovery_key, true, false);
+    }
+    catch (const std::exception &e)
+    {
         m_status = Status_Critical;
         m_errorString = e.what();
     }
@@ -761,6 +842,23 @@ bool WalletImpl::daemonSynced() const
 bool WalletImpl::synchronized() const
 {
     return m_synchronized;
+}
+
+string WalletImpl::getWalletData(const string &password, bool use_base64) const
+{
+    if (m_wallet)
+    {
+        return m_wallet->getAccountData(password, use_base64);
+    }
+    return std::string();
+}
+
+void WalletImpl::saveCache(const string &cache_file) const
+{
+    if (m_wallet)
+    {
+        m_wallet->store_cache(cache_file);
+    }
 }
 
 bool WalletImpl::refresh()
@@ -1073,7 +1171,6 @@ PendingTransaction *WalletImpl::loadTransaction(istream &iss)
 }
 
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
-
 {
     clearStatus();
     vector<cryptonote::tx_destination_entry> dsts;

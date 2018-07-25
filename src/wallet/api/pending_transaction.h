@@ -52,7 +52,7 @@ public:
     std::vector<std::string> txid() const;
     uint64_t txCount() const;
     bool save(std::ostream &stream);
-
+    std::vector<std::string> getRawTransaction() const override;
 private:
     friend class WalletImpl;
     WalletImpl &m_wallet;

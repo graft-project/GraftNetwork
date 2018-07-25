@@ -325,6 +325,9 @@ namespace tools
     void rewrite(const std::string& wallet_name, const std::string& password);
     void write_watch_only_wallet(const std::string& wallet_name, const std::string& password);
     void load(const std::string& wallet, const std::string& password);
+    /*!
+     * \brief store - stores wallet's cache, keys and address file using existing password to encrypt the keys
+     */
     void store();
     /*!
      * \brief store_to - stores wallet to another file(s), deleting old ones
@@ -621,11 +624,10 @@ namespace tools
     uint64_t get_fee_multiplier(uint32_t priority, int fee_algorithm = -1);
     uint64_t get_per_kb_fee();
 
-
     bool get_amount_from_tx(const pending_tx &ptx, uint64_t &amount);
 
 
-  private:
+  protected:
     /*!
      * \brief  Stores wallet information to wallet file.
      * \param  keys_file_name Name of wallet file

@@ -95,7 +95,7 @@ namespace tools
     }
   };
 
-  class GraftWallet
+  class GraftWallet2
   {
     friend class ::Serialization_portability_wallet_Test;
   public:
@@ -109,7 +109,7 @@ namespace tools
     };
 
   private:
-    GraftWallet(const GraftWallet&) : m_run(true), m_callback(0), m_testnet(false), m_always_confirm_transfers(true), m_print_ring_members(false), m_store_tx_info(true), m_default_mixin(0), m_default_priority(0), m_refresh_type(RefreshOptimizeCoinbase), m_auto_refresh(true), m_refresh_from_block_height(0), m_confirm_missing_payment_id(true), m_ask_password(true), m_min_output_count(0), m_min_output_value(0), m_merge_destinations(false), m_confirm_backlog(true), m_is_initialized(false),m_node_rpc_proxy(m_http_client, m_daemon_rpc_mutex) {}
+    GraftWallet2(const GraftWallet2&) : m_run(true), m_callback(0), m_testnet(false), m_always_confirm_transfers(true), m_print_ring_members(false), m_store_tx_info(true), m_default_mixin(0), m_default_priority(0), m_refresh_type(RefreshOptimizeCoinbase), m_auto_refresh(true), m_refresh_from_block_height(0), m_confirm_missing_payment_id(true), m_ask_password(true), m_min_output_count(0), m_min_output_value(0), m_merge_destinations(false), m_confirm_backlog(true), m_is_initialized(false),m_node_rpc_proxy(m_http_client, m_daemon_rpc_mutex) {}
 
   public:
     static const char* tr(const char* str);
@@ -120,20 +120,20 @@ namespace tools
     //! \return Password retrieved from prompt. Logs error on failure.
     static boost::optional<password_container> password_prompt(const bool new_password);
 
-    //! Uses stdin and stdout. Returns a GraftWallet if no errors.
-    static std::unique_ptr<GraftWallet> make_from_json(const boost::program_options::variables_map& vm, const std::string& json_file);
+    //! Uses stdin and stdout. Returns a GraftWallet2 if no errors.
+    static std::unique_ptr<GraftWallet2> make_from_json(const boost::program_options::variables_map& vm, const std::string& json_file);
 
-    //! Uses stdin and stdout. Returns a GraftWallet and password for `wallet_file` if no errors.
-    static std::pair<std::unique_ptr<GraftWallet>, password_container>
+    //! Uses stdin and stdout. Returns a GraftWallet2 and password for `wallet_file` if no errors.
+    static std::pair<std::unique_ptr<GraftWallet2>, password_container>
       make_from_file(const boost::program_options::variables_map& vm, const std::string& wallet_file);
 
     //Graft Test
-    static std::unique_ptr<GraftWallet> createWallet(const std::string &daemon_address = std::string(),
+    static std::unique_ptr<GraftWallet2> createWallet(const std::string &daemon_address = std::string(),
                                                      const std::string &daemon_host = std::string(),
                                                      int daemon_port = 0,
                                                      const std::string &daemon_login = std::string(),
                                                      bool testnet = false, bool restricted = false);
-    static std::unique_ptr<GraftWallet> createWallet(const std::string &account_data,
+    static std::unique_ptr<GraftWallet2> createWallet(const std::string &account_data,
                                                      const std::string &password,
                                                      const std::string &daemon_address = std::string(),
                                                      const std::string &daemon_host = std::string(),
@@ -141,18 +141,18 @@ namespace tools
                                                      const std::string &daemon_login = std::string(),
                                                      bool testnet = false, bool restricted = false);
 
-    static std::pair<std::unique_ptr<GraftWallet>, password_container>
+    static std::pair<std::unique_ptr<GraftWallet2>, password_container>
       make_from_data(const boost::program_options::variables_map& vm, const std::string& data);
 
-    //! Uses stdin and stdout. Returns a GraftWallet and password for wallet with no file if no errors.
-    static std::pair<std::unique_ptr<GraftWallet>, password_container> make_new(const boost::program_options::variables_map& vm);
+    //! Uses stdin and stdout. Returns a GraftWallet2 and password for wallet with no file if no errors.
+    static std::pair<std::unique_ptr<GraftWallet2>, password_container> make_new(const boost::program_options::variables_map& vm);
 
     //! Just parses variables.
-    static std::unique_ptr<GraftWallet> make_dummy(const boost::program_options::variables_map& vm);
+    static std::unique_ptr<GraftWallet2> make_dummy(const boost::program_options::variables_map& vm);
 
     static bool verify_password(const std::string& keys_file_name, const std::string& password, bool watch_only);
 
-    GraftWallet(bool testnet = false, bool restricted = false) : m_run(true), m_callback(0), m_testnet(testnet), m_always_confirm_transfers(true), m_print_ring_members(false), m_store_tx_info(true), m_default_mixin(0), m_default_priority(0), m_refresh_type(RefreshOptimizeCoinbase), m_auto_refresh(true), m_refresh_from_block_height(0), m_confirm_missing_payment_id(true), m_ask_password(true), m_min_output_count(0), m_min_output_value(0), m_merge_destinations(false), m_confirm_backlog(true), m_is_initialized(false), m_restricted(restricted), is_old_file_format(false), m_node_rpc_proxy(m_http_client, m_daemon_rpc_mutex) {}
+    GraftWallet2(bool testnet = false, bool restricted = false) : m_run(true), m_callback(0), m_testnet(testnet), m_always_confirm_transfers(true), m_print_ring_members(false), m_store_tx_info(true), m_default_mixin(0), m_default_priority(0), m_refresh_type(RefreshOptimizeCoinbase), m_auto_refresh(true), m_refresh_from_block_height(0), m_confirm_missing_payment_id(true), m_ask_password(true), m_min_output_count(0), m_min_output_value(0), m_merge_destinations(false), m_confirm_backlog(true), m_is_initialized(false), m_restricted(restricted), is_old_file_format(false), m_node_rpc_proxy(m_http_client, m_daemon_rpc_mutex) {}
 
     struct transfer_details
     {
@@ -266,7 +266,7 @@ namespace tools
     struct unsigned_tx_set
     {
       std::vector<tx_construction_data> txes;
-      GraftWallet::transfer_container transfers;
+      GraftWallet2::transfer_container transfers;
     };
 
     struct signed_tx_set
@@ -457,10 +457,10 @@ namespace tools
     void transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outputs_count, const std::vector<size_t> &unused_transfers_indices, uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx& ptx, bool trusted_daemon);
     template<typename T>
     void transfer_selected(const std::vector<cryptonote::tx_destination_entry>& dsts, const std::list<size_t> selected_transfers, size_t fake_outputs_count,
-      std::vector<std::vector<tools::GraftWallet::get_outs_entry>> &outs,
+      std::vector<std::vector<tools::GraftWallet2::get_outs_entry>> &outs,
       uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx);
     void transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::list<size_t> selected_transfers, size_t fake_outputs_count,
-      std::vector<std::vector<tools::GraftWallet::get_outs_entry>> &outs,
+      std::vector<std::vector<tools::GraftWallet2::get_outs_entry>> &outs,
       uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx);
 
     void commit_tx(pending_tx& ptx_vector);
@@ -468,29 +468,29 @@ namespace tools
     bool save_tx(const std::vector<pending_tx>& ptx_vector, const std::string &filename);
     bool save_tx_signed(const std::vector<pending_tx>& ptx_vector, std::ostream &oss);
     // load unsigned tx from file and sign it. Takes confirmation callback as argument. Used by the cli wallet
-    bool sign_tx(const std::string &unsigned_filename, const std::string &signed_filename, std::vector<GraftWallet::pending_tx> &ptx, std::function<bool(const unsigned_tx_set&)> accept_func = NULL);
+    bool sign_tx(const std::string &unsigned_filename, const std::string &signed_filename, std::vector<GraftWallet2::pending_tx> &ptx, std::function<bool(const unsigned_tx_set&)> accept_func = NULL);
     // sign unsigned tx. Takes unsigned_tx_set as argument. Used by GUI
-    bool sign_tx(unsigned_tx_set &exported_txs, const std::string &signed_filename, std::vector<GraftWallet::pending_tx> &ptx);
+    bool sign_tx(unsigned_tx_set &exported_txs, const std::string &signed_filename, std::vector<GraftWallet2::pending_tx> &ptx);
     // load unsigned_tx_set from file. 
     bool load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs);
-    bool load_tx(const std::string &signed_filename, std::vector<tools::GraftWallet::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
-    bool load_tx(std::vector<tools::GraftWallet::pending_tx> &ptx, std::istream &stream,
+    bool load_tx(std::vector<tools::GraftWallet2::pending_tx> &ptx, std::istream &stream,
                  std::function<bool(const signed_tx_set&)> accept_func = nullptr);
+    bool load_tx(const std::string &signed_filename, std::vector<tools::GraftWallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
     std::vector<pending_tx> create_transactions(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
-    std::vector<GraftWallet::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
+    std::vector<GraftWallet2::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
                                                                const uint64_t unlock_time, uint32_t priority,
                                                                const std::vector<uint8_t> extra, bool trusted_daemon);
-    std::vector<GraftWallet::pending_tx> create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
-    std::vector<GraftWallet::pending_tx> create_transactions_from(const cryptonote::account_public_address &address, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
+    std::vector<GraftWallet2::pending_tx> create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
+    std::vector<GraftWallet2::pending_tx> create_transactions_from(const cryptonote::account_public_address &address, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
     std::vector<pending_tx> create_unmixable_sweep_transactions(bool trusted_daemon);
     bool check_connection(uint32_t *version = NULL, uint32_t timeout = 200000);
-    void get_transfers(GraftWallet::transfer_container& incoming_transfers) const;
-    void get_payments(const crypto::hash& payment_id, std::list<GraftWallet::payment_details>& payments, uint64_t min_height = 0) const;
-    void get_payments(std::list<std::pair<crypto::hash,GraftWallet::payment_details>>& payments, uint64_t min_height, uint64_t max_height = (uint64_t)-1) const;
-    void get_payments_out(std::list<std::pair<crypto::hash,GraftWallet::confirmed_transfer_details>>& confirmed_payments,
+    void get_transfers(GraftWallet2::transfer_container& incoming_transfers) const;
+    void get_payments(const crypto::hash& payment_id, std::list<GraftWallet2::payment_details>& payments, uint64_t min_height = 0) const;
+    void get_payments(std::list<std::pair<crypto::hash,GraftWallet2::payment_details>>& payments, uint64_t min_height, uint64_t max_height = (uint64_t)-1) const;
+    void get_payments_out(std::list<std::pair<crypto::hash,GraftWallet2::confirmed_transfer_details>>& confirmed_payments,
       uint64_t min_height, uint64_t max_height = (uint64_t)-1) const;
-    void get_unconfirmed_payments_out(std::list<std::pair<crypto::hash,GraftWallet::unconfirmed_transfer_details>>& unconfirmed_payments) const;
-    void get_unconfirmed_payments(std::list<std::pair<crypto::hash,GraftWallet::payment_details>>& unconfirmed_payments) const;
+    void get_unconfirmed_payments_out(std::list<std::pair<crypto::hash,GraftWallet2::unconfirmed_transfer_details>>& unconfirmed_payments) const;
+    void get_unconfirmed_payments(std::list<std::pair<crypto::hash,GraftWallet2::payment_details>>& unconfirmed_payments) const;
 
     uint64_t get_blockchain_current_height() const { return m_local_bc_height; }
     void rescan_spent();
@@ -647,8 +647,8 @@ namespace tools
     static bool verifySignedMessage(const std::string &message, const std::string &address, const std::string &signature, bool isTestnet);
     static bool verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature);
 
-    std::vector<tools::GraftWallet::transfer_details> export_outputs() const;
-    size_t import_outputs(const std::vector<tools::GraftWallet::transfer_details> &outputs);
+    std::vector<tools::GraftWallet2::transfer_details> export_outputs() const;
+    size_t import_outputs(const std::vector<tools::GraftWallet2::transfer_details> &outputs);
 
     bool export_key_images(const std::string filename);
     std::vector<std::pair<crypto::key_image, crypto::signature>> export_key_images() const;
@@ -727,7 +727,7 @@ namespace tools
     void set_unspent(size_t idx);
     void get_outs(std::vector<std::vector<get_outs_entry>> &outs, const std::list<size_t> &selected_transfers, size_t fake_outputs_count);
     bool wallet_generate_key_image_helper(const cryptonote::account_keys& ack, const crypto::public_key& tx_public_key, size_t real_output_index, cryptonote::keypair& in_ephemeral, crypto::key_image& ki);
-    crypto::public_key get_tx_pub_key_from_received_outs(const tools::GraftWallet::transfer_details &td) const;
+    crypto::public_key get_tx_pub_key_from_received_outs(const tools::GraftWallet2::transfer_details &td) const;
     bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
 
@@ -750,7 +750,7 @@ namespace tools
     std::unordered_map<crypto::public_key, size_t> m_pub_keys;
     cryptonote::account_public_address m_account_public_address;
     std::unordered_map<crypto::hash, std::string> m_tx_notes;
-    std::vector<tools::GraftWallet::address_book_row> m_address_book;
+    std::vector<tools::GraftWallet2::address_book_row> m_address_book;
     uint64_t m_upper_transaction_size_limit; //TODO: auto-calc this value or request from daemon, now use some fixed value
 
     std::atomic<bool> m_run;
@@ -783,27 +783,27 @@ namespace tools
 
   };
 }
-BOOST_CLASS_VERSION(tools::GraftWallet, 18)
-BOOST_CLASS_VERSION(tools::GraftWallet::transfer_details, 7)
-BOOST_CLASS_VERSION(tools::GraftWallet::payment_details, 1)
-BOOST_CLASS_VERSION(tools::GraftWallet::unconfirmed_transfer_details, 6)
-BOOST_CLASS_VERSION(tools::GraftWallet::confirmed_transfer_details, 4)
-BOOST_CLASS_VERSION(tools::GraftWallet::address_book_row, 16)
-BOOST_CLASS_VERSION(tools::GraftWallet::unsigned_tx_set, 0)
-BOOST_CLASS_VERSION(tools::GraftWallet::signed_tx_set, 0)
-BOOST_CLASS_VERSION(tools::GraftWallet::tx_construction_data, 0)
-BOOST_CLASS_VERSION(tools::GraftWallet::pending_tx, 0)
+BOOST_CLASS_VERSION(tools::GraftWallet2, 18)
+BOOST_CLASS_VERSION(tools::GraftWallet2::transfer_details, 7)
+BOOST_CLASS_VERSION(tools::GraftWallet2::payment_details, 1)
+BOOST_CLASS_VERSION(tools::GraftWallet2::unconfirmed_transfer_details, 6)
+BOOST_CLASS_VERSION(tools::GraftWallet2::confirmed_transfer_details, 4)
+BOOST_CLASS_VERSION(tools::GraftWallet2::address_book_row, 16)
+BOOST_CLASS_VERSION(tools::GraftWallet2::unsigned_tx_set, 0)
+BOOST_CLASS_VERSION(tools::GraftWallet2::signed_tx_set, 0)
+BOOST_CLASS_VERSION(tools::GraftWallet2::tx_construction_data, 0)
+BOOST_CLASS_VERSION(tools::GraftWallet2::pending_tx, 0)
 
 namespace boost
 {
   namespace serialization
   {
     template <class Archive>
-    inline typename std::enable_if<!Archive::is_loading::value, void>::type initialize_transfer_details(Archive &a, tools::GraftWallet::transfer_details &x, const boost::serialization::version_type ver)
+    inline typename std::enable_if<!Archive::is_loading::value, void>::type initialize_transfer_details(Archive &a, tools::GraftWallet2::transfer_details &x, const boost::serialization::version_type ver)
     {
     }
     template <class Archive>
-    inline typename std::enable_if<Archive::is_loading::value, void>::type initialize_transfer_details(Archive &a, tools::GraftWallet::transfer_details &x, const boost::serialization::version_type ver)
+    inline typename std::enable_if<Archive::is_loading::value, void>::type initialize_transfer_details(Archive &a, tools::GraftWallet2::transfer_details &x, const boost::serialization::version_type ver)
     {
         if (ver < 1)
         {
@@ -829,7 +829,7 @@ namespace boost
     }
 
     template <class Archive>
-    inline void serialize(Archive &a, tools::GraftWallet::transfer_details &x, const boost::serialization::version_type ver)
+    inline void serialize(Archive &a, tools::GraftWallet2::transfer_details &x, const boost::serialization::version_type ver)
     {
       a & x.m_block_height;
       a & x.m_global_output_index;
@@ -896,7 +896,7 @@ namespace boost
     }
 
     template <class Archive>
-    inline void serialize(Archive &a, tools::GraftWallet::unconfirmed_transfer_details &x, const boost::serialization::version_type ver)
+    inline void serialize(Archive &a, tools::GraftWallet2::unconfirmed_transfer_details &x, const boost::serialization::version_type ver)
     {
       a & x.m_change;
       a & x.m_sent_time;
@@ -935,7 +935,7 @@ namespace boost
     }
 
     template <class Archive>
-    inline void serialize(Archive &a, tools::GraftWallet::confirmed_transfer_details &x, const boost::serialization::version_type ver)
+    inline void serialize(Archive &a, tools::GraftWallet2::confirmed_transfer_details &x, const boost::serialization::version_type ver)
     {
       a & x.m_amount_in;
       a & x.m_amount_out;
@@ -972,7 +972,7 @@ namespace boost
     }
 
     template <class Archive>
-    inline void serialize(Archive& a, tools::GraftWallet::payment_details& x, const boost::serialization::version_type ver)
+    inline void serialize(Archive& a, tools::GraftWallet2::payment_details& x, const boost::serialization::version_type ver)
     {
       a & x.m_tx_hash;
       a & x.m_amount;
@@ -991,7 +991,7 @@ namespace boost
     }
     
     template <class Archive>
-    inline void serialize(Archive& a, tools::GraftWallet::address_book_row& x, const boost::serialization::version_type ver)
+    inline void serialize(Archive& a, tools::GraftWallet2::address_book_row& x, const boost::serialization::version_type ver)
     {
       a & x.m_address;
       a & x.m_payment_id;
@@ -999,21 +999,21 @@ namespace boost
     }
 
     template <class Archive>
-    inline void serialize(Archive &a, tools::GraftWallet::unsigned_tx_set &x, const boost::serialization::version_type ver)
+    inline void serialize(Archive &a, tools::GraftWallet2::unsigned_tx_set &x, const boost::serialization::version_type ver)
     {
       a & x.txes;
       a & x.transfers;
     }
 
     template <class Archive>
-    inline void serialize(Archive &a, tools::GraftWallet::signed_tx_set &x, const boost::serialization::version_type ver)
+    inline void serialize(Archive &a, tools::GraftWallet2::signed_tx_set &x, const boost::serialization::version_type ver)
     {
       a & x.ptx;
       a & x.key_images;
     }
 
     template <class Archive>
-    inline void serialize(Archive &a, tools::GraftWallet::tx_construction_data &x, const boost::serialization::version_type ver)
+    inline void serialize(Archive &a, tools::GraftWallet2::tx_construction_data &x, const boost::serialization::version_type ver)
     {
       a & x.sources;
       a & x.change_dts;
@@ -1026,7 +1026,7 @@ namespace boost
     }
 
     template <class Archive>
-    inline void serialize(Archive &a, tools::GraftWallet::pending_tx &x, const boost::serialization::version_type ver)
+    inline void serialize(Archive &a, tools::GraftWallet2::pending_tx &x, const boost::serialization::version_type ver)
     {
       a & x.tx;
       a & x.dust;
@@ -1097,7 +1097,7 @@ namespace tools
   }
   //----------------------------------------------------------------------------------------------------
   template<typename T>
-  void GraftWallet::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outs_count, const std::vector<size_t> &unused_transfers_indices,
+  void GraftWallet2::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outs_count, const std::vector<size_t> &unused_transfers_indices,
     uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, bool trusted_daemon)
   {
     pending_tx ptx;
@@ -1106,7 +1106,7 @@ namespace tools
   }
 
   template<typename T>
-  void GraftWallet::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, size_t fake_outputs_count, const std::vector<size_t> &unused_transfers_indices,
+  void GraftWallet2::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, size_t fake_outputs_count, const std::vector<size_t> &unused_transfers_indices,
     uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx, bool trusted_daemon)
   {
     using namespace cryptonote;
