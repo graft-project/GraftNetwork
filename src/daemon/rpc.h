@@ -31,6 +31,8 @@
 #pragma once
 
 #include "rpc/core_rpc_server.h"
+#include <thread>
+#include <algorithm>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "daemon"
@@ -65,8 +67,10 @@ public:
 
   void run()
   {
-    MGINFO("Starting core rpc server...");
-    if (!m_server.run(2, false))
+    unsigned min_threads = 2;
+    unsigned threads_num = std::max(min_threads, std::thread::hardware_concurrency() / 2);
+    MGINFO("Starting core rpc server with " << threads_num << " threads...");
+    if (!m_server.run(threads_num, false))
     {
       throw std::runtime_error("Failed to start core rpc server.");
     }
