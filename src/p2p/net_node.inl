@@ -1002,7 +1002,7 @@ namespace nodetool
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
               if (m_have_supernode)
               {
-                  post_request_to_supernode<COMMAND_BROADCAST>("broadcast", arg, arg.callback_uri);
+                  post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", arg, arg.callback_uri);
               }
           }
           remove_old_request_cache();
@@ -2202,6 +2202,14 @@ namespace nodetool
           return;
       }
 
+      {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          if (m_have_supernode)
+          {
+              post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
+          }
+      }
+
       COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
@@ -2251,6 +2259,16 @@ namespace nodetool
       {
           LOG_ERROR("RTA Multicast: wrong data format for hashing!");
           return;
+      }
+
+      {
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          std::list<std::string> addresses = req.receiver_addresses;
+          auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
+          if (m_have_supernode && it != addresses.end())
+          {
+              post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", req, req.callback_uri);
+          }
       }
 
       COMMAND_MULTICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
