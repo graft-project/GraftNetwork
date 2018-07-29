@@ -220,6 +220,9 @@ namespace nodetool
         {
             uri = endpoint;
         }
+        std::string out_buf;
+        epee::serialization::store_t_to_json(req, out_buf);
+        LOG_PRINT_L0("Send to supernode: " << out_buf);
         typename request_struct::response resp = AUTO_VAL_INIT(resp);
         bool r = epee::net_utils::invoke_http_json(m_supernode_uri + uri,
                                                    req, resp, m_supernode_client,
