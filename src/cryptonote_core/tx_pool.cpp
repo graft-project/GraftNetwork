@@ -111,6 +111,9 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL(m_transactions_lock);
 
     PERF_TIMER(add_tx);
+    LOG_PRINT_L1("tx_type: " << tx.type);
+
+
     if (tx.version == 0)
     {
       // v0 never accepted
@@ -164,7 +167,8 @@ namespace cryptonote
       fee = tx.rct_signatures.txnFee;
     }
 
-    if (!kept_by_block && !m_blockchain.check_fee(blob_size, fee))
+    // LOG_PRINT_L0("tx_type: " << tx.type);
+    if (!kept_by_block && (tx.type != transaction::tx_type_zero_fee && !m_blockchain.check_fee(blob_size, fee)))
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
@@ -280,8 +284,9 @@ namespace cryptonote
         return false;
       }
       tvc.m_added_to_pool = true;
-
-      if(meta.fee > 0 && !do_not_relay)
+      LOG_PRINT_L3("!! meta.fee: " << meta.fee);
+      LOG_PRINT_L3("!! do_not_relay: " << do_not_relay);
+      if ((tx.type == transaction::tx_type_zero_fee || meta.fee > 0) && !do_not_relay)
         tvc.m_should_be_relayed = true;
     }
 

@@ -139,9 +139,7 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
-
   typedef boost::variant<txin_gen, txin_to_script, txin_to_scripthash, txin_to_key> txin_v;
-
   typedef boost::variant<txout_to_script, txout_to_scripthash, txout_to_key> txout_target_v;
 
   //typedef std::pair<uint64_t, txout> out_t;
@@ -158,6 +156,9 @@ namespace cryptonote
 
   };
 
+
+
+
   class transaction_prefix
   {
 
@@ -171,17 +172,29 @@ namespace cryptonote
     //extra
     std::vector<uint8_t> extra;
 
+    // graft: introducing transaction type
+    enum tx_type {
+      // generic monero transaction;
+      tx_type_generic = 0,
+      // supernode 'zero-fee' transaction
+      tx_type_zero_fee = 1,
+      tx_type_invalid = 255
+    };
+    // graft: tx type field
+    size_t type;
+
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
-      if(version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
+      if (version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
       VARINT_FIELD(unlock_time)
+      VARINT_FIELD(type)
       FIELD(vin)
       FIELD(vout)
       FIELD(extra)
     END_SERIALIZE()
-
   public:
-    transaction_prefix(){}
+    transaction_prefix()
+      : type(tx_type_generic) {}
   };
 
   class transaction: public transaction_prefix
@@ -198,6 +211,7 @@ namespace cryptonote
     // hash cash
     mutable crypto::hash hash;
     mutable size_t blob_size;
+
 
     transaction();
     transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
@@ -294,6 +308,7 @@ namespace cryptonote
       return true;
     }
 
+
   private:
     static size_t get_signature_size(const txin_v& tx_in);
   };
@@ -323,6 +338,7 @@ namespace cryptonote
     rct_signatures.type = rct::RCTTypeNull;
     set_hash_valid(false);
     set_blob_size_valid(false);
+    type = tx_type_generic;
   }
 
   inline

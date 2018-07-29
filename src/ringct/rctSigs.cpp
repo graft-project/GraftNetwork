@@ -767,6 +767,7 @@ namespace rct {
         }
         catch(...)
         {
+          LOG_PRINT_L1("Unhandled exception thrown...");
           return false;
         }
     }

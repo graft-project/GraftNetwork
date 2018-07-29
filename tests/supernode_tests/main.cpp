@@ -957,7 +957,7 @@ int main(int argc, char** argv)
 {
     epee::string_tools::set_module_name_and_folder(argv[0]);
     mlog_configure("", true);
-    mlog_set_log_level(1);
+    mlog_set_log_level(4);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

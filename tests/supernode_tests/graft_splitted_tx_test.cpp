@@ -182,4 +182,3 @@ TEST_F(GraftSplittedFeeTest, SplitFeeTest)
     }
 
 }
-
