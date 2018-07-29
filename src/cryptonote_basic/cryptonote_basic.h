@@ -197,6 +197,35 @@ namespace cryptonote
       : type(tx_type_generic) {}
   };
 
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct account_public_address
+  {
+    crypto::public_key m_spend_public_key;
+    crypto::public_key m_view_public_key;
+
+    BEGIN_SERIALIZE_OBJECT()
+      FIELD(m_spend_public_key)
+      FIELD(m_view_public_key)
+    END_SERIALIZE()
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_spend_public_key)
+      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_view_public_key)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct rta_signature
+  {
+    account_public_address address;
+    crypto::signature signature;
+    BEGIN_SERIALIZE()
+      FIELD(address)
+      FIELD(signature)
+    END_SERIALIZE()
+  };
+
   class transaction: public transaction_prefix
   {
   private:
@@ -211,6 +240,8 @@ namespace cryptonote
     // hash cash
     mutable crypto::hash hash;
     mutable size_t blob_size;
+
+    std::vector<rta_signature> rta_signatures;
 
 
     transaction();
@@ -264,7 +295,7 @@ namespace cryptonote
         }
         ar.end_array();
       }
-      else
+      else if (version >= 2)
       {
         ar.tag("rct_signatures");
         if (!vin.empty())
@@ -283,6 +314,11 @@ namespace cryptonote
             ar.end_object();
           }
         }
+      }
+      // version >= 3 is rta transaction: allowed 0 fee and auth sample signatures
+      if (version >= 3)
+      {
+        FIELD(rta_signatures)
       }
     END_SERIALIZE()
 
@@ -415,24 +451,7 @@ namespace cryptonote
   };
 
 
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
-  struct account_public_address
-  {
-    crypto::public_key m_spend_public_key;
-    crypto::public_key m_view_public_key;
 
-    BEGIN_SERIALIZE_OBJECT()
-      FIELD(m_spend_public_key)
-      FIELD(m_view_public_key)
-    END_SERIALIZE()
-
-    BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_spend_public_key)
-      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_view_public_key)
-    END_KV_SERIALIZE_MAP()
-  };
 
   struct keypair
   {
