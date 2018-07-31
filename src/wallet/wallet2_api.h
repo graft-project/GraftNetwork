@@ -532,6 +532,24 @@ struct Wallet
                                                    optional<uint64_t> amount, uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
 
+    struct TransactionDestination
+    {
+        std::string address;
+        std::string payment_id;
+        optional<uint64_t> amount;
+    };
+
+    /*!
+     * \brief createTransaction creates transaction. if dst_addr is an integrated address, payment_id is ignored
+     * \param destinations      destinations vector
+     * \param mixin_count       mixin count. if 0 passed, wallet will use default value
+     * \param priority
+     * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
+     *                          after object returned
+     */
+    virtual PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
+                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
+
     /*!
      * \brief loadTransaction loads previously serialized transaction from stream
      * \param iss               stream to load from
