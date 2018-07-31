@@ -174,7 +174,7 @@ namespace cryptonote
     // 1. if tx.type == tx_type_zero_fee and tx.rta_signatures.size() > 0
     // 2. if tx.version >= 3 and tx.rta_signatures.size() > 0
 
-    bool is_rta_tx = tx.version >= 3 and tx.rta_signatures.size() > 0;
+    bool is_rta_tx = tx.version >= 3 && tx.rta_signatures.size() > 0;
     // validator for rta_transaction:
     auto rta_validator = [&](const std::vector<cryptonote::rta_signature> &rta_signs) -> bool {
       bool result = true;
@@ -189,21 +189,25 @@ namespace cryptonote
       }
       return result;
     };
-
-    bool is_rta_tx_valid = is_rta_tx && rta_validator(tx.rta_signatures);
-    if (!kept_by_block && !is_rta_tx_valid) {
-      LOG_ERROR("failed to validate rta tx");
-      tvc.m_rta_signature_failed = true;
-      tvc.m_verifivation_failed = true;
-      return false;
+    if (is_rta_tx) {
+      bool is_rta_tx_valid = rta_validator(tx.rta_signatures);
+      if (!kept_by_block && !is_rta_tx_valid) {
+        LOG_ERROR("failed to validate rta tx");
+        tvc.m_rta_signature_failed = true;
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+    } else {
+      if (!kept_by_block && !m_blockchain.check_fee(blob_size, fee))
+      {
+        tvc.m_verifivation_failed = true;
+        tvc.m_fee_too_low = true;
+        return false;
+      }
     }
 
-    if (!kept_by_block && (!is_rta_tx && !m_blockchain.check_fee(blob_size, fee)))
-    {
-      tvc.m_verifivation_failed = true;
-      tvc.m_fee_too_low = true;
-      return false;
-    }
+
+
 
     size_t tx_size_limit = get_transaction_size_limit(version);
     if (!kept_by_block && blob_size >= tx_size_limit)
