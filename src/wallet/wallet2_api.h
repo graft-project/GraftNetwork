@@ -56,6 +56,13 @@ namespace Monero {
         bool set;
     };
 
+
+struct RtaSignature
+{
+    std::string address;
+    std::string signature;
+};
+
 /**
  * @brief Transaction-like interface for sending money
  */
@@ -99,6 +106,8 @@ struct PendingTransaction
      * \return                  list of serialized signed transactions
      */
     virtual std::vector<std::string> getRawTransaction() const = 0;
+
+    virtual void putRtaSignatures(const std::vector<RtaSignature> &) = 0;
 };
 
 /**

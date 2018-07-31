@@ -57,7 +57,7 @@ public:
     void setPendingTx(std::vector<tools::GraftWallet2::pending_tx> pending_tx);
     void setStatus(int status);
     void setErrorString(const std::string &message);
-
+    void putRtaSignatures(const std::vector<RtaSignature> &) override;
 private:
     tools::GraftWallet2 *mWallet;
 

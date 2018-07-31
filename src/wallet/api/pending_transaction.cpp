@@ -180,11 +180,27 @@ std::vector<std::string> PendingTransactionImpl::getRawTransaction() const
     std::vector<std::string> txs;
     for (auto rit = m_pending_tx.rbegin(); rit != m_pending_tx.rend(); ++rit)
     {
-        tools::wallet2::pending_tx ptx = *rit;
+        const tools::wallet2::pending_tx & ptx = *rit;
         txs.push_back(epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx)));
     }
     return txs;
 }
+
+void  PendingTransactionImpl::putRtaSignatures(const std::vector<RtaSignature> &signs)
+{
+    if (m_pending_tx.empty())
+        return;
+    std::vector<cryptonote::rta_signature> bin_signs;
+    for (const auto &sign : signs) {
+        cryptonote::rta_signature bin_sign;
+        epee::string_tools::hex_to_pod(sign.address, bin_sign.address);
+        epee::string_tools::hex_to_pod(sign.signature, bin_sign.signature);
+        bin_signs.push_back(bin_sign);
+    }
+    tools::wallet2::pending_tx & ptx =  m_pending_tx[0];
+    ptx.tx.put_rta_signatures(bin_signs);
+}
+
 
 }
 

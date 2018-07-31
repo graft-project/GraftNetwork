@@ -195,6 +195,11 @@ void GraftPendingTransactionImpl::setErrorString(const string &message)
     m_errorString = message;
 }
 
+void GraftPendingTransactionImpl::putRtaSignatures(const std::vector<RtaSignature> &)
+{
+
+}
+
 }
 
 namespace Bitmonero = Monero;

@@ -53,6 +53,7 @@ public:
     uint64_t txCount() const;
     bool save(std::ostream &stream);
     std::vector<std::string> getRawTransaction() const override;
+    void putRtaSignatures(const std::vector<RtaSignature> &) override;
 private:
     friend class WalletImpl;
     WalletImpl &m_wallet;
