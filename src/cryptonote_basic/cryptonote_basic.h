@@ -316,8 +316,8 @@ namespace cryptonote
       // version >= 3 is rta transaction: allowed 0 fee and auth sample signatures
       if (version >= 3)
       {
-        // FIELD(type)
-        // FIELD(rta_signatures)
+        FIELD(type)
+        FIELD(rta_signatures)
       }
     END_SERIALIZE()
 
