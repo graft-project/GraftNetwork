@@ -111,8 +111,10 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL(m_transactions_lock);
 
     PERF_TIMER(add_tx);
-    LOG_PRINT_L1("tx_type: " << tx.type);
 
+    LOG_PRINT_L1("tx_type: " << tx.type);
+    LOG_PRINT_L1("tx_version: " << tx.version);
+    LOG_PRINT_L1("tx.rta_signatures.size(): " << tx.rta_signatures.size());
 
     if (tx.version == 0)
     {
@@ -168,7 +170,35 @@ namespace cryptonote
     }
 
     // LOG_PRINT_L0("tx_type: " << tx.type);
-    if (!kept_by_block && (tx.type != transaction::tx_type_zero_fee && !m_blockchain.check_fee(blob_size, fee)))
+    // Only allow zero fee if: (pick the one condition)
+    // 1. if tx.type == tx_type_zero_fee and tx.rta_signatures.size() > 0
+    // 2. if tx.version >= 3 and tx.rta_signatures.size() > 0
+
+    bool is_rta_tx = tx.version >= 3 and tx.rta_signatures.size() > 0;
+    // validator for rta_transaction:
+    auto rta_validator = [&](const std::vector<cryptonote::rta_signature> &rta_signs) -> bool {
+      bool result = true;
+      for (const auto &rta_sign : rta_signs) {
+        result &= crypto::check_signature(id, rta_sign.address.m_spend_public_key, rta_sign.signature);
+        if (!result) {
+
+          LOG_ERROR("Failed to validate tx for address: "
+                    << cryptonote::get_account_address_as_str(m_blockchain.testnet(), rta_sign.address));
+          break;
+        }
+      }
+      return result;
+    };
+
+    bool is_rta_tx_valid = is_rta_tx && rta_validator(tx.rta_signatures);
+    if (!kept_by_block && !is_rta_tx_valid) {
+      LOG_ERROR("failed to validate rta tx");
+      tvc.m_rta_signature_failed = true;
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
+
+    if (!kept_by_block && (!is_rta_tx && !m_blockchain.check_fee(blob_size, fee)))
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
