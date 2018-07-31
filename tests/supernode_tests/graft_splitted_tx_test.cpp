@@ -65,7 +65,7 @@ struct GraftSplittedFeeTest : public testing::Test
     std::string wallet_account2;
     std::string wallet_root_path;
     std::string bdb_path;
-    const std::string DAEMON_ADDR = "localhost:28281";
+    const std::string DAEMON_ADDR = "localhost:28681";
     // miner_wallet
     std::string RECIPIENT_ADDR = "F7qe3cg9LxrTFgNGsM9fpS3DYf1UnGNAxUgc7aHyEAAXbyfSbfqzhbH7mzGzAK7vsj3PoETpuqsuMiQcCWeaC61cHkQNz72";
 
@@ -182,3 +182,83 @@ TEST_F(GraftSplittedFeeTest, SplitFeeTest)
     }
 
 }
+
+TEST_F(GraftSplittedFeeTest, RtaSignatures)
+{
+
+    vector<string> auth_sample = {
+      "F4xWex5prppRooAqBZ7aBxTCRsPrzvKhGhWiy41Zt4DVX6iTk1HJqZiPNcgW4NkhE77mF7gRkYLRQhGKEG1rAs8NSp7aU93",
+      "FBHdqDnz8YNU3TscB1X7eH25XLKaHmba9Vws2xwDtLKJWS7vZrii1vHVKAMGgRVz6WVcd2jN7qC1YEB4ZALUag2d9h1nnEu",
+      "F5pbAMAzbRbhQSpEQ39nHXQr8QXMHXMmbWbMHcCh9HLrez7Y3aAckkH3PeG1Lctyr24ZZex72DKqgR5EFXJeukoo3mxvXZh",
+      "F8fNpx9sz6o3dxT5wDPReKP2LDA14J85jD9wUKdVEzwJPbpZwB8eZvYd97iwNfa4epNAPZYDngcNBZcNHxgoGMdXSwi8n7a",
+      "F3vUsEKRUiTTpVrAAoTmSm61JVUR3P858FAzAFavH7McNa5jKbjBveHDroH33bb4N3Nu6z42n8Y9fQXfiNPvT2Yn8gAaLtv",
+      "F5CfDKxtW5ciHCkqK4p6cK2CymvtVq9Wce8fpo1u5WZLbLbvMFHauvsdCj2xeUTqiE4J4cpaEdsn29fA4RpWJssRV7P6ZUo",
+      "FC8kKPRQx3uCYN9UrdUee9AjF5ctSSFdefefWxcsFAXhjN1Gq8r8EDPhVoMfUU29JvbqRzhEKmfAfgRiwjcmwYHbTy7u3Th",
+      "F4H2PxxHkxj9HDs3fMdk3k4EBDSSBJJdzhsAKTeGrjzSinVHdiTFWgg36wGzQmGYagRtpP76EYGkWN4VV8o6XhJtFABs4eE"
+    };
+
+    tools::wallet2 *wallet = new tools::wallet2(true, false);
+    string wallet_path1 = wallet_root_path + "/stake_wallet";
+    ASSERT_NO_THROW(wallet->load(wallet_path1, ""));
+    // connect to daemon and get the blocks
+    wallet->init(DAEMON_ADDR);
+    wallet->refresh();
+    wallet->store();
+    LOG_PRINT_L0("wallet balance: " <<  cryptonote::print_money(wallet->unlocked_balance()));
+    LOG_PRINT_L0("wallet default mixin: " <<  wallet->default_mixin());
+
+    vector<uint8_t> extra;
+    uint64_t recipient_amount, auth_sample_amount_per_destination;
+    uint64_t amount_to_send = AMOUNT_10_GRF;
+    // fee 0.05
+    {
+      double fee_percentage = 0.01;
+      vector<wallet2::pending_tx> ptxv = wallet->create_transactions_graft(RECIPIENT_ADDR, auth_sample, amount_to_send,
+                                                                           fee_percentage, 0, 2, extra, true,
+                                                                           recipient_amount, auth_sample_amount_per_destination);
+      ASSERT_TRUE(ptxv.size() == 1);
+      wallet2::pending_tx ptx = ptxv[0];
+      uint64_t amount = 0;
+
+
+      for (const auto &dst : ptx.dests) {
+        amount += dst.amount;
+      }
+
+
+      ASSERT_TRUE(amount == amount_to_send);
+      ASSERT_TRUE(recipient_amount + auth_sample_amount_per_destination * auth_sample.size() == amount_to_send);
+
+
+      cryptonote::rta_signature sign;
+      sign.address = wallet->get_account().get_keys().m_account_address;
+      const cryptonote::account_keys &keys = wallet->get_account().get_keys();
+      crypto::hash tx_hash = cryptonote::get_transaction_hash(ptx.tx);
+      crypto::generate_signature(tx_hash, keys.m_account_address.m_spend_public_key, keys.m_spend_secret_key, sign.signature);
+      for (int i = 0; i < 8; ++i) {
+        ptx.tx.rta_signatures.push_back(sign);
+      }
+      cryptonote::blobdata tx_blob;
+      ASSERT_TRUE(tx_to_blob(ptx.tx, tx_blob));
+      cryptonote::transaction tx_test;
+      crypto::hash tx_hash2, tx_prefix_hash;
+
+      ASSERT_TRUE(cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx_test, tx_hash2, tx_prefix_hash));
+
+      ASSERT_TRUE(tx_hash == tx_hash2);
+      ASSERT_TRUE(tx_test.rta_signatures.size() == 8);
+      ASSERT_TRUE(ptx.tx.rta_signatures.size() == tx_test.rta_signatures.size());
+      for (size_t i = 0; i < ptx.tx.rta_signatures.size(); ++i) {
+        std::string address1 = cryptonote::get_account_address_as_str(true, ptx.tx.rta_signatures.at(i).address);
+        std::string address2 = cryptonote::get_account_address_as_str(true, tx_test.rta_signatures.at(i).address);
+        ASSERT_TRUE(address1 == address2);
+        crypto::signature sign1 = ptx.tx.rta_signatures.at(i).signature;
+        crypto::signature sign2 = tx_test.rta_signatures.at(i).signature;
+        ASSERT_TRUE(sign1 == sign2);
+      }
+      ASSERT_TRUE(ptx.tx.version == 3);
+      ASSERT_TRUE(tx_test.version == 3);
+      EXPECT_NO_THROW(wallet->commit_tx(ptx));
+    }
+}
+
