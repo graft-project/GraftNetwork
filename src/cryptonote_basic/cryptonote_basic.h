@@ -172,29 +172,16 @@ namespace cryptonote
     //extra
     std::vector<uint8_t> extra;
 
-    // graft: introducing transaction type
-    enum tx_type {
-      // generic monero transaction;
-      tx_type_generic = 0,
-      // supernode 'zero-fee' transaction
-      tx_type_zero_fee = 1,
-      tx_type_invalid = 255
-    };
-    // graft: tx type field
-    size_t type;
-
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
       if (version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
       VARINT_FIELD(unlock_time)
-      VARINT_FIELD(type)
       FIELD(vin)
       FIELD(vout)
       FIELD(extra)
     END_SERIALIZE()
   public:
-    transaction_prefix()
-      : type(tx_type_generic) {}
+
   };
 
   /************************************************************************/
@@ -240,6 +227,17 @@ namespace cryptonote
     // hash cash
     mutable crypto::hash hash;
     mutable size_t blob_size;
+
+    // graft: introducing transaction type
+    enum tx_type {
+      // generic monero transaction;
+      tx_type_generic = 0,
+      // supernode 'zero-fee' transaction
+      tx_type_zero_fee = 1,
+      tx_type_invalid = 255
+    };
+    // graft: tx type field
+    size_t type = tx_type_generic;
 
     std::vector<rta_signature> rta_signatures;
 
@@ -318,7 +316,8 @@ namespace cryptonote
       // version >= 3 is rta transaction: allowed 0 fee and auth sample signatures
       if (version >= 3)
       {
-        FIELD(rta_signatures)
+        // FIELD(type)
+        // FIELD(rta_signatures)
       }
     END_SERIALIZE()
 

@@ -4733,7 +4733,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         LOG_PRINT_L2("We made a tx, adjusting fee and saving it");
         do {
 
-          size_t tx_type = zero_fee_tx ? cryptonote::transaction_prefix::tx_type_zero_fee : cryptonote::transaction_prefix::tx_type_generic;
+          size_t tx_type = zero_fee_tx ? cryptonote::transaction::tx_type_zero_fee : cryptonote::transaction::tx_type_generic;
           if (use_rct)
             transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
               test_tx, test_ptx, tx_type);
@@ -4833,8 +4833,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
         fee_per_destination = total_fee / auth_sample.size();
         tx_dsts.push_back(cryptonote::tx_destination_entry(fee_per_destination, address));
     }
+    bool allow_zero_fee = true;
 
-    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, trusted_daemon);
+    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, trusted_daemon, allow_zero_fee);
 }
 
 
