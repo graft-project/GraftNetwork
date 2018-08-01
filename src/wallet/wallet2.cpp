@@ -914,7 +914,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
               td.m_amount = amount[o];
               td.m_rct = true;
             }
-            else if (miner_tx && tx.version == 2)
+            else if (miner_tx && (tx.version == 2 || tx.version == CURRENT_TRANSACTION_VERSION))
             {
               td.m_mask = rct::identity();
               td.m_rct = true;
@@ -963,7 +963,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
               td.m_amount = amount[o];
               td.m_rct = true;
             }
-            else if (miner_tx && tx.version == 2)
+            else if (miner_tx && (tx.version == 2 || tx.version == CURRENT_TRANSACTION_VERSION))
             {
               td.m_mask = rct::identity();
               td.m_rct = true;

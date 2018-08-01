@@ -2416,7 +2416,7 @@ bool Blockchain::have_tx_keyimges_as_spent(const transaction &tx) const
 bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_prefix_hash, const std::vector<std::vector<rct::ctkey>> &pubkeys)
 {
   PERF_TIMER(expand_transaction_2);
-  CHECK_AND_ASSERT_MES(tx.version == CURRENT_TRANSACTION_VERSION, false, "Transaction version is not 3");
+  CHECK_AND_ASSERT_MES(tx.version == CURRENT_TRANSACTION_VERSION || tx.version == 2, false, "Transaction version is not 2 or 3");
 
   rct::rctSig &rv = tx.rct_signatures;
 
