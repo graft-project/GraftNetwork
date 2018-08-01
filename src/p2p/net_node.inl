@@ -944,8 +944,6 @@ namespace nodetool
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (!m_have_supernode)
               break;
-          if (supernode_str == m_supernode_str)
-              return 1;
           post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
       } while(0);
 
