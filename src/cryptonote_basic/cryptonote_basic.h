@@ -228,12 +228,13 @@ namespace cryptonote
     mutable crypto::hash hash;
     mutable size_t blob_size;
 
-    // graft: introducing transaction type
+    // graft: introducing transaction type. currently this field is not used to calculate tx hash
+    // TODO: probably move it to transaction_prefix.extra
     enum tx_type {
       // generic monero transaction;
       tx_type_generic = 0,
       // supernode 'zero-fee' transaction
-      tx_type_zero_fee = 1,
+      tx_type_rta = 1,
       tx_type_invalid = 255
     };
     // graft: tx type field
@@ -241,10 +242,9 @@ namespace cryptonote
 
     std::vector<rta_signature> rta_signatures;
 
-
     transaction();
-    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), rta_signatures(t.rta_signatures) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
-    transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; rta_signatures = t.rta_signatures; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } return *this; }
+    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), type(t.type), rta_signatures(t.rta_signatures) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
+    transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; type = t.type; rta_signatures = t.rta_signatures; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } return *this; }
     virtual ~transaction();
     void set_null();
     void invalidate_hashes();

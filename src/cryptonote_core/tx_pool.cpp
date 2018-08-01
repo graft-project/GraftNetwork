@@ -171,10 +171,10 @@ namespace cryptonote
 
     // LOG_PRINT_L0("tx_type: " << tx.type);
     // Only allow zero fee if: (pick the one condition)
-    // 1. if tx.type == tx_type_zero_fee and tx.rta_signatures.size() > 0
+    // 1. if tx.type == tx_type_rta and tx.rta_signatures.size() > 0
     // 2. if tx.version >= 3 and tx.rta_signatures.size() > 0
 
-    bool is_rta_tx = tx.version >= 3 && tx.rta_signatures.size() > 0;
+    bool is_rta_tx =  tx.type == transaction::tx_type_rta && tx.rta_signatures.size() > 0;
     // validator for rta_transaction:
     auto rta_validator = [&](const std::vector<cryptonote::rta_signature> &rta_signs) -> bool {
       bool result = true;
@@ -320,7 +320,7 @@ namespace cryptonote
       tvc.m_added_to_pool = true;
       LOG_PRINT_L3("!! meta.fee: " << meta.fee);
       LOG_PRINT_L3("!! do_not_relay: " << do_not_relay);
-      if ((tx.type == transaction::tx_type_zero_fee || meta.fee > 0) && !do_not_relay)
+      if ((tx.type == transaction::tx_type_rta || meta.fee > 0) && !do_not_relay)
         tvc.m_should_be_relayed = true;
     }
 

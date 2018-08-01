@@ -338,8 +338,7 @@ TEST_F(GraftSplittedFeeTest, RtaTransaction)
   ASSERT_TRUE(epee::string_tools::pod_to_hex(tx_hash2) == ptx->txid()[0]);
   ASSERT_TRUE(tx.rta_signatures.size() == 8);
   ASSERT_TRUE(crypto::check_signature(tx_hash2, tx.rta_signatures[0].address.m_spend_public_key, tx.rta_signatures[0].signature));
-
-  // ASSERT_TRUE(tx.type == cryptonote::transaction::tx_type_zero_fee);
+  ASSERT_TRUE(tx.type == cryptonote::transaction::tx_type_rta);
   ASSERT_TRUE(ptx->commit());
 
 }
