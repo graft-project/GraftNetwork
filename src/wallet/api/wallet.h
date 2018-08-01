@@ -123,6 +123,7 @@ public:
 
     PendingTransaction * loadTransaction(std::istream &iss);
     PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
+                                           bool rtaTransaction = true,
                                            PendingTransaction::Priority = PendingTransaction::Priority_Low) override;
 
     virtual PendingTransaction * createSweepUnmixableTransaction();

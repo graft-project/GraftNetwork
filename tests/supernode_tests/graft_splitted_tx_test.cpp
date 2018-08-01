@@ -298,7 +298,7 @@ TEST_F(GraftSplittedFeeTest, RtaTransaction)
     destinations.push_back({auth_sample_member, "", amount_to_send * 0.05});
   }
 
-  Monero::PendingTransaction * ptx = wallet->createTransaction(destinations, 0);
+  Monero::PendingTransaction * ptx = wallet->createTransaction(destinations, 0, true);
   ASSERT_TRUE(ptx != nullptr);
   ASSERT_TRUE(ptx->status() == Monero::Wallet::Status_Ok);
 
@@ -340,5 +340,57 @@ TEST_F(GraftSplittedFeeTest, RtaTransaction)
   ASSERT_TRUE(crypto::check_signature(tx_hash2, tx.rta_signatures[0].address.m_spend_public_key, tx.rta_signatures[0].signature));
   ASSERT_TRUE(tx.type == cryptonote::transaction::tx_type_rta);
   ASSERT_TRUE(ptx->commit());
+  wallet->store("");
+
+}
+
+
+TEST_F(GraftSplittedFeeTest, NonRtaTransaction)
+{
+  vector<string> auth_sample = {
+
+    "F4xWex5prppRooAqBZ7aBxTCRsPrzvKhGhWiy41Zt4DVX6iTk1HJqZiPNcgW4NkhE77mF7gRkYLRQhGKEG1rAs8NSp7aU93",
+    "FBHdqDnz8YNU3TscB1X7eH25XLKaHmba9Vws2xwDtLKJWS7vZrii1vHVKAMGgRVz6WVcd2jN7qC1YEB4ZALUag2d9h1nnEu",
+    "F5pbAMAzbRbhQSpEQ39nHXQr8QXMHXMmbWbMHcCh9HLrez7Y3aAckkH3PeG1Lctyr24ZZex72DKqgR5EFXJeukoo3mxvXZh",
+    "F8fNpx9sz6o3dxT5wDPReKP2LDA14J85jD9wUKdVEzwJPbpZwB8eZvYd97iwNfa4epNAPZYDngcNBZcNHxgoGMdXSwi8n7a",
+    "F3vUsEKRUiTTpVrAAoTmSm61JVUR3P858FAzAFavH7McNa5jKbjBveHDroH33bb4N3Nu6z42n8Y9fQXfiNPvT2Yn8gAaLtv",
+    "F5CfDKxtW5ciHCkqK4p6cK2CymvtVq9Wce8fpo1u5WZLbLbvMFHauvsdCj2xeUTqiE4J4cpaEdsn29fA4RpWJssRV7P6ZUo",
+    "FC8kKPRQx3uCYN9UrdUee9AjF5ctSSFdefefWxcsFAXhjN1Gq8r8EDPhVoMfUU29JvbqRzhEKmfAfgRiwjcmwYHbTy7u3Th",
+    "F4H2PxxHkxj9HDs3fMdk3k4EBDSSBJJdzhsAKTeGrjzSinVHdiTFWgg36wGzQmGYagRtpP76EYGkWN4VV8o6XhJtFABs4eE"
+
+  };
+
+  Monero::WalletManager * wmgr = Monero::WalletManagerFactory::getWalletManager();
+  string wallet_path1 = wallet_root_path + "/stake_wallet";
+  Monero::Wallet * wallet = wmgr->openWallet(wallet_path1, "", true);
+  ASSERT_TRUE(wallet->init(DAEMON_ADDR, 0, "", ""));
+  ASSERT_TRUE(wallet->refresh());
+  wallet->store("");
+  std::vector<Monero::Wallet::TransactionDestination> destinations;
+  uint64_t amount_to_send = AMOUNT_10_GRF;
+  for (const string &auth_sample_member : auth_sample) {
+    destinations.push_back({auth_sample_member, "", amount_to_send * 0.05});
+  }
+
+  Monero::PendingTransaction * ptx = wallet->createTransaction(destinations, 0, false);
+  ASSERT_TRUE(ptx != nullptr);
+  ASSERT_TRUE(ptx->status() == Monero::Wallet::Status_Ok);
+
+
+  std::vector<std::string> serialized_hex_txs = ptx->getRawTransaction();
+  ASSERT_TRUE(serialized_hex_txs.size() == 1);
+  cryptonote::blobdata tx_blob;
+  ASSERT_TRUE(epee::string_tools::parse_hexstr_to_binbuff(serialized_hex_txs[0], tx_blob));
+
+  cryptonote::transaction tx;
+  crypto::hash tx_hash2, tx_prefix_hash;
+
+  ASSERT_TRUE(cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash2, tx_prefix_hash));
+  ASSERT_TRUE(tx.version == 3);
+  ASSERT_TRUE(epee::string_tools::pod_to_hex(tx_hash2) == ptx->txid()[0]);
+  ASSERT_TRUE(tx.type == cryptonote::transaction::tx_type_generic);
+  ASSERT_TRUE(ptx->commit());
+  wallet->store("");
+
 
 }

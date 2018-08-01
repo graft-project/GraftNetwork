@@ -557,6 +557,7 @@ struct Wallet
      *                          after object returned
      */
     virtual PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
+                                                   bool rtaTransaction = false,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
 
     /*!

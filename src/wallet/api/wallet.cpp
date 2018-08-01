@@ -1172,7 +1172,9 @@ PendingTransaction *WalletImpl::loadTransaction(istream &iss)
 }
 
 PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::TransactionDestination> &destinations,
-                                                  uint32_t mixin_count, PendingTransaction::Priority priority)
+                                                  uint32_t mixin_count,
+                                                  bool rtaTransaction,
+                                                  PendingTransaction::Priority priority)
 {
     clearStatus();
     // Pause refresh thread while creating transaction
@@ -1247,10 +1249,9 @@ PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::Tran
         }
 
         try {
-            bool allow_zero_fee = true;
             transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
                                                                         static_cast<uint32_t>(priority),
-                                                                        extra, m_trustedDaemon, allow_zero_fee);
+                                                                        extra, m_trustedDaemon, rtaTransaction);
         } catch (const tools::error::daemon_busy&) {
             // TODO: make it translatable with "tr"?
             m_errorString = tr("daemon is busy. Please try again later.");
