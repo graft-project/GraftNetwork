@@ -72,6 +72,7 @@
 
 #define MAX_TUNNEL_PEERS (3u)
 #define REQUEST_CACHE_TIME 2 * 60 * 1000
+#define HOP_RETRIES_MULTIPLIER 2
 
 namespace nodetool
 {
@@ -2150,7 +2151,7 @@ namespace nodetool
       p2p_req.callback_uri = req.callback_uri;
       p2p_req.data = req.data;
       p2p_req.wait_answer = req.wait_answer;
-      p2p_req.hop = get_max_hop(get_routes());
+      p2p_req.hop = HOP_RETRIES_MULTIPLIER * get_max_hop(get_routes());
       p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
 
       std::string blob;
@@ -2200,7 +2201,7 @@ namespace nodetool
       p2p_req.callback_uri = req.callback_uri;
       p2p_req.data = req.data;
       p2p_req.wait_answer = req.wait_answer;
-      p2p_req.hop = get_max_hop(p2p_req.receiver_addresses);
+      p2p_req.hop = HOP_RETRIES_MULTIPLIER * get_max_hop(p2p_req.receiver_addresses);
       p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
 
       std::string blob;
@@ -2233,7 +2234,7 @@ namespace nodetool
       p2p_req.callback_uri = req.callback_uri;
       p2p_req.data = req.data;
       p2p_req.wait_answer = req.wait_answer;
-      p2p_req.hop = get_max_hop(addresses);
+      p2p_req.hop = HOP_RETRIES_MULTIPLIER * get_max_hop(addresses);
       p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
 
       std::string blob;
