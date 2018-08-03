@@ -186,6 +186,16 @@ std::vector<std::string> PendingTransactionImpl::getRawTransaction() const
     return txs;
 }
 
+void PendingTransactionImpl::updateTransactionCache()
+{
+    m_wallet.pauseRefresh();
+    for (auto rit = m_pending_tx.rbegin(); rit != m_pending_tx.rend(); ++rit)
+    {
+        m_wallet.m_wallet->update_tx_cache(*rit);
+    }
+    m_wallet.startRefresh();
+}
+
 void  PendingTransactionImpl::putRtaSignatures(const std::vector<RtaSignature> &signs)
 {
     if (m_pending_tx.empty())

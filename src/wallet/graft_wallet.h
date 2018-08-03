@@ -76,6 +76,8 @@ public:
    */
   void store_cache(const std::string &filename);
 
+  void update_tx_cache(const pending_tx &ptx);
+
   std::string getAccountData(const std::string& password, bool use_base64 = true);
 
 //  Monero::PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,

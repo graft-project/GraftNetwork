@@ -1172,8 +1172,7 @@ PendingTransaction *WalletImpl::loadTransaction(istream &iss)
 }
 
 PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::TransactionDestination> &destinations,
-                                                  uint32_t mixin_count,
-                                                  bool rtaTransaction,
+                                                  uint32_t mixin_count, bool rtaTransaction,
                                                   PendingTransaction::Priority priority)
 {
     clearStatus();

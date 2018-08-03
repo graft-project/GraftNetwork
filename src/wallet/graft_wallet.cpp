@@ -185,6 +185,47 @@ void tools::GraftWallet::store_cache(const std::string &filename)
     THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
 }
 
+void tools::GraftWallet::update_tx_cache(const tools::wallet2::pending_tx &ptx)
+{
+    using namespace cryptonote;
+    crypto::hash txid;
+
+    // sanity checks
+    for (size_t idx: ptx.selected_transfers)
+    {
+        THROW_WALLET_EXCEPTION_IF(idx >= m_transfers.size(), error::wallet_internal_error,
+                                  "Bad output index in selected transfers: " + boost::lexical_cast<std::string>(idx));
+    }
+
+    txid = get_transaction_hash(ptx.tx);
+    crypto::hash payment_id = cryptonote::null_hash;
+    std::vector<cryptonote::tx_destination_entry> dests;
+    uint64_t amount_in = 0;
+    if (store_tx_info())
+    {
+        payment_id = get_payment_id(ptx);
+        dests = ptx.dests;
+        for(size_t idx: ptx.selected_transfers)
+        {
+            amount_in += m_transfers[idx].amount();
+        }
+    }
+    add_unconfirmed_tx(ptx.tx, amount_in, dests, payment_id, ptx.change_dts.amount);
+    if (store_tx_info())
+    {
+        LOG_PRINT_L2("storing tx key " << ptx.tx_key);
+        m_tx_keys.insert(std::make_pair(txid, ptx.tx_key));
+        LOG_PRINT_L2("there're  " << m_tx_keys.size() << " stored keys");
+    }
+
+    LOG_PRINT_L2("transaction " << txid << " generated ok and sent to daemon, key_images: [" << ptx.key_images << "]");
+
+    for(size_t idx: ptx.selected_transfers)
+    {
+        set_spent(idx, 0);
+    }
+}
+
 std::string tools::GraftWallet::getAccountData(const std::string &password, bool use_base64)
 {
     std::string data = store_keys_to_data(password);

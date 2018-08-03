@@ -180,6 +180,11 @@ std::vector<string> GraftPendingTransactionImpl::getRawTransaction() const
     return txs;
 }
 
+void GraftPendingTransactionImpl::updateTransactionCache()
+{
+    //Unused method
+}
+
 void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet2::pending_tx> pending_tx)
 {
     m_pending_tx = pending_tx;

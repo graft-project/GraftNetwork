@@ -106,6 +106,10 @@ struct PendingTransaction
      * \return                  list of serialized signed transactions
      */
     virtual std::vector<std::string> getRawTransaction() const = 0;
+    /*!
+     * \brief updateTransactionCache Store transaction data into wallet cache
+     */
+    virtual void updateTransactionCache() = 0;
 
     virtual void putRtaSignatures(const std::vector<RtaSignature> &) = 0;
 };

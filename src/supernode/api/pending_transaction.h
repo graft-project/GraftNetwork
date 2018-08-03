@@ -53,6 +53,7 @@ public:
     bool save(std::ostream &os);
 
     std::vector<std::string> getRawTransaction() const override;
+    void updateTransactionCache() override;
     // TODO: continue with interface;
     void setPendingTx(std::vector<tools::GraftWallet2::pending_tx> pending_tx);
     void setStatus(int status);
