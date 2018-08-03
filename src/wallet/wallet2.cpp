@@ -3514,7 +3514,7 @@ bool wallet2::load_tx(std::vector<tools::wallet2::pending_tx> &ptx, std::istream
 
   if (strncmp(magic_buf, SIGNED_TX_PREFIX, magiclen))
   {
-    LOG_PRINT_L0("Bad magic: " << magic_buf);
+    LOG_PRINT_L0("Bad magic: " << (char *)magic_buf);
     return false;
   }
   stream.seekg(magiclen, stream.beg);
