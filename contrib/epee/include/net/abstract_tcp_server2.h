@@ -407,9 +407,9 @@ namespace net_utils
         epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){con_->m_send_que_lock.unlock();});
 
         con_->m_send_que.resize(con_->m_send_que.size()+1);
-        con_->m_send_que.back().assign((const char*)message, length);
+        con_->m_send_que.back().assign((const char*)mach->message, mach->length);
         typename connection<t_protocol_handler>::callback_type callback = boost::bind(&do_send_chunk_state_machine::send_result,mach,_1);
-        con_->add_on_write_callback(std::pair<int64_t, typename connection<t_protocol_handler>::callback_type> { length, callback } );
+        con_->add_on_write_callback(std::pair<int64_t, typename connection<t_protocol_handler>::callback_type> { mach->length, callback } );
 
         if(con_->m_send_que.size() == 1) {
           // no active operation
@@ -433,7 +433,7 @@ namespace net_utils
                                 )
       : async_state_machine(io_service, timeout, caller)
       , conn(conn)
-      , message(message)
+      , message(const_cast<void*>(message))
       , length(msg_len)
     {
     }

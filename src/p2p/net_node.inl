@@ -417,7 +417,7 @@ namespace nodetool
     std::set<std::string> full_addrs;
     if (m_p2p_seed_node && testnet) {
         for (auto na : m_seed_nodes) {
-            const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
+            const epee::net_utils::ipv4_network_address &ipv4 = na.template as<const epee::net_utils::ipv4_network_address>();
             full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
                               + epee::string_tools::num_to_string_fast(ipv4.port()) );
         }
