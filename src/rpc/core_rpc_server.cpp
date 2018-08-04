@@ -654,6 +654,8 @@ namespace cryptonote
         res.reason = "fee too low";
       if ((res.not_rct = tvc.m_not_rct))
         res.reason = "tx is not ringct";
+      if ((res.rta_validation_failed = tvc.m_rta_signature_failed))
+        res.reason = "RTA validation failed";
       return true;
     }
 

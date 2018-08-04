@@ -182,8 +182,11 @@ namespace cryptonote
         result &= crypto::check_signature(id, rta_sign.address.m_spend_public_key, rta_sign.signature);
         if (!result) {
 
-          LOG_ERROR("Failed to validate tx for address: "
+          LOG_ERROR("Failed to validate tx "
+                    << epee::string_tools::pod_to_hex(id)
+                    << " for address: "
                     << cryptonote::get_account_address_as_str(m_blockchain.testnet(), rta_sign.address));
+
           break;
         }
       }
@@ -192,7 +195,7 @@ namespace cryptonote
     if (is_rta_tx) {
       bool is_rta_tx_valid = rta_validator(tx.rta_signatures);
       if (!kept_by_block && !is_rta_tx_valid) {
-        LOG_ERROR("failed to validate rta tx");
+        LOG_ERROR("failed to validate rta tx, tx contains " << tx.rta_signatures.size() << " signatures");
         tvc.m_rta_signature_failed = true;
         tvc.m_verifivation_failed = true;
         return false;
