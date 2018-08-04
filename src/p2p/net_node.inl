@@ -794,14 +794,18 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: multicast_send: Start tunneling");
       std::vector<peerlist_entry> tunnels;
       {
-          LOG_PRINT_L0("P2P Request: multicast_send: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          LOG_PRINT_L0("P2P Request: multicast_send: unlock");
+          std::map<std::string, nodetool::supernode_route> local_supernode_routes;
+          {
+              LOG_PRINT_L0("P2P Request: multicast_send: lock");
+              boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+              LOG_PRINT_L0("P2P Request: multicast_send: unlock");
+              local_supernode_routes = m_supernode_routes;
+          }
           for (auto addr : addresses)
           {
               LOG_PRINT_L0("P2P Request: multicast_send: find tunnel for " << addr);
-              auto it = m_supernode_routes.find(addr);
-              if (it == m_supernode_routes.end())
+              auto it = local_supernode_routes.find(addr);
+              if (it == local_supernode_routes.end())
               {
                   continue;
               }
@@ -838,11 +842,17 @@ namespace nodetool
   {
       uint64_t max_hop = 0;
       {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          std::map<std::string, nodetool::supernode_route> local_supernode_routes;
+          {
+              LOG_PRINT_L0("P2P Request: multicast_send: lock");
+              boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+              LOG_PRINT_L0("P2P Request: multicast_send: unlock");
+              local_supernode_routes = m_supernode_routes;
+          }
           for (auto addr : addresses)
           {
-              auto it = m_supernode_routes.find(addr);
-              if (it != m_supernode_routes.end() && max_hop < (*it).second.max_hop)
+              auto it = local_supernode_routes.find(addr);
+              if (it != local_supernode_routes.end() && max_hop < (*it).second.max_hop)
               {
                   max_hop = (*it).second.max_hop;
               }
@@ -857,8 +867,14 @@ namespace nodetool
   {
       std::list<std::string> routes;
       {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it)
+          std::map<std::string, nodetool::supernode_route> local_supernode_routes;
+          {
+              LOG_PRINT_L0("P2P Request: multicast_send: lock");
+              boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+              LOG_PRINT_L0("P2P Request: multicast_send: unlock");
+              local_supernode_routes = m_supernode_routes;
+          }
+          for (auto it = local_supernode_routes.begin(); it != local_supernode_routes.end(); ++it)
           {
               routes.push_back((*it).first);
           }
@@ -906,11 +922,15 @@ namespace nodetool
           { // unknown peer, alternative handshake with it
               return 1;
           }
-
+          {
+              LOG_PRINT_L0("P2P Request: handle_supernode_announce: lock");
+              boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
+              LOG_PRINT_L0("P2P Request: handle_supernode_announce: unlock");
+              remove_old_request_cache();
+          }
           LOG_PRINT_L0("P2P Request: handle_supernode_announce: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           LOG_PRINT_L0("P2P Request: handle_supernode_announce: unlock");
-          remove_old_request_cache();
 
           auto it = m_supernode_routes.find(supernode_str);
           if (it == m_supernode_routes.end())
@@ -957,7 +977,7 @@ namespace nodetool
 
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: post to supernode");
       do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+//          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (!m_have_supernode)
               break;
           post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
@@ -979,7 +999,7 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: handle_broadcast: start");
       {
           LOG_PRINT_L0("P2P Request: handle_broadcast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
           LOG_PRINT_L0("P2P Request: handle_broadcast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
@@ -1015,7 +1035,7 @@ namespace nodetool
       std::list<std::string> addresses = arg.receiver_addresses;
       {
           LOG_PRINT_L0("P2P Request: handle_multicast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
           LOG_PRINT_L0("P2P Request: handle_multicast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
@@ -1056,7 +1076,7 @@ namespace nodetool
       std::string address = arg.receiver_address;
       {
           LOG_PRINT_L0("P2P Request: handle_unicast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
           LOG_PRINT_L0("P2P Request: handle_unicast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
@@ -2193,9 +2213,9 @@ namespace nodetool
 
       LOG_PRINT_L0("P2P Request: do_broadcast: broadcast to me");
       {
-          LOG_PRINT_L0("P2P Request: do_broadcast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          LOG_PRINT_L0("P2P Request: do_broadcast: unlock");
+//          LOG_PRINT_L0("P2P Request: do_broadcast: lock");
+//          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+//          LOG_PRINT_L0("P2P Request: do_broadcast: unlock");
           if (m_have_supernode)
           {
               post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
@@ -2260,7 +2280,7 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: do_multicast: multicast to me");
       {
           LOG_PRINT_L0("P2P Request: do_multicast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
           LOG_PRINT_L0("P2P Request: do_multicast: unlock");
           std::list<std::string> addresses = req.receiver_addresses;
           auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);

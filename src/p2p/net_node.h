@@ -424,6 +424,7 @@ namespace nodetool
     std::string m_supernode_uri;
     epee::net_utils::http::http_simple_client m_supernode_client;
     boost::recursive_mutex m_supernode_lock;
+    boost::recursive_mutex m_request_cache_lock;
 
     std::string m_config_folder;
 
