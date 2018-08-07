@@ -184,6 +184,28 @@ void mlog_set_log(const char *log)
   }
 }
 
+// %locname custom specifier can be used in addition to the Logging Format Specifiers of the Easylogging++
+// %locname similar to %loc but without full path
+//the default format is "%datetime{%Y-%M-%d %H:%m:%s.%g}	%thread	%level	%logger	%loc	%msg"
+void mlog_set_format(const char* format)
+{
+    auto locname = [](const el::LogMessage* lm)-> std::string
+    {
+        std::string s = lm->file();
+        size_t pos = s.find_last_of("/\\");
+        if(pos != std::string::npos)
+        {
+            s = s.substr(pos+1);
+        }
+        return s;
+    };
+    el::Helpers::installCustomFormatSpecifier(el::CustomFormatSpecifier("%locname", locname));
+
+    el::Configurations defaultConf;
+    defaultConf.setGlobally(el::ConfigurationType::Format, format);
+    el::Loggers::reconfigureAllLoggers(defaultConf);
+}
+
 namespace epee
 {
 
