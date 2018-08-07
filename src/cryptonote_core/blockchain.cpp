@@ -1146,7 +1146,25 @@ bool Blockchain::create_block_template(block& b, const account_public_address& m
   b.major_version = m_hardfork->get_current_version();
   b.minor_version = m_hardfork->get_ideal_version();
   b.prev_id = get_tail_id();
+
   b.timestamp = time(NULL);
+
+  uint8_t version = get_current_hard_fork_version();
+  uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+
+  if(m_db->height() >= blockchain_timestamp_check_window) {
+    std::vector<uint64_t> timestamps;
+    auto h = m_db->height();
+
+    for(size_t offset = h - blockchain_timestamp_check_window; offset < h; ++offset)
+    {
+      timestamps.push_back(m_db->get_block_timestamp(offset));
+    }
+    uint64_t median_ts = epee::misc_utils::median(timestamps);
+    if (b.timestamp < median_ts) {
+      b.timestamp = median_ts;
+    }
+  }
 
   diffic = get_difficulty_for_next_block();
   CHECK_AND_ASSERT_MES(diffic, false, "difficulty overhead.");
