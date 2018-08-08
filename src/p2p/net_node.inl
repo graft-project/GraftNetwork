@@ -428,15 +428,15 @@ namespace nodetool
     }
     else if (testnet)
     {
-      full_addrs.insert("34.239.181.212:28680");
-      full_addrs.insert("54.145.210.249:28680");
-      full_addrs.insert("54.236.111.68:28680");
+      full_addrs.insert("18.213.109.161:28680");
+      full_addrs.insert("18.213.241.78:28680");
+      full_addrs.insert("18.213.241.153:28680");
     }
     else
     {
-      full_addrs.insert("13.58.215.50:18980");
-      full_addrs.insert("13.59.105.220:18980");
-      full_addrs.insert("18.216.94.64:18980");
+      full_addrs.insert("18.213.109.161:18980");
+      full_addrs.insert("18.213.109.161:18980");
+      full_addrs.insert("18.213.109.161:18980");
     }
     return full_addrs;
   }
