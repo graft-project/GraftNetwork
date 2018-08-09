@@ -787,6 +787,7 @@ namespace nodetool
               auto it = local_supernode_routes.find(addr);
               if (it == local_supernode_routes.end())
               {
+                  MWARNING("no tunnel found for address: " << addr);
                   continue;
               }
               std::unordered_map<peerid_type, peerlist_entry> addr_tunnels = (*it).second.peers;
@@ -2130,7 +2131,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
   {
-     LOG_PRINT_L0("Incoming supernode announce request");
+    LOG_PRINT_L0("Incoming supernode announce request");
 
     LOG_PRINT_L0("P2P Request: do_supernode_announce: start");
 
@@ -2150,11 +2151,12 @@ namespace nodetool
     std::set<peerid_type> announced_peers;
     // send to peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-        MINFO("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
+        LOG_INFO_CC(context, "invoking COMMAND_SUPERNODE_ANNOUNCE");
         if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
             announced_peers.insert(context.peer_id);
             return true;
         }
+        LOG_ERROR_CC(context, "failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
         return false;
     });
 
