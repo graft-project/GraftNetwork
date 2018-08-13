@@ -34,7 +34,6 @@
 #pragma once
 
 #include <algorithm>
-#include <chrono>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/thread/thread.hpp>
 #include <atomic>
@@ -50,7 +49,6 @@
 #include "net/local_ip.h"
 #include "crypto/crypto.h"
 #include "storages/levin_abstract_invoke2.h"
-#include "storages/http_abstract_invoke.h"
 
 // We have to look for miniupnpc headers in different places, dependent on if its compiled or external
 #ifdef UPNP_STATIC
@@ -69,9 +67,6 @@
 #define NET_MAKE_IP(b1,b2,b3,b4)  ((LPARAM)(((DWORD)(b1)<<24)+((DWORD)(b2)<<16)+((DWORD)(b3)<<8)+((DWORD)(b4))))
 
 #define MIN_WANTED_SEED_NODES 12
-
-#define MAX_TUNNEL_PEERS (3u)
-#define REQUEST_CACHE_TIME 2 * 60 * 1000
 
 namespace nodetool
 {
@@ -346,7 +341,6 @@ namespace nodetool
 
     if (command_line::has_arg(vm, arg_p2p_seed_node))
     {
-      m_seed_nodes.clear();
       if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_seed_nodes))
         return false;
     }
@@ -411,25 +405,14 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet)
+  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet) const
   {
     std::set<std::string> full_addrs;
-    if (m_p2p_seed_node && testnet) {
-        for (auto na : m_seed_nodes) {
-            const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
-            full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
-                              + epee::string_tools::num_to_string_fast(ipv4.port()) );
-        }
-
-//        LOG_PRINT_L0("Seed node " << *(full_addrs.begin()));
-        MINFO("Seed node " << *(full_addrs.begin()));
-
-    }
-    else if (testnet)
+    if (testnet)
     {
-      full_addrs.insert("34.204.170.120:28880");
-      full_addrs.insert("54.88.58.35:28880");
-      full_addrs.insert("34.228.64.99:28880");
+      full_addrs.insert("18.233.161.129:28680");
+      full_addrs.insert("18.208.153.88:28680");
+      full_addrs.insert("54.210.0.163:28680");
     }
     else
     {
@@ -446,20 +429,11 @@ namespace nodetool
   {
     std::set<std::string> full_addrs;
     m_testnet = command_line::get_arg(vm, command_line::arg_testnet_on);
-    m_p2p_seed_node = command_line::has_arg(vm, arg_p2p_seed_node);
 
     if (m_testnet)
     {
       memcpy(&m_network_id, &::config::testnet::NETWORK_ID, 16);
-      if (!m_p2p_seed_node)
-        full_addrs = get_seed_nodes(true);
-      else {
-        m_seed_nodes.clear();
-        if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_seed_nodes))
-          return false;
-
-        full_addrs = get_seed_nodes(true);
-      }
+      full_addrs = get_seed_nodes(true);
     }
     else
     {
@@ -556,7 +530,6 @@ namespace nodetool
     CHECK_AND_ASSERT_MES(res, false, "Failed to handle command line");
 
     auto config_arg = m_testnet ? command_line::arg_testnet_data_dir : command_line::arg_data_dir;
-    if (m_p2p_seed_node && m_testnet) config_arg =  command_line::arg_data_dir;
     m_config_folder = command_line::get_arg(vm, config_arg);
 
     if ((!m_testnet && m_port != std::to_string(::config::P2P_DEFAULT_PORT))
@@ -756,303 +729,9 @@ namespace nodetool
     MDEBUG("[node] Stop signal sent");
     return true;
   }
-
-  template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send)
-  {
-      for (unsigned i = 0; i < peers_to_send.size(); i++) {
-          const peerlist_entry &pe = peers_to_send[i];
-          p2p_connection_context con = AUTO_VAL_INIT(con);
-          bool is_conneted = find_connection_context_by_peer_id(pe.id, con);
-          if (is_conneted) {
-              relay_notify(command, buf, con);
-          } else {
-              const epee::net_utils::network_address& na = pe.adr;
-              const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
-
-              if (m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
-                                       epee::string_tools::num_to_string_fast(ipv4.port()),
-                                       m_config.m_net_config.connection_timeout, con, m_bind_ip)) {
-                  relay_notify(command, buf, con);
-              }
-          }
-      }
-      return true;
-  }
-
   //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::multicast_send(int command, const string &data, const std::list<string> &addresses,
-                                                          const std::list<peerid_type> &exclude_peerids)
-  {
-      std::vector<peerlist_entry> tunnels;
-      {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          for (auto addr : addresses)
-          {
-              auto it = m_supernode_routes.find(addr);
-              if (it == m_supernode_routes.end())
-              {
-                  continue;
-              }
-              std::unordered_map<peerid_type, peerlist_entry> addr_tunnels = (*it).second.peers;
-              unsigned int count = 0;
-              for (auto peer_it = addr_tunnels.begin(); peer_it != addr_tunnels.end(); ++peer_it)
-              {
-                  peerlist_entry addr_tunnel = (*peer_it).second;
-                  auto tunnel_it = std::find_if(tunnels.begin(), tunnels.end(),
-                                                [addr_tunnel](const peerlist_entry &entry) -> bool {
-                      return entry.id == addr_tunnel.id;
-                  });
-                  auto exclude_it = std::find(exclude_peerids.begin(), exclude_peerids.end(),
-                                              addr_tunnel.id);
-                  if (tunnel_it == tunnels.end() && exclude_it == exclude_peerids.end())
-                  {
-                      tunnels.push_back(addr_tunnel);
-                      count++;
-                  }
-                  if (count >= MAX_TUNNEL_PEERS)
-                  {
-                      break;
-                  }
-              }
-          }
-      }
-      return notify_peer_list(command, data, tunnels);
-  }
 
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  uint64_t node_server<t_payload_net_handler>::get_max_hop(const std::list<std::string> &addresses)
-  {
-      uint64_t max_hop = 0;
-      {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          for (auto addr : addresses)
-          {
-              auto it = m_supernode_routes.find(addr);
-              if (it != m_supernode_routes.end() && max_hop < (*it).second.max_hop)
-              {
-                  max_hop = (*it).second.max_hop;
-              }
-          }
-      }
-      return max_hop;
-  }
 
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  std::list<std::string> node_server<t_payload_net_handler>::get_routes()
-  {
-      std::list<std::string> routes;
-      {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it)
-          {
-              routes.push_back((*it).first);
-          }
-      }
-      return routes;
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::remove_old_request_cache()
-  {
-      int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-      for (auto it = m_supernode_requests_timestamps.begin(); it != m_supernode_requests_timestamps.end();)
-      {
-          if ((*it).first + REQUEST_CACHE_TIME < timestamp)
-          {
-              m_supernode_requests_cache.erase((*it).second);
-              it = m_supernode_requests_timestamps.erase(it);
-          }
-          else
-          {
-              break;
-          }
-      }
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
-  {
-      static std::string supernode_endpoint("send_supernode_announce");
-      std::string supernode_str = arg.address;
-
-      if (supernode_str == m_supernode_str)
-      {
-          return 1;
-      }
-
-      do {
-          peerlist_entry pe;
-          // TODO: Need to investigate it and mechanism for adding peer to the peerlist
-          if (!m_peerlist.find_peer(context.peer_id, pe))
-          { // unknown peer, alternative handshake with it
-              return 1;
-          }
-
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          remove_old_request_cache();
-
-          auto it = m_supernode_routes.find(supernode_str);
-          if (it == m_supernode_routes.end())
-          {
-              std::unordered_map<peerid_type, peerlist_entry> peer_map;
-              peer_map[pe.id] = pe;
-              nodetool::supernode_route route;
-              route.last_announce_time = arg.timestamp;
-              route.max_hop = arg.hop;
-              route.peers = peer_map;
-              m_supernode_routes[supernode_str] = route;
-              break;
-          }
-
-          if ((*it).second.last_announce_time > arg.timestamp)
-          {
-              MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
-                    << " too old, corrent route timestamp " << (*it).second.last_announce_time);
-              return 1;
-          }
-
-          if ((*it).second.last_announce_time == arg.timestamp)
-          {
-              auto peer_it = (*it).second.peers.find(pe.id);
-              if (peer_it != (*it).second.peers.end())
-              {
-                  return 1;
-              }
-              if (peer_it == (*it).second.peers.end())
-              {
-                  (*it).second.peers[pe.id] = pe;
-                  if ((*it).second.max_hop < arg.hop)
-                  {
-                      (*it).second.max_hop = arg.hop;
-                  }
-                  return 1;
-              }
-          }
-          (*it).second.peers.clear();
-          (*it).second.peers[pe.id] = pe;
-          (*it).second.last_announce_time = arg.timestamp;
-          (*it).second.max_hop = arg.hop;
-      } while(0);
-
-      do {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (!m_have_supernode)
-              break;
-          post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
-      } while(0);
-
-      // Notify neighbours about new ANNOUNCE
-      arg.hop++;
-      std::string arg_buff;
-      epee::serialization::store_t_to_binary(arg, arg_buff);
-      relay_notify_to_all(command, arg_buff, context);
-      return 1;
-  }
-
-  template<class t_payload_net_handler>
-  int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
-  {
-      {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
-          {
-              m_supernode_requests_cache.insert(arg.message_id);
-              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
-              if (m_have_supernode)
-              {
-                  post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", arg, arg.callback_uri);
-              }
-          }
-          remove_old_request_cache();
-      }
-      int next_hop = arg.hop - 1;
-      if (next_hop >= 0)
-      {
-          arg.hop = next_hop;
-          std::string buff;
-          epee::serialization::store_t_to_binary(arg, buff);
-          relay_notify_to_all(command, buff, context);
-      }
-      return 1;
-  }
-
-  template<class t_payload_net_handler>
-  int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
-  {
-      std::list<std::string> addresses = arg.receiver_addresses;
-      {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
-          {
-              m_supernode_requests_cache.insert(arg.message_id);
-              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
-              auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
-              if (m_have_supernode && it != addresses.end())
-              {
-                  post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
-              }
-          }
-          remove_old_request_cache();
-      }
-      int next_hop = arg.hop - 1;
-      if (next_hop >= 0)
-      {
-          arg.hop = next_hop;
-          std::list<peerid_type> exclude_peers;
-          exclude_peers.push_back(context.peer_id);
-
-          std::string buff;
-          epee::serialization::store_t_to_binary(arg, buff);
-          addresses.remove(m_supernode_str);
-          multicast_send(command, buff, addresses, exclude_peers);
-      }
-      return 1;
-  }
-
-  template<class t_payload_net_handler>
-  int node_server<t_payload_net_handler>::handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context)
-  {
-      std::string address = arg.receiver_address;
-      {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
-          {
-              m_supernode_requests_cache.insert(arg.message_id);
-              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
-              if (m_have_supernode && address == m_supernode_str)
-              {
-                  post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
-              }
-          }
-          remove_old_request_cache();
-      }
-      int next_hop = arg.hop - 1;
-      if (address != m_supernode_str && next_hop >= 0)
-      {
-          arg.hop = next_hop;
-          std::list<std::string> addresses;
-          addresses.push_back(address);
-
-          std::list<peerid_type> exclude_peers;
-          exclude_peers.push_back(context.peer_id);
-
-          std::string buff;
-          epee::serialization::store_t_to_binary(arg, buff);
-          multicast_send(command, buff, addresses, exclude_peers);
-      }
-      return 1;
-  }
-
-  //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::do_handshake_with_peer(peerid_type& pi, p2p_connection_context& context_, bool just_take_peerlist)
   {
@@ -1063,7 +742,6 @@ namespace nodetool
 
     epee::simple_event ev;
     std::atomic<bool> hsh_result(false);
-    std::chrono::high_resolution_clock::time_point t1 (std::chrono::high_resolution_clock::now());
 
     bool r = epee::net_utils::async_invoke_remote_command2<typename COMMAND_HANDSHAKE::response>(context_.m_connection_id, COMMAND_HANDSHAKE::ID, arg, m_net_server.get_config_object(),
       [this, &pi, &ev, &hsh_result, &just_take_peerlist](int code, const typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context)
@@ -1113,9 +791,6 @@ namespace nodetool
         LOG_DEBUG_CC(context, " COMMAND_HANDSHAKE(AND CLOSE) INVOKED OK");
       }
     }, P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT);
-
-    std::chrono::high_resolution_clock::time_point t2 (std::chrono::high_resolution_clock::now());
-
 
     if(r)
     {
@@ -1282,7 +957,7 @@ namespace nodetool
     bool res = m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
       epee::string_tools::num_to_string_fast(ipv4.port()),
       m_config.m_net_config.connection_timeout,
-      con, m_bind_ip);
+      con);
 
     if(!res)
     {
@@ -1347,7 +1022,7 @@ namespace nodetool
     bool res = m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
                                     epee::string_tools::num_to_string_fast(ipv4.port()),
                                     m_config.m_net_config.connection_timeout,
-                                    con, m_bind_ip);
+                                    con);
 
     if (!res) {
       bool is_priority = is_priority_node(na);
@@ -1811,12 +1486,6 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::relay_notify(int command, const std::string& data_buff, const p2p_connection_context& connection)
-  {
-      return m_net_server.get_config_object().notify(command, data_buff, connection.m_connection_id) >= 0;
-  }
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::relay_notify_to_list(int command, const std::string& data_buff, const std::list<boost::uuids::uuid> &connections)
   {
     for(const auto& c_id: connections)
@@ -1929,7 +1598,7 @@ namespace nodetool
         return false;
       }
       return true;
-    }, m_bind_ip);
+    });
     if(!r)
     {
       LOG_WARNING_CC(context, "Failed to call connect_async, network error.");
@@ -2047,13 +1716,12 @@ namespace nodetool
         LOG_DEBUG_CC(context, "PING SUCCESS " << context.m_remote_address.host_str() << ":" << port_l);
       });
     }
-#if 0 // unsupported in production
     
     try_get_support_flags(context, [](p2p_connection_context& flags_context, const uint32_t& support_flags) 
     {
       flags_context.support_flags = support_flags;
     });
-#endif
+
     //fill response
     m_peerlist.get_peerlist_head(rsp.local_peerlist_new);
     get_local_node_data(rsp.node_data);
@@ -2087,178 +1755,6 @@ namespace nodetool
     MINFO("Connections: \r\n" << print_connections_container() );
     return true;
   }
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
-  {
-     LOG_PRINT_L0("Incoming supernode announce request");
-
-    COMMAND_SUPERNODE_ANNOUNCE::request p2p_req;
-    p2p_req.signed_key_images = req.signed_key_images;
-    p2p_req.timestamp = req.timestamp;
-    p2p_req.address = req.address;
-    p2p_req.stake_amount = req.stake_amount;
-    p2p_req.height = req.height;
-    p2p_req.secret_viewkey = req.secret_viewkey;
-    p2p_req.network_address = req.network_address;
-    p2p_req.hop = 0;
-
-    std::string blob;
-    epee::serialization::store_t_to_binary(p2p_req, blob);
-    std::set<peerid_type> announced_peers;
-    // send to peers
-    m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-        MINFO("sending COMMAND_SUPERNODE_ANNOUNCE to " << context.peer_id);
-        if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
-            announced_peers.insert(context.peer_id);
-            return true;
-        }
-        return false;
-    });
-
-    std::list<peerlist_entry> peerlist_white, peerlist_gray;
-    m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
-    std::vector<peerlist_entry> peers_to_send;
-    for (auto pe :peerlist_white) {
-        if (announced_peers.find(pe.id) != announced_peers.end()) {
-            continue;
-        }
-        peers_to_send.push_back(pe);
-    }
-
-    notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req)
-  {
-      LOG_PRINT_L0("Incoming broadcast request");
-
-      std::string data_blob;
-      epee::serialization::store_t_to_binary(req, data_blob);
-      std::vector<uint8_t> data_vec(data_blob.begin(), data_blob.end());
-      crypto::hash message_hash;
-      if (!tools::sha256sum(data_vec.data(), data_vec.size(), message_hash))
-      {
-          LOG_ERROR("RTA Broadcast: wrong data format for hashing!");
-          return;
-      }
-
-      {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_have_supernode)
-          {
-              post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
-          }
-      }
-
-      COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
-      p2p_req.sender_address = req.sender_address;
-      p2p_req.callback_uri = req.callback_uri;
-      p2p_req.data = req.data;
-      p2p_req.wait_answer = req.wait_answer;
-      p2p_req.hop = get_max_hop(get_routes());
-      p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
-
-      std::string blob;
-      epee::serialization::store_t_to_binary(p2p_req, blob);
-      std::set<peerid_type> announced_peers;
-      // send to peers
-      m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-          MINFO("sending COMMAND_BROADCAST to " << context.peer_id);
-          if (invoke_notify_to_peer(COMMAND_BROADCAST::ID, blob, context)) {
-              announced_peers.insert(context.peer_id);
-              return true;
-          }
-          return false;
-      });
-
-      std::list<peerlist_entry> peerlist_white, peerlist_gray;
-      m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
-      std::vector<peerlist_entry> peers_to_send;
-      for (auto pe :peerlist_white) {
-          if (announced_peers.find(pe.id) != announced_peers.end())
-              continue;
-          peers_to_send.push_back(pe);
-      }
-
-      notify_peer_list(COMMAND_BROADCAST::ID, blob, peers_to_send);
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_multicast(const cryptonote::COMMAND_RPC_MULTICAST::request &req)
-  {
-      LOG_PRINT_L0("Incoming multicast request");
-
-      std::string data_blob;
-      epee::serialization::store_t_to_binary(req, data_blob);
-      std::vector<uint8_t> data_vec(data_blob.begin(), data_blob.end());
-      crypto::hash message_hash;
-      if (!tools::sha256sum(data_vec.data(), data_vec.size(), message_hash))
-      {
-          LOG_ERROR("RTA Multicast: wrong data format for hashing!");
-          return;
-      }
-
-      {
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          std::list<std::string> addresses = req.receiver_addresses;
-          auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
-          if (m_have_supernode && it != addresses.end())
-          {
-              post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", req, req.callback_uri);
-          }
-      }
-
-      COMMAND_MULTICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
-      p2p_req.receiver_addresses = req.receiver_addresses;
-      p2p_req.sender_address = req.sender_address;
-      p2p_req.callback_uri = req.callback_uri;
-      p2p_req.data = req.data;
-      p2p_req.wait_answer = req.wait_answer;
-      p2p_req.hop = get_max_hop(p2p_req.receiver_addresses);
-      p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
-
-      std::string blob;
-      epee::serialization::store_t_to_binary(p2p_req, blob);
-      multicast_send(COMMAND_MULTICAST::ID, blob, p2p_req.receiver_addresses);
-  }
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req)
-  {
-      LOG_PRINT_L0("Incoming unicast request");
-
-      std::list<std::string> addresses;
-      addresses.push_back(req.receiver_address);
-
-      std::string data_blob;
-      epee::serialization::store_t_to_binary(req, data_blob);
-      std::vector<uint8_t> data_vec(data_blob.begin(), data_blob.end());
-      crypto::hash message_hash;
-      if (!tools::sha256sum(data_vec.data(), data_vec.size(), message_hash))
-      {
-          LOG_ERROR("RTA Unicast: wrong data format for hashing!");
-          return;
-      }
-
-      COMMAND_UNICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
-      p2p_req.receiver_address = req.receiver_address;
-      p2p_req.sender_address = req.sender_address;
-      p2p_req.callback_uri = req.callback_uri;
-      p2p_req.data = req.data;
-      p2p_req.wait_answer = req.wait_answer;
-      p2p_req.hop = get_max_hop(addresses);
-      p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
-
-      std::string blob;
-      epee::serialization::store_t_to_binary(p2p_req, blob);
-      multicast_send(COMMAND_UNICAST::ID, blob, addresses);
-  }
-
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   std::string node_server<t_payload_net_handler>::print_connections_container()

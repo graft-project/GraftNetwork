@@ -46,21 +46,12 @@
 #include "cryptonote_config.h"
 #include "warnings.h"
 #include "net/levin_server_cp2.h"
-#include "net/http_client.h"
 #include "p2p_protocol_defs.h"
 #include "storages/levin_abstract_invoke2.h"
 #include "net_peerlist.h"
 #include "math_helper.h"
 #include "net_node_common.h"
 #include "common/command_line.h"
-#include "net/jsonrpc_structs.h"
-#include "storages/http_abstract_invoke.h"
-
-#include <map>
-#include <set>
-#include <unordered_map>
-#include <unordered_set>
-#include <iomanip>
 
 PUSH_WARNINGS
 DISABLE_VS_WARNINGS(4355)
@@ -138,30 +129,6 @@ namespace nodetool
     virtual bool block_host(const epee::net_utils::network_address &adress, time_t seconds = P2P_IP_BLOCKTIME);
     virtual bool unblock_host(const epee::net_utils::network_address &address);
     virtual std::map<std::string, time_t> get_blocked_hosts() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_hosts; }
-
-    // Graft/RTA methods to be called from RPC handlers
-
-    /*!
-     * \brief do_supernode_announce - posts supernode announce to p2p network
-     * \param req
-     */
-    void do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req);
-    /*!
-     * \brief do_broadcast - posts broadcast message to p2p network
-     * \param req
-     */
-    void do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req);
-    /*!
-     * \brief do_multicast - posts multicast message to p2p network
-     * \param req
-     */
-    void do_multicast(const cryptonote::COMMAND_RPC_MULTICAST::request &req);
-    /*!
-     * \brief do_unicast - posts unicast message to p2p network
-     * \param req
-     */
-    void do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req);
-
   private:
     const std::vector<std::string> m_seed_nodes_list =
     { "seeds.moneroseeds.se"
@@ -179,11 +146,6 @@ namespace nodetool
     CHAIN_LEVIN_NOTIFY_MAP2(p2p_connection_context); //move levin_commands_handler interface notify(...) callbacks into nothing
 
     BEGIN_INVOKE_MAP2(node_server)
-      HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
-      HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_broadcast)
-      HANDLE_NOTIFY_T2(COMMAND_MULTICAST, &node_server::handle_multicast)
-      HANDLE_NOTIFY_T2(COMMAND_UNICAST, &node_server::handle_unicast)
-
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
       HANDLE_INVOKE_T2(COMMAND_PING, &node_server::handle_ping)
@@ -198,46 +160,7 @@ namespace nodetool
 
     enum PeerType { anchor = 0, white, gray };
 
-    //----------------- helper functions ------------------------------------------------
-    bool multicast_send(int command, const std::string &data, const std::list<std::string> &addresses,
-                        const std::list<peerid_type> &exclude_peerids = std::list<peerid_type>());
-    uint64_t get_max_hop(const std::list<std::string> &addresses);
-    std::list<std::string> get_routes();
-
-    template<class request_struct>
-    int post_request_to_supernode(const std::string &method, const typename request_struct::request &body,
-                                  const std::string &endpoint = std::string())
-    {
-        boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
-        epee::json_rpc::request<typename request_struct::request>& req = static_cast<epee::json_rpc::request<typename request_struct::request> &>(init_req);
-        req.jsonrpc = "2.0";
-        req.id = 0;
-        req.method = method;
-        req.params = body;
-
-        std::string uri = "/" + method;
-        if (!endpoint.empty())
-        {
-            uri = endpoint;
-        }
-        typename request_struct::response resp = AUTO_VAL_INIT(resp);
-        bool r = epee::net_utils::invoke_http_json(m_supernode_uri + uri,
-                                                   req, resp, m_supernode_client,
-                                                   std::chrono::seconds(15), "POST");
-        if (!r || resp.status == 0)
-        {
-            return 0;
-        }
-        return 1;
-    }
-
-    void remove_old_request_cache();
-
     //----------------- commands handlers ----------------------------------------------
-    int handle_supernode_announce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
-    int handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
-    int handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context);
-    int handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context);
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);
@@ -252,6 +175,8 @@ namespace nodetool
     bool make_default_config();
     bool store_config();
     bool check_trust(const proof_of_trust& tr);
+
+
     //----------------- levin_commands_handler -------------------------------------------------------------
     virtual void on_connection_new(p2p_connection_context& context);
     virtual void on_connection_close(p2p_connection_context& context);
@@ -266,8 +191,6 @@ namespace nodetool
     virtual void for_each_connection(std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool for_connection(const boost::uuids::uuid&, std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool add_host_fail(const epee::net_utils::network_address &address);
-    // added, non virtual
-    bool relay_notify(int command, const std::string& data_buff, const p2p_connection_context& connection);
     //----------------- i_connection_filter  --------------------------------------------------------
     virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address);
     //-----------------------------------------------------------------------------------------------
@@ -278,7 +201,7 @@ namespace nodetool
     bool idle_worker();
     bool handle_remote_peerlist(const std::list<peerlist_entry>& peerlist, time_t local_time, const epee::net_utils::connection_context_base& context);
     bool get_local_node_data(basic_node_data& node_data);
-    // bool get_local_handshake_data(handshake_data& hshd);
+    //bool get_local_handshake_data(handshake_data& hshd);
 
     bool merge_peerlist_with_local(const std::list<peerlist_entry>& bs);
     bool fix_time_delta(std::list<peerlist_entry>& local_peerlist, time_t local_time, int64_t& delta);
@@ -302,23 +225,8 @@ namespace nodetool
     void cache_connect_fail_info(const epee::net_utils::network_address& addr);
     bool is_addr_recently_failed(const epee::net_utils::network_address& addr);
     bool is_priority_node(const epee::net_utils::network_address& na);
-    std::set<std::string> get_seed_nodes(bool testnet);
+    std::set<std::string> get_seed_nodes(bool testnet) const;
     bool connect_to_seed();
-    bool find_connection_context_by_peer_id(uint64_t id, p2p_connection_context& con)
-    {
-        bool ret = false;
-        m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
-        {
-            if(cntxt.peer_id == id) {
-                con = cntxt;
-                ret = true;
-                return true;
-            }
-            return true;
-        });
-
-        return ret;
-    }
 
     template <class Container>
     bool connect_to_peerlist(const Container& peers);
@@ -345,7 +253,6 @@ namespace nodetool
         mPeersLoggerThread->join(); // make sure the thread finishes
       _info("Joined extra background net_node threads");
     }
-
 
     //debug functions
     std::string print_connections_container();
@@ -375,56 +282,7 @@ namespace nodetool
       m_save_graph = save_graph;
       epee::net_utils::connection_basic::set_save_graph(save_graph);
     }
-
-    void supernode_set(const std::string& addr, const std::string& url)
-    {
-        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-//        m_supernode_addr = addr;
-        m_supernode_str = addr;//publickey2string(addr);
-        epee::net_utils::http::url_content parsed{};
-        bool ret = epee::net_utils::parse_url(url, parsed);
-        if (ret) {
-            m_supernode_http_addr = parsed.host + ":" +std::to_string(parsed.port);
-            m_supernode_uri = std::move(parsed.uri);
-        }
-        if ((parsed.host != m_supernode_client.get_host())
-                && (std::to_string(parsed.port) != m_supernode_client.get_port())) {
-            if (m_supernode_client.is_connected()) {
-                m_supernode_client.disconnect();
-            }
-            boost::optional<epee::net_utils::http::login> supernode_login;
-            m_supernode_client.set_server(m_supernode_http_addr, supernode_login);
-        }
-        m_have_supernode = true;
-    }
-
-    void supernode_reset() {
-        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_supernode_str.erase();
-        m_have_supernode = false;
-
-    }
-
-    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send);
-
-
   private:
-    // TODO: lets remove it and use epee::string_tools::pod_to_hex() directly?
-    static std::string publickey2string(const crypto::public_key& addr) {
-      return epee::string_tools::pod_to_hex(addr);
-    }
-
-    std::multimap<int, std::string> m_supernode_requests_timestamps;
-    std::set<std::string> m_supernode_requests_cache;
-    std::map<std::string, nodetool::supernode_route> m_supernode_routes;
-    crypto::public_key m_supernode_addr;
-    std::string m_supernode_str;
-    bool m_have_supernode;
-    std::string m_supernode_http_addr; // host:port
-    std::string m_supernode_uri;
-    epee::net_utils::http::http_simple_client m_supernode_client;
-    boost::recursive_mutex m_supernode_lock;
-
     std::string m_config_folder;
 
     bool m_have_address;
@@ -473,7 +331,6 @@ namespace nodetool
     epee::critical_section m_host_fails_score_lock;
     std::map<std::string, uint64_t> m_host_fails_score;
 
-    bool m_p2p_seed_node;
     bool m_testnet;
   };
 }

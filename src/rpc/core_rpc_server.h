@@ -127,13 +127,6 @@ namespace cryptonote
         MAP_JON_RPC_WE_IF("sync_info",           on_sync_info,                  COMMAND_RPC_SYNC_INFO, !m_restricted)
         MAP_JON_RPC_WE("get_txpool_backlog",     on_get_txpool_backlog,         COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG)
       END_JSON_RPC_MAP()
-      // Graft RTA handlers start here
-      BEGIN_JSON_RPC_MAP("/json_rpc/rta")
-        MAP_JON_RPC_WE("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
-        MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
-        MAP_JON_RPC_WE("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST)
-        MAP_JON_RPC_WE("unicast",                on_unicast,                    COMMAND_RPC_UNICAST)
-      END_JSON_RPC_MAP()
     END_URI_MAP2()
 
     bool on_get_height(const COMMAND_RPC_GET_HEIGHT::request& req, COMMAND_RPC_GET_HEIGHT::response& res);
@@ -192,11 +185,6 @@ namespace cryptonote
     bool on_sync_info(const COMMAND_RPC_SYNC_INFO::request& req, COMMAND_RPC_SYNC_INFO::response& res, epee::json_rpc::error& error_resp);
     bool on_get_txpool_backlog(const COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG::request& req, COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG::response& res, epee::json_rpc::error& error_resp);
     //-----------------------
-    // RTA
-    bool on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request& req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response& res, epee::json_rpc::error& error_resp);
-    bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);
 
 private:
     bool check_core_busy();
