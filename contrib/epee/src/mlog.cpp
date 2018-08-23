@@ -39,6 +39,8 @@
 
 #define MLOG_LOG(x) CINFO(el::base::Writer,el::base::DispatchAction::FileOnlyLog,MONERO_DEFAULT_LOG_CATEGORY) << x
 
+thread_local std::string mlog_current_log_category;
+
 using namespace epee;
 
 static std::string generate_log_filename(const char *base)
