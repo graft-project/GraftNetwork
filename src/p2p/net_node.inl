@@ -915,12 +915,13 @@ namespace nodetool
           return 1;
       }
 
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: update tunnels");
+      LOG_PRINT_L0("P2P Request: handle_supernode_announce: update tunnels for " << arg.address << " Hop: " << arg.hop << " Address: " << arg.network_address);
       do {
           peerlist_entry pe;
           // TODO: Need to investigate it and mechanism for adding peer to the peerlist
           if (!m_peerlist.find_peer(context.peer_id, pe))
           { // unknown peer, alternative handshake with it
+              LOG_PRINT_L0("unknown peer, alternative handshake with it " << context.peer_id);
               return 1;
           }
           {
@@ -932,6 +933,12 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_supernode_announce: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           LOG_PRINT_L0("P2P Request: handle_supernode_announce: unlock");
+
+          LOG_PRINT_L0("P2P Request: handle_supernode_announce: routes number - " << m_supernode_routes.size());
+          for (auto it2 = m_supernode_routes.begin(); it2 != m_supernode_routes.end(); ++it2)
+          {
+              LOG_PRINT_L0("P2P Request: handle_supernode_announce: " << (*it2).first << " " << (*it2).second.peers.size());
+          }
 
           auto it = m_supernode_routes.find(supernode_str);
           if (it == m_supernode_routes.end())
