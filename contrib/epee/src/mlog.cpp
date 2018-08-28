@@ -192,7 +192,12 @@ void mlog_set_format(const char* format)
     auto locname = [](const el::LogMessage* lm)-> std::string
     {
         std::string s = lm->file();
-        size_t pos = s.find_last_of("/\\");
+#if defined(_WIN32)
+        const char* separators = "/\\";
+#elif defined(__unix__) || defined(__APPLE__)
+        const char separators = '/';
+#endif
+        size_t pos = s.find_last_of(separators);
         if(pos != std::string::npos)
         {
             s = s.substr(pos+1);
