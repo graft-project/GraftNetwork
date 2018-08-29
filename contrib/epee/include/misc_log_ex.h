@@ -130,6 +130,11 @@ void mlog_set_categories(const char *categories);
 void mlog_set_log_level(int level);
 void mlog_set_log(const char *log);
 
+// %locname custom specifier can be used in addition to the Logging Format Specifiers of the Easylogging++
+// %locname similar to %loc but without full path
+//the default format is "%datetime{%Y-%M-%d %H:%m:%s.%g}	%thread	%level	%logger	%loc	%msg"
+void mlog_set_format(const char* format);
+
 namespace epee
 {
 namespace debug
