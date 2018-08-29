@@ -58,7 +58,7 @@
 #ifdef __cplusplus
 #if __cplusplus >= 201103L
 
-#define MONERO_LOG_CATEGORY_OR_DEFAULT mlog_current_log_category.empty()? MONERO_DEFAULT_LOG_CATEGORY : mlog_current_log_category.c_str()
+#define MONERO_LOG_CATEGORY mlog_current_log_category.empty()? MONERO_DEFAULT_LOG_CATEGORY : mlog_current_log_category.c_str()
 
 // Define MONERO_DEFAULT_LOG_CATEGORY in your unit code to direct logging to
 // a category for whole unit. Set mlog_current_log_category to direct logging
@@ -70,8 +70,8 @@ extern thread_local std::string mlog_current_log_category;
 #endif
 #endif
 
-#ifndef MONERO_LOG_CATEGORY_OR_DEFAULT
-#define MONERO_LOG_CATEGORY_OR_DEFAULT MONERO_DEFAULT_LOG_CATEGORY
+#ifndef MONERO_LOG_CATEGORY
+#define MONERO_LOG_CATEGORY MONERO_DEFAULT_LOG_CATEGORY
 #endif
 
 #define MCFATAL(cat,x) CLOG(FATAL,cat) << x
@@ -91,20 +91,20 @@ extern thread_local std::string mlog_current_log_category;
 #define MCLOG_MAGENTA(level,cat,x) MCLOG_COLOR(level,cat,"35",x)
 #define MCLOG_CYAN(level,cat,x) MCLOG_COLOR(level,cat,"36",x)
 
-#define MLOG_RED(level,x) MCLOG_RED(level,MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MLOG_GREEN(level,x) MCLOG_GREEN(level,MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MLOG_YELLOW(level,x) MCLOG_YELLOW(level,MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MLOG_BLUE(level,x) MCLOG_BLUE(level,MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MLOG_MAGENTA(level,x) MCLOG_MAGENTA(level,MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MLOG_CYAN(level,x) MCLOG_CYAN(level,MONERO_LOG_CATEGORY_OR_DEFAULT,x)
+#define MLOG_RED(level,x) MCLOG_RED(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_GREEN(level,x) MCLOG_GREEN(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_YELLOW(level,x) MCLOG_YELLOW(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_BLUE(level,x) MCLOG_BLUE(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_MAGENTA(level,x) MCLOG_MAGENTA(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_CYAN(level,x) MCLOG_CYAN(level,MONERO_LOG_CATEGORY,x)
 
-#define MFATAL(x) MCFATAL(MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MERROR(x) MCERROR(MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MWARNING(x) MCWARNING(MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MINFO(x) MCINFO(MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MDEBUG(x) MCDEBUG(MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MTRACE(x) MCTRACE(MONERO_LOG_CATEGORY_OR_DEFAULT,x)
-#define MLOG(level,x) MCLOG(level,MONERO_LOG_CATEGORY_OR_DEFAULT,x)
+#define MFATAL(x) MCFATAL(MONERO_LOG_CATEGORY,x)
+#define MERROR(x) MCERROR(MONERO_LOG_CATEGORY,x)
+#define MWARNING(x) MCWARNING(MONERO_LOG_CATEGORY,x)
+#define MINFO(x) MCINFO(MONERO_LOG_CATEGORY,x)
+#define MDEBUG(x) MCDEBUG(MONERO_LOG_CATEGORY,x)
+#define MTRACE(x) MCTRACE(MONERO_LOG_CATEGORY,x)
+#define MLOG(level,x) MCLOG(level,MONERO_LOG_CATEGORY,x)
 
 #define MGINFO(x) MCINFO("global",x)
 #define MGINFO_RED(x) MCLOG_RED(el::Level::Info, "global",x)
