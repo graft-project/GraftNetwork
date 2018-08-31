@@ -405,7 +405,7 @@ namespace nodetool
 
     }
 
-    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send);
+    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
 
   private:

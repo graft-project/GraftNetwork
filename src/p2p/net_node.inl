@@ -759,7 +759,7 @@ namespace nodetool
   }
 
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send)
+  bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect)
   {
       LOG_PRINT_L0("P2P Request: notify_peer_list: start notify");
       for (unsigned i = 0; i < peers_to_send.size(); i++) {
@@ -770,7 +770,7 @@ namespace nodetool
           if (is_conneted) {
               LOG_PRINT_L0("P2P Request: notify_peer_list: notification connected " << is_conneted);
               relay_notify(command, buf, con);
-          } else {
+          } else if (try_connect) {
               LOG_PRINT_L0("P2P Request: notify_peer_list: connect to notify");
               const epee::net_utils::network_address& na = pe.adr;
               const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
@@ -834,7 +834,7 @@ namespace nodetool
           }
       }
       LOG_PRINT_L0("P2P Request: multicast_send: End tunneling");
-      return notify_peer_list(command, data, tunnels);
+      return notify_peer_list(command, data, tunnels, true);
   }
 
   //-----------------------------------------------------------------------------------
