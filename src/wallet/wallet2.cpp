@@ -2770,6 +2770,16 @@ uint64_t wallet2::balance() const
   return amount;
 }
 //----------------------------------------------------------------------------------------------------
+uint64_t wallet2::unspent_balance() const
+{
+  uint64_t amount = 0;
+  for(auto& td: m_transfers)
+    if(!td.m_spent && td.m_key_image_known)
+      amount += td.amount();
+
+  return amount;
+}
+//----------------------------------------------------------------------------------------------------
 void wallet2::get_transfers(wallet2::transfer_container& incoming_transfers) const
 {
   incoming_transfers = m_transfers;
@@ -2869,6 +2879,59 @@ void wallet2::rescan_spent()
         set_spent(i, td.m_spent_height);
         // unknown height, if this gets reorged, it might still be missed
       }
+    }
+  }
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::rescan_unspent()
+{
+  // Similar to the above, but only rescans transfers currently thought to be unspent
+
+  constexpr size_t INDEX = 0, KEY_IMAGE = 1, STATUS = 2; // indices of:
+  std::vector<std::tuple<size_t, std::string, int>> key_images;
+  key_images.reserve(m_transfers.size());
+
+  for (size_t i = 0; i < m_transfers.size(); i++) {
+    auto &td = m_transfers[i];
+    if (!td.m_spent && td.m_key_image_known) {
+      key_images.emplace_back(i, string_tools::pod_to_hex(td.m_key_image), 0);
+    }
+  }
+
+  constexpr size_t chunk_size = 1000;
+
+  for (size_t start_offset = 0; start_offset < key_images.size(); start_offset += chunk_size)
+  {
+    const size_t n_outputs = std::min<size_t>(chunk_size, key_images.size() - start_offset);
+    MDEBUG("Calling is_key_image_spent on " << start_offset << " - " << (start_offset + n_outputs - 1) << ", out of " << key_images.size());
+    COMMAND_RPC_IS_KEY_IMAGE_SPENT::request req = AUTO_VAL_INIT(req);
+    COMMAND_RPC_IS_KEY_IMAGE_SPENT::response daemon_resp = AUTO_VAL_INIT(daemon_resp);
+    for (size_t n = start_offset; n < start_offset + n_outputs; ++n)
+      req.key_images.push_back(std::get<KEY_IMAGE>(key_images[n]));
+    m_daemon_rpc_mutex.lock();
+    bool r = epee::net_utils::invoke_http_json("/is_key_image_spent", req, daemon_resp, m_http_client, rpc_timeout);
+    m_daemon_rpc_mutex.unlock();
+    THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "is_key_image_spent");
+    THROW_WALLET_EXCEPTION_IF(daemon_resp.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "is_key_image_spent");
+    THROW_WALLET_EXCEPTION_IF(daemon_resp.status != CORE_RPC_STATUS_OK, error::is_key_image_spent_error, daemon_resp.status);
+    THROW_WALLET_EXCEPTION_IF(daemon_resp.spent_status.size() != n_outputs, error::wallet_internal_error,
+      "daemon returned wrong response for is_key_image_spent, wrong amounts count = " +
+      std::to_string(daemon_resp.spent_status.size()) + ", expected " +  std::to_string(n_outputs));
+    for (size_t i = 0; i < n_outputs; i++) {
+      std::get<STATUS>(key_images[i]) = daemon_resp.spent_status[i];
+    }
+  }
+
+  // update spent status
+  for (auto &k : key_images) {
+    size_t i = std::get<INDEX>(k);
+    auto &td = m_transfers[i];
+    if (std::get<STATUS>(k) != COMMAND_RPC_IS_KEY_IMAGE_SPENT::UNSPENT) {
+      LOG_PRINT_L0("Marking output " << i << "(" << td.m_key_image << ") as spent, it was marked as unspent");
+      set_spent(i, td.m_spent_height);
+      // unknown height, if this gets reorged, it might still be missed
+    } else {
+      MDEBUG("Output " << i << " (" << td.m_key_image << ") is still unspent");
     }
   }
 }

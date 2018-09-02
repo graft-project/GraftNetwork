@@ -399,6 +399,11 @@ namespace tools
      */
     uint64_t unlocked_balance(uint64_t till_block = 0) const;
     uint64_t unlocked_dust_balance(const tx_dust_policy &dust_policy) const;
+    /*!
+     * \brief unspent_balance - like balance(), but only counts transfers for which we have the key image allowing verification of being unspent
+     * \return wallet balance in atomic units
+     */
+    uint64_t unspent_balance() const;
     template<typename T>
     void transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outputs_count, const std::vector<size_t> &unused_transfers_indices, uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, bool trusted_daemon);
     template<typename T>
@@ -467,6 +472,7 @@ namespace tools
 
     uint64_t get_blockchain_current_height() const { return m_local_bc_height; }
     void rescan_spent();
+    void rescan_unspent();
     void rescan_blockchain(bool refresh = true);
     bool is_transfer_unlocked(const transfer_details& td) const;
     template <class t_archive>
@@ -701,6 +707,7 @@ namespace tools
     crypto::public_key get_tx_pub_key_from_received_outs(const tools::wallet2::transfer_details &td) const;
     bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
+    std::pair<crypto::key_image, crypto::signature> get_signed_key_image(const transfer_details &td) const;
 
     cryptonote::account_base m_account;
     boost::optional<epee::net_utils::http::login> m_daemon_login;
