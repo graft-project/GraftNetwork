@@ -34,6 +34,9 @@
 #include <cryptonote_basic/account.h>
 #include <cryptonote_basic/cryptonote_basic.h>
 #include <vector>
+#include <atomic>
+#include <random>
+#include <algorithm>
 
 namespace Utils {
 /*!
@@ -46,6 +49,45 @@ namespace Utils {
  */
 bool lookup_account_outputs_ringct(const cryptonote::account_keys &acc, const cryptonote::transaction &tx,
                                    std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered);
+
+template <typename T, typename ...Args>
+T& create_once(Args... args)
+{
+    static std::atomic<T *> object {nullptr};
+
+    if (object.load(std::memory_order_acquire))
+        return *object.load(std::memory_order_relaxed);
+
+    static std::atomic<bool> initializing {false};
+    bool expected {false};
+
+    if (initializing.compare_exchange_strong(expected, true))
+        object = new T(args...);
+    else
+        while (!object);
+
+    return *object;
+}
+
+class shuffler
+{
+    std::shared_ptr<std::mt19937> re;
+
+public:
+    shuffler()
+    {
+        std::random_device rd;
+        re = std::make_shared<std::mt19937>(rd());
+    }
+
+    shuffler(const shuffler& s) : re(s.re) {}
+
+    template <class RandomAccessContainer>
+    void run(RandomAccessContainer& c)
+    {
+        return std::shuffle(c.begin(), c.end(), *re);
+    }
+};
 
 } // namespace
 

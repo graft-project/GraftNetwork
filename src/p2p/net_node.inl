@@ -51,6 +51,7 @@
 #include "crypto/crypto.h"
 #include "storages/levin_abstract_invoke2.h"
 #include "storages/http_abstract_invoke.h"
+#include "utils/utils.h"
 
 // We have to look for miniupnpc headers in different places, dependent on if its compiled or external
 #ifdef UPNP_STATIC
@@ -758,9 +759,12 @@ namespace nodetool
     return true;
   }
 
+#define PEER_CONNECT_TRIES_MAX 5
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect)
   {
+      std::vector<peerlist_entry> inactive_peers;
+
       LOG_PRINT_L0("P2P Request: notify_peer_list: start notify");
       for (unsigned i = 0; i < peers_to_send.size(); i++) {
           const peerlist_entry &pe = peers_to_send[i];
@@ -771,9 +775,20 @@ namespace nodetool
               LOG_PRINT_L0("P2P Request: notify_peer_list: notification connected " << is_conneted);
               relay_notify(command, buf, con);
           } else if (try_connect) {
+              inactive_peers.push_back(peers_to_send[i]);
+          }
+      }
+      if (!inactive_peers.empty()) {
+          auto shuffler = Utils::create_once<Utils::shuffler>();
+          shuffler.run(inactive_peers);
+
+          int peer_conneect_tries = PEER_CONNECT_TRIES_MAX;
+          for (unsigned i = 0; i < inactive_peers.size() && 0 < peer_conneect_tries--; i++) {
               LOG_PRINT_L0("P2P Request: notify_peer_list: connect to notify");
+              const peerlist_entry &pe = inactive_peers[i];
               const epee::net_utils::network_address& na = pe.adr;
               const epee::net_utils::ipv4_network_address &ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
+              p2p_connection_context con = AUTO_VAL_INIT(con);
 
               if (m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
                                        epee::string_tools::num_to_string_fast(ipv4.port()),
@@ -2198,7 +2213,7 @@ namespace nodetool
     }
 
     LOG_PRINT_L0("P2P Request: do_supernode_announce: notify_peer_list");
-    notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
+    notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send, true);
     LOG_PRINT_L0("P2P Request: do_supernode_announce: end");
   }
 
