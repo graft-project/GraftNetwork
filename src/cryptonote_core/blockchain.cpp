@@ -782,7 +782,7 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   {
       return next_difficulty(timestamps, difficulties, target);
   }
-  else if (version == 8)
+  else if (version == 8 || version >= 10)
   {
       return next_difficulty_v8(timestamps, difficulties, target);
   }
