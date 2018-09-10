@@ -142,8 +142,8 @@ static const struct {
   // GRAFT: public testnet hardfork v8 from block 57640
   { 8, 57780, 0, 1522838800 },
   { 9, 67350, 0, 1524229900 },
-  // hf 10 - decrease block reward
-  { 10, 158000, 0, 1535974500 },
+  // hf 10 - decrease block reward, 2018-09-12
+  { 10, 164550, 0, 1536760800 },
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
