@@ -110,7 +110,9 @@ static const struct {
   { 7, 1, 0, 1503046577 } ,
   // GRAFT: updated v8 hf block
   { 8, 64445, 0, 1523570400},
-  { 9, 68000, 0, 1524229900}
+  { 9, 68000, 0, 1524229900},
+  // hf 10 - decrease block reward, 2018-09-17
+  { 10, 176000, 0, 1537142400 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
