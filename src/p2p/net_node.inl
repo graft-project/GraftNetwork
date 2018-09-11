@@ -2159,6 +2159,9 @@ namespace nodetool
   void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
   {
     LOG_PRINT_L0("Incoming supernode announce request");
+#ifdef LOCK_RTA_SENDING
+    return;
+#endif
 
     LOG_PRINT_L0("P2P Request: do_supernode_announce: start");
 
@@ -2231,6 +2234,10 @@ namespace nodetool
           }
       }
 
+#ifdef LOCK_RTA_SENDING
+    return;
+#endif
+
       COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
@@ -2299,6 +2306,10 @@ namespace nodetool
           }
       }
 
+#ifdef LOCK_RTA_SENDING
+    return;
+#endif
+
       COMMAND_MULTICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.receiver_addresses = req.receiver_addresses;
       p2p_req.sender_address = req.sender_address;
@@ -2320,6 +2331,9 @@ namespace nodetool
   void node_server<t_payload_net_handler>::do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req)
   {
       LOG_PRINT_L0("Incoming unicast request");
+#ifdef LOCK_RTA_SENDING
+    return;
+#endif
 
       LOG_PRINT_L0("P2P Request: do_unicast: Start");
 
