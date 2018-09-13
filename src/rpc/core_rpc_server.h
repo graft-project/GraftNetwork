@@ -133,6 +133,8 @@ namespace cryptonote
         MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
         MAP_JON_RPC_WE("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST)
         MAP_JON_RPC_WE("unicast",                on_unicast,                    COMMAND_RPC_UNICAST)
+
+        MAP_JON_RPC_WE("get_tunnels",            on_get_tunnels,               COMMAND_RPC_TUNNEL_DATA)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -197,6 +199,8 @@ namespace cryptonote
     bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
     bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp);
     bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);
+
+    bool on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, epee::json_rpc::error &error_resp);
 
 private:
     bool check_core_busy();
