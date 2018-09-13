@@ -78,6 +78,11 @@ namespace cryptonote
 
     uint64_t height;
 
+    std::string connection_serializer(const boost::uuids::uuid &cid) const
+    {
+        return boost::uuids::to_string(cid);
+    }
+
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(incoming)
       KV_SERIALIZE(localhost)
@@ -98,7 +103,7 @@ namespace cryptonote
       KV_SERIALIZE(avg_upload)
       KV_SERIALIZE(current_upload)
       KV_SERIALIZE(support_flags)
-      KV_SERIALIZE_VAL_POD_AS_BLOB(connection_id)
+      KV_SERIALIZE_SPECIAL_TYPE(connection_id, connection_serializer)
       KV_SERIALIZE(height)
     END_KV_SERIALIZE_MAP()
   };
