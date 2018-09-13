@@ -89,6 +89,10 @@ public: \
 #define KV_SERIALIZE_CONTAINER_POD_AS_BLOB_N(varialble, val_name) \
   epee::serialization::selector<is_store>::serialize_stl_container_pod_val_as_blob(this_ref.varialble, stg, hparent_section, val_name);
 
+#define KV_SERIALIZE_SPECIAL_TYPE_N(varialble, val_name, serializer) \
+  auto v = this_ref.serializer(this_ref.varialble); \
+  epee::serialization::selector<is_store>::serialize(v, stg, hparent_section, val_name);
+
 #define END_KV_SERIALIZE_MAP() return true;}
 
 #define KV_SERIALIZE(varialble)                           KV_SERIALIZE_N(varialble, #varialble)
@@ -96,6 +100,7 @@ public: \
 #define KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(varialble)     KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE_N(varialble, #varialble) //skip is_pod compile time check
 #define KV_SERIALIZE_CONTAINER_POD_AS_BLOB(varialble)     KV_SERIALIZE_CONTAINER_POD_AS_BLOB_N(varialble, #varialble)
 #define KV_SERIALIZE_OPT(variable,default_value)          KV_SERIALIZE_OPT_N(variable, #variable, default_value)
+#define KV_SERIALIZE_SPECIAL_TYPE(varialble, serializer)  KV_SERIALIZE_SPECIAL_TYPE_N(varialble, #varialble, serializer)
 
 }
 
