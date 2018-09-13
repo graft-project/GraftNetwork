@@ -1812,4 +1812,49 @@ namespace cryptonote
     };
   };
 
+  struct peer_data
+  {
+      std::string host;
+      uint16_t port;
+      uint64_t id;
+      int64_t last_seen;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(host)
+        KV_SERIALIZE(port)
+        KV_SERIALIZE(id)
+        KV_SERIALIZE(last_seen)
+      END_KV_SERIALIZE_MAP()
+  };
+
+  struct route_data
+  {
+    std::string address;
+    uint64_t last_announce_time;
+    uint64_t max_hop;
+    std::vector<peer_data> peers;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(address)
+      KV_SERIALIZE(last_announce_time)
+      KV_SERIALIZE(max_hop)
+      KV_SERIALIZE(peers)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct COMMAND_RPC_TUNNEL_DATA
+  {
+    struct request
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<route_data> tunnels;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(tunnels)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
 }

@@ -2354,6 +2354,33 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
+  std::vector<cryptonote::route_data> node_server<t_payload_net_handler>::get_tunnels() const
+  {
+      std::vector<cryptonote::route_data> tunnels;
+      for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it)
+      {
+          cryptonote::route_data route;
+          route.address = it->first;
+          route.last_announce_time = it->second.last_announce_time;
+          route.max_hop = it->second.max_hop;
+          std::vector<cryptonote::peer_data> peers;
+          for (auto pit = it->second.peers.begin(); pit != it->second.peers.end(); ++pit)
+          {
+              cryptonote::peer_data peer;
+              peer.host = pit->second.adr.host_str();
+              peer.port = pit->second.adr.template as<epee::net_utils::ipv4_network_address>().port();
+              peer.id = pit->second.id;
+              peer.last_seen = pit->second.last_seen;
+              peers.push_back(peer);
+          }
+          route.peers = peers;
+          tunnels.push_back(route);
+      }
+      return tunnels;
+  }
+
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
   std::string node_server<t_payload_net_handler>::print_connections_container()
   {
 

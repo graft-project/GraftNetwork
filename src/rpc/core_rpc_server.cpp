@@ -1908,6 +1908,15 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_get_tunnels: start");
+      res.tunnels = m_p2p.get_tunnels();
+      LOG_PRINT_L0("RPC Request: on_get_tunnels: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
 
   const command_line::arg_descriptor<std::string> core_rpc_server::arg_rpc_bind_port = {
       "rpc-bind-port"
