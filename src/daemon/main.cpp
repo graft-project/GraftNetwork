@@ -205,16 +205,16 @@ int main(int argc, char const * argv[])
     bf::path log_file_path {data_dir / std::string(CRYPTONOTE_NAME ".log")};
     if (! vm["log-file"].defaulted())
       log_file_path = command_line::get_arg(vm, daemon_args::arg_log_file);
-    if(log_file_path == "syslog")
+    if (log_file_path == "syslog")
     {//redirect log to syslog
-        ELPP_INITIALIZE_SYSLOG("graftnoded", LOG_PID, LOG_USER);
-        mlog_syslog = true;
-        mlog_configure("", false);
+      ELPP_INITIALIZE_SYSLOG("graftnoded", LOG_PID, LOG_USER);
+      mlog_syslog = true;
+      mlog_configure("", false);
     }
     else
     {
-        log_file_path = bf::absolute(log_file_path, relative_path_base);
-        mlog_configure(log_file_path.string(), true);
+      log_file_path = bf::absolute(log_file_path, relative_path_base);
+      mlog_configure(log_file_path.string(), true);
     }
 
     // Set log level
@@ -224,9 +224,9 @@ int main(int argc, char const * argv[])
     }
 
     // Set log format
-    if (vm.count("log-format"))
+    if (!vm["log-format"].defaulted())
     {
-        mlog_set_format(command_line::get_arg(vm, daemon_args::arg_log_format).c_str());
+      mlog_set_format(command_line::get_arg(vm, daemon_args::arg_log_format).c_str());
     }
 
     // after logs initialized

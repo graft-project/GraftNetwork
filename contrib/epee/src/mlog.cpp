@@ -195,17 +195,17 @@ void mlog_set_log(const char *log)
 //the default format is "%datetime{%Y-%M-%d %H:%m:%s.%g}	%thread	%level	%logger	%loc	%msg"
 void mlog_set_format(const char* format)
 {
-    auto rfile = [](const el::LogMessage* lm)-> std::string
-    {
-        assert(sizeof(CMAKE_ROOT_SOURCE_DIR) < lm->file().size());
-        return lm->file().substr(sizeof(CMAKE_ROOT_SOURCE_DIR));
-    };
-    el::Helpers::installCustomFormatSpecifier(el::CustomFormatSpecifier("%rfile", rfile));
+  auto rfile = [](const el::LogMessage* lm)-> std::string
+  {
+    assert(sizeof(CMAKE_ROOT_SOURCE_DIR) < lm->file().size());
+    return lm->file().substr(sizeof(CMAKE_ROOT_SOURCE_DIR));
+  };
+  el::Helpers::installCustomFormatSpecifier(el::CustomFormatSpecifier("%rfile", rfile));
 
-    el::Configurations defaultConf;
-    defaultConf.setToDefault();
-    defaultConf.setGlobally(el::ConfigurationType::Format, format);
-    el::Loggers::setDefaultConfigurations(defaultConf, true);
+  el::Configurations defaultConf;
+  defaultConf.setToDefault();
+  defaultConf.setGlobally(el::ConfigurationType::Format, format);
+  el::Loggers::setDefaultConfigurations(defaultConf, true);
 }
 
 namespace epee
