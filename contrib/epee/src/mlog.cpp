@@ -39,6 +39,12 @@
 
 #define MLOG_LOG(x) CINFO(el::base::Writer,el::base::DispatchAction::FileOnlyLog,MONERO_DEFAULT_LOG_CATEGORY) << x
 
+thread_local std::string mlog_current_log_category;
+
+#ifdef ELPP_SYSLOG
+bool mlog_syslog = false;
+#endif
+
 using namespace epee;
 
 static std::string generate_log_filename(const char *base)
@@ -182,6 +188,24 @@ void mlog_set_log(const char *log)
   {
     MERROR("Invalid numerical log level: " << log);
   }
+}
+
+// %rfile custom specifier can be used in addition to the Logging Format Specifiers of the Easylogging++
+// %rfile similar to %file but the path is relative to topmost CMakeLists.txt
+//the default format is "%datetime{%Y-%M-%d %H:%m:%s.%g}	%thread	%level	%logger	%loc	%msg"
+void mlog_set_format(const char* format)
+{
+  auto rfile = [](const el::LogMessage* lm)-> std::string
+  {
+    assert(sizeof(CMAKE_ROOT_SOURCE_DIR) < lm->file().size());
+    return lm->file().substr(sizeof(CMAKE_ROOT_SOURCE_DIR));
+  };
+  el::Helpers::installCustomFormatSpecifier(el::CustomFormatSpecifier("%rfile", rfile));
+
+  el::Configurations defaultConf;
+  defaultConf.setToDefault();
+  defaultConf.setGlobally(el::ConfigurationType::Format, format);
+  el::Loggers::setDefaultConfigurations(defaultConf, true);
 }
 
 namespace epee

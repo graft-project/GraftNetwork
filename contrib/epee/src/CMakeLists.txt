@@ -32,6 +32,8 @@ else()
   add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp string_tools.cpp memwipe.c async_state_machine.cpp)
 endif()
 
+target_compile_definitions(epee PRIVATE -DELPP_SYSLOG)
+
 if(HAVE_C11)
 SET_PROPERTY(SOURCE memwipe.c PROPERTY COMPILE_FLAGS -std=c11)
 endif()

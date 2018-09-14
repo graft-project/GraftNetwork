@@ -55,16 +55,53 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "default"
 #endif
 
-#define MCFATAL(cat,x) CLOG(FATAL,cat) << x
-#define MCERROR(cat,x) CLOG(ERROR,cat) << x
-#define MCWARNING(cat,x) CLOG(WARNING,cat) << x
-#define MCINFO(cat,x) CLOG(INFO,cat) << x
-#define MCDEBUG(cat,x) CLOG(DEBUG,cat) << x
-#define MCTRACE(cat,x) CLOG(TRACE,cat) << x
+#ifdef __cplusplus
+#if __cplusplus >= 201103L
+
+#define MONERO_LOG_CATEGORY mlog_current_log_category.empty()? MONERO_DEFAULT_LOG_CATEGORY : std::string(mlog_current_log_category.c_str()).c_str()
+
+// Define MONERO_DEFAULT_LOG_CATEGORY in your unit code to direct logging to
+// a category for whole unit. Set mlog_current_log_category to direct logging
+// to a particular category, then clear it to switch back to the category that
+// is set for the unit.
+
+extern thread_local std::string mlog_current_log_category;
+
+#endif //__cplusplus >= 201103L
+#endif //__cplusplus
+
+#ifndef MONERO_LOG_CATEGORY
+#define MONERO_LOG_CATEGORY MONERO_DEFAULT_LOG_CATEGORY
+#endif
+
+#ifdef ELPP_SYSLOG
+
+extern bool mlog_syslog;
+#define CLOGX(LEVEL,cat) ((mlog_syslog)? CSYSLOG(LEVEL,cat) : CLOG(LEVEL,cat))
+#define MCLOG(level,cat,x) ELPP_WRITE_LOG(el::base::Writer, level, \
+    (mlog_syslog)? el::base::DispatchAction::SysLog : el::base::DispatchAction::NormalLog \
+    , cat) << x
+
+#define MCLOG_COLOR(level,cat,color,x) MCLOG(level,cat, ((mlog_syslog)? "" : "\033[1;" color "m") << x << ((mlog_syslog)? "" : "\033[0m"))
+
+#else //ELPP_SYSLOG
+
+#define CLOGX(LEVEL,cat) CLOG(LEVEL,cat)
 #define MCLOG(level,cat,x) ELPP_WRITE_LOG(el::base::Writer, level, el::base::DispatchAction::NormalLog, cat) << x
-#define MCLOG_FILE(level,cat,x) ELPP_WRITE_LOG(el::base::Writer, level, el::base::DispatchAction::FileOnlyLog, cat) << x
 
 #define MCLOG_COLOR(level,cat,color,x) MCLOG(level,cat,"\033[1;" color "m" << x << "\033[0m")
+
+#endif //ELPP_SYSLOG
+
+#define MCFATAL(cat,x) CLOGX(FATAL,cat) << x
+#define MCERROR(cat,x) CLOGX(ERROR,cat) << x
+#define MCWARNING(cat,x) CLOGX(WARNING,cat) << x
+#define MCINFO(cat,x) CLOGX(INFO,cat) << x
+#define MCDEBUG(cat,x) CLOGX(DEBUG,cat) << x
+#define MCTRACE(cat,x) CLOGX(TRACE,cat) << x
+
+#define MCLOG_FILE(level,cat,x) ELPP_WRITE_LOG(el::base::Writer, level, el::base::DispatchAction::FileOnlyLog, cat) << x
+
 #define MCLOG_RED(level,cat,x) MCLOG_COLOR(level,cat,"31",x)
 #define MCLOG_GREEN(level,cat,x) MCLOG_COLOR(level,cat,"32",x)
 #define MCLOG_YELLOW(level,cat,x) MCLOG_COLOR(level,cat,"33",x)
@@ -72,20 +109,20 @@
 #define MCLOG_MAGENTA(level,cat,x) MCLOG_COLOR(level,cat,"35",x)
 #define MCLOG_CYAN(level,cat,x) MCLOG_COLOR(level,cat,"36",x)
 
-#define MLOG_RED(level,x) MCLOG_RED(level,MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MLOG_GREEN(level,x) MCLOG_GREEN(level,MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MLOG_YELLOW(level,x) MCLOG_YELLOW(level,MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MLOG_BLUE(level,x) MCLOG_BLUE(level,MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MLOG_MAGENTA(level,x) MCLOG_MAGENTA(level,MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MLOG_CYAN(level,x) MCLOG_CYAN(level,MONERO_DEFAULT_LOG_CATEGORY,x)
+#define MLOG_RED(level,x) MCLOG_RED(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_GREEN(level,x) MCLOG_GREEN(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_YELLOW(level,x) MCLOG_YELLOW(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_BLUE(level,x) MCLOG_BLUE(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_MAGENTA(level,x) MCLOG_MAGENTA(level,MONERO_LOG_CATEGORY,x)
+#define MLOG_CYAN(level,x) MCLOG_CYAN(level,MONERO_LOG_CATEGORY,x)
 
-#define MFATAL(x) MCFATAL(MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MERROR(x) MCERROR(MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MWARNING(x) MCWARNING(MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MINFO(x) MCINFO(MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MDEBUG(x) MCDEBUG(MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MTRACE(x) MCTRACE(MONERO_DEFAULT_LOG_CATEGORY,x)
-#define MLOG(level,x) MCLOG(level,MONERO_DEFAULT_LOG_CATEGORY,x)
+#define MFATAL(x) MCFATAL(MONERO_LOG_CATEGORY,x)
+#define MERROR(x) MCERROR(MONERO_LOG_CATEGORY,x)
+#define MWARNING(x) MCWARNING(MONERO_LOG_CATEGORY,x)
+#define MINFO(x) MCINFO(MONERO_LOG_CATEGORY,x)
+#define MDEBUG(x) MCDEBUG(MONERO_LOG_CATEGORY,x)
+#define MTRACE(x) MCTRACE(MONERO_LOG_CATEGORY,x)
+#define MLOG(level,x) MCLOG(level,MONERO_LOG_CATEGORY,x)
 
 #define MGINFO(x) MCINFO("global",x)
 #define MGINFO_RED(x) MCLOG_RED(el::Level::Info, "global",x)
@@ -129,6 +166,11 @@ void mlog_configure(const std::string &filename_base, bool console);
 void mlog_set_categories(const char *categories);
 void mlog_set_log_level(int level);
 void mlog_set_log(const char *log);
+
+// %rfile custom specifier can be used in addition to the Logging Format Specifiers of the Easylogging++
+// %rfile similar to %file but the path is relative to topmost CMakeLists.txt
+//the default format is "%datetime{%Y-%M-%d %H:%m:%s.%g}	%thread	%level	%logger	%loc	%msg"
+void mlog_set_format(const char* format);
 
 namespace epee
 {
