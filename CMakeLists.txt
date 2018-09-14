@@ -114,7 +114,11 @@ endif()
 
 add_definitions(-DMONERO_DEFAULT_LOG_CATEGORY="cryptonode" -DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
 
-if(UNIX)
+if(NOT DEFINED ENABLE_SYSLOG)
+    option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
+endif()
+
+if(ENABLE_SYSLOG)
     add_definitions(-DELPP_SYSLOG)
 endif()
 
