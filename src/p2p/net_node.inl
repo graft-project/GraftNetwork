@@ -907,6 +907,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: start");
+#ifdef LOCK_RTA_SENDING
+    return 1;
+#endif
       static std::string supernode_endpoint("send_supernode_announce");
       std::string supernode_str = arg.address;
 
@@ -1005,6 +1008,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_broadcast: start");
+#ifdef LOCK_RTA_SENDING
+    return 1;
+#endif
       {
           LOG_PRINT_L0("P2P Request: handle_broadcast: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
@@ -1040,6 +1046,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_multicast: start");
+#ifdef LOCK_RTA_SENDING
+    return 1;
+#endif
       std::list<std::string> addresses = arg.receiver_addresses;
       {
           LOG_PRINT_L0("P2P Request: handle_multicast: lock");
@@ -1081,6 +1090,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_unicast: start");
+#ifdef LOCK_RTA_SENDING
+    return 1;
+#endif
       std::string address = arg.receiver_address;
       {
           LOG_PRINT_L0("P2P Request: handle_unicast: lock");
