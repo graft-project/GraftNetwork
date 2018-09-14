@@ -41,6 +41,8 @@
 
 thread_local std::string mlog_current_log_category;
 
+bool mlog_syslog = false;
+
 using namespace epee;
 
 static std::string generate_log_filename(const char *base)

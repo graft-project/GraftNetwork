@@ -207,7 +207,18 @@ int main(int argc, char const * argv[])
     bf::path log_file_path {data_dir / std::string(CRYPTONOTE_NAME ".log")};
     if (! vm["log-file"].defaulted())
       log_file_path = command_line::get_arg(vm, daemon_args::arg_log_file);
-    log_file_path = bf::absolute(log_file_path, relative_path_base);
+
+    if (log_file_path == "syslog")
+    {//redirect log to syslog
+      INITIALIZE_SYSLOG("graftnoded");
+      mlog_syslog = true;
+      mlog_configure("", false);
+    }
+    else
+    {
+      log_file_path = bf::absolute(log_file_path, relative_path_base);
+      mlog_configure(log_file_path.string(), true);
+    }
 
     // Set log format
     std::string format;
