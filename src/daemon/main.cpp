@@ -88,6 +88,7 @@ int main(int argc, char const * argv[])
       // Settings
       bf::path default_log = default_data_dir / std::string(CRYPTONOTE_NAME ".log");
       command_line::add_arg(core_settings, daemon_args::arg_log_file, default_log.string());
+      command_line::add_arg(core_settings, daemon_args::arg_log_format);
       command_line::add_arg(core_settings, daemon_args::arg_log_level);
       command_line::add_arg(core_settings, daemon_args::arg_max_concurrency);
 
@@ -211,6 +212,12 @@ int main(int argc, char const * argv[])
     if (!vm["log-level"].defaulted())
     {
       mlog_set_log(command_line::get_arg(vm, daemon_args::arg_log_level).c_str());
+    }
+
+    // Set log format
+    if (!vm["log-format"].defaulted())
+    {
+      mlog_set_format(command_line::get_arg(vm, daemon_args::arg_log_format).c_str());
     }
 
     // after logs initialized
