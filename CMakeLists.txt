@@ -114,6 +114,10 @@ endif()
 
 add_definitions(-DMONERO_DEFAULT_LOG_CATEGORY="cryptonode" -DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
 
+if(UNIX)
+    add_definitions(-DELPP_SYSLOG)
+endif()
+
 # set this to 0 if per-block checkpoint needs to be disabled
 set(PER_BLOCK_CHECKPOINT 0)
 
