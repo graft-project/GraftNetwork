@@ -29,6 +29,9 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
+#include <boost/asio/ip/address_v4.hpp>
+#include <netinet/in.h>
+
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/difficulty.h"
@@ -892,8 +895,11 @@ namespace cryptonote
       : id(id), host(host), ip(0), port(0), last_seen(last_seen)
     {}
     peer(uint64_t id, uint32_t ip, uint16_t port, uint64_t last_seen)
-      : id(id), host(std::to_string(ip)), ip(ip), port(port), last_seen(last_seen)
-    {}
+      : id(id), ip(htonl(ip)), port(port), last_seen(last_seen)
+    {
+        auto _ip = boost::asio::ip::address_v4(ip);
+        host = _ip.to_string();
+    }
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(id)
