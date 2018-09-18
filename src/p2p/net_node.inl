@@ -37,6 +37,7 @@
 #include <chrono>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/thread/thread.hpp>
+#include <boost/algorithm/string/join.hpp> // for logging
 #include <atomic>
 
 #include "version.h"
@@ -791,7 +792,8 @@ namespace nodetool
   bool node_server<t_payload_net_handler>::multicast_send(int command, const string &data, const std::list<string> &addresses,
                                                           const std::list<peerid_type> &exclude_peerids)
   {
-      LOG_PRINT_L0("P2P Request: multicast_send: Start tunneling");
+      LOG_PRINT_L0("P2P Request: multicast_send: Start tunneling for addresses: "
+                   << boost::algorithm::join(addresses, ", "));
       std::vector<peerlist_entry> tunnels;
       {
           std::map<std::string, nodetool::supernode_route> local_supernode_routes;
@@ -2208,7 +2210,8 @@ namespace nodetool
   {
       LOG_PRINT_L0("Incoming broadcast request");
 
-      LOG_PRINT_L0("P2P Request: do_broadcast: Start");
+      LOG_PRINT_L0("P2P Request: do_broadcast from:" << req.sender_address <<
+                   " Start");
 
       std::string data_blob;
       epee::serialization::store_t_to_binary(req, data_blob);
@@ -2321,7 +2324,7 @@ namespace nodetool
   {
       LOG_PRINT_L0("Incoming unicast request");
 
-      LOG_PRINT_L0("P2P Request: do_unicast: Start");
+      LOG_PRINT_L0("P2P Request: do_unicast: Start sending to: " << req.receiver_address);
 
       std::list<std::string> addresses;
       addresses.push_back(req.receiver_address);
