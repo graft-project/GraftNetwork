@@ -144,15 +144,13 @@ extern thread_local std::string mlog_current_log_category;
 #endif
 
 std::string mlog_get_default_log_path(const char *default_filename);
-void mlog_configure(const std::string &filename_base, bool console);
-void mlog_set_categories(const char *categories);
-void mlog_set_log_level(int level);
-void mlog_set_log(const char *log);
 
 // %rfile custom specifier can be used in addition to the Logging Format Specifiers of the Easylogging++
 // %rfile similar to %file but the path is relative to topmost CMakeLists.txt
-//the default format is "%datetime{%Y-%M-%d %H:%m:%s.%g}	%thread	%level	%logger	%loc	%msg"
-void mlog_set_format(const char* format);
+void mlog_configure(const std::string &filename_base, bool console, const char* format = nullptr);
+void mlog_set_categories(const char *categories);
+void mlog_set_log_level(int level);
+void mlog_set_log(const char *log);
 
 namespace epee
 {
