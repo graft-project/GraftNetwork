@@ -162,6 +162,8 @@ namespace nodetool
      */
     void do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req);
 
+    std::vector<cryptonote::route_data> get_tunnels() const;
+
   private:
     const std::vector<std::string> m_seed_nodes_list =
     { "seeds.moneroseeds.se"
