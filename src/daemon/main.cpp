@@ -208,18 +208,6 @@ int main(int argc, char const * argv[])
     if (! vm["log-file"].defaulted())
       log_file_path = command_line::get_arg(vm, daemon_args::arg_log_file);
 
-    if (log_file_path == "syslog")
-    {//redirect log to syslog
-      INITIALIZE_SYSLOG("graftnoded");
-      mlog_syslog = true;
-      mlog_configure("", false);
-    }
-    else
-    {
-      log_file_path = bf::absolute(log_file_path, relative_path_base);
-      mlog_configure(log_file_path.string(), true);
-    }
-
     // Set log format
     std::string format;
     if (!vm["log-format"].defaulted())
@@ -227,12 +215,16 @@ int main(int argc, char const * argv[])
       format = command_line::get_arg(vm, daemon_args::arg_log_format).c_str();
     }
 
-    mlog_configure(log_file_path.string(), true, format.empty()? nullptr : format.c_str());
-
-    // Set log level
-    if (!vm["log-level"].defaulted())
+    if (log_file_path == "syslog")
+    {//redirect log to syslog
+      INITIALIZE_SYSLOG("graftnoded");
+      mlog_syslog = true;
+      mlog_configure("", false, format.empty()? nullptr : format.c_str());
+    }
+    else
     {
-      mlog_set_log(command_line::get_arg(vm, daemon_args::arg_log_level).c_str());
+      log_file_path = bf::absolute(log_file_path, relative_path_base);
+      mlog_configure(log_file_path.string(), true, format.empty()? nullptr : format.c_str());
     }
 
     // after logs initialized
