@@ -1069,11 +1069,10 @@ namespace nodetool
                   post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", arg, arg.callback_uri);
               }
 
-              int next_hop = arg.hop - 1;
-              LOG_PRINT_L0("P2P Request: handle_broadcast: notify peers " << next_hop);
-              if (next_hop >= 0)
+              if (arg.hop > 0)
               {
-                  arg.hop = next_hop;
+                  LOG_PRINT_L0("P2P Request: handle_broadcast: notify peers " << arg.hop);
+                  arg.hop--;
                   std::string buff;
                   epee::serialization::store_t_to_binary(arg, buff);
                   relay_notify_to_all(command, buff, context);
@@ -1116,11 +1115,10 @@ namespace nodetool
                   post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
               }
 
-              int next_hop = arg.hop - 1;
-              LOG_PRINT_L0("P2P Request: handle_multicast: notify receivers " << next_hop);
-              if (next_hop >= 0)
+              if (arg.hop > 0)
               {
-                  arg.hop = next_hop;
+                  LOG_PRINT_L0("P2P Request: handle_multicast: notify receivers " << arg.hop);
+                  arg.hop--;
                   std::list<peerid_type> exclude_peers;
                   exclude_peers.push_back(context.peer_id);
 
@@ -1170,11 +1168,10 @@ namespace nodetool
                   post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
               }
 
-              int next_hop = arg.hop - 1;
-              LOG_PRINT_L0("P2P Request: handle_unicast: notidy receiver " << next_hop);
-              if (address != m_supernode_str && next_hop >= 0)
+              if (address != m_supernode_str && arg.hop > 0)
               {
-                  arg.hop = next_hop;
+                  LOG_PRINT_L0("P2P Request: handle_unicast: notify receiver " << arg.hop);
+                  arg.hop--;
                   std::list<std::string> addresses;
                   addresses.push_back(address);
 
