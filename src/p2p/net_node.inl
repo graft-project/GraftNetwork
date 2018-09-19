@@ -779,7 +779,11 @@ namespace nodetool
               if (m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
                                        epee::string_tools::num_to_string_fast(ipv4.port()),
                                        m_config.m_net_config.connection_timeout, con, m_bind_ip)) {
+                  LOG_PRINT_L0("P2P Request: notify_peer_list: connected to peer: " << ipv4.str()
+                               << ", sending command");
                   relay_notify(command, buf, con);
+              } else {
+                  MWARNING("P2P Request: notify_peer_list: failed to connect to peer: " << na);
               }
           }
       }
