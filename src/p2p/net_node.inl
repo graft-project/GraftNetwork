@@ -1007,6 +1007,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_broadcast: start");
+      LOG_PRINT_L0("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
+                   << ", our address: " << m_supernode_str);
+
       {
           LOG_PRINT_L0("P2P Request: handle_broadcast: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
@@ -1042,6 +1045,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_multicast: start");
+      LOG_PRINT_L0("P2P Request: handle_multicast: sender_address: " << arg.sender_address
+                   << ", receiver_addresses: " << boost::algorithm::join(arg.receiver_addresses, ", ")
+                   << ", our address: " << m_supernode_str);
       std::list<std::string> addresses = arg.receiver_addresses;
       {
           LOG_PRINT_L0("P2P Request: handle_multicast: lock");
@@ -1056,6 +1062,7 @@ namespace nodetool
               auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
               if (m_have_supernode && it != addresses.end())
               {
+                  LOG_PRINT_L0("P2P Request: handle_multicast: sending to supernode...");
                   post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
               }
           }
@@ -1083,6 +1090,10 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_unicast: start");
+      LOG_PRINT_L0("P2P Request: handle_unicast: sender_address: " << arg.sender_address
+                   << ", receiver_address: " << arg.receiver_address
+                   << ", our address: " << m_supernode_str);
+
       std::string address = arg.receiver_address;
       {
           LOG_PRINT_L0("P2P Request: handle_unicast: lock");
@@ -1096,6 +1107,7 @@ namespace nodetool
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
               if (m_have_supernode && address == m_supernode_str)
               {
+                  LOG_PRINT_L0("P2P Request: handle_unicast: sending to supernode...");
                   post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
               }
           }
