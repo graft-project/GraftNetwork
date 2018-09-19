@@ -769,7 +769,7 @@ namespace nodetool
           bool is_conneted = find_connection_context_by_peer_id(pe.id, con);
           LOG_PRINT_L0("P2P Request: notify_peer_list: notification " << i);
           if (is_conneted) {
-              LOG_PRINT_L0("P2P Request: notify_peer_list: notification connected " << is_conneted);
+              LOG_PRINT_L0("P2P Request: notify_peer_list: peer is connected, sending to : " << pe.adr);
               relay_notify(command, buf, con);
           } else if (try_connect) {
               LOG_PRINT_L0("P2P Request: notify_peer_list: connect to notify");
