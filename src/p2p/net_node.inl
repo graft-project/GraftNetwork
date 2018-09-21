@@ -1070,6 +1070,10 @@ namespace nodetool
                   post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
               }
           }
+          else
+          {
+            MWARNING("P2P Request: handle_multicast: request found in cache, skipping");
+          }
           LOG_PRINT_L0("P2P Request: handle_multicast: clean request cache");
           remove_old_request_cache();
       }
@@ -1114,6 +1118,10 @@ namespace nodetool
                   LOG_PRINT_L0("P2P Request: handle_unicast: sending to supernode...");
                   post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
               }
+          }
+          else
+          {
+              MWARNING("P2P Request: handle_unicast: request found in cache, skipping");
           }
           LOG_PRINT_L0("P2P Request: handle_unicast: clean request cache");
           remove_old_request_cache();
