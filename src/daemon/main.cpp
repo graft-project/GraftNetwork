@@ -205,19 +205,30 @@ int main(int argc, char const * argv[])
     bf::path log_file_path {data_dir / std::string(CRYPTONOTE_NAME ".log")};
     if (! vm["log-file"].defaulted())
       log_file_path = command_line::get_arg(vm, daemon_args::arg_log_file);
-    log_file_path = bf::absolute(log_file_path, relative_path_base);
-    mlog_configure(log_file_path.string(), true);
+
+    // Set log format
+    std::string format;
+    if (!vm["log-format"].defaulted())
+    {
+      format = command_line::get_arg(vm, daemon_args::arg_log_format).c_str();
+    }
+
+    if (log_file_path == "syslog")
+    {//redirect log to syslog
+      INITIALIZE_SYSLOG("graftnoded");
+      mlog_syslog = true;
+      mlog_configure("", false, format.empty()? nullptr : format.c_str());
+    }
+    else
+    {
+      log_file_path = bf::absolute(log_file_path, relative_path_base);
+      mlog_configure(log_file_path.string(), true, format.empty()? nullptr : format.c_str());
+    }
 
     // Set log level
     if (!vm["log-level"].defaulted())
     {
       mlog_set_log(command_line::get_arg(vm, daemon_args::arg_log_level).c_str());
-    }
-
-    // Set log format
-    if (!vm["log-format"].defaulted())
-    {
-      mlog_set_format(command_line::get_arg(vm, daemon_args::arg_log_format).c_str());
     }
 
     // after logs initialized
