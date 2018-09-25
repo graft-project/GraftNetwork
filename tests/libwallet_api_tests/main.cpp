@@ -217,6 +217,8 @@ struct PendingTxTest : public testing::Test
 
 };
 
+
+
 TEST_F(WalletManagerTest, WalletManagerCreatesWallet)
 {
 
@@ -1354,6 +1356,26 @@ TEST_F(PendingTxTest, WalletGetAmountFromTx)
 
 }
 
+struct HttpClientTest : public testing::Test
+{
+
+};
+
+
+TEST_F(HttpClientTest, HttpClientClosesConnection)
+{
+    string REMOTE_URL = "/debug/supernode_list";
+    // bool  ok = epee::net_utils::invoke_http_json("/json_rpc", method_name, req, res, m_http_client, t_http_connection::TIMEOUT());
+    epee::net_utils::http::http_simple_client transport;
+    transport.set_server("rta-test1", "28690", boost::optional<epee::net_utils::http::login>());
+    const epee::net_utils::http::http_response_info* pri = NULL;
+    if(!transport.invoke(REMOTE_URL, "GET", "",  std::chrono::milliseconds(1000), std::addressof(pri)))
+    {
+      LOG_PRINT_L1("Failed to invoke http request to  " << REMOTE_URL);
+      return;
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+};
 
 int main(int argc, char** argv)
 {
