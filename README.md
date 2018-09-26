@@ -70,7 +70,7 @@ Dates are provided in the format YYYY-MM-DD.
 | 2018-01-18        | v7                | 1.0.0                | 1.0.1                    | First release      |
 | 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
 | 2018-04-23        | v9                | 1.2.0                | 1.2.3                    | Fix for Difficulty Adjustment Algorithm      |
-| 2018-09-17        | v10               | 1.4.3                | 1.4.3                    | Block reward halved       |
+| 2018-09-17        | v10               | 1.4.3                | 1.4.4                    | Block reward halved       |
 
 ## Installing Graft Network from a Package
 
