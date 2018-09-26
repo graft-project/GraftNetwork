@@ -156,16 +156,16 @@ bool supernode::WalletPayObject::PutTXToPool() {
 //        LOG_PRINT_L0("pushing sign to tx extra: " << sign);
 //    }
 
-    std::unique_ptr<PendingTransaction> ptx {
+    std::unique_ptr<Monero::PendingTransaction> ptx {
             m_wallet->createTransaction(TransactionRecord.POSAddress,
-                                      "",
-                                      TransactionRecord.Amount,
-                                      0,
-                                      tx_extra,
-                                      Monero::PendingTransaction::Priority_Medium
-                                      )};
+                                        "",
+                                        TransactionRecord.Amount,
+                                        0,
+                                        tx_extra,
+                                        Monero::PendingTransaction::Priority_Medium
+                                        )};
 
-    if (ptx->status() != PendingTransaction::Status_Ok) {
+    if (ptx->status() != Monero::PendingTransaction::Status_Ok) {
         LOG_ERROR("Failed to create tx: " << ptx->errorString());
         return false;
     }

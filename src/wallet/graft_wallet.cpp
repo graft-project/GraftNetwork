@@ -1,10 +1,16 @@
 #include "graft_wallet.h"
+#include "cryptonote_basic/cryptonote_format_utils.h"
+#include "api/graft_pending_transaction.h"
+#include "common/scoped_message_writer.h"
 #include "serialization/binary_utils.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "common/json_util.h"
 #include "string_coding.h"
+#include <boost/format.hpp>
+
+static const size_t DEFAULT_MIXIN = 4;
 
 namespace
 {
@@ -26,7 +32,60 @@ namespace
 tools::GraftWallet::GraftWallet(bool testnet, bool restricted)
     : wallet2(testnet, restricted)
 {
+}
 
+std::unique_ptr<tools::GraftWallet> tools::GraftWallet::createWallet(const string &daemon_address,
+                     const string &daemon_host, int daemon_port, const string &daemon_login,
+                     bool testnet, bool restricted)
+{
+    //make_basic() analogue
+    if (!daemon_address.empty() && !daemon_host.empty() && 0 != daemon_port)
+    {
+        tools::fail_msg_writer() << tools::GraftWallet::tr("can't specify daemon host or port more than once");
+        return nullptr;
+    }
+    boost::optional<epee::net_utils::http::login> login{};
+    if (!daemon_login.empty())
+    {
+        std::string ldaemon_login(daemon_login);
+        auto parsed = tools::login::parse(std::move(ldaemon_login), false, "Daemon client password");
+        if (!parsed)
+        {
+            return nullptr;
+        }
+        login.emplace(std::move(parsed->username), std::move(parsed->password).password());
+    }
+    std::string ldaemon_host = daemon_host;
+    if (daemon_host.empty())
+    {
+        ldaemon_host = "localhost";
+    }
+    if (!daemon_port)
+    {
+        daemon_port = testnet ? config::testnet::RPC_DEFAULT_PORT : config::RPC_DEFAULT_PORT;
+    }
+    std::string ldaemon_address = daemon_address;
+    if (daemon_address.empty())
+    {
+        ldaemon_address = std::string("http://") + ldaemon_host + ":" + std::to_string(daemon_port);
+    }
+    std::unique_ptr<tools::GraftWallet> wallet(new tools::GraftWallet(testnet, restricted));
+    wallet->init(std::move(ldaemon_address), std::move(login));
+    return wallet;
+}
+
+std::unique_ptr<tools::GraftWallet> tools::GraftWallet::createWallet(const string &account_data,
+                     const string &password, const string &daemon_address,
+                     const string &daemon_host, int daemon_port, const string &daemon_login,
+                     bool testnet, bool use_base64, bool restricted)
+{
+    auto wallet = createWallet(daemon_address, daemon_host, daemon_port, daemon_login,
+                               testnet, restricted);
+    if (wallet)
+    {
+        wallet->loadFromData(account_data, password, "" /*cache_file*/, use_base64);
+    }
+    return std::move(wallet);
 }
 
 crypto::secret_key tools::GraftWallet::generateFromData(const std::string &password,
@@ -465,4 +524,171 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         r = r && verify_keys(keys.m_spend_secret_key, keys.m_account_address.m_spend_public_key);
     THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
     return true;
+}
+
+Monero::PendingTransaction *tools::GraftWallet::createTransaction(const string &dst_addr,
+                  const string &payment_id, boost::optional<uint64_t> amount, uint32_t mixin_count,
+                  const supernode::GraftTxExtra &graftExtra,
+                  Monero::PendingTransaction::Priority priority)
+{
+    int status = 0;
+    std::string errorString;
+    cryptonote::account_public_address addr;
+
+    // indicates if dst_addr is integrated address (address + payment_id)
+    bool has_payment_id;
+    crypto::hash8 payment_id_short;
+    // TODO:  (https://bitcointalk.org/index.php?topic=753252.msg9985441#msg9985441)
+    size_t fake_outs_count = mixin_count > 0 ? mixin_count : this->default_mixin();
+    if (fake_outs_count == 0)
+        fake_outs_count = DEFAULT_MIXIN;
+
+    Monero::GraftPendingTransactionImpl *transaction = new Monero::GraftPendingTransactionImpl(this);
+
+    do {
+        if(!cryptonote::get_account_integrated_address_from_str(addr, has_payment_id, payment_id_short, this->testnet(), dst_addr)) {
+            // TODO: copy-paste 'if treating as an address fails, try as url' from simplewallet.cpp:1982
+            errorString = "Invalid destination address";
+            break;
+        }
+
+        std::vector<uint8_t> extra;
+        // if dst_addr is not an integrated address, parse payment_id
+        if (!has_payment_id && !payment_id.empty()) {
+            // copy-pasted from simplewallet.cpp:2212
+            crypto::hash payment_id_long;
+            bool r = tools::GraftWallet::parse_long_payment_id(payment_id, payment_id_long);
+            if (r) {
+                std::string extra_nonce;
+                cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_long);
+                r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
+            } else {
+                r = tools::GraftWallet::parse_short_payment_id(payment_id, payment_id_short);
+                if (r) {
+                    std::string extra_nonce;
+                    cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_short);
+                    r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
+                }
+            }
+
+            if (!r) {
+                errorString = std::string("payment id has invalid format, expected 16 or 64 character hex string: ") + payment_id;
+                break;
+            }
+        }
+        else if (has_payment_id) {
+            std::string extra_nonce;
+            cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_short);
+            bool r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
+            if (!r) {
+                errorString = std::string("Failed to add short payment id: ") + epee::string_tools::pod_to_hex(payment_id_short);
+                break;
+            }
+        }
+
+        // add graft extra fields to tx extra
+        if (!cryptonote::add_graft_tx_extra_to_extra(extra, graftExtra)) {
+            LOG_ERROR("Error adding graft fields to tx extra");
+            delete transaction;
+            return nullptr;
+        }
+
+
+        try {
+            if (amount) {
+                vector<cryptonote::tx_destination_entry> dsts;
+                cryptonote::tx_destination_entry de;
+                de.addr = addr;
+                de.amount = *amount;
+                dsts.push_back(de);
+                transaction->setPendingTx(create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
+                                                                static_cast<uint32_t>(priority),
+                                                                extra, false));
+            } else {
+                transaction->setPendingTx(create_transactions_all(0, addr, fake_outs_count, 0 /* unlock_time */,
+                                                                  static_cast<uint32_t>(priority),
+                                                                  extra, false));
+            }
+
+        } catch (const tools::error::daemon_busy&) {
+            // TODO: make it translatable with "tr"?
+            errorString = "daemon is busy. Please try again later.";
+        } catch (const tools::error::no_connection_to_daemon&) {
+            errorString = "no connection to daemon. Please make sure daemon is running.";
+        } catch (const tools::error::wallet_rpc_error& e) {
+            errorString = tr("RPC error: ") +  e.to_string();
+        } catch (const tools::error::get_random_outs_error &e) {
+            errorString = (boost::format(tr("failed to get random outputs to mix: %s")) % e.what()).str();
+
+        } catch (const tools::error::not_enough_money& e) {
+            std::ostringstream writer;
+
+            writer << boost::format(tr("not enough money to transfer, available only %s, sent amount %s")) %
+                      cryptonote::print_money(e.available()) %
+                      cryptonote::print_money(e.tx_amount());
+            errorString = writer.str();
+
+        } catch (const tools::error::tx_not_possible& e) {
+            std::ostringstream writer;
+
+            writer << boost::format(tr("not enough money to transfer, available only %s, transaction amount %s = %s + %s (fee)")) %
+                      cryptonote::print_money(e.available()) %
+                      cryptonote::print_money(e.tx_amount() + e.fee())  %
+                      cryptonote::print_money(e.tx_amount()) %
+                      cryptonote::print_money(e.fee());
+            errorString = writer.str();
+
+        } catch (const tools::error::not_enough_outs_to_mix& e) {
+            std::ostringstream writer;
+            writer << tr("not enough outputs for specified ring size") << " = " << (e.mixin_count() + 1) << ":";
+            for (const std::pair<uint64_t, uint64_t> outs_for_amount : e.scanty_outs()) {
+                writer << "\n" << tr("output amount") << " = " << cryptonote::print_money(outs_for_amount.first)
+                       << ", " << tr("found outputs to use") << " = " << outs_for_amount.second;
+            }
+            errorString = writer.str();
+        } catch (const tools::error::tx_not_constructed&) {
+            errorString = tr("transaction was not constructed");
+        } catch (const tools::error::tx_rejected& e) {
+            std::ostringstream writer;
+            writer << (boost::format(tr("transaction %s was rejected by daemon with status: ")) % get_transaction_hash(e.tx())) <<  e.status();
+            errorString = writer.str();
+        } catch (const tools::error::tx_sum_overflow& e) {
+            errorString = e.what();
+        } catch (const tools::error::zero_destination&) {
+            errorString = "one of destinations is zero";
+        } catch (const tools::error::tx_too_big& e) {
+            errorString = "failed to find a suitable way to split transactions";
+        } catch (const tools::error::transfer_error& e) {
+            errorString = string("unknown transfer error: ") + e.what();
+        } catch (const tools::error::wallet_internal_error& e) {
+            errorString =  string("internal error: ") + e.what();
+        } catch (const std::exception& e) {
+            errorString =  string("unexpected error: ") + e.what();
+        } catch (...) {
+            errorString = "unknown error";
+        }
+    }
+    while (false);
+    if (!errorString.empty())
+    {
+        status = Monero::Wallet::Status_Error;
+    }
+
+    transaction->setStatus(status);
+    transaction->setErrorString(errorString);
+    return transaction;
+}
+
+bool tools::GraftWallet::verifySignedMessage(const string &message, const string &address, const string &signature, bool isTestnet)
+{
+    cryptonote::account_public_address addr;
+    bool has_payment_id;
+    crypto::hash8 payment_id;
+
+    if (!cryptonote::get_account_integrated_address_from_str(addr, has_payment_id, payment_id, isTestnet, address)) {
+        LOG_PRINT_L0("!get_account_integrated_address_from_str");
+        return false;
+    }
+
+    return verify(message, addr, signature);
 }

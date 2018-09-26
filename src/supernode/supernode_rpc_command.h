@@ -63,6 +63,7 @@ namespace supernode {
         extern const string RestoreAccount;
         extern const string Transfer;
         extern const string GetTransferFee;
+        extern const string GetRawTransaction;
 
         extern const string WalletRejectPay;
         extern const string WalletProxyRejectPay;
@@ -506,6 +507,46 @@ namespace supernode {
 
                 BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(Result)
+                    KV_SERIALIZE(Fee)
+                END_KV_SERIALIZE_MAP()
+            };
+        };
+
+        struct GET_RAW_TRANSACTION {
+            struct destination {
+                std::string Address;
+                std::string PaymentID;
+                std::string Amount;
+
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Address)
+                    KV_SERIALIZE(PaymentID)
+                    KV_SERIALIZE(Amount)
+                END_KV_SERIALIZE_MAP()
+            };
+
+            struct request {
+                std::string Account;
+                std::string Password;
+                std::vector<destination> Destinations;
+                bool EnableRta;
+
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Account)
+                    KV_SERIALIZE(Password)
+                    KV_SERIALIZE(Destinations)
+                    KV_SERIALIZE(EnableRta)
+                END_KV_SERIALIZE_MAP()
+            };
+
+            struct response {
+                int64_t Result;
+                std::vector<std::string> Transactions;
+                std::string Fee;
+
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Result)
+                    KV_SERIALIZE(Transactions)
                     KV_SERIALIZE(Fee)
                 END_KV_SERIALIZE_MAP()
             };

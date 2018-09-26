@@ -30,7 +30,7 @@
 #define BASECLIENTPROXY_H
 
 #include "BaseRTAProcessor.h"
-#include "graft_wallet2.h"
+#include "wallet/graft_wallet.h"
 
 namespace supernode {
 class BaseClientProxy : public BaseRTAProcessor
@@ -38,8 +38,9 @@ class BaseClientProxy : public BaseRTAProcessor
 public:
     BaseClientProxy();
 
-    std::unique_ptr<tools::GraftWallet2> initWallet(const std::string &account, const std::string &password) const;
-    void storeWalletState(tools::GraftWallet2 *wallet);
+    std::unique_ptr<tools::GraftWallet> initWallet(const std::string &account, const std::string &password,
+                                                   bool use_base64 = false) const;
+    void storeWalletState(tools::GraftWallet *wallet);
 
     static std::string base64_decode(const std::string &encoded_data);
     static std::string base64_encode(const std::string &data);
@@ -56,12 +57,16 @@ protected:
     bool GetTransferFee(const rpc_command::GET_TRANSFER_FEE::request &in, rpc_command::GET_TRANSFER_FEE::response &out);
     bool Transfer(const rpc_command::TRANSFER::request &in, rpc_command::TRANSFER::response &out);
 
+    bool GetRawTransaction(const rpc_command::GET_RAW_TRANSACTION::request &in, rpc_command::GET_RAW_TRANSACTION::response &out);
+
 private:
     bool validate_transfer(const string &account, const string &password,
                            const std::string &address, uint64_t amount,
                            const std::string payment_id,
                            std::vector<cryptonote::tx_destination_entry>& dsts,
                            std::vector<uint8_t>& extra);
+    bool add_extra_nonce_to_tx_extra(std::vector<uint8_t>& tx_extra,
+                                     const cryptonote::blobdata& extra_nonce);
 };
 
 }

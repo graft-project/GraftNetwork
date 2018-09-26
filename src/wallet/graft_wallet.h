@@ -30,7 +30,6 @@
 
 
 #include "wallet2.h"
-//#include "grafttxextra.h"
 #include "wallet2_api.h"
 #include <memory>
 
@@ -50,6 +49,19 @@ public:
   GraftWallet(bool testnet = false, bool restricted = false);
 //  static bool verify(const std::string &message, const std::string &address, const std::string &signature, cryptonote::network_type nettype);
 
+  static std::unique_ptr<GraftWallet> createWallet(const std::string &daemon_address = std::string(),
+                                                   const std::string &daemon_host = std::string(),
+                                                   int daemon_port = 0,
+                                                   const std::string &daemon_login = std::string(),
+                                                   bool testnet = false, bool restricted = false);
+  static std::unique_ptr<GraftWallet> createWallet(const std::string &account_data,
+                                                   const std::string &password,
+                                                   const std::string &daemon_address = std::string(),
+                                                   const std::string &daemon_host = std::string(),
+                                                   int daemon_port = 0,
+                                                   const std::string &daemon_login = std::string(),
+                                                   bool testnet = false, bool use_base64 = true,
+                                                   bool restricted = false);
   /*!
    * \brief Generates a wallet or restores one.
    * \param  password       Password of wallet file
@@ -80,13 +92,14 @@ public:
 
   std::string getAccountData(const std::string& password, bool use_base64 = true);
 
-//  Monero::PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
-//                                                     boost::optional<uint64_t> amount, uint32_t mixin_count,
-//                                                     const supernode::GraftTxExtra &graftExtra,
-//                                                     Monero::PendingTransaction::Priority priority = Monero::PendingTransaction::Priority_Low);
-private:
   std::string store_keys_to_data(const std::string& password, bool watch_only = false);
   bool load_keys_from_data(const std::string& data, const std::string& password);
+
+  Monero::PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
+                                                     boost::optional<uint64_t> amount, uint32_t mixin_count,
+                                                     const supernode::GraftTxExtra &graftExtra,
+                                                     Monero::PendingTransaction::Priority priority = Monero::PendingTransaction::Priority_Low);
+  static bool verifySignedMessage(const std::string &message, const std::string &address, const std::string &signature, bool isTestnet);
 };
 
 }
