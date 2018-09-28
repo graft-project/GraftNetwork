@@ -931,8 +931,8 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
 	      m_callback->on_money_received(height, txid, tx, td.m_amount);
           }
           total_received_1 += amount_;
-        }
-      else if (m_transfers[kit->second].m_spent || m_transfers[kit->second].amount() >= amount[o])
+        } // TODO: fix unlocked_balance() so it works for replaced transfers. Do not allow to replace transfers now
+      else if (m_transfers[kit->second].m_spent || /*m_transfers[kit->second].amount() >= amount[o]*/ true)
         {
 	  LOG_ERROR("Public key " << epee::string_tools::pod_to_hex(kit->first)
               << " from received " << print_money(tx.vout[o].amount) << " output already exists with "
