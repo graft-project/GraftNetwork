@@ -691,6 +691,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   // Don't try to extract tx public key if tx has no ouputs
   size_t pk_index = 0;
   uint64_t total_received_1 = 0;
+  bool output_ignored = false;
   while (!tx.vout.empty())
   {
     // if tx.vout is not empty, we loop through all tx pubkeys
@@ -938,6 +939,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
               << " from received " << print_money(amount[o]) << " output already exists with "
               << (m_transfers[kit->second].m_spent ? "spent" : "unspent") << " "
               << print_money(m_transfers[kit->second].amount()) << ", received output ignored");
+            output_ignored = true;
             THROW_WALLET_EXCEPTION_IF(tx_money_got_in_outs < amount[o],
                     error::wallet_internal_error, "Unexpected values of new and old outputs");
             tx_money_got_in_outs -= amount[o];
@@ -1030,7 +1032,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   }
 
   uint64_t received = (tx_money_spent_in_ins < tx_money_got_in_outs) ? tx_money_got_in_outs - tx_money_spent_in_ins : 0;
-  if (0 < received)
+  if (0 < received || output_ignored)
   {
     tx_extra_nonce extra_nonce;
     crypto::hash payment_id = null_hash;
