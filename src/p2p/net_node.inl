@@ -34,11 +34,12 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/algorithm/string/join.hpp> // for logging
-#include <atomic>
 
 #include "version.h"
 #include "string_tools.h"
@@ -98,7 +99,7 @@ namespace nodetool
     const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_priority_node   = {"add-priority-node", "Specify list of peers to connect to and attempt to keep the connection open"};
     const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_exclusive_node   = {"add-exclusive-node", "Specify list of peers to connect to only."
                                                                                                   " If this option is given the options add-priority-node and seed-node are ignored"};
-    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_seed_node   = {"seed-node", "Connect to a node to retrieve peer addresses, and disconnect"};
+    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_seed_node   = {"seed-node", "Connect to a node to retrieve peer addresses, and disconnect. Effective only with --testnet, ex.: 'seed-node = 10.12.1.2:8080'"};
     const command_line::arg_descriptor<bool> arg_p2p_hide_my_port   =    {"hide-my-port", "Do not announce yourself as peerlist candidate", false, true};
 
     const command_line::arg_descriptor<bool>        arg_no_igd  = {"no-igd", "Disable UPnP port mapping"};
@@ -111,6 +112,7 @@ namespace nodetool
     const command_line::arg_descriptor<int64_t> arg_limit_rate = {"limit-rate", "set limit-rate [kB/s]", -1};
 
     const command_line::arg_descriptor<bool> arg_save_graph = {"save-graph", "Save data for dr monero", false};
+    const command_line::arg_descriptor<Uuid> arg_p2p_net_id = {"net-id", "The way to replace hardcoded NETWORK_ID. Effective only with --testnet, ex.: 'net-id = 54686520-4172-7420-6f77-205761722037'"};
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -134,6 +136,7 @@ namespace nodetool
     command_line::add_arg(desc, arg_limit_rate_down);
     command_line::add_arg(desc, arg_limit_rate);
     command_line::add_arg(desc, arg_save_graph);
+    command_line::add_arg(desc, arg_p2p_net_id);
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -413,19 +416,20 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet)
+  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(const bool testnet) const
   {
     std::set<std::string> full_addrs;
-    if (m_p2p_seed_node && testnet) {
-        for (auto na : m_seed_nodes) {
-            const epee::net_utils::ipv4_network_address &ipv4 = na.template as<const epee::net_utils::ipv4_network_address>();
+    if(m_p2p_seed_node && testnet)
+    {
+        for(const auto& na : m_seed_nodes)
+        {
+            const auto& ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
             full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
                               + epee::string_tools::num_to_string_fast(ipv4.port()) );
         }
 
 //        LOG_PRINT_L0("Seed node " << *(full_addrs.begin()));
         MINFO("Seed node " << *(full_addrs.begin()));
-
     }
     else if (testnet)
     {
@@ -442,6 +446,46 @@ namespace nodetool
     return full_addrs;
   }
 
+  inline void assign_network_id(const boost::program_options::variables_map& vm, const bool testnet, Uuid& net_id)
+  {
+    Uuid id = ::config::NETWORK_ID;
+    std::string hint = "main-net's";
+
+    if(testnet)
+    {
+      if(command_line::has_arg(vm, arg_p2p_net_id))
+      {
+        const Uuid ext_id = command_line::get_arg(vm, arg_p2p_net_id);
+        if(ext_id != Uuid())
+        {
+          if(ext_id == ::config::NETWORK_ID)
+          {
+            std::ostringstream m;
+            m << "Fail on assigning network-id: an attempt to use main-net-network-id for test-net mode";
+            throw std::runtime_error(m.str());
+          }
+
+          if(ext_id == ::config::testnet::NETWORK_ID)
+          {
+            std::ostringstream m;
+            m << "Fail on assigning network-id: passinng test-net-network-id from outside looks too suspecious";
+            throw std::runtime_error(m.str());
+          }
+
+          id = ext_id;
+          hint = "overriden from external config";
+        }
+        else
+        {
+          id = ::config::testnet::NETWORK_ID;
+          hint = "test-net's";
+        }
+      }
+    }
+    memcpy(&net_id, &id, 16);
+    MDEBUG("NETWORK_ID: '" << net_id << "' (" << hint << ")" << std::endl);
+  }
+
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::init(const boost::program_options::variables_map& vm)
@@ -450,9 +494,9 @@ namespace nodetool
     m_testnet = command_line::get_arg(vm, command_line::arg_testnet_on);
     m_p2p_seed_node = command_line::has_arg(vm, arg_p2p_seed_node);
 
-    if (m_testnet)
+    assign_network_id(vm, m_testnet, m_network_id);
+    if(m_testnet)
     {
-      memcpy(&m_network_id, &::config::testnet::NETWORK_ID, 16);
       if (!m_p2p_seed_node)
         full_addrs = get_seed_nodes(true);
       else {
@@ -461,11 +505,11 @@ namespace nodetool
           return false;
 
         full_addrs = get_seed_nodes(true);
+        m_seed_nodes.clear();
       }
     }
     else
     {
-      memcpy(&m_network_id, &::config::NETWORK_ID, 16);
       // for each hostname in the seed nodes list, attempt to DNS resolve and
       // add the result addresses as seed nodes
       // TODO: at some point add IPv6 support, but that won't be relevant
@@ -1238,7 +1282,7 @@ namespace nodetool
     }
     else
     {
-      try_get_support_flags(context_, [](p2p_connection_context& flags_context, const uint32_t& support_flags) 
+      try_get_support_flags(context_, [](p2p_connection_context& flags_context, const uint32_t& support_flags)
       {
         flags_context.support_flags = support_flags;
       });
@@ -2052,25 +2096,25 @@ namespace nodetool
     COMMAND_REQUEST_SUPPORT_FLAGS::request support_flags_request;
     bool r = epee::net_utils::async_invoke_remote_command2<typename COMMAND_REQUEST_SUPPORT_FLAGS::response>
     (
-      context.m_connection_id, 
-      COMMAND_REQUEST_SUPPORT_FLAGS::ID, 
-      support_flags_request, 
+      context.m_connection_id,
+      COMMAND_REQUEST_SUPPORT_FLAGS::ID,
+      support_flags_request,
       m_net_server.get_config_object(),
       [=](int code, const typename COMMAND_REQUEST_SUPPORT_FLAGS::response& rsp, p2p_connection_context& context_)
-      {  
+      {
         if(code < 0)
         {
           LOG_WARNING_CC(context_, "COMMAND_REQUEST_SUPPORT_FLAGS invoke failed. (" << code <<  ", " << epee::levin::get_err_descr(code) << ")");
           return;
         }
-        
+
         f(context_, rsp.support_flags);
       },
       P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT
     );
 
     return r;
-  }  
+  }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context)
@@ -2138,7 +2182,7 @@ namespace nodetool
     if(arg.node_data.peer_id != m_config.m_peer_id && arg.node_data.my_port)
     {
       peerid_type peer_id_l = arg.node_data.peer_id;
-      uint32_t port_l = arg.node_data.my_port;      
+      uint32_t port_l = arg.node_data.my_port;
       //try ping to be sure that we can add this peer to peer_list
       try_ping(arg.node_data, context, [peer_id_l, port_l, context, this]()
       {
@@ -2157,8 +2201,8 @@ namespace nodetool
       });
     }
 #if 0 // unsupported in production
-    
-    try_get_support_flags(context, [](p2p_connection_context& flags_context, const uint32_t& support_flags) 
+
+    try_get_support_flags(context, [](p2p_connection_context& flags_context, const uint32_t& support_flags)
     {
       flags_context.support_flags = support_flags;
     });

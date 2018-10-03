@@ -67,6 +67,8 @@ DISABLE_VS_WARNINGS(4355)
 
 namespace nodetool
 {
+  using Uuid = boost::uuids::uuid;
+
   template<class base_type>
   struct p2p_connection_context_t: base_type //t_payload_net_handler::connection_context //public net_utils::connection_context_base
   {
@@ -304,7 +306,7 @@ namespace nodetool
     void cache_connect_fail_info(const epee::net_utils::network_address& addr);
     bool is_addr_recently_failed(const epee::net_utils::network_address& addr);
     bool is_priority_node(const epee::net_utils::network_address& na);
-    std::set<std::string> get_seed_nodes(bool testnet);
+    std::set<std::string> get_seed_nodes(bool testnet) const;
     bool connect_to_seed();
     bool find_connection_context_by_peer_id(uint64_t id, p2p_connection_context& con)
     {
@@ -465,7 +467,7 @@ namespace nodetool
     uint64_t m_peer_livetime;
     //keep connections to initiate some interactions
     net_server m_net_server;
-    boost::uuids::uuid m_network_id;
+    Uuid m_network_id;
 
     std::map<epee::net_utils::network_address, time_t> m_conn_fails_cache;
     epee::critical_section m_conn_fails_cache_lock;
