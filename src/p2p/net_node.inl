@@ -99,7 +99,7 @@ namespace nodetool
     const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_priority_node   = {"add-priority-node", "Specify list of peers to connect to and attempt to keep the connection open"};
     const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_exclusive_node   = {"add-exclusive-node", "Specify list of peers to connect to only."
                                                                                                   " If this option is given the options add-priority-node and seed-node are ignored"};
-    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_seed_node   = {"seed-node", "Connect to a node to retrieve peer addresses, and disconnect. Effective only with --testnet, ex.: 'seed-node = 10.12.1.2:8080'"};
+    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_seed_node   = {"seed-node", "Specify list of seednodes, same way as --add-exclusive-node. Only effective with testnet option"};
     const command_line::arg_descriptor<bool> arg_p2p_hide_my_port   =    {"hide-my-port", "Do not announce yourself as peerlist candidate", false, true};
 
     const command_line::arg_descriptor<bool>        arg_no_igd  = {"no-igd", "Disable UPnP port mapping"};
@@ -114,6 +114,8 @@ namespace nodetool
     const command_line::arg_descriptor<bool> arg_save_graph = {"save-graph", "Save data for dr monero", false};
     const command_line::arg_descriptor<Uuid> arg_p2p_net_id = {"net-id", "The way to replace hardcoded NETWORK_ID. Effective only with --testnet, ex.: 'net-id = 54686520-4172-7420-6f77-205761722037'"};
   }
+
+  inline void append_net_address(std::vector<epee::net_utils::network_address> & seed_nodes, std::string const & addr);
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::init_options(boost::program_options::options_description& desc)
@@ -349,11 +351,19 @@ namespace nodetool
         return false;
     }
 
-    if (command_line::has_arg(vm, arg_p2p_seed_node))
+    // TODO: remove "testnet-only" limitation?
+    if (m_testnet && command_line::has_arg(vm, arg_p2p_seed_node))
     {
-      m_seed_nodes.clear();
-      if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_seed_nodes))
-        return false;
+      // XXX: in some reasons command_line::has_arg always returns true for "vector" type args
+      std::vector<std::string> seed_nodes = command_line::get_arg(vm, arg_p2p_seed_node);
+      if (!seed_nodes.empty())
+      {
+        MINFO("Overwriting seed nodes from command-line");
+        m_seed_nodes.clear();
+        for (const std::string sn : seed_nodes)
+          append_net_address(m_seed_nodes, sn);
+        m_force_seed_nodes = true;
+      }
     }
 
     if(command_line::has_arg(vm, arg_p2p_hide_my_port))
@@ -419,23 +429,15 @@ namespace nodetool
   std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(const bool testnet) const
   {
     std::set<std::string> full_addrs;
-    if(m_p2p_seed_node && testnet)
+    if (testnet)
     {
-        for(const auto& na : m_seed_nodes)
-        {
-            const auto& ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
-            full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
-                              + epee::string_tools::num_to_string_fast(ipv4.port()) );
-        }
-
-//        LOG_PRINT_L0("Seed node " << *(full_addrs.begin()));
-        MINFO("Seed node " << *(full_addrs.begin()));
-    }
-    else if (testnet)
-    {
-      full_addrs.insert("18.214.197.224:28680");
-      full_addrs.insert("18.214.197.50:28680");
-      full_addrs.insert("35.169.179.171:28680");
+      // return embedded seed-nodes only if seed-nodes was not passed via command-line
+      if (!m_force_seed_nodes)
+      {
+        full_addrs.insert("18.214.197.224:28680");
+        full_addrs.insert("18.214.197.50:28680");
+        full_addrs.insert("35.169.179.171:28680");
+      }
     }
     else
     {
@@ -492,21 +494,10 @@ namespace nodetool
   {
     std::set<std::string> full_addrs;
     m_testnet = command_line::get_arg(vm, command_line::arg_testnet_on);
-    m_p2p_seed_node = command_line::has_arg(vm, arg_p2p_seed_node);
-
     assign_network_id(vm, m_testnet, m_network_id);
     if(m_testnet)
     {
-      if (!m_p2p_seed_node)
-        full_addrs = get_seed_nodes(true);
-      else {
-        m_seed_nodes.clear();
-        if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_seed_nodes))
-          return false;
-
-        full_addrs = get_seed_nodes(true);
-        m_seed_nodes.clear();
-      }
+      full_addrs = get_seed_nodes(true);
     }
     else
     {
@@ -593,16 +584,18 @@ namespace nodetool
 
     for (const auto& full_addr : full_addrs)
     {
-      MDEBUG("Seed node: " << full_addr);
       append_net_address(m_seed_nodes, full_addr);
     }
-    MDEBUG("Number of seed nodes: " << m_seed_nodes.size());
-
     bool res = handle_command_line(vm);
     CHECK_AND_ASSERT_MES(res, false, "Failed to handle command line");
 
+    std::vector<std::string> dbg_seed_nodes;
+    for (const auto &na : m_seed_nodes) {
+      dbg_seed_nodes.push_back(na.str());
+    }
+    MDEBUG("Using seed-nodes: " << boost::algorithm::join(dbg_seed_nodes, ", "));
+
     auto config_arg = m_testnet ? command_line::arg_testnet_data_dir : command_line::arg_data_dir;
-    if (m_p2p_seed_node && m_testnet) config_arg =  command_line::arg_data_dir;
     m_config_folder = command_line::get_arg(vm, config_arg);
 
     if ((!m_testnet && m_port != std::to_string(::config::P2P_DEFAULT_PORT))

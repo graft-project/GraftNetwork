@@ -478,7 +478,7 @@ namespace nodetool
     epee::critical_section m_host_fails_score_lock;
     std::map<std::string, uint64_t> m_host_fails_score;
 
-    bool m_p2p_seed_node;
+    bool m_force_seed_nodes = false;  // true if seed nodes passed via command-line/config
     bool m_testnet;
   };
 }
