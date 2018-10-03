@@ -918,7 +918,8 @@ namespace nodetool
 
       if (supernode_str == m_supernode_str)
       {
-          return 1;
+        LOG_PRINT_L0("P2P Request: handle_supernode_announce: announce to itself, ignoring");
+        return 1;
       }
 
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: update tunnels for " << arg.address << " Hop: " << arg.hop << " Address: " << arg.network_address);
@@ -2202,7 +2203,7 @@ namespace nodetool
     std::string blob;
     epee::serialization::store_t_to_binary(p2p_req, blob);
     std::set<peerid_type> announced_peers;
-    // send to peers
+    // send to connected peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
         LOG_INFO_CC(context, "invoking COMMAND_SUPERNODE_ANNOUNCE");
         if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
@@ -2212,7 +2213,7 @@ namespace nodetool
         LOG_ERROR_CC(context, "failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
         return false;
     });
-
+    // send to other (not connected) peers
     std::list<peerlist_entry> peerlist_white, peerlist_gray;
     m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
     std::vector<peerlist_entry> peers_to_send;
