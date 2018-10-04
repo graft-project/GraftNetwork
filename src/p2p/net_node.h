@@ -384,7 +384,7 @@ namespace nodetool
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
 //        m_supernode_addr = addr;
-        m_supernode_str = addr;//publickey2string(addr);
+        m_supernode_str = addr;//epee::string_tools::pod_to_hex(addr);
         epee::net_utils::http::url_content parsed{};
         bool ret = epee::net_utils::parse_url(url, parsed);
         if (ret) {
@@ -406,18 +406,12 @@ namespace nodetool
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
         m_supernode_str.erase();
         m_have_supernode = false;
-
     }
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
 
   private:
-    // TODO: lets remove it and use epee::string_tools::pod_to_hex() directly?
-    static std::string publickey2string(const crypto::public_key& addr) {
-      return epee::string_tools::pod_to_hex(addr);
-    }
-
     std::multimap<int, std::string> m_supernode_requests_timestamps;
     std::set<std::string> m_supernode_requests_cache;
     std::map<std::string, nodetool::supernode_route> m_supernode_routes;
@@ -429,6 +423,7 @@ namespace nodetool
     epee::net_utils::http::http_simple_client m_supernode_client;
     boost::recursive_mutex m_supernode_lock;
     boost::recursive_mutex m_request_cache_lock;
+    std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
 
     std::string m_config_folder;
 
@@ -478,7 +473,6 @@ namespace nodetool
     epee::critical_section m_host_fails_score_lock;
     std::map<std::string, uint64_t> m_host_fails_score;
 
-    bool m_p2p_seed_node;
     bool m_testnet;
   };
 }

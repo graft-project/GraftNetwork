@@ -351,8 +351,8 @@ namespace nodetool
 
     if (command_line::has_arg(vm, arg_p2p_seed_node))
     {
-      m_seed_nodes.clear();
-      if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_seed_nodes))
+      m_custom_seed_nodes.clear();
+      if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_custom_seed_nodes))
         return false;
     }
 
@@ -419,16 +419,14 @@ namespace nodetool
   std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(const bool testnet) const
   {
     std::set<std::string> full_addrs;
-    if(m_p2p_seed_node && testnet)
+    if (m_custom_seed_nodes.size() > 0 && testnet)
     {
-        for(const auto& na : m_seed_nodes)
+        for (const auto& na : m_custom_seed_nodes)
         {
             const auto& ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
             full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
                               + epee::string_tools::num_to_string_fast(ipv4.port()) );
         }
-
-//        LOG_PRINT_L0("Seed node " << *(full_addrs.begin()));
         MINFO("Seed node " << *(full_addrs.begin()));
     }
     else if (testnet)
@@ -492,21 +490,13 @@ namespace nodetool
   {
     std::set<std::string> full_addrs;
     m_testnet = command_line::get_arg(vm, command_line::arg_testnet_on);
-    m_p2p_seed_node = command_line::has_arg(vm, arg_p2p_seed_node);
 
     assign_network_id(vm, m_testnet, m_network_id);
-    if(m_testnet)
+    if (m_testnet)
     {
-      if (!m_p2p_seed_node)
+        m_custom_seed_nodes.clear();
+        parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_custom_seed_nodes);
         full_addrs = get_seed_nodes(true);
-      else {
-        m_seed_nodes.clear();
-        if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_seed_nodes))
-          return false;
-
-        full_addrs = get_seed_nodes(true);
-        m_seed_nodes.clear();
-      }
     }
     else
     {
@@ -602,7 +592,6 @@ namespace nodetool
     CHECK_AND_ASSERT_MES(res, false, "Failed to handle command line");
 
     auto config_arg = m_testnet ? command_line::arg_testnet_data_dir : command_line::arg_data_dir;
-    if (m_p2p_seed_node && m_testnet) config_arg =  command_line::arg_data_dir;
     m_config_folder = command_line::get_arg(vm, config_arg);
 
     if ((!m_testnet && m_port != std::to_string(::config::P2P_DEFAULT_PORT))
@@ -1216,7 +1205,6 @@ namespace nodetool
 
     epee::simple_event ev;
     std::atomic<bool> hsh_result(false);
-    std::chrono::high_resolution_clock::time_point t1 (std::chrono::high_resolution_clock::now());
 
     bool r = epee::net_utils::async_invoke_remote_command2<typename COMMAND_HANDSHAKE::response>(context_.m_connection_id, COMMAND_HANDSHAKE::ID, arg, m_net_server.get_config_object(),
       [this, &pi, &ev, &hsh_result, &just_take_peerlist](int code, const typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context)
@@ -1266,9 +1254,6 @@ namespace nodetool
         LOG_DEBUG_CC(context, " COMMAND_HANDSHAKE(AND CLOSE) INVOKED OK");
       }
     }, P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT);
-
-    std::chrono::high_resolution_clock::time_point t2 (std::chrono::high_resolution_clock::now());
-
 
     if(r)
     {
