@@ -427,7 +427,6 @@ namespace nodetool
             full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
                               + epee::string_tools::num_to_string_fast(ipv4.port()) );
         }
-        MINFO("Seed node " << *(full_addrs.begin()));
     }
     else if (testnet)
     {
