@@ -67,6 +67,8 @@ DISABLE_VS_WARNINGS(4355)
 
 namespace nodetool
 {
+  using Uuid = boost::uuids::uuid;
+
   template<class base_type>
   struct p2p_connection_context_t: base_type //t_payload_net_handler::connection_context //public net_utils::connection_context_base
   {
@@ -304,7 +306,7 @@ namespace nodetool
     void cache_connect_fail_info(const epee::net_utils::network_address& addr);
     bool is_addr_recently_failed(const epee::net_utils::network_address& addr);
     bool is_priority_node(const epee::net_utils::network_address& na);
-    std::set<std::string> get_seed_nodes(bool testnet);
+    std::set<std::string> get_seed_nodes(bool testnet) const;
     bool connect_to_seed();
     bool find_connection_context_by_peer_id(uint64_t id, p2p_connection_context& con)
     {
@@ -382,7 +384,7 @@ namespace nodetool
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
 //        m_supernode_addr = addr;
-        m_supernode_str = addr;//publickey2string(addr);
+        m_supernode_str = addr;//epee::string_tools::pod_to_hex(addr);
         epee::net_utils::http::url_content parsed{};
         bool ret = epee::net_utils::parse_url(url, parsed);
         if (ret) {
@@ -404,18 +406,12 @@ namespace nodetool
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
         m_supernode_str.erase();
         m_have_supernode = false;
-
     }
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
 
   private:
-    // TODO: lets remove it and use epee::string_tools::pod_to_hex() directly?
-    static std::string publickey2string(const crypto::public_key& addr) {
-      return epee::string_tools::pod_to_hex(addr);
-    }
-
     std::multimap<int, std::string> m_supernode_requests_timestamps;
     std::set<std::string> m_supernode_requests_cache;
     std::map<std::string, nodetool::supernode_route> m_supernode_routes;
@@ -427,6 +423,7 @@ namespace nodetool
     epee::net_utils::http::http_simple_client m_supernode_client;
     boost::recursive_mutex m_supernode_lock;
     boost::recursive_mutex m_request_cache_lock;
+    std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
 
     std::string m_config_folder;
 
@@ -465,7 +462,7 @@ namespace nodetool
     uint64_t m_peer_livetime;
     //keep connections to initiate some interactions
     net_server m_net_server;
-    boost::uuids::uuid m_network_id;
+    Uuid m_network_id;
 
     std::map<epee::net_utils::network_address, time_t> m_conn_fails_cache;
     epee::critical_section m_conn_fails_cache_lock;
@@ -476,7 +473,6 @@ namespace nodetool
     epee::critical_section m_host_fails_score_lock;
     std::map<std::string, uint64_t> m_host_fails_score;
 
-    bool m_p2p_seed_node;
     bool m_testnet;
   };
 }

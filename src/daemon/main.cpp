@@ -172,7 +172,9 @@ int main(int argc, char const * argv[])
     //bf::path relative_path_base = daemonizer::get_relative_path_base(vm);
     bf::path relative_path_base = data_dir;
 
-    std::string config = command_line::get_arg(vm, daemon_args::arg_config_file);
+    const std::string config = command_line::get_arg(vm, daemon_args::arg_config_file);
+    if(!config.empty())
+      MDEBUG("Config file: '" << config << "'" << std::endl);
 
     boost::filesystem::path data_dir_path(data_dir);
     boost::filesystem::path config_path(config);
