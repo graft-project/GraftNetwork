@@ -167,8 +167,8 @@ namespace config
   {
     uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 84; // 'F'
     uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 85;
-    uint16_t const P2P_DEFAULT_PORT = 28880;
-    uint16_t const RPC_DEFAULT_PORT = 28881;
+    uint16_t const P2P_DEFAULT_PORT = 28680;
+    uint16_t const RPC_DEFAULT_PORT = 28681;
     boost::uuids::uuid const NETWORK_ID = { {
           0x54 ,0x68, 0x65, 0x20, 0x41, 0x72 , 0x74, 0x20, 0x6F, 0x77, 0x20, 0x57, 0x61, 0x72, 0x20, 0x36
       } }; // Bender's daydream
