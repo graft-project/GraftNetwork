@@ -34,11 +34,13 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/thread/thread.hpp>
-#include <boost/algorithm/string/join.hpp> // for logging
 #include <atomic>
+#include <boost/algorithm/string/join.hpp> // for logging
 
 #include "version.h"
 #include "string_tools.h"
@@ -98,7 +100,7 @@ namespace nodetool
     const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_priority_node   = {"add-priority-node", "Specify list of peers to connect to and attempt to keep the connection open"};
     const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_add_exclusive_node   = {"add-exclusive-node", "Specify list of peers to connect to only."
                                                                                                   " If this option is given the options add-priority-node and seed-node are ignored"};
-    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_seed_node   = {"seed-node", "Connect to a node to retrieve peer addresses, and disconnect"};
+    const command_line::arg_descriptor<std::vector<std::string> > arg_p2p_seed_node   = {"seed-node", "Connect to a node to retrieve peer addresses, and disconnect. Effective only with --testnet, ex.: 'seed-node = 10.12.1.2:8080'"};
     const command_line::arg_descriptor<bool> arg_p2p_hide_my_port   =    {"hide-my-port", "Do not announce yourself as peerlist candidate", false, true};
 
     const command_line::arg_descriptor<bool>        arg_no_igd  = {"no-igd", "Disable UPnP port mapping"};
@@ -111,6 +113,7 @@ namespace nodetool
     const command_line::arg_descriptor<int64_t> arg_limit_rate = {"limit-rate", "set limit-rate [kB/s]", -1};
 
     const command_line::arg_descriptor<bool> arg_save_graph = {"save-graph", "Save data for dr monero", false};
+    const command_line::arg_descriptor<Uuid> arg_p2p_net_id = {"net-id", "The way to replace hardcoded NETWORK_ID. Effective only with --testnet, ex.: 'net-id = 54686520-4172-7420-6f77-205761722037'"};
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -134,6 +137,7 @@ namespace nodetool
     command_line::add_arg(desc, arg_limit_rate_down);
     command_line::add_arg(desc, arg_limit_rate);
     command_line::add_arg(desc, arg_save_graph);
+    command_line::add_arg(desc, arg_p2p_net_id);
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -348,8 +352,8 @@ namespace nodetool
 
     if (command_line::has_arg(vm, arg_p2p_seed_node))
     {
-      m_seed_nodes.clear();
-      if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_seed_nodes))
+      m_custom_seed_nodes.clear();
+      if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_custom_seed_nodes))
         return false;
     }
 
@@ -413,19 +417,17 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(bool testnet)
+  std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(const bool testnet) const
   {
     std::set<std::string> full_addrs;
-    if (m_p2p_seed_node && testnet) {
-        for (auto na : m_seed_nodes) {
-            const epee::net_utils::ipv4_network_address &ipv4 = na.template as<const epee::net_utils::ipv4_network_address>();
+    if (m_custom_seed_nodes.size() > 0 && testnet)
+    {
+        for (const auto& na : m_custom_seed_nodes)
+        {
+            const auto& ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
             full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
                               + epee::string_tools::num_to_string_fast(ipv4.port()) );
         }
-
-//        LOG_PRINT_L0("Seed node " << *(full_addrs.begin()));
-        MINFO("Seed node " << *(full_addrs.begin()));
-
     }
     else if (testnet)
     {
@@ -442,30 +444,62 @@ namespace nodetool
     return full_addrs;
   }
 
+  inline void assign_network_id(const boost::program_options::variables_map& vm, const bool testnet, Uuid& net_id)
+  {
+    Uuid id = ::config::NETWORK_ID;
+    std::string hint = "main-net's";
+
+    if(testnet)
+    {
+      if(command_line::has_arg(vm, arg_p2p_net_id))
+      {
+        const Uuid ext_id = command_line::get_arg(vm, arg_p2p_net_id);
+        if(ext_id != Uuid())
+        {
+          if(ext_id == ::config::NETWORK_ID)
+          {
+            std::ostringstream m;
+            m << "Fail on assigning network-id: an attempt to use main-net-network-id for test-net mode";
+            throw std::runtime_error(m.str());
+          }
+
+          if(ext_id == ::config::testnet::NETWORK_ID)
+          {
+            std::ostringstream m;
+            m << "Fail on assigning network-id: passinng test-net-network-id from outside looks too suspecious";
+            throw std::runtime_error(m.str());
+          }
+
+          id = ext_id;
+          hint = "overriden from external config";
+        }
+        else
+        {
+          id = ::config::testnet::NETWORK_ID;
+          hint = "test-net's";
+        }
+      }
+    }
+    memcpy(&net_id, &id, 16);
+    MDEBUG("NETWORK_ID: '" << net_id << "' (" << hint << ")" << std::endl);
+  }
+
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::init(const boost::program_options::variables_map& vm)
   {
     std::set<std::string> full_addrs;
     m_testnet = command_line::get_arg(vm, command_line::arg_testnet_on);
-    m_p2p_seed_node = command_line::has_arg(vm, arg_p2p_seed_node);
 
+    assign_network_id(vm, m_testnet, m_network_id);
     if (m_testnet)
     {
-      memcpy(&m_network_id, &::config::testnet::NETWORK_ID, 16);
-      if (!m_p2p_seed_node)
+        m_custom_seed_nodes.clear();
+        parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_custom_seed_nodes);
         full_addrs = get_seed_nodes(true);
-      else {
-        m_seed_nodes.clear();
-        if (!parse_peers_and_add_to_container(vm, arg_p2p_seed_node, m_seed_nodes))
-          return false;
-
-        full_addrs = get_seed_nodes(true);
-      }
     }
     else
     {
-      memcpy(&m_network_id, &::config::NETWORK_ID, 16);
       // for each hostname in the seed nodes list, attempt to DNS resolve and
       // add the result addresses as seed nodes
       // TODO: at some point add IPv6 support, but that won't be relevant
@@ -558,7 +592,6 @@ namespace nodetool
     CHECK_AND_ASSERT_MES(res, false, "Failed to handle command line");
 
     auto config_arg = m_testnet ? command_line::arg_testnet_data_dir : command_line::arg_data_dir;
-    if (m_p2p_seed_node && m_testnet) config_arg =  command_line::arg_data_dir;
     m_config_folder = command_line::get_arg(vm, config_arg);
 
     if ((!m_testnet && m_port != std::to_string(::config::P2P_DEFAULT_PORT))
@@ -769,7 +802,7 @@ namespace nodetool
           bool is_conneted = find_connection_context_by_peer_id(pe.id, con);
           LOG_PRINT_L0("P2P Request: notify_peer_list: notification " << i);
           if (is_conneted) {
-              LOG_PRINT_L0("P2P Request: notify_peer_list: notification connected " << is_conneted);
+              LOG_PRINT_L0("P2P Request: notify_peer_list: peer is connected, sending to : " << pe.adr.host_str());
               relay_notify(command, buf, con);
           } else if (try_connect) {
               LOG_PRINT_L0("P2P Request: notify_peer_list: connect to notify");
@@ -779,7 +812,11 @@ namespace nodetool
               if (m_net_server.connect(epee::string_tools::get_ip_string_from_int32(ipv4.ip()),
                                        epee::string_tools::num_to_string_fast(ipv4.port()),
                                        m_config.m_net_config.connection_timeout, con, m_bind_ip)) {
+                  LOG_PRINT_L0("P2P Request: notify_peer_list: connected to peer: " << pe.adr.host_str()
+                               << ", sending command");
                   relay_notify(command, buf, con);
+              } else {
+                  MWARNING("P2P Request: notify_peer_list: failed to connect to peer: " << pe.adr.host_str());
               }
           }
       }
@@ -909,6 +946,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: start");
+#ifdef LOCK_RTA_SENDING
+    return 1;
+#endif
       static std::string supernode_endpoint("send_supernode_announce");
       std::string supernode_str = arg.address;
 
@@ -1007,6 +1047,13 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_broadcast: start");
+      LOG_PRINT_L0("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
+                   << ", our address: " << m_supernode_str);
+
+#ifdef LOCK_RTA_SENDING
+    return 1;
+#endif
+
       {
           LOG_PRINT_L0("P2P Request: handle_broadcast: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
@@ -1042,6 +1089,14 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_multicast: start");
+      LOG_PRINT_L0("P2P Request: handle_multicast: sender_address: " << arg.sender_address
+                   << ", receiver_addresses: " << boost::algorithm::join(arg.receiver_addresses, ", ")
+                   << ", our address: " << m_supernode_str);
+
+#ifdef LOCK_RTA_SENDING
+    return 1;
+#endif
+
       std::list<std::string> addresses = arg.receiver_addresses;
       {
           LOG_PRINT_L0("P2P Request: handle_multicast: lock");
@@ -1056,8 +1111,13 @@ namespace nodetool
               auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
               if (m_have_supernode && it != addresses.end())
               {
+                  LOG_PRINT_L0("P2P Request: handle_multicast: sending to supernode...");
                   post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
               }
+          }
+          else
+          {
+            MWARNING("P2P Request: handle_multicast: request found in cache, skipping");
           }
           LOG_PRINT_L0("P2P Request: handle_multicast: clean request cache");
           remove_old_request_cache();
@@ -1083,6 +1143,14 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_unicast: start");
+      LOG_PRINT_L0("P2P Request: handle_unicast: sender_address: " << arg.sender_address
+                   << ", receiver_address: " << arg.receiver_address
+                   << ", our address: " << m_supernode_str);
+
+#ifdef LOCK_RTA_SENDING
+    return 1;
+#endif
+
       std::string address = arg.receiver_address;
       {
           LOG_PRINT_L0("P2P Request: handle_unicast: lock");
@@ -1096,8 +1164,13 @@ namespace nodetool
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
               if (m_have_supernode && address == m_supernode_str)
               {
+                  LOG_PRINT_L0("P2P Request: handle_unicast: sending to supernode...");
                   post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
               }
+          }
+          else
+          {
+              MWARNING("P2P Request: handle_unicast: request found in cache, skipping");
           }
           LOG_PRINT_L0("P2P Request: handle_unicast: clean request cache");
           remove_old_request_cache();
@@ -1132,7 +1205,6 @@ namespace nodetool
 
     epee::simple_event ev;
     std::atomic<bool> hsh_result(false);
-    std::chrono::high_resolution_clock::time_point t1 (std::chrono::high_resolution_clock::now());
 
     bool r = epee::net_utils::async_invoke_remote_command2<typename COMMAND_HANDSHAKE::response>(context_.m_connection_id, COMMAND_HANDSHAKE::ID, arg, m_net_server.get_config_object(),
       [this, &pi, &ev, &hsh_result, &just_take_peerlist](int code, const typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context)
@@ -1183,9 +1255,6 @@ namespace nodetool
       }
     }, P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT);
 
-    std::chrono::high_resolution_clock::time_point t2 (std::chrono::high_resolution_clock::now());
-
-
     if(r)
     {
       ev.wait();
@@ -1198,7 +1267,7 @@ namespace nodetool
     }
     else
     {
-      try_get_support_flags(context_, [](p2p_connection_context& flags_context, const uint32_t& support_flags) 
+      try_get_support_flags(context_, [](p2p_connection_context& flags_context, const uint32_t& support_flags)
       {
         flags_context.support_flags = support_flags;
       });
@@ -2012,25 +2081,25 @@ namespace nodetool
     COMMAND_REQUEST_SUPPORT_FLAGS::request support_flags_request;
     bool r = epee::net_utils::async_invoke_remote_command2<typename COMMAND_REQUEST_SUPPORT_FLAGS::response>
     (
-      context.m_connection_id, 
-      COMMAND_REQUEST_SUPPORT_FLAGS::ID, 
-      support_flags_request, 
+      context.m_connection_id,
+      COMMAND_REQUEST_SUPPORT_FLAGS::ID,
+      support_flags_request,
       m_net_server.get_config_object(),
       [=](int code, const typename COMMAND_REQUEST_SUPPORT_FLAGS::response& rsp, p2p_connection_context& context_)
-      {  
+      {
         if(code < 0)
         {
           LOG_WARNING_CC(context_, "COMMAND_REQUEST_SUPPORT_FLAGS invoke failed. (" << code <<  ", " << epee::levin::get_err_descr(code) << ")");
           return;
         }
-        
+
         f(context_, rsp.support_flags);
       },
       P2P_DEFAULT_HANDSHAKE_INVOKE_TIMEOUT
     );
 
     return r;
-  }  
+  }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context)
@@ -2098,7 +2167,7 @@ namespace nodetool
     if(arg.node_data.peer_id != m_config.m_peer_id && arg.node_data.my_port)
     {
       peerid_type peer_id_l = arg.node_data.peer_id;
-      uint32_t port_l = arg.node_data.my_port;      
+      uint32_t port_l = arg.node_data.my_port;
       //try ping to be sure that we can add this peer to peer_list
       try_ping(arg.node_data, context, [peer_id_l, port_l, context, this]()
       {
@@ -2117,8 +2186,8 @@ namespace nodetool
       });
     }
 #if 0 // unsupported in production
-    
-    try_get_support_flags(context, [](p2p_connection_context& flags_context, const uint32_t& support_flags) 
+
+    try_get_support_flags(context, [](p2p_connection_context& flags_context, const uint32_t& support_flags)
     {
       flags_context.support_flags = support_flags;
     });
@@ -2161,6 +2230,9 @@ namespace nodetool
   void node_server<t_payload_net_handler>::do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req)
   {
     LOG_PRINT_L0("Incoming supernode announce request");
+#ifdef LOCK_RTA_SENDING
+    return;
+#endif
 
     LOG_PRINT_L0("P2P Request: do_supernode_announce: start");
 
@@ -2234,6 +2306,10 @@ namespace nodetool
           }
       }
 
+#ifdef LOCK_RTA_SENDING
+    return;
+#endif
+
       COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
@@ -2302,6 +2378,10 @@ namespace nodetool
           }
       }
 
+#ifdef LOCK_RTA_SENDING
+    return;
+#endif
+
       COMMAND_MULTICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       p2p_req.receiver_addresses = req.receiver_addresses;
       p2p_req.sender_address = req.sender_address;
@@ -2323,6 +2403,9 @@ namespace nodetool
   void node_server<t_payload_net_handler>::do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req)
   {
       LOG_PRINT_L0("Incoming unicast request");
+#ifdef LOCK_RTA_SENDING
+    return;
+#endif
 
       LOG_PRINT_L0("P2P Request: do_unicast: Start sending to: " << req.receiver_address);
 

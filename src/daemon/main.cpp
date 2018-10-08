@@ -172,7 +172,9 @@ int main(int argc, char const * argv[])
     //bf::path relative_path_base = daemonizer::get_relative_path_base(vm);
     bf::path relative_path_base = data_dir;
 
-    std::string config = command_line::get_arg(vm, daemon_args::arg_config_file);
+    const std::string config = command_line::get_arg(vm, daemon_args::arg_config_file);
+    if(!config.empty())
+      MDEBUG("Config file: '" << config << "'" << std::endl);
 
     boost::filesystem::path data_dir_path(data_dir);
     boost::filesystem::path config_path(config);
@@ -205,13 +207,13 @@ int main(int argc, char const * argv[])
     bf::path log_file_path {data_dir / std::string(CRYPTONOTE_NAME ".log")};
     if (! vm["log-file"].defaulted())
       log_file_path = command_line::get_arg(vm, daemon_args::arg_log_file);
-
     // Set log format
     std::string format;
     if (!vm["log-format"].defaulted())
     {
       format = command_line::get_arg(vm, daemon_args::arg_log_format).c_str();
     }
+
 
     if (log_file_path == "syslog")
     {//redirect log to syslog
