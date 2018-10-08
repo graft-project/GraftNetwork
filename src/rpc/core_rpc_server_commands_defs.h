@@ -895,9 +895,9 @@ namespace cryptonote
       : id(id), host(host), ip(0), port(0), last_seen(last_seen)
     {}
     peer(uint64_t id, uint32_t ip, uint16_t port, uint64_t last_seen)
-      : id(id), ip(htonl(ip)), port(port), last_seen(last_seen)
+      : id(id), ip(ntohl(ip)), port(port), last_seen(last_seen)
     {
-        auto _ip = boost::asio::ip::address_v4(ip);
+        auto _ip = boost::asio::ip::address_v4(this->ip);
         host = _ip.to_string();
     }
 
