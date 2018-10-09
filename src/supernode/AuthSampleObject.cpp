@@ -28,7 +28,7 @@
 //
 
 #include "AuthSampleObject.h"
-#include "graft_wallet2.h"
+#include "wallet/graft_wallet.h"
 
 void supernode::AuthSampleObject::Owner(AuthSample* o) { m_Owner = o; }
 
@@ -48,7 +48,7 @@ bool supernode::AuthSampleObject::WalletProxyPay(const rpc_command::WALLET_PROXY
     if(src!=TransactionRecord) { LOG_PRINT_L4("not eq records"); return false; }
 
 	string data = TransactionRecord.PaymentID + string(":") + inp.CustomerWalletAddr;
-    bool signok = tools::GraftWallet2::verifySignedMessage(data, inp.CustomerWalletAddr, inp.CustomerWalletSign, m_Servant->IsTestnet());
+    bool signok = tools::GraftWallet::verifySignedMessage(data, inp.CustomerWalletAddr, inp.CustomerWalletSign, m_Servant->IsTestnet());
 
 	// TODO: send LOCK. WTF?? all our nodes got this packet by sub-net broadcast. so only top node must send broad cast
 

@@ -40,6 +40,7 @@ set(wallet_sources
   api/transaction_info.cpp
   api/transaction_history.cpp
   api/pending_transaction.cpp
+  api/graft_pending_transaction.cpp
   api/utils.cpp
   api/address_book.cpp
   api/unsigned_transaction.cpp)
@@ -62,6 +63,7 @@ set(wallet_private_headers
   api/transaction_info.h
   api/transaction_history.h
   api/pending_transaction.h
+  api/graft_pending_transaction.h
   api/common_defines.h
   api/address_book.h
   api/unsigned_transaction.h)

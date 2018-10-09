@@ -54,6 +54,22 @@
 #define ERROR_CANNOT_REJECT_PAY             -17
 
 #define ERROR_NOT_ENOUGH_COINS              -20
-
+#define ERROR_INVALID_DESTINATION_ADDRESS   -21
+#define ERROR_INVALID_PAYMENT               -22
+#define ERROR_DAEMON_BUSY                   -23
+#define ERROR_NO_DAEMON_CONNECTION          -24
+#define ERROR_DAEMON_RPC_ERROR              -25
+#define ERROR_GET_RANDOM_OUTPUTS_FAILED     -26
+#define ERROR_NOT_ENOUGH_MONEY              -27
+#define ERROR_NOT_ENOUGH_OUTPUTS            -28
+#define ERROR_TRANSACTION_NOT_CONSTRUCTED   -29
+#define ERROR_TRANSACTION_REJECTED          -30
+#define ERROR_TRANSACTION_SUM_OVERFLOW      -31
+#define ERROR_ZERO_DESTINATION              -32
+#define ERROR_TRANSACTION_TOO_BIG           -33
+#define ERROR_TRANSFER_ERROR                -34
+#define ERROR_WALLET_INTERNAL_ERROR         -35
+#define ERROR_UNEXPECTED_ERROR              -36
+#define ERROR_UNKNOWN_ERROR                 -37
 
 #endif // GRAFT_DEFINES_H

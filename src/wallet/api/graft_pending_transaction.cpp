@@ -28,7 +28,7 @@
 //
 // Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
-#include "pending_transaction.h"
+#include "graft_pending_transaction.h"
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
@@ -43,7 +43,7 @@ using namespace std;
 namespace Monero {
 
 
-GraftPendingTransactionImpl::GraftPendingTransactionImpl(tools::GraftWallet2 *graft_wallet)
+GraftPendingTransactionImpl::GraftPendingTransactionImpl(tools::GraftWallet *graft_wallet)
     : mWallet(graft_wallet)
 {
   m_status = Status_Ok;
@@ -174,7 +174,7 @@ std::vector<string> GraftPendingTransactionImpl::getRawTransaction() const
     std::vector<std::string> txs;
     for (auto rit = m_pending_tx.rbegin(); rit != m_pending_tx.rend(); ++rit)
     {
-        tools::GraftWallet2::pending_tx ptx = *rit;
+        tools::GraftWallet::pending_tx ptx = *rit;
         txs.push_back(epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx)));
     }
     return txs;
@@ -185,7 +185,7 @@ void GraftPendingTransactionImpl::updateTransactionCache()
     //Unused method
 }
 
-void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet2::pending_tx> pending_tx)
+void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx)
 {
     m_pending_tx = pending_tx;
 }

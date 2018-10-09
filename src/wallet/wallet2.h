@@ -617,7 +617,7 @@ namespace tools
     std::string get_tx_note(const crypto::hash &txid) const;
 
     std::string sign(const std::string &data) const;
-    bool verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature) const;
+    static bool verify(const std::string &data, const cryptonote::account_public_address &address, const std::string &signature);
 
     std::vector<tools::wallet2::transfer_details> export_outputs() const;
     size_t import_outputs(const std::vector<tools::wallet2::transfer_details> &outputs);
