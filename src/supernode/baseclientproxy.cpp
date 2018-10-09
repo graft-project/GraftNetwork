@@ -458,6 +458,7 @@ bool supernode::BaseClientProxy::GetRawTransaction(const supernode::rpc_command:
             totalFee += ptx.fee;
 
             wal->update_tx_cache(ptx);
+            storeWalletState(wal.get());
         }
         out.Transactions = txs;
 
