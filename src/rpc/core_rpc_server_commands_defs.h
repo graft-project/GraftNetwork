@@ -30,6 +30,8 @@
 
 #pragma once
 #include <boost/asio/ip/address_v4.hpp>
+#include <boost/date_time/posix_time/posix_time_types.hpp>
+
 #include <netinet/in.h>
 
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
@@ -888,17 +890,21 @@ namespace cryptonote
     uint32_t ip;
     uint16_t port;
     uint64_t last_seen;
+    std::string last_seen_str;
 
     peer() = default;
 
     peer(uint64_t id, const std::string &host, uint64_t last_seen)
       : id(id), host(host), ip(0), port(0), last_seen(last_seen)
-    {}
+    {
+        last_seen_str = boost::posix_time::to_simple_string(boost::posix_time::from_time_t(last_seen));
+    }
     peer(uint64_t id, uint32_t ip, uint16_t port, uint64_t last_seen)
       : id(id), ip(ntohl(ip)), port(port), last_seen(last_seen)
     {
         auto _ip = boost::asio::ip::address_v4(this->ip);
         host = _ip.to_string();
+        last_seen_str = boost::posix_time::to_simple_string(boost::posix_time::from_time_t(last_seen));
     }
 
     BEGIN_KV_SERIALIZE_MAP()
@@ -907,6 +913,7 @@ namespace cryptonote
       KV_SERIALIZE(ip)
       KV_SERIALIZE(port)
       KV_SERIALIZE(last_seen)
+      KV_SERIALIZE(last_seen_str)
     END_KV_SERIALIZE_MAP()
   };
 
