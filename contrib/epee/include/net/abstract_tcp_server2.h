@@ -69,7 +69,7 @@ namespace epee
 namespace net_utils
 {
 
-  using async_state_machine=cblp::async_callback_state_machine;
+  // using async_state_machine=cblp::async_callback_state_machine;
 
   struct i_connection_filter
   {
@@ -87,7 +87,7 @@ namespace net_utils
 //  struct do_send_state_machine<t_protocol_handler>;
 //  template<class t_protocol_handler>
 //  struct do_send_chunk_state_machine<t_protocol_handler>;
-  template<class t_protocol_handler2> struct do_send_chunk_state_machine;
+  // template<class t_protocol_handler2> struct do_send_chunk_state_machine;
 
 
   template<class t_protocol_handler>
@@ -360,141 +360,141 @@ namespace net_utils
   }; // class <>boosted_tcp_server
 
 
-  template<class t_protocol_handler>
-  struct do_send_chunk_state_machine  : protected async_state_machine
-  {
-    static boost::shared_ptr<async_state_machine> create(boost::asio::io_service &io_service
-                                                  , int64_t timeout
-                                                  , async_state_machine::callback_type finalizer
-                                                  , boost::weak_ptr<connection<t_protocol_handler>>& conn
-                                                  , const void* message
-                                                  , size_t msg_len
-                                                  )
-    {
-      boost::shared_ptr<async_callback_state_machine> ret(
-            new do_send_chunk_state_machine(io_service, timeout, finalizer, conn, message, msg_len)
-            );
+//  template<class t_protocol_handler>
+//  struct do_send_chunk_state_machine  : protected async_state_machine
+//  {
+//    static boost::shared_ptr<async_state_machine> create(boost::asio::io_service &io_service
+//                                                  , int64_t timeout
+//                                                  , async_state_machine::callback_type finalizer
+//                                                  , boost::weak_ptr<connection<t_protocol_handler>>& conn
+//                                                  , const void* message
+//                                                  , size_t msg_len
+//                                                  )
+//    {
+//      boost::shared_ptr<async_callback_state_machine> ret(
+//            new do_send_chunk_state_machine(io_service, timeout, finalizer, conn, message, msg_len)
+//            );
 
-      return ret;
-    }
+//      return ret;
+//    }
 
-    void send_result(const boost::system::error_code& ec)
-    {
-      if (ec) {
-        stop(call_result_type::failed);
-      }
-      else {
-        stop(call_result_type::succesed);
-      }
-    }
+//    void send_result(const boost::system::error_code& ec)
+//    {
+//      if (ec) {
+//        stop(call_result_type::failed);
+//      }
+//      else {
+//        stop(call_result_type::succesed);
+//      }
+//    }
 
-  private:
-    template<class t_protocol_handler2> friend struct connection_write_task;
+//  private:
+//    template<class t_protocol_handler2> friend struct connection_write_task;
 
-    struct connection_write_task : public i_task
-    {
-      connection_write_task(boost::shared_ptr<async_state_machine> machine)
-        : machine(machine)
-      {}
+//    struct connection_write_task : public i_task
+//    {
+//      connection_write_task(boost::shared_ptr<async_state_machine> machine)
+//        : machine(machine)
+//      {}
 
-      template<class t_protocol_handler2>
-      /*virtual*/ void exec()
-      {
-        boost::shared_ptr<do_send_chunk_state_machine> mach
-                = boost::dynamic_pointer_cast<do_send_chunk_state_machine<t_protocol_handler2>>(machine);
-        boost::shared_ptr<connection<t_protocol_handler2>> con_ = mach->conn;
-        con_->m_send_que_lock.lock(); // *** critical ***
-        epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){con_->m_send_que_lock.unlock();});
+//      template<class t_protocol_handler2>
+//      /*virtual*/ void exec()
+//      {
+//        boost::shared_ptr<do_send_chunk_state_machine> mach
+//                = boost::dynamic_pointer_cast<do_send_chunk_state_machine<t_protocol_handler2>>(machine);
+//        boost::shared_ptr<connection<t_protocol_handler2>> con_ = mach->conn;
+//        con_->m_send_que_lock.lock(); // *** critical ***
+//        epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){con_->m_send_que_lock.unlock();});
 
-        con_->m_send_que.resize(con_->m_send_que.size()+1);
-        con_->m_send_que.back().assign((const char*)mach->message, mach->length);
-        typename connection<t_protocol_handler>::callback_type callback = boost::bind(&do_send_chunk_state_machine::send_result,mach,_1);
-        con_->add_on_write_callback(std::pair<int64_t, typename connection<t_protocol_handler>::callback_type> { mach->length, callback } );
+//        con_->m_send_que.resize(con_->m_send_que.size()+1);
+//        con_->m_send_que.back().assign((const char*)mach->message, mach->length);
+//        typename connection<t_protocol_handler>::callback_type callback = boost::bind(&do_send_chunk_state_machine::send_result,mach,_1);
+//        con_->add_on_write_callback(std::pair<int64_t, typename connection<t_protocol_handler>::callback_type> { mach->length, callback } );
 
-        if(con_->m_send_que.size() == 1) {
-          // no active operation
-          auto size_now = con_->m_send_que.front().size();
-          boost::asio::async_write(con_->socket_, boost::asio::buffer(con_->m_send_que.front().data(), size_now ) ,
-                                   boost::bind(&connection<t_protocol_handler>::handle_write, con_, _1, _2)
-                                   );
-        }
-      }
+//        if(con_->m_send_que.size() == 1) {
+//          // no active operation
+//          auto size_now = con_->m_send_que.front().size();
+//          boost::asio::async_write(con_->socket_, boost::asio::buffer(con_->m_send_que.front().data(), size_now ) ,
+//                                   boost::bind(&connection<t_protocol_handler>::handle_write, con_, _1, _2)
+//                                   );
+//        }
+//      }
 
-      boost::shared_ptr<async_state_machine> machine;
-    };
-
-
-    do_send_chunk_state_machine(boost::asio::io_service &io_service
-                                , int64_t timeout
-                                , async_state_machine::callback_type caller
-                                , boost::weak_ptr<connection<t_protocol_handler>>& conn
-                                , const void* message
-                                , size_t msg_len
-                                )
-      : async_state_machine(io_service, timeout, caller)
-      , conn(conn)
-      , message(const_cast<void*>(message))
-      , length(msg_len)
-    {
-    }
-
-    /*virtual*/ bool start()
-    {
-      try {
-        boost::shared_ptr<async_state_machine> self;
-        try {
-          self = async_state_machine::shared_from_this();
-        }
-        catch (boost::bad_weak_ptr& ex) {
-          return false;
-        }
-        catch (...) {
-          return false;
-        }
-
-        if(conn->m_was_shutdown)
-          return false;
-
-        do {
-          CRITICAL_REGION_LOCAL(conn->m_throttle_speed_out_mutex);
-          conn->m_throttle_speed_out.handle_trafic_exact(length);
-          conn->context.m_current_speed_up = conn->m_throttle_speed_out.get_current_speed();
-        } while(0);
-
-        conn->context.m_last_send = time(NULL);
-        conn->context.m_send_cnt += length;
+//      boost::shared_ptr<async_state_machine> machine;
+//    };
 
 
-        boost::shared_ptr<connection_write_task> send_task(self);
+//    do_send_chunk_state_machine(boost::asio::io_service &io_service
+//                                , int64_t timeout
+//                                , async_state_machine::callback_type caller
+//                                , boost::weak_ptr<connection<t_protocol_handler>>& conn
+//                                , const void* message
+//                                , size_t msg_len
+//                                )
+//      : async_state_machine(io_service, timeout, caller)
+//      , conn(conn)
+//      , message(const_cast<void*>(message))
+//      , length(msg_len)
+//    {
+//    }
 
-        if (conn->speed_limit_is_enabled()) {
-          int64_t delay = conn->sleep_before_packet(length);
-          schedule_task(send_task, delay);
-        }
-        else {
-            schedule_task(send_task);
-        }
+//    /*virtual*/ bool start()
+//    {
+//      try {
+//        boost::shared_ptr<async_state_machine> self;
+//        try {
+//          self = async_state_machine::shared_from_this();
+//        }
+//        catch (boost::bad_weak_ptr& ex) {
+//          return false;
+//        }
+//        catch (...) {
+//          return false;
+//        }
 
-        return true;
-      }
-      catch (std::exception& ex) {
-        (void) ex;
-        return false;
-      }
-      catch (...) {
-        return false;
-      }
-    }
+//        if(conn->m_was_shutdown)
+//          return false;
+
+//        do {
+//          CRITICAL_REGION_LOCAL(conn->m_throttle_speed_out_mutex);
+//          conn->m_throttle_speed_out.handle_trafic_exact(length);
+//          conn->context.m_current_speed_up = conn->m_throttle_speed_out.get_current_speed();
+//        } while(0);
+
+//        conn->context.m_last_send = time(NULL);
+//        conn->context.m_send_cnt += length;
 
 
-    boost::shared_ptr<connection<t_protocol_handler>> conn;
-    void * message;
-    size_t length;
-  }; // do_send_chunk_state_machine
+//        boost::shared_ptr<connection_write_task> send_task(self);
+
+//        if (conn->speed_limit_is_enabled()) {
+//          int64_t delay = conn->sleep_before_packet(length);
+//          schedule_task(send_task, delay);
+//        }
+//        else {
+//            schedule_task(send_task);
+//        }
+
+//        return true;
+//      }
+//      catch (std::exception& ex) {
+//        (void) ex;
+//        return false;
+//      }
+//      catch (...) {
+//        return false;
+//      }
+//    }
 
 
-  template<class t_protocol_handler>
-  using do_send_state_machine = do_send_chunk_state_machine<t_protocol_handler>;
+//    boost::shared_ptr<connection<t_protocol_handler>> conn;
+//    void * message;
+//    size_t length;
+//  }; // do_send_chunk_state_machine
+
+
+//  template<class t_protocol_handler>
+//  using do_send_state_machine = do_send_chunk_state_machine<t_protocol_handler>;
 
 
 } // namespace

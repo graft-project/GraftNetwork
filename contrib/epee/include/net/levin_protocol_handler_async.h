@@ -52,7 +52,7 @@ namespace epee
 namespace levin
 {
 
-using async_state_machine=cblp::async_callback_state_machine;
+// using async_state_machine = cblp::async_callback_state_machine;
 
 
 /************************************************************************/
@@ -793,7 +793,9 @@ template<class t_connection_context>
 int async_protocol_handler_config<t_connection_context>::invoke(int command, const std::string& in_buff, std::string& buff_out, boost::uuids::uuid connection_id)
 {
   async_protocol_handler<t_connection_context>* aph;
+  MDEBUG("locking connection: " << connection_id);
   int r = find_and_lock_connection(connection_id, aph);
+  MDEBUG("connection " << connection_id << ", locked: " << r);
   return LEVIN_OK == r ? aph->invoke(command, in_buff, buff_out) : r;
 }
 //------------------------------------------------------------------------------------------

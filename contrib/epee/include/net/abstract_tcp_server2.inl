@@ -220,7 +220,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     CRITICAL_REGION_LOCAL(self->m_self_refs_lock);
     // MDEBUG("[sock " << socket_.native_handle() << "] add_ref 2, m_peer_number=" << mI->m_peer_number);
     if(m_was_shutdown) {
-      LOG_ERROR("m_was_shutdown");
+      LOG_ERROR("m_was_shutdown was set for socket: " << socket_.native_handle() << ", this: " << (void*)this);
       return false;
     }
     m_self_refs.push_back(self);
@@ -562,6 +562,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     // Initiate graceful connection closure.
     boost::system::error_code ignored_ec;
     socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+    _dbg3("Shutdown socked [" << socket_.native_handle() << "], this: " << (void*)(this));
     m_was_shutdown = true;
     m_protocol_handler.release_protocol();
     return true;
@@ -571,7 +572,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   bool connection<t_protocol_handler>::close()
   {
     TRY_ENTRY();
-    //_info("[sock " << socket_.native_handle() << "] Que Shutdown called.");
+    _info("[sock " << socket_.native_handle() << "] Que Shutdown called.");
     size_t send_que_size = 0;
     CRITICAL_REGION_BEGIN(m_send_que_lock);
     send_que_size = m_send_que.size();
