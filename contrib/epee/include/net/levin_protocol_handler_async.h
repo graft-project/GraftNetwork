@@ -843,7 +843,9 @@ template<class t_connection_context>
 int async_protocol_handler_config<t_connection_context>::notify(int command, const std::string& in_buff, boost::uuids::uuid connection_id)
 {
   async_protocol_handler<t_connection_context>* aph;
+  MDEBUG("locking connection: " << connection_id);
   int r = find_and_lock_connection(connection_id, aph);
+  MDEBUG("connection " << connection_id << ", locked: " << (r == LEVIN_OK));
   return LEVIN_OK == r ? aph->notify(command, in_buff) : r;
 }
 //------------------------------------------------------------------------------------------
