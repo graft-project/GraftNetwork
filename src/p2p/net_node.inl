@@ -2252,16 +2252,20 @@ namespace nodetool
     // send to peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
         LOG_INFO_CC(context, "invoking COMMAND_SUPERNODE_ANNOUNCE");
-        if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
-            announced_peers.insert(context.peer_id);
+        if (context.peer_id == 0) {
+            LOG_INFO_CC(context, "invalid connection [COMMAND_SUPERNODE_ANNOUNCE]");
             return true;
         }
-        LOG_ERROR_CC(context, "failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
-        return false;
+        if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
+            announced_peers.insert(context.peer_id);
+        } else {
+            LOG_ERROR_CC(context, "failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
+        }
+        return true;
     });
 
     std::list<peerlist_entry> peerlist_white, peerlist_gray;
-    m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
+    m_peerlist.get_peerlist_full(peerlist_gray, peerlist_white);
     std::vector<peerlist_entry> peers_to_send;
     for (auto pe :peerlist_white) {
         if (announced_peers.find(pe.id) != announced_peers.end()) {
@@ -2325,15 +2329,20 @@ namespace nodetool
       // send to peers
       m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
           MINFO("sending COMMAND_BROADCAST to " << context.peer_id);
-          if (invoke_notify_to_peer(COMMAND_BROADCAST::ID, blob, context)) {
-              announced_peers.insert(context.peer_id);
+          if (context.peer_id == 0) {
+              LOG_INFO_CC(context, "invalid connection [COMMAND_BROADCAST]");
               return true;
           }
-          return false;
+          if (invoke_notify_to_peer(COMMAND_BROADCAST::ID, blob, context)) {
+              announced_peers.insert(context.peer_id);
+          } else {
+              LOG_ERROR_CC(context, "failed to invoke COMMAND_BROADCAST");
+          }
+          return true;
       });
 
       std::list<peerlist_entry> peerlist_white, peerlist_gray;
-      m_peerlist.get_peerlist_full(peerlist_white,peerlist_gray);
+      m_peerlist.get_peerlist_full(peerlist_gray, peerlist_white);
       std::vector<peerlist_entry> peers_to_send;
       for (auto pe :peerlist_white) {
           if (announced_peers.find(pe.id) != announced_peers.end())
