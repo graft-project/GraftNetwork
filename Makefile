@@ -49,7 +49,7 @@ debug-static-all:
 
 cmake-release:
 	mkdir -p build/release
-	cd build/release && cmake -D CMAKE_BUILD_TYPE=Release ../..
+	cd build/release && cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_EXPORT_COMPILE_COMMANDS=1 ../..
 
 release: cmake-release
 	cd build/release && $(MAKE)
