@@ -799,9 +799,9 @@ namespace nodetool
       for (unsigned i = 0; i < peers_to_send.size(); i++) {
           const peerlist_entry &pe = peers_to_send[i];
           p2p_connection_context con = AUTO_VAL_INIT(con);
-          bool is_conneted = find_connection_context_by_peer_id(pe.id, con);
-          LOG_PRINT_L0("P2P Request: notify_peer_list: notification " << i);
-          if (is_conneted) {
+          bool is_connected = find_connection_context_by_peer_id(pe.id, con);
+          LOG_PRINT_L0("P2P Request: notify_peer_list: notification " << i << ", " << pe.adr.str() << " Connection state: " << is_connected);
+          if (is_connected) {
               LOG_PRINT_L0("P2P Request: notify_peer_list: peer is connected, sending to : " << pe.adr.host_str());
               relay_notify(command, buf, con);
           } else if (try_connect) {
@@ -846,7 +846,7 @@ namespace nodetool
               auto it = local_supernode_routes.find(addr);
               if (it == local_supernode_routes.end())
               {
-                  MWARNING("no tunnel found for address: " << addr);
+                  LOG_PRINT_L0("P2P Request: multicast_send: no tunnel found for address: " << addr);
                   continue;
               }
               std::unordered_map<peerid_type, peerlist_entry> addr_tunnels = (*it).second.peers;
@@ -860,6 +860,8 @@ namespace nodetool
                   });
                   auto exclude_it = std::find(exclude_peerids.begin(), exclude_peerids.end(),
                                               addr_tunnel.id);
+                  LOG_PRINT_L0("Check tunnel " << addr_tunnel.adr.str() << " (" << addr_tunnel.id << "): State - "
+                               << (tunnel_it == tunnels.end() && exclude_it == exclude_peerids.end()));
                   if (tunnel_it == tunnels.end() && exclude_it == exclude_peerids.end())
                   {
                       tunnels.push_back(addr_tunnel);
@@ -872,7 +874,7 @@ namespace nodetool
               }
           }
       }
-      LOG_PRINT_L0("P2P Request: multicast_send: End tunneling");
+      LOG_PRINT_L0("P2P Request: multicast_send: End tunneling: send messages via " << tunnels.size() << " tunnels.");
       return notify_peer_list(command, data, tunnels, true);
   }
 
