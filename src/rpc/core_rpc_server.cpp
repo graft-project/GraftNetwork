@@ -1778,32 +1778,8 @@ namespace cryptonote
         return false;
       }
 
-      // TODO: uncomment when debug done
-      // signature
-      std::string message = to_string(req.timestamp) + req.address;
-
-//      if (!req.signature.size()
-//              /*|| !validate_sign(acc,  message, req.signature)*/) {
-//        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-//        error_resp.message = "Empty signature";
-//        return false;
-//      }
-
-//      crypto::hash hash; crypto::signature sign;
-//      crypto::cn_fast_hash(message.data(), message.size(), hash);
-//      epee::string_tools::hex_to_pod(req.signature, sign);
-//      bool sign_valid = crypto::check_signature(hash, acc.m_view_public_key, sign);
-
-//      // TODO: uncomment when debug done
-
-////    if (!sign_valid) {
-////      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-////      error_resp.message = "Empty signature";
-////      return false;
-////    }
-
       // send p2p announce
-      m_p2p.supernode_set(req.address, req.network_address);
+      m_p2p.set_supernode(req.address, req.network_address);
       m_p2p.do_supernode_announce(req);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_announce: end");
@@ -1911,6 +1887,7 @@ namespace cryptonote
   bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp)
   {
       LOG_PRINT_L0("RPC Request: on_get_tunnels: start");
+      res.supernode_address = m_p2p.get_supernode_address();
       res.tunnels = m_p2p.get_tunnels();
       LOG_PRINT_L0("RPC Request: on_get_tunnels: end");
       return true;
