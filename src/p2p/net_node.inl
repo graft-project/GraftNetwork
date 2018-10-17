@@ -1059,7 +1059,7 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_broadcast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              LOG_PRINT_L0("P2P Request: handle_broadcast: post to supernode");
+              LOG_PRINT_L0("P2P Request: handle_broadcast: post to supernode " << m_supernode_str);
               m_supernode_requests_cache.insert(arg.message_id);
               int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
@@ -1070,11 +1070,17 @@ namespace nodetool
 
               if (arg.hop > 0)
               {
-                  LOG_PRINT_L0("P2P Request: handle_broadcast: notify peers " << arg.hop);
+                  LOG_PRINT_L0("P2P Request: handle_broadcast: notify broadcast from " << arg.sender_address
+                               << " to peers. Hop level: " << arg.hop);
                   arg.hop--;
                   std::string buff;
                   epee::serialization::store_t_to_binary(arg, buff);
                   relay_notify_to_all(command, buff, context);
+              }
+              else
+              {
+                  LOG_PRINT_L0("P2P Request: handle_broadcast: hop counter ended for broadcast from "
+                               << arg.sender_address);
               }
           }
           LOG_PRINT_L0("P2P Request: handle_broadcast: clean request cache");
@@ -1103,7 +1109,7 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_multicast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              LOG_PRINT_L0("P2P Request: handle_multicast: post to supernode");
+              LOG_PRINT_L0("P2P Request: handle_multicast: post to supernode " << m_supernode_str);
               m_supernode_requests_cache.insert(arg.message_id);
               int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
@@ -1116,7 +1122,8 @@ namespace nodetool
 
               if (arg.hop > 0)
               {
-                  LOG_PRINT_L0("P2P Request: handle_multicast: notify receivers " << arg.hop);
+                  LOG_PRINT_L0("P2P Request: handle_multicast: notify multicast from " << arg.sender_address
+                               << " to peers. Hop level: " << arg.hop);
                   arg.hop--;
                   std::list<peerid_type> exclude_peers;
                   exclude_peers.push_back(context.peer_id);
@@ -1126,10 +1133,15 @@ namespace nodetool
                   addresses.remove(m_supernode_str);
                   multicast_send(command, buff, addresses, exclude_peers);
               }
+              else
+              {
+                  LOG_PRINT_L0("P2P Request: handle_multicast: hop counter ended for multicast from "
+                               << arg.sender_address);
+              }
           }
           else
           {
-            MWARNING("P2P Request: handle_multicast: request found in cache, skipping");
+              LOG_PRINT_L0("P2P Request: handle_multicast: request found in cache, skipping");
           }
           LOG_PRINT_L0("P2P Request: handle_multicast: clean request cache");
           remove_old_request_cache();
@@ -1157,7 +1169,7 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_unicast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              LOG_PRINT_L0("P2P Request: handle_unicast: post to supernode");
+              LOG_PRINT_L0("P2P Request: handle_unicast: post to supernode " << m_supernode_str);
               m_supernode_requests_cache.insert(arg.message_id);
               int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
@@ -1169,7 +1181,8 @@ namespace nodetool
 
               if (address != m_supernode_str && arg.hop > 0)
               {
-                  LOG_PRINT_L0("P2P Request: handle_unicast: notify receiver " << arg.hop);
+                  LOG_PRINT_L0("P2P Request: handle_unicast: notify unicast from " << arg.sender_address
+                               << " to " << arg.receiver_address << ". Hop level: " << arg.hop);
                   arg.hop--;
                   std::list<std::string> addresses;
                   addresses.push_back(address);
@@ -1181,10 +1194,15 @@ namespace nodetool
                   epee::serialization::store_t_to_binary(arg, buff);
                   multicast_send(command, buff, addresses, exclude_peers);
               }
+              else
+              {
+                  LOG_PRINT_L0("P2P Request: handle_unicast: hop counter ended for unicast from "
+                               << arg.sender_address);
+              }
           }
           else
           {
-              MWARNING("P2P Request: handle_unicast: request found in cache, skipping");
+              LOG_PRINT_L0("P2P Request: handle_unicast: request found in cache, skipping");
           }
           LOG_PRINT_L0("P2P Request: handle_unicast: clean request cache");
           remove_old_request_cache();
