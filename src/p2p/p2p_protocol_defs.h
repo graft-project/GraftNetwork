@@ -165,7 +165,7 @@ namespace nodetool
       crypto::public_key addr;
       uint64_t last_announce_time;
       uint64_t max_hop;
-      std::unordered_map<peerid_type, peerlist_entry> peers;
+      std::vector<peerlist_entry> peers;
   };
 
 #define P2P_COMMANDS_POOL_BASE 1000
