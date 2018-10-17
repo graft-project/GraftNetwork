@@ -380,10 +380,9 @@ namespace nodetool
       epee::net_utils::connection_basic::set_save_graph(save_graph);
     }
 
-    void supernode_set(const std::string& addr, const std::string& url)
+    void set_supernode(const std::string& addr, const std::string& url)
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-//        m_supernode_addr = addr;
         m_supernode_str = addr;//epee::string_tools::pod_to_hex(addr);
         epee::net_utils::http::url_content parsed{};
         bool ret = epee::net_utils::parse_url(url, parsed);
@@ -402,7 +401,12 @@ namespace nodetool
         m_have_supernode = true;
     }
 
-    void supernode_reset() {
+    std::string get_supernode_address() const
+    {
+        return m_supernode_str;
+    }
+
+    void reset_supernode() {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
         m_supernode_str.erase();
         m_have_supernode = false;

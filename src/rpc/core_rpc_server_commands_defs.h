@@ -1857,8 +1857,10 @@ namespace cryptonote
 
     struct response
     {
+      std::string supernode_address;
       std::vector<route_data> tunnels;
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernode_address)
         KV_SERIALIZE(tunnels)
       END_KV_SERIALIZE_MAP()
     };
