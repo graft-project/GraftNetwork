@@ -144,6 +144,8 @@ static const struct {
   { 9, 67350, 0, 1524229900 },
   // hf 10 - decrease block reward, 2018-09-12
   { 10, 164550, 0, 1536760800 },
+  // hf 11 - CN variant 2
+  { 11, 190590, 0, 1539888200 }
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
