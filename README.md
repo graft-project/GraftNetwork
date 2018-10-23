@@ -71,6 +71,7 @@ Dates are provided in the format YYYY-MM-DD.
 | 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
 | 2018-04-23        | v9                | 1.2.0                | 1.2.3                    | Fix for Difficulty Adjustment Algorithm      |
 | 2018-09-17        | v10               | 1.4.4                | 1.4.5                    | Block reward halved       |
+| 2018-10-31        | v11               | 1.5.0                | 1.5.0                    | PoW algorithm from Monero v8 (CN v2), enabled checkpoints for mainnet  |
 
 ## Installing Graft Network from a Package
 

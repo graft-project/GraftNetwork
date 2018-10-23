@@ -112,7 +112,9 @@ static const struct {
   { 8, 64445, 0, 1523570400},
   { 9, 68000, 0, 1524229900},
   // hf 10 - decrease block reward, 2018-09-17
-  { 10, 176000, 0, 1537142400 }
+  { 10, 176000, 0, 1537142400 },
+  // hf 11 - Monero V8/CN variant 2 PoW, ~2018-10-31T17:00:00+00
+  { 11, 207700, 0, 1541005200 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -144,6 +146,8 @@ static const struct {
   { 9, 67350, 0, 1524229900 },
   // hf 10 - decrease block reward, 2018-09-12
   { 10, 164550, 0, 1536760800 },
+  // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
+  { 11, 194130, 0, 1540400400 }
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
