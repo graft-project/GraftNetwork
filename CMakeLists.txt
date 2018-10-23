@@ -114,6 +114,14 @@ endif()
 
 add_definitions(-DMONERO_DEFAULT_LOG_CATEGORY="cryptonode" -DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
 
+if(NOT DEFINED ENABLE_SYSLOG)
+    option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
+endif()
+
+if(ENABLE_SYSLOG)
+    add_definitions(-DELPP_SYSLOG)
+endif()
+
 # set this to 0 if per-block checkpoint needs to be disabled
 set(PER_BLOCK_CHECKPOINT 0)
 
