@@ -229,6 +229,12 @@ int main(int argc, char const * argv[])
       mlog_configure(log_file_path.string(), true, format.empty()? nullptr : format.c_str());
     }
 
+    // Set log level
+    if (!vm["log-level"].defaulted())
+    {
+      mlog_set_log(command_line::get_arg(vm, daemon_args::arg_log_level).c_str());
+    }
+
     // after logs initialized
     tools::create_directories_if_necessary(data_dir.string());
 
