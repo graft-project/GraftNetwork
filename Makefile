@@ -51,7 +51,14 @@ cmake-release:
 	mkdir -p build/release
 	cd build/release && cmake -D CMAKE_BUILD_TYPE=Release ../..
 
+cmake-release-syslog:
+	mkdir -p build/release
+	cd build/release && cmake -D CMAKE_BUILD_TYPE=Release -D ENABLE_SYSLOG=ON ../..
+
 release: cmake-release
+	cd build/release && $(MAKE)
+
+release-syslog: cmake-release-syslog
 	cd build/release && $(MAKE)
 
 release-test:
