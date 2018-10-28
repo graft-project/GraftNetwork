@@ -141,6 +141,7 @@ static const struct {
   { 8, 57780, 0, 1522838800 },
   { 9, 67350, 0,   1524229900 },
   { 10, 139210, 0, 1534270000 }, // rta-alpha1 hf
+  { 11, 187065, 0, 1540796400 }  // rta-alpha2 hf
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
