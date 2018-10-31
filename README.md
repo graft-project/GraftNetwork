@@ -71,6 +71,7 @@ Dates are provided in the format YYYY-MM-DD.
 | 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
 | 2018-04-23        | v9                | 1.2.0                | 1.2.3                    | Fix for Difficulty Adjustment Algorithm      |
 | 2018-09-17        | v10               | 1.4.4                | 1.4.5                    | Block reward halved       |
+| 2018-10-31        | v11               | 1.5.0                | 1.5.1                    | PoW algorithm from Monero v8 (CN v2), enabled checkpoints for mainnet  |
 
 ## Installing Graft Network from a Package
 
@@ -109,7 +110,15 @@ library archives (`.a`).
 [^] On Debian/Ubuntu `libgtest-dev` only includes sources and headers. You must
 build the library binary manually. This can be done with the following command ```sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/ ```
 
-[^^] OpenSSL 1.1.0 is a default version of OpenSSL package for Ubuntu 18.04 LTS Bionic. However, OpenSSL 1.1.0 is not supported by the project as of now (some interfaces have been renamed or removed in version 1.1.0), so be sure you use OpenSSL 1.0.2 or earlier. To install OpenSSL 1.0.2 on Ubuntu 18.04 use `libssl1.0-dev` package.
+
+### Cloning the repository
+Clone recursively to pull-in needed submodule(s):
+
+         git clone --recursive https://github.com/graft-project/GraftNetwork
+
+If you already have a repo cloned, initialize and update:
+
+         cd GraftNetwork && git submodule init && git submodule update
 
 ### Build instructions
 
@@ -121,8 +130,8 @@ invokes cmake commands as needed.
 * Install the dependencies
 * Change to the root of the source code directory and build:
 
-        cd GraftNetwork
-        make
+         cd GraftNetwork
+         make
 
     *Optional*: If your machine has several cores and enough memory, enable
     parallel build by running `make -j<number of threads>` instead of `make`. For
