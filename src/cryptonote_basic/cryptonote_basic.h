@@ -207,7 +207,7 @@ namespace cryptonote
   {
     account_public_address address;
     crypto::signature signature;
-    BEGIN_SERIALIZE()
+    BEGIN_SERIALIZE_OBJECT()
       FIELD(address)
       FIELD(signature)
     END_SERIALIZE()
