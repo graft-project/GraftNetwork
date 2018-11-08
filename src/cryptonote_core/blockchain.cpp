@@ -110,7 +110,11 @@ static const struct {
   { 7, 1, 0, 1503046577 } ,
   // GRAFT: updated v8 hf block
   { 8, 64445, 0, 1523570400},
-  { 9, 68000, 0, 1524229900}
+  { 9, 68000, 0, 1524229900},
+  // hf 10 - decrease block reward, 2018-09-17
+  { 10, 176000, 0, 1537142400 },
+  // hf 11 - Monero V8/CN variant 2 PoW, ~2018-10-31T17:00:00+00
+  { 11, 207700, 0, 1541005200 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -141,7 +145,8 @@ static const struct {
   { 8, 57780, 0, 1522838800 },
   { 9, 67350, 0,   1524229900 },
   { 10, 139210, 0, 1534270000 }, // rta-alpha1 hf
-  { 11, 187065, 0, 1540796400 }  // rta-alpha2 hf
+  { 11, 187065, 0, 1540796400 }, // rta-alpha2 hf
+  { 12, 198300, 0, 1542052800 }  // rta-alpha public hf (includes PoW change to CN variant 2)
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
@@ -780,7 +785,7 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   {
       return next_difficulty(timestamps, difficulties, target);
   }
-  else if (version == 8)
+  else if (version == 8 || version >= 10)
   {
       return next_difficulty_v8(timestamps, difficulties, target);
   }
@@ -1003,7 +1008,7 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   if (ideal_hardfork_version < 8) {
       LOG_PRINT_L2("old difficulty algo");
       result = next_difficulty(timestamps, cumulative_difficulties, target);
-  } else if (ideal_hardfork_version == 8) {
+  } else if (ideal_hardfork_version == 8 || ideal_hardfork_version >= 10) {
       LOG_PRINT_L2("new difficulty algo");
       result = next_difficulty_v8(timestamps, cumulative_difficulties, target);
   } else {
@@ -1148,7 +1153,25 @@ bool Blockchain::create_block_template(block& b, const account_public_address& m
   b.major_version = m_hardfork->get_current_version();
   b.minor_version = m_hardfork->get_ideal_version();
   b.prev_id = get_tail_id();
+
   b.timestamp = time(NULL);
+
+  uint8_t version = get_current_hard_fork_version();
+  uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+
+  if(m_db->height() >= blockchain_timestamp_check_window) {
+    std::vector<uint64_t> timestamps;
+    auto h = m_db->height();
+
+    for(size_t offset = h - blockchain_timestamp_check_window; offset < h; ++offset)
+    {
+      timestamps.push_back(m_db->get_block_timestamp(offset));
+    }
+    uint64_t median_ts = epee::misc_utils::median(timestamps);
+    if (b.timestamp < median_ts) {
+      b.timestamp = median_ts;
+    }
+  }
 
   diffic = get_difficulty_for_next_block();
   CHECK_AND_ASSERT_MES(diffic, false, "difficulty overhead.");
