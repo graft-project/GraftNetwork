@@ -750,8 +750,8 @@ namespace cryptonote
     blobdata bd = get_block_hashing_blob(b);
     // variant = 0 for versions less than 8
     // variant = 1 for versions between 8 and 11
-    // variant = 2 for versions 11 and greater
-    const int cn_variant = b.major_version < 8 ? 0 : b.major_version >= 11 ? 2 : 1;
+    // variant = 2 for versions 12 and greater (variant 2 will be active since hf12 on rta-alpha network)
+    const int cn_variant = b.major_version < 8 ? 0 : b.major_version >= 12 ? 2 : 1;
     crypto::cn_slow_hash(bd.data(), bd.size(), res, cn_variant);
     return true;
   }

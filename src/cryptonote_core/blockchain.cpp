@@ -785,7 +785,8 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   {
       return next_difficulty(timestamps, difficulties, target);
   }
-  else if (version == 8 || version >= 10)
+  // XXX be careful when merging it back to master! in mainnet its version 10
+  else if (version == 8 || version >= 12)
   {
       return next_difficulty_v8(timestamps, difficulties, target);
   }
@@ -1008,7 +1009,8 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   if (ideal_hardfork_version < 8) {
       LOG_PRINT_L2("old difficulty algo");
       result = next_difficulty(timestamps, cumulative_difficulties, target);
-  } else if (ideal_hardfork_version == 8 || ideal_hardfork_version >= 10) {
+      // XXX be careful when merging it back to master! in mainnet its version 10
+  } else if (ideal_hardfork_version == 8 || ideal_hardfork_version >= 12) {
       LOG_PRINT_L2("new difficulty algo");
       result = next_difficulty_v8(timestamps, cumulative_difficulties, target);
   } else {
