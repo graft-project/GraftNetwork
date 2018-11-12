@@ -146,7 +146,7 @@ static const struct {
   { 9, 67350, 0,   1524229900 },
   { 10, 139210, 0, 1534270000 }, // rta-alpha1 hf
   { 11, 187065, 0, 1540796400 }, // rta-alpha2 hf
-  { 12, 198300, 0, 1542052800 }  // rta-alpha public hf (includes PoW change to CN variant 2)
+  { 12, 199740, 0, 1542182400 }  // rta-alpha public hf (includes PoW change to CN variant 2)
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
