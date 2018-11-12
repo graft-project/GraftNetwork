@@ -4964,7 +4964,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
   uint64_t needed_fee, available_for_fee = 0;
   uint64_t upper_transaction_size_limit = get_upper_transaction_size_limit();
   std::vector<std::vector<get_outs_entry>> outs;
-  bool allow_zero_fee = true;
+  bool allow_zero_fee = false;
 
   const bool use_rct = fake_outs_count > 0 && use_fork_rules(4, 0);
   const uint64_t fee_per_kb  = get_per_kb_fee();
