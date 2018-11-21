@@ -271,7 +271,14 @@ namespace nodetool
     virtual bool for_connection(const boost::uuids::uuid&, std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool add_host_fail(const epee::net_utils::network_address &address);
     // added, non virtual
-    bool relay_notify(int command, const std::string& data_buff, const p2p_connection_context& connection);
+    /*!
+     * \brief relay_notify    - send command to remote connection
+     * \param command         - command
+     * \param data_buff       - data buffer to send
+     * \param connection_id   - connection id
+     * \return                - true on success
+     */
+    bool relay_notify(int command, const std::string& data_buff, const boost::uuids::uuid& connection_id);
     //----------------- i_connection_filter  --------------------------------------------------------
     virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address);
     //-----------------------------------------------------------------------------------------------
@@ -308,22 +315,7 @@ namespace nodetool
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(bool testnet) const;
     bool connect_to_seed();
-    bool find_connection_context_by_peer_id(uint64_t id, p2p_connection_context& con)
-    {
-        bool ret = false;
-        m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
-        {
-            if(cntxt.peer_id == id) {
-                con = cntxt;
-                ret = true;
-                return true;
-            }
-            return true;
-        });
-
-        return ret;
-    }
-
+    bool find_connection_id_by_peer_id(uint64_t id, boost::uuids::uuid &conn_id);
     template <class Container>
     bool connect_to_peerlist(const Container& peers);
 
