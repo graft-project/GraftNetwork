@@ -45,7 +45,7 @@ debug-all:
 
 debug-static-all:
 	mkdir -p build/debug
-	cd build/debug && cmake -D BUILD_TESTS=ON -D STATIC=ON -D CMAKE_BUILD_TYPE=Debug ../.. && $(MAKE)
+	cd build/debug && cmake -D BUILD_TESTS=ON -D STATIC=ON -D CMAKE_BUILD_TYPE=Debug -D CMAKE_EXPORT_COMPILE_COMMANDS=1  ../.. && $(MAKE)
 
 cmake-release:
 	mkdir -p build/release
