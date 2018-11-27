@@ -2359,6 +2359,7 @@ namespace nodetool
       epee::serialization::store_t_to_binary(p2p_req, blob);
       std::set<peerid_type> announced_peers;
       // send to peers
+      MDEBUG("sending broadcast to connections, connections count : " << m_net_server.get_config_object().get_connections_count());
       m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
           LOG_INFO_CC(context, "sending COMMAND_BROADCAST to " << context.peer_id);
           if (context.peer_id == 0) {
@@ -2372,6 +2373,7 @@ namespace nodetool
           }
           return true;
       });
+      MDEBUG("sending broadcast to connections done");
 
       std::list<peerlist_entry> peerlist_white, peerlist_gray;
       m_peerlist.get_peerlist_full(peerlist_gray, peerlist_white);
