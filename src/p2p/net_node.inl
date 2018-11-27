@@ -2360,7 +2360,7 @@ namespace nodetool
       std::set<peerid_type> announced_peers;
       // send to peers
       m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-          MINFO("sending COMMAND_BROADCAST to " << context.peer_id);
+          LOG_INFO_CC(context, "sending COMMAND_BROADCAST to " << context.peer_id);
           if (context.peer_id == 0) {
               LOG_INFO_CC(context, "invalid connection [COMMAND_BROADCAST]");
               return true;
