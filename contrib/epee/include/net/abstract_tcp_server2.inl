@@ -970,6 +970,7 @@ POP_WARNINGS
     boost::system_time cutoff = boost::get_system_time() - boost::posix_time::seconds(CONNECTION_CLEANUP_TIME);
     while (!connections_.empty() && connections_.front().first < cutoff)
     {
+      MDEBUG("cleaning connection: " << connections_.front().second);
       connections_.pop_front();
     }
     connections_mutex.unlock();
