@@ -808,6 +808,7 @@ int async_protocol_handler_config<t_connection_context>::invoke_async(int comman
 template<class t_connection_context> template<class callback_t>
 bool async_protocol_handler_config<t_connection_context>::foreach_connection(callback_t cb)
 {
+  MDEBUG("foreach_connection: locking mutex");
   CRITICAL_REGION_LOCAL(m_connects_lock);
   for(auto& c: m_connects)
   {
@@ -821,6 +822,7 @@ bool async_protocol_handler_config<t_connection_context>::foreach_connection(cal
 template<class t_connection_context> template<class callback_t>
 bool async_protocol_handler_config<t_connection_context>::for_connection(const boost::uuids::uuid &connection_id, callback_t cb)
 {
+  MDEBUG("for_connection: locking mutex");
   CRITICAL_REGION_LOCAL(m_connects_lock);
   async_protocol_handler<t_connection_context>* aph = find_connection(connection_id);
   if (!aph)
@@ -833,8 +835,13 @@ bool async_protocol_handler_config<t_connection_context>::for_connection(const b
 template<class t_connection_context>
 size_t async_protocol_handler_config<t_connection_context>::get_connections_count()
 {
+  MDEBUG("get_connections_count: locking mutex");
   CRITICAL_REGION_LOCAL(m_connects_lock);
-  return m_connects.size();
+  MDEBUG("get_connections_count: locked mutex");
+  size_t result = m_connects.size();
+  MDEBUG("get_connections_count: unlocked mutex");
+  return  result;
+
 }
 //------------------------------------------------------------------------------------------
 template<class t_connection_context>
