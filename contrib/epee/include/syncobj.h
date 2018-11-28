@@ -226,10 +226,14 @@ namespace epee
 #define  SHARED_CRITICAL_REGION_BEGIN(x) { shared_guard   critical_region_var(x)
 #define  EXCLUSIVE_CRITICAL_REGION_BEGIN(x) { exclusive_guard   critical_region_var(x)
 
-#define  CRITICAL_REGION_LOCAL2(x) {boost::this_thread::sleep_for(boost::chrono::milliseconds(epee::debug::g_test_dbg_lock_sleep()));}   boost::unique_lock<decltype(x)>   critical_region_var(x)
+#define  CRITICAL_REGION_LOCAL_BOOST(x) {boost::this_thread::sleep_for(boost::chrono::milliseconds(epee::debug::g_test_dbg_lock_sleep()));}   boost::unique_lock<decltype(x)>   critical_region_var(x)
+#define  CRITICAL_REGION_BEGIN_BOOST(x) { boost::this_thread::sleep_for(boost::chrono::milliseconds(epee::debug::g_test_dbg_lock_sleep())); boost::unique_lock<decltype(x)>   critical_region_var(x)
 
 #define  CRITICAL_REGION_LOCAL(x) {boost::this_thread::sleep_for(boost::chrono::milliseconds(epee::debug::g_test_dbg_lock_sleep()));}   epee::critical_region_t<decltype(x)>   critical_region_var(x)
 #define  CRITICAL_REGION_BEGIN(x) { boost::this_thread::sleep_for(boost::chrono::milliseconds(epee::debug::g_test_dbg_lock_sleep())); epee::critical_region_t<decltype(x)>   critical_region_var(x)
+//#define  CRITICAL_REGION_LOCAL(x) CRITICAL_REGION_LOCAL_BOOST(x)
+//#define  CRITICAL_REGION_BEGIN(x) CRITICAL_REGION_BEGIN_BOOST(x)
+
 #define  CRITICAL_REGION_LOCAL1(x) {boost::this_thread::sleep_for(boost::chrono::milliseconds(epee::debug::g_test_dbg_lock_sleep()));} epee::critical_region_t<decltype(x)>   critical_region_var1(x)
 #define  CRITICAL_REGION_BEGIN1(x) {  boost::this_thread::sleep_for(boost::chrono::milliseconds(epee::debug::g_test_dbg_lock_sleep())); epee::critical_region_t<decltype(x)>   critical_region_var1(x)
 
