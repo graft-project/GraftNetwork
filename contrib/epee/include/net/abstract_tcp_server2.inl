@@ -84,6 +84,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
         m_throttle_speed_out("speed_out", "throttle_speed_out")
   {
     MINFO("test, connection constructor set m_connection_type="<<m_connection_type);
+    MDEBUG("connection ctor, this: " << this);
   }
 PRAGMA_WARNING_DISABLE_VS(4355)
   //---------------------------------------------------------------------------------
@@ -97,6 +98,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     }
 
     _dbg3("[sock " << socket_.native_handle() << "] Socket destroyed");
+    MDEBUG("connection dtor, this: " << this);
   }
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
@@ -151,6 +153,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     _dbg3("[sock " << socket_.native_handle() << "] new connection from " << print_connection_context_short(context) <<
       " to " << local_ep.address().to_string() << ':' << local_ep.port() <<
       ", total sockets objects " << m_ref_sock_count);
+    MDEBUG("connection::start: context: " << &context);
 
     if(m_pfilter && !m_pfilter->is_remote_host_allowed(context.m_remote_address))
     {
