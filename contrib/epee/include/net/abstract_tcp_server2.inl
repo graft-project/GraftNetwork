@@ -966,14 +966,18 @@ POP_WARNINGS
   template<class t_protocol_handler>
   bool boosted_tcp_server<t_protocol_handler>::cleanup_connections()
   {
+    MDEBUG("connection_mutex locking: " << &connections_mutex);
     connections_mutex.lock();
+    MDEBUG("connection_mutex locked: " << &connections_mutex);
     boost::system_time cutoff = boost::get_system_time() - boost::posix_time::seconds(CONNECTION_CLEANUP_TIME);
     while (!connections_.empty() && connections_.front().first < cutoff)
     {
       MDEBUG("cleaning connection: " << connections_.front().second);
       connections_.pop_front();
     }
+    MDEBUG("connection_mutex unlocking: " << &connections_mutex);
     connections_mutex.unlock();
+    MDEBUG("connection_mutex unlocked: " << &connections_mutex);
     return true;
   }
   //---------------------------------------------------------------------------------
