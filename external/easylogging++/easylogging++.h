@@ -1052,8 +1052,8 @@ typedef base::threading::internal::NoScopedLock<base::threading::Mutex> ScopedLo
 /// @brief Base of thread safe class, this class is inheritable-only
 class ThreadSafe {
  public:
-  virtual inline void acquireLock(void) ELPP_FINAL { m_mutex.lock(); }
-  virtual inline void releaseLock(void) ELPP_FINAL { m_mutex.unlock(); }
+  virtual inline void acquireLock(void) ELPP_FINAL { printf("acquireLock: %x\n", m_mutex.native_handle()); m_mutex.lock(); }
+  virtual inline void releaseLock(void) ELPP_FINAL { printf("releaseLock: %x\n", m_mutex.native_handle()); m_mutex.unlock(); }
   virtual inline base::threading::Mutex& lock(void) ELPP_FINAL { return m_mutex; }
  protected:
   ThreadSafe(void) {}
