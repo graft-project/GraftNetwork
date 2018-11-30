@@ -2528,83 +2528,134 @@ Writer& Writer::construct(int count, const char* loggerIds, ...) {
 }
 
 void Writer::initializeLogger(const std::string& loggerId, bool lookup, bool needLock) {
+  printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (lookup) {
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     m_logger = ELPP->registeredLoggers()->get(loggerId, ELPP->hasFlag(LoggingFlag::CreateLoggerAutomatically));
   }
+  printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (m_logger == nullptr) {
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     ELPP->acquireLock();
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     if (!ELPP->registeredLoggers()->has(std::string(base::consts::kDefaultLoggerId))) {
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       // Somehow default logger has been unregistered. Not good! Register again
       ELPP->registeredLoggers()->get(std::string(base::consts::kDefaultLoggerId));
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     }
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     ELPP->releaseLock();  // Need to unlock it for next writer
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     Writer(Level::Debug, m_file, m_line, m_func).construct(1, base::consts::kDefaultLoggerId)
         << "Logger [" << loggerId << "] is not registered yet!";
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     m_proceed = false;
   } else {
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     if (needLock) {
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       m_logger->acquireLock();  // This should not be unlocked by checking m_proceed because
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       // m_proceed can be changed by lines below
     }
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     if (ELPP->hasFlag(LoggingFlag::HierarchicalLogging)) {
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       m_proceed = m_level == Level::Verbose ? m_logger->enabled(m_level) :
                   ELPP->vRegistry()->allowed(m_level, loggerId.c_str());
     } else {
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       m_proceed = m_logger->enabled(m_level);
     }
   }
 }
 
 void Writer::processDispatch() {
+  printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
 #if ELPP_LOGGING_ENABLED
+  printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (ELPP->hasFlag(LoggingFlag::MultiLoggerSupport)) {
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     bool firstDispatched = false;
     base::type::string_t logMessage;
     std::size_t i = 0;
     do {
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       if (m_proceed) {
+        printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
         if (firstDispatched) {
+          printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
           m_logger->stream() << logMessage;
         } else {
+          printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
           firstDispatched = true;
           if (m_loggerIds.size() > 1) {
+            printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
             logMessage = m_logger->stream().str();
           }
+          printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
         }
+        printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
         triggerDispatch();
+        printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       } else if (m_logger != nullptr) {
+        printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
         m_logger->stream().str(ELPP_LITERAL(""));
+        printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
         m_logger->releaseLock();
+        printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       }
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       if (i + 1 < m_loggerIds.size()) {
+        printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
         initializeLogger(m_loggerIds.at(i + 1));
+        printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       }
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     } while (++i < m_loggerIds.size());
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   } else {
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     if (m_proceed) {
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       triggerDispatch();
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     } else if (m_logger != nullptr) {
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
       m_logger->stream().str(ELPP_LITERAL(""));
       m_logger->releaseLock();
+      printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     }
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   }
 #else
   if (m_logger != nullptr) {
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     m_logger->stream().str(ELPP_LITERAL(""));
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     m_logger->releaseLock();
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   }
+  printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
 #endif // ELPP_LOGGING_ENABLED
 }
 
 void Writer::triggerDispatch(void) {
+  printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (m_proceed) {
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     base::LogDispatcher(m_proceed, LogMessage(m_level, m_file, m_line, m_func, m_verboseLevel,
                         m_logger), m_dispatchAction).dispatch();
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   }
   if (m_logger != nullptr) {
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
     m_logger->stream().str(ELPP_LITERAL(""));
     m_logger->releaseLock();
+    printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   }
+  printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (m_proceed && m_level == Level::Fatal
       && !ELPP->hasFlag(LoggingFlag::DisableApplicationAbortOnFatalLog)) {
     base::Writer(Level::Warning, m_file, m_line, m_func).construct(1, base::consts::kDefaultLoggerId)
@@ -2615,6 +2666,7 @@ void Writer::triggerDispatch(void) {
                  << "el::Helpers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog)";
     base::utils::abort(1, reasonStream.str());
   }
+  printf("LWP %u: %s --- %s(%u)\n", int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   m_proceed = false;
 }
 

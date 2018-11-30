@@ -1052,14 +1052,15 @@ typedef base::threading::internal::NoScopedLock<base::threading::Mutex> ScopedLo
 /// @brief Base of thread safe class, this class is inheritable-only
 class ThreadSafe {
  public:
-  virtual inline void acquireLock(void) ELPP_FINAL { printf("acquireLock: %p\n", m_mutex.native_handle()); fflush(stdout); m_mutex.lock(); }
-  virtual inline void releaseLock(void) ELPP_FINAL { printf("releaseLock: %p\n", m_mutex.native_handle()); fflush(stdout); m_mutex.unlock(); }
+  virtual inline void acquireLock(void) ELPP_FINAL { printf("acquireLock: %p, thisThreadId=%d, ownerThreadId=%d\n", m_mutex.native_handle(), int(std::hash<std::thread::id>()(std::this_thread::get_id())), m_thread_id); fflush(stdout); m_mutex.lock(); m_thread_id = std::hash<std::thread::id>()(std::this_thread::get_id()); }
+  virtual inline void releaseLock(void) ELPP_FINAL { printf("releaseLock: %p\n, thisThreadId=%d, ownerThreadId=%d", m_mutex.native_handle(), int(std::hash<std::thread::id>()(std::this_thread::get_id())), m_thread_id); fflush(stdout); m_thread_id = 0; m_mutex.unlock(); }
   virtual inline base::threading::Mutex& lock(void) ELPP_FINAL { return m_mutex; }
  protected:
   ThreadSafe(void) {}
   virtual ~ThreadSafe(void) {}
  private:
   base::threading::Mutex m_mutex;
+  int m_thread_id = 0; //LK: for debug only
 };
 
 #if ELPP_THREADING_ENABLED
