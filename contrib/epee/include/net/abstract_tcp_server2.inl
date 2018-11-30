@@ -84,6 +84,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
         m_throttle_speed_out("speed_out", "throttle_speed_out")
   {
     MINFO("test, connection constructor set m_connection_type="<<m_connection_type);
+    MDEBUG("connection ctor, this: " << this);
   }
 PRAGMA_WARNING_DISABLE_VS(4355)
   //---------------------------------------------------------------------------------
@@ -97,6 +98,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     }
 
     _dbg3("[sock " << socket_.native_handle() << "] Socket destroyed");
+    MDEBUG("connection dtor, this: " << this);
   }
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
@@ -151,6 +153,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     _dbg3("[sock " << socket_.native_handle() << "] new connection from " << print_connection_context_short(context) <<
       " to " << local_ep.address().to_string() << ':' << local_ep.port() <<
       ", total sockets objects " << m_ref_sock_count);
+    MDEBUG("connection::start: context: " << &context);
 
     if(m_pfilter && !m_pfilter->is_remote_host_allowed(context.m_remote_address))
     {
@@ -966,14 +969,18 @@ POP_WARNINGS
   template<class t_protocol_handler>
   bool boosted_tcp_server<t_protocol_handler>::cleanup_connections()
   {
+    MDEBUG("connection_mutex locking: " << &connections_mutex);
     connections_mutex.lock();
+    MDEBUG("connection_mutex locked: " << &connections_mutex);
     boost::system_time cutoff = boost::get_system_time() - boost::posix_time::seconds(CONNECTION_CLEANUP_TIME);
     while (!connections_.empty() && connections_.front().first < cutoff)
     {
       MDEBUG("cleaning connection: " << connections_.front().second);
       connections_.pop_front();
     }
+    MDEBUG("connection_mutex unlocking: " << &connections_mutex);
     connections_mutex.unlock();
+    MDEBUG("connection_mutex unlocked: " << &connections_mutex);
     return true;
   }
   //---------------------------------------------------------------------------------
