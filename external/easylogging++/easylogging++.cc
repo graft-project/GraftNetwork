@@ -2531,8 +2531,9 @@ void Writer::initializeLogger(const std::string& loggerId, bool lookup, bool nee
   printf("writer=%p, thread=%u, lookup=%d, needLock=%d, loggerId='%s': %s --- %s(%u)\n", this, int(std::hash<std::thread::id>()(std::this_thread::get_id())), lookup, needLock, loggerId.c_str(), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (lookup) {
     printf("writer=%p, thread=%u: %s --- %s(%u)\n", this, int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
-    assert(m_logger == nullptr);
-    m_logger = ELPP->registeredLoggers()->get(loggerId, ELPP->hasFlag(LoggingFlag::CreateLoggerAutomatically));
+    Logger* logger = ELPP->registeredLoggers()->get(loggerId, ELPP->hasFlag(LoggingFlag::CreateLoggerAutomatically));
+    assert(m_logger == nullptr || m_logger == logger);
+    m_logger = logger;
   }
   printf("writer=%p, thread=%u: %s --- %s(%u)\n", this, int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (m_logger == nullptr) {
