@@ -2527,13 +2527,13 @@ Writer& Writer::construct(int count, const char* loggerIds, ...) {
   return *this;
 }
 
+
+
 void Writer::initializeLogger(const std::string& loggerId, bool lookup, bool needLock) {
-  printf("writer=%p, thread=%u, lookup=%d, needLock=%d, loggerId='%s': %s --- %s(%u)\n", this, int(std::hash<std::thread::id>()(std::this_thread::get_id())), lookup, needLock, loggerId.c_str(), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
+  printf("writer=%p, thread=%u, lookup=%d, needLock=%d, loggerId='%s', context=%s at %s(%u): %s --- %s(%u)\n", this, int(std::hash<std::thread::id>()(std::this_thread::get_id())), lookup, needLock, loggerId.c_str(), (m_func ? m_func : "<NULL>"), (m_file ? m_file : "<NULL>"), int(m_line), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (lookup) {
     printf("writer=%p, thread=%u: %s --- %s(%u)\n", this, int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
-    Logger* logger = ELPP->registeredLoggers()->get(loggerId, ELPP->hasFlag(LoggingFlag::CreateLoggerAutomatically));
-    assert(m_logger == nullptr || m_logger == logger);
-    m_logger = logger;
+    m_logger = ELPP->registeredLoggers()->get(loggerId, ELPP->hasFlag(LoggingFlag::CreateLoggerAutomatically));
   }
   printf("writer=%p, thread=%u: %s --- %s(%u)\n", this, int(std::hash<std::thread::id>()(std::this_thread::get_id())), __FUNCTION__, __FILE__, __LINE__); fflush(stdout);
   if (m_logger == nullptr) {
