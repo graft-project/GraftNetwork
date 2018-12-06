@@ -694,6 +694,7 @@ namespace nodetool
 
     m_net_server.add_idle_handler(boost::bind(&node_server<t_payload_net_handler>::idle_worker, this), 1000);
     m_net_server.add_idle_handler(boost::bind(&t_payload_net_handler::on_idle, &m_payload_handler), 1000);
+    m_net_server.add_idle_handler(boost::bind(&node_server<t_payload_net_handler>::rta_housekeeping, this), 5000);
 
     boost::thread::attributes attrs;
     attrs.set_stack_size(THREAD_STACK_SIZE);
@@ -807,7 +808,58 @@ namespace nodetool
       MDEBUG("P2P Request: notify_peer_list: end notify");
       return true;
   }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::close_stale_rta_connections(bool incoming)
+  {
+    size_t connections_limit = incoming ? m_config.m_net_config.max_in_connection_count : m_config.m_net_config.max_out_connection_count;
+    if (connections_limit < 0) {
+      MDEBUG("connections limit is not set");
+      return;
+    }
+    MTRACE("starting rta connections cleanup: total connection count: " << m_net_server.get_config_object().get_connections_count());
+    // read all connections into container
+    using ConnectionInfo = std::tuple<Uuid, int64_t>;
+    std::deque<ConnectionInfo> tmp_connections;
+    m_net_server.get_config_object().foreach_connection([&](p2p_connection_context &ctx) {
+      MTRACE("checking connection :  " << ctx.m_connection_id
+             << ", m_is_income: " << ctx.m_is_income << ", m_last_send: " << ctx.m_last_send << ", m_last_recv: " << ctx.m_last_recv
+             << ", m_state: " << ctx.m_state);
+      // all RTA connections will be in "state_before_handshake" state
+      // TODO: explicit flag/type for RTA connections?
+      if (ctx.m_is_income == incoming && ctx.m_state == cryptonote::cryptonote_connection_context::state_before_handshake) {
+        ConnectionInfo conn = std::make_tuple(ctx.m_connection_id, time(nullptr) - std::max(ctx.m_last_send, ctx.m_last_recv));
+        MTRACE("considering to delete: " << std::get<0>(conn) << ", idle time: " << std::get<1>(conn));
+        tmp_connections.push_back(conn);
+      }
+      return true; // loop over all connections
+    });
+    // sort container by idle time
+    std::sort(tmp_connections.begin(), tmp_connections.end(), [](const ConnectionInfo &a, const ConnectionInfo &b) {
+      return std::get<1>(a) < std::get<1>(b);
+    });
 
+    std::vector<Uuid> stale_connections;
+
+    while (tmp_connections.size() > connections_limit) {
+      const ConnectionInfo &c = tmp_connections.back();
+      MTRACE("deleting connection: " << std::get<0>(c) << ", idle_time: " << std::get<1>(c));
+      stale_connections.push_back(std::get<0>(c));
+      tmp_connections.pop_back();
+    }
+    m_net_server.get_config_object().delete_connections(stale_connections);
+    return;
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::rta_housekeeping()
+  {
+    // clean incoming connections
+    close_stale_rta_connections(true);
+    // clean outgoing rta connections
+    close_stale_rta_connections(false);
+    return true;
+  }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::multicast_send(int command, const string &data, const std::list<string> &addresses,

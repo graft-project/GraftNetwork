@@ -79,6 +79,8 @@ namespace nodetool
     bool m_in_timedsync;
   };
 
+
+
   template<class t_payload_net_handler>
   class node_server: public epee::levin::levin_commands_handler<p2p_connection_context_t<typename t_payload_net_handler::connection_context> >,
                      public i_p2p_endpoint<typename t_payload_net_handler::connection_context>,
@@ -171,10 +173,7 @@ namespace nodetool
 
   private:
     const std::vector<std::string> m_seed_nodes_list =
-    { "seeds.moneroseeds.se"
-    , "seeds.moneroseeds.ae.org"
-    , "seeds.moneroseeds.ch"
-    , "seeds.moneroseeds.li"
+    {
     };
 
     bool islimitup=false;
@@ -411,6 +410,9 @@ namespace nodetool
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
+  private:
+    void close_stale_rta_connections(bool incoming);
+    bool rta_housekeeping();
 
   private:
     std::multimap<int, std::string> m_supernode_requests_timestamps;

@@ -87,6 +87,7 @@ public:
   void (*m_pcommands_handler_destroy)(levin_commands_handler<t_connection_context>*);
 
   void delete_connections (size_t count, bool incoming);
+  void delete_connections (const std::vector<boost::uuids::uuid> &connections);
 
 public:
   typedef t_connection_context connection_context;
@@ -777,6 +778,27 @@ void async_protocol_handler_config<t_connection_context>::delete_connections(siz
 
   CRITICAL_REGION_END();
 }
+
+
+template<class t_connection_context>
+void async_protocol_handler_config<t_connection_context>::delete_connections(const std::vector<boost::uuids::uuid> &connections)
+{
+  CRITICAL_REGION_BEGIN(m_connects_lock);
+  for (const auto &conn_id: connections) {
+    try {
+      async_protocol_handler<t_connection_context> *conn = m_connects.at(conn_id);
+      close(conn_id);
+      // TODO: check if connection, connection_context and async_protocol_handler deleted
+      del_connection(conn);
+    }
+    catch (const std::out_of_range &e)
+    {
+      MWARNING("Connection not found in m_connects, continuing");
+    }
+  }
+  CRITICAL_REGION_END();
+}
+//--
 //------------------------------------------------------------------------------------------
 template<class t_connection_context>
 void async_protocol_handler_config<t_connection_context>::del_out_connections(size_t count)
