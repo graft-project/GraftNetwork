@@ -83,6 +83,8 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net.p2p"
 
+static const int KEEP_ALIVE_TIMEOUT_SECONDS = 40;
+
 // ################################################################################################
 // local (TU local) headers
 // ################################################################################################
@@ -153,7 +155,8 @@ connection_basic::connection_basic(boost::asio::io_service& io_service, std::ato
 	socket_(io_service),
 	m_want_close_connection(false), 
 	m_was_shutdown(false),
-	m_ref_sock_count(ref_sock_count)
+	m_ref_sock_count(ref_sock_count),
+    m_keep_alive_timer(io_service)
 { 
 	++ref_sock_count; // increase the global counter
 	mI->m_peer_number = sock_number.fetch_add(1); // use, and increase the generated number
@@ -161,11 +164,16 @@ connection_basic::connection_basic(boost::asio::io_service& io_service, std::ato
 	string remote_addr_str = "?";
 	try { boost::system::error_code e; remote_addr_str = socket_.remote_endpoint(e).address().to_string(); } catch(...){} ;
 
+    update_last_recv_time();
+    start_keep_alive_timer();
+
 	_note("Spawned connection p2p#"<<mI->m_peer_number<<" to " << remote_addr_str << " currently we have sockets count:" << m_ref_sock_count);
 	//boost::filesystem::create_directories("log/dr-monero/net/");
 }
 
 connection_basic::~connection_basic() noexcept(false) {
+    cancel_keep_alive_timer();
+
 	string remote_addr_str = "?";
 	m_ref_sock_count--;
 	try { boost::system::error_code e; remote_addr_str = socket_.remote_endpoint(e).address().to_string(); } catch(...){} ;
@@ -304,6 +312,44 @@ double connection_basic::get_sleep_time(size_t cb) {
 void connection_basic::set_save_graph(bool save_graph) {
 }
 
+boost::posix_time::time_duration connection_basic::since_last_recv()
+{
+  CRITICAL_REGION_LOCAL(m_last_recv_lock);
+  return boost::posix_time::second_clock::local_time() - m_last_recv_time;
+}
+
+void connection_basic::update_last_recv_time()
+{
+  CRITICAL_REGION_LOCAL(m_last_recv_lock);
+  m_last_recv_time = boost::posix_time::second_clock::local_time();
+}
+
+void connection_basic::start_keep_alive_timer()
+{
+  m_keep_alive_timer.expires_from_now(boost::posix_time::seconds(KEEP_ALIVE_TIMEOUT_SECONDS));
+  m_keep_alive_timer.async_wait(strand_.wrap([&](const boost::system::error_code& ec)
+  {
+    if(ec == boost::asio::error::operation_aborted)
+      return;
+
+    boost::posix_time::time_duration since_last_recv = this->since_last_recv();
+
+    if(since_last_recv <= boost::posix_time::seconds(KEEP_ALIVE_TIMEOUT_SECONDS))
+    {
+      start_keep_alive_timer();
+      return;
+    }
+
+    MINFO("Timeout on handle_recv, timeout: " << since_last_recv << "s");
+
+    on_recv_timeout();
+  }));
+}
+
+void connection_basic::cancel_keep_alive_timer()
+{
+  m_keep_alive_timer.cancel();
+}
 
 } // namespace
 } // namespace

@@ -273,6 +273,12 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   }
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
+  void connection<t_protocol_handler>::on_recv_timeout()
+  {
+    close();
+  }
+  //---------------------------------------------------------------------------------
+  template<class t_protocol_handler>
   void connection<t_protocol_handler>::handle_read(const boost::system::error_code& e,
     std::size_t bytes_transferred)
   {
@@ -311,6 +317,8 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 //			} while(delay > 0);
 		} // any form of sleeping
 		
+      update_last_recv_time();
+
       //_info("[sock " << socket_.native_handle() << "] RECV " << bytes_transferred);
       logger_handle_net_read(bytes_transferred);
       context.m_last_recv = time(NULL);
@@ -556,6 +564,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   template<class t_protocol_handler>
   bool connection<t_protocol_handler>::shutdown()
   {
+    connection_basic::cancel_keep_alive_timer();
     // Initiate graceful connection closure.
     boost::system::error_code ignored_ec;
     socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
