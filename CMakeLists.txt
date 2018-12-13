@@ -49,9 +49,41 @@ function (die msg)
 endfunction ()
 
 if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
   message(STATUS "Setting default build type: ${CMAKE_BUILD_TYPE}")
 endif()
+
+if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+    message("==> The configuration is ${CMAKE_BUILD_TYPE}. Debug info will be extracted into separate files.")
+
+    function (add_executable _name)
+        _add_executable(${ARGV})
+
+        if (TARGET ${_name})
+            add_custom_command(TARGET ${_name} POST_BUILD
+                COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
+            )
+        endif()
+    endfunction()
+
+    function (add_library _name _type)
+        _add_library(${ARGV})
+
+        if (TARGET ${_name} AND ${_type} STREQUAL SHARED)
+            add_custom_command(TARGET ${_name} POST_BUILD
+                COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
+            )
+        endif()
+    endfunction()
+
+endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+
 string(TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_LOWER)
 
 # ARCH defines the target architecture, either by an explicit identifier or
