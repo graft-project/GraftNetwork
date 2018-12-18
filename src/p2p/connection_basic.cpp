@@ -83,7 +83,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net.p2p"
 
-static const int KEEP_ALIVE_TIMEOUT_SECONDS = 40;
+static const int KEEP_ALIVE_TIMEOUT_SECONDS = 15 * 60;
 
 // ################################################################################################
 // local (TU local) headers
