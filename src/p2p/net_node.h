@@ -210,6 +210,8 @@ namespace nodetool
     uint64_t get_max_hop(const std::list<std::string> &addresses);
     std::list<std::string> get_routes();
 
+    // sometimes supernode gets very busy so it doesn't respond within 1 second, increasing timeout to 3s
+    static constexpr size_t SUPERNODE_HTTP_TIMEOUT_MILLIS = 3 * 1000;
     template<class request_struct>
     int post_request_to_supernode(const std::string &method, const typename request_struct::request &body,
                                   const std::string &endpoint = std::string())
@@ -229,7 +231,7 @@ namespace nodetool
         typename request_struct::response resp = AUTO_VAL_INIT(resp);
         bool r = epee::net_utils::invoke_http_json(m_supernode_uri + uri,
                                                    req, resp, m_supernode_client,
-                                                   std::chrono::milliseconds(1*1000), "POST");
+                                                   std::chrono::milliseconds(SUPERNODE_HTTP_TIMEOUT_MILLIS), "POST");
         if (!r || resp.status == 0)
         {
             return 0;
