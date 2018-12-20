@@ -275,7 +275,6 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   template<class t_protocol_handler>
   void connection<t_protocol_handler>::on_recv_timeout()
   {
-    shutdown();
     close();
   }
   //---------------------------------------------------------------------------------
