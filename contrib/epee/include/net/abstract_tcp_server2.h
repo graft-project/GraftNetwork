@@ -143,7 +143,6 @@ namespace net_utils
     virtual bool add_ref();
     virtual bool release();
     //------------------------------------------------------
-    virtual void on_recv_timeout() override;
     boost::shared_ptr<connection<t_protocol_handler> > safe_shared_from_this();
     bool shutdown();
     /// Handle completion of a read operation.

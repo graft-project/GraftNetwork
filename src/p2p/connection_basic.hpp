@@ -133,20 +133,6 @@ class connection_basic { // not-templated base class for rapid developmet of som
 		static double get_sleep_time(size_t cb);
 		
 		static void set_save_graph(bool save_graph);
-
-    protected:
-      void cancel_keep_alive_timer();
-      boost::posix_time::time_duration since_last_recv();
-      void update_last_recv_time();
-
-    private:
-      void start_keep_alive_timer();
-      virtual void on_recv_timeout() = 0;
-
-    private:
-      boost::asio::deadline_timer m_keep_alive_timer;
-      critical_section m_last_recv_lock;
-      boost::posix_time::ptime m_last_recv_time;
 };
 
 } // nameserver
