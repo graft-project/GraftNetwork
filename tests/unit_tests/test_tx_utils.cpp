@@ -1,22 +1,22 @@
 // Copyright (c) 2017-2018, The Graft Project
 // Copyright (c) 2014-2018, The Monero Project
-// 
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -26,7 +26,7 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
+//
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include "gtest/gtest.h"
@@ -34,6 +34,8 @@
 #include <vector>
 
 #include "common/util.h"
+#include "cryptonote_basic/cryptonote_basic.h"
+#include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
 
 
@@ -212,7 +214,6 @@ TEST(validate_parse_amount_case, validate_parse_amount)
   ASSERT_FALSE(r);
 }
 
-
 TEST(parse_tx_extra, handles_graft_tx_extra)
 {
     cryptonote::transaction tx = AUTO_VAL_INIT(tx);
@@ -232,7 +233,6 @@ TEST(parse_tx_extra, handles_graft_tx_extra)
     ASSERT_EQ(graft_tx_extra1, graft_tx_extra2);
 
 }
-
 
 TEST(parse_tx_extra, handles_graft_tx_extra_and_pubkey)
 {
@@ -256,3 +256,86 @@ TEST(parse_tx_extra, handles_graft_tx_extra_and_pubkey)
     ASSERT_TRUE(cryptonote::get_graft_tx_extra_from_extra(tx, graft_tx_extra2));
     ASSERT_EQ(graft_tx_extra1, graft_tx_extra2);
 }
+
+TEST(sort_tx_extra, empty)
+{
+  std::vector<uint8_t> extra, sorted;
+  ASSERT_TRUE(cryptonote::sort_tx_extra(extra, sorted));
+  ASSERT_EQ(extra, sorted);
+}
+
+TEST(sort_tx_extra, pubkey)
+{
+  std::vector<uint8_t> sorted;
+  const uint8_t extra_arr[] = {1, 30, 208, 98, 162, 133, 64, 85, 83, 112, 91, 188, 89, 211, 24, 131, 39, 154, 22, 228,
+    80, 63, 198, 141, 173, 111, 244, 183, 4, 149, 186, 140, 230};
+  std::vector<uint8_t> extra(&extra_arr[0], &extra_arr[0] + sizeof(extra_arr));
+  ASSERT_TRUE(cryptonote::sort_tx_extra(extra, sorted));
+  ASSERT_EQ(extra, sorted);
+}
+
+TEST(sort_tx_extra, two_pubkeys)
+{
+  std::vector<uint8_t> sorted;
+  const uint8_t extra_arr[] = {1, 30, 208, 98, 162, 133, 64, 85, 83, 112, 91, 188, 89, 211, 24, 131, 39, 154, 22, 228,
+    80, 63, 198, 141, 173, 111, 244, 183, 4, 149, 186, 140, 230,
+    1, 30, 208, 98, 162, 133, 64, 85, 83, 112, 91, 188, 89, 211, 24, 131, 39, 154, 22, 228,
+    80, 63, 198, 141, 173, 111, 244, 183, 4, 149, 186, 140, 230};
+  std::vector<uint8_t> extra(&extra_arr[0], &extra_arr[0] + sizeof(extra_arr));
+  ASSERT_TRUE(cryptonote::sort_tx_extra(extra, sorted));
+  ASSERT_EQ(extra, sorted);
+}
+
+TEST(sort_tx_extra, keep_order)
+{
+  std::vector<uint8_t> sorted;
+  const uint8_t extra_arr[] = {1, 30, 208, 98, 162, 133, 64, 85, 83, 112, 91, 188, 89, 211, 24, 131, 39, 154, 22, 228,
+    80, 63, 198, 141, 173, 111, 244, 183, 4, 149, 186, 140, 230,
+    2, 9, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+  std::vector<uint8_t> extra(&extra_arr[0], &extra_arr[0] + sizeof(extra_arr));
+  ASSERT_TRUE(cryptonote::sort_tx_extra(extra, sorted));
+  ASSERT_EQ(extra, sorted);
+}
+
+TEST(sort_tx_extra, switch_order)
+{
+  std::vector<uint8_t> sorted;
+  const uint8_t extra_arr[] = {2, 9, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 30, 208, 98, 162, 133, 64, 85, 83, 112, 91, 188, 89, 211, 24, 131, 39, 154, 22, 228,
+    80, 63, 198, 141, 173, 111, 244, 183, 4, 149, 186, 140, 230};
+  const uint8_t expected_arr[] = {1, 30, 208, 98, 162, 133, 64, 85, 83, 112, 91, 188, 89, 211, 24, 131, 39, 154, 22, 228,
+    80, 63, 198, 141, 173, 111, 244, 183, 4, 149, 186, 140, 230,
+    2, 9, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+  std::vector<uint8_t> extra(&extra_arr[0], &extra_arr[0] + sizeof(extra_arr));
+  ASSERT_TRUE(cryptonote::sort_tx_extra(extra, sorted));
+  std::vector<uint8_t> expected(&expected_arr[0], &expected_arr[0] + sizeof(expected_arr));
+  ASSERT_EQ(expected, sorted);
+}
+
+TEST(sort_tx_extra, invalid)
+{
+  std::vector<uint8_t> sorted;
+  const uint8_t extra_arr[] = {1};
+  std::vector<uint8_t> extra(&extra_arr[0], &extra_arr[0] + sizeof(extra_arr));
+  ASSERT_FALSE(cryptonote::sort_tx_extra(extra, sorted));
+}
+
+TEST(sort_tx_extra, invalid_suffix_strict)
+{
+  std::vector<uint8_t> sorted;
+  const uint8_t extra_arr[] = {2, 9, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  std::vector<uint8_t> extra(&extra_arr[0], &extra_arr[0] + sizeof(extra_arr));
+  ASSERT_FALSE(cryptonote::sort_tx_extra(extra, sorted));
+}
+
+TEST(sort_tx_extra, invalid_suffix_partial)
+{
+  std::vector<uint8_t> sorted;
+  const uint8_t extra_arr[] = {2, 9, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  const uint8_t expected_arr[] = {2, 9, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  std::vector<uint8_t> extra(&extra_arr[0], &extra_arr[0] + sizeof(extra_arr));
+  ASSERT_TRUE(cryptonote::sort_tx_extra(extra, sorted, true));
+  std::vector<uint8_t> expected(&expected_arr[0], &expected_arr[0] + sizeof(expected_arr));
+  ASSERT_EQ(sorted, expected);
+}
+

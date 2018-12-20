@@ -46,6 +46,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include "hex.h"
 #include "memwipe.h"
+#include "mlocker.h"
 #include "span.h"
 #include "warnings.h"
 
@@ -57,6 +58,26 @@
 #ifdef WINDOWS_PLATFORM
 #pragma comment (lib, "Rpcrt4.lib")
 #endif
+
+static const constexpr unsigned char isx[256] =
+{
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0,    1,    2,    3,    4,    5,    6,    7,    8,    9, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff,   10,   11,   12,   13,   14,   15, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff,   10,   11,   12,   13,   14,   15, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+};
 
 namespace epee
 {
@@ -97,30 +118,30 @@ namespace string_tools
   }
   //----------------------------------------------------------------------------
   template<class CharT>
-  bool parse_hexstr_to_binbuff(const std::basic_string<CharT>& s, std::basic_string<CharT>& res, bool allow_partial_byte = false)
+  bool parse_hexstr_to_binbuff(const std::basic_string<CharT>& s, std::basic_string<CharT>& res)
   {
     res.clear();
-    if (!allow_partial_byte && (s.size() & 1))
+    if (s.size() & 1)
       return false;
     try
     {
-      long v = 0;
-      for(size_t i = 0; i < (s.size() + 1) / 2; i++)
+      res.resize(s.size() / 2);
+      unsigned char *dst = (unsigned char *)res.data();
+      const unsigned char *src = (const unsigned char *)s.data();
+      for(size_t i = 0; i < s.size(); i += 2)
       {
-        CharT byte_str[3];
-        size_t copied = s.copy(byte_str, 2, 2 * i);
-        byte_str[copied] = CharT(0);
-        CharT* endptr;
-        v = strtoul(byte_str, &endptr, 16);
-        if (v < 0 || 0xFF < v || endptr != byte_str + copied)
-        {
-          return false;
-        }
-        res.push_back(static_cast<unsigned char>(v));
+        int tmp = *src++;
+        tmp = isx[tmp];
+        if (tmp == 0xff) return false;
+        int t2 = *src++;
+        t2 = isx[t2];
+        if (t2 == 0xff) return false;
+        *dst++ = (tmp << 4) | t2;
       }
 
       return true;
-    }catch(...)
+    }
+    catch(...)
     {
       return false;
     }
@@ -358,6 +379,12 @@ POP_WARNINGS
     return hex_to_pod(hex_str, unwrap(s));
   }
   //----------------------------------------------------------------------------
+  template<class t_pod_type>
+  bool hex_to_pod(const std::string& hex_str, epee::mlocked<t_pod_type>& s)
+  {
+    return hex_to_pod(hex_str, unwrap(s));
+  }
+  //----------------------------------------------------------------------------
   bool validate_hex(uint64_t length, const std::string& str);
   //----------------------------------------------------------------------------
 	inline std::string get_extension(const std::string& str)
@@ -381,6 +408,41 @@ POP_WARNINGS
 		res = str.substr(0, pos);
 		return res;
 	}
+  //----------------------------------------------------------------------------
+#ifdef _WIN32
+  inline std::wstring utf8_to_utf16(const std::string& str)
+  {
+    if (str.empty())
+      return {};
+    int wstr_size = MultiByteToWideChar(CP_UTF8, 0, &str[0], str.size(), NULL, 0);
+    if (wstr_size == 0)
+    {
+      throw std::runtime_error(std::error_code(GetLastError(), std::system_category()).message());
+    }
+    std::wstring wstr(wstr_size, wchar_t{});
+    if (!MultiByteToWideChar(CP_UTF8, 0, &str[0], str.size(), &wstr[0], wstr_size))
+    {
+      throw std::runtime_error(std::error_code(GetLastError(), std::system_category()).message());
+    }
+    return wstr;
+  }
+  inline std::string utf16_to_utf8(const std::wstring& wstr)
+  {
+    if (wstr.empty())
+      return {};
+    int str_size = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], wstr.size(), NULL, 0, NULL, NULL);
+    if (str_size == 0)
+    {
+      throw std::runtime_error(std::error_code(GetLastError(), std::system_category()).message());
+    }
+    std::string str(str_size, char{});
+    if (!WideCharToMultiByte(CP_UTF8, 0, &wstr[0], wstr.size(), &str[0], str_size, NULL, NULL))
+    {
+      throw std::runtime_error(std::error_code(GetLastError(), std::system_category()).message());
+    }
+    return str;
+  }
+#endif
 }
 }
 #endif //_STRING_TOOLS_H_

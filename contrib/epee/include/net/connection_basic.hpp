@@ -42,22 +42,11 @@
 #define INCLUDED_p2p_connection_basic_hpp
 
 
-#include <boost/asio.hpp>
 #include <string>
-#include <vector>
-#include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
 #include <atomic>
+#include <memory>
 
 #include <boost/asio.hpp>
-#include <boost/array.hpp>
-#include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/interprocess/detail/atomic.hpp>
-#include <boost/thread/thread.hpp>
-
-#include <memory>
 
 #include "net/net_utils_base.h"
 #include "syncobj.h"
@@ -92,7 +81,6 @@ class connection_basic { // not-templated base class for rapid developmet of som
     critical_section m_send_que_lock;
     std::list<std::string> m_send_que;
     volatile bool m_is_multithreaded;
-    double m_start_time;
     /// Strand to ensure the connection's handlers are not called concurrently.
     boost::asio::io_service::strand strand_;
     /// Socket for the connection.
@@ -111,8 +99,6 @@ class connection_basic { // not-templated base class for rapid developmet of som
 
 		void logger_handle_net_write(size_t size); // network data written
 		void logger_handle_net_read(size_t size); // network data read
-
-		void set_start_time();
 
 		// config for rate limit
 		

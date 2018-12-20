@@ -32,11 +32,10 @@
 
 #include <cstddef>
 #include <string>
-#include <mutex>
 #include "device.hpp"
-#include <PCSC/winscard.h>
-#include <PCSC/wintypes.h>
-
+#include "device_io_hid.hpp"
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/recursive_mutex.hpp>
 
 namespace hw {
 
@@ -80,30 +79,38 @@ namespace hw {
 
     class device_ledger : public hw::device {
     private:
-        mutable std::mutex   device_locker;
-        mutable std::mutex   tx_locker;
-        void lock_device() ;
-        void unlock_device() ;
-        void lock_tx() ;
-        void unlock_tx() ;
- 
-        std::string  full_name;
-        SCARDCONTEXT hContext;
-        SCARDHANDLE  hCard;
-        DWORD        length_send;
-        BYTE         buffer_send[BUFFER_SEND_SIZE];
-        DWORD        length_recv;
-        BYTE         buffer_recv[BUFFER_RECV_SIZE];
-        unsigned int id;
+        // Locker for concurrent access
+        mutable boost::recursive_mutex   device_locker;
+        mutable boost::mutex   command_locker;
 
-        Keymap key_map;
-
-
+        //IO
+        hw::io::device_io_hid hw_device;
+        std::string   full_name;        
+        unsigned int  length_send;
+        unsigned char buffer_send[BUFFER_SEND_SIZE];
+        unsigned int  length_recv;
+        unsigned char buffer_recv[BUFFER_RECV_SIZE];
+        unsigned int  sw;
+        unsigned int  id;
         void logCMD(void);
         void logRESP(void);
-        unsigned int  exchange(unsigned int ok=0x9000, unsigned int mask=0xFFFF);
+        unsigned int exchange(unsigned int ok=0x9000, unsigned int mask=0xFFFF);
         void reset_buffer(void);
+        int  set_command_header(unsigned char ins, unsigned char p1 = 0x00, unsigned char p2 = 0x00);
+        int  set_command_header_noopt(unsigned char ins, unsigned char p1 = 0x00, unsigned char p2 = 0x00);
+        void send_simple(unsigned char ins, unsigned char p1 = 0x00);
 
+
+        // hw running mode
+        device_mode mode;
+        // map public destination key to ephemeral destination key
+        Keymap key_map;
+
+        // To speed up blockchain parsing the view key maybe handle here.
+        crypto::secret_key viewkey;
+        bool has_view_key;
+        
+        //extra debug
         #ifdef DEBUG_HWDEVICE
         device *controle_device;
         #endif
@@ -115,7 +122,7 @@ namespace hw {
         device_ledger(const device_ledger &device) = delete ;
         device_ledger& operator=(const device_ledger &device) = delete;
 
-        explicit operator bool() const override {return this->hContext != 0;}
+        explicit operator bool() const override {return this->connected(); }
 
         bool  reset(void);
 
@@ -129,13 +136,26 @@ namespace hw {
         bool release() override;
         bool connect(void) override;
         bool disconnect() override;
+        bool connected(void) const;
+
+        bool set_mode(device_mode mode) override;
+
+        device_type get_type() const override {return device_type::LEDGER;};
+        device_protocol_t device_protocol() const override { return PROTOCOL_PROXY; };
+
+        /* ======================================================================= */
+        /*  LOCKER                                                                 */
+        /* ======================================================================= */ 
+        void lock(void)  override;
+        void unlock(void) override;
+        bool try_lock(void) override;
 
         /* ======================================================================= */
         /*                             WALLET & ADDRESS                            */
         /* ======================================================================= */
         bool  get_public_address(cryptonote::account_public_address &pubkey) override;
         bool  get_secret_keys(crypto::secret_key &viewkey , crypto::secret_key &spendkey) override;
-        bool  generate_chacha_key(const cryptonote::account_keys &keys, crypto::chacha_key &key) override;
+        bool  generate_chacha_key(const cryptonote::account_keys &keys, crypto::chacha_key &key, uint64_t kdf_rounds) override;
 
 
         /* ======================================================================= */
@@ -156,6 +176,7 @@ namespace hw {
         bool  sc_secret_add(crypto::secret_key &r, const crypto::secret_key &a, const crypto::secret_key &b) override;
         crypto::secret_key  generate_keys(crypto::public_key &pub, crypto::secret_key &sec, const crypto::secret_key& recovery_key = crypto::secret_key(), bool recover = false) override;
         bool  generate_key_derivation(const crypto::public_key &pub, const crypto::secret_key &sec, crypto::key_derivation &derivation) override;
+        bool  conceal_derivation(crypto::key_derivation &derivation, const crypto::public_key &tx_pub_key, const std::vector<crypto::public_key> &additional_tx_pub_keys, const crypto::key_derivation &main_derivation, const std::vector<crypto::key_derivation> &additional_derivations) override;
         bool  derivation_to_scalar(const crypto::key_derivation &derivation, const size_t output_index, crypto::ec_scalar &res) override;
         bool  derive_secret_key(const crypto::key_derivation &derivation, const std::size_t output_index, const crypto::secret_key &sec,  crypto::secret_key &derived_sec) override;
         bool  derive_public_key(const crypto::key_derivation &derivation, const std::size_t output_index, const crypto::public_key &pub,  crypto::public_key &derived_pub) override;
@@ -167,8 +188,6 @@ namespace hw {
         /* ======================================================================= */
 
         bool  open_tx(crypto::secret_key &tx_key) override;
-
-        bool  set_signature_mode(unsigned int sig_mode) override;
 
         bool  encrypt_payment_id(crypto::hash8 &payment_id, const crypto::public_key &public_key, const crypto::secret_key &secret_key) override;
 
@@ -190,10 +209,9 @@ namespace hw {
     };
 
 
-
     #ifdef DEBUG_HWDEVICE
-    extern crypto::secret_key viewkey;
-    extern crypto::secret_key spendkey;
+    extern crypto::secret_key dbg_viewkey;
+    extern crypto::secret_key dbg_spendkey;
     #endif
 
     #endif  //WITH_DEVICE_LEDGER

@@ -28,6 +28,7 @@
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 set(unit_tests_sources
+  account.cpp
   apply_permutation.cpp
   address_from_url.cpp
   ban.cpp
@@ -42,21 +43,31 @@ set(unit_tests_sources
   command_line.cpp
   crypto.cpp
   decompose_amount_into_digits.cpp
+  device.cpp
   dns_resolver.cpp
   epee_boosted_tcp_server.cpp
   epee_levin_protocol_handler_async.cpp
   epee_utils.cpp
+  expect.cpp
   fee.cpp
+  json_serialization.cpp
   get_xtype_from_string.cpp
   hashchain.cpp
   http.cpp
+  keccak.cpp
+  logging.cpp
   main.cpp
   memwipe.cpp
+  mlocker.cpp
   mnemonics.cpp
   mul_div.cpp
+  multiexp.cpp
   multisig.cpp
+  notify.cpp
+  output_distribution.cpp
   parse_amount.cpp
   premine.cpp
+  random.cpp
   serialization.cpp
   sha256.cpp
   slow_memmem.cpp
@@ -64,13 +75,18 @@ set(unit_tests_sources
   test_tx_utils.cpp
   test_peerlist.cpp
   test_protocol_pack.cpp
+  threadpool.cpp
   hardfork.cpp
   unbound.cpp
   uri.cpp
   varint.cpp
   ringct.cpp
   output_selection.cpp
-  vercmp.cpp)
+  vercmp.cpp
+  ringdb.cpp
+  wipeable_string.cpp
+  is_hdd.cpp
+  aligned.cpp)
 
 set(unit_tests_headers
   unit_tests_utils.h)
@@ -85,11 +101,11 @@ target_link_libraries(unit_tests
     cryptonote_core
     blockchain_db
     rpc
+    serialization
     wallet
     wallet_api
     p2p
     version
-    epee
     supernode
     ${Boost_CHRONO_LIBRARY}
     ${Boost_THREAD_LIBRARY}
@@ -107,8 +123,15 @@ if (NOT MSVC)
       COMPILE_FLAGS " -Wno-undef -Wno-sign-compare")
 endif ()
 
+SET_PROPERTY(SOURCE main.cpp PROPERTY COMPILE_FLAGS -DDEFAULT_DATA_DIR="\\"${CMAKE_SOURCE_DIR}/tests/data\\"")
+
 SET_PROPERTY(SOURCE memwipe.cpp PROPERTY COMPILE_FLAGS -Ofast)
 
 add_test(
   NAME    unit_tests
   COMMAND unit_tests --data-dir "${TEST_DATA_DIR}")
+
+add_executable(test_notifier test_notifier.cpp)
+target_link_libraries(test_notifier ${EXTRA_LIBRARIES})
+set_property(TARGET test_notifier PROPERTY FOLDER "tests")
+

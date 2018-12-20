@@ -150,6 +150,7 @@ namespace
     }
 
     virtual bool close()                              { /*std::cout << "test_connection::close()" << std::endl; */return true; }
+    virtual bool send_done()                          { /*std::cout << "test_connection::send_done()" << std::endl; */return true; }
     virtual bool call_run_once_service_io()           { std::cout << "test_connection::call_run_once_service_io()" << std::endl; return true; }
     virtual bool request_callback()                   { std::cout << "test_connection::request_callback()" << std::endl; return true; }
     virtual boost::asio::io_service& get_io_service() { std::cout << "test_connection::get_io_service()" << std::endl; return m_io_service; }
@@ -293,7 +294,7 @@ TEST_F(positive_test_connection_to_levin_protocol_handler_calls, handler_initial
 TEST_F(positive_test_connection_to_levin_protocol_handler_calls, concurent_handler_initialization_and_destruction_is_correct)
 {
   const size_t connection_count = 10000;
-  auto create_and_destroy_connections = [this, connection_count]()
+  auto create_and_destroy_connections = [this]()
   {
     std::vector<test_connection_ptr> connections(connection_count);
     for (size_t i = 0; i < connection_count; ++i)

@@ -47,12 +47,14 @@
 #include "crypto/crypto.h"
 #include "crypto/chacha.h"
 #include "ringct/rctTypes.h"
+#include "cryptonote_config.h"
+
 
 #ifndef USE_DEVICE_LEDGER
 #define USE_DEVICE_LEDGER 1
 #endif
 
-#if !defined(HAVE_PCSC) 
+#if !defined(HAVE_HIDAPI) 
 #undef  USE_DEVICE_LEDGER
 #define USE_DEVICE_LEDGER 0
 #endif
@@ -78,21 +80,44 @@ namespace hw {
            return false;
     }
 
+    class i_device_callback {
+    public:
+        virtual void on_button_request() {}
+        virtual void on_pin_request(epee::wipeable_string & pin) {}
+        virtual void on_passphrase_request(bool on_device, epee::wipeable_string & passphrase) {}
+        virtual ~i_device_callback() = default;
+    };
 
     class device {
+    protected:
+        std::string  name;
+
     public:
 
-        device()  {}
+        device(): mode(NONE)  {}
         device(const device &hwdev) {}
         virtual ~device()   {}
 
         explicit virtual operator bool() const = 0;
+        enum device_mode {
+            NONE,
+            TRANSACTION_CREATE_REAL,
+            TRANSACTION_CREATE_FAKE,
+            TRANSACTION_PARSE
+        };
+        enum device_type
+        {
+          SOFTWARE = 0,
+          LEDGER = 1,
+          TREZOR = 2
+        };
 
-        static const int SIGNATURE_REAL = 0;
-        static const int SIGNATURE_FAKE = 1;
 
-
-        std::string  name;
+        enum device_protocol_t {
+            PROTOCOL_DEFAULT,
+            PROTOCOL_PROXY,     // Originally defined by Ledger
+            PROTOCOL_COLD,      // Originally defined by Trezor
+        };
 
         /* ======================================================================= */
         /*                              SETUP/TEARDOWN                             */
@@ -104,14 +129,31 @@ namespace hw {
         virtual bool release() = 0;
 
         virtual bool connect(void) = 0;
-        virtual bool disconnect() = 0;
+        virtual bool disconnect(void) = 0;
+
+        virtual bool set_mode(device_mode mode) { this->mode = mode; return true; }
+        virtual device_mode get_mode() const { return mode; }
+
+        virtual device_type get_type() const = 0;
+
+        virtual device_protocol_t device_protocol() const { return PROTOCOL_DEFAULT; };
+        virtual void set_callback(i_device_callback * callback) {};
+        virtual void set_derivation_path(const std::string &derivation_path) {};
+
+        /* ======================================================================= */
+        /*  LOCKER                                                                 */
+        /* ======================================================================= */ 
+        virtual void lock(void) = 0;
+        virtual void unlock(void) = 0;
+        virtual bool try_lock(void) = 0;
+
 
         /* ======================================================================= */
         /*                             WALLET & ADDRESS                            */
         /* ======================================================================= */
         virtual bool  get_public_address(cryptonote::account_public_address &pubkey) = 0;
         virtual bool  get_secret_keys(crypto::secret_key &viewkey , crypto::secret_key &spendkey)  = 0;
-        virtual bool  generate_chacha_key(const cryptonote::account_keys &keys, crypto::chacha_key &key) = 0;
+        virtual bool  generate_chacha_key(const cryptonote::account_keys &keys, crypto::chacha_key &key, uint64_t kdf_rounds) = 0;
 
         /* ======================================================================= */
         /*                               SUB ADDRESS                               */
@@ -131,6 +173,7 @@ namespace hw {
         virtual bool  sc_secret_add( crypto::secret_key &r, const crypto::secret_key &a, const crypto::secret_key &b) = 0;
         virtual crypto::secret_key  generate_keys(crypto::public_key &pub, crypto::secret_key &sec, const crypto::secret_key& recovery_key = crypto::secret_key(), bool recover = false) = 0;
         virtual bool  generate_key_derivation(const crypto::public_key &pub, const crypto::secret_key &sec, crypto::key_derivation &derivation) = 0;
+        virtual bool  conceal_derivation(crypto::key_derivation &derivation, const crypto::public_key &tx_pub_key, const std::vector<crypto::public_key> &additional_tx_pub_keys, const crypto::key_derivation &main_derivation, const std::vector<crypto::key_derivation> &additional_derivations) = 0;
         virtual bool  derivation_to_scalar(const crypto::key_derivation &derivation, const size_t output_index, crypto::ec_scalar &res) = 0;
         virtual bool  derive_secret_key(const crypto::key_derivation &derivation, const std::size_t output_index, const crypto::secret_key &sec,  crypto::secret_key &derived_sec) = 0;
         virtual bool  derive_public_key(const crypto::key_derivation &derivation, const std::size_t output_index, const crypto::public_key &pub,  crypto::public_key &derived_pub) = 0;
@@ -158,8 +201,6 @@ namespace hw {
 
         virtual bool  open_tx(crypto::secret_key &tx_key) = 0;
 
-        virtual bool  set_signature_mode(unsigned int sig_mode) = 0;
-
         virtual bool  encrypt_payment_id(crypto::hash8 &payment_id, const crypto::public_key &public_key, const crypto::secret_key &secret_key) = 0;
         bool  decrypt_payment_id(crypto::hash8 &payment_id, const crypto::public_key &public_key, const crypto::secret_key &secret_key)
         {
@@ -181,8 +222,33 @@ namespace hw {
         virtual bool  mlsag_sign(const rct::key &c, const rct::keyV &xx, const rct::keyV &alpha, const size_t rows, const size_t dsRows, rct::keyV &ss) = 0;
 
         virtual bool  close_tx(void) = 0;
+
+        virtual bool  has_ki_cold_sync(void) const { return false; }
+        virtual bool  has_tx_cold_sign(void) const { return false; }
+
+        virtual void  set_network_type(cryptonote::network_type network_type) { }
+
+    protected:
+        device_mode mode;
     } ;
 
-    device& get_device(const std::string device_descriptor) ;
+    struct reset_mode {
+        device& hwref;
+        reset_mode(hw::device& dev) : hwref(dev) { }
+        ~reset_mode() { hwref.set_mode(hw::device::NONE);}
+    };
+
+    class device_registry {
+    private:
+      std::map<std::string, std::unique_ptr<device>> registry;
+
+    public:
+      device_registry();
+      bool register_device(const std::string & device_name, device * hw_device);
+      device& get_device(const std::string & device_descriptor);
+    };
+
+    device& get_device(const std::string & device_descriptor);
+    bool register_device(const std::string & device_name, device * hw_device);
 }
 

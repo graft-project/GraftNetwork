@@ -158,6 +158,7 @@ namespace
     }
 
     virtual bool close()                              { return true; }
+    virtual bool send_done()                          { return true; }
     virtual bool call_run_once_service_io()           { return true; }
     virtual bool request_callback()                   { return true; }
     virtual boost::asio::io_service& get_io_service() { return m_io_service; }
@@ -340,7 +341,9 @@ int LevinFuzzer::run(const std::string &filename)
 
 int main(int argc, const char **argv)
 {
+  TRY_ENTRY();
   LevinFuzzer fuzzer;
   return run_fuzzer(argc, argv, fuzzer);
+  CATCH_ENTRY_L0("main", 1);
 }
 

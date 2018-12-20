@@ -28,17 +28,15 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
-#include "include_base_utils.h"
-
-using namespace epee;
-
 #include "checkpoints.h"
 
 #include "common/dns_utils.h"
-#include "include_base_utils.h"
 #include "string_tools.h"
 #include "storages/portable_storage_template_helper.h" // epee json include
 #include "serialization/keyvalue_serialization.h"
+#include <vector>
+
+using namespace epee;
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "checkpoints"
@@ -135,9 +133,9 @@ namespace cryptonote
   //---------------------------------------------------------------------------
   uint64_t checkpoints::get_max_height() const
   {
-    std::map< uint64_t, crypto::hash >::const_iterator highest = 
+    std::map< uint64_t, crypto::hash >::const_iterator highest =
         std::max_element( m_points.begin(), m_points.end(),
-                         ( boost::bind(&std::map< uint64_t, crypto::hash >::value_type::first, _1) < 
+                         ( boost::bind(&std::map< uint64_t, crypto::hash >::value_type::first, _1) <
                            boost::bind(&std::map< uint64_t, crypto::hash >::value_type::first, _2 ) ) );
     return highest->first;
   }
@@ -171,6 +169,7 @@ namespace cryptonote
       // TODO
       return true;
     }
+
     ADD_CHECKPOINT(1,     "5d03cc547e916ef79967d001288955cd5e18d3a1ae1c957c58cfd0d950fd295c");
     ADD_CHECKPOINT(10,    "a28669967ad657355c81fa61a51d368369cf8776bdf9e9ff971bd5f922fa1303");
     ADD_CHECKPOINT(100,   "dc6a22176a0511cc21be34eb0293cba88aacb0e29dd443bb741cc77ea00f77f9");

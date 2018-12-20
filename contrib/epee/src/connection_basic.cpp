@@ -34,47 +34,15 @@
 
 #include "net/connection_basic.hpp"
 
-#include <boost/asio.hpp>
-#include <string>
-#include <vector>
-#include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
-#include <atomic>
-
-#include <boost/asio.hpp>
-#include <boost/array.hpp>
-#include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/interprocess/detail/atomic.hpp>
-#include <boost/thread/thread.hpp>
-
-#include <memory>
-
-#include "syncobj.h"
-
 #include "net/net_utils_base.h" 
 #include "misc_log_ex.h" 
-#include <boost/lambda/bind.hpp>
-#include <boost/lambda/lambda.hpp>
-#include <boost/uuid/random_generator.hpp>
-#include <boost/chrono.hpp>
-#include <boost/utility/value_init.hpp>
-#include <boost/asio/deadline_timer.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/thread/thread.hpp>
-#include <boost/filesystem.hpp>
 #include "misc_language.h"
 #include "pragma_comp_defs.h"
-#include <fstream>
-#include <sstream>
 #include <iomanip>
-#include <algorithm>
-#include <mutex>
 
 #include <boost/asio/basic_socket.hpp>
-#include <boost/asio/ip/unicast.hpp>
-#include "net/abstract_tcp_server2.h"
 
 // TODO:
 #include "net/network_throttle-detail.hpp"
@@ -161,7 +129,6 @@ connection_basic::connection_basic(boost::asio::io_service& io_service, std::ato
 	try { boost::system::error_code e; remote_addr_str = socket_.remote_endpoint(e).address().to_string(); } catch(...){} ;
 
 	_note("Spawned connection p2p#"<<mI->m_peer_number<<" to " << remote_addr_str << " currently we have sockets count:" << m_ref_sock_count);
-	//boost::filesystem::create_directories("log/dr-monero/net/");
 }
 
 connection_basic::~connection_basic() noexcept(false) {
@@ -250,22 +217,15 @@ void connection_basic::sleep_before_packet(size_t packet_size, int phase,  int q
 	}
 
 }
-void connection_basic::set_start_time() {
-	CRITICAL_REGION_LOCAL(	network_throttle_manager::m_lock_get_global_throttle_out );
-	m_start_time = network_throttle_manager::get_global_throttle_out().get_time_seconds();
-}
 
 void connection_basic::do_send_handler_write(const void* ptr , size_t cb ) {
         // No sleeping here; sleeping is done once and for all in connection<t_protocol_handler>::handle_write
 	MTRACE("handler_write (direct) - before ASIO write, for packet="<<cb<<" B (after sleep)");
-	set_start_time();
 }
 
 void connection_basic::do_send_handler_write_from_queue( const boost::system::error_code& e, size_t cb, int q_len ) {
         // No sleeping here; sleeping is done once and for all in connection<t_protocol_handler>::handle_write
 	MTRACE("handler_write (after write, from queue="<<q_len<<") - before ASIO write, for packet="<<cb<<" B (after sleep)");
-
-	set_start_time();
 }
 
 void connection_basic::logger_handle_net_read(size_t size) { // network data read

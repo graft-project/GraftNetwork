@@ -47,7 +47,6 @@
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include "misc_language.h"
-#include "tx_extra.h"
 #include "ringct/rctTypes.h"
 #include "device/device.hpp"
 
@@ -176,7 +175,15 @@ namespace cryptonote
     END_SERIALIZE()
 
   public:
-    transaction_prefix(){}
+    transaction_prefix(){ set_null(); }
+    void set_null()
+    {
+      version = 1;
+      unlock_time = 0;
+      vin.clear();
+      vout.clear();
+      extra.clear();
+    }
   };
 
   class transaction: public transaction_prefix
@@ -303,17 +310,12 @@ namespace cryptonote
   inline
   transaction::~transaction()
   {
-    //set_null();
   }
 
   inline
   void transaction::set_null()
   {
-    version = 1;
-    unlock_time = 0;
-    vin.clear();
-    vout.clear();
-    extra.clear();
+    transaction_prefix::set_null();
     signatures.clear();
     rct_signatures.type = rct::RCTTypeNull;
     set_hash_valid(false);

@@ -36,7 +36,6 @@
 #define _ABSTRACT_TCP_SERVER2_H_ 
 
 
-#include <boost/asio.hpp>
 #include <string>
 #include <vector>
 #include <boost/noncopyable.hpp>
@@ -119,6 +118,7 @@ namespace net_utils
     //----------------- i_service_endpoint ---------------------
     virtual bool do_send(const void* ptr, size_t cb); ///< (see do_send from i_service_endpoint)
     virtual bool do_send_chunk(const void* ptr, size_t cb); ///< will send (or queue) a part of data
+    virtual bool send_done();
     virtual bool close();
     virtual bool call_run_once_service_io();
     virtual bool request_callback();
@@ -135,6 +135,14 @@ namespace net_utils
     /// Handle completion of a write operation.
     void handle_write(const boost::system::error_code& e, size_t cb);
 
+    /// reset connection timeout timer and callback
+    void reset_timer(boost::posix_time::milliseconds ms, bool add);
+    boost::posix_time::milliseconds get_default_timeout();
+    boost::posix_time::milliseconds get_timeout_from_bytes_read(size_t bytes);
+
+    /// host connection count tracking
+    unsigned int host_count(const std::string &host, int delta = 0);
+
     /// Buffer for incoming data.
     boost::array<char, 8192> buffer_;
     //boost::array<char, 1024> buffer_;
@@ -146,9 +154,11 @@ namespace net_utils
     //this should be the last one, because it could be wait on destructor, while other activities possible on other threads
     t_protocol_handler m_protocol_handler;
     //typename t_protocol_handler::config_type m_dummy_config;
-    std::list<boost::shared_ptr<connection<t_protocol_handler> > > m_self_refs; // add_ref/release support
+    size_t m_reference_count = 0; // reference count managed through add_ref/release support
+    boost::shared_ptr<connection<t_protocol_handler> > m_self_ref; // the reference to hold
     critical_section m_self_refs_lock;
     critical_section m_chunking_lock; // held while we add small chunks of the big do_send() to small do_send_chunk()
+    critical_section m_shutdown_lock; // held while shutting down
     
     t_connection_type m_connection_type;
     
@@ -157,6 +167,11 @@ namespace net_utils
     network_throttle m_throttle_speed_out;
     boost::mutex m_throttle_speed_in_mutex;
     boost::mutex m_throttle_speed_out_mutex;
+
+    boost::asio::deadline_timer m_timer;
+    bool m_local;
+    bool m_ready_to_close;
+    std::string m_host;
 
 	public:
 			void setRpcStation();
@@ -231,7 +246,6 @@ namespace net_utils
                                                           m_timer(io_serice)
       {}
       boost::asio::deadline_timer m_timer;
-      uint64_t m_period;
     };
 
     template <class t_handler>
@@ -247,25 +261,27 @@ namespace net_utils
       {
         return m_handler();
       }
+      uint64_t m_period;
     };
 
     template<class t_handler>
     bool add_idle_handler(t_handler t_callback, uint64_t timeout_ms)
       {
-        boost::shared_ptr<idle_callback_conext_base> ptr(new idle_callback_conext<t_handler>(io_service_, t_callback, timeout_ms));
+        boost::shared_ptr<idle_callback_conext<t_handler>> ptr(new idle_callback_conext<t_handler>(io_service_, t_callback, timeout_ms));
         //needed call handler here ?...
         ptr->m_timer.expires_from_now(boost::posix_time::milliseconds(ptr->m_period));
-        ptr->m_timer.async_wait(boost::bind(&boosted_tcp_server<t_protocol_handler>::global_timer_handler, this, ptr));
+        ptr->m_timer.async_wait(boost::bind(&boosted_tcp_server<t_protocol_handler>::global_timer_handler<t_handler>, this, ptr));
         return true;
       }
 
-    bool global_timer_handler(/*const boost::system::error_code& err, */boost::shared_ptr<idle_callback_conext_base> ptr)
+    template<class t_handler>
+    bool global_timer_handler(/*const boost::system::error_code& err, */boost::shared_ptr<idle_callback_conext<t_handler>> ptr)
     {
       //if handler return false - he don't want to be called anymore
       if(!ptr->call_handler())
         return true;
       ptr->m_timer.expires_from_now(boost::posix_time::milliseconds(ptr->m_period));
-      ptr->m_timer.async_wait(boost::bind(&boosted_tcp_server<t_protocol_handler>::global_timer_handler, this, ptr));
+      ptr->m_timer.async_wait(boost::bind(&boosted_tcp_server<t_protocol_handler>::global_timer_handler<t_handler>, this, ptr));
       return true;
     }
 

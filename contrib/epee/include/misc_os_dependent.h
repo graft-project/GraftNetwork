@@ -24,7 +24,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
 #ifdef _WIN32
-#include <Winsock2.h>
+#include <winsock2.h>
 #endif
 
 #ifdef WIN32
@@ -122,6 +122,15 @@ namespace misc_utils
 		return boost::lexical_cast<std::string>(GetCurrentThreadId());
 #elif defined(__GNUC__)  
 		return boost::lexical_cast<std::string>(pthread_self());
+#endif
+	}
+
+	inline bool get_gmt_time(time_t t, struct tm &tm)
+	{
+#ifdef _WIN32
+		return gmtime_s(&tm, &t);
+#else
+		return gmtime_r(&t, &tm);
 #endif
 	}
 }

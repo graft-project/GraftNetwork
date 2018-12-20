@@ -32,20 +32,11 @@
 
 /* rfree: implementation for throttle details */
 
-#include <boost/asio.hpp>
 #include <string>
 #include <vector>
-#include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
 #include <atomic>
 
 #include <boost/asio.hpp>
-#include <boost/array.hpp>
-#include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/interprocess/detail/atomic.hpp>
-#include <boost/thread/thread.hpp>
 
 #include <memory>
 
@@ -53,14 +44,7 @@
 
 #include "net/net_utils_base.h" 
 #include "misc_log_ex.h" 
-#include <boost/lambda/bind.hpp>
-#include <boost/lambda/lambda.hpp>
-#include <boost/uuid/random_generator.hpp>
 #include <boost/chrono.hpp>
-#include <boost/utility/value_init.hpp>
-#include <boost/asio/deadline_timer.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/thread/thread.hpp> 
 #include "misc_language.h"
 #include "pragma_comp_defs.h"
 #include <sstream>
@@ -146,9 +130,11 @@ network_throttle::network_throttle(const std::string &nameshort, const std::stri
 	m_network_add_cost = 128;
 	m_network_minimal_segment = 256;
 	m_network_max_segment = 1024*1024;
+	m_start_time = 0;
 	m_any_packet_yet = false;
 	m_slot_size = 1.0; // hard coded in few places
 	m_target_speed = 16 * 1024; // other defaults are probably defined in the command-line parsing code when this class is used e.g. as main global throttle
+	m_last_sample_time = 0;
 }
 
 void network_throttle::set_name(const std::string &name) 
