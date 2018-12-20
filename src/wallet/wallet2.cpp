@@ -68,6 +68,9 @@ extern "C"
 #include "crypto/keccak.h"
 #include "crypto/crypto-ops.h"
 }
+
+extern "C" void slow_hash_free_state();
+
 using namespace cryptonote;
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -2553,6 +2556,11 @@ bool wallet2::generate_chacha_key_from_secret_keys(crypto::chacha_key &key) cons
   crypto::generate_chacha_key(data, sizeof(data), key);
 
   memset(data, 0, sizeof(data));
+
+  // generate_chacha_key() -> .. -> slow_hash_allocate_state() allocates cryptonote 2Mb on heap
+  // which never freed in case thread exits
+  slow_hash_free_state(); 
+
   return true;
 }
 //----------------------------------------------------------------------------------------------------
