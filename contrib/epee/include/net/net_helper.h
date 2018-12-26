@@ -251,7 +251,6 @@ namespace net_utils
   class blocked_mode_client
 	{
 		
-		
 				struct handler_obj
 				{
 					handler_obj(boost::system::error_code& error,	size_t& bytes_transferred):ref_error(error), ref_bytes_transferred(bytes_transferred)
@@ -270,17 +269,17 @@ namespace net_utils
 						ref_bytes_transferred = bytes_transferred;
 					}
 				};
-		
+
 	public:
 		inline
         blocked_mode_client(boost::shared_ptr<boost::asio::io_service> ios
                             = boost::shared_ptr<boost::asio::io_service>{new boost::asio::io_service()})
             : m_io_service{ios},
-                  m_socket(*m_io_service),
-                  m_initialized(false),
-                  m_connected(false),
-                  m_deadline(*m_io_service),
-                  m_shutdowned(0)
+                 m_socket(*m_io_service),
+                 m_initialized(false),
+                 m_connected(false),
+                 m_deadline(*m_io_service),
+                 m_shutdowned(0)
 		{
 			
 			
