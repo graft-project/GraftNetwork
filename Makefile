@@ -110,6 +110,10 @@ release-static-linux-x86_64:
 	mkdir -p build/release
 	cd build/release && cmake -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=release -D BUILD_TAG="linux-x64" ../.. && $(MAKE)
 
+release-static-linux-x86_64-debug-info:
+	mkdir -p build/release
+	cd build/release && cmake -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=RelWithDebInfo -D BUILD_TAG="linux-x64" ../.. && $(MAKE)
+
 release-static-freebsd-x86_64:
 	mkdir -p build/release
 	cd build/release && cmake -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=release -D BUILD_TAG="freebsd-x64" ../.. && $(MAKE)
