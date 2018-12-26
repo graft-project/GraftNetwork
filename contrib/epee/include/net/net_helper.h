@@ -273,11 +273,14 @@ namespace net_utils
 		
 	public:
 		inline
-			blocked_mode_client():m_socket(m_io_service), 
-                            m_initialized(false), 
-                            m_connected(false), 
-                            m_deadline(m_io_service), 
-                            m_shutdowned(0)
+        blocked_mode_client(boost::shared_ptr<boost::asio::io_service> ios
+                            = boost::shared_ptr<boost::asio::io_service>{new boost::asio::io_service()})
+            : m_io_service{ios},
+                  m_socket(*m_io_service),
+                  m_initialized(false),
+                  m_connected(false),
+                  m_deadline(*m_io_service),
+                  m_shutdowned(0)
 		{
 			
 			
@@ -318,7 +321,7 @@ namespace net_utils
 
 				//////////////////////////////////////////////////////////////////////////
 
-				boost::asio::ip::tcp::resolver resolver(m_io_service);
+                boost::asio::ip::tcp::resolver resolver(*m_io_service);
 				boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), addr, port, boost::asio::ip::tcp::resolver::query::canonical_name);
 				boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
 				boost::asio::ip::tcp::resolver::iterator end;
@@ -352,7 +355,7 @@ namespace net_utils
 				m_socket.async_connect(remote_endpoint, boost::lambda::var(ec) = boost::lambda::_1);
 				while (ec == boost::asio::error::would_block)
 				{	
-					m_io_service.run_one(); 
+                    m_io_service->run_one();
 				}
 				
 				if (!ec && m_socket.is_open())
@@ -433,7 +436,7 @@ namespace net_utils
 				// Block until the asynchronous operation has completed.
 				while (ec == boost::asio::error::would_block)
 				{
-					m_io_service.run_one(); 
+                    m_io_service->run_one();
 				}
 
 				if (ec)
@@ -563,7 +566,7 @@ namespace net_utils
 				// Block until the asynchronous operation has completed.
 				while (ec == boost::asio::error::would_block && !boost::interprocess::ipcdetail::atomic_read32(&m_shutdowned))
 				{
-					m_io_service.run_one(); 
+                    m_io_service->run_one();
 				}
 
 
@@ -646,7 +649,7 @@ namespace net_utils
 				// Block until the asynchronous operation has completed.
 				while (ec == boost::asio::error::would_block && !boost::interprocess::ipcdetail::atomic_read32(&m_shutdowned))
 				{
-					m_io_service.run_one(); 
+                    m_io_service->run_one();
 				}
 
 				if (ec)
@@ -703,7 +706,7 @@ namespace net_utils
 		}
 		boost::asio::io_service& get_io_service()
 		{
-			return m_io_service;
+            return *m_io_service;
 		}
 
 		boost::asio::ip::tcp::socket& get_socket()
@@ -739,7 +742,7 @@ namespace net_utils
 
 		
 	protected:
-		boost::asio::io_service m_io_service;
+        boost::shared_ptr<boost::asio::io_service> m_io_service;
 		boost::asio::ip::tcp::socket m_socket;
 		bool m_initialized;
 		bool m_connected;
@@ -754,7 +757,7 @@ namespace net_utils
 	class async_blocked_mode_client: public blocked_mode_client
 	{
 	public:
-		async_blocked_mode_client():m_send_deadline(blocked_mode_client::m_io_service)
+        async_blocked_mode_client():m_send_deadline(this->get_io_service())
 		{
 
 			// No deadline is required until the first socket operation is started. We
