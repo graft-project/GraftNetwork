@@ -773,7 +773,7 @@ using namespace std;
 			};
 
 
-			blocked_mode_client m_net_client;
+            blocked_mode_client m_net_client;
 			std::string m_host_buff;
 			std::string m_port;
 			http_client_auth m_auth;
@@ -789,9 +789,9 @@ using namespace std;
 			critical_section m_lock;
 
 		public:
-			explicit http_simple_client()
+            explicit http_simple_client(boost::shared_ptr<boost::asio::io_service> ios = boost::shared_ptr<boost::asio::io_service>(new boost::asio::io_service()))
 				: i_target_handler()
-				, m_net_client()
+                , m_net_client(ios)
 				, m_host_buff()
 				, m_port()
 				, m_auth()
