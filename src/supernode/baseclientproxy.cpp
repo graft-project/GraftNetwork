@@ -27,6 +27,8 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "cryptonote_basic/cryptonote_basic.h"
+#include "wallet/wallet2.h"
+#include "wallet_errors.h"
 #include "mnemonics/electrum-words.h"
 #include "common/command_line.h"
 #include "baseclientproxy.h"
@@ -61,12 +63,12 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     }
     try
     {
-        wal->refresh();
+        wal->refresh(wal->is_trusted_daemon());
         out.Balance = wal->balance(0);
         out.UnlockedBalance = wal->unlocked_balance(0);
         storeWalletState(wal.get());
     }
-    catch (const std::exception& e)
+    catch(const std::exception& e)
     {
         out.Result = ERROR_BALANCE_NOT_AVAILABLE;
         return false;
@@ -111,9 +113,10 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     out.Account = base64_encode(wal->store_keys_graft(in.Password));
     out.Address = wal->get_account().get_public_address_str(wal->nettype());
     out.ViewKey = epee::string_tools::pod_to_hex(wal->get_account().get_keys().m_view_secret_key);
-    std::string seed;
+
+    epee::wipeable_string seed;
     wal->get_seed(seed);
-    out.Seed = seed;
+    out.Seed = std::string(seed.data());
     out.Result = STATUS_OK;
     return true;
 }
@@ -128,9 +131,10 @@ bool supernode::BaseClientProxy::GetSeed(const supernode::rpc_command::GET_SEED:
         return false;
     }
     wal->set_seed_language(in.Language);
-    std::string seed;
+
+    epee::wipeable_string seed;
     wal->get_seed(seed);
-    out.Seed = seed;
+    out.Seed = seed.data();
     out.Result = STATUS_OK;
     return true;
 }
@@ -166,9 +170,9 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         out.Address = wal->get_account().get_public_address_str(wal->nettype());
         out.ViewKey = epee::string_tools::pod_to_hex(
                     wal->get_account().get_keys().m_view_secret_key);
-        std::string seed;
+        epee::wipeable_string seed;
         wal->get_seed(seed);
-        out.Seed = seed;
+        out.Seed = seed.data();
     }
     catch (const std::exception &e)
     {
@@ -181,7 +185,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
 
 bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GET_TRANSFER_FEE::request &in, supernode::rpc_command::GET_TRANSFER_FEE::response &out)
 {
-    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
+    std::unique_ptr<tools::wallet2> wal = initWallet(base64_decode(in.Account), in.Password);
     if (!wal)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;

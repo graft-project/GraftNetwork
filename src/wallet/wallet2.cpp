@@ -42,6 +42,7 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 #include "include_base_utils.h"
+#include "wallet_errors.h"
 
 using namespace epee;
 
@@ -3055,7 +3056,159 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
   return true;
 }
 
+// ak-mr-merge: merged version of 'wallet2::store_keys_to_buffer' has a conflict.
+// Actually in mr-master this function is removed by inserting in single invocation point - it's inside
+// of 'wallet2::store_keys' - it goes above.
+// We can't do the same - as we have call of this function:
+// cybo@dbn:~/a/dev/grft/src/cn/1$ ack store_keys_to_buffer
+// src/supernode/graft_wallet.cpp
+// 390:    if (wallet2::store_keys_to_buffer(epee::wipeable_string(password), result, watch_only))
+// So - I keep in here merged version AND take not modified version to get code complie and
+// probably correctly work. But it should be checked later.
+
+
+bool wallet2::store_keys_to_buffer(const wipeable_string &password, std::string &output_buffer, bool watch_only)
+{
+
+  std::string account_data;
+  std::string multisig_signers;
+  cryptonote::account_base account = m_account;
+
+  if (watch_only)
+    account.forget_spend_key();
+
+  bool r = epee::serialization::store_t_to_binary(account, account_data);
+
+  CHECK_AND_ASSERT_MES(r, false, "failed to serialize wallet keys" << "");
+
+  wallet2::keys_file_data keys_file_data = boost::value_initialized<wallet2::keys_file_data>();
+
+  // Create a JSON object with "key_data" and "seed_language" as keys.
+  rapidjson::Document json;
+  json.SetObject();
+  rapidjson::Value value(rapidjson::kStringType);
+  value.SetString(account_data.c_str(), account_data.length());
+  json.AddMember("key_data", value, json.GetAllocator());
+  if (!seed_language.empty())
+  {
+    value.SetString(seed_language.c_str(), seed_language.length());
+    json.AddMember("seed_language", value, json.GetAllocator());
+  }
+
+  rapidjson::Value value2(rapidjson::kNumberType);
+
+  //value2.SetInt(m_key_on_device?1:0);
+  value2.SetInt(m_key_device_type);
+  json.AddMember("key_on_device", value2, json.GetAllocator());
+
+  value2.SetInt(watch_only ? 1 :0); // WTF ? JSON has different true and false types, and not boolean ??
+  json.AddMember("watch_only", value2, json.GetAllocator());
+
+  value2.SetInt(m_multisig ? 1 :0);
+  json.AddMember("multisig", value2, json.GetAllocator());
+
+  value2.SetUint(m_multisig_threshold);
+  json.AddMember("multisig_threshold", value2, json.GetAllocator());
+
+  if (m_multisig)
+  {
+    bool r = ::serialization::dump_binary(m_multisig_signers, multisig_signers);
+    CHECK_AND_ASSERT_MES(r, false, "failed to serialize wallet multisig signers");
+    value.SetString(multisig_signers.c_str(), multisig_signers.length());
+    json.AddMember("multisig_signers", value, json.GetAllocator());
+  }
+
+  value2.SetInt(m_always_confirm_transfers ? 1 :0);
+  json.AddMember("always_confirm_transfers", value2, json.GetAllocator());
+
+  value2.SetInt(m_print_ring_members ? 1 :0);
+  json.AddMember("print_ring_members", value2, json.GetAllocator());
+
+  value2.SetInt(m_store_tx_info ? 1 :0);
+  json.AddMember("store_tx_info", value2, json.GetAllocator());
+
+  value2.SetUint(m_default_mixin);
+  json.AddMember("default_mixin", value2, json.GetAllocator());
+
+  value2.SetUint(m_default_priority);
+  json.AddMember("default_priority", value2, json.GetAllocator());
+
+  value2.SetInt(m_auto_refresh ? 1 :0);
+  json.AddMember("auto_refresh", value2, json.GetAllocator());
+
+  value2.SetInt(m_refresh_type);
+  json.AddMember("refresh_type", value2, json.GetAllocator());
+
+  value2.SetUint64(m_refresh_from_block_height);
+  json.AddMember("refresh_height", value2, json.GetAllocator());
+
+  value2.SetInt(m_confirm_missing_payment_id ? 1 :0);
+  json.AddMember("confirm_missing_payment_id", value2, json.GetAllocator());
+
+  value2.SetInt(m_ask_password ? 1 :0);
+  json.AddMember("ask_password", value2, json.GetAllocator());
+
+  value2.SetUint(m_min_output_count);
+  json.AddMember("min_output_count", value2, json.GetAllocator());
+
+  value2.SetUint64(m_min_output_value);
+  json.AddMember("min_output_value", value2, json.GetAllocator());
+
+  value2.SetInt(cryptonote::get_default_decimal_point());
+  json.AddMember("default_decimal_point", value2, json.GetAllocator());
+
+  value2.SetInt(m_merge_destinations ? 1 :0);
+  json.AddMember("merge_destinations", value2, json.GetAllocator());
+
+  value2.SetInt(m_confirm_backlog ? 1 :0);
+  json.AddMember("confirm_backlog", value2, json.GetAllocator());
+
+  value2.SetUint(m_confirm_backlog_threshold);
+  json.AddMember("confirm_backlog_threshold", value2, json.GetAllocator());
+
+  value2.SetInt(m_confirm_export_overwrite ? 1 :0);
+  json.AddMember("confirm_export_overwrite", value2, json.GetAllocator());
+
+  value2.SetInt(m_auto_low_priority ? 1 : 0);
+  json.AddMember("auto_low_priority", value2, json.GetAllocator());
+
+  value2.SetUint(m_nettype);
+  json.AddMember("nettype", value2, json.GetAllocator());
+
+  value2.SetInt(m_segregate_pre_fork_outputs ? 1 : 0);
+  json.AddMember("segregate_pre_fork_outputs", value2, json.GetAllocator());
+
+  value2.SetInt(m_key_reuse_mitigation2 ? 1 : 0);
+  json.AddMember("key_reuse_mitigation2", value2, json.GetAllocator());
+
+  value2.SetUint(m_segregation_height);
+  json.AddMember("segregation_height", value2, json.GetAllocator());
+
+  // Serialize the JSON object
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  json.Accept(writer);
+  account_data = buffer.GetString();
+
+  // Encrypt the entire JSON object.
+  crypto::chacha_key key;
+  crypto::generate_chacha_key(password.data(), password.size(), key, m_kdf_rounds);
+
+  std::string cipher;
+  cipher.resize(account_data.size());
+
+  keys_file_data.iv = crypto::rand<crypto::chacha_iv>();
+  crypto::chacha20(account_data.data(), account_data.size(), key, keys_file_data.iv, &cipher[0]);
+  keys_file_data.account_data = cipher;
+
+  r = ::serialization::dump_binary(keys_file_data, output_buffer);
+  return true;
+}
+
+
 //----------------------------------------------------------------------------------------------------
+// ak-mr-merge: merged version of 'wallet2::store_keys_to_buffer' with a conflict.
+/*
 bool wallet2::store_keys_to_buffer(const wipeable_string &password, std::string &output_buffer, bool watch_only)
 {
 
@@ -3246,6 +3399,10 @@ bool wallet2::store_keys_to_buffer(const wipeable_string &password, std::string 
 
   return true;
 }
+*/
+
+
+
 
 //----------------------------------------------------------------------------------------------------
 void wallet2::setup_keys(const epee::wipeable_string &password)
@@ -3345,7 +3502,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
     m_device_name = "";
     m_device_derivation_path = "";
     m_key_device_type = hw::device::device_type::SOFTWARE;
-    encrypted_secret_keys = false;
+    //encrypted_secret_keys = false;
   }
   else if(json.IsObject())
   {
@@ -3494,6 +3651,8 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
     m_key_reuse_mitigation2 = field_key_reuse_mitigation2;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, segregation_height, int, Uint, false, 0);
     m_segregation_height = field_segregation_height;
+
+    /*
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ignore_fractional_outputs, int, Int, false, true);
     m_ignore_fractional_outputs = field_ignore_fractional_outputs;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, subaddress_lookahead_major, uint32_t, Uint, false, SUBADDRESS_LOOKAHEAD_MAJOR);
@@ -3519,6 +3678,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
 
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, device_derivation_path, std::string, String, false, std::string());
     m_device_derivation_path = field_device_derivation_path;
+    */
   }
   else
   {
@@ -3549,8 +3709,9 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
     THROW_WALLET_EXCEPTION(error::wallet_internal_error, "hardware device not supported");
   }
 
-  if (r)
+  if(r)
   {
+    /*
     if (encrypted_secret_keys)
     {
       m_account.decrypt_keys(key);
@@ -3570,6 +3731,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
         decrypt_keys(key);
       m_keys_file_locker.reset();
     }
+    */
   }
   const cryptonote::account_keys& keys = m_account.get_keys();
   hw::device &hwdev = m_account.get_device();
@@ -6376,7 +6538,7 @@ uint64_t wallet2::get_dynamic_base_fee_estimate() const
 //----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_base_fee() const
 {
-   return get_dynamic_per_kb_fee_estimate();
+   return get_dynamic_base_fee_estimate();
 }
 //----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_fee_quantization_mask() const

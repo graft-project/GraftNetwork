@@ -83,7 +83,7 @@ namespace wallet_args
     return i18n_translate(str, "wallet_args");
   }
 
-  boost::optional<boost::program_options::variables_map> main(
+  std::pair<boost::optional<boost::program_options::variables_map>, bool> main(
     int argc, char** argv,
     const char* const usage,
     const char* const notice,
@@ -92,10 +92,10 @@ namespace wallet_args
     const std::function<void(const std::string&, bool)> &print,
     const char *default_log_name,
     bool log_to_console)
-  
   {
     namespace bf = boost::filesystem;
     namespace po = boost::program_options;
+    bool should_terminate = false;
 #ifdef WIN32
     _CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
@@ -167,8 +167,9 @@ namespace wallet_args
       po::notify(vm);
       return true;
     });
-    if (!r)
-      return boost::none;
+
+    if(!r)
+      return {boost::none, should_terminate};
 
     std::string log_path;
     if (!command_line::is_arg_defaulted(vm, arg_log_file))
@@ -197,6 +198,6 @@ namespace wallet_args
 
     Print(print) << boost::format(wallet_args::tr("Logging to %s")) % log_path;
 
-    return {std::move(vm)};
+    return {std::move(vm), should_terminate};
   }
 }

@@ -45,7 +45,8 @@ namespace wallet_args
   global init for the wallet process.
 
   \return The list of parsed options, iff there are no errors.*/
-  boost::optional<boost::program_options::variables_map> main(
+  //boost::optional<boost::program_options::variables_map> main(
+  std::pair<boost::optional<boost::program_options::variables_map>, bool> main(
     int argc, char** argv,
     const char* const usage,
     const char* const notice,

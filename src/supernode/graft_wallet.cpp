@@ -30,6 +30,7 @@
 
 
 #include "graft_wallet.h"
+#include "wallet_errors.h"
 #include "api/pending_transaction.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "common/json_util.h"
@@ -40,7 +41,6 @@
 #include "readline_buffer.h"
 #include "serialization/binary_utils.h"
 #include <boost/format.hpp>
-
 
 using namespace std;
 using namespace Monero;
@@ -213,8 +213,6 @@ void GraftWallet::load_graft(const string &data, const string &password, const s
     {
         check_genesis(genesis_hash);
     }
-
-    m_local_bc_height = m_blockchain.size();
 }
 
 // TODO: this is a method from different API (libwallet_api); try to remove and re-use libwallet api
@@ -297,7 +295,7 @@ Monero::PendingTransaction *GraftWallet::createTransaction(const string &dst_add
                 dsts.push_back(de);
                 transaction->setPendingTx(this->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
                                                                             adjusted_priority,
-                                                                            extra, subaddr_account, subaddr_indices, false));
+                                                                            extra, subaddr_account, subaddr_indices));
             } else {
                 // for the GUI, sweep_all (i.e. amount set as "(all)") will always sweep all the funds in all the addresses
                 if (subaddr_indices.empty())
@@ -305,9 +303,12 @@ Monero::PendingTransaction *GraftWallet::createTransaction(const string &dst_add
                     for (uint32_t index = 0; index < this->get_num_subaddresses(subaddr_account); ++index)
                         subaddr_indices.insert(index);
                 }
-                transaction->setPendingTx(this->create_transactions_all(0, info.address, info.is_subaddress, fake_outs_count, 0 /* unlock_time */,
-                                                                              adjusted_priority,
-                                                                              extra, subaddr_account, subaddr_indices, false));
+
+                //ak-mr-merge
+                const size_t outputs = 0;
+                transaction->setPendingTx(this->create_transactions_all(0, info.address, info.is_subaddress, outputs, fake_outs_count,
+                                                                        0 /* unlock_time */, adjusted_priority,
+                                                                        extra, subaddr_account, subaddr_indices));
             }
 
         } catch (const tools::error::daemon_busy&) {

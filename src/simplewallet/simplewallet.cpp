@@ -34,17 +34,7 @@
  *
  * \brief Source file that defines simple_wallet class.
  */
-#include <thread>
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <ctype.h>
-#include <boost/lexical_cast.hpp>
-#include <boost/program_options.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/format.hpp>
-#include <boost/regex.hpp>
-#include <boost/range/adaptor/transformed.hpp>
+
 #include "include_base_utils.h"
 #include "common/i18n.h"
 #include "common/command_line.h"
@@ -64,8 +54,22 @@
 #include "ringct/rctSigs.h"
 #include "multisig/multisig.h"
 #include "wallet/wallet_args.h"
+#include "wallet/wallet_errors.h"
 #include "version.h"
+
+#include <thread>
+#include <iostream>
+#include <sstream>
+#include <fstream>
+#include <ctype.h>
 #include <stdexcept>
+
+#include <boost/lexical_cast.hpp>
+#include <boost/program_options.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/format.hpp>
+#include <boost/regex.hpp>
+#include <boost/range/adaptor/transformed.hpp>
 
 #ifdef WIN32
 #include <boost/locale.hpp>
@@ -1801,7 +1805,7 @@ bool simple_wallet::save_known_rings(const std::vector<std::string> &args)
 
 bool simple_wallet::version(const std::vector<std::string> &args)
 {
-  message_writer() << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")";
+  message_writer() << "Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ")";
   return true;
 }
 

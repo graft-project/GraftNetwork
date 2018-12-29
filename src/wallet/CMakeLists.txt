@@ -68,8 +68,8 @@ target_link_libraries(wallet
   PRIVATE
     ${EXTRA_LIBRARIES})
 
-set(wallet_rpc_sources
-  wallet_rpc_server.cpp)
+set(wallet_rpc_sources)
+#wallet_rpc_server.cpp)
 
 set(wallet_rpc_headers)
 

@@ -59,7 +59,6 @@
 #include "checkpoints/checkpoints.h"
 #include "serialization/pair.h"
 
-#include "wallet_errors.h"
 #include "common/password.h"
 #include "node_rpc_proxy.h"
 
@@ -172,6 +171,8 @@ namespace tools
   {
     friend class ::Serialization_portability_wallet_Test;
     friend class GraftWallet;
+    friend class wallet_keys_unlocker;
+    friend class wallet_device_callback;
   public:
     static constexpr const std::chrono::seconds rpc_timeout = std::chrono::minutes(3) + std::chrono::seconds(30);
 

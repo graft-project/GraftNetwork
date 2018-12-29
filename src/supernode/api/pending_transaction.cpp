@@ -29,6 +29,7 @@
 // Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
 #include "pending_transaction.h"
+#include "supernode/wallet_errors.h"
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
@@ -194,6 +195,73 @@ void GraftPendingTransactionImpl::setStatus(int status)
 void GraftPendingTransactionImpl::setErrorString(const string &message)
 {
     m_errorString = message;
+}
+
+std::string GraftPendingTransactionImpl::multisigSignData()
+{
+  /*
+    try
+    {
+        if(!m_wallet.multisig().isMultisig)
+        {
+            throw std::runtime_error("wallet is not multisig");
+        }
+
+        tools::wallet2::multisig_tx_set txSet;
+        txSet.m_ptx = m_pending_tx;
+        txSet.m_signers = m_signers;
+        auto cipher = m_wallet.m_wallet->save_multisig_tx(txSet);
+
+        return epee::string_tools::buff_to_hex_nodelimer(cipher);
+    }
+    catch (const std::exception& e)
+    {
+        m_status = Status_Error;
+        m_errorString = std::string(tr("Couldn't multisig sign data: ")) + e.what();
+    }
+
+    */
+    return std::string();
+}
+
+void GraftPendingTransactionImpl::signMultisigTx()
+{
+  /*
+    try
+    {
+        std::vector<crypto::hash> ignore;
+
+        tools::wallet2::multisig_tx_set txSet;
+        txSet.m_ptx = m_pending_tx;
+        txSet.m_signers = m_signers;
+
+        if (!m_wallet.m_wallet->sign_multisig_tx(txSet, ignore)) {
+            throw std::runtime_error("couldn't sign multisig transaction");
+        }
+
+        std::swap(m_pending_tx, txSet.m_ptx);
+        std::swap(m_signers, txSet.m_signers);
+    }
+    catch(const std::exception& e)
+    {
+        m_status = Status_Error;
+        m_errorString = std::string(tr("Couldn't sign multisig transaction: ")) + e.what();
+    }
+    */
+}
+
+std::vector<std::string> GraftPendingTransactionImpl::signersKeys() const
+{
+    std::vector<std::string> keys;
+    /*
+    keys.reserve(m_signers.size());
+
+    for(const auto& signer: m_signers)
+    {
+        keys.emplace_back(tools::base58::encode(cryptonote::t_serializable_object_to_blob(signer)));
+    }
+    */
+    return keys;
 }
 
 }
