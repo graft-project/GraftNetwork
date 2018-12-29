@@ -52,6 +52,7 @@ using namespace epee;
 #include "rpc/rpc_args.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "daemonizer/daemonizer.h"
+#include "wallet/wallet_errors.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.rpc"
@@ -61,6 +62,7 @@ namespace
   const command_line::arg_descriptor<std::string, true> arg_rpc_bind_port = {"rpc-bind-port", "Sets bind port for server"};
   const command_line::arg_descriptor<bool> arg_disable_rpc_login = {"disable-rpc-login", "Disable HTTP authentication for RPC connections served by this process"};
   const command_line::arg_descriptor<bool> arg_restricted = {"restricted-rpc", "Restricts to view-only commands", false};
+  const command_line::arg_descriptor<bool> arg_trusted_daemon = {"trusted-daemon", "Enable commands which rely on a trusted daemon", false};
   const command_line::arg_descriptor<std::string> arg_wallet_dir = {"wallet-dir", "Directory for newly created wallets"};
   const command_line::arg_descriptor<bool> arg_prompt_for_password = {"prompt-for-password", "Prompts for password when not provided", false};
 
@@ -3981,7 +3983,7 @@ int main_0(int argc, char** argv) {
   command_line::add_arg(desc_params, arg_wallet_dir);
   command_line::add_arg(desc_params, arg_prompt_for_password);
 
-  const auto vm = wallet_args::main(
+  const auto vm_pair = wallet_args::main(
     argc, argv,
     "graft-wallet-rpc [--wallet-file=<file>|--generate-from-json=<file>|--wallet-dir=<directory>] [--rpc-bind-port=<port>]",
     tools::wallet_rpc_server::tr("This is the RPC monero wallet. It needs to connect to a monero\ndaemon to work correctly."),
@@ -3991,10 +3993,10 @@ int main_0(int argc, char** argv) {
     "graft-wallet-rpc.log",
     true
   );
-  if (!vm)
-  {
+
+  const auto vm = vm_pair.first;
+  if(!vm)
     return 1;
-  }
 
   std::unique_ptr<tools::wallet2> wal;
   try
@@ -4034,15 +4036,15 @@ int main_0(int argc, char** argv) {
     LOG_PRINT_L0(tools::wallet_rpc_server::tr("Loading wallet..."));
     if(!wallet_file.empty())
     {
-      wal = tools::wallet2::make_from_file(*vm, wallet_file, password_prompt).first;
+      wal = tools::wallet2::make_from_file(*vm, true, wallet_file, password_prompt).first;
     }
     else
     {
       try
       {
-        wal = tools::wallet2::make_from_json(*vm, from_json, password_prompt);
+        wal = tools::wallet2::make_from_json(*vm, true, from_json, password_prompt).first;
       }
-      catch (const std::exception &e)
+      catch(const std::exception& e)
       {
         MERROR("Error creating wallet: " << e.what());
         return 1;
@@ -4060,7 +4062,7 @@ int main_0(int argc, char** argv) {
       wal->stop();
     });
 
-    wal->refresh();
+    wal->refresh(wal->is_trusted_daemon());
     // if we ^C during potentially length load/refresh, there's no server loop yet
     if (quit)
     {

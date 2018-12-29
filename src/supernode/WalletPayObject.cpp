@@ -44,7 +44,7 @@ bool supernode::WalletPayObject::OpenSenderWallet(const string &wallet, const st
         LOG_ERROR("Error initializing wallet");
         return false;
     }
-    m_wallet->refresh();
+    m_wallet->refresh(m_wallet->is_trusted_daemon());
     return true;
 }
 

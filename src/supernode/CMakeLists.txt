@@ -43,19 +43,19 @@ set(supernode_sources
     BaseRTAProcessor.cpp
     baseclientproxy.cpp
     DAPI_RPC_Client.cpp
-    #DAPI_RPC_Server.cpp
+    DAPI_RPC_Server.cpp
     FSN_Servant.cpp
     PosProxy.cpp
-    #PosSaleObject.cpp
+    PosSaleObject.cpp
     SubNetBroadcast.cpp
-    #WalletPayObject.cpp
+    WalletPayObject.cpp
     WalletProxy.cpp
     P2P_Broadcast.cpp
     supernode_common_struct.cpp
     supernode_rpc_command.cpp
     FSN_ServantBase.cpp
     grafttxextra.cpp
-    #TxPool.cpp
+    TxPool.cpp
     supernode_helpers.cpp
     FSN_ActualList.cpp
     WorkerPool.cpp)

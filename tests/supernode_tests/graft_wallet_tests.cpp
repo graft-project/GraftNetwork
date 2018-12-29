@@ -101,7 +101,7 @@ TEST_F(GraftWalletTest, StoreAndLoadCache)
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
-    wallet->refresh();
+    wallet->refresh(wallet->is_trusted_daemon());
 
     // store the cache
     boost::filesystem::path temp = boost::filesystem::temp_directory_path();
@@ -128,7 +128,7 @@ TEST_F(GraftWalletTest, LoadWrongCache)
     ASSERT_NO_THROW(wallet->load_graft(wallet_account1, "", ""));
     // connect to daemon and get the blocks
     wallet->init(DAEMON_ADDR);
-    wallet->refresh();
+    wallet->refresh(wallet->is_trusted_daemon());
 
     // store the cache
     boost::filesystem::path temp = boost::filesystem::temp_directory_path();

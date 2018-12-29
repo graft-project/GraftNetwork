@@ -30,7 +30,10 @@
 #include "PosSaleObject.h"
 #include "TxPool.h"
 #include "graft_defines.h"
+#include "cryptonote_basic/cryptonote_format_utils.h"
+
 #include <ringct/rctSigs.h>
+
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>

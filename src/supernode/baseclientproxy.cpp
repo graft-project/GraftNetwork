@@ -192,13 +192,17 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
         return false;
     }
 
-    if (wal->restricted())
+    /*
+    if(wal->restricted())
     {
         //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
         //      er.message = "Command unavailable in restricted mode.";
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
     }
+    ak-mr-merge: the method 'restricted' does not longer exist in wallet.
+    So we should think something about it.
+    */
 
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
@@ -224,7 +228,7 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
         std::set<uint32_t> subaddr_indices;
         uint32_t subaddr_account = 0;
         std::vector<tools::GraftWallet::pending_tx> ptx_vector =
-                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices, false);
+                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices);
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)
@@ -272,13 +276,15 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
         return false;
     }
 
-    if (wal->restricted())
-    {
-        //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
-        //      er.message = "Command unavailable in restricted mode.";
-        out.Result = ERROR_OPEN_WALLET_FAILED;
-        return false;
-    }
+    //ak;mr;merge: commented out as this method does not exist any more.
+    //what is instead - is open question
+    //if (wal->restricted())
+    //{
+    //    //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+    //    //      er.message = "Command unavailable in restricted mode.";
+    //    out.Result = ERROR_OPEN_WALLET_FAILED;
+    //    return false;
+    //}
 
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
@@ -307,7 +313,7 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
         std::set<uint32_t> subaddr_indices;
         uint32_t subaddr_account = 0;
         std::vector<tools::GraftWallet::pending_tx> ptx_vector =
-                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices, false);
+                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices);
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)

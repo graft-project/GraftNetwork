@@ -1059,8 +1059,9 @@ namespace helper {
         }
 
 
-        for (int i = 0; i < tx.transfers.size(); ++i) {
-            auto &td = tx.transfers[i];
+        for (int i = 0; i < tx.transfers.second.size(); ++i)
+        {
+            auto& td = tx.transfers.second[i];
             std::cout << "td[" << i << "].m_block_height: " << td.m_block_height << std::endl;
             std::cout << "td[" << i << "].m_txid: " << epee::string_tools::pod_to_hex(td.m_txid) << std::endl;
             std::cout << "td[" << i << "].m_internal_output_index: " << td.m_internal_output_index << std::endl;
