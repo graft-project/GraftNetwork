@@ -35,6 +35,7 @@ set(wallet_sources
   graft_wallet.cpp
   wallet_args.cpp
   node_rpc_proxy.cpp
+  http_connection_pool.cpp
   api/wallet.cpp
   api/wallet_manager.cpp
   api/transaction_info.cpp
@@ -57,6 +58,7 @@ set(wallet_private_headers
   wallet_rpc_server_commands_defs.h
   wallet_rpc_server_error_codes.h
   node_rpc_proxy.h
+  http_connection_pool.h
   api/wallet.h
   api/wallet_manager.h
   api/transaction_info.h

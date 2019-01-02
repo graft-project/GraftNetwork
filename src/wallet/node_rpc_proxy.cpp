@@ -38,8 +38,8 @@ namespace tools
 
 static const std::chrono::seconds rpc_timeout = std::chrono::minutes(3) + std::chrono::seconds(30);
 
-NodeRPCProxy::NodeRPCProxy(epee::net_utils::http::http_simple_client &http_client, boost::mutex &mutex)
-  : m_http_client(http_client)
+NodeRPCProxy::NodeRPCProxy(HttpConnection &http_connection, boost::mutex &mutex)
+  : m_http_connection(http_connection)
   , m_daemon_rpc_mutex(mutex)
   , m_height(0)
   , m_height_time(0)
@@ -77,7 +77,7 @@ boost::optional<std::string> NodeRPCProxy::get_rpc_version(uint32_t &rpc_version
     req_t.id = epee::serialization::storage_entry(0);
     req_t.method = "get_version";
     m_daemon_rpc_mutex.lock();
-    bool r = net_utils::invoke_http_json("/json_rpc", req_t, resp_t, m_http_client, rpc_timeout);
+    bool r = invoke_http_json("/json_rpc", req_t, resp_t, m_http_connection, rpc_timeout);
     m_daemon_rpc_mutex.unlock();
     CHECK_AND_ASSERT_MES(r, std::string(), "Failed to connect to daemon");
     CHECK_AND_ASSERT_MES(resp_t.result.status != CORE_RPC_STATUS_BUSY, resp_t.result.status, "Failed to connect to daemon");
@@ -97,7 +97,7 @@ boost::optional<std::string> NodeRPCProxy::get_height(uint64_t &height) const
     cryptonote::COMMAND_RPC_GET_HEIGHT::response res = AUTO_VAL_INIT(res);
 
     m_daemon_rpc_mutex.lock();
-    bool r = net_utils::invoke_http_json("/getheight", req, res, m_http_client, rpc_timeout);
+    bool r = invoke_http_json("/getheight", req, res, m_http_connection, rpc_timeout);
     m_daemon_rpc_mutex.unlock();
     CHECK_AND_ASSERT_MES(r, std::string(), "Failed to connect to daemon");
     CHECK_AND_ASSERT_MES(res.status != CORE_RPC_STATUS_BUSY, res.status, "Failed to connect to daemon");
@@ -126,7 +126,7 @@ boost::optional<std::string> NodeRPCProxy::get_target_height(uint64_t &height) c
     req_t.id = epee::serialization::storage_entry(0);
     req_t.method = "get_info";
     m_daemon_rpc_mutex.lock();
-    bool r = net_utils::invoke_http_json("/json_rpc", req_t, resp_t, m_http_client, rpc_timeout);
+    bool r = invoke_http_json("/json_rpc", req_t, resp_t, m_http_connection, rpc_timeout);
     m_daemon_rpc_mutex.unlock();
 
     CHECK_AND_ASSERT_MES(r, std::string(), "Failed to connect to daemon");
@@ -151,7 +151,7 @@ boost::optional<std::string> NodeRPCProxy::get_earliest_height(uint8_t version, 
     req_t.id = epee::serialization::storage_entry(0);
     req_t.method = "hard_fork_info";
     req_t.params.version = version;
-    bool r = net_utils::invoke_http_json("/json_rpc", req_t, resp_t, m_http_client, rpc_timeout);
+    bool r = invoke_http_json("/json_rpc", req_t, resp_t, m_http_connection, rpc_timeout);
     m_daemon_rpc_mutex.unlock();
     CHECK_AND_ASSERT_MES(r, std::string(), "Failed to connect to daemon");
     CHECK_AND_ASSERT_MES(resp_t.result.status != CORE_RPC_STATUS_BUSY, resp_t.result.status, "Failed to connect to daemon");
@@ -181,7 +181,7 @@ boost::optional<std::string> NodeRPCProxy::get_dynamic_per_kb_fee_estimate(uint6
     req_t.id = epee::serialization::storage_entry(0);
     req_t.method = "get_fee_estimate";
     req_t.params.grace_blocks = grace_blocks;
-    bool r = net_utils::invoke_http_json("/json_rpc", req_t, resp_t, m_http_client, rpc_timeout);
+    bool r = invoke_http_json("/json_rpc", req_t, resp_t, m_http_connection, rpc_timeout);
     m_daemon_rpc_mutex.unlock();
     CHECK_AND_ASSERT_MES(r, std::string(), "Failed to connect to daemon");
     CHECK_AND_ASSERT_MES(resp_t.result.status != CORE_RPC_STATUS_BUSY, resp_t.result.status, "Failed to connect to daemon");
