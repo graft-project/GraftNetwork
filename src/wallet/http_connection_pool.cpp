@@ -124,6 +124,9 @@ HttpConnection::HttpConnection(HttpConnectionManager& manager, const std::string
 
 HttpClientHolderPtr HttpConnection::get_client_holder()
 {
+  if (!m_impl)
+    return HttpClientHolderPtr();
+
   return m_impl->get_client_holder();
 }
 
