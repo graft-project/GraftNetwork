@@ -92,6 +92,7 @@ add_subdirectory(difficulty)
 add_subdirectory(hash)
 add_subdirectory(net_load_tests)
 add_subdirectory(libwallet_api_tests)
+add_subdirectory(libwallet_performance_tests)
 add_subdirectory(supernode_tests)
 
 # add_subdirectory(daemon_tests)

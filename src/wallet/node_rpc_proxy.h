@@ -30,6 +30,7 @@
 
 #include <string>
 #include <boost/thread/mutex.hpp>
+#include "http_connection_pool.h"
 #include "include_base_utils.h"
 #include "net/http_client.h"
 
@@ -39,7 +40,7 @@ namespace tools
 class NodeRPCProxy
 {
 public:
-  NodeRPCProxy(epee::net_utils::http::http_simple_client &http_client, boost::mutex &mutex);
+  NodeRPCProxy(HttpConnection &connection, boost::mutex &mutex);
 
   void invalidate();
 
@@ -51,7 +52,7 @@ public:
   boost::optional<std::string> get_dynamic_per_kb_fee_estimate(uint64_t grace_blocks, uint64_t &fee) const;
 
 private:
-  epee::net_utils::http::http_simple_client &m_http_client;
+  HttpConnection &m_http_connection;
   boost::mutex &m_daemon_rpc_mutex;
 
   mutable uint64_t m_height;
