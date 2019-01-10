@@ -593,7 +593,7 @@ void Logger::configure(const Configurations& configurations) {
       flush();
     }
   }
-  base::threading::ScopedLock scopedLock(lock());
+  base::threading::LoggerThreadSafe::ScopedLock scopedLock(*this, __FUNCTION__, __FILE__, __LINE__);
   if (m_configurations != configurations) {
     m_configurations.setFromBase(const_cast<Configurations*>(&configurations));
   }
@@ -619,7 +619,7 @@ bool Logger::isValidId(const std::string& id) {
 
 void Logger::flush(void) {
   ELPP_INTERNAL_INFO(3, "Flushing logger [" << m_id << "] all levels");
-  base::threading::ScopedLock scopedLock(lock());
+  base::threading::LoggerThreadSafe::ScopedLock scopedLock(*this, __FUNCTION__, __FILE__, __LINE__);
   base::type::EnumType lIndex = LevelHelper::kMinValid;
   LevelHelper::forEachLevel(&lIndex, [&](void) -> bool {
     flush(LevelHelper::castFromInt(lIndex), nullptr);
@@ -2543,7 +2543,7 @@ void Writer::initializeLogger(const std::string& loggerId, bool lookup, bool nee
     m_proceed = false;
   } else {
     if (needLock) {
-      m_logger->acquireLock();  // This should not be unlocked by checking m_proceed because
+      m_logger->acquireLock(m_func, m_file, m_line);  // This should not be unlocked by checking m_proceed because
       // m_proceed can be changed by lines below
     }
     if (ELPP->hasFlag(LoggingFlag::HierarchicalLogging)) {
@@ -3093,6 +3093,39 @@ const std::string VersionInfo::version(void) {
 /// @brief Release date of current version
 const std::string VersionInfo::releaseDate(void) {
   return std::string("25-02-2017 0813hrs");
+}
+
+namespace base
+{
+
+namespace threading
+{
+
+LoggerThreadSafe::LoggerThreadSafe(void)
+{
+}
+
+LoggerThreadSafe::~LoggerThreadSafe(void)
+{
+}
+
+void LoggerThreadSafe::acquireLock(const char* function, const char* file, int line, const char* msg)
+{
+  m_mutex.lock();
+
+  snprintf(m_debug_buffer, sizeof m_debug_buffer, "%s %s(%u) %s", function, file, line, msg ? msg : "");
+
+  m_debug_buffer[sizeof(m_debug_buffer)-1] = 0;
+}
+
+void LoggerThreadSafe::releaseLock(void)
+{
+  snprintf(m_debug_buffer, sizeof m_debug_buffer, "RELEASED!");
+  m_mutex.unlock();
+}
+
+}
+
 }
 
 } // namespace el

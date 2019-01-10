@@ -1062,6 +1062,33 @@ class ThreadSafe {
   base::threading::Mutex m_mutex;
 };
 
+class LoggerThreadSafe {
+ public:
+    class ScopedLock : base::NoCopy {
+     public:
+      explicit ScopedLock(LoggerThreadSafe& lock, const char* function, const char* file, int line, const char* msg = 0) {
+        m_lock = &lock;
+        m_lock->acquireLock(function, file, line, msg);
+      }
+
+      virtual ~ScopedLock(void) {
+        m_lock->releaseLock();
+      }
+     private:
+      LoggerThreadSafe* m_lock;
+      ScopedLock(void);
+    };
+
+  virtual void acquireLock(const char* function, const char* file, int line, const char* msg = 0) ELPP_FINAL;
+  virtual void releaseLock(void) ELPP_FINAL;
+ protected:
+  LoggerThreadSafe(void);
+  virtual ~LoggerThreadSafe(void);
+ private:
+  base::threading::Mutex m_mutex;
+  char m_debug_buffer[1024];
+};
+
 #if ELPP_THREADING_ENABLED
 #  if !ELPP_USE_STD_THREADING
 /// @brief Gets ID of currently running threading in windows systems. On unix, nothing is returned.
@@ -2261,7 +2288,7 @@ typedef std::shared_ptr<LogBuilder> LogBuilderPtr;
 /// @brief Represents a logger holding ID and configurations we need to write logs
 ///
 /// @detail This class does not write logs itself instead its used by writer to read configuations from.
-class Logger : public base::threading::ThreadSafe, public Loggable {
+class Logger : public base::threading::LoggerThreadSafe, public Loggable {
  public:
   Logger(const std::string& id, base::LogStreamsReferenceMap* logStreamsReference);
   Logger(const std::string& id, const Configurations& configurations, base::LogStreamsReferenceMap* logStreamsReference);
@@ -3368,23 +3395,23 @@ void Logger::log_(Level level, int vlevel, const T& log) {
 }
 template <typename T, typename... Args>
 inline void Logger::log(Level level, const char* s, const T& value, const Args&... args) {
-  base::threading::ScopedLock scopedLock(lock());
+  LoggerThreadSafe::ScopedLock scopedLock(*this, __FUNCTION__, __FILE__, __LINE__, s);
   log_(level, 0, s, value, args...);
 }
 template <typename T>
 inline void Logger::log(Level level, const T& log) {
-  base::threading::ScopedLock scopedLock(lock());
+  LoggerThreadSafe::ScopedLock scopedLock(*this, __FUNCTION__, __FILE__, __LINE__, 0);
   log_(level, 0, log);
 }
 #  if ELPP_VERBOSE_LOG
 template <typename T, typename... Args>
 inline void Logger::verbose(int vlevel, const char* s, const T& value, const Args&... args) {
-  base::threading::ScopedLock scopedLock(lock());
+  LoggerThreadSafe::ScopedLock scopedLock(*this, __FUNCTION__, __FILE__, __LINE__, s);
   log_(el::Level::Verbose, vlevel, s, value, args...);
 }
 template <typename T>
 inline void Logger::verbose(int vlevel, const T& log) {
-  base::threading::ScopedLock scopedLock(lock());
+  LoggerThreadSafe::ScopedLock scopedLock(*this, __FUNCTION__, __FILE__, __LINE__, 0);
   log_(el::Level::Verbose, vlevel, log);
 }
 #  else
@@ -3810,7 +3837,9 @@ class Helpers : base::StaticClass {
     }
     base::MessageBuilder b;
     b.initialize(logger);
-    logger->acquireLock();
+    logger->acquireLock(__FUNCTION__, __FILE__, __LINE__);
+    try
+    {
     b << templ;
 #if defined(ELPP_UNICODE)
     std::string s = std::string(logger->stream().str().begin(), logger->stream().str().end());
@@ -3820,6 +3849,12 @@ class Helpers : base::StaticClass {
     logger->stream().str(ELPP_LITERAL(""));
     logger->releaseLock();
     return s;
+    }
+    catch (...)
+    {
+      printf("unreleased mutex!! %s(%u)\n", __FILE__, __LINE__); fflush(stdout);
+      for(;;);
+    }
   }
   /// @brief Returns command line arguments (pointer) provided to easylogging++
   static inline const el::base::utils::CommandLineArgs* commandLineArgs(void) {
