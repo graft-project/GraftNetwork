@@ -30,6 +30,7 @@
 
 
 #include "wallet/api/wallet2_api.h"
+#include "net/http_client.h"
 #include <string>
 
 namespace Monero {
@@ -63,19 +64,25 @@ public:
                                                     const std::string &addressString,
                                                     const std::string &viewKeyString,
                                                     const std::string &spendKeyString = "");
+    virtual Wallet * createWalletFromDevice(const std::string &path,
+                                            const std::string &password,
+                                            NetworkType nettype,
+                                            const std::string &deviceName,
+                                            uint64_t restoreHeight = 0,
+                                            const std::string &subaddressLookahead = "") override;
     virtual bool closeWallet(Wallet *wallet, bool store = true);
     bool walletExists(const std::string &path);
     bool verifyWalletPassword(const std::string &keys_file_name, const std::string &password, bool no_spend_key) const;
     std::vector<std::string> findWallets(const std::string &path);
     std::string errorString() const;
     void setDaemonAddress(const std::string &address);
-    bool connected(uint32_t *version = NULL) const;
-    uint64_t blockchainHeight() const;
-    uint64_t blockchainTargetHeight() const;
-    uint64_t networkDifficulty() const;
-    double miningHashRate() const;
-    uint64_t blockTarget() const;
-    bool isMining() const;
+    bool connected(uint32_t *version = NULL);
+    uint64_t blockchainHeight();
+    uint64_t blockchainTargetHeight();
+    uint64_t networkDifficulty();
+    double miningHashRate();
+    uint64_t blockTarget();
+    bool isMining();
     bool startMining(const std::string &address, uint32_t threads = 1, bool background_mining = false, bool ignore_battery = true);
     bool stopMining();
     std::string resolveOpenAlias(const std::string &address, bool &dnssec_valid) const;
@@ -84,6 +91,7 @@ private:
     WalletManagerImpl() {}
     friend struct WalletManagerFactory;
     std::string m_daemonAddress;
+    epee::net_utils::http::http_simple_client m_http_client;
     std::string m_errorString;
 };
 

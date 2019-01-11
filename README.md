@@ -20,7 +20,15 @@ Portions Copyright (c) 2012-2013, The Cryptonote developers
 - GitHub: [https://github.com/graft-project/GraftNetwork](https://github.com/graft-project/GraftNetwork)
 - Monero GitHub: [https://github.com/monero-project/monero](https://github.com/monero-project/monero)
 
+## Announcements
+
+- You can subscribe to an [announcement listserv](https://lists.getmonero.org) to get critical announcements from the Monero core team. The announcement list can be very helpful for knowing when software updates are needed.
+
 ## Build
+
+### IMPORTANT 
+
+These builds are of the master branch, which is used for active development and can be either unstable or incompatible with release software. Please compile release branches.
 
 | Operating System      | Processor | Status |
 | --------------------- | -------- |--------|
@@ -62,28 +70,29 @@ See [LICENSE](LICENSE).
 
 If you want to help out, see [CONTRIBUTING](CONTRIBUTING.md) for a set of guidelines.
 
-## Vulnerability Response Process
+## Scheduled software upgrades
 
-See [Vulnerability Response Process](VULNERABILITY_RESPONSE_PROCESS.md).
-
-
-## Graft Network software updates and consensus protocol changes (hard fork schedule)
-
-
-Graft Network uses a fixed-schedule hard fork mechanism to implement new features. This means that users of Graft Network (end users and service providers) need to run current versions and update their software on a regular schedule. Here is the current schedule, versions, and compatibility.
+Monero uses a fixed-schedule software upgrade (hard fork) mechanism to implement new features. This means that users of Monero (end users and service providers) should run current versions and upgrade their software on a regular schedule. Software upgrades occur during the months of April and October. The required software for these upgrades will be available prior to the scheduled date. Please check the repository prior to this date for the proper Monero software version. Below is the historical schedule and the projected schedule for the next upgrade.
 Dates are provided in the format YYYY-MM-DD. 
 
-| Fork Date              | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |  
-| ----------------- | ----------------- | ---------------------- | -------------------------- | ------------------ |
-| 2018-01-18        | v7                | 1.0.0                | 1.0.1                    | First release      |
-| 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
 
-## Installing Graft Network from a Package
+| Software upgrade block height | Date       | Fork version | Minimum Monero version | Recommended Monero version | Details                                                                            |  
+| ------------------------------ | -----------| ----------------- | ---------------------- | -------------------------- | ---------------------------------------------------------------------------------- |
+| 1009827                        | 2016-03-22 | v2                | v0.9.4                 | v0.9.4                     | Allow only >= ringsize 3, blocktime = 120 seconds, fee-free blocksize 60 kb       |
+| 1141317                        | 2016-09-21 | v3                | v0.9.4                 | v0.10.0                    | Splits coinbase into denominations  |
+| 1220516                        | 2017-01-05 | v4                | v0.10.1                | v0.10.2.1                  | Allow normal and RingCT transactions |
+| 1288616                        | 2017-04-15 | v5                | v0.10.3.0              | v0.10.3.1                  | Adjusted minimum blocksize and fee algorithm      |
+| 1400000                        | 2017-09-16 | v6                | v0.11.0.0              | v0.11.0.0                  | Allow only RingCT transactions, allow only >= ringsize 5      |
+| 1546000                        | 2018-04-06 | v7                | v0.12.0.0              | v0.12.2.0                  | Cryptonight variant 1, ringsize >= 7, sorted inputs
+| XXXXXXX                        | 2018-10-XX | XX                | XXXXXXXXX              | XXXXXXXXX                  | X
 
-Not available yet!
+X's indicate that these details have not been determined as of commit date.
 
+## Release staging schedule and protocol
 
-## Compiling Graft Network from Source
+Approximately three months prior to a scheduled software upgrade, a branch from Master will be created with the new release version tag. Pull requests that address bugs should then be made to both Master and the new release branch. Pull requests that require extensive review and testing (generally, optimizations and new features) should *not* be made to the release branch. 
+
+## Compiling Monero from source
 
 ### Dependencies
 
@@ -115,10 +124,24 @@ library archives (`.a`).
 | GTest        | 1.5           | YES      | `libgtest-dev`^    | `gtest`      | `gtest-devel`     | YES      | Test suite     |
 | Doxygen      | any           | NO       | `doxygen`          | `doxygen`    | `doxygen`         | YES      | Documentation  |
 | Graphviz     | any           | NO       | `graphviz`         | `graphviz`   | `graphviz`        | YES      | Documentation  |
+| pcsclite     | ?             | NO       | `libpcsclite-dev`  | ?            | `pcsc-lite pcsc-lite-devel` | NO | Ledger     |          
 
 
 [^] On Debian/Ubuntu `libgtest-dev` only includes sources and headers. You must
 build the library binary manually. This can be done with the following command ```sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/ ```
+
+Debian / Ubuntu one liner for all dependencies  
+``` sudo apt update && sudo apt install build-essential cmake pkg-config libboost-all-dev libssl-dev libzmq3-dev libunbound-dev libsodium-dev libminiupnpc-dev libunwind8-dev liblzma-dev libreadline6-dev libldns-dev libexpat1-dev doxygen graphviz libpcsclite-dev ```
+
+### Cloning the repository
+
+Clone recursively to pull-in needed submodule(s):
+
+`$ git clone --recursive https://github.com/monero-project/monero`
+
+If you already have a repo cloned, initialize and update:
+
+`$ cd monero && git submodule init && git submodule update`
 
 ### Build instructions
 
@@ -128,9 +151,10 @@ invokes cmake commands as needed.
 #### On Linux and OS X
 
 * Install the dependencies
-* Change to the root of the source code directory and build:
+* Change to the root of the source code directory, change to the most recent release branch, and build:
 
-        cd GraftNetwork
+        cd monero
+        git checkout v0.12.2.0
         make
 
     *Optional*: If your machine has several cores and enough memory, enable
@@ -140,6 +164,12 @@ invokes cmake commands as needed.
 
     *Note*: If cmake can not find zmq.hpp file on OS X, installing `zmq.hpp` from
     https://github.com/zeromq/cppzmq to `/usr/local/include` should fix that error.
+    
+    *Note*: The instructions above will compile the most stable release of the
+    Monero software. If you would like to use and test the most recent software,
+    use ```git checkout master```. The master branch may contain updates that are
+    both unstable and incompatible with release software, though testing is always 
+    encouraged. 
 
 * The resulting executables can be found in `build/release/bin`
 
@@ -160,6 +190,8 @@ invokes cmake commands as needed.
 * **Optional**: to build statically-linked binaries:
 
          make release-static
+
+Dependencies need to be built with -fPIC. Static libraries usually aren't, so you may have to build them yourself with -fPIC. Refer to their documentation for how to build them.
 
 * **Optional**: build documentation in `doc/html` (omit `HAVE_DOT=YES` if `graphviz` is not installed):
 
@@ -185,7 +217,7 @@ Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Stretch (
 ```
         git clone https://github.com/monero-project/monero.git
 	cd monero
-	git checkout tags/v0.11.1.0
+	git checkout tags/v0.12.2.0
 ```
 * Build:
 ```
@@ -302,7 +334,21 @@ application.
   or `MinGW-w64-Win64 Shell` shortcut on 32-bit Windows. Note that if you are
   running 64-bit Windows, you will have both 64-bit and 32-bit MinGW shells.
 
+**Cloning**
+
+* To git clone, run:
+
+        git clone --recursive https://github.com/monero-project/monero.git
+
 **Building**
+
+* Change to the cloned directory, run:
+	
+        cd monero
+
+* If you would like a specific [version/tag](https://github.com/monero-project/monero/tags), do a git checkout for that version. eg. 'v0.12.1.0'. If you dont care about the version and just want binaries from master, skip this step:
+	
+        git checkout v0.12.1.0
 
 * If you are on a 64-bit system, run:
 
@@ -313,6 +359,16 @@ application.
         make release-static-win32
 
 * The resulting executables can be found in `build/release/bin`
+
+* **Optional**: to build Windows binaries suitable for debugging on a 64-bit system, run:
+
+        make debug-static-win64
+	
+* **Optional**: to build Windows binaries suitable for debugging on a 32-bit system, run:
+
+        make debug-static-win32
+
+* The resulting executables can be found in `build/debug/bin`
 
 ### On FreeBSD:
 
@@ -457,7 +513,47 @@ By default, in either dynamically or statically linked builds, binaries target t
 * ```make release-static-win64``` builds binaries on 64-bit Windows portable across 64-bit Windows systems
 * ```make release-static-win32``` builds binaries on 64-bit or 32-bit Windows portable across 32-bit Windows systems
 
-## Running graftnoded
+## Installing Monero from a package
+
+**DISCLAIMER: These packages are not part of this repository or maintained by this project's contributors, and as such, do not go through the same review process to ensure their trustworthiness and security.**
+
+Packages are available for
+
+* Ubuntu and [snap supported](https://snapcraft.io/docs/core/install) systems, via a community contributed build.
+
+    snap install monero --beta
+
+Installing a snap is very quick. Snaps are secure. They are isolated with all of their dependencies. Snaps also auto update when a new version is released.
+
+* Arch Linux (via [AUR](https://aur.archlinux.org/)):
+  - Stable release: [`monero`](https://aur.archlinux.org/packages/monero)
+  - Bleeding edge: [`monero-git`](https://aur.archlinux.org/packages/monero-git)
+
+* Void Linux:
+
+        xbps-install -S monero
+
+* GuixSD
+
+        guix package -i monero
+
+* Docker
+
+        # Build using all available cores
+        docker build -t monero .
+
+        # or build using a specific number of cores (reduce RAM requirement)
+        docker build --build-arg NPROC=1 -t monero .
+
+        # either run in foreground
+        docker run -it -v /monero/chain:/root/.bitmonero -v /monero/wallet:/wallet -p 18080:18080 monero
+
+        # or in background
+        docker run -it -d -v /monero/chain:/root/.bitmonero -v /monero/wallet:/wallet -p 18080:18080 monero
+
+Packaging for your favorite distribution would be a welcome contribution!
+
+## Running monerod
 
 The build places the binary in `bin/` sub-directory within the build directory
 from which cmake was invoked (repository root by default). To run in
@@ -520,6 +616,8 @@ setting the following configuration parameters and environment variables:
    as well.
 * Do NOT pass `--detach` when running through torsocks with systemd, (see
   [utils/systemd/monerod.service](utils/systemd/monerod.service) for details).
+* If you use the wallet with a Tor daemon via the loopback IP (eg, 127.0.0.1:9050),
+  then use `--untrusted-daemon` unless it is your own hidden service.
 
 <<<<<<< HEAD
 `DNS_PUBLIC=tcp TORSOCKS_ALLOW_INBOUND=1 torsocks graftnoded --p2p-bind-ip 127.0.0.1 --no-igd`
