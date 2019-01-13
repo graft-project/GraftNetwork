@@ -63,7 +63,8 @@ namespace epee
 
     ~async_stdin_reader()
     {
-      stop();
+      try { stop(); }
+      catch (...) { /* ignore */ }
     }
 
 #ifdef HAVE_READLINE
@@ -351,8 +352,11 @@ eof:
 
           std::string command;
           bool get_line_ret = m_stdin_reader.get_line(command);
-          if (!m_running || m_stdin_reader.eos())
+          if (!m_running)
+            break;
+          if (m_stdin_reader.eos())
           {
+            MGINFO("EOF on stdin, exiting");
             break;
           }
           if (!get_line_ret)
@@ -401,11 +405,17 @@ eof:
 
 
   template<class t_server, class t_handler>
-  bool start_default_console(t_server* ptsrv, t_handler handlr, const std::string& prompt, const std::string& usage = "")
+  bool start_default_console(t_server* ptsrv, t_handler handlr, std::function<std::string(void)> prompt, const std::string& usage = "")
   {
     std::shared_ptr<async_console_handler> console_handler = std::make_shared<async_console_handler>();
     boost::thread([=](){console_handler->run<t_server, t_handler>(ptsrv, handlr, prompt, usage);}).detach();
     return true;
+  }
+
+  template<class t_server, class t_handler>
+  bool start_default_console(t_server* ptsrv, t_handler handlr, const std::string& prompt, const std::string& usage = "")
+  {
+    return start_default_console(ptsrv, handlr, [prompt](){ return prompt; }, usage);
   }
 
   template<class t_server>
@@ -421,17 +431,29 @@ eof:
     }
 
   template<class t_server, class t_handler>
-  bool run_default_console_handler_no_srv_param(t_server* ptsrv, t_handler handlr, const std::string& prompt, const std::string& usage = "")
+  bool run_default_console_handler_no_srv_param(t_server* ptsrv, t_handler handlr, std::function<std::string(void)> prompt, const std::string& usage = "")
   {
     async_console_handler console_handler;
     return console_handler.run(ptsrv, boost::bind<bool>(no_srv_param_adapter<t_server, t_handler>, _1, _2, handlr), prompt, usage);
   }
 
   template<class t_server, class t_handler>
-  bool start_default_console_handler_no_srv_param(t_server* ptsrv, t_handler handlr, const std::string& prompt, const std::string& usage = "")
+  bool run_default_console_handler_no_srv_param(t_server* ptsrv, t_handler handlr, const std::string& prompt, const std::string& usage = "")
+  {
+    return run_default_console_handler_no_srv_param(ptsrv, handlr, [prompt](){return prompt;},usage);
+  }
+
+  template<class t_server, class t_handler>
+  bool start_default_console_handler_no_srv_param(t_server* ptsrv, t_handler handlr, std::function<std::string(void)> prompt, const std::string& usage = "")
   {
     boost::thread( boost::bind(run_default_console_handler_no_srv_param<t_server, t_handler>, ptsrv, handlr, prompt, usage) );
     return true;
+  }
+
+  template<class t_server, class t_handler>
+  bool start_default_console_handler_no_srv_param(t_server* ptsrv, t_handler handlr, const std::string& prompt, const std::string& usage = "")
+  {
+    return start_default_console_handler_no_srv_param(ptsrv, handlr, [prompt](){return prompt;}, usage);
   }
 
   /*template<class a>
