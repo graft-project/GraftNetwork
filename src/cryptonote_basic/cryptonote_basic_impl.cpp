@@ -94,7 +94,8 @@ namespace cryptonote {
 
     const uint64_t first_reward = 8301030000000000000U;
 
-    if (version >= 6  && median_size > 0 && already_generated_coins < first_reward) {
+    if(version >= 6 && median_weight > 0 && already_generated_coins < first_reward)
+    {
       reward = first_reward;
       return true;
     }
@@ -235,7 +236,7 @@ namespace cryptonote {
         info.has_payment_id = false;
       }
       else {
-        LOG_PRINT_L1("Wrong address prefix: " << prefix << ", expected " << address_prefix 
+        LOG_PRINT_L1("Wrong address prefix: " << prefix << ", expected " << address_prefix
           << " or " << integrated_address_prefix
           << " or " << subaddress_prefix);
         return false;
