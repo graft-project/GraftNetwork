@@ -317,7 +317,7 @@ namespace nodetool
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(bool testnet) const;
     bool connect_to_seed();
-    bool find_connection_id_by_peer_id(uint64_t id, boost::uuids::uuid &conn_id);
+    bool find_connection_id_by_peer(const peerlist_entry &pe, boost::uuids::uuid &conn_id);
     template <class Container>
     bool connect_to_peerlist(const Container& peers);
 
