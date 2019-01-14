@@ -57,3 +57,4 @@ namespace wallet_args
     const std::function<void(const std::string&, bool)> &print,
     const char *default_log_name, bool log_to_console = false);
 }
+

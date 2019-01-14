@@ -27,6 +27,8 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "cryptonote_basic/cryptonote_basic.h"
+#include "wallet/wallet2.h"
+#include "wallet_errors.h"
 #include "mnemonics/electrum-words.h"
 #include "common/command_line.h"
 #include "baseclientproxy.h"
@@ -61,7 +63,7 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     }
     try
     {
-        wal->refresh();
+        wal->refresh(wal->is_trusted_daemon());
         out.Balance = wal->balance(0);
         out.UnlockedBalance = wal->unlocked_balance(0);
         storeWalletState(wal.get());
@@ -73,6 +75,14 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
     }
     out.Result = STATUS_OK;
     return true;
+}
+
+template<class Src, class Dst>
+void copy_seed(const Src& src, Dst& dst)
+{
+    epee::wipeable_string seed;
+    src.get_seed(seed);
+    dst.Seed = seed.data();
 }
 
 bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CREATE_ACCOUNT::request &in, supernode::rpc_command::CREATE_ACCOUNT::response &out)
@@ -111,9 +121,10 @@ bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CRE
     out.Account = base64_encode(wal->store_keys_graft(in.Password));
     out.Address = wal->get_account().get_public_address_str(wal->nettype());
     out.ViewKey = epee::string_tools::pod_to_hex(wal->get_account().get_keys().m_view_secret_key);
-    std::string seed;
-    wal->get_seed(seed);
-    out.Seed = seed;
+    //std::string seed;
+    //wal->get_seed(seed);
+    //out.Seed = seed;
+    copy_seed(*wal, out);
     out.Result = STATUS_OK;
     return true;
 }
@@ -128,9 +139,10 @@ bool supernode::BaseClientProxy::GetSeed(const supernode::rpc_command::GET_SEED:
         return false;
     }
     wal->set_seed_language(in.Language);
-    std::string seed;
-    wal->get_seed(seed);
-    out.Seed = seed;
+    //std::string seed;
+    //wal->get_seed(seed);
+    //out.Seed = seed;
+    copy_seed(*wal, out);
     out.Result = STATUS_OK;
     return true;
 }
@@ -153,7 +165,7 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
     std::unique_ptr<tools::GraftWallet> wal =
         tools::GraftWallet::createWallet(std::string(), m_Servant->GetNodeIp(), m_Servant->GetNodePort(),
                                              m_Servant->GetNodeLogin(), m_Servant->nettype());
-    if (!wal)
+    if(!wal)
     {
         out.Result = ERROR_CREATE_WALLET_FAILED;
         return false;
@@ -166,11 +178,9 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
         out.Address = wal->get_account().get_public_address_str(wal->nettype());
         out.ViewKey = epee::string_tools::pod_to_hex(
                     wal->get_account().get_keys().m_view_secret_key);
-        std::string seed;
-        wal->get_seed(seed);
-        out.Seed = seed;
+        copy_seed(*wal, out);
     }
-    catch (const std::exception &e)
+    catch(const std::exception &e)
     {
         out.Result = ERROR_RESTORE_WALLET_FAILED;
         return false;
@@ -182,19 +192,19 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
 bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GET_TRANSFER_FEE::request &in, supernode::rpc_command::GET_TRANSFER_FEE::response &out)
 {
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
-    if (!wal)
+    if(!wal)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
     }
 
-    if (wal->restricted())
-    {
-        //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
-        //      er.message = "Command unavailable in restricted mode.";
-        out.Result = ERROR_OPEN_WALLET_FAILED;
-        return false;
-    }
+    //if(wal->restricted())
+    //{
+    //    //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+    //    //      er.message = "Command unavailable in restricted mode.";
+    //    out.Result = ERROR_OPEN_WALLET_FAILED;
+    //    return false;
+    //}
 
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
@@ -206,7 +216,7 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
     iss >> amount;
 
     // validate the transfer requested and populate dsts & extra
-    if (!validate_transfer(in.Account, in.Password, in.Address, amount, payment_id, dsts, extra))
+    if(!validate_transfer(in.Account, in.Password, in.Address, amount, payment_id, dsts, extra))
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
@@ -219,8 +229,8 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
         uint64_t priority = 0;
         std::set<uint32_t> subaddr_indices;
         uint32_t subaddr_account = 0;
-        std::vector<tools::GraftWallet::pending_tx> ptx_vector =
-                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices, false);
+        std::vector<tools::wallet2::pending_tx> ptx_vector =
+                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices);
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)
@@ -233,14 +243,14 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
 
         out.Fee = ptx_vector.back().fee;
     }
-    catch (const tools::error::daemon_busy& e)
+    catch(const tools::error::daemon_busy& e)
     {
         //      er.code = WALLET_RPC_ERROR_CODE_DAEMON_IS_BUSY;
         //      er.message = e.what();
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
     }
-    catch (const std::exception& e)
+    catch(const std::exception& e)
     {
         //      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
         //      er.message = e.what();
@@ -262,19 +272,19 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
 bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER::request &in, supernode::rpc_command::TRANSFER::response &out)
 {
     std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password);
-    if (!wal)
+    if(!wal)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
     }
 
-    if (wal->restricted())
-    {
-        //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
-        //      er.message = "Command unavailable in restricted mode.";
-        out.Result = ERROR_OPEN_WALLET_FAILED;
-        return false;
-    }
+    //if(wal->restricted())
+    //{
+    //    //      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+    //    //      er.message = "Command unavailable in restricted mode.";
+    //    out.Result = ERROR_OPEN_WALLET_FAILED;
+    //    return false;
+    //}
 
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
@@ -302,8 +312,8 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
         bool get_tx_hex = false;
         std::set<uint32_t> subaddr_indices;
         uint32_t subaddr_account = 0;
-        std::vector<tools::GraftWallet::pending_tx> ptx_vector =
-                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices, false);
+        std::vector<tools::wallet2::pending_tx> ptx_vector =
+                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_account, subaddr_indices);
 
         // reject proposed transactions if there are more than one.  see on_transfer_split below.
         if (ptx_vector.size() != 1)
@@ -434,12 +444,12 @@ bool supernode::BaseClientProxy::validate_transfer(const string &account, const 
         crypto::hash8 short_payment_id;
 
         /* Parse payment ID */
-        if (tools::GraftWallet::parse_long_payment_id(payment_id_str, long_payment_id))
+        if (tools::wallet2::parse_long_payment_id(payment_id_str, long_payment_id))
         {
             cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, long_payment_id);
         }
         /* or short payment ID */
-        else if (tools::GraftWallet::parse_short_payment_id(payment_id_str, short_payment_id))
+        else if (tools::wallet2::parse_short_payment_id(payment_id_str, short_payment_id))
         {
             cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, short_payment_id);
         }
@@ -488,7 +498,7 @@ std::unique_ptr<tools::GraftWallet> supernode::BaseClientProxy::initWallet(const
     return wal;
 }
 
-void supernode::BaseClientProxy::storeWalletState(tools::GraftWallet *wallet)
+void supernode::BaseClientProxy::storeWalletState(tools::wallet2 *wallet)
 {
     if (wallet)
     {

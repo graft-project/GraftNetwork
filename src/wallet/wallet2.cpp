@@ -45,6 +45,7 @@ using namespace epee;
 
 #include "cryptonote_config.h"
 #include "wallet2.h"
+#include "wallet_errors.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "misc_language.h"
@@ -3208,7 +3209,7 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
 {
 
   std::string buf;
-  bool encrypted_secret_keys = false;
+  //bool encrypted_secret_keys = false;
   bool r = epee::file_io_utils::load_file_to_string(keys_file_name, buf);
   THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, keys_file_name);
 
@@ -3266,7 +3267,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
     m_subaddress_lookahead_minor = SUBADDRESS_LOOKAHEAD_MINOR;
     m_device_name = "";
     m_key_device_type = hw::device::device_type::SOFTWARE;
-    encrypted_secret_keys = false;
+    //encrypted_secret_keys = false;
   }
   else if(json.IsObject())
   {
@@ -3415,6 +3416,8 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
     m_key_reuse_mitigation2 = field_key_reuse_mitigation2;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, segregation_height, int, Uint, false, 0);
     m_segregation_height = field_segregation_height;
+
+    /*
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ignore_fractional_outputs, int, Int, false, true);
     m_ignore_fractional_outputs = field_ignore_fractional_outputs;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, subaddress_lookahead_major, uint32_t, Uint, false, SUBADDRESS_LOOKAHEAD_MAJOR);
@@ -3437,6 +3440,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
         m_device_name = m_key_device_type == hw::device::device_type::LEDGER ? "Ledger" : "default";
       }
     }
+    */
   }
   else
   {
@@ -3460,6 +3464,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
 
   if (r)
   {
+    /*
     if (encrypted_secret_keys)
     {
       m_account.decrypt_keys(key);
@@ -3479,6 +3484,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
         decrypt_keys(key);
       m_keys_file_locker.reset();
     }
+    */
   }
   const cryptonote::account_keys& keys = m_account.get_keys();
   hw::device &hwdev = m_account.get_device();
@@ -6323,7 +6329,6 @@ uint64_t wallet2::get_fee_quantization_mask() const
   if (result)
     return 1;
   return fee_quantization_mask;
->>>>>>> 74902419f5946dc01e9b00ad7afad2397eb2efa3
 }
 //----------------------------------------------------------------------------------------------------
 int wallet2::get_fee_algorithm() const
@@ -8713,8 +8718,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     }
     else
     {
-      while (!dsts.empty() && dsts[0].amount <= available_amount
-             && estimate_tx_weightuse_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size(), extra.size(), bulletproof) < TX_WEIGHT_TARGET(upper_transaction_weight_limit))
+      while(!dsts.empty() && dsts[0].amount <= available_amount
+        && estimate_tx_weight(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size() + 1, extra.size(), bulletproof) < TX_WEIGHT_TARGET(upper_transaction_weight_limit))
+      //while (!dsts.empty() && dsts[0].amount <= available_amount
+      //       && estimate_tx_weightuse_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size(), extra.size(), bulletproof) < TX_WEIGHT_TARGET(upper_transaction_weight_limit))
       {
         // we can fully pay that destination
         LOG_PRINT_L2("We can fully pay " << get_account_address_as_str(m_nettype, dsts[0].is_subaddress, dsts[0].addr) <<
@@ -8726,7 +8733,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         ++original_output_index;
       }
 
-      if (available_amount > 0 && !dsts.empty()
+      if(available_amount > 0 && !dsts.empty()
         && estimate_tx_weight(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size(), extra.size(), bulletproof) < TX_WEIGHT_TARGET(upper_transaction_weight_limit))
       {
         // we can partially fill that destination

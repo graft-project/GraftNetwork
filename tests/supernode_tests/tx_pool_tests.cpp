@@ -96,7 +96,7 @@ TEST_F(TxPoolTest, GetTx)
 
     ASSERT_TRUE(wallet != nullptr);
     ASSERT_TRUE(wallet->init(DAEMON_ADDR));
-    wallet->refresh();
+    wallet->refresh(wallet->is_trusted_daemon());
     GraftTxExtra tx_extra;
     uint64_t AMOUNT = 10000000000000; // 10 GRF
 
@@ -118,7 +118,7 @@ TEST_F(TxPoolTest, GetTx)
     ASSERT_TRUE(ptx->status() == Monero::PendingTransaction::Status_Ok);
     std::cout << "sending : " << Wallet::displayAmount(ptx->amount()) << std::endl;
     bool commit_result = ptx->commit();
-    wallet->refresh();
+    wallet->refresh(wallet->is_trusted_daemon());
     std::cout << "ptx error: " << ptx->errorString() << std::endl;
     std::cout << "commit  status: " << commit_result << std::endl;
     ASSERT_TRUE(ptx->txid().size() > 0);
