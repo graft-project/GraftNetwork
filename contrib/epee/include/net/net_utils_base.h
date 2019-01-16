@@ -192,8 +192,10 @@ namespace net_utils
 
     connection_context_base& operator=(const connection_context_base& a)
     {
-      if(&a == this)
+      if(&a == this) {
+        MWARNING("self assignment for " << m_connection_id << "(" << this << ")");
         return *this;
+      }
       set_details(a.m_connection_id, a.m_remote_address, a.m_is_income);
       return *this;
     }
