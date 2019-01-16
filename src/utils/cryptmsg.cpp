@@ -27,12 +27,21 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
+#include <boost/endian/conversion.hpp>
 #include "cryptmsg.h"
 #include "crypto/chacha.h"
 
 static_assert(201103L <= __cplusplus);
 
 namespace graft::crypto_tools {
+
+#if 0
+//can be used to check manually
+#define native_to_little boost::endian::native_to_big
+#define little_to_native boost::endian::big_to_native
+#else
+using namespace boost::endian;
+#endif
 
 inline size_t getEncryptChachaSize(size_t plainSize)
 {
@@ -63,10 +72,12 @@ void decryptChacha(const void* cipher, size_t cipher_size, const crypto::secret_
   crypto::chacha8(reinterpret_cast<const char*>(cipher) + sizeof(iv), cipher_size - prefix_size, key, iv, reinterpret_cast<char*>(plain));
 }
 
-constexpr uint16_t cStart = 0xA5A5;
-constexpr uint16_t cEnd = 0x5A5A;
+#define cStart native_to_little(uint16_t(0xA5A5))
+#define cEnd native_to_little(uint16_t(0x5A5A))
 
 #pragma pack(push, 1)
+
+//Note, native order is little-endian
 
 //SessionX in decrypted form contains session key x and constants to check that the decryption was correct
 struct SessionX
@@ -101,7 +112,7 @@ uint32_t getBhash(const crypto::public_key& B)
     {
         res ^= *p;
     }
-    return res;
+    return native_to_little(res);
 }
 
 void encryptMessage(const std::string& input, const std::vector<crypto::public_key>& Bkeys, std::string& output)
@@ -119,10 +130,10 @@ void encryptMessage(const std::string& input, const std::vector<crypto::public_k
     size_t msgSize = msgHeadSize + getEncryptChachaSize(input.size());
     output.resize(msgSize);
     cryptoMessageHead& head = *reinterpret_cast<cryptoMessageHead*>(&output[0]);
-    head.plainSize = input.size();
+    head.plainSize = native_to_little(uint32_t(input.size()));
     crypto::secret_key r;
     crypto::generate_keys(head.R, r);
-    head.count = Bkeys.size();
+    head.count = native_to_little(uint16_t(Bkeys.size()));
     //chacha encrypt with x
     encryptChacha(input.data(), input.size(), X.x, &output[0] + msgHeadSize);
     //fill xEntry for each B
@@ -154,8 +165,10 @@ bool decryptMessage(const std::string& input, const crypto::secret_key& bkey, st
     if(input.size() <= sizeof(cryptoMessageHead)) return false;
     //prepare
     const cryptoMessageHead& head = *reinterpret_cast<const cryptoMessageHead*>(input.data());
-    size_t msgHeadSize = sizeof(cryptoMessageHead) + ((size_t)(head.count - 1)) * sizeof(xEntry);
-    size_t msgSize = msgHeadSize + getEncryptChachaSize(head.plainSize);
+    size_t head_count = little_to_native(head.count);
+    size_t head_plainSize = little_to_native(head.plainSize);
+    size_t msgHeadSize = sizeof(cryptoMessageHead) + ((size_t)(head_count - 1)) * sizeof(xEntry);
+    size_t msgSize = msgHeadSize + getEncryptChachaSize(head_plainSize);
     if(input.size() < msgSize) return false;
     //get Bhash from b
     const crypto::secret_key& b = bkey;
@@ -168,7 +181,7 @@ bool decryptMessage(const std::string& input, const crypto::secret_key& bkey, st
     }
     //find xEntry for each B
     const xEntry* pxe = head.xentries;
-    for(int i=0; i<head.count; ++i, ++pxe)
+    for(size_t i=0; i<head_count; ++i, ++pxe)
     {
         const xEntry& xe = *pxe;
         if(xe.Bhash != Bhash) continue;
@@ -182,8 +195,8 @@ bool decryptMessage(const std::string& input, const crypto::secret_key& bkey, st
         decryptChacha(xe.cipherX, sizeof(xe.cipherX), bR, &X);
         if(X.cstart != cStart || X.cend != cEnd) continue;
         //decrypt with session key
-        output.resize(head.plainSize);
-        decryptChacha(input.data() + msgHeadSize, getEncryptChachaSize(head.plainSize), X.x, &output[0]);
+        output.resize(head_plainSize);
+        decryptChacha(input.data() + msgHeadSize, getEncryptChachaSize(head_plainSize), X.x, &output[0]);
         return true;
     }
     return false;
