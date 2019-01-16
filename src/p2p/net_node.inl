@@ -799,7 +799,9 @@ namespace nodetool
       for (unsigned i = 0; i < peers_to_send.size(); i++) {
           const peerlist_entry &pe = peers_to_send[i];
           boost::uuids::uuid conn_id;
-          bool connection_exists = find_connection_id_by_peer_id(pe.id, conn_id);
+          MDEBUG("P2P Request: notify_peer_list: start notify: looking for existing connection for peer: " << pe.id << ", [" << pe.adr << "]");
+          bool connection_exists = find_connection_id_by_peer(pe, conn_id);
+
           bool sent = false;
           MDEBUG("P2P Request: notify_peer_list: sending to peer: " << i << ", already connected: " << connection_exists
                        << ", try connect: " << try_connect);
@@ -1655,14 +1657,14 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::find_connection_id_by_peer_id(uint64_t id, boost::uuids::uuid& conn_id)
+  bool node_server<t_payload_net_handler>::find_connection_id_by_peer(const peerlist_entry &pe, boost::uuids::uuid& conn_id)
   {
     bool ret = false;
-    MDEBUG("find_connection_id_by_peer_id: looking for: " << id);
-    m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt)
+    MDEBUG("find_connection_id_by_peer: looking for: " << pe.adr.str());
+    m_net_server.get_config_object().foreach_connection([&pe, &ret, &conn_id](p2p_connection_context& cntxt)
     {
-      if (cntxt.peer_id == id) {
-        MDEBUG("find_connection_id_by_peer_id: found: " << id);
+      if (cntxt.m_remote_address == pe.adr) {
+        MDEBUG("find_connection_id_by_peer: found: " << pe.adr.str());
         conn_id = cntxt.m_connection_id;
         ret = true;
         return false; // found connection, stopping foreach_connection loop
@@ -1671,6 +1673,8 @@ namespace nodetool
     });
     return ret;
   }
+
+
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::connect_to_seed()
@@ -2297,10 +2301,6 @@ namespace nodetool
     // send to peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
         LOG_INFO_CC(context, "invoking COMMAND_SUPERNODE_ANNOUNCE");
-        if (context.peer_id == 0) {
-            LOG_INFO_CC(context, "invalid connection [COMMAND_SUPERNODE_ANNOUNCE]");
-            return true;
-        }
         if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
             announced_peers.insert(context.peer_id);
         } else {
@@ -2318,7 +2318,7 @@ namespace nodetool
         }
         peers_to_send.push_back(pe);
     }
-
+    MDEBUG("P2P Request: do_supernode_announce: peers_to_send size: " << peers_to_send.size() << ", peerlist_white size: " << peerlist_white.size());
     LOG_PRINT_L0("P2P Request: do_supernode_announce: notify_peer_list");
     notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
     LOG_PRINT_L0("P2P Request: do_supernode_announce: end");
