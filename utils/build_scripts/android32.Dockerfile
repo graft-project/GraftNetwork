@@ -121,47 +121,23 @@ RUN git clone https://github.com/zeromq/cppzmq.git -b ${CPPZMQ_VERSION} \
     && test `git rev-parse HEAD` = ${CPPZMQ_HASH} || exit 1 \
     && cp *.hpp ${PREFIX}/include
 
-#<<<<<<< HEAD
-#RUN git clone https://github.com/graft-project/GraftNetwork.git \
-#    && cd GraftNetwork \
-#    && mkdir -p build/release \
-#    && CC=clang CXX=clang++ \
-#         BOOST_ROOT=${WORKDIR}/boost_${BOOST_VERSION} BOOST_LIBRARYDIR=${WORKDIR}/boost_${BOOST_VERSION}/android32/lib/ \
-#         OPENSSL_ROOT_DIR=${WORKDIR}/openssl/ \
-#         CMAKE_INCLUDE_PATH=${WORKDIR}/cppzmq/ \
-#         CMAKE_LIBRARY_PATH=${WORKDIR}/zeromq4-1/.libs \
-#         CXXFLAGS="-I ${WORKDIR}/zeromq4-1/include/" \
-#         make release-static-android
-#||||||| merged common ancestors
-#RUN git clone https://github.com/monero-project/monero.git \
-#    && cd monero \
-#    && mkdir -p build/release \
-#    && CC=clang CXX=clang++ \
-#         BOOST_ROOT=${WORKDIR}/boost_${BOOST_VERSION} BOOST_LIBRARYDIR=${WORKDIR}/boost_${BOOST_VERSION}/android32/lib/ \
-#         OPENSSL_ROOT_DIR=${WORKDIR}/openssl/ \
-#         CMAKE_INCLUDE_PATH=${WORKDIR}/cppzmq/ \
-#         CMAKE_LIBRARY_PATH=${WORKDIR}/zeromq4-1/.libs \
-#         CXXFLAGS="-I ${WORKDIR}/zeromq4-1/include/" \
-#         make release-static-android
-#=======
-## Sodium
-#ARG SODIUM_VERSION=1.0.16
-#ARG SODIUM_HASH=675149b9b8b66ff44152553fb3ebf9858128363d
-#RUN set -ex \
-#    && git clone https://github.com/jedisct1/libsodium.git -b ${SODIUM_VERSION} \
-#    && cd libsodium \
-#    && test `git rev-parse HEAD` = ${SODIUM_HASH} || exit 1 \
-#    && ./autogen.sh \
-#    && CC=clang CXX=clang++ ./configure --prefix=${PREFIX} --host=arm-linux-androideabi --enable-static --disable-shared \
-#    && make  -j${NPROC} \
-#    && make install
-#
-#ADD . /src
-#RUN cd /src \
-#    && CMAKE_INCLUDE_PATH="${PREFIX}/include" \
-#       CMAKE_LIBRARY_PATH="${PREFIX}/lib" \
-#       ANDROID_STANDALONE_TOOLCHAIN_PATH=${TOOLCHAIN_DIR} \
-#       USE_SINGLE_BUILDDIR=1 \
-#       PATH=${HOST_PATH} make release-static-android-armv7 -j${NPROC}
-#>>>>>>> 74902419f5946dc01e9b00ad7afad2397eb2efa3
+# Sodium
+ARG SODIUM_VERSION=1.0.16
+ARG SODIUM_HASH=675149b9b8b66ff44152553fb3ebf9858128363d
+RUN set -ex \
+    && git clone https://github.com/jedisct1/libsodium.git -b ${SODIUM_VERSION} \
+    && cd libsodium \
+    && test `git rev-parse HEAD` = ${SODIUM_HASH} || exit 1 \
+    && ./autogen.sh \
+    && CC=clang CXX=clang++ ./configure --prefix=${PREFIX} --host=arm-linux-androideabi --enable-static --disable-shared \
+    && make  -j${NPROC} \
+    && make install
+
+ADD . /src
+RUN cd /src \
+    && CMAKE_INCLUDE_PATH="${PREFIX}/include" \
+       CMAKE_LIBRARY_PATH="${PREFIX}/lib" \
+       ANDROID_STANDALONE_TOOLCHAIN_PATH=${TOOLCHAIN_DIR} \
+       USE_SINGLE_BUILDDIR=1 \
+       PATH=${HOST_PATH} make release-static-android-armv7 -j${NPROC}
 
