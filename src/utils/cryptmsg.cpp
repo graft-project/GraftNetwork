@@ -31,9 +31,9 @@
 #include "cryptmsg.h"
 #include "crypto/chacha.h"
 
-static_assert(201103L <= __cplusplus);
+namespace {
 
-namespace graft::crypto_tools {
+static_assert(201103L <= __cplusplus);
 
 #if 0
 //can be used to check manually
@@ -48,13 +48,7 @@ inline size_t getEncryptChachaSize(size_t plainSize)
     return plainSize + sizeof(crypto::chacha_iv);
 }
 
-inline size_t getDecryptChachaSize(size_t cipherSize)
-{
-    assert(sizeof(crypto::chacha_iv) < cipherSize);
-    return cipherSize - sizeof(crypto::chacha_iv);
-}
-
-void encryptChacha(const void* plain, size_t plain_size, const crypto::secret_key &skey, void* cipher)
+void encryptChacha(const uint8_t* plain, size_t plain_size, const crypto::secret_key &skey, uint8_t* cipher)
 {
   crypto::chacha_key key;
   crypto::generate_chacha_key(&skey, sizeof(skey), key);
@@ -63,7 +57,7 @@ void encryptChacha(const void* plain, size_t plain_size, const crypto::secret_ke
   crypto::chacha8(plain, plain_size, key, iv, reinterpret_cast<char*>(cipher) + sizeof(iv));
 }
 
-void decryptChacha(const void* cipher, size_t cipher_size, const crypto::secret_key &skey, void* plain)
+void decryptChacha(const uint8_t* cipher, size_t cipher_size, const crypto::secret_key &skey, uint8_t* plain)
 {
   const size_t prefix_size = sizeof(crypto::chacha_iv);
   crypto::chacha_key key;
@@ -72,8 +66,8 @@ void decryptChacha(const void* cipher, size_t cipher_size, const crypto::secret_
   crypto::chacha8(reinterpret_cast<const char*>(cipher) + sizeof(iv), cipher_size - prefix_size, key, iv, reinterpret_cast<char*>(plain));
 }
 
-#define cStart native_to_little(uint16_t(0xA5A5))
-#define cEnd native_to_little(uint16_t(0x5A5A))
+constexpr uint8_t cStart = 0xA5;
+constexpr uint8_t cEnd = 0x5A;
 
 #pragma pack(push, 1)
 
@@ -82,23 +76,23 @@ void decryptChacha(const void* cipher, size_t cipher_size, const crypto::secret_
 //SessionX in decrypted form contains session key x and constants to check that the decryption was correct
 struct SessionX
 {
-    uint16_t cstart; //decrypted value cStart
+    uint8_t cstart; //decrypted value cStart
     crypto::secret_key x;
-    uint16_t cend; //decrypted value cEnd
+    uint8_t cend; //decrypted value cEnd
 };
 
-struct xEntry
+struct XEntry
 {
     uint32_t Bhash; //xor of B
     uint8_t cipherX[sizeof(SessionX) + sizeof(crypto::chacha_iv)]; //encrypted SessionX
 };
 
-struct cryptoMessageHead
+struct CryptoMessageHead
 {
     uint32_t plainSize; //size of decrypted data
     crypto::public_key R; //random key used to encrypt session key
     uint16_t count; //recipients count
-    xEntry xentries[1];
+    XEntry xentries[1];
 };
 
 #pragma pack(pop)
@@ -115,9 +109,39 @@ uint32_t getBhash(const crypto::public_key& B)
     return native_to_little(res);
 }
 
-void encryptMessage(const std::string& input, const std::vector<crypto::public_key>& Bkeys, std::string& output)
+/*!
+ * \brief encryptMsg - encrypts data for recipients using their B public keys (assumed public view keys).
+ *
+ * The result has following structure [plainSize:32][R:32][count of XEntrys:16][XEntry]...[XEntry][x encrypted data:+8*8]
+ * plainSize - size of original data, x encrypted data takes 8 more bytes
+ * [XEntry] - [Bhash:32][rBX] pair for each recipient
+ * where Bhash - xor of B (aka fingerprint of B, using which recipient can find his entry)
+ * [rBX:+8*8] - encrypted X (aka SessionX)
+ * [X] = [cstart:8][x:32*8][cend:8]
+ *
+ * \param inputSize - input buffer size.
+ * \param input - input buffer to encrypt.
+ * \param BkeysCount - count of B keys.
+ * \param Bkeys - array of B keys for each recipients.
+ * \param outputSize - output buffer size.
+ * \param output - output buffer.
+ * \returns output size required if output==nullptr or outputSize is not enough.
+ * returns 0 on error
+ */
+
+size_t encryptMsg(size_t inputSize, const uint8_t* input, size_t BkeysCount, const crypto::public_key* Bkeys, size_t outputSize, uint8_t* output)
 {
-    assert(!Bkeys.empty());
+    if(!inputSize || !BkeysCount)
+        return 0;
+
+    //prepare
+    size_t msgHeadSize = sizeof(CryptoMessageHead) + (BkeysCount - 1) * sizeof(XEntry);
+    size_t msgSize = msgHeadSize + getEncryptChachaSize(inputSize);
+    if(outputSize < msgSize)
+        return msgSize;
+    if(!input || !Bkeys || !output)
+        return 0;
+
     //make decorated session key
     SessionX X; X.cstart = cStart; X.cend = cEnd;
     //generate session key X.x
@@ -125,24 +149,22 @@ void encryptMessage(const std::string& input, const std::vector<crypto::public_k
         crypto::public_key tmpX;
         crypto::generate_keys(tmpX,X.x);
     }
-    //prepare
-    size_t msgHeadSize = sizeof(cryptoMessageHead) + (Bkeys.size() - 1) * sizeof(xEntry);
-    size_t msgSize = msgHeadSize + getEncryptChachaSize(input.size());
-    output.resize(msgSize);
-    cryptoMessageHead& head = *reinterpret_cast<cryptoMessageHead*>(&output[0]);
-    head.plainSize = native_to_little(uint32_t(input.size()));
+    //chacha encrypt input with x
+    encryptChacha(input, inputSize, X.x, output + msgHeadSize);
+
+    //fill head
+    CryptoMessageHead& head = *reinterpret_cast<CryptoMessageHead*>(output);
+    head.plainSize = native_to_little(uint32_t(inputSize));
     crypto::secret_key r;
     crypto::generate_keys(head.R, r);
-    head.count = native_to_little(uint16_t(Bkeys.size()));
-    //chacha encrypt with x
-    encryptChacha(input.data(), input.size(), X.x, &output[0] + msgHeadSize);
-    //fill xEntry for each B
-    auto pB = Bkeys.begin();
-    xEntry* pxe = head.xentries;
-    for(size_t i=0; i<Bkeys.size(); ++i, ++pxe, ++pB)
+    head.count = native_to_little(uint16_t(BkeysCount));
+    //fill XEntry for each B
+    const crypto::public_key* pB = Bkeys;
+    XEntry* pxe = head.xentries;
+    for(size_t i=0; i<BkeysCount; ++i, ++pxe, ++pB)
     {
         const crypto::public_key& B = *pB;
-        xEntry& xe = *pxe;
+        XEntry& xe = *pxe;
         xe.Bhash = getBhash(B);
         //get rB key
         crypto::key_derivation rBv;
@@ -150,8 +172,87 @@ void encryptMessage(const std::string& input, const std::vector<crypto::public_k
         crypto::secret_key rB;
         crypto::derivation_to_scalar(rBv, 0, rB);
         //encrypt X with rB key
-        encryptChacha(&X, sizeof(X), rB, xe.cipherX);
+        encryptChacha(reinterpret_cast<const uint8_t*>(&X), sizeof(X), rB, xe.cipherX);
     }
+    return msgSize;
+}
+
+/*!
+ * \brief decryptMsg - (reverse of encryptMsg) decrypts data for one of the recipients using his secret key b.
+ *
+ * \param inputSize - input buffer size.
+ * \param input - input buffer to decrypt.
+ * \param bkey - secret key corresponding to one of Bs that were used to encrypt.
+ * \param outputSize - output buffer size.
+ * \param output - output buffer.
+ * \returns output size required if output==nullptr or outputSize is not enough
+ * returns 0 on error
+ */
+
+size_t decryptMsg(size_t inputSize, const uint8_t* input, const crypto::secret_key& bkey, size_t outputSize, uint8_t* output)
+{
+    if(!input || inputSize <= sizeof(CryptoMessageHead))
+        return 0;
+    //prepare
+    const CryptoMessageHead& head = *reinterpret_cast<const CryptoMessageHead*>(input);
+    size_t head_count = little_to_native(head.count);
+    size_t head_plainSize = little_to_native(head.plainSize);
+    size_t msgHeadSize = sizeof(CryptoMessageHead) + ((size_t)(head_count - 1)) * sizeof(XEntry);
+    size_t msgSize = msgHeadSize + getEncryptChachaSize(head_plainSize);
+    if(inputSize < msgSize)
+        return 0;
+    if(outputSize < head_plainSize)
+        return head_plainSize;
+    if(!output)
+        return 0;
+
+    //get Bhash from b
+    const crypto::secret_key& b = bkey;
+    uint32_t Bhash;
+    {
+        crypto::public_key B;
+        bool res = crypto::secret_key_to_public_key(bkey, B);
+        if(!res) return false; //corrupted key
+        Bhash = getBhash(B);
+    }
+    //find XEntry for B
+    const XEntry* pxe = head.xentries;
+    for(size_t i=0; i<head_count; ++i, ++pxe)
+    {
+        const XEntry& xe = *pxe;
+        if(xe.Bhash != Bhash) continue;
+        //get bR key
+        crypto::key_derivation bRv;
+        crypto::generate_key_derivation(head.R, b, bRv);
+        crypto::secret_key bR;
+        crypto::derivation_to_scalar(bRv, 0, bR);
+        //decrypt to X
+        SessionX X;
+        decryptChacha(xe.cipherX, sizeof(xe.cipherX), bR, reinterpret_cast<uint8_t*>(&X));
+        if(X.cstart != cStart || X.cend != cEnd) continue;
+        //decrypt with session key
+        decryptChacha(input + msgHeadSize, getEncryptChachaSize(head_plainSize), X.x, output);
+        return head_plainSize;
+    }
+    return 0;
+}
+
+} //namespace
+
+namespace graft::crypto_tools {
+
+void encryptMessage(const std::string& input, const std::vector<crypto::public_key>& Bkeys, std::string& output)
+{
+    assert(!input.empty());
+    //get output size
+    size_t size = encryptMsg( input.size(), nullptr, Bkeys.size(), nullptr, 0, nullptr);
+    assert(0<size);
+    output.resize(size);
+    //encrypt
+    size_t res = encryptMsg( input.size(), reinterpret_cast<const uint8_t*>(input.data()),
+                             Bkeys.size(), &Bkeys[0],
+            output.size(), reinterpret_cast<uint8_t*>(&output[0]));
+    assert(res == size);
 }
 
 void encryptMessage(const std::string& input, const crypto::public_key& Bkey, std::string& output)
@@ -162,44 +263,25 @@ void encryptMessage(const std::string& input, const crypto::public_key& Bkey, st
 
 bool decryptMessage(const std::string& input, const crypto::secret_key& bkey, std::string& output)
 {
-    if(input.size() <= sizeof(cryptoMessageHead)) return false;
-    //prepare
-    const cryptoMessageHead& head = *reinterpret_cast<const cryptoMessageHead*>(input.data());
-    size_t head_count = little_to_native(head.count);
-    size_t head_plainSize = little_to_native(head.plainSize);
-    size_t msgHeadSize = sizeof(cryptoMessageHead) + ((size_t)(head_count - 1)) * sizeof(xEntry);
-    size_t msgSize = msgHeadSize + getEncryptChachaSize(head_plainSize);
-    if(input.size() < msgSize) return false;
-    //get Bhash from b
-    const crypto::secret_key& b = bkey;
-    uint32_t Bhash;
+    assert(!input.empty());
+    //get output size
+    size_t size = decryptMsg( input.size(), reinterpret_cast<const uint8_t*>(input.data()), bkey, 0, nullptr);
+    if(!size)
     {
-        crypto::public_key B;
-        bool res = crypto::secret_key_to_public_key(bkey, B);
-        if(!res) return false; //corrupted key
-        Bhash = getBhash(B);
+        output.clear();
+        return false;
     }
-    //find xEntry for each B
-    const xEntry* pxe = head.xentries;
-    for(size_t i=0; i<head_count; ++i, ++pxe)
+    output.resize(size);
+    //encrypt
+    size_t res = decryptMsg( input.size(), reinterpret_cast<const uint8_t*>(input.data()),
+                             bkey, output.size(), reinterpret_cast<uint8_t*>(&output[0]));
+    if(!res)
     {
-        const xEntry& xe = *pxe;
-        if(xe.Bhash != Bhash) continue;
-        //get bR key
-        crypto::key_derivation bRv;
-        crypto::generate_key_derivation(head.R, b, bRv);
-        crypto::secret_key bR;
-        crypto::derivation_to_scalar(bRv, 0, bR);
-        //decrypt to X
-        SessionX X;
-        decryptChacha(xe.cipherX, sizeof(xe.cipherX), bR, &X);
-        if(X.cstart != cStart || X.cend != cEnd) continue;
-        //decrypt with session key
-        output.resize(head_plainSize);
-        decryptChacha(input.data() + msgHeadSize, getEncryptChachaSize(head_plainSize), X.x, &output[0]);
-        return true;
+        output.clear();
+        return false;
     }
-    return false;
+    assert(res == size);
+    return true;
 }
 
 } //namespace graft::crypto_tools

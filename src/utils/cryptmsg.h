@@ -53,7 +53,7 @@ void encryptMessage(const std::string& input, const std::vector<crypto::public_k
 void encryptMessage(const std::string& input, const crypto::public_key& Bkey, std::string& output);
 
 /*!
- * \brief decryptMessage - (reverse of encryptForBs) decrypts data for one of the recipients using his b secret key.
+ * \brief decryptMessage - (reverse of encryptMessage) decrypts data for one of the recipients using his secret key b.
  *
  * \param input - data that was created by encryptForBs.
  * \param bkey - secret key corresponding to one of Bs that were used to encrypt.
