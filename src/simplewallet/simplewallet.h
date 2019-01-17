@@ -137,6 +137,7 @@ namespace cryptonote
     bool transfer_new(const std::vector<std::string> &args);
     bool transfer_zero_fee(const std::vector<std::string> &args);
     bool locked_transfer(const std::vector<std::string> &args);
+    bool stake_transfer(const std::vector<std::string> &args);
     bool sweep_main(uint64_t below, const std::vector<std::string> &args);
     bool sweep_all(const std::vector<std::string> &args);
     bool sweep_below(const std::vector<std::string> &args);

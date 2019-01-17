@@ -882,5 +882,53 @@ namespace cryptonote
       return ::serialization::parse_binary(graft_extra.data, graft_tx_extra);
   }
 
+  namespace
+  {
+      struct GraftStakeTxExtra
+      {
+          std::string SupernodePublicId;
+          cryptonote::account_public_address SupernodePublicAddress;
 
+          GraftStakeTxExtra() = default;
+          GraftStakeTxExtra(const std::string &supernode_public_id,
+            const cryptonote::account_public_address& supernode_public_address) :
+              SupernodePublicId(supernode_public_id),
+              SupernodePublicAddress(supernode_public_address) {}
+          bool operator ==(const GraftStakeTxExtra &rhs) const {
+            return SupernodePublicId == rhs.SupernodePublicId &&
+              !memcmp(&SupernodePublicAddress.m_view_public_key.data[0], &rhs.SupernodePublicAddress.m_view_public_key.data[0],
+                sizeof(SupernodePublicAddress.m_view_public_key.data));
+          }
+
+          BEGIN_SERIALIZE_OBJECT()
+              FIELD(SupernodePublicId)
+              FIELD(SupernodePublicAddress)
+          END_SERIALIZE()
+      };
+  }
+
+  bool add_graft_stake_tx_extra_to_extra
+    (std::vector<uint8_t> &extra,
+     const std::string &supernode_public_id,
+     const cryptonote::account_public_address &supernode_public_address)
+  {
+      GraftStakeTxExtra tx_extra(supernode_public_id, supernode_public_address);
+      std::string blob;
+      ::serialization::dump_binary(tx_extra, blob);
+      tx_extra_graft_stake_tx container;
+      container.data = blob;
+      blob.clear();
+      ::serialization::dump_binary(container, blob);
+      extra.push_back(TX_EXTRA_GRAFT_STAKE_TX_TAG);
+      std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
+      return true;
+  }
+
+  bool add_graft_tx_secret_key_to_extra(std::vector<uint8_t> &extra, const crypto::secret_key& secret_key)
+  {
+    extra.resize(extra.size() + 1 + sizeof(crypto::secret_key));
+    extra[extra.size() - 1 - sizeof(crypto::secret_key)] = TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG;
+    *reinterpret_cast<crypto::secret_key*>(&extra[extra.size() - sizeof(crypto::secret_key)]) = secret_key;
+    return true;
+  }
 }
