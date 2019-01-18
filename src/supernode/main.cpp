@@ -100,9 +100,19 @@ int main(int argc, const char** argv) {
 
 	// -------------------------------- Servant -----------------------------------------
 	const boost::property_tree::ptree& cf_ser = config.get_child("servant");
-        servant = new supernode::FSN_Servant_Test( cf_ser.get<string>("bdb_path"), cf_ser.get<string>("daemon_addr"), "",
+  servant = new supernode::FSN_Servant_Test( cf_ser.get<string>("bdb_path"), cf_ser.get<string>("daemon_addr"), "",
                                                    static_cast<cryptonote::network_type>(cf_ser.get<uint8_t>("net_type")));
-	if( !supernode::rpc_command::IsWalletProxyOnly() ) {
+/*
+|||| merged common ancestors
+	servant = new supernode::FSN_Servant_Test( cf_ser.get<string>("bdb_path"), cf_ser.get<string>("daemon_addr"), "", cf_ser.get<bool>("is_testnet") );
+====
+	servant = new supernode::FSN_Servant_Test( cf_ser.get<string>("bdb_path"), cf_ser.get<string>("daemon_addr"), "", cf_ser.get<bool>("is_testnet") );
+    dapi_server.setServant(servant);
+>>>> fda3f135e5782fe6c5ef53b430a495cc0510bd5e
+*/
+
+	if(!supernode::rpc_command::IsWalletProxyOnly())
+  {
 		servant->Set( cf_ser.get<string>("stake_wallet_path"), "", cf_ser.get<string>("miner_wallet_path"), "");
 		// TODO: Remove next code, it only for testing
 		const boost::property_tree::ptree& fsn_hardcoded = config.get_child("fsn_hardcoded");

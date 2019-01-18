@@ -437,6 +437,18 @@ if (CMAKE_SYSTEM_NAME MATCHES "(SunOS|Solaris)")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthreads")
 endif ()
 
+#|||| merged common ancestors
+## Handle OpenSSL, used for sha256sum on binary updates
+#=======
+#if (UNIX AND NOT APPLE)
+#  # Note that at the time of this writing the -Wstrict-prototypes flag added below will make this fail
+#  set(THREADS_PREFER_PTHREAD_FLAG ON)
+#  find_package(Threads)
+#endif()
+#
+## Handle OpenSSL, used for sha256sum on binary updates
+#>>>> fda3f135e5782fe6c5ef53b430a495cc0510bd5e
+
 if (APPLE AND NOT IOS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64 -fvisibility=default")
   if (NOT OpenSSL_DIR)
@@ -462,6 +474,15 @@ add_definition_if_library_exists(c memset_s "string.h" HAVE_MEMSET_S)
 add_definition_if_library_exists(c explicit_bzero "strings.h" HAVE_EXPLICIT_BZERO)
 add_definition_if_function_found(strptime HAVE_STRPTIME)
 
+#||||||| merged common ancestors
+#if (UNIX AND NOT APPLE)
+#  # Note that at the time of this writing the -Wstrict-prototypes flag added below will make this fail
+#  set(THREADS_PREFER_PTHREAD_FLAG ON)
+#  find_package(Threads)
+#endif()
+#
+#=======
+#>>>>>>> fda3f135e5782fe6c5ef53b430a495cc0510bd5e
 add_definitions(-DAUTO_INITIALIZE_EASYLOGGINGPP)
 
 # Generate header for embedded translations
@@ -498,7 +519,7 @@ include_directories(${LIBUNWIND_INCLUDE})
 link_directories(${LIBUNWIND_LIBRARY_DIRS})
 
 # Final setup for hid
-if (HIDAPI_FOUND) 
+if (HIDAPI_FOUND)
   message(STATUS "Using HIDAPI include dir at ${HIDAPI_INCLUDE_DIR}")
   add_definitions(-DHAVE_HIDAPI)
   include_directories(${HIDAPI_INCLUDE_DIR})
@@ -783,7 +804,7 @@ else()
   endif(ARM)
 
   if(ANDROID AND NOT BUILD_GUI_DEPS STREQUAL "ON" OR IOS)
-    #From Android 5: "only position independent executables (PIE) are supported" 
+    #From Android 5: "only position independent executables (PIE) are supported"
     message(STATUS "Enabling PIE executable")
     set(PIC_FLAG "")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIE")
@@ -888,6 +909,11 @@ if(MINGW)
   else()
     set(ICU_LIBRARIES ${Boost_LOCALE_LIBRARY} icuio icuin icuuc icudt icutu iconv)
   endif()
+  #||||||| merged common ancestors
+  #  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi)
+  #=======
+  #  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32;bcrypt)
+  #>>>>>>> fda3f135e5782fe6c5ef53b430a495cc0510bd5e
 elseif(APPLE OR OPENBSD OR ANDROID)
   set(EXTRA_LIBRARIES "")
 elseif(FREEBSD)
@@ -904,7 +930,7 @@ endif()
 
 list(APPEND EXTRA_LIBRARIES ${CMAKE_DL_LIBS})
 
-if (HIDAPI_FOUND) 
+if (HIDAPI_FOUND)
   if (APPLE)
     if(DEPENDS)
       list(APPEND EXTRA_LIBRARIES "-framework Foundation -framework IOKit")
