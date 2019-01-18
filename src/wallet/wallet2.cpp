@@ -1404,6 +1404,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   }
   const std::vector<tx_extra_field> &tx_extra_fields = tx_cache_data.tx_extra_fields.empty() ? local_tx_extra_fields : tx_cache_data.tx_extra_fields;
 
+  std::deque<bool> output_found(tx.vout.size(), false);
   // Don't try to extract tx public key if tx has no ouputs
   size_t pk_index = 0;
   std::vector<tx_scan_info_t> tx_scan_info(tx.vout.size());
@@ -1721,6 +1722,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     {
       transfer_details& td = m_transfers[it->second];
       uint64_t amount = boost::get<cryptonote::txin_to_key>(in).amount;
+      // TODO: monero code is different here, but modified in earlier commits
       if (amount > 0)
       {
         if(amount != td.amount())

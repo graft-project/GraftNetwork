@@ -30,6 +30,7 @@
 #include <string>
 using namespace std;
 #include "DAPI_RPC_Server.h"
+#include "healthcheckapi.h"
 
 bool supernode::DAPI_RPC_Server::handle_http_request(const epee::net_utils::http::http_request_info& query_info, epee::net_utils::http::http_response_info& response, connection_context& m_conn_context) {
     //LOG_PRINT_L4("HTTP [" << m_conn_context.m_remote_address.host_str() << "] " << query_info.m_http_method_str << " " << query_info.m_URI);
@@ -119,6 +120,10 @@ bool supernode::DAPI_RPC_Server::HandleRequest(const epee::net_utils::http::http
 const string& supernode::DAPI_RPC_Server::IP() const { return m_IP; }
 const string& supernode::DAPI_RPC_Server::Port() const { return m_Port; }
 
+void supernode::DAPI_RPC_Server::setServant(FSN_Servant *servant)
+{
+    m_Servant = servant;
+}
 
 void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int numThreads) {
     m_Port = port;

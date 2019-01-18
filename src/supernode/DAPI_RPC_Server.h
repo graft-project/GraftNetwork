@@ -36,6 +36,7 @@
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include "net/http_server_impl_base.h"
+#include "FSN_Servant.h"
 #include <string>
 using namespace std;
 
@@ -51,6 +52,8 @@ namespace supernode {
 		void Stop();
 		const string& IP() const;
 		const string& Port() const;
+
+        void setServant(FSN_Servant *servant);
 
 		protected:
 		class SCallHandler {
@@ -132,6 +135,7 @@ namespace supernode {
 		protected:
 		string m_IP;
 		string m_Port;
+        FSN_Servant *m_Servant = nullptr;
 	};
 
 };
