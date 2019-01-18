@@ -432,11 +432,7 @@ if (UNIX AND NOT APPLE)
   find_package(Threads)
 endif()
 
-# Handle OpenSSL, used for sha256sum on binary updates and light wallet ssl http
-if (CMAKE_SYSTEM_NAME MATCHES "(SunOS|Solaris)")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthreads")
-endif ()
-
+# Handle OpenSSL, used for sha256sum on binary updates
 if (APPLE AND NOT IOS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64 -fvisibility=default")
   if (NOT OpenSSL_DIR)
@@ -455,12 +451,6 @@ if(STATIC AND NOT IOS)
     set(OPENSSL_LIBRARIES "${OPENSSL_LIBRARIES};${CMAKE_DL_LIBS};${CMAKE_THREAD_LIBS_INIT}")
   endif()
 endif()
-
-find_package(HIDAPI)
-
-add_definition_if_library_exists(c memset_s "string.h" HAVE_MEMSET_S)
-add_definition_if_library_exists(c explicit_bzero "strings.h" HAVE_EXPLICIT_BZERO)
-add_definition_if_function_found(strptime HAVE_STRPTIME)
 
 add_definitions(-DAUTO_INITIALIZE_EASYLOGGINGPP)
 
@@ -881,13 +871,7 @@ endif()
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 if(MINGW)
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wa,-mbig-obj")
-  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32)
-  if(DEPENDS)
-    set(ICU_LIBRARIES ${Boost_LOCALE_LIBRARY} sicuio sicuin sicuuc sicudt sicutu iconv)
-  else()
-    set(ICU_LIBRARIES ${Boost_LOCALE_LIBRARY} icuio icuin icuuc icudt icutu iconv)
-  endif()
+  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32;bcrypt)
 elseif(APPLE OR OPENBSD OR ANDROID)
   set(EXTRA_LIBRARIES "")
 elseif(FREEBSD)

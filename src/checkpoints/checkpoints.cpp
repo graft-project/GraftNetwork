@@ -161,21 +161,20 @@ namespace cryptonote
 
   bool checkpoints::init_default_checkpoints(network_type nettype)
   {
-    if (nettype == TESTNET)
-    {
-      return true;
-    }
-    if (nettype == STAGENET)
-    {
-      // TODO
-      return true;
-    }
     ADD_CHECKPOINT(1,     "5d03cc547e916ef79967d001288955cd5e18d3a1ae1c957c58cfd0d950fd295c");
     ADD_CHECKPOINT(10,    "a28669967ad657355c81fa61a51d368369cf8776bdf9e9ff971bd5f922fa1303");
     ADD_CHECKPOINT(100,   "dc6a22176a0511cc21be34eb0293cba88aacb0e29dd443bb741cc77ea00f77f9");
     ADD_CHECKPOINT(1000,  "6f494e6c1b1fdec49a18f9c6a36c3f01f6e01cd184238c798f81f85cf04985bc");
     ADD_CHECKPOINT(10000, "b4a749347aeb81ed13c8e78fccd7e5de01cbb9a1c7212c57a9efd056acfe7cc2");
+    ADD_CHECKPOINT(20000, "eb63c2fa28bc7442da724ce0ecbc6655a226290029251eb8be7ca0190f27ad08");
+    ADD_CHECKPOINT(30000, "4d130a125ea2483e8c1a0bc83beb24ec49426611fac3496b8954fb440d2cbbd9");
     ADD_CHECKPOINT(50000, "2af952344a5a70ba58838ae41318a10c11b289de53d6aa33af6e3b614aa5ce08");
+    ADD_CHECKPOINT(80000, "24622bff193be66bf1bfa8938b427135e3ce8b19970281bb1e3e23f81be6c2fd");
+    ADD_CHECKPOINT(100000, "a85e2b55f2b8512d6200a63686a7ff38af4fb62c4245fcca6c19ef89bce4751a");
+    ADD_CHECKPOINT(120000, "a2ed9a924d1e41b2969a202da22b2f66df74d18c6541a9b9b686b42f166e6014");
+    ADD_CHECKPOINT(150000, "97270d631542023c0815a125834c01a8e2e419d7c8498d1e3c59a504d713f867");
+    ADD_CHECKPOINT(180000, "2d352ac387b412fc2a4bab837ec1eeb6ea30d6cd20388ae3744afd4a30c37c68");
+    ADD_CHECKPOINT(200000, "de9ab57ac93d68ca8ddfea472caeabaaf86271385b3aa1c4fa168ccbb6180a6a");
     return true;
   }
 
@@ -220,16 +219,10 @@ namespace cryptonote
     std::vector<std::string> records;
 
     // All four MoneroPulse domains have DNSSEC on and valid
-    static const std::vector<std::string> dns_urls = { "checkpoints.moneropulse.se"
-						     , "checkpoints.moneropulse.org"
-						     , "checkpoints.moneropulse.net"
-						     , "checkpoints.moneropulse.co"
+    static const std::vector<std::string> dns_urls = {
     };
 
-    static const std::vector<std::string> testnet_dns_urls = { "testpoints.moneropulse.se"
-							     , "testpoints.moneropulse.org"
-							     , "testpoints.moneropulse.net"
-							     , "testpoints.moneropulse.co"
+    static const std::vector<std::string> testnet_dns_urls = {
     };
 
     static const std::vector<std::string> stagenet_dns_urls = { "stagenetpoints.moneropulse.se"

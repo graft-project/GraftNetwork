@@ -143,6 +143,9 @@ Dates are provided in the format YYYY-MM-DD.
 | ----------------- | ----------------- | ---------------------- | -------------------------- | ------------------ |
 | 2018-01-18        | v7                | 1.0.0                | 1.0.1                    | First release      |
 | 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
+| 2018-04-23        | v9                | 1.2.0                | 1.2.3                    | Fix for Difficulty Adjustment Algorithm      |
+| 2018-09-17        | v10               | 1.4.4                | 1.4.5                    | Block reward halved       |
+| 2018-10-31        | v11               | 1.5.0                | 1.5.1                    | PoW algorithm from Monero v8 (CN v2), enabled checkpoints for mainnet  |
 
 <<<<<<< HEAD
 ## Installing Graft Network from a Package
@@ -239,57 +242,36 @@ sources are also used for statically-linked builds because distribution
 packages often include only shared library binaries (`.so`) but not static
 library archives (`.a`).
 
-| Dep          | Min. version  | Vendored | Debian/Ubuntu pkg  | Arch pkg     | Fedora            | Optional | Purpose        |
-| ------------ | ------------- | -------- | ------------------ | ------------ | ----------------- | -------- | -------------- |
-| GCC          | 4.7.3         | NO       | `build-essential`  | `base-devel` | `gcc`             | NO       |                |
-| CMake        | 3.5           | NO       | `cmake`            | `cmake`      | `cmake`           | NO       |                |
-| pkg-config   | any           | NO       | `pkg-config`       | `base-devel` | `pkgconf`         | NO       |                |
-| Boost        | 1.58          | NO       | `libboost-all-dev` | `boost`      | `boost-devel`     | NO       | C++ libraries  |
-| OpenSSL      | basically any | NO       | `libssl-dev`       | `openssl`    | `openssl-devel`   | NO       | sha256 sum     |
-| libzmq       | 3.0.0         | NO       | `libzmq3-dev`      | `zeromq`     | `cppzmq-devel`    | NO       | ZeroMQ library |
-| OpenPGM      | ?             | NO       | `libpgm-dev`       | `libpgm`     | `openpgm-devel`   | NO       | For ZeroMQ     |
-| libunbound   | 1.4.16        | YES      | `libunbound-dev`   | `unbound`    | `unbound-devel`   | NO       | DNS resolver   |
-| libsodium    | ?             | NO       | `libsodium-dev`    | `libsodium`  | `libsodium-devel` | NO       | cryptography   |
-| libunwind    | any           | NO       | `libunwind8-dev`   | `libunwind`  | `libunwind-devel` | YES      | Stack traces   |
-| liblzma      | any           | NO       | `liblzma-dev`      | `xz`         | `xz-devel`        | YES      | For libunwind  |
-| libreadline  | 6.3.0         | NO       | `libreadline6-dev` | `readline`   | `readline-devel`  | YES      | Input editing  |
-| ldns         | 1.6.17        | NO       | `libldns-dev`      | `ldns`       | `ldns-devel`      | YES      | SSL toolkit    |
-| expat        | 1.1           | NO       | `libexpat1-dev`    | `expat`      | `expat-devel`     | YES      | XML parsing    |
-| GTest        | 1.5           | YES      | `libgtest-dev`^    | `gtest`      | `gtest-devel`     | YES      | Test suite     |
-| Doxygen      | any           | NO       | `doxygen`          | `doxygen`    | `doxygen`         | YES      | Documentation  |
-| Graphviz     | any           | NO       | `graphviz`         | `graphviz`   | `graphviz`        | YES      | Documentation  |
-
+| Dep            | Min. Version  | Vendored | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose        |
+| -------------- | ------------- | ---------| ------------------ | -------------- | -------- | -------------- |
+| GCC            | 4.7.3         | NO       | `build-essential`  | `base-devel`   | NO       |                |
+| CMake          | 3.0.0         | NO       | `cmake`            | `cmake`        | NO       |                |
+| pkg-config     | any           | NO       | `pkg-config`       | `base-devel`   | NO       |                |
+| Boost          | 1.58          | NO       | `libboost-all-dev` | `boost`        | NO       | C++ libraries  |
+| OpenSSL        | 1.0.2^^       | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
+| libunbound     | 1.4.16        | YES      | `libunbound-dev`   | `unbound`      | NO       | DNS resolver   |
+| libminiupnpc   | 2.0           | YES      | `libminiupnpc-dev` | `miniupnpc`    | YES      | NAT punching   |
+| libunwind      | any           | NO       | `libunwind8-dev`   | `libunwind`    | YES      | Stack traces   |
+| liblzma        | any           | NO       | `liblzma-dev`      | `xz`           | YES      | For libunwind  |
+| ldns           | 1.6.17        | NO       | `libldns-dev`      | `ldns`         | YES      | SSL toolkit    |
+| expat          | 1.1           | NO       | `libexpat1-dev`    | `expat`        | YES      | XML parsing    |
+| GTest          | 1.5           | YES      | `libgtest-dev`^    | `gtest`        | YES      | Test suite     |
+| Doxygen        | any           | NO       | `doxygen`          | `doxygen`      | YES      | Documentation  |
+| Graphviz       | any           | NO       | `graphviz`         | `graphviz`     | YES      | Documentation  |
 
 [^] On Debian/Ubuntu `libgtest-dev` only includes sources and headers. You must
 build the library binary manually. This can be done with the following command ```sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/ ```
 
-<<<<<<< HEAD
-||||||| merged common ancestors
-### Cloning the repository
 
+### Cloning the repository
 Clone recursively to pull-in needed submodule(s):
 
-`$ git clone --recursive https://github.com/monero-project/monero`
+         git clone --recursive https://github.com/graft-project/GraftNetwork
 
 If you already have a repo cloned, initialize and update:
 
-`$ cd monero && git submodule init && git submodule update`
+         cd GraftNetwork && git submodule init && git submodule update
 
-=======
-Debian / Ubuntu one liner for all dependencies  
-``` sudo apt update && sudo apt install build-essential cmake pkg-config libboost-all-dev libssl-dev libzmq3-dev libunbound-dev libsodium-dev libunwind8-dev liblzma-dev libreadline6-dev libldns-dev libexpat1-dev doxygen graphviz libpgm-dev```
-
-### Cloning the repository
-
-Clone recursively to pull-in needed submodule(s):
-
-`$ git clone --recursive https://github.com/monero-project/monero`
-
-If you already have a repo cloned, initialize and update:
-
-`$ cd monero && git submodule init && git submodule update`
-
->>>>>>> 74902419f5946dc01e9b00ad7afad2397eb2efa3
 ### Build instructions
 
 Graft Network uses the CMake build system and a top-level [Makefile](Makefile) that
@@ -300,15 +282,8 @@ invokes cmake commands as needed.
 * Install the dependencies
 * Change to the root of the source code directory, change to the most recent release branch, and build:
 
-<<<<<<< HEAD
-        cd GraftNetwork
-||||||| merged common ancestors
-        cd monero
-=======
-        cd monero
-        git checkout v0.13.0.4
->>>>>>> 74902419f5946dc01e9b00ad7afad2397eb2efa3
-        make
+         cd GraftNetwork
+         make
 
     *Optional*: If your machine has several cores and enough memory, enable
     parallel build by running `make -j<number of threads>` instead of `make`. For

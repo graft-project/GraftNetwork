@@ -45,9 +45,11 @@
 #define CURRENT_BLOCK_MAJOR_VERSION                     1
 #define CURRENT_BLOCK_MINOR_VERSION                     0
 #define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT              60*60*2
+#define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9           120*7  // 7xT https://github.com/zawy12/difficulty-algorithms/issues/3, TimeStamp manipulation
 #define CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE             10
 
 #define BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW               60
+#define BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9            11
 
 // MONEY_SUPPLY - total number coins to be generated
 #define MONEY_SUPPLY                                    ((uint64_t)(-1))
@@ -224,73 +226,5 @@ namespace config
     std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101a9be144ebd3c5bc0e74ebaa61be19231280771c155d31c449979bc50dc854aa3";
     uint32_t const GENESIS_NONCE = 10002;
   }
-}
-
-namespace cryptonote
-{
-  enum network_type : uint8_t
-  {
-    MAINNET = 0,
-    TESTNET,
-    STAGENET,
-    FAKECHAIN,
-    UNDEFINED = 255
-  };
-  struct config_t
-  {
-    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX;
-    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX;
-    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX;
-    uint16_t const P2P_DEFAULT_PORT;
-    uint16_t const RPC_DEFAULT_PORT;
-    uint16_t const ZMQ_RPC_DEFAULT_PORT;
-    boost::uuids::uuid const NETWORK_ID;
-    std::string const GENESIS_TX;
-    uint32_t const GENESIS_NONCE;
-  };
-  inline const config_t& get_config(network_type nettype)
-  {
-    static const config_t mainnet = {
-      ::config::CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX,
-      ::config::CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX,
-      ::config::CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX,
-      ::config::P2P_DEFAULT_PORT,
-      ::config::RPC_DEFAULT_PORT,
-      ::config::ZMQ_RPC_DEFAULT_PORT,
-      ::config::NETWORK_ID,
-      ::config::GENESIS_TX,
-      ::config::GENESIS_NONCE
-    };
-    static const config_t testnet = {
-      ::config::testnet::CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX,
-      ::config::testnet::CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX,
-      ::config::testnet::CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX,
-      ::config::testnet::P2P_DEFAULT_PORT,
-      ::config::testnet::RPC_DEFAULT_PORT,
-      ::config::testnet::ZMQ_RPC_DEFAULT_PORT,
-      ::config::testnet::NETWORK_ID,
-      ::config::testnet::GENESIS_TX,
-      ::config::testnet::GENESIS_NONCE
-    };
-    static const config_t stagenet = {
-      ::config::stagenet::CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX,
-      ::config::stagenet::CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX,
-      ::config::stagenet::CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX,
-      ::config::stagenet::P2P_DEFAULT_PORT,
-      ::config::stagenet::RPC_DEFAULT_PORT,
-      ::config::stagenet::ZMQ_RPC_DEFAULT_PORT,
-      ::config::stagenet::NETWORK_ID,
-      ::config::stagenet::GENESIS_TX,
-      ::config::stagenet::GENESIS_NONCE
-    };
-    switch (nettype)
-    {
-      case MAINNET: return mainnet;
-      case TESTNET: return testnet;
-      case STAGENET: return stagenet;
-      case FAKECHAIN: return mainnet;
-      default: throw std::runtime_error("Invalid network type");
-    }
-  };
 }
 
