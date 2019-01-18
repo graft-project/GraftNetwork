@@ -462,6 +462,12 @@ add_definition_if_library_exists(c memset_s "string.h" HAVE_MEMSET_S)
 add_definition_if_library_exists(c explicit_bzero "strings.h" HAVE_EXPLICIT_BZERO)
 add_definition_if_function_found(strptime HAVE_STRPTIME)
 
+if (UNIX AND NOT APPLE)
+  # Note that at the time of this writing the -Wstrict-prototypes flag added below will make this fail
+  set(THREADS_PREFER_PTHREAD_FLAG ON)
+  find_package(Threads)
+endif()
+
 add_definitions(-DAUTO_INITIALIZE_EASYLOGGINGPP)
 
 # Generate header for embedded translations
@@ -476,6 +482,14 @@ ExternalProject_Add(generate_translations_header
   INSTALL_COMMAND cmake -E echo "")
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/translations")
 add_subdirectory(external)
+
+# Final setup for miniupnpc
+if(UPNP_STATIC OR IOS)
+  add_definitions("-DUPNP_STATIC")
+else()
+  add_definitions("-DUPNP_DYNAMIC")
+  include_directories(${UPNP_INCLUDE})
+endif()
 
 # Final setup for libunbound
 include_directories(${UNBOUND_INCLUDE})
@@ -498,7 +512,7 @@ include_directories(${LIBUNWIND_INCLUDE})
 link_directories(${LIBUNWIND_LIBRARY_DIRS})
 
 # Final setup for hid
-if (HIDAPI_FOUND) 
+if (HIDAPI_FOUND)
   message(STATUS "Using HIDAPI include dir at ${HIDAPI_INCLUDE_DIR}")
   add_definitions(-DHAVE_HIDAPI)
   include_directories(${HIDAPI_INCLUDE_DIR})
@@ -783,7 +797,7 @@ else()
   endif(ARM)
 
   if(ANDROID AND NOT BUILD_GUI_DEPS STREQUAL "ON" OR IOS)
-    #From Android 5: "only position independent executables (PIE) are supported" 
+    #From Android 5: "only position independent executables (PIE) are supported"
     message(STATUS "Enabling PIE executable")
     set(PIC_FLAG "")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIE")
@@ -883,6 +897,7 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 if(MINGW)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wa,-mbig-obj")
   set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32)
+  #set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32;bcrypt)
   if(DEPENDS)
     set(ICU_LIBRARIES ${Boost_LOCALE_LIBRARY} sicuio sicuin sicuuc sicudt sicutu iconv)
   else()
@@ -904,7 +919,7 @@ endif()
 
 list(APPEND EXTRA_LIBRARIES ${CMAKE_DL_LIBS})
 
-if (HIDAPI_FOUND) 
+if (HIDAPI_FOUND)
   if (APPLE)
     if(DEPENDS)
       list(APPEND EXTRA_LIBRARIES "-framework Foundation -framework IOKit")

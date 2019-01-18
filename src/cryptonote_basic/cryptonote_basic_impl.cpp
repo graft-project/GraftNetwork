@@ -115,6 +115,10 @@ namespace cryptonote {
 
     if (current_block_weight <= median_weight) {
       reward = base_reward;
+      if (version >= 10) {
+          // halving reward since version 10
+          reward /= 2;
+      }
       return true;
     }
 
@@ -141,6 +145,10 @@ namespace cryptonote {
     assert(reward_lo < base_reward);
 
     reward = reward_lo;
+    if (version >= 10) {
+        // halving reward since version 10
+        reward /= 2;
+    }
     return true;
   }
   //------------------------------------------------------------------------------------

@@ -229,4 +229,74 @@ namespace cryptonote {
     return result > 0 ? result : 1;
   }
 
+  difficulty_type next_difficulty_v9(std::vector<std::uint64_t> timestamps, std::vector<difficulty_type> cumulative_difficulties, size_t target_seconds) {
+
+    if (timestamps.size() > DIFFICULTY_BLOCKS_COUNT_V8) {
+      timestamps.resize(DIFFICULTY_BLOCKS_COUNT_V8);
+      cumulative_difficulties.resize(DIFFICULTY_BLOCKS_COUNT_V8);
+    }
+
+    size_t length = timestamps.size();
+    assert(length == cumulative_difficulties.size());
+    if (length <= 1) {
+      return 1;
+    }
+
+    uint64_t weighted_timespans = 0;
+    uint64_t target;
+
+    uint64_t previous_max = timestamps[0];
+    for (size_t i = 1; i < length; i++) {
+      uint64_t timespan;
+      uint64_t max_timestamp;
+
+      if (timestamps[i] > previous_max) {
+        max_timestamp = timestamps[i];
+      } else {
+        max_timestamp = previous_max;
+      }
+
+      timespan = max_timestamp - previous_max;
+      if (timespan == 0) {
+        timespan = 1;
+      } else if (timespan > 10 * target_seconds) {
+        timespan = 10 * target_seconds;
+      }
+
+      weighted_timespans += i * timespan;
+      previous_max = max_timestamp;
+    }
+
+    double derivative = 0;
+    if (length >= 4 && timestamps[length - 1] - timestamps[length - 3] > 0) {
+      double d_last = 1.0 * (cumulative_difficulties[length - 1] - cumulative_difficulties[length - 2]);
+      double d_prev = 1.0 * (cumulative_difficulties[length - 3] - cumulative_difficulties[length - 4]);
+      double h = 1.0 * (timestamps[length - 1] - timestamps[0]) / timestamps.size();
+      if (h > 0) {
+        derivative = (d_last - d_prev) / h;
+      }
+    }
+    // adjust = 0.99 for N=60, leaving the + 1 for now as it's not affecting N
+    double adjust = 0.9909;
+    if (derivative < 0) {
+      adjust *= 1 + std::atan(derivative) / (10 * M_PI);
+    }
+    target = adjust * (((length + 1) / 2) * target_seconds);
+
+    uint64_t minimum_timespan = target_seconds * length / 2;
+    if (weighted_timespans < minimum_timespan) {
+      weighted_timespans = minimum_timespan;
+    }
+
+    difficulty_type total_work = cumulative_difficulties.back() - cumulative_difficulties.front();
+    assert(total_work > 0);
+
+    uint64_t low, high;
+    mul(total_work, target, low, high);
+    if (high != 0) {
+      return 0;
+    }
+    uint64_t result =  low / weighted_timespans;
+    return result > 0 ? result : 1;
+  }
 }
