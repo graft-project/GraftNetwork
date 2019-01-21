@@ -121,4 +121,28 @@ set_property(TARGET daa_process
         PROPERTY
         OUTPUT_NAME "daa_process_data")
 
+
 #########################################
+set(rta_util_sources
+        rta-util.cpp
+        )
+
+monero_add_executable(rta-util
+   ${rta_util_sources}
+    )
+
+target_link_libraries(rta-util
+        LINK_PRIVATE
+        cryptonote_core
+        p2p
+        epee
+        ${CMAKE_THREAD_LIBS_INIT})
+
+add_dependencies(rta-util
+        version)
+
+set_property(TARGET rta-util
+        PROPERTY
+        OUTPUT_NAME "rta-util")
+
+##################################################################################
