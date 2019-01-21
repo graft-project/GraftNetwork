@@ -7,7 +7,7 @@
 static const std::string HEALTH_URI("/health");
 
 struct HealthResponse {
-    string NodeAccess;
+    std::string NodeAccess;
 
     BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(NodeAccess)
@@ -15,13 +15,13 @@ struct HealthResponse {
 
 };
 
-supernode::HealthcheckAPI::HealthcheckAPI(const string &daemonAddress)
+supernode::HealthcheckAPI::HealthcheckAPI(const std::string &daemonAddress)
 {
     boost::optional<epee::net_utils::http::login> login{};
     m_http_client.set_server("http://" + daemonAddress, login);
 }
 
-bool supernode::HealthcheckAPI::processHealthchecks(const string uri, epee::net_utils::http::http_response_info &response_info)
+bool supernode::HealthcheckAPI::processHealthchecks(const std::string uri, epee::net_utils::http::http_response_info &response_info)
 {
     if (uri == HEALTH_URI)
     {

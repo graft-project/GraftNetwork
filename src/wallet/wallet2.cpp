@@ -1426,7 +1426,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   // Don't try to extract tx public key if tx has no ouputs
   size_t pk_index = 0;
   std::vector<tx_scan_info_t> tx_scan_info(tx.vout.size());
-  std::deque<bool> output_found(tx.vout.size(), false);
+  //std::deque<bool> output_found(tx.vout.size(), false);
   uint64_t total_received_1 = 0;
 /*
 |||| merged common ancestors
@@ -1713,15 +1713,16 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
 
       for(size_t o: outs)
       {
-	THROW_WALLET_EXCEPTION_IF(tx.vout.size() <= o, error::wallet_internal_error, "wrong out in transaction: internal index=" +
+	      THROW_WALLET_EXCEPTION_IF(tx.vout.size() <= o, error::wallet_internal_error, "wrong out in transaction: internal index=" +
 				  std::to_string(o) + ", total_outs=" + std::to_string(tx.vout.size()));
 
         auto kit = m_pub_keys.find(tx_scan_info[o].in_ephemeral.pub);
-	THROW_WALLET_EXCEPTION_IF(kit != m_pub_keys.end() && kit->second >= m_transfers.size(),
+	      THROW_WALLET_EXCEPTION_IF(kit != m_pub_keys.end() && kit->second >= m_transfers.size(),
             error::wallet_internal_error, std::string("Unexpected transfer index from public key: ")
             + "got " + (kit == m_pub_keys.end() ? "<none>" : boost::lexical_cast<std::string>(kit->second))
             + ", m_transfers.size() is " + boost::lexical_cast<std::string>(m_transfers.size()));
-        if (kit == m_pub_keys.end())
+
+        if(kit == m_pub_keys.end())
         {
           uint64_t amount = tx.vout[o].amount ? tx.vout[o].amount : tx_scan_info[o].amount;
 /*
@@ -1820,16 +1821,16 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           notify = true;
         }
 	else if (m_transfers[kit->second].m_spent || m_transfers[kit->second].amount() >= tx_scan_info[o].amount)
-/*
-|||| merged common ancestors
-        }
-	else if (m_transfers[kit->second].m_spent || m_transfers[kit->second].amount() >= tx.vout[o].amount)
-====
-          total_received_1 += amount_;
-        } // TODO: fix unlocked_balance() so it works for replaced transfers. Do not allow to replace transfers now
-      else if (m_transfers[kit->second].m_spent || /*m_transfers[kit->second].amount() >= amount[o]*/ true)
->>>> fda3f135e5782fe6c5ef53b430a495cc0510bd5e
-*/
+
+//|||| merged common ancestors
+//        }
+//	else if (m_transfers[kit->second].m_spent || m_transfers[kit->second].amount() >= tx.vout[o].amount)
+//====
+//          total_received_1 += amount_;
+//        } // TODO: fix unlocked_balance() so it works for replaced transfers. Do not allow to replace transfers now
+//      else if (m_transfers[kit->second].m_spent || /*m_transfers[kit->second].amount() >= amount[o]*/ true)
+//>>>> fda3f135e5782fe6c5ef53b430a495cc0510bd5e
+
         {
 	  LOG_ERROR("Public key " << epee::string_tools::pod_to_hex(kit->first)
               << " from received " << print_money(tx_scan_info[o].amount) << " output already exists with "

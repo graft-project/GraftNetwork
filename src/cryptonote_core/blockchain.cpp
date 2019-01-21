@@ -3215,6 +3215,8 @@ bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const 
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   median_ts = epee::misc_utils::median(timestamps);
+  const uint8_t version = get_current_hard_fork_version();
+  const uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
 /*
 ||||||| merged common ancestors
   uint64_t median_ts = epee::misc_utils::median(timestamps);
