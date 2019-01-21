@@ -31,23 +31,31 @@
 //------------------------------------------------------------------------------
 #include "string_tools.h"
 
+#include <chrono>
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net"
+
+namespace  {
+static const  std::chrono::milliseconds IO_TIMEOUT_MS  = std::chrono::milliseconds(500);
+}
 
 namespace epee
 {
 namespace levin
 {
+
+
 inline
 bool levin_client_impl::connect(u_long ip, int port, unsigned int timeout, const std::string& bind_ip)
 {
-	return m_transport.connect(string_tools::get_ip_string_from_int32(ip), port, timeout, timeout, bind_ip);
+  return m_transport.connect(string_tools::get_ip_string_from_int32(ip), port, std::chrono::milliseconds(timeout), bind_ip);
 }
 //------------------------------------------------------------------------------
 inline
   bool levin_client_impl::connect(const std::string& addr, int port, unsigned int timeout, const std::string& bind_ip)
 {
-  return m_transport.connect(addr, port, timeout, timeout, bind_ip);
+  return m_transport.connect(addr, port, std::chrono::milliseconds(timeout),  bind_ip);
 }
 //------------------------------------------------------------------------------
 inline
@@ -87,11 +95,11 @@ int levin_client_impl::invoke(int command, const std::string& in_buff, std::stri
 	if(!m_transport.send(&head, sizeof(head)))
 		return -1;
 	
-	if(!m_transport.send(in_buff))
+	if(!m_transport.send(in_buff, IO_TIMEOUT_MS))
 		return -1;
 		
 	std::string local_buff;
-	if(!m_transport.recv_n(local_buff, sizeof(bucket_head)))
+	if(!m_transport.recv_n(local_buff, sizeof(bucket_head), IO_TIMEOUT_MS))
 		return -1;
 	
 	head = *(bucket_head*)local_buff.data();
@@ -103,7 +111,7 @@ int levin_client_impl::invoke(int command, const std::string& in_buff, std::stri
 		return -1;
 	}
 	
-	if(!m_transport.recv_n(buff_out, head.m_cb))
+	if(!m_transport.recv_n(buff_out, head.m_cb, IO_TIMEOUT_MS))
 		return -1;
 	
 	return head.m_return_code;
@@ -124,7 +132,7 @@ int levin_client_impl::notify(int command, const std::string& in_buff)
 	if(!m_transport.send((const char*)&head, sizeof(head)))
 		return -1;
 
-	if(!m_transport.send(in_buff))
+	if(!m_transport.send(in_buff, IO_TIMEOUT_MS))
 		return -1;
 
 	return 1;
@@ -148,11 +156,11 @@ inline
   if(!m_transport.send(&head, sizeof(head)))
     return -1;
 
-  if(!m_transport.send(in_buff))
+  if(!m_transport.send(in_buff, IO_TIMEOUT_MS))
     return -1;
 
   std::string local_buff;
-  if(!m_transport.recv_n(local_buff, sizeof(bucket_head2)))
+  if(!m_transport.recv_n(local_buff, sizeof(bucket_head2), IO_TIMEOUT_MS))
     return -1;
 
   head = *(bucket_head2*)local_buff.data();
@@ -164,7 +172,7 @@ inline
     return -1;
   }
 
-  if(!m_transport.recv_n(buff_out, head.m_cb))
+  if(!m_transport.recv_n(buff_out, head.m_cb, IO_TIMEOUT_MS))
     return -1;
 
   return head.m_return_code;
@@ -187,7 +195,7 @@ inline
   if(!m_transport.send((const char*)&head, sizeof(head)))
     return -1;
 
-  if(!m_transport.send(in_buff))
+  if(!m_transport.send(in_buff, IO_TIMEOUT_MS))
     return -1;
 
   return 1;
