@@ -199,14 +199,14 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
 
-    std::string payment_id = "";
+    std::string payment_id = in.PaymentID;
 
     uint64_t amount;
     std::istringstream iss(in.Amount);
     iss >> amount;
 
     // validate the transfer requested and populate dsts & extra
-    if (!validate_transfer(in.Account, in.Password, in.Address, amount, payment_id, dsts, extra))
+    if (!validate_transfer(wal.get(), in.Address, amount, payment_id, dsts, extra))
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
@@ -214,7 +214,7 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
 
     try
     {
-        uint64_t mixin = 4;
+        uint64_t mixin = wal->default_mixin() > 0 ? wal->default_mixin() : 4;
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
         std::vector<tools::GraftWallet::pending_tx> ptx_vector =
@@ -277,14 +277,14 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
 
-    std::string payment_id = "";
+    std::string payment_id = in.PaymentID;
 
     uint64_t amount;
     std::istringstream iss(in.Amount);
     iss >> amount;
 
     // validate the transfer requested and populate dsts & extra
-    if (!validate_transfer(in.Account, in.Password, in.Address, amount, payment_id, dsts, extra))
+    if (!validate_transfer(wal.get(), in.Address, amount, payment_id, dsts, extra))
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
@@ -292,7 +292,7 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
 
     try
     {
-        uint64_t mixin = 4;
+        uint64_t mixin = wal->default_mixin() > 0 ? wal->default_mixin() : 4;
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
         bool do_not_relay = false;
@@ -357,98 +357,68 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
     return true;
 }
 
-bool supernode::BaseClientProxy::validate_transfer(const string &account, const string &password,
+bool supernode::BaseClientProxy::validate_transfer(tools::GraftWallet *wallet,
                                                    const string &address, uint64_t amount,
                                                    const string payment_id,
                                                    std::vector<cryptonote::tx_destination_entry> &dsts,
                                                    std::vector<uint8_t> &extra)
 {
-    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(account), password);
-    if (!wal)
+    if (!wallet)
     {
         return false;
     }
-
-    crypto::hash8 integrated_payment_id = cryptonote::null_hash8;
-    std::string extra_nonce;
-
     cryptonote::tx_destination_entry de;
     bool has_payment_id;
-    crypto::hash8 new_payment_id;
-    std::string errorString;
-    if (!get_account_address_from_str_or_url(de.addr, has_payment_id, new_payment_id, wal->testnet(),address,
-                                             [&errorString](const std::string &url, const std::vector<std::string> &addresses, bool dnssec_valid)->std::string {
-                                             if (!dnssec_valid)
-                                             {
-                                                 errorString = std::string("Invalid DNSSEC for ") + url;
-                                                 return {};
-                                             }
-                                             if (addresses.empty())
-                                             {
-                                                 errorString = std::string("No Monero address found at ") + url;
-                                                 return {};
-                                             }
-                                             return addresses[0];
-                                    }))
+    crypto::hash8 payment_id_short;
+    //Based on PendingTransaction *WalletImpl::createTransaction()
+    if(!cryptonote::get_account_integrated_address_from_str(de.addr, has_payment_id, payment_id_short, wallet->testnet(), address))
     {
-//        er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
-        if (errorString.empty())
-            errorString = std::string("WALLET_RPC_ERROR_CODE_WRONG_ADDRESS: ") + address;
+        // TODO: copy-paste 'if treating as an address fails, try as url' from simplewallet.cpp:1982
+//        m_status = Status_Error;
+//        m_errorString = "Invalid destination address";
         return false;
     }
     de.amount = amount;
     dsts.push_back(de);
 
-    if (has_payment_id)
+    // if dst_addr is not an integrated address, parse payment_id
+    if (!has_payment_id && !payment_id.empty())
     {
-        if (!payment_id.empty() || integrated_payment_id != cryptonote::null_hash8)
+        // copy-pasted from simplewallet.cpp:2212
+        crypto::hash payment_id_long;
+        bool r = tools::GraftWallet::parse_long_payment_id(payment_id, payment_id_long);
+        if (r)
         {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "A single payment id is allowed per transaction";
-            return false;
-        }
-        integrated_payment_id = new_payment_id;
-        cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, integrated_payment_id);
-
-        /* Append Payment ID data into extra */
-        if (!cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce))
-        {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "Something went wrong with integrated payment_id.";
-            return false;
-        }
-    }
-
-    if (!payment_id.empty())
-    {
-        /* Just to clarify */
-        const std::string& payment_id_str = payment_id;
-
-        crypto::hash long_payment_id;
-        crypto::hash8 short_payment_id;
-
-        /* Parse payment ID */
-        if (tools::GraftWallet::parse_long_payment_id(payment_id_str, long_payment_id))
-        {
-            cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, long_payment_id);
-        }
-        /* or short payment ID */
-        else if (tools::GraftWallet::parse_short_payment_id(payment_id_str, short_payment_id))
-        {
-            cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, short_payment_id);
+            std::string extra_nonce;
+            cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_long);
+            r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
         }
         else
         {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "Payment id has invalid format: \"" + payment_id_str + "\", expected 16 or 64 character string";
+            r = tools::GraftWallet::parse_short_payment_id(payment_id, payment_id_short);
+            if (r)
+            {
+                std::string extra_nonce;
+                cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_short);
+                r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
+            }
+        }
+        if (!r)
+        {
+//            m_status = Status_Error;
+//            m_errorString = tr("payment id has invalid format, expected 16 or 64 character hex string: ") + payment_id;
             return false;
         }
-
-        /* Append Payment ID data into extra */
-        if (!cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce))
+    }
+    else if (has_payment_id)
+    {
+        std::string extra_nonce;
+        cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_short);
+        bool r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
+        if (!r)
         {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "Something went wrong with payment_id. Please check its format: \"" + payment_id_str + "\", expected 64-character string";
+//            m_status = Status_Error;
+//            m_errorString = tr("Failed to add short payment id: ") + epee::string_tools::pod_to_hex(payment_id_short);
             return false;
         }
     }

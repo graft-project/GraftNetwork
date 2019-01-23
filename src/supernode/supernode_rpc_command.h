@@ -467,12 +467,14 @@ namespace supernode {
                 std::string Account;
                 std::string Password;
                 std::string Address;
+                std::string PaymentID;
                 std::string Amount;
 
                 BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(Account)
                     KV_SERIALIZE(Password)
                     KV_SERIALIZE(Address)
+                    KV_SERIALIZE(PaymentID)
                     KV_SERIALIZE(Amount)
                 END_KV_SERIALIZE_MAP()
             };
@@ -491,12 +493,14 @@ namespace supernode {
                 std::string Account;
                 std::string Password;
                 std::string Address;
+                std::string PaymentID;
                 std::string Amount;
 
                 BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(Account)
                     KV_SERIALIZE(Password)
                     KV_SERIALIZE(Address)
+                    KV_SERIALIZE(PaymentID)
                     KV_SERIALIZE(Amount)
                 END_KV_SERIALIZE_MAP()
             };
