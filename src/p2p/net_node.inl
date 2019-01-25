@@ -2301,10 +2301,13 @@ namespace nodetool
     // send to peers
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
         LOG_INFO_CC(context, "invoking COMMAND_SUPERNODE_ANNOUNCE");
+        // saving connection context info to temp variable as it might be destroyed in case
+        // 'invoke_notify_to_peer' fails - this way LOG_ERROR_CC with context might cause segfault
+        std::string conn_info = epee::net_utils::print_connection_context_short(context);
         if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
             announced_peers.insert(context.peer_id);
         } else {
-            LOG_ERROR_CC(context, "failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
+            LOG_ERROR("[" << conn_info << "] failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
         }
         return true;
     });
@@ -2390,10 +2393,13 @@ namespace nodetool
               LOG_INFO_CC(context, "invalid connection [COMMAND_BROADCAST]");
               return true;
           }
+          // saving connection context info to temp variable as it might be destroyed in case
+          // 'invoke_notify_to_peer' fails - this way LOG_ERROR_CC with context might cause segfault
+          std::string conn_info = epee::net_utils::print_connection_context_short(context);
           if (invoke_notify_to_peer(COMMAND_BROADCAST::ID, blob, context)) {
               announced_peers.insert(context.peer_id);
           } else {
-              LOG_ERROR_CC(context, "failed to invoke COMMAND_BROADCAST");
+              LOG_ERROR("[" << conn_info << "] failed to invoke COMMAND_BROADCAST");
           }
           return true;
       });
