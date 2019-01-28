@@ -693,7 +693,7 @@ void slow_hash_free_state(void)
  * @param length the length in bytes of the data
  * @param hash a pointer to a buffer in which the final 256 bit hash will be stored
  */
-void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed)
+void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier)
 {
     RDATA_ALIGN16 uint8_t expandedKey[240];  /* These buffers are aligned to use later with SSE functions */
 
@@ -762,9 +762,10 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
 
     /* CryptoNight Step 3:  Bounce randomly 1,048,576 times (1<<20) through the mixing buffer,
-     * using 524,288 iterations of the following mixing function.  Each execution
-     * performs two reads and writes from the mixing buffer.
+     * using 524,288 (CryptoNight) or 393,216 (CryptoNight Waltz) iterations of the following
+     * mixing function. Each execution performs two reads and writes from the mixing buffer.
      */
+    uint64_t iters = modifier ? (3 * ITER) / 8 : ITER / 2;
 
     _b = _mm_load_si128(R128(b));
     _b1 = _mm_load_si128(R128(b) + 1);
@@ -772,7 +773,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     // the useAes test is only performed once, not every iteration.
     if(useAes)
     {
-        for(i = 0; i < ITER / 2; i++)
+        for(i = 0; i < iters; i++)
         {
             pre_aes();
             _c = _mm_aesenc_si128(_c, _a);
@@ -781,7 +782,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     }
     else
     {
-        for(i = 0; i < ITER / 2; i++)
+        for(i = 0; i < iters; i++)
         {
             pre_aes();
             aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
@@ -1040,7 +1041,7 @@ STATIC INLINE void aes_pseudo_round_xor(const uint8_t *in, uint8_t *out, const u
   }
 }
 
-void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed)
+void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier)
 {
     RDATA_ALIGN16 uint8_t expandedKey[240];
     RDATA_ALIGN16 uint8_t hp_state[MEMORY];
@@ -1090,14 +1091,16 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
 
     /* CryptoNight Step 3:  Bounce randomly 1,048,576 times (1<<20) through the mixing buffer,
-     * using 524,288 iterations of the following mixing function.  Each execution
-     * performs two reads and writes from the mixing buffer.
+     * using 524,288 (CryptoNight) or 393,216 (CryptoNight Waltz) iterations of the following
+     * mixing function. Each execution performs two reads and writes from the mixing buffer.
      */
 
     _b = vld1q_u8((const uint8_t *)b);
     _b1 = vld1q_u8(((const uint8_t *)b) + AES_BLOCK_SIZE);
 
-    for(i = 0; i < ITER / 2; i++)
+    uint64_t iters = modifier ? (3 * ITER) / 8 : ITER / 2;
+
+    for(i = 0; i < iters; i++)
     {
         pre_aes();
         _c = vaeseq_u8(_c, zero);
@@ -1246,7 +1249,7 @@ STATIC INLINE void xor_blocks(uint8_t* a, const uint8_t* b)
   U64(a)[1] ^= U64(b)[1];
 }
 
-void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed)
+void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier)
 {
     uint8_t text[INIT_SIZE_BYTE];
     uint8_t a[AES_BLOCK_SIZE];
@@ -1301,7 +1304,8 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     U64(b)[0] = U64(&state.k[16])[0] ^ U64(&state.k[48])[0];
     U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
 
-    for(i = 0; i < ITER / 2; i++)
+    uint64_t iters = modifier ? (3 * ITER) / 8 : ITER / 2;
+    for(i = 0; i < iters; i++)
     {
       #define MASK ((uint32_t)(((MEMORY / AES_BLOCK_SIZE) - 1) << 4))
       #define state_index(x) ((*(uint32_t *) x) & MASK)
@@ -1448,7 +1452,7 @@ union cn_slow_hash_state {
 };
 #pragma pack(pop)
 
-void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed) {
+void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier) {
   uint8_t long_state[MEMORY];
   union cn_slow_hash_state state;
   uint8_t text[INIT_SIZE_BYTE];
@@ -1486,7 +1490,8 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     b[i] = state.k[AES_BLOCK_SIZE + i] ^ state.k[AES_BLOCK_SIZE * 3 + i];
   }
 
-  for (i = 0; i < ITER / 2; i++) {
+  uint64_t iters = modifier ? (3 * ITER) / 8 : ITER / 2;
+  for (i = 0; i < iters; i++) {
     /* Dependency chain: address -> read value ------+
      * written value <-+ hard function (AES or MUL) <+
      * next address  <-+
