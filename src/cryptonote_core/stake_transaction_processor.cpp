@@ -9,6 +9,7 @@ namespace
 {
 
 const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.bin";
+const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.bin";
 
 unsigned int get_tier(uint64_t stake)
 {
@@ -38,6 +39,7 @@ bool stake_transaction::is_valid(uint64_t block_index) const
 StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
   : m_blockchain(blockchain)
   , m_storage(STAKE_TRANSACTION_STORAGE_FILE_NAME)
+  , m_blockchain_based_list(BLOCKCHAIN_BASED_LIST_FILE_NAME)
   , m_stake_transactions_need_update(true)
 {
 }
@@ -223,6 +225,20 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
     m_storage.store();
 }
 
+void StakeTransactionProcessor::process_block_blockchain_based_list(uint64_t block_index, const block& block, bool update_storage)
+{
+  m_blockchain_based_list.apply_block(block_index, block.hash, m_storage);
+
+  if (update_storage && m_blockchain_based_list.need_store())
+    m_blockchain_based_list.store();
+}
+
+void StakeTransactionProcessor::process_block(uint64_t block_index, const block& block, bool update_storage)
+{
+  process_block_stake_transaction(block_index, block, update_storage);
+  process_block_blockchain_based_list(block_index, block, update_storage);
+}
+
 void StakeTransactionProcessor::synchronize()
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
@@ -258,6 +274,9 @@ void StakeTransactionProcessor::synchronize()
   uint64_t first_block_index = m_storage.get_last_processed_block_index() + 1,
            height = db.height();
 
+  if (first_block_index > m_blockchain_based_list.block_height() + 1)
+    first_block_index = m_blockchain_based_list.block_height() + 1;
+
   static const uint64_t SYNC_DEBUG_LOG_STEP = 10000;
 
   bool need_finalize_log_messages = false;
@@ -266,7 +285,7 @@ void StakeTransactionProcessor::synchronize()
   {
     if (i == sync_debug_log_next_index)
     {
-      MCLOG(el::Level::Info, "global", "Stake transactions sync " << i << "/" << height);
+      MCLOG(el::Level::Info, "global", "RTA block sync " << i << "/" << height);
 
       need_finalize_log_messages = true;
       sync_debug_log_next_index  = i + SYNC_DEBUG_LOG_STEP;
@@ -281,12 +300,18 @@ void StakeTransactionProcessor::synchronize()
     process_block(i, block, false);
   }
 
-  m_storage.store();
+  if (m_blockchain_based_list.need_store())
+    m_blockchain_based_list.store();
 
-  if (m_stake_transactions_need_update && m_on_stake_transactions_update)
+  if (m_stake_transactions_need_update)
   {
-    invoke_update_handler_impl();
-    m_stake_transactions_need_update = false;
+    m_storage.store();
+
+    if (m_on_stake_transactions_update)
+    {
+      invoke_update_handler_impl();
+      m_stake_transactions_need_update = false;
+    }
   }
 
   if (need_finalize_log_messages)

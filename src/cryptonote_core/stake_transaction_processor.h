@@ -3,6 +3,7 @@
 #include <functional>
 
 #include "blockchain.h"
+#include "cryptonote_core/blockchain_based_list.h"
 #include "cryptonote_core/stake_transaction_storage.h"
 
 namespace cryptonote
@@ -31,10 +32,13 @@ public:
 
 private:
   void invoke_update_handler_impl();
+  void process_block_stake_transaction(uint64_t block_index, const block& block, bool update_storage = true);
+  void process_block_blockchain_based_list(uint64_t block_index, const block& block, bool update_storage = true);
 
 private:
   Blockchain& m_blockchain;
   StakeTransactionStorage m_storage;
+  BlockchainBasedList m_blockchain_based_list;
   epee::critical_section m_storage_lock;
   stake_transactions_update_handler m_on_stake_transactions_update;
   bool m_stake_transactions_need_update;
