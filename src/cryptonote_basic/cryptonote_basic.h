@@ -203,14 +203,39 @@ namespace cryptonote
     END_KV_SERIALIZE_MAP()
   };
 
+  // container for RTA identities (public keys)
+  // stores RTA payment ID, PoS public one-time identification key (used to identify PoS in the network and protect data for it),
+  // auth sample supernode public identification keys (graftnode will need it to validate auth sample signatures),
+  // PoS and Wallet Proxy Supernode identification keys to transaction_header.extra.
+  // TODO: better name?
+  struct rta_header
+  {
+    std::string payment_id;
+    std::vector<crypto::public_key> keys;
+    BEGIN_SERIALIZE_OBJECT()
+      FIELD(payment_id)
+      FIELD(keys)
+    END_SERIALIZE()
+    bool operator== (const rta_header &other) const
+    {
+      return this->payment_id == other.payment_id
+          && this->keys == other.keys;
+    }
+  };
+
   struct rta_signature
   {
-    account_public_address address;
+    size_t key_index; // reference to the corresponding pubkey. alternatively we can just iterate by matching signatures and keys
     crypto::signature signature;
     BEGIN_SERIALIZE_OBJECT()
-      FIELD(address)
+      FIELD(key_index)
       FIELD(signature)
     END_SERIALIZE()
+    bool operator== (const rta_signature &other) const
+    {
+      return this->key_index == other.key_index
+          && this->signature == other.signature;
+    }
   };
 
   class transaction: public transaction_prefix
@@ -238,8 +263,10 @@ namespace cryptonote
       tx_type_invalid = 255
     };
     // graft: tx type field
+    // TODO: consider to removed 'type' field. we can check if transaction is rta either by
+    // 1. checking if 'tx_extra_graft_rta_header' is present in tx_extra
+    // 2. simply checking tx version, so 'type' only needed for 'alpha' compatibilty.
     size_t type = tx_type_generic;
-
     std::vector<rta_signature> rta_signatures;
 
     transaction();

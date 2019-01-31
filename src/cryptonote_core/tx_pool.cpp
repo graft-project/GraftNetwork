@@ -179,13 +179,15 @@ namespace cryptonote
     auto rta_validator = [&](const std::vector<cryptonote::rta_signature> &rta_signs) -> bool {
       bool result = true;
       for (const auto &rta_sign : rta_signs) {
-        result &= crypto::check_signature(id, rta_sign.address.m_spend_public_key, rta_sign.signature);
+        // TODO: implement RTA validation here
+        // result &= crypto::check_signature(id, rta_sign.address.m_spend_public_key, rta_sign.signature);
+        result = true;
         if (!result) {
 
-          LOG_ERROR("Failed to validate rta tx "
-                    << epee::string_tools::pod_to_hex(id)
-                    << " for address: "
-                    << cryptonote::get_account_address_as_str(m_blockchain.testnet(), rta_sign.address));
+          LOG_ERROR("Failed to validate rta tx ");
+//                    << epee::string_tools::pod_to_hex(id)
+//                    << " for address: "
+//                    << cryptonote::get_account_address_as_str(m_blockchain.testnet(), rta_sign.address));
 
           break;
         }
