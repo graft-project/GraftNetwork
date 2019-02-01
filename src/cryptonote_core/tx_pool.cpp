@@ -80,10 +80,13 @@ namespace cryptonote
       return amount * ACCEPT_THRESHOLD;
     }
 
-    uint64_t get_transaction_weight_limit(uint8_t version)
+    uint64_t get_transaction_weight_limit(const uint8_t version)
     {
+      //MDEBUG("cryptonote::get_transaction_weight_limit --- called" << std::endl);
+
       // from v8, limit a tx to 50% of the minimum block weight
-      if (version >= 8)
+      //if(version >= 8)
+      if(version >= 13)
         return get_min_block_weight(version) / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
       else
         return get_min_block_weight(version) - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
@@ -1146,7 +1149,7 @@ namespace cryptonote
     uint64_t best_coinbase = 0, coinbase = 0;
     total_weight = 0;
     fee = 0;
-    
+
     //baseline empty block
     get_block_reward(median_weight, total_weight, already_generated_coins, best_coinbase, version);
 

@@ -1,21 +1,21 @@
 // Copyright (c) 2014-2018, The Monero Project
-// 
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -25,7 +25,7 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
+//
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include "ringct/rctSigs.h"
@@ -67,6 +67,8 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     LOG_PRINT_L0("Initial miner tx " << n << ": " << obj_to_json_str(blocks[n].miner_tx));
   }
 
+  MDEBUG("gen_bp_tx_validation_base::generate_with ----- 01" << std::endl);
+
   // rewind
   cryptonote::block blk_r, blk_last;
   {
@@ -83,6 +85,8 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     }
     blk_r = blk_last;
   }
+
+  MDEBUG("gen_bp_tx_validation_base::generate_with ----- 02" << std::endl);
 
   // create 4 txes from these miners in another block, to generate some rct outputs
   std::vector<transaction> rct_txes;
@@ -171,15 +175,19 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     DO_CALLBACK(events, "mark_invalid_tx");
   events.push_back(rct_txes);
 
+  MDEBUG("gen_bp_tx_validation_base::generate_with ----- 03" << std::endl);
+
   CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk_txes, blk_last, miner_account,
       test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_tx_hashes | test_generator::bf_hf_version | test_generator::bf_max_outs,
-      8, 8, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
-      crypto::hash(), 0, transaction(), starting_rct_tx_hashes, 0, 6, 8),
+      13, 13, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+      crypto::hash(), 0, transaction(), starting_rct_tx_hashes, 0, 6, 13),
       false, "Failed to generate block");
   if (!valid)
     DO_CALLBACK(events, "mark_invalid_block");
   events.push_back(blk_txes);
   blk_last = blk_txes;
+
+  MDEBUG("gen_bp_tx_validation_base::generate_with ----- 04" << std::endl);
 
   return true;
 }

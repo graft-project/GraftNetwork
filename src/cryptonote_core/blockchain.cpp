@@ -118,7 +118,11 @@ static const struct {
   // hf 10 - decrease block reward, 2018-09-17
   { 10, 176000, 0, 1537142400 },
   // hf 11 - Monero V8/CN variant 2 PoW, ~2018-10-31T17:00:00+00
-  { 11, 207700, 0, 1541005200 }
+  { 11, 207700, 0, 1541005200 },
+  // hf 12 - Graft CryptoNight Waltz PoW, 2019-01-24
+  { 12, 357100, 0, 1555949074 },
+  // hf 13 - merge of Monero v0.13.0.4 into Graft-master, 2019-03-xx
+  { 13, 357500, 0, 1556009074 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -152,7 +156,11 @@ static const struct {
   // hf 10 - decrease block reward, 2018-09-12
   { 10, 164550, 0, 1536760800 },
   // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
-  { 11, 194130, 0, 1540400400 }
+  { 11, 194130, 0, 1540400400 },
+  // hf 12 - Graft CryptoNight Waltz PoW, 2019-01-24
+  { 12, 257600, 0, 1555949074 },
+  // hf 13 - merge of Monero v0.13.0.4 into Graft-master, 2019-03-xx
+  { 13, 258600, 0, 1556009074 }
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
@@ -2457,26 +2465,32 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
     }
   }
 
-  // from v8, allow bulletproofs
-  if (hf_version < 8) {
+  //// from v8, allow bulletproofs
+  //if (hf_version < 8) {
+  // from v13, allow bulletproofs
+  if (hf_version < 13) {
     if (tx.version >= 2) {
       const bool bulletproof = rct::is_rct_bulletproof(tx.rct_signatures.type);
       if (bulletproof || !tx.rct_signatures.p.bulletproofs.empty())
       {
-        MERROR_VER("Bulletproofs are not allowed before v8");
+        MERROR_VER("Bulletproofs are not allowed before v13");
+        //MERROR_VER("Bulletproofs are not allowed before v8");
         tvc.m_invalid_output = true;
         return false;
       }
     }
   }
 
-  // from v9, forbid borromean range proofs
-  if (hf_version > 8) {
+  //// from v9, forbid borromean range proofs
+  //if (hf_version > 8) {
+  // from v13, forbid borromean range proofs
+  if (hf_version >= 13) {
     if (tx.version >= 2) {
       const bool borromean = rct::is_rct_borromean(tx.rct_signatures.type);
       if (borromean)
       {
-        MERROR_VER("Borromean range proofs are not allowed after v8");
+        MERROR_VER("Borromean range proofs are not allowed starting from v13");
+        //MERROR_VER("Borromean range proofs are not allowed after v8");
         tvc.m_invalid_output = true;
         return false;
       }
@@ -2660,8 +2674,10 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     }
   }
 
-  // from v7, sorted ins
-  if (hf_version >= 7) {
+  //// from v7, sorted ins
+  //if (hf_version >= 7) {
+  // from v13, sorted ins
+  if (hf_version >= 13) {
     const crypto::key_image *last_key_image = NULL;
     for (size_t n = 0; n < tx.vin.size(); ++n)
     {
@@ -2946,7 +2962,8 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     // for bulletproofs, check they're only multi-output after v8
     if (rct::is_rct_bulletproof(rv.type))
     {
-      if (hf_version < 8)
+      //if (hf_version < 8)
+      if (hf_version < 13)
       {
         for (const rct::Bulletproof &proof: rv.p.bulletproofs)
         {
@@ -3030,13 +3047,17 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
 //------------------------------------------------------------------
 bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
 {
-  const uint8_t version = get_current_hard_fork_version();
+  //const uint8_t version = get_current_hard_fork_version();
+  uint8_t version = get_current_hard_fork_version();
+  MDEBUG("Blockchain::check_fee, version: " << (int)version << std::endl);
 
   uint64_t median = 0;
   uint64_t already_generated_coins = 0;
   uint64_t base_reward = 0;
   if (version >= HF_VERSION_DYNAMIC_FEE)
   {
+    MDEBUG("Blockchain::check_fee ----- 01" << std::endl);
+
     median = m_current_block_cumul_weight_limit / 2;
     already_generated_coins = m_db->height() ? m_db->get_block_already_generated_coins(m_db->height() - 1) : 0;
     if (!get_block_reward(median, 1, already_generated_coins, base_reward, version))
@@ -3046,12 +3067,20 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   uint64_t needed_fee;
   if (version >= HF_VERSION_PER_BYTE_FEE)
   {
+    MDEBUG("Blockchain::check_fee, 'version >= HF_VERSION_PER_BYTE_FEE', base_reward:"
+      << base_reward << "  median:" << median << std::endl);
+
     uint64_t fee_per_byte = get_dynamic_base_fee(base_reward, median, version);
     MDEBUG("Using " << print_money(fee_per_byte) << "/byte fee");
     needed_fee = tx_weight * fee_per_byte;
+
+    MDEBUG("Blockchain::check_fee, 'needed_fee:'" << needed_fee << std::endl);
+
     // quantize fee up to 8 decimals
     const uint64_t mask = get_fee_quantization_mask();
     needed_fee = (needed_fee + mask - 1) / mask * mask;
+
+    MDEBUG("Blockchain::check_fee, mask: " << mask << std::endl);
   }
   else
   {
@@ -3059,10 +3088,12 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
     if (version < HF_VERSION_DYNAMIC_FEE)
     {
       fee_per_kb = FEE_PER_KB;
+      MDEBUG("Blockchain::check_fee ----- 04" << std::endl);
     }
     else
     {
       fee_per_kb = get_dynamic_base_fee(base_reward, median, version);
+      MDEBUG("Blockchain::check_fee ----- 05" << std::endl);
     }
     MDEBUG("Using " << print_money(fee_per_kb) << "/kB fee");
 
@@ -3216,7 +3247,9 @@ bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const 
   LOG_PRINT_L3("Blockchain::" << __func__);
   median_ts = epee::misc_utils::median(timestamps);
   const uint8_t version = get_current_hard_fork_version();
-  const uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  const uint64_t blockchain_timestamp_check_window = version < 13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  //const uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+
 /*
 ||||||| merged common ancestors
   uint64_t median_ts = epee::misc_utils::median(timestamps);
@@ -3247,8 +3280,10 @@ bool Blockchain::check_block_timestamp(const block& b, uint64_t& median_ts) cons
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   uint8_t version = get_current_hard_fork_version();
-  uint64_t cryptonote_block_future_time_limit = version < 9 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
-  uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  //uint64_t cryptonote_block_future_time_limit = version < 9 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
+  //uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  uint64_t cryptonote_block_future_time_limit = version < 13 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
+  uint64_t blockchain_timestamp_check_window  = version < 13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
   if(b.timestamp > get_adjusted_time() + cryptonote_block_future_time_limit)
   {
     MERROR_VER("Timestamp of block with id: " << get_block_hash(b) << ", " << b.timestamp << ", bigger than adjusted time + " << cryptonote_block_future_time_limit << " seconds");
