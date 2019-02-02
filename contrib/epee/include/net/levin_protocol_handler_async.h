@@ -83,6 +83,12 @@ public:
 //  struct invoke_remote_command2_state_machine<class t_arg : public async_state_machine
 
 
+
+  void (*m_pcommands_handler_destroy)(levin_commands_handler<t_connection_context>*);
+
+  void delete_connections (size_t count, bool incoming);
+  void delete_connections (const std::vector<boost::uuids::uuid> &connections);
+
 public:
   typedef t_connection_context connection_context;
   levin_commands_handler<t_connection_context>* m_pcommands_handler;
@@ -106,6 +112,7 @@ public:
   async_protocol_handler_config():m_pcommands_handler(NULL), m_max_packet_size(LEVIN_DEFAULT_MAX_PACKET_SIZE)
   {}
   void del_out_connections(size_t count);
+  void del_in_connections(size_t count);
 };
 
 
@@ -386,10 +393,14 @@ public:
           is_continue = false;
           if(cb >= MIN_BYTES_WANTED && !m_invoke_response_handlers.empty())
           {
-            //async call scenario
-            boost::shared_ptr<invoke_response_handler_base> response_handler = m_invoke_response_handlers.front();
-            response_handler->reset_timer();
-            MDEBUG(m_connection_context << "LEVIN_PACKET partial msg received. len=" << cb);
+            CRITICAL_REGION_LOCAL(m_invoke_response_handlers_lock);
+            if (!m_invoke_response_handlers.empty())
+            {
+              //async call scenario
+              boost::shared_ptr<invoke_response_handler_base> response_handler = m_invoke_response_handlers.front();
+              response_handler->reset_timer();
+              MDEBUG(m_connection_context << "LEVIN_PACKET partial msg received. len=" << cb);
+            }
           }
           break;
         }
@@ -733,32 +744,72 @@ void async_protocol_handler_config<t_connection_context>::del_connection(async_p
 }
 //------------------------------------------------------------------------------------------
 template<class t_connection_context>
+void async_protocol_handler_config<t_connection_context>::delete_connections(size_t count, bool incoming)
+{
+  std::vector <boost::uuids::uuid> connections;
+  CRITICAL_REGION_BEGIN(m_connects_lock);
+  for (auto& c: m_connects)
+  {
+    if (c.second->m_connection_context.m_is_income == incoming)
+      connections.push_back(c.first);
+  }
+
+  // close random connections from  the provided set
+  // TODO or better just keep removing random elements (performance)
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  shuffle(connections.begin(), connections.end(), std::default_random_engine(seed));
+  while (count > 0 && connections.size() > 0)
+  {
+    try
+    {
+      auto i = connections.end() - 1;
+      async_protocol_handler<t_connection_context> *conn = m_connects.at(*i);
+      close(*i);
+      // TODO: check if connection, connection_context and async_protocol_handler deleted
+      del_connection(conn);
+      connections.erase(i);
+    }
+    catch (const std::out_of_range &e)
+    {
+      MWARNING("Connection not found in m_connects, continuing");
+    }
+    --count;
+  }
+
+  CRITICAL_REGION_END();
+}
+
+
+template<class t_connection_context>
+void async_protocol_handler_config<t_connection_context>::delete_connections(const std::vector<boost::uuids::uuid> &connections)
+{
+  CRITICAL_REGION_BEGIN(m_connects_lock);
+  for (const auto &conn_id: connections) {
+    try {
+      async_protocol_handler<t_connection_context> *conn = m_connects.at(conn_id);
+      close(conn_id);
+      // TODO: check if connection, connection_context and async_protocol_handler deleted
+      del_connection(conn);
+    }
+    catch (const std::out_of_range &e)
+    {
+      MWARNING("Connection not found in m_connects, continuing");
+    }
+  }
+  CRITICAL_REGION_END();
+}
+//--
+//------------------------------------------------------------------------------------------
+template<class t_connection_context>
 void async_protocol_handler_config<t_connection_context>::del_out_connections(size_t count)
 {
-	std::vector <boost::uuids::uuid> out_connections;
-	CRITICAL_REGION_BEGIN(m_connects_lock);
-	for (auto& c: m_connects)
-	{
-		if (!c.second->m_connection_context.m_is_income)
-			out_connections.push_back(c.first);
-	}
-	
-	if (out_connections.size() == 0)
-		return;
-
-	// close random out connections
-	// TODO or better just keep removing random elements (performance)
-	unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-	shuffle(out_connections.begin(), out_connections.end(), std::default_random_engine(seed));
-	while (count > 0 && out_connections.size() > 0)
-	{
-		close(*out_connections.begin());
-		del_connection(m_connects.at(*out_connections.begin()));
-		out_connections.erase(out_connections.begin());
-		--count;
-	}
-	
-	CRITICAL_REGION_END();
+  delete_connections(count, false);
+}
+//------------------------------------------------------------------------------------------
+template<class t_connection_context>
+void async_protocol_handler_config<t_connection_context>::del_in_connections(size_t count)
+{
+  delete_connections(count, true);
 }
 //------------------------------------------------------------------------------------------
 template<class t_connection_context>
