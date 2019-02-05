@@ -123,6 +123,8 @@ namespace nodetool
         std::string info;
     };
 
+    static const time_t P2P_MAX_HANDSHAKE_TIME = 2 * 60;  // TODO: check how long actually handshake takes
+
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -1821,13 +1823,13 @@ namespace nodetool
   size_t node_server<t_payload_net_handler>::get_outgoing_connections_count()
   {
     size_t count = 0;
-    m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)
+    m_net_server.get_config_object().foreach_connection([&,this](const p2p_connection_context& cntxt)
     {
-      if(!cntxt.m_is_income)
+      if(!cntxt.m_is_income && !this->is_rta_connection(cntxt))
         ++count;
       return true;
     });
-
+    MDEBUG("get_outgoing_connections_count: " << count);
     return count;
   }
   //-----------------------------------------------------------------------------------
@@ -2587,6 +2589,14 @@ namespace nodetool
           tunnels.push_back(route);
       }
       return tunnels;
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::is_rta_connection(const p2p_connection_context &context) const
+  {
+    // TODO: consider introducing extra flag for rta connections
+    return context.m_state == p2p_connection_context::state_before_handshake
+            && time(nullptr) - context.m_started > P2P_MAX_HANDSHAKE_TIME;
   }
 
   //-----------------------------------------------------------------------------------

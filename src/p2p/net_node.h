@@ -166,6 +166,13 @@ namespace nodetool
 
     std::vector<cryptonote::route_data> get_tunnels() const;
 
+    /*!
+     * \brief is_rta_connection - checks if given connection is RTA connection
+     * \param context
+     * \return                  - true of connection is RTA
+     */
+    bool is_rta_connection(const p2p_connection_context &context) const;
+
   private:
     const std::vector<std::string> m_seed_nodes_list =
     { "seeds.moneroseeds.se"
