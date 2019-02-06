@@ -2553,19 +2553,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
           return true;
         }
         unlock_block = bc_height + locked_blocks;
-        ptx_vector = m_wallet->create_transactions_2(dsts, fake_outs_count, unlock_block /* unlock_time */, priority, extra, m_trusted_daemon);        
-
-        for (tools::wallet2::pending_tx& tx : ptx_vector)
-        {
-          std::vector<uint8_t>& extra = tx.construction_data.extra;
-          const crypto::secret_key& tx_key = tx.tx_key;
-
-          if (!add_graft_tx_secret_key_to_extra(extra, tx_key))
-          {
-            fail_msg_writer() << tr("failed to add stake transaction secret key to extra");
-            return true;
-          }
-        }
+        ptx_vector = m_wallet->create_transactions_2(dsts, fake_outs_count, unlock_block /* unlock_time */, priority, extra, m_trusted_daemon);
       break;
       case TransferLocked:
         bc_height = get_daemon_blockchain_height(err);

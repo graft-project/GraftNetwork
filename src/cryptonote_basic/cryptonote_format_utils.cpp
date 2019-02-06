@@ -886,23 +886,26 @@ namespace cryptonote
   {
       struct GraftStakeTxExtra
       {
-          std::string SupernodePublicId;
-          cryptonote::account_public_address SupernodePublicAddress;
+          std::string supernode_public_id;
+          cryptonote::account_public_address supernode_public_address;
 
           GraftStakeTxExtra() = default;
+
           GraftStakeTxExtra(const std::string &supernode_public_id,
             const cryptonote::account_public_address& supernode_public_address) :
-              SupernodePublicId(supernode_public_id),
-              SupernodePublicAddress(supernode_public_address) {}
+              supernode_public_id(supernode_public_id),
+              supernode_public_address(supernode_public_address)
+          {}
+
           bool operator ==(const GraftStakeTxExtra &rhs) const {
-            return SupernodePublicId == rhs.SupernodePublicId &&
-              !memcmp(&SupernodePublicAddress.m_view_public_key.data[0], &rhs.SupernodePublicAddress.m_view_public_key.data[0],
-                sizeof(SupernodePublicAddress.m_view_public_key.data));
+            return supernode_public_id == rhs.supernode_public_id &&
+              !memcmp(&supernode_public_address.m_view_public_key.data[0], &rhs.supernode_public_address.m_view_public_key.data[0],
+                sizeof(supernode_public_address.m_view_public_key.data));
           }
 
           BEGIN_SERIALIZE_OBJECT()
-              FIELD(SupernodePublicId)
-              FIELD(SupernodePublicAddress)
+              FIELD(supernode_public_id)
+              FIELD(supernode_public_address)
           END_SERIALIZE()
       };
   }
@@ -926,9 +929,43 @@ namespace cryptonote
 
   bool add_graft_tx_secret_key_to_extra(std::vector<uint8_t> &extra, const crypto::secret_key& secret_key)
   {
-    extra.resize(extra.size() + 1 + sizeof(crypto::secret_key));
-    extra[extra.size() - 1 - sizeof(crypto::secret_key)] = TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG;
-    *reinterpret_cast<crypto::secret_key*>(&extra[extra.size() - sizeof(crypto::secret_key)]) = secret_key;
-    return true;
+      tx_extra_graft_tx_secret_key container;
+      container.secret_key = secret_key;
+      std::string blob;
+      ::serialization::dump_binary(container, blob);
+      extra.push_back(TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG);
+      std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
+      return true;
+  }
+
+  bool get_graft_stake_tx_extra_from_extra
+    (const transaction &tx,
+     std::string &supernode_public_id,
+     cryptonote::account_public_address &supernode_public_address,
+     crypto::secret_key &tx_secret_key)
+  {
+      std::vector<tx_extra_field> tx_extra_fields;
+      parse_tx_extra(tx.extra, tx_extra_fields);
+
+      tx_extra_graft_stake_tx stake_tx_extra;
+
+      if(!find_tx_extra_field_by_type(tx_extra_fields, stake_tx_extra))
+          return false;
+
+      GraftStakeTxExtra stake_tx;
+
+      if (!::serialization::parse_binary(stake_tx_extra.data, stake_tx))
+          return false;
+
+      tx_extra_graft_tx_secret_key stake_tx_secret_key_extra;
+
+      if(!find_tx_extra_field_by_type(tx_extra_fields, stake_tx_secret_key_extra))
+          return false;
+
+      supernode_public_id = stake_tx.supernode_public_id;
+      supernode_public_address = stake_tx.supernode_public_address;
+      tx_secret_key = stake_tx_secret_key_extra.secret_key;
+
+      return true;
   }
 }
