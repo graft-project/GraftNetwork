@@ -39,8 +39,8 @@
 #define TX_EXTRA_NONCE                      0x02
 #define TX_EXTRA_MERGE_MINING_TAG           0x03
 #define TX_EXTRA_GRAFT_EXTRA_TAG            0x04
-#define TX_EXTRA_GRAFT_STAKE_TX_TAG         0x05
-#define TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG    0x06
+#define TX_EXTRA_GRAFT_STAKE_TX_TAG         0x10
+#define TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG    0x11
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
