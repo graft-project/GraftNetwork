@@ -134,7 +134,12 @@ namespace nodetool
     bool log_peerlist();
     bool log_connections();
     virtual uint64_t get_connections_count();
-    size_t get_outgoing_connections_count();
+    /*!
+     * \brief get_outgoing_connections_count - returns outgoing connections count
+     * \param all_connections                - determines if count all connections (incl rta ones)
+     * \return
+     */
+    size_t get_outgoing_connections_count(bool all_connections = false);
     peerlist_manager& get_peerlist_manager(){return m_peerlist;}
     void delete_connections(size_t count);
     virtual bool block_host(const epee::net_utils::network_address &adress, time_t seconds = P2P_IP_BLOCKTIME);

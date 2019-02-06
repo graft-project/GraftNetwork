@@ -1737,6 +1737,10 @@ namespace nodetool
     if (!m_exclusive_peers.empty()) return true;
 
     size_t start_conn_count = get_outgoing_connections_count();
+    size_t all_conn_count = get_outgoing_connections_count(true);
+
+    MDEBUG("connections_maker: all_connections_count: " << all_conn_count << ", p2p_conn_count: " << start_conn_count);
+
     if(!m_peerlist.get_white_peers_count() && m_seed_nodes.size())
     {
       if (!connect_to_seed())
@@ -1820,16 +1824,15 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  size_t node_server<t_payload_net_handler>::get_outgoing_connections_count()
+  size_t node_server<t_payload_net_handler>::get_outgoing_connections_count(bool all_connections)
   {
     size_t count = 0;
-    m_net_server.get_config_object().foreach_connection([&,this](const p2p_connection_context& cntxt)
+    m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)
     {
-      if(!cntxt.m_is_income && !this->is_rta_connection(cntxt))
+      if(!cntxt.m_is_income && (all_connections || !this->is_rta_connection(cntxt)))
         ++count;
       return true;
     });
-    MDEBUG("get_outgoing_connections_count: " << count);
     return count;
   }
   //-----------------------------------------------------------------------------------
