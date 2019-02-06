@@ -1769,6 +1769,35 @@ namespace cryptonote
     };
   };
 
+  struct COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST
+  {
+    struct supernode
+    {
+      std::string supernode_public_id;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernode_public_id)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      uint64_t block_number;
+      std::vector<supernode> supernodes;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(block_number)
+        KV_SERIALIZE(supernodes)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
   struct COMMAND_RPC_SUPERNODE_ANNOUNCE
   {
     struct SignedKeyImageStr

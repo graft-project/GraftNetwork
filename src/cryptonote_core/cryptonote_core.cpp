@@ -1098,14 +1098,24 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-  void core::set_stake_transactions_update_handler(const stake_transactions_update_handler& handler)
+  void core::set_update_stake_transactions_handler(const stake_transactions_update_handler& handler)
   {
-    m_graft_stake_transaction_processor.set_on_update_handler(handler);
+    m_graft_stake_transaction_processor.set_on_update_stake_transactions_handler(handler);
   }
   //-----------------------------------------------------------------------------------------------
-  void core::invoke_stake_transactions_update_handler()
+  void core::invoke_update_stake_transactions_handler()
   {
-    m_graft_stake_transaction_processor.invoke_update_handler(true);
+    m_graft_stake_transaction_processor.invoke_update_stake_transactions_handler(true);
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler& handler)
+  {
+    m_graft_stake_transaction_processor.set_on_update_blockchain_based_list_handler(handler);
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::invoke_update_blockchain_based_list_handler()
+  {
+    m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::list<block_complete_entry> &blocks)

@@ -38,6 +38,7 @@ StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
   , m_storage(STAKE_TRANSACTION_STORAGE_FILE_NAME)
   , m_blockchain_based_list(BLOCKCHAIN_BASED_LIST_FILE_NAME)
   , m_stake_transactions_need_update(true)
+  , m_blockchain_based_list_need_update(true)
 {
 }
 
@@ -115,8 +116,13 @@ void StakeTransactionProcessor::process_block_blockchain_based_list(uint64_t blo
 {
   m_blockchain_based_list.apply_block(block_index, block.hash, m_storage);
 
-  if (update_storage && m_blockchain_based_list.need_store())
-    m_blockchain_based_list.store();
+  if (m_blockchain_based_list.need_store())
+  {
+    m_blockchain_based_list_need_update = true;
+
+    if (update_storage)
+      m_blockchain_based_list.store();
+  }
 }
 
 void StakeTransactionProcessor::process_block(uint64_t block_index, const block& block, bool update_storage)
@@ -187,7 +193,11 @@ void StakeTransactionProcessor::synchronize()
   }
 
   if (m_blockchain_based_list.need_store())
+  {
+    m_blockchain_based_list_need_update = true;
+
     m_blockchain_based_list.store();
+  }
 
   if (m_stake_transactions_need_update)
   {
@@ -195,7 +205,7 @@ void StakeTransactionProcessor::synchronize()
 
     if (m_on_stake_transactions_update)
     {
-      invoke_update_handler_impl();
+      invoke_update_stake_transactions_handler_impl();
       m_stake_transactions_need_update = false;
     }
   }
@@ -204,7 +214,7 @@ void StakeTransactionProcessor::synchronize()
     MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
 }
 
-void StakeTransactionProcessor::set_on_update_handler(const stake_transactions_update_handler& handler)
+void StakeTransactionProcessor::set_on_update_stake_transactions_handler(const stake_transactions_update_handler& handler)
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
   m_on_stake_transactions_update = handler;
@@ -252,11 +262,11 @@ void StakeTransactionProcessor::invoke_update_handler_impl()
   }
   catch (std::exception& e)
   {
-    MCLOG(el::Level::Error, "global", "exception in StakeTransactionProcessor update handler: " << e.what());
+    MCLOG(el::Level::Error, "global", "exception in StakeTransactionProcessor stake transactions update handler: " << e.what());
   }
 }
 
-void StakeTransactionProcessor::invoke_update_handler(bool force)
+void StakeTransactionProcessor::invoke_update_stake_transactions_handler(bool force)
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
 
@@ -266,5 +276,44 @@ void StakeTransactionProcessor::invoke_update_handler(bool force)
   if (!m_stake_transactions_need_update && !force)
     return;
 
-  invoke_update_handler_impl();
+  invoke_update_stake_transactions_handler_impl();
+}
+
+void StakeTransactionProcessor::set_on_update_blockchain_based_list_handler(const blockchain_based_list_update_handler& handler)
+{
+  CRITICAL_REGION_LOCAL1(m_storage_lock);
+  m_on_blockchain_based_list_update = handler;
+}
+
+void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl()
+{
+  try
+  {
+    const BlockchainBasedList::SupernodeList& supernodes = m_blockchain_based_list.supernodes();
+    std::vector<std::string> result;
+
+    result.reserve(supernodes.size());
+
+    for (const BlockchainBasedList::SupernodeDesc& desc : supernodes)
+      result.push_back(desc.supernode_public_id);
+
+    m_on_blockchain_based_list_update(m_blockchain_based_list.block_height(), result);
+  }
+  catch (std::exception& e)
+  {
+    MCLOG(el::Level::Error, "global", "exception in StakeTransactionProcessor blockchain based list update handler: " << e.what());
+  }
+}
+
+void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler(bool force)
+{
+  CRITICAL_REGION_LOCAL1(m_storage_lock);
+
+  if (!m_on_blockchain_based_list_update)
+    return;
+  
+  if (!m_blockchain_based_list_need_update && !force)
+    return;
+
+  invoke_update_blockchain_based_list_handler_impl();
 }

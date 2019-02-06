@@ -741,12 +741,24 @@ namespace cryptonote
       */
      typedef StakeTransactionProcessor::stake_transactions_update_handler stake_transactions_update_handler;
 
-     void set_stake_transactions_update_handler(const stake_transactions_update_handler&);
+     void set_update_stake_transactions_handler(const stake_transactions_update_handler&);
 
      /**
       * @brief invoke stake transactions update handler
       */
-     void invoke_stake_transactions_update_handler();
+     void invoke_update_stake_transactions_handler();
+
+     /**
+      * @brief set update handler for new blockchain based list
+      */
+     typedef StakeTransactionProcessor::blockchain_based_list_update_handler blockchain_based_list_update_handler;
+
+     void set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&);
+
+     /**
+      * @brief invoke blockchain based list update handler
+      */
+     void invoke_update_blockchain_based_list_handler();
 
    private:
 
