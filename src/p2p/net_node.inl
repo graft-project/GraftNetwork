@@ -488,8 +488,12 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::init(const boost::program_options::variables_map& vm)
   {
-    m_payload_handler.get_core().set_stake_transactions_update_handler(
+    m_payload_handler.get_core().set_update_stake_transactions_handler(
       [&](const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs) { handle_stake_transactions_update(stake_txs); }
+    );
+
+    m_payload_handler.get_core().set_update_blockchain_based_list_handler(
+      [&](uint64_t block_number, const std::vector<std::string>& supernodes) { handle_blockchain_based_list_update(block_number, supernodes); }
     );
 
     std::set<std::string> full_addrs;
@@ -2814,6 +2818,40 @@ namespace nodetool
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::send_stake_transactions_to_supernode()
   {
-    m_payload_handler.get_core().invoke_stake_transactions_update_handler();
+    m_payload_handler.get_core().invoke_update_stake_transactions_handler();
+  }
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::handle_blockchain_based_list_update(uint64_t block_number, const std::vector<std::string>& supernodes)
+  {
+    static std::string supernode_endpoint("blockchain_based_list");
+
+    boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+
+    if (!m_have_supernode)
+      return;
+
+    LOG_PRINT_L0("handle_blockchain_based_list_update to supernode");
+
+    cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::request request;
+
+    request.supernodes.reserve(supernodes.size());
+
+    for (const std::string& src_supernode : supernodes)
+    {
+      cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::supernode dst_supernode;
+
+      dst_supernode.supernode_public_id = src_supernode;
+
+      request.supernodes.emplace_back(std::move(dst_supernode));
+    }
+
+    post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST>(supernode_endpoint, request);
+  }
+
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::send_blockchain_based_list_to_supernode()
+  {
+    m_payload_handler.get_core().invoke_update_blockchain_based_list_handler();
   }
 }

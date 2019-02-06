@@ -409,9 +409,11 @@ namespace nodetool
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
     void send_stake_transactions_to_supernode();
+    void send_blockchain_based_list_to_supernode();
 
   private:
     void handle_stake_transactions_update(const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs);
+    void handle_blockchain_based_list_update(uint64_t block_number, const std::vector<std::string>& supernodes);
 
   private:
     std::multimap<int, std::string> m_supernode_requests_timestamps;

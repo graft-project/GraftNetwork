@@ -25,13 +25,22 @@ public:
   typedef std::function<void(const stake_transaction_array&)> stake_transactions_update_handler;
 
   /// Update handler for new stake transactions
-  void set_on_update_handler(const stake_transactions_update_handler&);
+  void set_on_update_stake_transactions_handler(const stake_transactions_update_handler&);
 
-  /// Force invoke update handler
-  void invoke_update_handler(bool force = true);
+  /// Force invoke update handler for stake transactions
+  void invoke_update_stake_transactions_handler(bool force = true);
+
+  typedef std::function<void(uint64_t block_number, const std::vector<std::string>&)> blockchain_based_list_update_handler;
+
+  /// Update handler for new blockchain based list
+  void set_on_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&);
+
+  /// Force invoke update handler for blockchain based list
+  void invoke_update_blockchain_based_list_handler(bool force = true);
 
 private:
-  void invoke_update_handler_impl();
+  void invoke_update_stake_transactions_handler_impl();
+  void invoke_update_blockchain_based_list_handler_impl();
   void process_block_stake_transaction(uint64_t block_index, const block& block, bool update_storage = true);
   void process_block_blockchain_based_list(uint64_t block_index, const block& block, bool update_storage = true);
 
@@ -41,7 +50,9 @@ private:
   BlockchainBasedList m_blockchain_based_list;
   epee::critical_section m_storage_lock;
   stake_transactions_update_handler m_on_stake_transactions_update;
+  blockchain_based_list_update_handler m_on_blockchain_based_list_update;
   bool m_stake_transactions_need_update;
+  bool m_blockchain_based_list_need_update;
 };
 
 }
