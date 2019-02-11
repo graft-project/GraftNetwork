@@ -907,7 +907,7 @@ namespace nodetool
           }
           for (auto addr : addresses)
           {
-              LOG_PRINT_L0("P2P Request: multicast_send: find tunnel for " << addr);
+              LOG_PRINT_L0("P2P Request: multicast_send: looking for tunnel for " << addr);
               auto it = local_supernode_routes.find(addr);
               if (it == local_supernode_routes.end())
               {
@@ -927,6 +927,7 @@ namespace nodetool
                                               addr_tunnel.id);
                   if (tunnel_it == tunnels.end() && exclude_it == exclude_peerids.end())
                   {
+                      MDEBUG("found tunnel for address: " << addr << ":  " << addr_tunnel.adr.str());
                       tunnels.push_back(addr_tunnel);
                       count++;
                   }
@@ -937,8 +938,8 @@ namespace nodetool
               }
           }
       }
-      LOG_PRINT_L0("P2P Request: multicast_send: End tunneling");
-      return notify_peer_list(command, data, tunnels, true);
+      LOG_PRINT_L0("P2P Request: multicast_send: End tunneling, tunnels found: " << tunnels.size());
+      return notify_peer_list(command, data, tunnels);
   }
 
   //-----------------------------------------------------------------------------------
@@ -1011,6 +1012,11 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: start");
+      if (context.m_state != p2p_connection_context::state_normal) {
+          MWARNING(context << " invalid connection (no handshake)");
+          return 1;
+      }
+
 #ifdef LOCK_RTA_SENDING
     return 1;
 #endif
@@ -1135,6 +1141,10 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: handle_broadcast: start");
       LOG_PRINT_L0("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
                    << ", our address: " << m_supernode_str);
+      if (context.m_state != p2p_connection_context::state_normal) {
+          MWARNING(context << " invalid connection (no handshake)");
+          return 1;
+      }
 
 #ifdef LOCK_RTA_SENDING
     return 1;
@@ -1184,6 +1194,10 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: handle_multicast: sender_address: " << arg.sender_address
                    << ", receiver_addresses: " << boost::algorithm::join(arg.receiver_addresses, ", ")
                    << ", our address: " << m_supernode_str);
+      if (context.m_state != p2p_connection_context::state_normal) {
+          MWARNING(context << " invalid connection (no handshake)");
+          return 1;
+      }
 
 #ifdef LOCK_RTA_SENDING
     return 1;
@@ -1244,6 +1258,10 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: handle_unicast: sender_address: " << arg.sender_address
                    << ", receiver_address: " << arg.receiver_address
                    << ", our address: " << m_supernode_str);
+      if (context.m_state != p2p_connection_context::state_normal) {
+          MWARNING(context << " invalid connection (no handshake)");
+          return 1;
+      }
 
 #ifdef LOCK_RTA_SENDING
     return 1;
