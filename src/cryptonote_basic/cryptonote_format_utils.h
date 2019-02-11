@@ -97,7 +97,8 @@ namespace cryptonote
    * \param supernode_wallet_id  - supernode public wallet address
    * \return                     - true on success
    */
-  bool add_graft_stake_tx_extra_to_extra(std::vector<uint8_t> &extra, const std::string &supernode_public_id, const cryptonote::account_public_address &supernode_public_address);
+  bool add_graft_stake_tx_extra_to_extra(std::vector<uint8_t> &extra, const std::string &supernode_public_id,
+    const cryptonote::account_public_address &supernode_public_address, const crypto::signature& supernode_signature);
 
   /*!
    * \brief add_graft_tx_secret_key_to_extra - adds graft transaction secret key to extra
@@ -106,6 +107,21 @@ namespace cryptonote
    * \return            - true on success
    */
   bool add_graft_tx_secret_key_to_extra(std::vector<uint8_t> &extra, const crypto::secret_key& secret_key);
+
+  /*!
+   * \brief get_graft_stake_tx_extra_from_extra - gets graft stake transaction fields from extra
+   * \param tx                   - source transaction
+   * \param supernode_public_id  - public identifier of supernode
+   * \param supernode_wallet_id  - supernode public wallet address
+   * \param tx_secret_key        - transaction secret key
+   * \return                     - true on success
+   */
+  bool get_graft_stake_tx_extra_from_extra
+    (const transaction &tx,
+     std::string &supernode_public_id,
+     cryptonote::account_public_address &supernode_public_address,
+     crypto::signature &supernode_signature,
+     crypto::secret_key &tx_secret_key);
 
   bool add_extra_nonce_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& extra_nonce);
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type);

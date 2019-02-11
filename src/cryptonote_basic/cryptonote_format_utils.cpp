@@ -888,24 +888,30 @@ namespace cryptonote
       {
           std::string supernode_public_id;
           cryptonote::account_public_address supernode_public_address;
+          crypto::signature supernode_signature;
 
           GraftStakeTxExtra() = default;
 
           GraftStakeTxExtra(const std::string &supernode_public_id,
-            const cryptonote::account_public_address& supernode_public_address) :
+            const cryptonote::account_public_address& supernode_public_address,
+            const crypto::signature &supernode_signature) :
               supernode_public_id(supernode_public_id),
-              supernode_public_address(supernode_public_address)
+              supernode_public_address(supernode_public_address),
+              supernode_signature(supernode_signature)
           {}
 
           bool operator ==(const GraftStakeTxExtra &rhs) const {
             return supernode_public_id == rhs.supernode_public_id &&
               !memcmp(&supernode_public_address.m_view_public_key.data[0], &rhs.supernode_public_address.m_view_public_key.data[0],
-                sizeof(supernode_public_address.m_view_public_key.data));
+                sizeof(supernode_public_address.m_view_public_key.data)) &&
+              !memcmp(&supernode_signature.c.data[0], &rhs.supernode_signature.c.data[0], sizeof(supernode_signature.c.data)) &&
+              !memcmp(&supernode_signature.r.data[0], &rhs.supernode_signature.r.data[0], sizeof(supernode_signature.r.data));
           }
 
           BEGIN_SERIALIZE_OBJECT()
               FIELD(supernode_public_id)
               FIELD(supernode_public_address)
+              FIELD(supernode_signature)
           END_SERIALIZE()
       };
   }
@@ -913,9 +919,10 @@ namespace cryptonote
   bool add_graft_stake_tx_extra_to_extra
     (std::vector<uint8_t> &extra,
      const std::string &supernode_public_id,
-     const cryptonote::account_public_address &supernode_public_address)
+     const cryptonote::account_public_address &supernode_public_address,
+     const crypto::signature &supernode_signature)
   {
-      GraftStakeTxExtra tx_extra(supernode_public_id, supernode_public_address);
+      GraftStakeTxExtra tx_extra(supernode_public_id, supernode_public_address, supernode_signature);
       std::string blob;
       ::serialization::dump_binary(tx_extra, blob);
       tx_extra_graft_stake_tx container;
@@ -942,6 +949,7 @@ namespace cryptonote
     (const transaction &tx,
      std::string &supernode_public_id,
      cryptonote::account_public_address &supernode_public_address,
+     crypto::signature &supernode_signature,
      crypto::secret_key &tx_secret_key)
   {
       std::vector<tx_extra_field> tx_extra_fields;
@@ -964,6 +972,7 @@ namespace cryptonote
 
       supernode_public_id = stake_tx.supernode_public_id;
       supernode_public_address = stake_tx.supernode_public_address;
+      supernode_signature = stake_tx.supernode_signature;
       tx_secret_key = stake_tx_secret_key_extra.secret_key;
 
       return true;
