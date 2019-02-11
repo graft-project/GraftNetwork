@@ -826,14 +826,17 @@ namespace nodetool
   bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect)
   {
       MDEBUG("P2P Request: notify_peer_list: start notify, total peers: " << peers_to_send.size());
+      // dbg
+      log_connections();
+
       for (unsigned i = 0; i < peers_to_send.size(); i++) {
           const peerlist_entry &pe = peers_to_send[i];
           boost::uuids::uuid conn_id;
-          MDEBUG("P2P Request: notify_peer_list: start notify: looking for existing connection for peer: " << pe.id << ", [" << pe.adr << "]");
+          MDEBUG("P2P Request: notify_peer_list: start notify: looking for existing connection for peer: " << pe.id << ", [" << pe.adr.str() << "]");
           bool connection_exists = find_connection_id_by_peer(pe, conn_id);
 
           bool sent = false;
-          MDEBUG("P2P Request: notify_peer_list: sending to peer: " << i << ", already connected: " << connection_exists
+          MDEBUG("P2P Request: notify_peer_list: sending to peer: " << pe.adr.str()  << ", already connected: " << connection_exists
                        << ", try connect: " << try_connect);
           if (connection_exists) {
               MDEBUG("P2P Request: notify_peer_list: peer is connected, sending to : " << pe.adr.host_str());
@@ -914,15 +917,25 @@ namespace nodetool
                   MWARNING("no tunnel found for address: " << addr);
                   continue;
               }
+              // peers for address
               std::vector<peerlist_entry> addr_tunnels = (*it).second.peers;
               unsigned int count = 0;
               for (auto peer_it = addr_tunnels.begin(); peer_it != addr_tunnels.end(); ++peer_it)
               {
                   peerlist_entry addr_tunnel = *peer_it;
+
+
+                  // check if peer connected connections
+                  boost::uuids::uuid dummy;
+                  if (!find_connection_id_by_peer(addr_tunnel, dummy))
+                    continue;
+
+                  // don't allow duplicate entries
                   auto tunnel_it = std::find_if(tunnels.begin(), tunnels.end(),
                                                 [addr_tunnel](const peerlist_entry &entry) -> bool {
                       return entry.id == addr_tunnel.id;
                   });
+                  // check if our peer is in excluded peers
                   auto exclude_it = std::find(exclude_peerids.begin(), exclude_peerids.end(),
                                               addr_tunnel.id);
                   if (tunnel_it == tunnels.end() && exclude_it == exclude_peerids.end())
@@ -1097,7 +1110,7 @@ namespace nodetool
           (*it).second.max_hop = arg.hop;
       } while(0);
 
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: post to supernode");
+      LOG_PRINT_L0("P2P Request: handle_supernode_announce: post to supernode: " << arg.address);
       do {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (m_have_supernode) {
@@ -1758,7 +1771,8 @@ namespace nodetool
     MDEBUG("find_connection_id_by_peer: looking for: " << pe.adr.str());
     m_net_server.get_config_object().foreach_connection([&pe, &ret, &conn_id](p2p_connection_context& cntxt)
     {
-      if (cntxt.m_remote_address == pe.adr) {
+      LOG_INFO_CC(cntxt, "find_connection_id_by_peer: checking connection, pe.adr: " << pe.adr.str());
+      if (cntxt.peer_id == pe.id) {
         MDEBUG("find_connection_id_by_peer: found: " << pe.adr.str());
         conn_id = cntxt.m_connection_id;
         ret = true;
@@ -1766,6 +1780,7 @@ namespace nodetool
       }
       return true;
     });
+    MDEBUG("find_connection_id_by_peer: done looking for: " << pe.adr.str() << ", found: " << conn_id);
     return ret;
   }
 
@@ -2701,6 +2716,7 @@ namespace nodetool
       ss << cntxt.m_remote_address.str()
         << " \t\tpeer_id " << cntxt.peer_id
         << " \t\tconn_id " << epee::string_tools::get_str_from_guid_a(cntxt.m_connection_id) << (cntxt.m_is_income ? " INC":" OUT")
+        << " state: " << cryptonote::get_protocol_state_string(cntxt.m_state)
         << std::endl;
       return true;
     });
