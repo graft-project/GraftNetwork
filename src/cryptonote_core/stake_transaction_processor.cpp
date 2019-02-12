@@ -125,6 +125,13 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
   {
     const transaction& tx = db.get_tx(tx_hash);
 
+    if (tx.unlock_time > STAKE_MAX_UNLOCK_TIME)
+    {
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+        " because unlock time " << tx.unlock_time << " is greater than maximum allowed " << STAKE_MAX_UNLOCK_TIME);
+      continue;
+    }
+
     if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
       continue;
 
@@ -290,6 +297,25 @@ void StakeTransactionProcessor::set_on_update_handler(const stake_transactions_u
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
   m_on_stake_transactions_update = handler;
+}
+
+namespace
+{
+
+bool is_valid(const stake_transaction& tx, uint64_t block_index)
+{
+  uint64_t stake_first_valid_block = tx.block_height + StakeTransactionProcessor::STAKE_VALIDATION_PERIOD,
+           stake_last_valid_block  = tx.block_height + tx.unlock_time + StakeTransactionProcessor::TRUSTED_RESTAKING_PERIOD;
+
+  if (block_index < stake_first_valid_block)
+    return false;
+
+  if (block_index > stake_last_valid_block)
+    return false;
+
+  return true;
+}
+
 }
 
 void StakeTransactionProcessor::invoke_update_handler_impl()
