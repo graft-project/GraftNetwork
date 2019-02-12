@@ -1731,6 +1731,8 @@ namespace cryptonote
     struct stake_transaction
     {
       crypto::hash hash;
+      uint64_t amount;
+      unsigned int tier;
       uint64_t block_height;
       uint64_t unlock_time;
       std::string supernode_public_id;
@@ -1739,6 +1741,8 @@ namespace cryptonote
       crypto::secret_key tx_secret_key;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
+        KV_SERIALIZE(amount)
+        KV_SERIALIZE(tier)
         KV_SERIALIZE(block_height)
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(supernode_public_id)

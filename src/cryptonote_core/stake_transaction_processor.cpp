@@ -7,6 +7,29 @@ namespace
 
 const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.bin";
 
+unsigned int get_tier(uint64_t stake)
+{
+  return 0 +
+    (stake >= StakeTransactionProcessor::TIER1_STAKE_AMOUNT) +
+    (stake >= StakeTransactionProcessor::TIER2_STAKE_AMOUNT) +
+    (stake >= StakeTransactionProcessor::TIER3_STAKE_AMOUNT) +
+    (stake >= StakeTransactionProcessor::TIER4_STAKE_AMOUNT);
+}
+
+}
+
+bool stake_transaction::is_valid(uint64_t block_index) const
+{
+  uint64_t stake_first_valid_block = block_height + StakeTransactionProcessor::STAKE_VALIDATION_PERIOD,
+           stake_last_valid_block  = block_height + unlock_time + StakeTransactionProcessor::TRUSTED_RESTAKING_PERIOD;
+
+  if (block_index < stake_first_valid_block)
+    return false;
+
+  if (block_index > stake_last_valid_block)
+    return false;
+
+  return true;
 }
 
 StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
@@ -32,9 +55,25 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
     if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
       continue;
 
+    uint64_t unlock_time = tx.unlock_time - block_index;
+
+    if (unlock_time > STAKE_MAX_UNLOCK_TIME)
+    {
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+        " because unlock time " << unlock_time << " is greater than maximum allowed " << STAKE_MAX_UNLOCK_TIME);
+      continue;
+    }
+
+    uint64_t amount = 0;
+
+    for (const tx_out& out : tx.vout)
+      amount += out.amount;
+
+    stake_tx.amount = amount;
     stake_tx.block_height = block_index;
     stake_tx.hash = tx.hash;
-    stake_tx.unlock_time = tx.unlock_time;
+    stake_tx.unlock_time = unlock_time;
+    stake_tx.tier = get_tier(stake_tx.amount);
 
     m_storage.add_tx(stake_tx);
 
@@ -129,7 +168,22 @@ void StakeTransactionProcessor::invoke_update_handler_impl()
 {
   try
   {
-    m_on_stake_transactions_update(m_storage.get_txs());
+    stake_transaction_array valid_stake_txs;
+    const stake_transaction_array& stake_txs = m_storage.get_txs();
+
+    valid_stake_txs.reserve(stake_txs.size());
+
+    uint64_t top_block_index = m_blockchain.get_db().height() - 1;
+
+    for (const stake_transaction& tx : stake_txs)
+    {
+      if (!tx.is_valid(top_block_index))
+        continue;
+
+      valid_stake_txs.push_back(tx);
+    }
+
+    m_on_stake_transactions_update(valid_stake_txs);
   }
   catch (std::exception& e)
   {
