@@ -2798,6 +2798,8 @@ namespace nodetool
       cryptonote::COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS::stake_transaction dst_tx;
 
       dst_tx.hash = src_tx.hash;
+      dst_tx.amount = src_tx.amount;
+      dst_tx.tier = src_tx.tier;
       dst_tx.block_height = src_tx.block_height;
       dst_tx.unlock_time = src_tx.unlock_time;
       dst_tx.supernode_public_id = src_tx.supernode_public_id;

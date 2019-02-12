@@ -13,6 +13,7 @@ namespace cryptonote
 struct stake_transaction
 {
   crypto::hash hash;
+  uint64_t amount;
   unsigned int tier; //based from index 0
   uint64_t block_height;
   uint64_t unlock_time;
@@ -21,7 +22,10 @@ struct stake_transaction
   crypto::signature supernode_signature;
   crypto::secret_key tx_secret_key;
 
+  bool is_valid(uint64_t block_index) const;
+
   BEGIN_SERIALIZE_OBJECT()
+    FIELD(amount)
     FIELD(hash)
     FIELD(tier)
     FIELD(block_height)
@@ -31,19 +35,6 @@ struct stake_transaction
     FIELD(supernode_signature)
     FIELD(tx_secret_key)
   END_SERIALIZE()
-};
-
-class StakeTransactionTiers
-{
-public:
-    //  50,000 GRFT –  tier 1
-    //  90,000 GRFT –  tier 2
-    //  150,000 GRFT – tier 3
-    //  250,000 GRFT – tier 4
-    static constexpr uint64_t TIER1_STAKE_AMOUNT = COIN *  50000;
-    static constexpr uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
-    static constexpr uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
-    static constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
 };
 
 class StakeTransactionStorage
