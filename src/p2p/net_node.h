@@ -414,14 +414,6 @@ namespace nodetool
   private:
     void handle_stake_transactions_update(const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs);
     void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
-    /*!
-     * \brief get_random_connections_with_probability  - returns connections list, each connection selected with given probability
-     * \param p                                        - probability value
-     * \param connections                              - output list of connection ids
-     * \return                                         - true
-     */
-    bool get_random_connections_with_probability(double p, std::list<boost::uuids::uuid> &connections) const;
-
   private:
     std::multimap<int, std::string> m_supernode_requests_timestamps;
     std::set<std::string> m_supernode_requests_cache;
