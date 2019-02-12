@@ -25,6 +25,7 @@ public:
   static constexpr uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
   static constexpr uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
   static constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
+  static constexpr size_t   TIERS_COUNT        = 4;
 
   typedef StakeTransactionStorage::stake_transaction_array stake_transaction_array;
 
@@ -44,7 +45,8 @@ public:
   /// Force invoke update handler for stake transactions
   void invoke_update_stake_transactions_handler(bool force = true);
 
-  typedef std::function<void(uint64_t block_number, const std::vector<std::string>&)> blockchain_based_list_update_handler;
+  typedef BlockchainBasedList::supernode_tier_array supernode_tier_array;
+  typedef std::function<void(uint64_t block_number, const supernode_tier_array&)> blockchain_based_list_update_handler;
 
   /// Update handler for new blockchain based list
   void set_on_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&);

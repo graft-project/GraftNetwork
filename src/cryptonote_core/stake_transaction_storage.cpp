@@ -40,6 +40,7 @@ StakeTransactionStorage::StakeTransactionStorage(const std::string& storage_file
   : m_storage_file_name(storage_file_name)
   , m_last_processed_block_index()
   , m_last_processed_block_hashes_count()
+  , m_need_store()
 {
   load();
 }
@@ -47,6 +48,8 @@ StakeTransactionStorage::StakeTransactionStorage(const std::string& storage_file
 void StakeTransactionStorage::add_tx(const stake_transaction& tx)
 {
   m_stake_txs.push_back(tx);
+
+  m_need_store = true;
 }
 
 const crypto::hash& StakeTransactionStorage::get_last_processed_block_hash() const
@@ -61,6 +64,8 @@ void StakeTransactionStorage::add_last_processed_block(uint64_t index, const cry
 {
   if (index != m_last_processed_block_index + 1)
     throw std::runtime_error("internal error: new block index must be compared to the already processed block index");
+
+  m_need_store = true;
 
   m_last_processed_block_hashes.push_back(hash);
 
@@ -81,6 +86,8 @@ void StakeTransactionStorage::remove_last_processed_block()
   if (!m_last_processed_block_index)
     return;
 
+  m_need_store = true;
+
   std::remove_if(m_stake_txs.begin(), m_stake_txs.end(), [&](const stake_transaction& tx) {
     return tx.block_height == m_last_processed_block_index;
   });
@@ -97,9 +104,7 @@ void StakeTransactionStorage::remove_last_processed_block()
     m_stake_txs.clear();
 
     m_last_processed_block_index = 0;
-
-    return;
-  }
+ }
 }
 
 void StakeTransactionStorage::load()
@@ -129,6 +134,8 @@ void StakeTransactionStorage::load()
 
     std::swap(m_stake_txs, data.stake_txs);
     std::swap(m_last_processed_block_hashes, data.block_hashes);
+
+    m_need_store = false;
   }
   catch (...)
   {
@@ -152,4 +159,6 @@ void StakeTransactionStorage::store() const
   ostr.close();
   
   CHECK_AND_ASSERT_THROW_MES(success && ostr.good(), "Error at save stake transaction storage file '" << m_storage_file_name << "'");
+
+  m_need_store = false;
 }

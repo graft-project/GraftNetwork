@@ -413,7 +413,7 @@ namespace nodetool
 
   private:
     void handle_stake_transactions_update(const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs);
-    void handle_blockchain_based_list_update(uint64_t block_number, const std::vector<std::string>& supernodes);
+    void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
 
   private:
     std::multimap<int, std::string> m_supernode_requests_timestamps;

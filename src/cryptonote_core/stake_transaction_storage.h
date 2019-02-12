@@ -69,6 +69,9 @@ public:
   /// Save storage to file
   void store() const;
 
+  /// Is the list requires store
+  bool need_store() const { return m_need_store; }
+
 private:
   /// Load storage from file
   void load();
@@ -79,6 +82,7 @@ private:
   block_hash_list m_last_processed_block_hashes;
   size_t m_last_processed_block_hashes_count;
   stake_transaction_array m_stake_txs;
+  mutable bool m_need_store;
 };
 
 }

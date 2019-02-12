@@ -42,21 +42,7 @@ StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
 {
 }
 
-namespace
-{
-
-unsigned int get_tier(uint64_t stake)
-{
-  return 0 +
-    (stake >= StakeTransactionProcessor::TIER1_STAKE_AMOUNT) +
-    (stake >= StakeTransactionProcessor::TIER2_STAKE_AMOUNT) +
-    (stake >= StakeTransactionProcessor::TIER3_STAKE_AMOUNT) +
-    (stake >= StakeTransactionProcessor::TIER4_STAKE_AMOUNT);
-}
-
-}
-
-void StakeTransactionProcessor::process_block(uint64_t block_index, const block& block, bool update_storage)
+void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_index, const block& block, bool update_storage)
 {
   if (block_index <= m_storage.get_last_processed_block_index())
     return;
@@ -68,13 +54,6 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
   for (const crypto::hash& tx_hash : block.tx_hashes)
   {
     const transaction& tx = db.get_tx(tx_hash);
-
-    if (tx.unlock_time > STAKE_MAX_UNLOCK_TIME)
-    {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        " because unlock time " << tx.unlock_time << " is greater than maximum allowed " << STAKE_MAX_UNLOCK_TIME);
-      continue;
-    }
 
     if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
       continue;
@@ -159,6 +138,9 @@ void StakeTransactionProcessor::synchronize()
 
     if (stake_tx_count != m_storage.get_tx_count())
       m_stake_transactions_need_update = true;
+
+    if (m_blockchain_based_list.block_height() == last_processed_block_index)
+      m_blockchain_based_list.remove_latest_block();
   }
 
     //apply new blocks
@@ -199,15 +181,13 @@ void StakeTransactionProcessor::synchronize()
     m_blockchain_based_list.store();
   }
 
-  if (m_stake_transactions_need_update)
-  {
+  if (m_storage.need_store())
     m_storage.store();
 
-    if (m_on_stake_transactions_update)
-    {
-      invoke_update_stake_transactions_handler_impl();
-      m_stake_transactions_need_update = false;
-    }
+  if (m_stake_transactions_need_update && m_on_stake_transactions_update)
+  {
+    invoke_update_stake_transactions_handler_impl();
+    m_stake_transactions_need_update = false;
   }
 
   if (need_finalize_log_messages)
@@ -220,26 +200,7 @@ void StakeTransactionProcessor::set_on_update_stake_transactions_handler(const s
   m_on_stake_transactions_update = handler;
 }
 
-namespace
-{
-
-bool is_valid(const stake_transaction& tx, uint64_t block_index)
-{
-  uint64_t stake_first_valid_block = tx.block_height + StakeTransactionProcessor::STAKE_VALIDATION_PERIOD,
-           stake_last_valid_block  = tx.block_height + tx.unlock_time + StakeTransactionProcessor::TRUSTED_RESTAKING_PERIOD;
-
-  if (block_index < stake_first_valid_block)
-    return false;
-
-  if (block_index > stake_last_valid_block)
-    return false;
-
-  return true;
-}
-
-}
-
-void StakeTransactionProcessor::invoke_update_handler_impl()
+void StakeTransactionProcessor::invoke_update_stake_transactions_handler_impl()
 {
   try
   {
@@ -289,15 +250,10 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl
 {
   try
   {
-    const BlockchainBasedList::SupernodeList& supernodes = m_blockchain_based_list.supernodes();
-    std::vector<std::string> result;
+    if (!m_blockchain_based_list.block_height())
+      return; //empty blockchain based list
 
-    result.reserve(supernodes.size());
-
-    for (const BlockchainBasedList::SupernodeDesc& desc : supernodes)
-      result.push_back(desc.supernode_public_id);
-
-    m_on_blockchain_based_list_update(m_blockchain_based_list.block_height(), result);
+    m_on_blockchain_based_list_update(m_blockchain_based_list.block_height(), m_blockchain_based_list.tiers());
   }
   catch (std::exception& e)
   {

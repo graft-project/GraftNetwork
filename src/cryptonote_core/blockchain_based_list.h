@@ -11,7 +11,7 @@ namespace cryptonote
 class BlockchainBasedList
 {
 public:
-  struct SupernodeDesc
+  struct supernode
   {    
     std::string supernode_public_id;
     uint64_t block_height;
@@ -24,19 +24,24 @@ public:
     END_SERIALIZE()
   };
 
-  typedef std::vector<SupernodeDesc> SupernodeList;
+  typedef std::vector<supernode>           supernode_array;
+  typedef std::vector<supernode_array>     supernode_tier_array;
+  typedef std::list<supernode_tier_array>  list_history;
 
   /// Constructors
   BlockchainBasedList(const std::string& file_name);
 
-  /// List of supernodes
-  const SupernodeList& supernodes() const { return m_supernodes; }
+  /// List of tiers
+  const supernode_tier_array& tiers() const;
 
   /// Height of the corresponding block
   uint64_t block_height() const { return m_block_height; }
 
   /// Apply new block on top of the list
   void apply_block(uint64_t block_height, const crypto::hash& block_hash, StakeTransactionStorage& stake_txs);
+
+  /// Remove latest block
+  void remove_latest_block();
 
   /// Save list to file
   void store() const;
@@ -49,12 +54,13 @@ private:
   void load();
 
   /// Select supernodes from a list
-  void select_supernodes(const crypto::hash& block_hash, size_t max_items_count, const SupernodeList& src_list, SupernodeList& dst_list);
+  void select_supernodes(const crypto::hash& block_hash, size_t max_items_count, const supernode_array& src_list, supernode_array& dst_list);
 
 private:
   std::string m_storage_file_name;
-  SupernodeList m_supernodes;
+  list_history m_history;
   uint64_t m_block_height;
+  size_t m_history_depth;
   std::unordered_set<std::string> selected_supernodes_cache;
   mutable bool m_need_store;
 };
