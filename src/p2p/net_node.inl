@@ -114,6 +114,15 @@ namespace nodetool
 
     const command_line::arg_descriptor<bool> arg_save_graph = {"save-graph", "Save data for dr monero", false};
     const command_line::arg_descriptor<Uuid> arg_p2p_net_id = {"net-id", "The way to replace hardcoded NETWORK_ID. Effective only with --testnet, ex.: 'net-id = 54686520-4172-7420-6f77-205761722037'"};
+
+    // helper struct used to notify peers by uuid
+    struct connection_info
+    {
+        boost::uuids::uuid id;
+        peerid_type peer_id;
+        std::string info;
+    };
+
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -2298,19 +2307,29 @@ namespace nodetool
     std::string blob;
     epee::serialization::store_t_to_binary(p2p_req, blob);
     std::set<peerid_type> announced_peers;
-    // send to peers
+
+
+    // first collect all connections into container
+    // (its rarely possible connection could be erased from connection_map while iterating with 'foreach_connection')
+    std::list<connection_info> connections;
     m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-        LOG_INFO_CC(context, "invoking COMMAND_SUPERNODE_ANNOUNCE");
-        // saving connection context info to temp variable as it might be destroyed in case
-        // 'invoke_notify_to_peer' fails - this way LOG_ERROR_CC with context might cause segfault
-        std::string conn_info = epee::net_utils::print_connection_context_short(context);
-        if (invoke_notify_to_peer(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, context)) {
-            announced_peers.insert(context.peer_id);
-        } else {
-            LOG_ERROR("[" << conn_info << "] failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
-        }
-        return true;
+      connections.push_back(
+                    {context.m_connection_id,
+                     context.peer_id,
+                     epee::net_utils::print_connection_context_short(context)} );
+      return true;
     });
+
+    // same as 'relay_notify_to_list' does but we also need a) populate announced_peers and b) some extra logging
+    for (const auto &c: connections) {
+        MTRACE("[" << c.info << "] invoking COMMAND_SUPERNODE_ANNOUCE");
+        if (m_net_server.get_config_object().notify(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, c.id)) {
+            MTRACE("[" << c.info << "] COMMAND_SUPERNODE_ANNOUCE invoked, peer_id: " << c.peer_id);
+            announced_peers.insert(c.peer_id);
+        }
+        else
+            LOG_ERROR("[" << c.info << "] failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
+    }
 
     std::list<peerlist_entry> peerlist_white, peerlist_gray;
     m_peerlist.get_peerlist_full(peerlist_gray, peerlist_white);
@@ -2321,7 +2340,7 @@ namespace nodetool
         }
         peers_to_send.push_back(pe);
     }
-    MDEBUG("P2P Request: do_supernode_announce: peers_to_send size: " << peers_to_send.size() << ", peerlist_white size: " << peerlist_white.size());
+    MDEBUG("P2P Request: do_supernode_announce: peers_to_send size: " << peers_to_send.size() << ", peerlist_white size: " << peerlist_white.size() << ", announced_peers size: " << announced_peers.size());
     LOG_PRINT_L0("P2P Request: do_supernode_announce: notify_peer_list");
     notify_peer_list(COMMAND_SUPERNODE_ANNOUNCE::ID,blob,peers_to_send);
     LOG_PRINT_L0("P2P Request: do_supernode_announce: end");
@@ -2386,23 +2405,32 @@ namespace nodetool
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
       std::set<peerid_type> announced_peers;
+
       // send to peers
+      std::list<connection_info> connections;
       m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-          MINFO("sending COMMAND_BROADCAST to " << context.peer_id);
+          // TODO: isn't all rta peers have peer_id = 0?
           if (context.peer_id == 0) {
               LOG_INFO_CC(context, "invalid connection [COMMAND_BROADCAST]");
               return true;
           }
-          // saving connection context info to temp variable as it might be destroyed in case
-          // 'invoke_notify_to_peer' fails - this way LOG_ERROR_CC with context might cause segfault
-          std::string conn_info = epee::net_utils::print_connection_context_short(context);
-          if (invoke_notify_to_peer(COMMAND_BROADCAST::ID, blob, context)) {
-              announced_peers.insert(context.peer_id);
-          } else {
-              LOG_ERROR("[" << conn_info << "] failed to invoke COMMAND_BROADCAST");
-          }
+
+          connections.push_back(
+          {context.m_connection_id,
+           context.peer_id,
+           epee::net_utils::print_connection_context_short(context)} );
           return true;
       });
+
+      for (const auto &c: connections) {
+          MTRACE("[" << c.info << "] invoking COMMAND_BROADCAST");
+          if (m_net_server.get_config_object().notify(COMMAND_BROADCAST::ID, blob, c.id)) {
+              MTRACE("[" << c.info << "] COMMAND_BROADCAST invoked, peer_id: " << c.peer_id);
+              announced_peers.insert(c.peer_id);
+          }
+          else
+              LOG_ERROR("[" << c.info << "] failed to invoke COMMAND_BROADCAST");
+      }
 
       std::list<peerlist_entry> peerlist_white, peerlist_gray;
       m_peerlist.get_peerlist_full(peerlist_gray, peerlist_white);
@@ -2413,6 +2441,7 @@ namespace nodetool
           peers_to_send.push_back(pe);
       }
 
+      MDEBUG("P2P Request: do_broadcast: peers_to_send size: " << peers_to_send.size() << ", peerlist_white size: " << peerlist_white.size() << ", announced_peers size: " << announced_peers.size());
       LOG_PRINT_L0("P2P Request: do_broadcast: notify_peer_list");
       notify_peer_list(COMMAND_BROADCAST::ID, blob, peers_to_send);
       LOG_PRINT_L0("P2P Request: do_broadcast: End");
