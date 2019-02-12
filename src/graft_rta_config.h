@@ -25,6 +25,8 @@ constexpr uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
 constexpr uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
 constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
 
+constexpr size_t TIERS_COUNT = 4;
+
 }
 
 }

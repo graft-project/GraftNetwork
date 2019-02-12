@@ -1775,13 +1775,21 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
 
+    struct tier
+    {
+      std::vector<supernode> supernodes;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernodes)
+      END_KV_SERIALIZE_MAP()
+    };
+
     struct request
     {
       uint64_t block_number;
-      std::vector<supernode> supernodes;
+      std::vector<tier> tiers;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(block_number)
-        KV_SERIALIZE(supernodes)
+        KV_SERIALIZE(tiers)
       END_KV_SERIALIZE_MAP()
     };
 

@@ -493,7 +493,7 @@ namespace nodetool
     );
 
     m_payload_handler.get_core().set_update_blockchain_based_list_handler(
-      [&](uint64_t block_number, const std::vector<std::string>& supernodes) { handle_blockchain_based_list_update(block_number, supernodes); }
+      [&](uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers) { handle_blockchain_based_list_update(block_number, tiers); }
     );
 
     std::set<std::string> full_addrs;
@@ -2822,7 +2822,7 @@ namespace nodetool
   }
 
   template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::handle_blockchain_based_list_update(uint64_t block_number, const std::vector<std::string>& supernodes)
+  void node_server<t_payload_net_handler>::handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers)
   {
     static std::string supernode_endpoint("blockchain_based_list");
 
@@ -2835,15 +2835,25 @@ namespace nodetool
 
     cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::request request;
 
-    request.supernodes.reserve(supernodes.size());
+    request.block_number = block_number;
 
-    for (const std::string& src_supernode : supernodes)
+    for (size_t i=0; i<request.tiers.size(); i++)
     {
-      cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::supernode dst_supernode;
+      const cryptonote::StakeTransactionProcessor::supernode_tier_array::value_type& src_tier = tiers[i];
+      cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::tier                  dst_tier;
 
-      dst_supernode.supernode_public_id = src_supernode;
+      dst_tier.supernodes.reserve(src_tier.size());
 
-      request.supernodes.emplace_back(std::move(dst_supernode));
+      for (const cryptonote::BlockchainBasedList::supernode& src_supernode : src_tier)
+      {
+        cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::supernode dst_supernode;
+
+        dst_supernode.supernode_public_id = src_supernode.supernode_public_id;
+
+        dst_tier.supernodes.emplace_back(std::move(dst_supernode));
+      }
+
+      request.tiers.emplace_back(std::move(dst_tier));
     }
 
     post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST>(supernode_endpoint, request);
