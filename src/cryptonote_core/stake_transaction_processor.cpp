@@ -43,7 +43,7 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
     MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'");
   }
 
-  m_storage.set_last_processed_block_index(block_index);
+  m_storage.add_last_processed_block(block_index, db.get_block_hash_from_height(block_index));
 
   if (update_storage)
     m_storage.store();
@@ -54,6 +54,32 @@ void StakeTransactionProcessor::synchronize()
   CRITICAL_REGION_LOCAL1(m_storage_lock);
 
   BlockchainDB& db = m_blockchain.get_db();
+
+    //unroll already processed blocks for alternative chains
+  
+  for (;;)
+  {
+    size_t   stake_tx_count = m_storage.get_tx_count();
+    uint64_t last_processed_block_index = m_storage.get_last_processed_block_index();
+
+    if (!last_processed_block_index)
+      break;
+    
+    const crypto::hash& last_processed_block_hash  = m_storage.get_last_processed_block_hash();
+    crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
+
+    if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
+      break; //latest block hash is the same as processed
+
+    MCLOG(el::Level::Info, "global", "Stake transactions processing: unroll block " << last_processed_block_index);
+
+    m_storage.remove_last_processed_block();
+
+    if (stake_tx_count != m_storage.get_tx_count())
+      m_stake_transactions_need_update = true;
+  }
+
+    //apply new blocks
 
   uint64_t first_block_index = m_storage.get_last_processed_block_index() + 1,
            height = db.height();
