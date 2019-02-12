@@ -867,33 +867,6 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::get_random_connections_with_probability(double p, std::list<boost::uuids::uuid> &out_connections) const
-  {
-    auto f = [&](double p, std::list<boost::uuids::uuid> &out_connections)
-    {
-      auto gen = std::mt19937{std::random_device{}()};
-      m_net_server.get_config_object().foreach_connection([this, &out_connections, &gen, p](const p2p_connection_context& cntxt)
-      {
-        // skip ourself connections
-        if(cntxt.peer_id == this->m_config.peer_id)
-          return true;
-        std::uniform_real_distribution<> urd(0, 1);
-        auto rand = urd(gen);
-        if (rand < p)
-          out_connections.push_back(cntxt.m_connection_id);
-        return true;
-      });
-    };
-
-    out_connections.clear();
-    do {
-      f(p, out_connections);
-    } while (out_connections.empty());
-
-    return true;
-  }
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::multicast_send(int command, const string &data, const std::list<string> &addresses,
                                                           const std::list<peerid_type> &exclude_peerids)
   {
