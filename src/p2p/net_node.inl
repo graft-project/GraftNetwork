@@ -826,9 +826,6 @@ namespace nodetool
   bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect)
   {
       MDEBUG("P2P Request: notify_peer_list: start notify, total peers: " << peers_to_send.size());
-      // dbg
-      log_connections();
-
       for (unsigned i = 0; i < peers_to_send.size(); i++) {
           const peerlist_entry &pe = peers_to_send[i];
           boost::uuids::uuid conn_id;
@@ -1744,9 +1741,7 @@ namespace nodetool
     MDEBUG("find_connection_id_by_peer: looking for: " << pe.adr.str());
     m_net_server.get_config_object().foreach_connection([&pe, &ret, &conn_id](p2p_connection_context& cntxt)
     {
-      LOG_INFO_CC(cntxt, "find_connection_id_by_peer: checking connection, pe.adr: " << pe.adr.str());
       if (cntxt.peer_id == pe.id) {
-        MDEBUG("find_connection_id_by_peer: found: " << pe.adr.str());
         conn_id = cntxt.m_connection_id;
         ret = true;
         return false; // found connection, stopping foreach_connection loop
