@@ -132,7 +132,7 @@ namespace nodetool
     {
         if (in.empty())
             return;
-        auto gen = std::mt19937{std::random_device{}()};
+        static auto gen = std::mt19937{std::random_device{}()};
         do {
             for (const auto & item : in) {
                 std::uniform_real_distribution<> urd(0, 1);
