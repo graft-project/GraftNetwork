@@ -75,6 +75,7 @@ Dates are provided in the format YYYY-MM-DD.
 | 2018-11-12        | v12               | 1.3.3                | 1.3.3                    | Public RTA alpha3 |
 | 2019-01-17        | v12               | 1.3.4                | 1.3.4                    | Public RTA alpha4 |
 | 2019-01-30        | v12               | 1.3.4.1              | 1.3.4.1                  | Public RTA alpha4.1 |
+| 2019-02-13        | v12               | 1.3.4.2              | 1.3.4.2                  | Public RTA alpha4.2 |
 
 
 ## Installing Graft Network from a Package
