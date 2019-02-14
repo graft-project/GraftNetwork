@@ -127,6 +127,13 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
 
     uint64_t unlock_time = tx.unlock_time - block_index;
 
+    if (unlock_time < STAKE_MIN_UNLOCK_TIME)
+    {
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+        " because unlock time " << unlock_time << " is less than minimum allowed " << STAKE_MIN_UNLOCK_TIME);
+      continue;
+    }
+
     if (unlock_time > STAKE_MAX_UNLOCK_TIME)
     {
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"

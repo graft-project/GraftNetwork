@@ -11,6 +11,7 @@ namespace cryptonote
 class StakeTransactionProcessor
 {
 public:
+  static constexpr uint64_t STAKE_MIN_UNLOCK_TIME = 50;
   static constexpr uint64_t STAKE_MAX_UNLOCK_TIME = 1000;
   static constexpr uint64_t STAKE_VALIDATION_PERIOD = 6;
   static constexpr uint64_t TRUSTED_RESTAKING_PERIOD = 6;
