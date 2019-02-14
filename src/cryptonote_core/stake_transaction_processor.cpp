@@ -39,6 +39,76 @@ StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
 {
 }
 
+namespace
+{
+
+uint64_t get_transaction_amount(const transaction& tx, const account_public_address& address, const crypto::secret_key& tx_key)
+{
+  crypto::key_derivation derivation;
+
+  if (!crypto::generate_key_derivation(address.m_view_public_key, tx_key, derivation))
+  {
+    MCLOG(el::Level::Warning, "global", "failed to generate key derivation from supplied parameters");
+    return 0;
+  }
+
+  uint64_t received = 0;
+
+  for (size_t n = 0; n < tx.vout.size(); ++n)
+  {
+    if (typeid(cryptonote::txout_to_key) != tx.vout[n].target.type())
+      continue;
+
+    const cryptonote::txout_to_key tx_out_to_key = boost::get<cryptonote::txout_to_key>(tx.vout[n].target);
+
+    crypto::public_key pubkey;
+    derive_public_key(derivation, n, address.m_spend_public_key, pubkey);
+
+    if (pubkey == tx_out_to_key.key)
+    {
+      uint64_t amount;
+      if (tx.version == 1)
+      {
+        amount = tx.vout[n].amount;
+      }
+      else
+      {
+        try
+        {
+          rct::key Ctmp;
+          //rct::key amount_key = rct::hash_to_scalar(rct::scalarmultKey(rct::pk2rct(address.m_view_public_key), rct::sk2rct(tx_key)));
+          crypto::key_derivation derivation;
+          bool r = crypto::generate_key_derivation(address.m_view_public_key, tx_key, derivation);
+          if (!r)
+          {
+            LOG_ERROR("Failed to generate key derivation to decode rct output " << n);
+            amount = 0;
+          }
+          else
+          {
+            crypto::secret_key scalar1;
+            crypto::derivation_to_scalar(derivation, n, scalar1);
+            rct::ecdhTuple ecdh_info = tx.rct_signatures.ecdhInfo[n];
+            rct::ecdhDecode(ecdh_info, rct::sk2rct(scalar1));
+            rct::key C = tx.rct_signatures.outPk[n].mask;
+            rct::addKeys2(Ctmp, ecdh_info.mask, ecdh_info.amount, rct::H);
+            if (rct::equalKeys(C, Ctmp))
+              amount = rct::h2d(ecdh_info.amount);
+            else
+              amount = 0;
+          }
+        }
+        catch (...) { amount = 0; }
+      }
+      received += amount;
+    }
+  }
+
+  return received;
+}
+
+}
+
 void StakeTransactionProcessor::process_block(uint64_t block_index, const block& block, bool update_storage)
 {
   if (block_index <= m_storage.get_last_processed_block_index())
@@ -64,10 +134,14 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
       continue;
     }
 
-    uint64_t amount = 0;
+    uint64_t amount = get_transaction_amount(tx, stake_tx.supernode_public_address, stake_tx.tx_secret_key);
 
-    for (const tx_out& out : tx.vout)
-      amount += out.amount;
+    if (!amount)
+    {
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+        " because of error at parsing amount");
+      continue;
+    }
 
     stake_tx.amount = amount;
     stake_tx.block_height = block_index;
@@ -79,7 +153,8 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
 
     m_stake_transactions_need_update = true;
 
-    MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'");
+    MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id
+      << "', amount=" << amount / double(COIN));
   }
 
   m_storage.add_last_processed_block(block_index, db.get_block_hash_from_height(block_index));

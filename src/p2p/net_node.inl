@@ -2803,9 +2803,8 @@ namespace nodetool
       dst_tx.block_height = src_tx.block_height;
       dst_tx.unlock_time = src_tx.unlock_time;
       dst_tx.supernode_public_id = src_tx.supernode_public_id;
-      dst_tx.supernode_public_address = src_tx.supernode_public_address;
+      dst_tx.supernode_public_address = cryptonote::get_account_address_as_str(m_testnet, src_tx.supernode_public_address);
       dst_tx.supernode_signature = epee::string_tools::pod_to_hex(src_tx.supernode_signature);
-      dst_tx.tx_secret_key = src_tx.tx_secret_key;
 
       request.stake_txs.emplace_back(std::move(dst_tx));
     }
