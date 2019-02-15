@@ -1737,7 +1737,6 @@ namespace cryptonote
       uint64_t unlock_time;
       std::string supernode_public_id;
       std::string supernode_public_address;
-      std::string supernode_signature;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
         KV_SERIALIZE(amount)
@@ -1746,7 +1745,6 @@ namespace cryptonote
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(supernode_public_id)
         KV_SERIALIZE(supernode_public_address)
-        KV_SERIALIZE(supernode_signature)
       END_KV_SERIALIZE_MAP()
     };
 

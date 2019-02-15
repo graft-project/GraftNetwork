@@ -1,3 +1,5 @@
+#include <string_tools.h>
+
 #include "stake_transaction_processor.h"
 
 using namespace cryptonote;
@@ -125,19 +127,39 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
     if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
       continue;
 
+    crypto::public_key W;
+    if (!epee::string_tools::hex_to_pod(stake_tx.supernode_public_id, W) || !check_key(W))
+    {
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash
+        << " because of invalid supernode public identifier '" << stake_tx.supernode_public_id << "'");
+      continue;
+    }
+
+    std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_blockchain.testnet(), stake_tx.supernode_public_address);
+    std::string data = supernode_public_address_str + ":" + stake_tx.supernode_public_id;
+    crypto::hash hash;
+    crypto::cn_fast_hash(data.data(), data.size(), hash);
+
+    if (!crypto::check_signature(hash, W, stake_tx.supernode_signature))
+    {
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+        << " because of invalid supernode signature (mismatch)");
+      continue;
+    }
+
     uint64_t unlock_time = tx.unlock_time - block_index;
 
     if (unlock_time < STAKE_MIN_UNLOCK_TIME)
     {
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        " because unlock time " << unlock_time << " is less than minimum allowed " << STAKE_MIN_UNLOCK_TIME);
+        << " because unlock time " << unlock_time << " is less than minimum allowed " << STAKE_MIN_UNLOCK_TIME);
       continue;
     }
 
     if (unlock_time > STAKE_MAX_UNLOCK_TIME)
     {
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        " because unlock time " << unlock_time << " is greater than maximum allowed " << STAKE_MAX_UNLOCK_TIME);
+        << " because unlock time " << unlock_time << " is greater than maximum allowed " << STAKE_MAX_UNLOCK_TIME);
       continue;
     }
 
@@ -146,7 +168,7 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
     if (!amount)
     {
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        " because of error at parsing amount");
+        << " because of error at parsing amount");
       continue;
     }
 
@@ -155,6 +177,13 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
     stake_tx.hash = tx.hash;
     stake_tx.unlock_time = unlock_time;
     stake_tx.tier = get_tier(stake_tx.amount);
+
+    if (!stake_tx.tier)
+    {
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+        << " because amount " << amount / double(COIN) << " is less than minimum required " << TIER1_STAKE_AMOUNT / double(COIN));
+      continue;
+    }
 
     m_storage.add_tx(stake_tx);
 
