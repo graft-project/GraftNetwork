@@ -208,6 +208,18 @@ namespace cryptonote
           LOG_PRINT_L1("Encrypted payment ID: " << payment_id);
         }
       }
+
+      tx_extra_graft_stake_tx stake_tx_extra;
+      if(find_tx_extra_field_by_type(tx_extra_fields, stake_tx_extra))
+      {
+        LOG_PRINT_L1("Adding tx_key to stake transaction: " << tx_key);
+
+        if (!add_graft_tx_secret_key_to_extra(tx.extra, tx_key))
+        {
+          LOG_ERROR("Failed to add tx_key to stake transaction");
+          return false;
+        }
+      }
     }
     else
     {
