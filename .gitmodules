@@ -1,4 +1,0 @@
-[submodule "external/unbound"]
-	path = external/unbound
-	url = https://github.com/monero-project/unbound
-	branch = monero
