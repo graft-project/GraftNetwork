@@ -4,7 +4,7 @@
 
 const size_t HASH_SIZE = 32;
 const size_t PREVIOS_BLOCKCHAIN_BASED_LIST_MAX_SIZE = 0;
-const size_t VALID_SUPERNODES_COUNT = 256;
+const size_t VALID_SUPERNODES_COUNT = 250;
 const unsigned int EXPERIMENTS_COUNT = 100000;
 
 struct hash
@@ -16,11 +16,7 @@ typedef std::vector<size_t> IndexArray;
 
 char get_random_char()
 {
-  static std::random_device random_device;
-  static std::mt19937 generator(random_device());
-  static std::uniform_int_distribution<unsigned int> random_char(std::numeric_limits<char>::min(), std::numeric_limits<char>::max());
-
-  return random_char(generator) % 256;
+  return rand();
 }
 
 void get_random_block_hash(hash& h)
@@ -50,50 +46,33 @@ size_t log2_int(size_t value)
 
 void select_supernodes(const hash& block_hash, size_t items_count, const IndexArray& src_list, IndexArray& dst_list)
 {
-  size_t src_list_size = src_list.size();
-
-  if (items_count > src_list_size)
-    items_count = src_list_size;
+  if (items_count > src_list.size())
+    items_count = src_list.size();
 
   if (!items_count)
     return;
 
   static const size_t block_hash_items_count = sizeof(block_hash.data) / sizeof(*block_hash.data);
 
-  size_t step                 = log2_int(src_list_size - 1) / 8 + 1,
-         max_iterations_count = block_hash_items_count / step;
+  size_t step                 = log2_int(src_list.size() - 1) / 8 + 1,
+         rnd_value_len        = step + 1,
+         max_iterations_count = block_hash_items_count / step - 1;
 
   if (items_count > max_iterations_count)
     items_count = max_iterations_count;
+
+  IndexArray list = src_list;
 
   auto hash_ptr = &block_hash.data[0];
 
   for (size_t i=0; i<items_count; i++, hash_ptr += step)
   {
-    size_t base_index = extract_index(hash_ptr, step);
+    size_t base_index      = size_t((extract_index(hash_ptr, rnd_value_len) * list.size()) >> (rnd_value_len * 8)),
+           supernode_index = list[base_index];
 
-    for (size_t offset=0;; offset++)
-    {    
-      if (offset == src_list_size)
-        return; //all supernodes have been selected
+    list.erase(list.begin() + base_index);
 
-      size_t supernode_index = src_list[(offset + base_index) % src_list_size];
-      bool already_added = false;
-
-      for (size_t already_added_index : dst_list)
-        if (already_added_index == supernode_index)
-        {
-          already_added = true;
-          break;
-        }
-      
-      if (already_added)
-        continue; //supernode has been already selected
-
-      dst_list.push_back(supernode_index);
-
-      break;
-    }
+    dst_list.push_back(supernode_index);
   }
 }
 
@@ -113,9 +92,14 @@ void apply_block(const hash& block_hash, const IndexArray& valid_supernodes, con
 
   select_supernodes(block_hash, PREVIOS_BLOCKCHAIN_BASED_LIST_MAX_SIZE, prev_supernodes, new_supernodes);
 
+    //remove supernodes from prev list from current list
+
+  for (size_t supernode_index : new_supernodes)
+    current_supernodes.erase(std::remove(current_supernodes.begin(), current_supernodes.end(), supernode_index), current_supernodes.end());
+
     //select supernodes from the current list
 
-  select_supernodes(block_hash, current_supernodes.size() - new_supernodes.size(), current_supernodes, new_supernodes);
+  select_supernodes(block_hash, valid_supernodes.size() - new_supernodes.size(), current_supernodes, new_supernodes);
 
     //write results
 
