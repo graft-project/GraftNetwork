@@ -2348,7 +2348,8 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::log_connections()
   {
-    MINFO("Connections: \r\n" << print_connections_container() );
+    std::string connections = print_connections_container();
+    MINFO("Connections: \r\n" << connections);
     return true;
   }
   //-----------------------------------------------------------------------------------
