@@ -3,6 +3,7 @@
 #include <cstdio>
 
 const size_t HASH_SIZE = 32;
+const size_t BLOCKCHAIN_BASED_LIST_SIZE = 32;
 const size_t PREVIOS_BLOCKCHAIN_BASED_LIST_MAX_SIZE = 0;
 const size_t VALID_SUPERNODES_COUNT = 250;
 const unsigned int EXPERIMENTS_COUNT = 100000;
@@ -52,27 +53,18 @@ void select_supernodes(const hash& block_hash, size_t items_count, const IndexAr
   if (!items_count)
     return;
 
-  static const size_t block_hash_items_count = sizeof(block_hash.data) / sizeof(*block_hash.data);
+  std::seed_seq seed(reinterpret_cast<const unsigned char*>(&block_hash.data[0]), reinterpret_cast<const unsigned char*>(&block_hash.data[HASH_SIZE]));
+  std::mt19937_64 rng(seed);
 
-  size_t step                 = log2_int(src_list.size() - 1) / 8 + 1,
-         rnd_value_len        = step + 1,
-         max_iterations_count = block_hash_items_count / step - 1;
-
-  if (items_count > max_iterations_count)
-    items_count = max_iterations_count;
-
-  IndexArray list = src_list;
-
-  auto hash_ptr = &block_hash.data[0];
-
-  for (size_t i=0; i<items_count; i++, hash_ptr += step)
+  for (size_t i=0, n=src_list.size(); i<n; i++)
   {
-    size_t base_index      = size_t((extract_index(hash_ptr, rnd_value_len) * list.size()) >> (rnd_value_len * 8)),
-           supernode_index = list[base_index];
+    size_t rnd_value = size_t(rng() % (n - i));
 
-    list.erase(list.begin() + base_index);
+    if (rnd_value >= items_count)
+      continue;
 
-    dst_list.push_back(supernode_index);
+    dst_list.push_back(src_list[i]);
+    items_count--;
   }
 }
 
@@ -99,7 +91,8 @@ void apply_block(const hash& block_hash, const IndexArray& valid_supernodes, con
 
     //select supernodes from the current list
 
-  select_supernodes(block_hash, valid_supernodes.size() - new_supernodes.size(), current_supernodes, new_supernodes);
+  if (new_supernodes.size() < BLOCKCHAIN_BASED_LIST_SIZE)
+    select_supernodes(block_hash, BLOCKCHAIN_BASED_LIST_SIZE - new_supernodes.size(), current_supernodes, new_supernodes);
 
     //write results
 
