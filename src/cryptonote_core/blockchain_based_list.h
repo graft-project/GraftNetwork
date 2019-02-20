@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_set>
+#include <random>
 
 #include "blockchain.h"
 #include "cryptonote_core/stake_transaction_storage.h"
@@ -54,14 +54,14 @@ private:
   void load();
 
   /// Select supernodes from a list
-  void select_supernodes(const crypto::hash& block_hash, size_t max_items_count, const supernode_array& src_list, supernode_array& dst_list);
+  void select_supernodes(size_t max_items_count, const supernode_array& src_list, supernode_array& dst_list);
 
 private:
   std::string m_storage_file_name;
   list_history m_history;
   uint64_t m_block_height;
   size_t m_history_depth;
-  std::unordered_set<std::string> selected_supernodes_cache;
+  std::mt19937_64 m_rng;
   mutable bool m_need_store;
 };
 
