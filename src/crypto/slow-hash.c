@@ -116,9 +116,13 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
 #define VARIANT2_SHUFFLE_ADD_SSE2(base_ptr, offset) \
   do if (variant >= 2) \
   { \
-    const __m128i chunk1 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10))); \
-    const __m128i chunk2 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20))); \
-    const __m128i chunk3 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30))); \
+    __m128i chunk1 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10))); \
+    __m128i chunk2 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20))); \
+    __m128i chunk3 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30))); \
+    if (modifier & CN_MODIFIER_REVERSE) { \
+      chunk3 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10))); \
+      chunk1 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30))); \
+    } \
     _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10)), _mm_add_epi64(chunk3, _b1)); \
     _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20)), _mm_add_epi64(chunk1, _b)); \
     _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30)), _mm_add_epi64(chunk2, _a)); \
@@ -127,9 +131,13 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
 #define VARIANT2_SHUFFLE_ADD_NEON(base_ptr, offset) \
   do if (variant >= 2) \
   { \
-    const uint64x2_t chunk1 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x10))); \
-    const uint64x2_t chunk2 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x20))); \
-    const uint64x2_t chunk3 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x30))); \
+    uint64x2_t chunk1 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x10))); \
+    uint64x2_t chunk2 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x20))); \
+    uint64x2_t chunk3 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x30))); \
+    if (modifier & CN_MODIFIER_REVERSE) { \
+      chunk3 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x10))); \
+      chunk1 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x30))); \
+    } \
     vst1q_u64(U64((base_ptr) + ((offset) ^ 0x10)), vaddq_u64(chunk3, vreinterpretq_u64_u8(_b1))); \
     vst1q_u64(U64((base_ptr) + ((offset) ^ 0x20)), vaddq_u64(chunk1, vreinterpretq_u64_u8(_b))); \
     vst1q_u64(U64((base_ptr) + ((offset) ^ 0x30)), vaddq_u64(chunk2, vreinterpretq_u64_u8(_a))); \
@@ -141,6 +149,10 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
     uint64_t* chunk1 = U64((base_ptr) + ((offset) ^ 0x10)); \
     uint64_t* chunk2 = U64((base_ptr) + ((offset) ^ 0x20)); \
     uint64_t* chunk3 = U64((base_ptr) + ((offset) ^ 0x30)); \
+    if (modifier & CN_MODIFIER_REVERSE) { \
+      chunk3 = U64((base_ptr) + ((offset) ^ 0x10)); \
+      chunk1 = U64((base_ptr) + ((offset) ^ 0x30)); \
+    } \
     \
     const uint64_t chunk1_old[2] = { chunk1[0], chunk1[1] }; \
     \
@@ -765,7 +777,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
      * using 524,288 (CryptoNight) or 393,216 (CryptoNight Waltz) iterations of the following
      * mixing function. Each execution performs two reads and writes from the mixing buffer.
      */
-    uint64_t iters = modifier ? (3 * ITER) / 8 : ITER / 2;
+    uint64_t iters = (modifier & CN_MODIFIER_WALTZ) ? (3 * ITER) / 8 : ITER / 2;
 
     _b = _mm_load_si128(R128(b));
     _b1 = _mm_load_si128(R128(b) + 1);
@@ -1098,7 +1110,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     _b = vld1q_u8((const uint8_t *)b);
     _b1 = vld1q_u8(((const uint8_t *)b) + AES_BLOCK_SIZE);
 
-    uint64_t iters = modifier ? (3 * ITER) / 8 : ITER / 2;
+    uint64_t iters = (modifier & CN_MODIFIER_WALTZ) ? (3 * ITER) / 8 : ITER / 2;
 
     for(i = 0; i < iters; i++)
     {
@@ -1304,7 +1316,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     U64(b)[0] = U64(&state.k[16])[0] ^ U64(&state.k[48])[0];
     U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
 
-    uint64_t iters = modifier ? (3 * ITER) / 8 : ITER / 2;
+    uint64_t iters = (modifier & CN_MODIFIER_WALTZ) ? (3 * ITER) / 8 : ITER / 2;
     for(i = 0; i < iters; i++)
     {
       #define MASK ((uint32_t)(((MEMORY / AES_BLOCK_SIZE) - 1) << 4))
@@ -1490,7 +1502,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     b[i] = state.k[AES_BLOCK_SIZE + i] ^ state.k[AES_BLOCK_SIZE * 3 + i];
   }
 
-  uint64_t iters = modifier ? (3 * ITER) / 8 : ITER / 2;
+  uint64_t iters = (modifier & CN_MODIFIER_WALTZ) ? (3 * ITER) / 8 : ITER / 2;
   for (i = 0; i < iters; i++) {
     /* Dependency chain: address -> read value ------+
      * written value <-+ hard function (AES or MUL) <+

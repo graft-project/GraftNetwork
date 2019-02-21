@@ -78,6 +78,11 @@ enum {
   HASH_DATA_AREA = 136
 };
 
+#define CN_MODIFIER_NONE                                                0x0
+#define CN_MODIFIER_WALTZ                                               0x1
+#define CN_MODIFIER_REVERSE                                             0x2
+#define CN_MODIFIER_REVERSE_WALTZ   CN_MODIFIER_WALTZ | CN_MODIFIER_REVERSE
+
 void cn_fast_hash(const void *data, size_t length, char *hash);
 void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier);
 

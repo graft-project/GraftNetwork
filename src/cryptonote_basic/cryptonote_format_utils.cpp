@@ -751,7 +751,7 @@ namespace cryptonote
     // variant = 1 for versions between 8 and 11
     // variant = 2 for versions 11 and greater
     const int cn_variant = b.major_version < 8 ? 0 : b.major_version >= 11 ? 2 : 1;
-    const int cn_modifier = b.major_version < 12 ? 0 : 1;
+    const int cn_modifier = b.major_version < 12 ? CN_MODIFIER_NONE : CN_MODIFIER_REVERSE_WALTZ;
     crypto::cn_slow_hash(bd.data(), bd.size(), res, cn_variant, cn_modifier);
     return true;
   }
