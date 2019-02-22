@@ -164,6 +164,7 @@ namespace nodetool
   {
       crypto::public_key addr;
       uint64_t last_announce_time;
+      uint64_t last_height;
       uint64_t max_hop;
       std::vector<peerlist_entry> peers;
   };

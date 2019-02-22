@@ -994,7 +994,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: start");
+      MTRACE("P2P Request: handle_supernode_announce: start");
       if (context.m_state != p2p_connection_context::state_normal) {
           MWARNING(context << " invalid connection (no handshake)");
           return 1;
@@ -1011,29 +1011,29 @@ namespace nodetool
           return 1;
       }
 
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: update tunnels for " << arg.address << " Hop: " << arg.hop << " Address: " << arg.network_address);
+      MTRACE("P2P Request: handle_supernode_announce: update tunnels for " << arg.address << " Hop: " << arg.hop << " Address: " << arg.network_address);
       do {
           peerlist_entry pe;
           // TODO: Need to investigate it and mechanism for adding peer to the peerlist
           if (!m_peerlist.find_peer(context.peer_id, pe))
           { // unknown peer, alternative handshake with it
-              LOG_PRINT_L0("unknown peer, alternative handshake with it " << context.peer_id);
+              MWARNING("unknown peer, alternative handshake with it " << context.peer_id);
               return 1;
           }
           {
-              LOG_PRINT_L0("P2P Request: handle_supernode_announce: lock");
+              MTRACE("P2P Request: handle_supernode_announce: lock");
               boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
-              LOG_PRINT_L0("P2P Request: handle_supernode_announce: unlock");
+              MTRACE("P2P Request: handle_supernode_announce: unlock");
               remove_old_request_cache();
           }
-          LOG_PRINT_L0("P2P Request: handle_supernode_announce: lock");
+          MDEBUG("P2P Request: handle_supernode_announce: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          LOG_PRINT_L0("P2P Request: handle_supernode_announce: unlock");
+          MDEBUG("P2P Request: handle_supernode_announce: unlock");
 
-          LOG_PRINT_L0("P2P Request: handle_supernode_announce: routes number - " << m_supernode_routes.size());
+          MDEBUG("P2P Request: handle_supernode_announce: routes number - " << m_supernode_routes.size());
           for (auto it2 = m_supernode_routes.begin(); it2 != m_supernode_routes.end(); ++it2)
           {
-              LOG_PRINT_L0("P2P Request: handle_supernode_announce: " << (*it2).first << " " << (*it2).second.peers.size());
+              MDEBUG("P2P Request: handle_supernode_announce: " << (*it2).first << " " << (*it2).second.peers.size());
           }
 
           auto it = m_supernode_routes.find(supernode_str);
@@ -1055,18 +1055,22 @@ namespace nodetool
                     << " too old, corrent route timestamp " << (*it).second.last_announce_time);
               return 1;
           }
-
-          if ((*it).second.last_announce_time == arg.timestamp)
+          // check if we already processed announce
+          if ((*it).second.last_announce_time == arg.timestamp || (*it).second.last_height == arg.height)
           {
+              MDEBUG("last_announce_time is the same for address: " << arg.address);
               auto peer_it = std::find_if((*it).second.peers.begin(), (*it).second.peers.end(),
                                           [pe](const peerlist_entry &p) -> bool { return pe.id == p.id; });
               if (peer_it != (*it).second.peers.end())
               {
+                  MDEBUG("peer already known: " << pe.id);
                   return 1;
               }
-              if (peer_it == (*it).second.peers.end())
+              else
               {
+                  MDEBUG("new peer, appending: " << pe.id);
                   (*it).second.peers.push_back(pe);
+                  // update hop counter
                   if ((*it).second.max_hop < arg.hop)
                   {
                       (*it).second.max_hop = arg.hop;
@@ -1077,10 +1081,11 @@ namespace nodetool
           (*it).second.peers.clear();
           (*it).second.peers.push_back(pe);
           (*it).second.last_announce_time = arg.timestamp;
+          (*it).second.last_height = arg.height;
           (*it).second.max_hop = arg.hop;
       } while(0);
 
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: post to supernode: " << arg.address);
+      MTRACE("P2P Request: handle_supernode_announce: post to supernode: " << arg.address << ", height: " << arg.height << ", timestamp: " << arg.timestamp);
       do {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (m_have_supernode) {
@@ -1090,7 +1095,7 @@ namespace nodetool
 
       // Notify neighbours about new ANNOUNCE
       arg.hop++;
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: notify peers " << arg.hop);
+      MDEBUG("P2P Request: handle_supernode_announce: notify peers " << arg.hop);
 
       std::list<boost::uuids::uuid> all_connections, random_connections;
       m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)
@@ -1112,9 +1117,9 @@ namespace nodetool
       std::string arg_buff;
       epee::serialization::store_t_to_binary(arg, arg_buff);
       // MDEBUG("P2P Request: handle_supernode_announce: relaying to neighbours: " << random_connections.size());
-      MDEBUG("P2P Request: handle_supernode_announce: relaying to neighbours: " << all_connections.size());
+      MTRACE("P2P Request: handle_supernode_announce: relaying to neighbours: " << all_connections.size());
       relay_notify_to_list(command, arg_buff, random_connections);
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: end");
+      MTRACE("P2P Request: handle_supernode_announce: end");
       return 1;
   }
 
