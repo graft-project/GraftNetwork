@@ -1,6 +1,7 @@
 #include <string_tools.h>
 
 #include "stake_transaction_processor.h"
+#include "../graft_rta_config.h"
 
 using namespace cryptonote;
 
@@ -12,18 +13,18 @@ const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.bin";
 unsigned int get_tier(uint64_t stake)
 {
   return 0 +
-    (stake >= StakeTransactionProcessor::TIER1_STAKE_AMOUNT) +
-    (stake >= StakeTransactionProcessor::TIER2_STAKE_AMOUNT) +
-    (stake >= StakeTransactionProcessor::TIER3_STAKE_AMOUNT) +
-    (stake >= StakeTransactionProcessor::TIER4_STAKE_AMOUNT);
+    (stake >= config::graft::TIER1_STAKE_AMOUNT) +
+    (stake >= config::graft::TIER2_STAKE_AMOUNT) +
+    (stake >= config::graft::TIER3_STAKE_AMOUNT) +
+    (stake >= config::graft::TIER4_STAKE_AMOUNT);
 }
 
 }
 
 bool stake_transaction::is_valid(uint64_t block_index) const
 {
-  uint64_t stake_first_valid_block = block_height + StakeTransactionProcessor::STAKE_VALIDATION_PERIOD,
-           stake_last_valid_block  = block_height + unlock_time + StakeTransactionProcessor::TRUSTED_RESTAKING_PERIOD;
+  uint64_t stake_first_valid_block = block_height + config::graft::STAKE_VALIDATION_PERIOD,
+           stake_last_valid_block  = block_height + unlock_time + config::graft::TRUSTED_RESTAKING_PERIOD;
 
   if (block_index < stake_first_valid_block)
     return false;
@@ -149,17 +150,17 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
 
     uint64_t unlock_time = tx.unlock_time - block_index;
 
-    if (unlock_time < STAKE_MIN_UNLOCK_TIME)
+    if (unlock_time < config::graft::STAKE_MIN_UNLOCK_TIME)
     {
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        << " because unlock time " << unlock_time << " is less than minimum allowed " << STAKE_MIN_UNLOCK_TIME);
+        << " because unlock time " << unlock_time << " is less than minimum allowed " << config::graft::STAKE_MIN_UNLOCK_TIME);
       continue;
     }
 
-    if (unlock_time > STAKE_MAX_UNLOCK_TIME)
+    if (unlock_time > config::graft::STAKE_MAX_UNLOCK_TIME)
     {
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        << " because unlock time " << unlock_time << " is greater than maximum allowed " << STAKE_MAX_UNLOCK_TIME);
+        << " because unlock time " << unlock_time << " is greater than maximum allowed " << config::graft::STAKE_MAX_UNLOCK_TIME);
       continue;
     }
 
@@ -181,7 +182,7 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
     if (!stake_tx.tier)
     {
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        << " because amount " << amount / double(COIN) << " is less than minimum required " << TIER1_STAKE_AMOUNT / double(COIN));
+        << " because amount " << amount / double(COIN) << " is less than minimum required " << config::graft::TIER1_STAKE_AMOUNT / double(COIN));
       continue;
     }
 

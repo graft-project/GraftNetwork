@@ -11,21 +11,6 @@ namespace cryptonote
 class StakeTransactionProcessor
 {
 public:
-  static constexpr uint64_t STAKE_MIN_UNLOCK_TIME = 50;
-  static constexpr uint64_t STAKE_MAX_UNLOCK_TIME = 1000;
-  static constexpr uint64_t STAKE_VALIDATION_PERIOD = 6;
-  static constexpr uint64_t TRUSTED_RESTAKING_PERIOD = 6;
-  //static constexpr uint64_t TRUSTED_RESTAKING_PERIOD = 10000;
-
-  //  50,000 GRFT –  tier 1
-  //  90,000 GRFT –  tier 2
-  //  150,000 GRFT – tier 3
-  //  250,000 GRFT – tier 4
-  static constexpr uint64_t TIER1_STAKE_AMOUNT = COIN *  50000;
-  static constexpr uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
-  static constexpr uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
-  static constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
-
   typedef StakeTransactionStorage::stake_transaction_array stake_transaction_array;
 
   StakeTransactionProcessor(Blockchain& blockchain);
