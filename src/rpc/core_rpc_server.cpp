@@ -1806,7 +1806,7 @@ namespace cryptonote
         return false;
       }
 
-      // send p2p announce
+      // send p2p stake txs
       m_p2p.set_supernode(req.address, req.network_address);
       m_p2p.send_stake_transactions_to_supernode();
       res.status = 0;
