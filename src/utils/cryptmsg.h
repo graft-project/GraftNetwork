@@ -62,4 +62,14 @@ void encryptMessage(const std::string& input, const crypto::public_key& Bkey, st
  */
 bool decryptMessage(const std::string& input, const crypto::secret_key& bkey, std::string& output);
 
+/*!
+ * \brief hasPublicKey - check if a message created by encryptMessage has an entry for recipient with public key B.
+ *
+ * \param input - data that was created by encryptForBs.
+ * \param Bkey - public key corresponding to one of Bs that were used to encrypt.
+ * \return true if found
+ */
+
+bool hasPublicKey(const std::string& input, const crypto::public_key& Bkey);
+
 } //namespace graft::crypto_tools
