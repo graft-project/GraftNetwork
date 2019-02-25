@@ -32,9 +32,12 @@
 
 set(utils_sources
   utils.cpp
+  cryptmsg.cpp
 )
 
-set(utils_headers)
+set(utils_headers
+  cryptmsg.h
+)
 
 set(utils_private_headers
   utils.h
