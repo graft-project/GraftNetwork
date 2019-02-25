@@ -34,6 +34,7 @@
 
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/verification_context.h"
+#include "cryptonote_core/stake_transaction_processor.h"
 #include <unordered_map>
 
 namespace tests
@@ -101,5 +102,8 @@ namespace tests
     uint8_t get_hard_fork_version(uint64_t height) const { return 0; }
     cryptonote::difficulty_type get_block_cumulative_difficulty(uint64_t height) const { return 0; }
     bool fluffy_blocks_enabled() const { return false; }
+    typedef cryptonote::StakeTransactionProcessor::stake_transactions_update_handler stake_transactions_update_handler;
+    void set_stake_transactions_update_handler(const stake_transactions_update_handler&) {}
+    void invoke_stake_transactions_update_handler() {}
   };
 }
