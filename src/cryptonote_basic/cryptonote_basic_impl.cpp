@@ -96,9 +96,17 @@ namespace cryptonote {
 
     if(version >= 6 && median_weight > 0 && already_generated_coins < first_reward)
     {
+      MDEBUG("------------- HIT2  hf-ver:" << (int)version
+        << "  med-wght:" << median_weight << "  AGC:" << already_generated_coins);
+
       reward = first_reward;
       return true;
     }
+    else
+      MDEBUG("------------- MISS  hf-ver:" << (int)version
+        << "  med-wght:" << median_weight
+        << "  AGC:" << already_generated_coins
+        << "  first-reward:" << first_reward);
 
     uint64_t base_reward = (MONEY_SUPPLY - already_generated_coins) >> emission_speed_factor;
     if (base_reward < FINAL_SUBSIDY_PER_MINUTE*target_minutes)

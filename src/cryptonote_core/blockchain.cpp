@@ -156,11 +156,14 @@ static const struct {
   // hf 10 - decrease block reward, 2018-09-12
   { 10, 164550, 0, 1536760800 },
   // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
+  //{ 11, 194130, 0, 1540400400 },
   { 11, 194130, 0, 1540400400 },
   // hf 12 - Graft CryptoNight Waltz PoW, 2019-01-24
-  { 12, 257600, 0, 1555949074 },
+  //{ 12, 257600, 0, 1555949074 },
+  { 12, 277140, 0, 1555949074 },
   // hf 13 - merge of Monero v0.13.0.4 into Graft-master, 2019-03-xx
-  { 13, 258600, 0, 1556009074 }
+  //{ 13, 257755, 0, 1556050074 }
+  { 13, 277150, 0, 1556050074 }
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
@@ -393,6 +396,12 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   }
   if (m_nettype == FAKECHAIN)
   {
+    std::ostringstream os;
+    for(size_t n = 0; test_options->hard_forks[n].first; ++n)
+      os << "DBG forks:" << n << "  v:" << (int)test_options->hard_forks[n].first
+         << "  h:" << test_options->hard_forks[n].second << std::endl;
+    MDEBUG("Blockchain::init -- fork's init: " << os.str() << std::endl);
+
     for (size_t n = 0; test_options->hard_forks[n].first; ++n)
       m_hardfork->add_fork(test_options->hard_forks[n].first, test_options->hard_forks[n].second, 0, n + 1);
   }
@@ -1230,6 +1239,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     return false;
   }
   if(base_reward + fee < money_in_use && already_generated_coins > 0)
+  //if(base_reward + fee < money_in_use)
   {
     MERROR_VER("coinbase transaction spend too much money (" << print_money(money_in_use) << "). Block reward is " << print_money(base_reward + fee) << "(" << print_money(base_reward) << "+" << print_money(fee) << ")");
     return false;
@@ -1238,6 +1248,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
   if (m_hardfork->get_current_version() < 2)
   {
     if(base_reward + fee != money_in_use && already_generated_coins > 0)
+    //if(base_reward + fee < money_in_use)
     {
       MDEBUG("coinbase transaction doesn't use full amount of block reward:  spent: " << money_in_use << ",  block reward " << base_reward + fee << "(" << base_reward << "+" << fee << ")");
       return false;
@@ -1248,7 +1259,12 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     // from hard fork 2, since a miner can claim less than the full block reward, we update the base_reward
     // to show the amount of coins that were actually generated, the remainder will be pushed back for later
     // emission. This modifies the emission curve very slightly.
-    CHECK_AND_ASSERT_MES(money_in_use - fee <= base_reward, false, "base reward calculation bug");
+
+    MDEBUG("Blockchain::validate_miner_transaction:  money-in-use:" << money_in_use
+      << "  fee:" << fee
+      << "  base-reward:" << base_reward);
+
+    CHECK_AND_ASSERT_MES(money_in_use - (fee / 2) <= base_reward * 2, false, "base reward calculation bug");
     if(base_reward + fee != money_in_use)
       partial_block_reward = true;
     base_reward = money_in_use - fee;
@@ -3009,6 +3025,9 @@ uint64_t Blockchain::get_fee_quantization_mask()
 //------------------------------------------------------------------
 uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version)
 {
+  MDEBUG("Blockchain::get_dynamic_base_fee: bw:" << block_reward
+    << "  med-bw:" << median_block_weight);
+
   const uint64_t min_block_weight = get_min_block_weight(version);
   if (median_block_weight < min_block_weight)
     median_block_weight = min_block_weight;
@@ -3021,6 +3040,10 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
     div128_32(hi, lo, median_block_weight, &hi, &lo);
     assert(hi == 0);
     lo /= 5;
+
+    MDEBUG("Blockchain::get_dynamic_base_fee ----- 01:" << lo
+      << "  med-bw:" << median_block_weight << "  min-bw:" << min_block_weight);
+
     return lo;
   }
 
@@ -3041,6 +3064,7 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
   uint64_t qlo = (lo + mask - 1) / mask * mask;
   MDEBUG("lo " << print_money(lo) << ", qlo " << print_money(qlo) << ", mask " << mask);
 
+  MDEBUG("Blockchain::get_dynamic_base_fee ----- 02:" << qlo / 10);
   return qlo / 10;
 }
 
@@ -3049,7 +3073,8 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
 {
   //const uint8_t version = get_current_hard_fork_version();
   uint8_t version = get_current_hard_fork_version();
-  MDEBUG("Blockchain::check_fee, version: " << (int)version << std::endl);
+  MDEBUG("Blockchain::check_fee, version: " << (int)version
+    << "  tx-w:" << tx_weight << "  fee:" << fee << std::endl);
 
   uint64_t median = 0;
   uint64_t already_generated_coins = 0;
@@ -3065,22 +3090,23 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   }
 
   uint64_t needed_fee;
-  if (version >= HF_VERSION_PER_BYTE_FEE)
+  if(version >= HF_VERSION_PER_BYTE_FEE)
+  //if(false)
   {
     MDEBUG("Blockchain::check_fee, 'version >= HF_VERSION_PER_BYTE_FEE', base_reward:"
       << base_reward << "  median:" << median << std::endl);
 
     uint64_t fee_per_byte = get_dynamic_base_fee(base_reward, median, version);
-    MDEBUG("Using " << print_money(fee_per_byte) << "/byte fee");
     needed_fee = tx_weight * fee_per_byte;
-
-    MDEBUG("Blockchain::check_fee, 'needed_fee:'" << needed_fee << std::endl);
 
     // quantize fee up to 8 decimals
     const uint64_t mask = get_fee_quantization_mask();
     needed_fee = (needed_fee + mask - 1) / mask * mask;
 
-    MDEBUG("Blockchain::check_fee, mask: " << mask << std::endl);
+    MDEBUG("Using " << print_money(fee_per_byte) << "/byte fee"
+      << "  needed-fee:" << (uint64_t)(tx_weight * fee_per_byte)
+      << "  needed-qntzd-fee:" << needed_fee
+      << "  mask:" << mask);
   }
   else
   {
@@ -3095,20 +3121,71 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
       fee_per_kb = get_dynamic_base_fee(base_reward, median, version);
       MDEBUG("Blockchain::check_fee ----- 05" << std::endl);
     }
-    MDEBUG("Using " << print_money(fee_per_kb) << "/kB fee");
 
     needed_fee = tx_weight / 1024;
     needed_fee += (tx_weight % 1024) ? 1 : 0;
     needed_fee *= fee_per_kb;
+
+    MDEBUG("Using " << print_money(fee_per_kb) << "/kB fee"
+      << "  needed-fee:" << needed_fee);
   }
 
-  if (fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
+  if(fee < needed_fee * 0.98) // keep a little 2% buffer on acceptance - no integer overflow
   {
     MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
     return false;
   }
   return true;
 }
+
+
+/* -- the code below - code from graft-master. It looks like we use old logic.
+  While monero used some new one.
+
+  const uint8_t version = get_current_hard_fork_version();
+
+  uint64_t fee_per_kb;
+  if (version < HF_VERSION_DYNAMIC_FEE)
+  {
+    fee_per_kb = FEE_PER_KB;
+  }
+  else
+  {
+    uint64_t median = m_current_block_cumul_sz_limit / 2;
+    uint64_t already_generated_coins = m_db->height() ? m_db->get_block_already_generated_coins(m_db->height() - 1) : 0;
+    uint64_t base_reward;
+    if (!get_block_reward(median, 1, already_generated_coins, base_reward, version))
+      return false;
+    fee_per_kb = get_dynamic_per_kb_fee(base_reward, median, version);
+  }
+  MDEBUG("Using " << print_money(fee) << "/kB fee");
+
+  uint64_t needed_fee = blob_size / 1024;
+  needed_fee += (blob_size % 1024) ? 1 : 0;
+  needed_fee *= fee_per_kb;
+
+  if (fee < needed_fee * 0.98) // keep a little buffer on acceptance
+  {
+    MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
+    return false;
+  }
+  return true;
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //------------------------------------------------------------------
 uint64_t Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_blocks) const

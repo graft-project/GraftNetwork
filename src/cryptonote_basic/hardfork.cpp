@@ -73,6 +73,10 @@ bool HardFork::add_fork(uint8_t version, uint64_t height, uint8_t threshold, tim
 {
   CRITICAL_REGION_LOCAL(lock);
 
+  MDEBUG("HardFork::add_fork  ver::" << (int)version << "  h:" << height
+    << "  thsh:" << (int)threshold << "  t:" << time << std::endl);
+
+
   // add in order
   if (version == 0)
     return false;
@@ -134,8 +138,8 @@ bool HardFork::add(uint8_t block_version, uint8_t voting_version, uint64_t heigh
 {
   CRITICAL_REGION_LOCAL(lock);
 
-  MDEBUG("HardFork::add, bv:" << (int)block_version << "  vv:" << (int)voting_version
-    << "  h:" << height << std::endl);
+  //MDEBUG("HardFork::add, bv:" << (int)block_version << "  vv:" << (int)voting_version
+  //  << "  h:" << height << std::endl);
 
   if (!do_check(block_version, voting_version))
     return false;
@@ -361,15 +365,15 @@ uint8_t HardFork::get_current_version() const
 {
   CRITICAL_REGION_LOCAL(lock);
 
-  std::ostringstream os;
-  os << "HardFork::get_current_version" << std::endl;
-  os << "heights.cnt:" << heights.size() << " idx:" << current_fork_index
-    << std::endl;
+  //std::ostringstream os;
+  //os << "HardFork::get_current_version" << std::endl;
+  //os << "heights.cnt:" << heights.size() << " idx:" << current_fork_index
+  //  << std::endl;
 
-  for(const auto& h : heights)
-    os << "ver:" << (int)h.version << " h:" << (int)h.height << " t:" << h.time << std::endl;
+  //for(const auto& h : heights)
+  //  os << "ver:" << (int)h.version << " h:" << (int)h.height << " t:" << h.time << std::endl;
 
-  MDEBUG(os.str());
+  //MDEBUG(os.str());
 
   return heights[current_fork_index].version;
 }

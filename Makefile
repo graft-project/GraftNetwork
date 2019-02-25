@@ -50,9 +50,41 @@ debug: cmake-debug
 
 # Temporarily disable some tests:
 #  * libwallet_api_tests fail (Issue #895)
-debug-test:
+test-go-d:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) &&  $(MAKE) && $(MAKE) ARGS="-E libwallet_api_tests" test
+	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE) && $(MAKE) ARGS="-E libwallet_api_tests" test
+
+test-go-r:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=release $(topdir) && $(MAKE) && $(MAKE) ARGS="-E libwallet_api_tests" test
+
+
+test-core-r:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) &&  $(MAKE) core_tests
+
+test-core-d:
+	mkdir -p $(builddir)/debug
+	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) &&  $(MAKE) core_tests
+
+#test-core-r:
+#	mkdir -p $(builddir)/release
+#	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) &&  $(MAKE) core_tests
+#
+#test-core-d:
+#	mkdir -p $(builddir)/debug
+#	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) &&  $(MAKE) core_tests
+#cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON $(topdir) &&  $(MAKE) core_tests
+
+
+test-unit-r:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) &&  $(MAKE) unit_tests
+
+test-unit-d:
+	mkdir -p $(builddir)/debug
+	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) &&  $(MAKE) unit_tests
+
 
 debug-all:
 	mkdir -p $(builddir)/debug
@@ -65,11 +97,11 @@ debug-static-all:
 debug-static-win64:
 	mkdir -p $(builddir)/debug
 	cd $(builddir)/debug && cmake -G "MSYS Makefiles" -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Debug -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=c:/msys64 $(topdir) && $(MAKE)
- 
+
 debug-static-win32:
 	mkdir -p $(builddir)/debug
 	cd $(builddir)/debug && cmake -G "MSYS Makefiles" -D STATIC=ON -D ARCH="i686" -D BUILD_64=OFF -D CMAKE_BUILD_TYPE=Debug -D BUILD_TAG="win-x32" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/32-bit-toolchain.cmake -D MSYS2_FOLDER=c:/msys32 $(topdir) && $(MAKE)
- 
+
 cmake-release:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -D CMAKE_BUILD_TYPE=Release $(topdir)
