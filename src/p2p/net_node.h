@@ -385,7 +385,7 @@ namespace nodetool
             m_supernode_uri = std::move(parsed.uri);
         }
         if ((parsed.host != m_supernode_client.get_host())
-                && (std::to_string(parsed.port) != m_supernode_client.get_port())) {
+                || (std::to_string(parsed.port) != m_supernode_client.get_port())) {
             if (m_supernode_client.is_connected()) {
                 m_supernode_client.disconnect();
             }
