@@ -131,7 +131,7 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
     /*crypto::public_key W;
     if (!epee::string_tools::hex_to_pod(stake_tx.supernode_public_id, W) || !check_key(W))
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash
         << " because of invalid supernode public identifier '" << stake_tx.supernode_public_id << "'");
       continue;
     }
@@ -143,7 +143,7 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
 
     if (!crypto::check_signature(hash, W, stake_tx.supernode_signature))
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
         << " because of invalid supernode signature (mismatch)");
       continue;
     }*/
@@ -152,14 +152,14 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
 
     if (unlock_time < config::graft::STAKE_MIN_UNLOCK_TIME)
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
         << " because unlock time " << unlock_time << " is less than minimum allowed " << config::graft::STAKE_MIN_UNLOCK_TIME);
       continue;
     }
 
     if (unlock_time > config::graft::STAKE_MAX_UNLOCK_TIME)
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
         << " because unlock time " << unlock_time << " is greater than maximum allowed " << config::graft::STAKE_MAX_UNLOCK_TIME);
       continue;
     }
@@ -168,20 +168,20 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
 
     if (!amount)
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
         << " because of error at parsing amount");
       continue;
     }
 
     stake_tx.amount = amount;
     stake_tx.block_height = block_index;
-    stake_tx.hash = tx.hash;
+    stake_tx.hash = tx_hash;
     stake_tx.unlock_time = unlock_time;
     stake_tx.tier = get_tier(stake_tx.amount);
 
     if (!stake_tx.tier)
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
         << " because amount " << amount / double(COIN) << " is less than minimum required " << config::graft::TIER1_STAKE_AMOUNT / double(COIN));
       continue;
     }
@@ -190,8 +190,24 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
 
     m_stake_transactions_need_update = true;
 
-    MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << stake_tx.hash << ", supernode_public_id '" << stake_tx.supernode_public_id
+    MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id
       << "', amount=" << amount / double(COIN));
+  }
+
+  uint64_t prev_block = m_storage.get_last_processed_block_index();
+
+  const stake_transaction_array& stake_txs = m_storage.get_txs();
+
+  for (const stake_transaction& tx : stake_txs)
+  {
+    bool is_valid_for_this_block = tx.is_valid(block_index),
+         is_valid_for_prev_block = prev_block && tx.is_valid(prev_block);
+
+    if (is_valid_for_prev_block != is_valid_for_this_block)
+    {
+      m_stake_transactions_need_update = true;
+      break;
+    }
   }
 
   m_storage.add_last_processed_block(block_index, db.get_block_hash_from_height(block_index));
