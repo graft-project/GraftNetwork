@@ -32,6 +32,9 @@ set(performance_tests_sources
 set(performance_tests_headers
   check_tx_signature.h
   cn_slow_hash.h
+  cn_slow_hash_2.h
+  cn_slow_hash_waltz.h
+  cn_slow_hash_reverse_waltz.h
   construct_tx.h
   derive_public_key.h
   derive_secret_key.h
