@@ -128,7 +128,9 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
       //sort valid supernodes by the age of stake
 
-    std::sort(current_supernodes.begin(), current_supernodes.end(), [](const supernode& s1, const supernode& s2) { return s1.block_height < s2.block_height; });
+    std::sort(current_supernodes.begin(), current_supernodes.end(), [](const supernode& s1, const supernode& s2) {
+      return s1.block_height < s2.block_height || s1.block_height == s2.block_height && s1.supernode_public_id < s2.supernode_public_id;
+    });
 
       //select supernodes from the previous list
 
