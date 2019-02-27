@@ -2487,6 +2487,15 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
       return true;
     }
     local_args.pop_back();
+
+    std::string accepted = command_line::input_line(tr("Stake amount will be locked. If you don't have exact amount for stake transaction, remaining amount also may be locked. Is this okay?  (Y/Yes/N/No): "));
+    if (std::cin.eof())
+      return true;
+    if (!command_line::is_yes(accepted))
+    {
+      fail_msg_writer() << tr("transaction cancelled.");
+      return true; 
+    }
   }
 
   vector<cryptonote::tx_destination_entry> dsts;
