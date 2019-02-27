@@ -408,6 +408,22 @@ namespace nodetool
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
+    void redirect_id_clear()
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_redirect_supernode_ids_lock);
+        m_redirect_supernode_ids.clear();
+    }
+    void redirect_id_add(const::std::string& id)
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_redirect_supernode_ids_lock);
+        m_redirect_supernode_ids.emplace(id);
+    }
+    void redirect_id_erase(const::std::string& id)
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_redirect_supernode_ids_lock);
+        m_redirect_supernode_ids.erase(id);
+    }
+
     void send_stake_transactions_to_supernode();
 
   private:
@@ -426,6 +442,9 @@ namespace nodetool
     boost::recursive_mutex m_supernode_lock;
     boost::recursive_mutex m_request_cache_lock;
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
+
+    boost::recursive_mutex m_redirect_supernode_ids_lock;
+    std::set<std::string> m_redirect_supernode_ids; //recipients ids to redirect to the supernode
 
     std::string m_config_folder;
 
