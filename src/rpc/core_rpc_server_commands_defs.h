@@ -1765,6 +1765,27 @@ namespace cryptonote
     };
   };
 
+  struct COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST
+  {
+    struct request
+    {
+      std::string address;
+      std::string network_address;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(address)
+        KV_SERIALIZE(network_address)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
   struct COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST
   {
     struct supernode
