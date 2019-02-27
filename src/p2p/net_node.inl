@@ -2797,7 +2797,7 @@ namespace nodetool
     {
       cryptonote::COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS::stake_transaction dst_tx;
 
-      dst_tx.hash = src_tx.hash;
+      dst_tx.hash = epee::string_tools::pod_to_hex(src_tx.hash);
       dst_tx.amount = src_tx.amount;
       dst_tx.tier = src_tx.tier;
       dst_tx.block_height = src_tx.block_height;
