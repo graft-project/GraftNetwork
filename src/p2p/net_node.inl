@@ -2837,7 +2837,7 @@ namespace nodetool
 
     request.block_number = block_number;
 
-    for (size_t i=0; i<request.tiers.size(); i++)
+    for (size_t i=0; i<tiers.size(); i++)
     {
       const cryptonote::StakeTransactionProcessor::supernode_tier_array::value_type& src_tier = tiers[i];
       cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::tier                  dst_tier;
@@ -2848,7 +2848,8 @@ namespace nodetool
       {
         cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::supernode dst_supernode;
 
-        dst_supernode.supernode_public_id = src_supernode.supernode_public_id;
+        dst_supernode.supernode_public_id      = src_supernode.supernode_public_id;
+        dst_supernode.supernode_public_address = cryptonote::get_account_address_as_str(m_testnet, src_supernode.supernode_public_address);
 
         dst_tier.supernodes.emplace_back(std::move(dst_supernode));
       }

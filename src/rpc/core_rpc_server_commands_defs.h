@@ -1791,8 +1791,10 @@ namespace cryptonote
     struct supernode
     {
       std::string supernode_public_id;
+      std::string supernode_public_address;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(supernode_public_id)
+        KV_SERIALIZE(supernode_public_address)
       END_KV_SERIALIZE_MAP()
     };
 

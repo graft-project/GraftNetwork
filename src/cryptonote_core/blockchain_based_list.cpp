@@ -112,9 +112,10 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
       supernode sn;
 
-      sn.supernode_public_id = stake_tx.supernode_public_id;
-      sn.block_height        = stake_tx.block_height;
-      sn.unlock_time         = stake_tx.unlock_time;
+      sn.supernode_public_id      = stake_tx.supernode_public_id;
+      sn.supernode_public_address = stake_tx.supernode_public_address;
+      sn.block_height             = stake_tx.block_height;
+      sn.unlock_time              = stake_tx.unlock_time;
 
       current_supernodes.emplace_back(std::move(sn));
     }
@@ -129,7 +130,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
       //sort valid supernodes by the age of stake
 
     std::sort(current_supernodes.begin(), current_supernodes.end(), [](const supernode& s1, const supernode& s2) {
-      return s1.block_height < s2.block_height || s1.block_height == s2.block_height && s1.supernode_public_id < s2.supernode_public_id;
+      return s1.block_height < s2.block_height || (s1.block_height == s2.block_height && s1.supernode_public_id < s2.supernode_public_id);
     });
 
       //select supernodes from the previous list
@@ -140,7 +141,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
     if (new_supernodes.size() < BLOCKCHAIN_BASED_LIST_SIZE)
     {
-        //remove supernodes from prev list from current list
+        //remove supernodes of prev list from current list
 
       auto duplicates_filter = [&](const supernode& sn1) {
         for (const supernode& sn2 : new_supernodes)

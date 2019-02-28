@@ -14,6 +14,7 @@ public:
   struct supernode
   {    
     std::string supernode_public_id;
+    cryptonote::account_public_address supernode_public_address;
     uint64_t block_height;
     uint64_t unlock_time;
 
@@ -21,6 +22,7 @@ public:
       FIELD(block_height)
       FIELD(unlock_time)
       FIELD(supernode_public_id)
+      FIELD(supernode_public_address)
     END_SERIALIZE()
   };
 
