@@ -1005,6 +1005,7 @@ namespace nodetool
               peer_vec.push_back(pe);
               nodetool::supernode_route route;
               route.last_announce_height = arg.height;
+              route.last_announce_time = time(nullptr);
               route.max_hop = arg.hop;
               route.peers = peer_vec;
               m_supernode_routes[supernode_str] = route;
@@ -1018,8 +1019,10 @@ namespace nodetool
               return 1;
           }
 
-          if ((*it).second.last_announce_height == arg.height)
+          if ((*it).second.last_announce_height == arg.height && (*it).second.last_announce_time + /*DIFFICULTY_TARGET_V2*/10 > time(nullptr))
           {
+              MDEBUG("existing announce, height: " << arg.height << ", last_announce_time: " << (*it).second.last_announce_time
+                     << ", current time: " << time(nullptr));
               auto peer_it = std::find_if((*it).second.peers.begin(), (*it).second.peers.end(),
                                           [pe](const peerlist_entry &p) -> bool { return pe.id == p.id; });
               if (peer_it != (*it).second.peers.end())
@@ -1039,6 +1042,7 @@ namespace nodetool
           (*it).second.peers.clear();
           (*it).second.peers.push_back(pe);
           (*it).second.last_announce_height = arg.height;
+          (*it).second.last_announce_time = time(nullptr);
           (*it).second.max_hop = arg.hop;
       } while(0);
 

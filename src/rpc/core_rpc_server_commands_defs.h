@@ -1949,12 +1949,14 @@ namespace cryptonote
   {
     std::string address;
     uint64_t last_announce_height;
+    uint64_t last_announce_time;
     uint64_t max_hop;
     std::vector<peer_data> peers;
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(address)
       KV_SERIALIZE(last_announce_height)
+      KV_SERIALIZE(last_announce_time)
       KV_SERIALIZE(max_hop)
       KV_SERIALIZE(peers)
     END_KV_SERIALIZE_MAP()
