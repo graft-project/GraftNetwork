@@ -163,7 +163,7 @@ namespace nodetool
   struct supernode_route
   {
       crypto::public_key addr;
-      uint64_t last_announce_time;
+      uint64_t last_announce_height;
       uint64_t max_hop;
       std::vector<peerlist_entry> peers;
   };
@@ -182,12 +182,9 @@ namespace nodetool
           uint64_t hop;
 
           BEGIN_KV_SERIALIZE_MAP()
-            KV_SERIALIZE(signed_key_images)
-            KV_SERIALIZE(timestamp)
-            KV_SERIALIZE(address)
-            KV_SERIALIZE(stake_amount)
+            KV_SERIALIZE(supernode_public_id)
             KV_SERIALIZE(height)
-            KV_SERIALIZE(secret_viewkey)
+            KV_SERIALIZE(signature)
             KV_SERIALIZE(network_address)
             KV_SERIALIZE(hop)
           END_KV_SERIALIZE_MAP()

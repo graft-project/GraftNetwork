@@ -1709,10 +1709,10 @@ namespace cryptonote
   {
     struct request
     {
-      std::string address;
+      std::string supernode_public_id;
       std::string network_address;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(address)
+        KV_SERIALIZE(supernode_public_id)
         KV_SERIALIZE(network_address)
       END_KV_SERIALIZE_MAP()
     };
@@ -1769,10 +1769,10 @@ namespace cryptonote
   {
     struct request
     {
-      std::string address;
+      std::string supernode_public_id;
       std::string network_address;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(address)
+        KV_SERIALIZE(supernode_public_id)
         KV_SERIALIZE(network_address)
       END_KV_SERIALIZE_MAP()
     };
@@ -1827,32 +1827,18 @@ namespace cryptonote
 
   struct COMMAND_RPC_SUPERNODE_ANNOUNCE
   {
-    struct SignedKeyImageStr
-    {
-      std::string key_image;
-      std::string signature;
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(key_image)
-        KV_SERIALIZE(signature)
-      END_KV_SERIALIZE_MAP()
-    };
-
     struct request
     {
-      std::vector<SignedKeyImageStr> signed_key_images;
-      uint64_t timestamp;
-      std::string address;
-      uint64_t stake_amount;
+
+      std::string supernode_public_id;
       uint64_t height;
-      std::string secret_viewkey;
+      std::string signature;
       std::string network_address;
+
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(signed_key_images)
-        KV_SERIALIZE(timestamp)
-        KV_SERIALIZE(address)
-        KV_SERIALIZE(stake_amount)
+        KV_SERIALIZE(supernode_public_id)
         KV_SERIALIZE(height)
-        KV_SERIALIZE(secret_viewkey)
+        KV_SERIALIZE(signature)
         KV_SERIALIZE(network_address)
       END_KV_SERIALIZE_MAP()
     };
@@ -1962,13 +1948,13 @@ namespace cryptonote
   struct route_data
   {
     std::string address;
-    uint64_t last_announce_time;
+    uint64_t last_announce_height;
     uint64_t max_hop;
     std::vector<peer_data> peers;
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(address)
-      KV_SERIALIZE(last_announce_time)
+      KV_SERIALIZE(last_announce_height)
       KV_SERIALIZE(max_hop)
       KV_SERIALIZE(peers)
     END_KV_SERIALIZE_MAP()

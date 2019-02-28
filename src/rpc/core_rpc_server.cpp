@@ -1769,17 +1769,8 @@ namespace cryptonote
         return false;
       }
 
-      // validate input parameters
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      if (!validate_wallet(req.address, m_testnet))
-      {
-        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-        error_resp.message = "Failed to parse wallet address";
-        return false;
-      }
-
       // send p2p announce
-      m_p2p.set_supernode(req.address, req.network_address);
+      m_p2p.set_supernode(req.supernode_public_id, req.network_address);
       m_p2p.do_supernode_announce(req);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_announce: end");
@@ -1797,17 +1788,9 @@ namespace cryptonote
         return false;
       }
 
-      // validate input parameters
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      if (!validate_wallet(req.address, m_testnet))
-      {
-        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-        error_resp.message = "Failed to parse wallet address";
-        return false;
-      }
 
       // send p2p stake txs
-      m_p2p.set_supernode(req.address, req.network_address);
+      m_p2p.set_supernode(req.supernode_public_id, req.network_address);
       m_p2p.send_stake_transactions_to_supernode();
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_stake_txs: end");
@@ -1825,17 +1808,8 @@ namespace cryptonote
         return false;
       }
 
-      // validate input parameters
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      if (!validate_wallet(req.address, m_testnet))
-      {
-        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-        error_resp.message = "Failed to parse wallet address";
-        return false;
-      }
-
       // send p2p stake txs
-      m_p2p.set_supernode(req.address, req.network_address);
+      m_p2p.set_supernode(req.supernode_public_id, req.network_address);
       m_p2p.send_blockchain_based_list_to_supernode();
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: end");

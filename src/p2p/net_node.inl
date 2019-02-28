@@ -966,14 +966,14 @@ namespace nodetool
     return 1;
 #endif
       static std::string supernode_endpoint("send_supernode_announce");
-      std::string supernode_str = arg.address;
+      std::string supernode_str = arg.supernode_public_id;
 
       if (supernode_str == m_supernode_str)
       {
           return 1;
       }
 
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: update tunnels for " << arg.address << " Hop: " << arg.hop << " Address: " << arg.network_address);
+      LOG_PRINT_L0("P2P Request: handle_supernode_announce: update tunnels for " << arg.supernode_public_id << " Hop: " << arg.hop << " Address: " << arg.network_address);
       do {
           peerlist_entry pe;
           // TODO: Need to investigate it and mechanism for adding peer to the peerlist
@@ -1004,21 +1004,21 @@ namespace nodetool
               std::vector<peerlist_entry> peer_vec;
               peer_vec.push_back(pe);
               nodetool::supernode_route route;
-              route.last_announce_time = arg.timestamp;
+              route.last_announce_height = arg.height;
               route.max_hop = arg.hop;
               route.peers = peer_vec;
               m_supernode_routes[supernode_str] = route;
               break;
           }
 
-          if ((*it).second.last_announce_time > arg.timestamp)
+          if ((*it).second.last_announce_height > arg.height)
           {
               MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
-                    << " too old, corrent route timestamp " << (*it).second.last_announce_time);
+                    << " too old, corrent route height " << (*it).second.last_announce_height);
               return 1;
           }
 
-          if ((*it).second.last_announce_time == arg.timestamp)
+          if ((*it).second.last_announce_height == arg.height)
           {
               auto peer_it = std::find_if((*it).second.peers.begin(), (*it).second.peers.end(),
                                           [pe](const peerlist_entry &p) -> bool { return pe.id == p.id; });
@@ -1038,7 +1038,7 @@ namespace nodetool
           }
           (*it).second.peers.clear();
           (*it).second.peers.push_back(pe);
-          (*it).second.last_announce_time = arg.timestamp;
+          (*it).second.last_announce_height = arg.height;
           (*it).second.max_hop = arg.hop;
       } while(0);
 
@@ -2293,12 +2293,9 @@ namespace nodetool
     LOG_PRINT_L0("P2P Request: do_supernode_announce: start");
 
     COMMAND_SUPERNODE_ANNOUNCE::request p2p_req;
-    p2p_req.signed_key_images = req.signed_key_images;
-    p2p_req.timestamp = req.timestamp;
-    p2p_req.address = req.address;
-    p2p_req.stake_amount = req.stake_amount;
+    p2p_req.supernode_public_id = req.supernode_public_id;
     p2p_req.height = req.height;
-    p2p_req.secret_viewkey = req.secret_viewkey;
+    p2p_req.signature = req.signature;
     p2p_req.network_address = req.network_address;
     p2p_req.hop = 0;
 
@@ -2550,7 +2547,7 @@ namespace nodetool
       {
           cryptonote::route_data route;
           route.address = it->first;
-          route.last_announce_time = it->second.last_announce_time;
+          route.last_announce_height = it->second.last_announce_height;
           route.max_hop = it->second.max_hop;
           std::vector<cryptonote::peer_data> peers;
           for (auto pit = it->second.peers.begin(); pit != it->second.peers.end(); ++pit)
