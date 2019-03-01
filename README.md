@@ -65,13 +65,14 @@ Graft Network uses a fixed-schedule hard fork mechanism to implement new feature
 Dates are provided in the format YYYY-MM-DD. 
 
 
-| Fork Date              | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |  
+| Fork Date         | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |
 | ----------------- | ----------------- | ---------------------- | -------------------------- | ------------------ |
 | 2018-01-18        | v7                | 1.0.0                | 1.0.1                    | First release      |
 | 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
 | 2018-04-23        | v9                | 1.2.0                | 1.2.3                    | Fix for Difficulty Adjustment Algorithm      |
 | 2018-09-17        | v10               | 1.4.4                | 1.4.5                    | Block reward halved       |
 | 2018-10-31        | v11               | 1.5.0                | 1.5.1                    | PoW algorithm from Monero v8 (CN v2), enabled checkpoints for mainnet  |
+| 2019-03-07        | v12               | 1.6.0                | 1.6.0                    | Own PoW algorithm - CryptoNight V8 ReverseWaltz - tweaked from CryptoNight Monero v8 (CN v2)  |
 
 ## Installing Graft Network from a Package
 
@@ -96,7 +97,7 @@ library archives (`.a`).
 | CMake          | 3.0.0         | NO       | `cmake`            | `cmake`        | NO       |                |
 | pkg-config     | any           | NO       | `pkg-config`       | `base-devel`   | NO       |                |
 | Boost          | 1.58          | NO       | `libboost-all-dev` | `boost`        | NO       | C++ libraries  |
-| OpenSSL        | 1.0.2^^       | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
+| OpenSSL        | 1.0.2         | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
 | libunbound     | 1.4.16        | YES      | `libunbound-dev`   | `unbound`      | NO       | DNS resolver   |
 | libminiupnpc   | 2.0           | YES      | `libminiupnpc-dev` | `miniupnpc`    | YES      | NAT punching   |
 | libunwind      | any           | NO       | `libunwind8-dev`   | `libunwind`    | YES      | Stack traces   |
