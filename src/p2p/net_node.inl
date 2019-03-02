@@ -1065,7 +1065,7 @@ namespace nodetool
               return 1;
           }
 
-          if ((*it).second.last_announce_height == arg.height && (*it).second.last_announce_time + /*DIFFICULTY_TARGET_V2*/10 > time(nullptr))
+          if ((*it).second.last_announce_height == arg.height && (*it).second.last_announce_time + DIFFICULTY_TARGET_V2 > (unsigned)time(nullptr))
           {
               MDEBUG("existing announce, height: " << arg.height << ", last_announce_time: " << (*it).second.last_announce_time
                      << ", current time: " << time(nullptr));
@@ -1092,10 +1092,10 @@ namespace nodetool
           (*it).second.max_hop = arg.hop;
       } while(0);
 
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: post to supernode: " << arg.supernode_public_id);
       do {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
           if (m_have_supernode) {
+              MDEBUG("P2P Request: handle_supernode_announce: post to supernode: " << arg.supernode_public_id);
               post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
           }
       } while(0);
@@ -1123,8 +1123,9 @@ namespace nodetool
 
       std::string arg_buff;
       epee::serialization::store_t_to_binary(arg, arg_buff);
-      // MDEBUG("P2P Request: handle_supernode_announce: relaying to neighbours: " << random_connections.size());
-      MDEBUG("P2P Request: handle_supernode_announce: relaying to neighbours: " << all_connections.size());
+
+      MDEBUG("P2P Request: handle_supernode_announce: relaying to neighbours: " << random_connections.size());
+
       relay_notify_to_list(command, arg_buff, random_connections);
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: end");
       return 1;
