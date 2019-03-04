@@ -131,6 +131,7 @@ namespace cryptonote
       BEGIN_JSON_RPC_MAP("/json_rpc/rta")
         MAP_JON_RPC_WE("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
         MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
+        MAP_JON_RPC_WE("wide_broadcast",         on_wide_broadcast,             COMMAND_RPC_BROADCAST)
         MAP_JON_RPC_WE("register_supernode",     on_register_supernode,         COMMAND_RPC_REGISTER_SUPERNODE)
         MAP_JON_RPC_WE("redirect_supernode_id",  on_redirect_supernode_id,      COMMAND_RPC_REDIRECT_SUPERNODE_ID)
 
@@ -198,7 +199,8 @@ namespace cryptonote
     // RTA
     bool on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request& req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response& res, epee::json_rpc::error& error_resp);
     bool on_supernode_stake_txs(const COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::request& req, COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::response& res, epee::json_rpc::error& error_resp);
-    bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
+    bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp, bool wide = false);
+    bool on_wide_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
     bool on_register_supernode(const COMMAND_RPC_REGISTER_SUPERNODE::request& req, COMMAND_RPC_REGISTER_SUPERNODE::response& res, epee::json_rpc::error& error_resp);
     bool on_redirect_supernode_id(const COMMAND_RPC_REDIRECT_SUPERNODE_ID::request& req, COMMAND_RPC_REDIRECT_SUPERNODE_ID::response& res, epee::json_rpc::error& error_resp);
 
@@ -216,6 +218,7 @@ private:
     nodetool::node_server<cryptonote::t_cryptonote_protocol_handler<cryptonote::core> >& m_p2p;
     bool m_testnet;
     bool m_restricted;
+    uint32_t m_broadcast_hops = 0;
   };
 }
 

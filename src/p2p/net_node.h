@@ -392,15 +392,15 @@ namespace nodetool
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
-    void register_supernode(const std::string& supernode_id, const std::string& supernode_url, const std::string& redirect_uri)
+    void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req)
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_supernode_id = supernode_id;
-        m_supernode_url = supernode_url;
-        m_redirect_uri = redirect_uri;
+        m_supernode_id = req.supernode_id;
+        m_supernode_url = req.supernode_url;
+        m_redirect_uri = req.redirect_uri;
 
-        m_supernode_uri = supernode_url;
-        set_supernode(supernode_id, supernode_url);
+        m_supernode_uri = req.supernode_url;
+        set_supernode(req.supernode_id, req.supernode_url);
     }
 
     void redirect_id_clear()

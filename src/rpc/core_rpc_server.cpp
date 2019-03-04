@@ -1815,7 +1815,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp, bool wide)
   {
       LOG_PRINT_L0("RPC Request: on_broadcast: start");
       if (!check_core_busy())
@@ -1842,10 +1842,16 @@ namespace cryptonote
           MDEBUG("core_rpc_server::on_broadcast : ") << oss.str();
       }
 
-      m_p2p.do_broadcast(req);
+      m_p2p.do_broadcast(req, (wide)? 0 : m_broadcast_hops);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_broadcast: end");
       return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_wide_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  {
+      return on_broadcast(req, res, error_resp, true);
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
@@ -1859,7 +1865,9 @@ namespace cryptonote
         return false;
       }
 
-      m_p2p.register_supernode(req.supernode_id, req.supernode_url, req.redirect_uri);
+      m_broadcast_hops = req.broadcast_hops;
+
+      m_p2p.register_supernode(req);
 
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_register_supernode: end");

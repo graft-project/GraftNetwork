@@ -1810,10 +1810,14 @@ namespace cryptonote
   {
     struct request
     {
+      uint32_t broadcast_hops;
+      uint32_t redirect_timeout_ms;
       std::string supernode_id; //supernode public identification key
       std::string supernode_url; //base URL for forwarding requests to supernode
       std::string redirect_uri; //special uri for UDHT protocol redirection mechanism
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(broadcast_hops)
+        KV_SERIALIZE(redirect_timeout_ms)
         KV_SERIALIZE(supernode_id)
         KV_SERIALIZE(supernode_url)
         KV_SERIALIZE(redirect_uri)
