@@ -1885,10 +1885,8 @@ namespace cryptonote
         return false;
       }
 
-      using command = COMMAND_RPC_REDIRECT_SUPERNODE_ID::command;
-
       // validate input parameters
-      bool id_ok = (req.id.empty() == (req.cmd == command::cmd_clear));
+      bool id_ok = false;
       if(!req.id.empty())
       {
         crypto::public_key id;
@@ -1902,18 +1900,7 @@ namespace cryptonote
         return false;
       }
 
-      switch(req.cmd)
-      {
-      case command::cmd_add : m_p2p.redirect_id_add(req.id); break;
-      case command::cmd_erase : m_p2p.redirect_id_erase(req.id); break;
-      case command::cmd_clear : m_p2p.redirect_id_clear(); break;
-      default :
-      {
-          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-          error_resp.message = "Invalid command parameter of on_redirect_supernode_id";
-          return false;
-      }
-      }
+      m_p2p.redirect_id_add(req.id);
 
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_redirect_supernode_id: end");

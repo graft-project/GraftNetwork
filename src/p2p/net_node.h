@@ -68,6 +68,7 @@ DISABLE_VS_WARNINGS(4355)
 namespace nodetool
 {
   using Uuid = boost::uuids::uuid;
+  using Clock = std::chrono::steady_clock;
 
   template<class base_type>
   struct p2p_connection_context_t: base_type //t_payload_net_handler::connection_context //public net_utils::connection_context_base
@@ -376,7 +377,6 @@ namespace nodetool
             boost::optional<epee::net_utils::http::login> supernode_login;
             m_supernode_client.set_server(m_supernode_http_addr, supernode_login);
         }
-        m_have_supernode = true;
     }
 
     std::string get_supernode_address() const
@@ -384,39 +384,53 @@ namespace nodetool
         return m_supernode_str;
     }
 
-    void reset_supernode() {
+    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
+
+    Clock::time_point get_death_time()
+    {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_supernode_str.erase();
-        m_have_supernode = false;
+        return Clock::now() + std::chrono::milliseconds(m_redirect_timeout_ms);
     }
 
-    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
+    std::string check_supernode_id()
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        if(m_supernode_id.empty()) return m_supernode_id;
+        if(m_supernode_id_death < Clock::now())
+        {
+            m_redirect_supernode_ids.clear();
+            m_supernode_id.clear();
+        }
+        return m_supernode_id;
+    }
+
+    bool has_supernode()
+    {
+        return !check_supernode_id().empty();
+    }
 
     void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req)
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        if(m_supernode_id != req.supernode_id)
+        {
+            m_redirect_supernode_ids.clear();
+        }
         m_supernode_id = req.supernode_id;
         m_supernode_url = req.supernode_url;
         m_redirect_uri = req.redirect_uri;
+        m_redirect_timeout_ms = req.redirect_timeout_ms;
+        m_supernode_id_death = get_death_time();
 
         m_supernode_uri = req.supernode_url;
         set_supernode(req.supernode_id, req.supernode_url);
     }
 
-    void redirect_id_clear()
-    {
-        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_redirect_supernode_ids.clear();
-    }
     void redirect_id_add(const std::string& id)
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_redirect_supernode_ids.emplace(id);
-    }
-    void redirect_id_erase(const std::string& id)
-    {
-        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_redirect_supernode_ids.erase(id);
+        if(check_supernode_id().empty()) return;
+        m_redirect_supernode_ids.emplace(id, get_death_time());
     }
 
     void send_stake_transactions_to_supernode();
@@ -429,7 +443,6 @@ namespace nodetool
     std::set<std::string> m_supernode_requests_cache;
     std::map<std::string, nodetool::supernode_route> m_supernode_routes;
     std::string m_supernode_str;
-    bool m_have_supernode;
     std::string m_supernode_http_addr; // host:port
     std::string m_supernode_uri;
     epee::net_utils::http::http_simple_client m_supernode_client;
@@ -437,11 +450,13 @@ namespace nodetool
     boost::recursive_mutex m_request_cache_lock;
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
 
+    std::chrono::steady_clock::time_point m_supernode_id_death;
     std::string m_supernode_id; //supernode public identification key
     std::string m_supernode_url; //base URL for forwarding requests to supernode
     std::string m_redirect_uri; //special uri for UDHT protocol redirection mechanism
 
-    std::set<std::string> m_redirect_supernode_ids; //recipients ids to redirect to the supernode
+    uint32_t m_redirect_timeout_ms;
+    std::map<std::string, Clock::time_point> m_redirect_supernode_ids; //recipients ids to redirect to the supernode
 
     std::string m_config_folder;
 

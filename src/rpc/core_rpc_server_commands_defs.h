@@ -1835,19 +1835,10 @@ namespace cryptonote
 
   struct COMMAND_RPC_REDIRECT_SUPERNODE_ID
   {
-    enum command
-    {
-      cmd_add = 0,
-      cmd_erase = 1,
-      cmd_clear = 2,
-    };
-
     struct request
     {
-      uint32_t cmd;
       std::string id;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(cmd)
         KV_SERIALIZE(id)
       END_KV_SERIALIZE_MAP()
     };

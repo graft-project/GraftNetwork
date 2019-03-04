@@ -989,7 +989,7 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: post to supernode");
       do {
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_have_supernode) {
+          if (has_supernode()) {
               post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
           }
       } while(0);
@@ -1026,6 +1026,22 @@ namespace nodetool
               int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
 
+              std::string supernode_id;
+              std::vector<std::string> redirect_supernode_ids;
+              {//prepare supernode_id and redirect_supernode_ids
+                  supernode_id = check_supernode_id();
+                  boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+                  for(auto it = m_redirect_supernode_ids.begin(); it != m_redirect_supernode_ids.end();)
+                  {
+                      if(it->second < Clock::now())
+                      {
+                          it = m_redirect_supernode_ids.erase(it);
+                          continue;
+                      }
+                      redirect_supernode_ids.emplace_back(it->first);
+                      ++it;
+                  }
+              }
               std::vector<std::string> known_addresses, unknown_addresses;
               bool send_to_supenode = false;
               if(!arg.receiver_addresses.empty())
@@ -1035,9 +1051,8 @@ namespace nodetool
                   std::copy(arg.receiver_addresses.begin(), arg.receiver_addresses.end(), std::back_inserter(addresses));
                   std::sort(addresses.begin(), addresses.end());
 
-                  boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
                   //find and erase my supernode_id
-                  auto rng_su = std::equal_range(addresses.begin(), addresses.end(), m_supernode_id);
+                  auto rng_su = std::equal_range(addresses.begin(), addresses.end(), supernode_id);
                   if(rng_su.first != rng_su.second)
                   {
                       addresses.erase(rng_su.first, rng_su.second);
@@ -1045,7 +1060,7 @@ namespace nodetool
                   }
                   //find known_addresses redirected supernode ids
                   std::set_intersection(addresses.begin(), addresses.end(),
-                                        m_redirect_supernode_ids.begin(), m_redirect_supernode_ids.end(),
+                                        redirect_supernode_ids.begin(), redirect_supernode_ids.end(),
                                         std::back_inserter(known_addresses));
                   //find unknown_addresses
                   std::set_difference(addresses.begin(), addresses.end(),
@@ -1066,7 +1081,7 @@ namespace nodetool
               else
               {
                   MDEBUG("==> empty redirect found");
-                  send_to_supenode = true;
+                  send_to_supenode = !supernode_id.empty();
               }
 
               if(send_to_supenode)
@@ -2279,7 +2294,7 @@ namespace nodetool
 //          LOG_PRINT_L0("P2P Request: do_broadcast: lock");
 //          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
 //          LOG_PRINT_L0("P2P Request: do_broadcast: unlock");
-          if (m_have_supernode)
+          if (has_supernode())
           {
               post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
           }
@@ -2591,7 +2606,7 @@ namespace nodetool
 
     boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
 
-    if (!m_have_supernode)
+    if (!has_supernode())
       return;
 
     LOG_PRINT_L0("handle_stake_transactions_update to supernode");
