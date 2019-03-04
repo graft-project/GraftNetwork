@@ -221,9 +221,11 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
 void StakeTransactionProcessor::process_block_blockchain_based_list(uint64_t block_index, const block& block, bool update_storage)
 {
+  uint64_t prev_block_height = m_blockchain_based_list.block_height();
+
   m_blockchain_based_list.apply_block(block_index, block.hash, m_storage);
 
-  if (m_blockchain_based_list.need_store())
+  if (m_blockchain_based_list.need_store() || prev_block_height != m_blockchain_based_list.block_height())
   {
     m_blockchain_based_list_need_update = true;
 
@@ -303,20 +305,16 @@ void StakeTransactionProcessor::synchronize()
   }
 
   if (m_blockchain_based_list.need_store())
-  {
-    m_blockchain_based_list_need_update = true;
-
     m_blockchain_based_list.store();
-  }
 
   if (m_storage.need_store())
     m_storage.store();
 
   if (m_stake_transactions_need_update && m_on_stake_transactions_update)
-  {
     invoke_update_stake_transactions_handler_impl();
-    m_stake_transactions_need_update = false;
-  }
+
+  if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
+    invoke_update_blockchain_based_list_handler_impl();
 
   if (need_finalize_log_messages)
     MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
@@ -348,6 +346,8 @@ void StakeTransactionProcessor::invoke_update_stake_transactions_handler_impl()
     }
 
     m_on_stake_transactions_update(valid_stake_txs);
+
+    m_stake_transactions_need_update = false;
   }
   catch (std::exception& e)
   {
@@ -382,6 +382,8 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl
       return; //empty blockchain based list
 
     m_on_blockchain_based_list_update(m_blockchain_based_list.block_height(), m_blockchain_based_list.tiers());
+
+    m_blockchain_based_list_need_update = false;
   }
   catch (std::exception& e)
   {
