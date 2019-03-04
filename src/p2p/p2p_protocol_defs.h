@@ -219,52 +219,6 @@ namespace nodetool
       struct response : public cryptonote::COMMAND_RPC_BROADCAST::response { };
   };
 
-  struct COMMAND_MULTICAST
-  {
-      const static int ID = P2P_COMMANDS_POOL_BASE + 22;
-
-      struct request : public cryptonote::COMMAND_RPC_MULTICAST::request
-      {
-          uint64_t hop;
-          std::string message_id;
-
-          BEGIN_KV_SERIALIZE_MAP()
-            KV_SERIALIZE(receiver_addresses)
-            KV_SERIALIZE(sender_address)
-            KV_SERIALIZE(callback_uri)
-            KV_SERIALIZE(data)
-            KV_SERIALIZE(wait_answer)
-            KV_SERIALIZE(hop)
-            KV_SERIALIZE(message_id)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response : public cryptonote::COMMAND_RPC_MULTICAST::response { };
-  };
-
-  struct COMMAND_UNICAST
-  {
-      const static int ID = P2P_COMMANDS_POOL_BASE + 23;
-
-      struct request : public cryptonote::COMMAND_RPC_UNICAST::request
-      {
-          uint64_t hop;
-          std::string message_id;
-
-          BEGIN_KV_SERIALIZE_MAP()
-            KV_SERIALIZE(receiver_address)
-            KV_SERIALIZE(sender_address)
-            KV_SERIALIZE(callback_uri)
-            KV_SERIALIZE(data)
-            KV_SERIALIZE(wait_answer)
-            KV_SERIALIZE(hop)
-            KV_SERIALIZE(message_id)
-          END_KV_SERIALIZE_MAP()
-      };
-
-      struct response : public cryptonote::COMMAND_RPC_UNICAST::response { };
-  };
-
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/

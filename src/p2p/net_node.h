@@ -153,16 +153,6 @@ namespace nodetool
      * \param req
      */
     void do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req, uint64_t hop = 0);
-    /*!
-     * \brief do_multicast - posts multicast message to p2p network
-     * \param req
-     */
-    void do_multicast(const cryptonote::COMMAND_RPC_MULTICAST::request &req);
-    /*!
-     * \brief do_unicast - posts unicast message to p2p network
-     * \param req
-     */
-    void do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req);
 
     std::vector<cryptonote::route_data> get_tunnels() const;
 
@@ -185,8 +175,6 @@ namespace nodetool
     BEGIN_INVOKE_MAP2(node_server)
       HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
       HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_broadcast)
-      HANDLE_NOTIFY_T2(COMMAND_MULTICAST, &node_server::handle_multicast)
-      HANDLE_NOTIFY_T2(COMMAND_UNICAST, &node_server::handle_unicast)
 
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
@@ -203,8 +191,6 @@ namespace nodetool
     enum PeerType { anchor = 0, white, gray };
 
     //----------------- helper functions ------------------------------------------------
-    bool multicast_send(int command, const std::string &data, const std::list<std::string> &addresses,
-                        const std::list<peerid_type> &exclude_peerids = std::list<peerid_type>());
     uint64_t get_max_hop(const std::list<std::string> &addresses);
     std::list<std::string> get_routes();
 
@@ -242,8 +228,6 @@ namespace nodetool
     //----------------- commands handlers ----------------------------------------------
     int handle_supernode_announce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
     int handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
-    int handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context);
-    int handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context);
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);
