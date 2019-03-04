@@ -57,7 +57,7 @@ protected:
     bool Transfer(const rpc_command::TRANSFER::request &in, rpc_command::TRANSFER::response &out);
 
 private:
-    bool validate_transfer(const string &account, const string &password,
+    bool validate_transfer(tools::GraftWallet *wallet,
                            const std::string &address, uint64_t amount,
                            const std::string payment_id,
                            std::vector<cryptonote::tx_destination_entry>& dsts,
