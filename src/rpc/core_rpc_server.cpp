@@ -1834,6 +1834,14 @@ namespace cryptonote
           return false;
       }
 
+      {//MDEBUG
+          std::ostringstream oss;
+          oss << "{ receiver_addresses : '";
+          for(auto& it : req.receiver_addresses) { oss << it << "; "; }
+          oss << "'\n callback_uri : '" << req.callback_uri << "'}";
+          MDEBUG("core_rpc_server::on_broadcast : ") << oss.str();
+      }
+
       m_p2p.do_broadcast(req);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_broadcast: end");
@@ -1908,6 +1916,24 @@ namespace cryptonote
       m_p2p.do_unicast(req);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_unicast: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_register_supernode(const COMMAND_RPC_REGISTER_SUPERNODE::request& req, COMMAND_RPC_REGISTER_SUPERNODE::response& res, epee::json_rpc::error& error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_register_supernode: start");
+      if (!check_core_busy())
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+        error_resp.message = "Core is busy.";
+        return false;
+      }
+
+      m_p2p.register_supernode(req.supernode_id, req.supernode_url, req.redirect_uri);
+
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_register_supernode: end");
       return true;
   }
 

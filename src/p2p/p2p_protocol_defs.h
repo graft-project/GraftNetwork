@@ -206,6 +206,7 @@ namespace nodetool
           std::string message_id;
 
           BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(receiver_addresses)
             KV_SERIALIZE(sender_address)
             KV_SERIALIZE(callback_uri)
             KV_SERIALIZE(data)

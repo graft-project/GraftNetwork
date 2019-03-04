@@ -1806,6 +1806,29 @@ namespace cryptonote
     };
   };
 
+  struct COMMAND_RPC_REGISTER_SUPERNODE
+  {
+    struct request
+    {
+      std::string supernode_id; //supernode public identification key
+      std::string supernode_url; //base URL for forwarding requests to supernode
+      std::string redirect_uri; //special uri for UDHT protocol redirection mechanism
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernode_id)
+        KV_SERIALIZE(supernode_url)
+        KV_SERIALIZE(redirect_uri)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
   struct COMMAND_RPC_REDIRECT_SUPERNODE_ID
   {
     enum command
@@ -1838,15 +1861,38 @@ namespace cryptonote
   {
     struct request
     {
+      std::list<std::string> receiver_addresses;
       std::string sender_address;
       std::string callback_uri;
       std::string data;
       bool wait_answer;
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(receiver_addresses)
         KV_SERIALIZE(sender_address)
         KV_SERIALIZE(callback_uri)
         KV_SERIALIZE(data)
         KV_SERIALIZE(wait_answer)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_REDIRECT_BROADCAST
+  {
+    struct request
+    {
+      std::string receiver_id;
+      COMMAND_RPC_BROADCAST::request request;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(receiver_id)
+        KV_SERIALIZE(request)
       END_KV_SERIALIZE_MAP()
     };
 

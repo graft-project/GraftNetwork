@@ -152,7 +152,7 @@ namespace nodetool
      * \brief do_broadcast - posts broadcast message to p2p network
      * \param req
      */
-    void do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req);
+    void do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req, uint64_t hop = 0);
     /*!
      * \brief do_multicast - posts multicast message to p2p network
      * \param req
@@ -408,6 +408,17 @@ namespace nodetool
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
+    void register_supernode(const std::string& supernode_id, const std::string& supernode_url, const std::string& redirect_uri)
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        m_supernode_id = supernode_id;
+        m_supernode_url = supernode_url;
+        m_redirect_uri = redirect_uri;
+
+        m_supernode_uri = supernode_url;
+        set_supernode(supernode_id, supernode_url);
+    }
+
     void redirect_id_clear()
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -442,7 +453,10 @@ namespace nodetool
     boost::recursive_mutex m_request_cache_lock;
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
 
-    boost::recursive_mutex m_redirect_supernode_ids_lock;
+    std::string m_supernode_id; //supernode public identification key
+    std::string m_supernode_url; //base URL for forwarding requests to supernode
+    std::string m_redirect_uri; //special uri for UDHT protocol redirection mechanism
+
     std::set<std::string> m_redirect_supernode_ids; //recipients ids to redirect to the supernode
 
     std::string m_config_folder;
