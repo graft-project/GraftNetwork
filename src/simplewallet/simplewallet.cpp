@@ -61,6 +61,7 @@
 #include "common/json_util.h"
 #include "ringct/rctSigs.h"
 #include "wallet/wallet_args.h"
+#include "../graft_rta_config.h"
 #include <stdexcept>
 
 #ifdef HAVE_READLINE
@@ -763,7 +764,7 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("transfer", boost::bind(&simple_wallet::transfer_new, this, _1), tr("transfer [<priority>] [<ring_size>] <address> <amount> [<payment_id>] - Transfer <amount> to <address>. <priority> is the priority of the transaction. The higher the priority, the higher the fee of the transaction. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
   m_cmd_binder.set_handler("transfer_zf", boost::bind(&simple_wallet::transfer_zero_fee, this, _1), tr("transfer_zf [<priority>] [<ring_size>] <address> <amount> [<payment_id>] - Transfer <amount> to <address>. <priority> is the priority of the transaction. The higher the priority, the higher the fee of the transaction. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
   m_cmd_binder.set_handler("locked_transfer", boost::bind(&simple_wallet::locked_transfer, this, _1), tr("locked_transfer [<ring_size>] <addr> <amount> <lockblocks>(Number of blocks to lock the transaction for, max 1000000) [<payment_id>]"));
-  m_cmd_binder.set_handler("stake_transfer", boost::bind(&simple_wallet::stake_transfer, this, _1), tr("stake_transfer [<ring_size>] <addr> <amount> <lockblocks>(Number of blocks to lock the stake transaction for, max 1000000) <sn_public_wallet_address> <sn_public_id_key> <sn_signature> [<payment_id>]"));
+  m_cmd_binder.set_handler("stake_transfer", boost::bind(&simple_wallet::stake_transfer, this, _1), tr("stake_transfer [<ring_size>] <addr> <amount> <lockblocks>(Number of blocks to lock the stake transaction for, max 1000000) <sn_public_id_key> <sn_signature> [<payment_id>]"));
   m_cmd_binder.set_handler("sweep_unmixable", boost::bind(&simple_wallet::sweep_unmixable, this, _1), tr("Send all unmixable outputs to yourself with ring_size 1"));
   m_cmd_binder.set_handler("sweep_all", boost::bind(&simple_wallet::sweep_all, this, _1), tr("sweep_all [ring_size] address [payment_id] - Send all unlocked balance to an address"));
   m_cmd_binder.set_handler("sweep_below", boost::bind(&simple_wallet::sweep_below, this, _1), tr("sweep_below <amount_threshold> [ring_size] address [payment_id] - Send all unlocked outputs below the threshold to an address"));
@@ -2378,7 +2379,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
   switch(transfer_type)
   {
     case TransferStake:
-      min_args = 6;
+      min_args = 5;
     break;
     case TransferLocked:
       min_args = 3;
@@ -2395,7 +2396,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
 
   std::vector<uint8_t> extra;
   bool payment_id_seen = false;
-  bool expect_even = transfer_type == TransferLocked;
+  bool expect_even = transfer_type == TransferLocked || transfer_type == TransferStake;
   if ((expect_even ? 0 : 1) == local_args.size() % 2)
   {
     std::string payment_id_str = local_args.back();
@@ -2430,7 +2431,6 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
   }
 
   std::string supernode_public_id;
-  cryptonote::account_public_address supernode_public_address;
   crypto::signature supernode_signature;
 
   if (transfer_type == TransferStake)
@@ -2445,28 +2445,6 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
 
     supernode_public_id = local_args.back();
     local_args.pop_back();
-
-    bool has_payment_id;
-    crypto::hash8 new_payment_id;
-    if (!cryptonote::get_account_address_from_str_or_url(supernode_public_address, has_payment_id, new_payment_id, m_wallet->testnet(), local_args.back(), oa_prompter))
-    {
-      fail_msg_writer() << tr("failed to parse supernode public wallet address");
-      return true;
-    }
-    
-    if (has_payment_id)
-    {
-      fail_msg_writer() << tr("supernode public wallet address can't be a payment_id ") << local_args.back();
-      return true;
-    }
-
-    local_args.pop_back();
-
-    if (!add_graft_stake_tx_extra_to_extra(extra, supernode_public_id, supernode_public_address, supernode_signature))
-    {
-      fail_msg_writer() << tr("failed to add stake transaction extra fields");
-      return true;
-    }
   }
 
   uint64_t locked_blocks = 0;
@@ -2496,6 +2474,12 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
       fail_msg_writer() << tr("transaction cancelled.");
       return true; 
     }
+  }
+
+  if (transfer_type == TransferStake && local_args.size() != 2)
+  {
+      fail_msg_writer() << tr("stake transaction must be sent to a single destination");
+      return true;
   }
 
   vector<cryptonote::tx_destination_entry> dsts;
@@ -2538,6 +2522,55 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     }
 
     dsts.push_back(de);
+  }
+
+  if (transfer_type == TransferStake)
+  {
+    const cryptonote::account_public_address& supernode_public_address = dsts.front().addr;
+
+    crypto::public_key W;
+    if (!epee::string_tools::hex_to_pod(supernode_public_id, W) || !check_key(W))
+    {
+      fail_msg_writer() << tr("invalid supernode public identifier '") << supernode_public_id << tr("'");
+      return true;
+    }
+
+    std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_wallet->testnet(), supernode_public_address);
+    std::string data = supernode_public_address_str + ":" + supernode_public_id;
+    crypto::hash hash;
+    crypto::cn_fast_hash(data.data(), data.size(), hash);
+
+    if (!crypto::check_signature(hash, W, supernode_signature))
+    {
+      fail_msg_writer() << tr("invalid supernode signature");
+      return true;
+    }
+
+    if (locked_blocks < config::graft::STAKE_MIN_UNLOCK_TIME)
+    {
+      fail_msg_writer() << tr("locked blocks number ") << locked_blocks << tr(" is less than minimum required ") << config::graft::STAKE_MIN_UNLOCK_TIME;
+      return true;
+    }
+
+    if (locked_blocks > config::graft::STAKE_MAX_UNLOCK_TIME)
+    {
+      fail_msg_writer() << tr("locked blocks number ") << locked_blocks << tr(" is greater than maximum allowed ") << config::graft::STAKE_MAX_UNLOCK_TIME;
+      return true;
+    }
+
+    uint64_t amount = dsts.front().amount;
+
+    if (amount < config::graft::TIER1_STAKE_AMOUNT)
+    {
+      fail_msg_writer() << tr("locked amount ") << double(amount) / COIN << tr(" is less than minimum required ") << double(config::graft::TIER1_STAKE_AMOUNT) / COIN;
+      return true;
+    }
+
+    if (!add_graft_stake_tx_extra_to_extra(extra, supernode_public_id, supernode_public_address, supernode_signature))
+    {
+      fail_msg_writer() << tr("failed to add stake transaction extra fields");
+      return true;
+    }
   }
 
   // prompt is there is no payment id and confirmation is required
