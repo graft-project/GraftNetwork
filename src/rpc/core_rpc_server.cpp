@@ -1886,8 +1886,8 @@ namespace cryptonote
       }
 
       // validate input parameters
-      bool id_ok = false;
-      if(!req.id.empty())
+      bool id_ok = !req.id.empty();
+      if(id_ok)
       {
         crypto::public_key id;
         id_ok = id_ok && epee::string_tools::hex_to_pod(req.id, id);
