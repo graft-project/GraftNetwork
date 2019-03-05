@@ -1,6 +1,6 @@
 .DS_Store
 /doc
-/build
+/build*
 /tags
 log/
 
@@ -104,3 +104,6 @@ local.properties
 .idea/
 
 /testnet
+
+.ycm*
+

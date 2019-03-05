@@ -3557,6 +3557,8 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
   if (json.Parse(account_data.c_str()).HasParseError() || !json.IsObject())
     crypto::chacha8(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
 
+  bool encrypted_secret_keys = false;
+
   // The contents should be JSON if the wallet follows the new format.
   if (json.Parse(account_data.c_str()).HasParseError())
   {
@@ -3591,7 +3593,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
     m_subaddress_lookahead_minor = SUBADDRESS_LOOKAHEAD_MINOR;
     m_device_name = "";
     m_key_device_type = hw::device::device_type::SOFTWARE;
-    //encrypted_secret_keys = false;
+    encrypted_secret_keys = false;
   }
   else if(json.IsObject())
   {
@@ -3734,14 +3736,16 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
                               (boost::format("%s wallet cannot be opened as %s wallet")
                                % (field_nettype == 0 ? "Mainnet" : field_nettype == 1 ? "Testnet" : "Stagenet")
                                % (m_nettype == MAINNET ? "mainnet" : m_nettype == TESTNET ? "testnet" : "stagenet")).str());
+
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, segregate_pre_fork_outputs, int, Int, false, true);
     m_segregate_pre_fork_outputs = field_segregate_pre_fork_outputs;
+
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, key_reuse_mitigation2, int, Int, false, true);
     m_key_reuse_mitigation2 = field_key_reuse_mitigation2;
+
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, segregation_height, int, Uint, false, 0);
     m_segregation_height = field_segregation_height;
 
-    /*
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ignore_fractional_outputs, int, Int, false, true);
     m_ignore_fractional_outputs = field_ignore_fractional_outputs;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, subaddress_lookahead_major, uint32_t, Uint, false, SUBADDRESS_LOOKAHEAD_MAJOR);
@@ -3753,9 +3757,9 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
     encrypted_secret_keys = field_encrypted_secret_keys;
 
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, device_name, std::string, String, false, std::string());
-    if (m_device_name.empty())
+    if(m_device_name.empty())
     {
-      if (field_device_name_found)
+      if(field_device_name_found)
       {
         m_device_name = field_device_name;
       }
@@ -3764,7 +3768,6 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
         m_device_name = m_key_device_type == hw::device::device_type::LEDGER ? "Ledger" : "default";
       }
     }
-    */
   }
   else
   {
@@ -3774,7 +3777,8 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
 
   r = epee::serialization::load_t_from_binary(m_account, account_data);
   THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
-  if (m_key_device_type == hw::device::device_type::LEDGER) {
+  if(m_key_device_type == hw::device::device_type::LEDGER)
+  {
     LOG_PRINT_L0("Account on device. Initing device...");
     hw::device &hwdev = hw::get_device(m_device_name);
     hwdev.set_name(m_device_name);
@@ -3782,13 +3786,15 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
     hwdev.connect();
     m_account.set_device(hwdev);
     LOG_PRINT_L0("Device inited...");
-  } else if (key_on_device()) {
+  }
+  else if(key_on_device())
+  {
     THROW_WALLET_EXCEPTION(error::wallet_internal_error, "hardware device not supported");
   }
 
-  if (r)
+  //MDEBUG("wallet2::load_keys_from_buffer ----- 01  r:" << r);
+  if(r)
   {
-    /*
     if (encrypted_secret_keys)
     {
       m_account.decrypt_keys(key);
@@ -3808,16 +3814,20 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
         decrypt_keys(key);
       m_keys_file_locker.reset();
     }
-    */
   }
+
   const cryptonote::account_keys& keys = m_account.get_keys();
   hw::device &hwdev = m_account.get_device();
   r = r && hwdev.verify_keys(keys.m_view_secret_key,  keys.m_account_address.m_view_public_key);
+
+  //MDEBUG("wallet2::load_keys_from_buffer ----- 02  r:" << r
+  //  << "  sec-key:" << keys.m_view_secret_key << "  pub-key:" << keys.m_account_address.m_view_public_key);
+
   if(!m_watch_only && !m_multisig)
     r = r && hwdev.verify_keys(keys.m_spend_secret_key, keys.m_account_address.m_spend_public_key);
   THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
 
-  if (r)
+  if(r)
     setup_keys(password);
 
   return true;

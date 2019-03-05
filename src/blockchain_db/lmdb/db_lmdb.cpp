@@ -37,6 +37,7 @@
 #include "string_tools.h"
 #include "file_io_utils.h"
 #include "common/util.h"
+#include "common/stack_trace.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "crypto/crypto.h"
 #include "profile_tools.h"
@@ -1170,6 +1171,8 @@ BlockchainLMDB::BlockchainLMDB(bool batch_transactions): BlockchainDB()
   // reset may also need changing when initialize things here
 
   m_hardfork = nullptr;
+  LOG_PRINT_L3("before ### LOG-STACK-TRACE ###");
+  tools::log_stack_trace("### LOG-STACK-TRACE ###");
 }
 
 void BlockchainLMDB::open(const std::string& filename, const int db_flags)
@@ -1177,7 +1180,7 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
   int result;
   int mdb_flags = MDB_NORDAHEAD;
 
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__ << "\nfile: [" << filename << "]");
 
   if (m_open)
     throw0(DB_OPEN_FAILURE("Attempted to open db, but it's already open"));
