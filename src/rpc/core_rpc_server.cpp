@@ -1829,10 +1829,11 @@ namespace cryptonote
 
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
       std::string sender_address = req.sender_address;
-      if (!sender_address.empty() && !cryptonote::get_account_address_from_str(acc, m_testnet, sender_address))
+      crypto::public_key dummy_key;
+      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
       {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-          error_resp.message = "Failed to parse wallet address";
+          error_resp.message = "Failed to parse sender id";
           return false;
       }
 
@@ -1854,21 +1855,22 @@ namespace cryptonote
       }
 
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+      crypto::public_key dummy_key;
       for (auto addr : req.receiver_addresses)
       {
-          if (addr.empty() || !cryptonote::get_account_address_from_str(acc, m_testnet, addr))
+          if (addr.empty() || !epee::string_tools::hex_to_pod(addr, dummy_key))
           {
               error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-              error_resp.message = "Failed to parse wallet address";
+              error_resp.message = "Failed to parse receiver id";
               return false;
           }
       }
 
       std::string sender_address = req.sender_address;
-      if (!sender_address.empty() && !cryptonote::get_account_address_from_str(acc, m_testnet, sender_address))
+      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
       {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-          error_resp.message = "Failed to parse wallet address";
+          error_resp.message = "Failed to parse sender id";
           return false;
       }
 
@@ -1892,18 +1894,19 @@ namespace cryptonote
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
 
       std::string receiver_address = req.receiver_address;
-      if (receiver_address.empty() || !cryptonote::get_account_address_from_str(acc, m_testnet, receiver_address))
+      crypto::public_key dummy_key;
+      if (receiver_address.empty() || !epee::string_tools::hex_to_pod(receiver_address, dummy_key))
       {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-          error_resp.message = "Failed to parse wallet address";
+          error_resp.message = "Failed to parse receiver id";
           return false;
       }
 
       std::string sender_address = req.sender_address;
-      if (!sender_address.empty() && !cryptonote::get_account_address_from_str(acc, m_testnet, sender_address))
+      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
       {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-          error_resp.message = "Failed to parse wallet address";
+          error_resp.message = "Failed to parse sender id";
           return false;
       }
 
