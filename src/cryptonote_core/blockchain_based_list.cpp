@@ -160,7 +160,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
       //update tier
 
-    LOG_PRINT_L0("Blockchain based list has been built for block " << block_height << " and tier " << i << " with " << new_supernodes.size() << " supernode(s)");
+    //LOG_PRINT_L0("Blockchain based list has been built for block " << block_height << " and tier " << i << " with " << new_supernodes.size() << " supernode(s)");
 
     new_tier.emplace_back(std::move(new_supernodes));
   }

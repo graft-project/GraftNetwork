@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 
 #include "blockchain.h"
 #include "cryptonote_core/blockchain_based_list.h"
@@ -16,8 +17,8 @@ public:
 
   StakeTransactionProcessor(Blockchain& blockchain);
 
-  /// Process block
-  void process_block(uint64_t block_index, const block& block, bool update_storage = true);
+  /// Initialize storages
+  void init_storages(const std::string& config_dir);
 
   /// Synchronize with blockchain
   void synchronize();
@@ -40,6 +41,7 @@ public:
   void invoke_update_blockchain_based_list_handler(bool force = true);
 
 private:
+  void process_block(uint64_t block_index, const block& block, bool update_storage = true);
   void invoke_update_stake_transactions_handler_impl();
   void invoke_update_blockchain_based_list_handler_impl();
   void process_block_stake_transaction(uint64_t block_index, const block& block, bool update_storage = true);
@@ -47,8 +49,8 @@ private:
 
 private:
   Blockchain& m_blockchain;
-  StakeTransactionStorage m_storage;
-  BlockchainBasedList m_blockchain_based_list;
+  std::unique_ptr<StakeTransactionStorage> m_storage;
+  std::unique_ptr<BlockchainBasedList> m_blockchain_based_list;
   epee::critical_section m_storage_lock;
   stake_transactions_update_handler m_on_stake_transactions_update;
   blockchain_based_list_update_handler m_on_blockchain_based_list_update;

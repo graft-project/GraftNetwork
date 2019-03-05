@@ -38,8 +38,6 @@ bool stake_transaction::is_valid(uint64_t block_index) const
 
 StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
   : m_blockchain(blockchain)
-  , m_storage(STAKE_TRANSACTION_STORAGE_FILE_NAME)
-  , m_blockchain_based_list(BLOCKCHAIN_BASED_LIST_FILE_NAME)
   , m_stake_transactions_need_update(true)
   , m_blockchain_based_list_need_update(true)
 {
@@ -115,9 +113,18 @@ uint64_t get_transaction_amount(const transaction& tx, const account_public_addr
 
 }
 
+void StakeTransactionProcessor::init_storages(const std::string& config_dir)
+{
+  if (m_storage || m_blockchain_based_list)
+    throw std::runtime_error("StakeTransactionProcessor storages have been already initialized");
+
+  m_storage.reset(new StakeTransactionStorage(config_dir + "/" + STAKE_TRANSACTION_STORAGE_FILE_NAME));
+  m_blockchain_based_list.reset(new BlockchainBasedList(config_dir + "/" + BLOCKCHAIN_BASED_LIST_FILE_NAME));
+}
+
 void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_index, const block& block, bool update_storage)
 {
-  if (block_index <= m_storage.get_last_processed_block_index())
+  if (block_index <= m_storage->get_last_processed_block_index())
     return;
 
   BlockchainDB& db = m_blockchain.get_db();
@@ -189,7 +196,7 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
       continue;
     }
 
-    m_storage.add_tx(stake_tx);
+    m_storage->add_tx(stake_tx);
 
     m_stake_transactions_need_update = true;
 
@@ -197,9 +204,9 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
       << "', amount=" << amount / double(COIN));
   }
 
-  uint64_t prev_block = m_storage.get_last_processed_block_index();
+  uint64_t prev_block = m_storage->get_last_processed_block_index();
 
-  const stake_transaction_array& stake_txs = m_storage.get_txs();
+  const stake_transaction_array& stake_txs = m_storage->get_txs();
 
   for (const stake_transaction& tx : stake_txs)
   {
@@ -213,24 +220,24 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
     }
   }
 
-  m_storage.add_last_processed_block(block_index, db.get_block_hash_from_height(block_index));
+  m_storage->add_last_processed_block(block_index, db.get_block_hash_from_height(block_index));
 
   if (update_storage)
-    m_storage.store();
+    m_storage->store();
 }
 
 void StakeTransactionProcessor::process_block_blockchain_based_list(uint64_t block_index, const block& block, bool update_storage)
 {
-  uint64_t prev_block_height = m_blockchain_based_list.block_height();
+  uint64_t prev_block_height = m_blockchain_based_list->block_height();
 
-  m_blockchain_based_list.apply_block(block_index, block.hash, m_storage);
+  m_blockchain_based_list->apply_block(block_index, block.hash, *m_storage);
 
-  if (m_blockchain_based_list.need_store() || prev_block_height != m_blockchain_based_list.block_height())
+  if (m_blockchain_based_list->need_store() || prev_block_height != m_blockchain_based_list->block_height())
   {
     m_blockchain_based_list_need_update = true;
 
     if (update_storage)
-      m_blockchain_based_list.store();
+      m_blockchain_based_list->store();
   }
 }
 
@@ -244,19 +251,22 @@ void StakeTransactionProcessor::synchronize()
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
 
+  if (!m_storage || !m_blockchain_based_list)
+    throw std::runtime_error("StakeTransactionProcessor storages have not been initialized");
+
   BlockchainDB& db = m_blockchain.get_db();
 
     //unroll already processed blocks for alternative chains
   
   for (;;)
   {
-    size_t   stake_tx_count = m_storage.get_tx_count();
-    uint64_t last_processed_block_index = m_storage.get_last_processed_block_index();
+    size_t   stake_tx_count = m_storage->get_tx_count();
+    uint64_t last_processed_block_index = m_storage->get_last_processed_block_index();
 
     if (!last_processed_block_index)
       break;
     
-    const crypto::hash& last_processed_block_hash  = m_storage.get_last_processed_block_hash();
+    const crypto::hash& last_processed_block_hash  = m_storage->get_last_processed_block_hash();
     crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
 
     if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
@@ -264,22 +274,22 @@ void StakeTransactionProcessor::synchronize()
 
     MCLOG(el::Level::Info, "global", "Stake transactions processing: unroll block " << last_processed_block_index);
 
-    m_storage.remove_last_processed_block();
+    m_storage->remove_last_processed_block();
 
-    if (stake_tx_count != m_storage.get_tx_count())
+    if (stake_tx_count != m_storage->get_tx_count())
       m_stake_transactions_need_update = true;
 
-    if (m_blockchain_based_list.block_height() == last_processed_block_index)
-      m_blockchain_based_list.remove_latest_block();
+    if (m_blockchain_based_list->block_height() == last_processed_block_index)
+      m_blockchain_based_list->remove_latest_block();
   }
 
     //apply new blocks
 
-  uint64_t first_block_index = m_storage.get_last_processed_block_index() + 1,
+  uint64_t first_block_index = m_storage->get_last_processed_block_index() + 1,
            height = db.height();
 
-  if (first_block_index > m_blockchain_based_list.block_height() + 1)
-    first_block_index = m_blockchain_based_list.block_height() + 1;
+  if (first_block_index > m_blockchain_based_list->block_height() + 1)
+    first_block_index = m_blockchain_based_list->block_height() + 1;
 
   static const uint64_t SYNC_DEBUG_LOG_STEP = 10000;
 
@@ -304,11 +314,11 @@ void StakeTransactionProcessor::synchronize()
     process_block(i, block, false);
   }
 
-  if (m_blockchain_based_list.need_store())
-    m_blockchain_based_list.store();
+  if (m_blockchain_based_list->need_store())
+    m_blockchain_based_list->store();
 
-  if (m_storage.need_store())
-    m_storage.store();
+  if (m_storage->need_store())
+    m_storage->store();
 
   if (m_stake_transactions_need_update && m_on_stake_transactions_update)
     invoke_update_stake_transactions_handler_impl();
@@ -331,7 +341,7 @@ void StakeTransactionProcessor::invoke_update_stake_transactions_handler_impl()
   try
   {
     stake_transaction_array valid_stake_txs;
-    const stake_transaction_array& stake_txs = m_storage.get_txs();
+    const stake_transaction_array& stake_txs = m_storage->get_txs();
 
     valid_stake_txs.reserve(stake_txs.size());
 
@@ -378,10 +388,10 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl
 {
   try
   {
-    if (!m_blockchain_based_list.block_height())
+    if (!m_blockchain_based_list->block_height())
       return; //empty blockchain based list
 
-    m_on_blockchain_based_list_update(m_blockchain_based_list.block_height(), m_blockchain_based_list.tiers());
+    m_on_blockchain_based_list_update(m_blockchain_based_list->block_height(), m_blockchain_based_list->tiers());
 
     m_blockchain_based_list_need_update = false;
   }

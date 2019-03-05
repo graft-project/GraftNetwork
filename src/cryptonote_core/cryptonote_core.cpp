@@ -312,6 +312,9 @@ namespace cryptonote
     // folder might not be a directory, etc, etc
     catch (...) { }
 
+    MGINFO("Initialize stake transaction processor");
+    m_graft_stake_transaction_processor.init_storages(m_config_folder);
+
     BlockchainDB* db = new_db(db_type);
     if (db == NULL)
     {
@@ -1088,11 +1091,6 @@ namespace cryptonote
     if (!m_blockchain_storage.add_new_block(b, bvc))
       return false;
 
-//    if (bvc.m_added_to_main_chain)
-//    {
-//      uint64_t block_height = m_blockchain_storage.get_db().get_block_height(b.hash);
-//      m_graft_stake_transaction_processor.process_block(block_height, b);
-//    }
     m_graft_stake_transaction_processor.synchronize();
 
     return true;
