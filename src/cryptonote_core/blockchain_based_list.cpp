@@ -24,12 +24,19 @@ BlockchainBasedList::BlockchainBasedList(const std::string& m_storage_file_name)
   load();
 }
 
-const BlockchainBasedList::supernode_tier_array& BlockchainBasedList::tiers() const
+const BlockchainBasedList::supernode_tier_array& BlockchainBasedList::tiers(size_t depth) const
 {
-  if (m_history.empty())
-    throw std::runtime_error("internal error: attempt to get tier from empty blockchain based list");
+  if (depth >= m_history_depth)
+    throw std::runtime_error("internal error: attempt to get tier which is not present in a blockchain based list");
 
-  return m_history.back();
+  if (!depth)
+    return m_history.back();
+
+  list_history::const_reverse_iterator it = m_history.rbegin();
+
+  std::advance(it, depth);
+
+  return *it;
 }
 
 namespace

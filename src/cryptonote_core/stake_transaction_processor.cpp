@@ -324,7 +324,7 @@ void StakeTransactionProcessor::synchronize()
     invoke_update_stake_transactions_handler_impl();
 
   if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
-    invoke_update_blockchain_based_list_handler_impl();
+    invoke_update_blockchain_based_list_handler_impl(height - first_block_index);
 
   if (need_finalize_log_messages)
     MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
@@ -384,14 +384,20 @@ void StakeTransactionProcessor::set_on_update_blockchain_based_list_handler(cons
   m_on_blockchain_based_list_update = handler;
 }
 
-void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl()
+void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl(size_t depth)
 {
   try
   {
     if (!m_blockchain_based_list->block_height())
       return; //empty blockchain based list
 
-    m_on_blockchain_based_list_update(m_blockchain_based_list->block_height(), m_blockchain_based_list->tiers());
+    if (depth > m_blockchain_based_list->history_depth())
+      depth = m_blockchain_based_list->history_depth();
+
+    uint64_t height = m_blockchain_based_list->block_height();
+
+    for (size_t i=0; i<depth; i++)
+      m_on_blockchain_based_list_update(height - i, m_blockchain_based_list->tiers(i));
 
     m_blockchain_based_list_need_update = false;
   }
@@ -401,15 +407,18 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl
   }
 }
 
-void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler(bool force)
+void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler(bool force, size_t depth)
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
 
   if (!m_on_blockchain_based_list_update)
     return;
-  
+
+  if (depth > 1)
+    force = true;
+
   if (!m_blockchain_based_list_need_update && !force)
     return;
 
-  invoke_update_blockchain_based_list_handler_impl();
+  invoke_update_blockchain_based_list_handler_impl(depth);
 }

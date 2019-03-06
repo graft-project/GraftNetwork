@@ -1113,7 +1113,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   void core::invoke_update_blockchain_based_list_handler()
   {
-    m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true);
+    m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, size_t(-1));
   }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::list<block_complete_entry> &blocks)

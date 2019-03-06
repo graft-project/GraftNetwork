@@ -34,10 +34,13 @@ public:
   BlockchainBasedList(const std::string& file_name);
 
   /// List of tiers
-  const supernode_tier_array& tiers() const;
+  const supernode_tier_array& tiers(size_t depth = 0) const;
 
   /// Height of the corresponding block
   uint64_t block_height() const { return m_block_height; }
+
+  /// Number of blocks in history
+  uint64_t history_depth() const { return m_history_depth; }
 
   /// Apply new block on top of the list
   void apply_block(uint64_t block_height, const crypto::hash& block_hash, StakeTransactionStorage& stake_txs);

@@ -38,12 +38,12 @@ public:
   void set_on_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&);
 
   /// Force invoke update handler for blockchain based list
-  void invoke_update_blockchain_based_list_handler(bool force = true);
+  void invoke_update_blockchain_based_list_handler(bool force = true, size_t depth = 1);
 
 private:
   void process_block(uint64_t block_index, const block& block, bool update_storage = true);
   void invoke_update_stake_transactions_handler_impl();
-  void invoke_update_blockchain_based_list_handler_impl();
+  void invoke_update_blockchain_based_list_handler_impl(size_t depth);
   void process_block_stake_transaction(uint64_t block_index, const block& block, bool update_storage = true);
   void process_block_blockchain_based_list(uint64_t block_index, const block& block, bool update_storage = true);
 
