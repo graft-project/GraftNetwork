@@ -408,6 +408,13 @@ namespace nodetool
     void send_stake_transactions_to_supernode();
     void send_blockchain_based_list_to_supernode();
 
+    uint64_t get_announce_bytes_in() const { return m_announce_bytes_in; }
+    uint64_t get_announce_bytes_out() const { return m_announce_bytes_out; }
+    uint64_t get_broadcast_bytes_in() const { return m_broadcast_bytes_in; }
+    uint64_t get_broadcast_bytes_out() const { return m_broadcast_bytes_out; }
+    uint64_t get_multicast_bytes_in() const { return m_multicast_bytes_in; }
+    uint64_t get_multicast_bytes_out() const { return m_multicast_bytes_out; }
+
   private:
     void handle_stake_transactions_update(const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs);
     void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
@@ -474,6 +481,16 @@ namespace nodetool
 
     epee::critical_section m_host_fails_score_lock;
     std::map<std::string, uint64_t> m_host_fails_score;
+
+    // traffic counters
+    std::atomic<uint64_t> m_announce_bytes_in {0};
+    std::atomic<uint64_t> m_announce_bytes_out {0};
+    std::atomic<uint64_t> m_broadcast_bytes_in {0};
+    std::atomic<uint64_t> m_broadcast_bytes_out {0};
+    std::atomic<uint64_t> m_multicast_bytes_in {0};
+    std::atomic<uint64_t> m_multicast_bytes_out {0};
+
+
 
     bool m_testnet;
   };

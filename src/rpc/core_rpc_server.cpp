@@ -1928,6 +1928,19 @@ namespace cryptonote
 
   //------------------------------------------------------------------------------------------------------------------------------
 
+  bool core_rpc_server::on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp)
+  {
+      res.announce_bytes_in = m_p2p.get_announce_bytes_in();
+      res.announce_bytes_out = m_p2p.get_announce_bytes_out();
+      res.broadcast_bytes_in = m_p2p.get_broadcast_bytes_in();
+      res.broadcast_bytes_out = m_p2p.get_broadcast_bytes_out();
+      res.multicast_bytes_in = m_p2p.get_multicast_bytes_in();
+      res.multicast_bytes_out = m_p2p.get_multicast_bytes_out();
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+
   const command_line::arg_descriptor<std::string> core_rpc_server::arg_rpc_bind_port = {
       "rpc-bind-port"
     , "Port for RPC server"

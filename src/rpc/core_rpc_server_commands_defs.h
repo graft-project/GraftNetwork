@@ -1980,4 +1980,31 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
   };
+
+  struct COMMAND_RPC_RTA_STATS
+  {
+    struct request
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      uint64_t announce_bytes_in;
+      uint64_t announce_bytes_out;
+      uint64_t broadcast_bytes_in;
+      uint64_t broadcast_bytes_out;
+      uint64_t multicast_bytes_in;
+      uint64_t multicast_bytes_out;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(announce_bytes_in)
+        KV_SERIALIZE(announce_bytes_out)
+        KV_SERIALIZE(broadcast_bytes_in)
+        KV_SERIALIZE(broadcast_bytes_out)
+        KV_SERIALIZE(multicast_bytes_in)
+        KV_SERIALIZE(multicast_bytes_out)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
 }

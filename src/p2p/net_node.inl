@@ -143,6 +143,16 @@ namespace nodetool
             }
         } while (out.empty());
     }
+    /*!
+     * helper to calculate p2p command size in bytes
+     */
+    template <typename T>
+    size_t get_command_size(const T &arg)
+    {
+        std::string buff;
+        epee::serialization::store_t_to_binary(arg, buff);
+        return buff.size();
+    }
 
   }
   //-----------------------------------------------------------------------------------
@@ -930,6 +940,8 @@ namespace nodetool
           }
       }
       LOG_PRINT_L0("P2P Request: multicast_send: End tunneling, tunnels found: " << tunnels.size());
+      m_multicast_bytes_out += data.size() * tunnels.size();
+
       return notify_peer_list(command, data, tunnels);
   }
 
@@ -1003,6 +1015,9 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_supernode_announce(int command, COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context)
   {
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: start");
+
+      m_announce_bytes_in += get_command_size(arg);
+
       if (context.m_state != p2p_connection_context::state_normal) {
           MWARNING(context << " invalid connection (no handshake)");
           return 1;
@@ -1127,6 +1142,7 @@ namespace nodetool
       MDEBUG("P2P Request: handle_supernode_announce: relaying to neighbours: " << random_connections.size());
 
       relay_notify_to_list(command, arg_buff, random_connections);
+      m_announce_bytes_out += arg_buff.size() * random_connections.size();
       LOG_PRINT_L0("P2P Request: handle_supernode_announce: end");
       return 1;
   }
@@ -1137,6 +1153,9 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: handle_broadcast: start");
       LOG_PRINT_L0("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
                    << ", our address: " << m_supernode_str);
+
+      m_broadcast_bytes_in += get_command_size(arg);
+
       if (context.m_state != p2p_connection_context::state_normal) {
           MWARNING(context << " invalid connection (no handshake)");
           return 1;
@@ -1168,6 +1187,9 @@ namespace nodetool
                   arg.hop--;
                   std::string buff;
                   epee::serialization::store_t_to_binary(arg, buff);
+
+                  m_broadcast_bytes_out += buff.size() * get_connections_count();
+
                   relay_notify_to_all(command, buff, context);
               }
               else
@@ -1190,6 +1212,9 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: handle_multicast: sender_address: " << arg.sender_address
                    << ", receiver_addresses: " << boost::algorithm::join(arg.receiver_addresses, ", ")
                    << ", our address: " << m_supernode_str);
+
+      m_multicast_bytes_in += get_command_size(arg);
+
       if (context.m_state != p2p_connection_context::state_normal) {
           MWARNING(context << " invalid connection (no handshake)");
           return 1;
@@ -1254,6 +1279,7 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: handle_unicast: sender_address: " << arg.sender_address
                    << ", receiver_address: " << arg.receiver_address
                    << ", our address: " << m_supernode_str);
+      m_multicast_bytes_in += get_command_size(arg);
       if (context.m_state != p2p_connection_context::state_normal) {
           MWARNING(context << " invalid connection (no handshake)");
           return 1;
@@ -2411,10 +2437,14 @@ namespace nodetool
         if (m_net_server.get_config_object().notify(COMMAND_SUPERNODE_ANNOUNCE::ID, blob, c.id)) {
             MTRACE("[" << c.info << "] COMMAND_SUPERNODE_ANNOUCE invoked, peer_id: " << c.peer_id);
             announced_peers.insert(c.peer_id);
+
+
         }
         else
             LOG_ERROR("[" << c.info << "] failed to invoke COMMAND_SUPERNODE_ANNOUNCE");
     }
+    m_announce_bytes_out += blob.size() * announced_peers.size();
+
     return;
     // XXX: not clear why do we need to send to "peers" if we already sent to all the connected neighbours?
     // also,
@@ -2526,6 +2556,7 @@ namespace nodetool
           else
               LOG_ERROR("[" << c.info << "] failed to invoke COMMAND_BROADCAST");
       }
+      m_broadcast_bytes_out += blob.size() * announced_peers.size();
 
       std::list<peerlist_entry> peerlist_white, peerlist_gray;
       m_peerlist.get_peerlist_full(peerlist_gray, peerlist_white);
@@ -2539,6 +2570,8 @@ namespace nodetool
       MDEBUG("P2P Request: do_broadcast: peers_to_send size: " << peers_to_send.size() << ", peerlist_white size: " << peerlist_white.size() << ", announced_peers size: " << announced_peers.size());
       LOG_PRINT_L0("P2P Request: do_broadcast: notify_peer_list");
       notify_peer_list(COMMAND_BROADCAST::ID, blob, peers_to_send);
+      m_broadcast_bytes_out += blob.size() * peers_to_send.size();
+
       LOG_PRINT_L0("P2P Request: do_broadcast: End");
   }
 
@@ -2601,6 +2634,7 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: do_multicast: multicast send");
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
+      // stat counter updated in multicast_send
       multicast_send(COMMAND_MULTICAST::ID, blob, p2p_req.receiver_addresses);
       LOG_PRINT_L0("P2P Request: do_multicast: End");
   }
