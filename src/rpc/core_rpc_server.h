@@ -137,6 +137,7 @@ namespace cryptonote
         MAP_JON_RPC_WE("get_tunnels",              on_get_tunnels,              COMMAND_RPC_TUNNEL_DATA)
         MAP_JON_RPC_WE("send_supernode_stake_txs", on_supernode_stake_txs,      COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS)
         MAP_JON_RPC_WE("send_supernode_blockchain_based_list", on_supernode_blockchain_based_list,  COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST)
+        MAP_JON_RPC_WE("get_stats", on_get_rta_stats,  COMMAND_RPC_RTA_STATS)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -205,6 +206,7 @@ namespace cryptonote
     bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);
 
     bool on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, epee::json_rpc::error &error_resp);
+    bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp);
 
 private:
     bool check_core_busy();
