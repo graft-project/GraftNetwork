@@ -2307,7 +2307,7 @@ namespace nodetool
       COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       //copy all cryptonote::COMMAND_RPC_BROADCAST::request members
       static_cast<cryptonote::COMMAND_RPC_BROADCAST::request&>(p2p_req) = req;
-      p2p_req.hop = (!hop)? hop : HOP_RETRIES_MULTIPLIER * get_max_hop(get_routes());
+      p2p_req.hop = (hop)? hop : -1;
       p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
 
       {
