@@ -439,7 +439,7 @@ namespace tools
     std::vector<wallet2::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
                                                            const uint64_t unlock_time, uint32_t priority,
                                                            const std::vector<uint8_t> extra, bool trusted_daemon,
-                                                           bool zero_fee_tx = false);
+                                                           bool rta_tx_fee = false);
 
     /*!
      * \brief create_transactions_graft - creates graft transaction
