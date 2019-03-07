@@ -1171,8 +1171,6 @@ BlockchainLMDB::BlockchainLMDB(bool batch_transactions): BlockchainDB()
   // reset may also need changing when initialize things here
 
   m_hardfork = nullptr;
-  LOG_PRINT_L3("before ### LOG-STACK-TRACE ###");
-  tools::log_stack_trace("### LOG-STACK-TRACE ###");
 }
 
 void BlockchainLMDB::open(const std::string& filename, const int db_flags)

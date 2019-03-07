@@ -62,136 +62,64 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
   MAKE_GENESIS_BLOCK(events, blk_0, miner_account, ts_start);
 
   // create 12 miner accounts, and have them mine the next 12 blocks
-  const u32 miner_cnt = 13;
-  cryptonote::account_base miner_accounts[miner_cnt];
-
-  const u32 blk_head_cnt = miner_cnt;
-  const u32 blk_cnt = blk_head_cnt + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
-  cryptonote::block blocks[blk_cnt];
-
-  const auto bfs = test_generator::bf_major_ver | test_generator::bf_minor_ver
-    | test_generator::bf_timestamp | test_generator::bf_hf_version;
-
-  const cryptonote::block* prev_block = &blk_0;
-  for(u32 n = 0; n < blk_head_cnt; ++n)
-  {
-    auto& miner_acc = miner_accounts[n % miner_cnt];
-    if(n < miner_cnt)
-      miner_acc.generate();
-    //miner_accounts[n].generate();
-
-    CHECK_AND_ASSERT_MES(generator.construct_block_manually(blocks[n], *prev_block,
-      miner_acc, bfs, 7, 7,
-      prev_block->timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
-      crypto::hash(), 0, transaction(), std::vector<crypto::hash>(), 0, 0, 7),
+  cryptonote::account_base miner_accounts[12];
+  const cryptonote::block *prev_block = &blk_0;
+  cryptonote::block blocks[12 + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW];
+  for (size_t n = 0; n < 12; ++n) {
+    miner_accounts[n].generate();
+    CHECK_AND_ASSERT_MES(generator.construct_block_manually(blocks[n], *prev_block, miner_accounts[n],
+        test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version,
+        2, 2, prev_block->timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+          crypto::hash(), 0, transaction(), std::vector<crypto::hash>(), 0, 0, 2),
         false, "Failed to generate block");
-
     events.push_back(blocks[n]);
     prev_block = blocks + n;
     LOG_PRINT_L0("Initial miner tx " << n << ": " << obj_to_json_str(blocks[n].miner_tx));
   }
 
-  MDEBUG("gen_bp_tx_validation_base::generate_with ----- 01" << std::endl);
-
   // rewind
   cryptonote::block blk_r;
   cryptonote::block blk_last;
   {
-    blk_last = blocks[blk_head_cnt - 1];
+    blk_last = blocks[11];
     for(size_t i = 0; i < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++i)
     {
-      CHECK_AND_ASSERT_MES(generator.construct_block_manually(blocks[blk_head_cnt + i],
-        blk_last, miner_account, bfs, 7, 7,
-        blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
-        crypto::hash(), 0, transaction(), std::vector<crypto::hash>(), 0, 0, 7),
+      CHECK_AND_ASSERT_MES(generator.construct_block_manually(blocks[12+i], blk_last, miner_account,
+          test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version,
+          2, 2, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+          crypto::hash(), 0, transaction(), std::vector<crypto::hash>(), 0, 0, 2),
           false, "Failed to generate block");
-
-      events.push_back(blocks[blk_head_cnt + i]);
-      blk_last = blocks[blk_head_cnt + i];
+      events.push_back(blocks[12+i]);
+      blk_last = blocks[12+i];
     }
     blk_r = blk_last;
   }
 
-  MDEBUG("gen_bp_tx_validation_base::generate_with ----- DBG-DUMP, mixin:" << mixin << std::endl);
-  for(u32 m = 0; m <= mixin; ++m)
-  {
-    auto& blk = blocks[m];
-    MDEBUG("vout-cnt:" << blk.miner_tx.vout.size());
-    for(u32 i = 0, cnt = blk.miner_tx.vout.size(); i < cnt; ++i)
-      MDEBUG("vout: m:" << m << "  this[" << i << "]:" << blk.miner_tx.vout[i].amount);
-  }
-
   // create 4 txes from these miners in another block, to generate some rct outputs
   std::vector<transaction> rct_txes;
+  cryptonote::block blk_txes;
   std::vector<crypto::hash> starting_rct_tx_hashes;
-
-  //static const uint64_t input_amounts_available0[] = { 30000000000000, 1000000000000000, 300000000000000000, 8000000000000000000 };
-  static const uint64_t input_amounts_available[] = { 50000000000, 300000000000, 9000000000000, 10000000000000 };
-
-  //static const uint64_t input_amounts_available[] = {5000000000000, 30000000000000, 100000000000, 80000000000};
-  //static const uint64_t input_amounts_available[] = { 300000000000000000, 9000000000000, 5000000000000, 30000000000000, 100000000000, 80000000000};
-
-  /*
-30000000000000
-300000000000
-
-10000000000000
-1000000000000000
-
-
-  1000000000000000
-300000000000000000
-
-5000000000000
-5000000000000
-
-30000000000000
-300000000000000000
-*/
-
-  MDEBUG("gen_bp_tx_validation_base::generate_with ----- 02" << std::endl);
-  for(u32 n = 1; n <= n_txes; ++n)
+  static const uint64_t input_amounts_available[] = {30000000000000, 5000000000000, 100000000000, 80000000000};
+  for(size_t n = 0; n < n_txes; ++n)
   {
     std::vector<tx_source_entry> sources;
+
     sources.resize(1);
     tx_source_entry& src = sources.back();
 
     const uint64_t needed_amount = input_amounts_available[n];
-    MDEBUG("tx:" << n << "  tx-cnt:" << n_txes << "  needed-amount:" << needed_amount);
-
     src.amount = input_amounts_available[n];
-    u32 real_index_in_tx = 0;
-
-    for(u32 m = 1; m <= mixin; ++m)
+    size_t real_index_in_tx = 0;
+    for(size_t m = 0; m <= mixin; ++m)
     {
-      u32 index_in_tx = 0;
-
-      //auto& blk = blocks[m + 1];
-      auto& blk = blocks[m];
-
-      for(u32 i = 0; i < blk.miner_tx.vout.size(); ++i)
-        if(blk.miner_tx.vout[i].amount == needed_amount)
+      size_t index_in_tx = 0;
+      for(size_t i = 0; i < blocks[m].miner_tx.vout.size(); ++i)
+        if(blocks[m].miner_tx.vout[i].amount == needed_amount)
           index_in_tx = i;
-
-      for(size_t i = 0, cnt = blk.miner_tx.vout.size(); i < cnt; ++i)
-        MDEBUG("Look up outputs: m:" << m << "  this[" << i << "]:" << blk.miner_tx.vout[i].amount
-          << "  needed:" << needed_amount
-          << ((blk.miner_tx.vout[i].amount == needed_amount) ? "  HIT" : ""));
-
-      if(blk.miner_tx.vout[index_in_tx].amount != needed_amount)
-      {
-        MDEBUG("gen_bp_tx_validation_base::generate_with, expected:" << needed_amount
-          << "  found:" << blk.miner_tx.vout[index_in_tx].amount << std::endl);
-      }
-      CHECK_AND_ASSERT_MES(blk.miner_tx.vout[index_in_tx].amount == needed_amount, false, "Expected amount not found");
-
-      src.push_output(m, boost::get<txout_to_key>(blk.miner_tx.vout[index_in_tx].target).key, src.amount);
-
+      CHECK_AND_ASSERT_MES(blocks[m].miner_tx.vout[index_in_tx].amount == needed_amount, false, "Expected amount not found");
+      src.push_output(m, boost::get<txout_to_key>(blocks[m].miner_tx.vout[index_in_tx].target).key, src.amount);
       if(m == n)
-      {
         real_index_in_tx = index_in_tx;
-        MDEBUG("real-index-in-tx:" << real_index_in_tx << "  m:" << m << " ------ HIT3");
-      }
     }
 
     src.real_out_tx_key = cryptonote::get_tx_pub_key_from_extra(blocks[n].miner_tx);
@@ -204,7 +132,6 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     tx_destination_entry td;
     td.addr = miner_accounts[n].get_keys().m_account_address;
     std::vector<tx_destination_entry> destinations;
-
     for(int o = 0; amounts_paid[o] != (uint64_t)-1; ++o)
     {
       td.amount = amounts_paid[o];
@@ -222,15 +149,7 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
     subaddresses[miner_accounts[n].get_keys().m_account_address.m_spend_public_key] = {0,0};
     rct_txes.resize(rct_txes.size() + 1);
-
-    MDEBUG("just before construct_tx_and_get_tx_key  --------- HIT4,  n:" << n);
-
-    bool r = construct_tx_and_get_tx_key(miner_accounts[n].get_keys(), subaddresses,
-      sources, destinations, cryptonote::account_public_address{},
-      std::vector<uint8_t>(), rct_txes.back(), 0, tx_key, additional_tx_keys, true,
-      range_proof_type[0]);
-      //range_proof_type[n]);
-
+    bool r = construct_tx_and_get_tx_key(miner_accounts[n].get_keys(), subaddresses, sources, destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), rct_txes.back(), 0, tx_key, additional_tx_keys, true, range_proof_type[n]);
     CHECK_AND_ASSERT_MES(r, false, "failed to construct transaction");
 
     if(post_tx && !post_tx(rct_txes.back(), n))
@@ -248,12 +167,10 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
       crypto::key_derivation derivation;
       bool r = crypto::generate_key_derivation(destinations[o].addr.m_view_public_key, tx_key, derivation);
       CHECK_AND_ASSERT_MES(r, false, "Failed to generate key derivation");
-
       crypto::secret_key amount_key;
       crypto::derivation_to_scalar(derivation, o, amount_key);
       rct::key rct_tx_mask;
-
-      if(rct_txes.back().rct_signatures.type == rct::RCTTypeSimple || rct_txes.back().rct_signatures.type == rct::RCTTypeBulletproof)
+      if (rct_txes.back().rct_signatures.type == rct::RCTTypeSimple || rct_txes.back().rct_signatures.type == rct::RCTTypeBulletproof)
         rct::decodeRctSimple(rct_txes.back().rct_signatures, rct::sk2rct(amount_key), o, rct_tx_mask, hw::get_device("default"));
       else
         rct::decodeRct(rct_txes.back().rct_signatures, rct::sk2rct(amount_key), o, rct_tx_mask, hw::get_device("default"));
@@ -268,17 +185,10 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     DO_CALLBACK(events, "mark_invalid_tx");
   events.push_back(rct_txes);
 
-  MDEBUG("gen_bp_tx_validation_base::generate_with ----- 03" << std::endl);
-
-  cryptonote::block blk_txes;
-  const auto bfsex1 = test_generator::bf_major_ver | test_generator::bf_minor_ver
-    | test_generator::bf_timestamp | test_generator::bf_tx_hashes
-    | test_generator::bf_hf_version | test_generator::bf_max_outs;
-
-  CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk_txes, blk_last,
-    miner_account, bfsex1, 13, 13,
-    blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
-    crypto::hash(), 0, transaction(), starting_rct_tx_hashes, 0, 6, 13),
+  CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk_txes, blk_last, miner_account,
+      test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_tx_hashes | test_generator::bf_hf_version | test_generator::bf_max_outs,
+      13, 13, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+      crypto::hash(), 0, transaction(), starting_rct_tx_hashes, 0, 6, 13),
       false, "Failed to generate block");
 
   if(!valid)
@@ -286,8 +196,6 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
 
   events.push_back(blk_txes);
   blk_last = blk_txes;
-
-  MDEBUG("gen_bp_tx_validation_base::generate_with ----- 04" << std::endl);
 
   return true;
 }
