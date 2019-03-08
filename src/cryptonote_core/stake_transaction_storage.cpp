@@ -88,9 +88,9 @@ void StakeTransactionStorage::remove_last_processed_block()
 
   m_need_store = true;
 
-  std::remove_if(m_stake_txs.begin(), m_stake_txs.end(), [&](const stake_transaction& tx) {
+  m_stake_txs.erase(std::remove_if(m_stake_txs.begin(), m_stake_txs.end(), [&](const stake_transaction& tx) {
     return tx.block_height == m_last_processed_block_index;
-  });
+  }), m_stake_txs.end());
 
   m_last_processed_block_hashes_count--;
   m_last_processed_block_index--;

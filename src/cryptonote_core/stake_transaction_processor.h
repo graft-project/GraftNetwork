@@ -41,11 +41,11 @@ public:
   void invoke_update_blockchain_based_list_handler(bool force = true, size_t depth = 1);
 
 private:
-  void process_block(uint64_t block_index, const block& block, bool update_storage = true);
+  void process_block(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
   void invoke_update_stake_transactions_handler_impl();
   void invoke_update_blockchain_based_list_handler_impl(size_t depth);
-  void process_block_stake_transaction(uint64_t block_index, const block& block, bool update_storage = true);
-  void process_block_blockchain_based_list(uint64_t block_index, const block& block, bool update_storage = true);
+  void process_block_stake_transaction(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
+  void process_block_blockchain_based_list(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
 
 private:
   Blockchain& m_blockchain;

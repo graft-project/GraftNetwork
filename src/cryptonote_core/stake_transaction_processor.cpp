@@ -8,8 +8,9 @@ using namespace cryptonote;
 namespace
 {
 
-const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.bin";
-const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.bin";
+const char*     STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.bin";
+const char*     BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v1.bin";
+const uint64_t  STAKE_TRANSACTIONS_INVOKE_DELAY     = 100;
 
 unsigned int get_tier(uint64_t stake)
 {
@@ -122,7 +123,7 @@ void StakeTransactionProcessor::init_storages(const std::string& config_dir)
   m_blockchain_based_list.reset(new BlockchainBasedList(config_dir + "/" + BLOCKCHAIN_BASED_LIST_FILE_NAME));
 }
 
-void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_index, const block& block, bool update_storage)
+void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage)
 {
   if (block_index <= m_storage->get_last_processed_block_index())
     return;
@@ -220,17 +221,17 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
     }
   }
 
-  m_storage->add_last_processed_block(block_index, db.get_block_hash_from_height(block_index));
+  m_storage->add_last_processed_block(block_index, block_hash);
 
   if (update_storage)
     m_storage->store();
 }
 
-void StakeTransactionProcessor::process_block_blockchain_based_list(uint64_t block_index, const block& block, bool update_storage)
+void StakeTransactionProcessor::process_block_blockchain_based_list(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage)
 {
   uint64_t prev_block_height = m_blockchain_based_list->block_height();
 
-  m_blockchain_based_list->apply_block(block_index, block.hash, *m_storage);
+  m_blockchain_based_list->apply_block(block_index, block_hash, *m_storage);
 
   if (m_blockchain_based_list->need_store() || prev_block_height != m_blockchain_based_list->block_height())
   {
@@ -241,10 +242,10 @@ void StakeTransactionProcessor::process_block_blockchain_based_list(uint64_t blo
   }
 }
 
-void StakeTransactionProcessor::process_block(uint64_t block_index, const block& block, bool update_storage)
+void StakeTransactionProcessor::process_block(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage)
 {
-  process_block_stake_transaction(block_index, block, update_storage);
-  process_block_blockchain_based_list(block_index, block, update_storage);
+  process_block_stake_transaction(block_index, block, block_hash, update_storage);
+  process_block_blockchain_based_list(block_index, block, block_hash, update_storage);
 }
 
 void StakeTransactionProcessor::synchronize()
@@ -311,7 +312,7 @@ void StakeTransactionProcessor::synchronize()
     crypto::hash block_hash = db.get_block_hash_from_height(i);
     const block& block      = db.get_block(block_hash);
 
-    process_block(i, block, false);
+    process_block(i, block, block_hash, false);
   }
 
   if (m_blockchain_based_list->need_store())
@@ -349,10 +350,21 @@ void StakeTransactionProcessor::invoke_update_stake_transactions_handler_impl()
 
     for (const stake_transaction& tx : stake_txs)
     {
-      if (!tx.is_valid(top_block_index))
-        continue;
+      stake_transaction tx_copy = tx;
 
-      valid_stake_txs.push_back(tx);
+      if (!tx_copy.is_valid(top_block_index))
+      {
+        uint64_t first_history_block = top_block_index - STAKE_TRANSACTIONS_INVOKE_DELAY;
+
+        if (tx_copy.block_height + tx_copy.unlock_time < first_history_block)
+          continue;
+
+          //add stake transaction with zero amount to indicate correspondent node presense for search in supernode
+
+        tx_copy.amount = 0;
+      }
+
+      valid_stake_txs.emplace_back(std::move(tx_copy));
     }
 
     m_on_stake_transactions_update(valid_stake_txs);
