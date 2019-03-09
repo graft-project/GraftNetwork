@@ -1111,9 +1111,10 @@ namespace cryptonote
     m_graft_stake_transaction_processor.set_on_update_blockchain_based_list_handler(handler);
   }
   //-----------------------------------------------------------------------------------------------
-  void core::invoke_update_blockchain_based_list_handler()
+  void core::invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height)
   {
-    m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, size_t(-1));
+    uint64_t depth = m_blockchain_storage.get_current_blockchain_height() - last_received_block_height;
+    m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, depth);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::list<block_complete_entry> &blocks)

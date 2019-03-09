@@ -1810,7 +1810,7 @@ namespace cryptonote
 
       // send p2p stake txs
       m_p2p.set_supernode(req.supernode_public_id, req.network_address);
-      m_p2p.send_blockchain_based_list_to_supernode();
+      m_p2p.send_blockchain_based_list_to_supernode(req.last_received_block_height);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: end");
       return true;

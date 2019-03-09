@@ -758,7 +758,7 @@ namespace cryptonote
      /**
       * @brief invoke blockchain based list update handler
       */
-     void invoke_update_blockchain_based_list_handler();
+     void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height);
 
    private:
 

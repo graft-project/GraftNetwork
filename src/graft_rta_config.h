@@ -14,7 +14,7 @@ constexpr uint64_t STAKE_MIN_UNLOCK_TIME = 50;
 constexpr uint64_t STAKE_MAX_UNLOCK_TIME = 5000;
 constexpr uint64_t STAKE_VALIDATION_PERIOD = 6;
 constexpr uint64_t TRUSTED_RESTAKING_PERIOD = 6;
-//constexpr uint64_t TRUSTED_RESTAKING_PERIOD = 10000;
+constexpr uint64_t SUPERNODE_HISTORY_SIZE = 100;
 
 //  50,000 GRFT –  tier 1
 //  90,000 GRFT –  tier 2

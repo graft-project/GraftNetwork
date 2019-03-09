@@ -8,9 +8,8 @@ using namespace cryptonote;
 namespace
 {
 
-const char*     STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.bin";
-const char*     BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v1.bin";
-const uint64_t  STAKE_TRANSACTIONS_INVOKE_DELAY     = 100;
+const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.bin";
+const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v1.bin";
 
 unsigned int get_tier(uint64_t stake)
 {
@@ -354,7 +353,7 @@ void StakeTransactionProcessor::invoke_update_stake_transactions_handler_impl()
 
       if (!tx_copy.is_valid(top_block_index))
       {
-        uint64_t first_history_block = top_block_index - STAKE_TRANSACTIONS_INVOKE_DELAY;
+        uint64_t first_history_block = top_block_index - config::graft::SUPERNODE_HISTORY_SIZE;
 
         if (tx_copy.block_height + tx_copy.unlock_time < first_history_block)
           continue;
@@ -405,6 +404,9 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl
 
     if (depth > m_blockchain_based_list->history_depth())
       depth = m_blockchain_based_list->history_depth();
+
+    if (depth > config::graft::SUPERNODE_HISTORY_SIZE)
+      depth = config::graft::SUPERNODE_HISTORY_SIZE;
 
     uint64_t height = m_blockchain_based_list->block_height();
 

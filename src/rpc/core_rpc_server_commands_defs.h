@@ -1771,9 +1771,11 @@ namespace cryptonote
     {
       std::string supernode_public_id;
       std::string network_address;
+      uint64_t    last_received_block_height;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(supernode_public_id)
         KV_SERIALIZE(network_address)
+        KV_SERIALIZE(last_received_block_height)
       END_KV_SERIALIZE_MAP()
     };
 

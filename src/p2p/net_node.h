@@ -406,7 +406,7 @@ namespace nodetool
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
     void send_stake_transactions_to_supernode();
-    void send_blockchain_based_list_to_supernode();
+    void send_blockchain_based_list_to_supernode(uint64_t last_received_block_height);
 
     uint64_t get_announce_bytes_in() const { return m_announce_bytes_in; }
     uint64_t get_announce_bytes_out() const { return m_announce_bytes_out; }
