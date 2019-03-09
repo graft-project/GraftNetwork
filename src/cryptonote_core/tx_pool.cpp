@@ -174,34 +174,62 @@ namespace cryptonote
     // 1. if tx.type == tx_type_rta and tx.rta_signatures.size() > 0
     // 2. if tx.version >= 3 and tx.rta_signatures.size() > 0
 
-    bool is_rta_tx =  tx.type == transaction::tx_type_rta && tx.rta_signatures.size() > 0;
+    bool is_rta_tx = tx.type == transaction::tx_type_rta && tx.rta_signatures.size() > 0;
+
+    auto supernode_validator = [&] (const crypto::public_key &id_key, uint64_t height) -> bool {
+      // TODO: implement me:
+      // check if key belongs to a valid supernode
+      return true;
+    };
+
     // validator for rta_transaction:
-    auto rta_validator = [&](const std::vector<cryptonote::rta_signature> &rta_signs) -> bool {
+    auto rta_validator = [&](const std::vector<cryptonote::rta_signature> &rta_signs, const cryptonote::rta_header &rta_hdr) -> bool {
       bool result = true;
+
+      if (rta_hdr.keys.size() != rta_signs.size()) {
+        MERROR("Failed to validate rta tx: " << id << ", keys.size() != signatures.size()");
+        return false;
+      }
       for (const auto &rta_sign : rta_signs) {
-        // TODO: implement RTA validation here
-        // result &= crypto::check_signature(id, rta_sign.address.m_spend_public_key, rta_sign.signature);
-        result = true;
+        // check if key index is in range
+        if (rta_sign.key_index >= rta_hdr.keys.size()) {
+          MERROR("signature: " << rta_sign.signature << " has wrong key index: " << rta_sign.key_index);
+          result = false;
+          break;
+        }
+
+        result &= supernode_validator(rta_hdr.keys[rta_sign.key_index], m_blockchain.get_current_blockchain_height());
         if (!result) {
+          MERROR("Failed to validate rta tx: " << epee::string_tools::pod_to_hex(id) << ", key: " << rta_hdr.keys[rta_sign.key_index] << " doesn't belong to a valid supernode");
+          break;
+        }
 
-          LOG_ERROR("Failed to validate rta tx ");
-//                    << epee::string_tools::pod_to_hex(id)
-//                    << " for address: "
-//                    << cryptonote::get_account_address_as_str(m_blockchain.testnet(), rta_sign.address));
-
+        result &= crypto::check_signature(id, rta_hdr.keys[rta_sign.key_index], rta_sign.signature);
+        if (!result) {
+          MERROR("Failed to validate rta tx signature: " << epee::string_tools::pod_to_hex(id) << " for key: " << rta_hdr.keys[rta_sign.key_index]);
           break;
         }
       }
       return result;
     };
+
     if (is_rta_tx) {
-      bool is_rta_tx_valid = rta_validator(tx.rta_signatures);
+      cryptonote::rta_header rta_hdr;
+      if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
+        MERROR("Failed to parse rta-header from tx extra: " << id);
+        tvc.m_rta_signature_failed = true;
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+
+      bool is_rta_tx_valid = rta_validator(tx.rta_signatures, rta_hdr);
       if (!kept_by_block && !is_rta_tx_valid) {
         LOG_ERROR("failed to validate rta tx, tx contains " << tx.rta_signatures.size() << " signatures");
         tvc.m_rta_signature_failed = true;
         tvc.m_verifivation_failed = true;
         return false;
       }
+
     } else {
       if (!kept_by_block && !m_blockchain.check_fee(blob_size, fee))
       {
@@ -210,9 +238,6 @@ namespace cryptonote
         return false;
       }
     }
-
-
-
 
     size_t tx_size_limit = get_transaction_size_limit(version);
     if (!kept_by_block && blob_size >= tx_size_limit)
