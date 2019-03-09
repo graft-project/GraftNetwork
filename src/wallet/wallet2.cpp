@@ -133,17 +133,17 @@ void do_prepare_file_names(const std::string& file_path, std::string& keys_file,
   }
 }
 
-uint64_t calculate_fee(uint64_t fee_per_kb, size_t bytes, uint64_t fee_multiplier, bool allow_zero_fee)
+uint64_t calculate_fee(uint64_t fee_per_kb, size_t bytes, uint64_t fee_multiplier, bool rta_tx_fee)
 {
-  if (allow_zero_fee)
-    return 0;
+  if (rta_tx_fee)
+    return RTA_TX_FEE;
   uint64_t kB = (bytes + 1023) / 1024;
   return kB * fee_per_kb * fee_multiplier;
 }
 
-uint64_t calculate_fee(uint64_t fee_per_kb, const cryptonote::blobdata &blob, uint64_t fee_multiplier, bool allow_zero_fee)
+uint64_t calculate_fee(uint64_t fee_per_kb, const cryptonote::blobdata &blob, uint64_t fee_multiplier, bool rta_tx_fee)
 {
-  return calculate_fee(fee_per_kb, blob.size(), fee_multiplier, allow_zero_fee);
+  return calculate_fee(fee_per_kb, blob.size(), fee_multiplier, rta_tx_fee);
 }
 
 std::unique_ptr<tools::wallet2> make_basic(const boost::program_options::variables_map& vm, const options& opts)
@@ -3741,7 +3741,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions(std::vector<crypto
   // failsafe split attempt counter
   size_t attempt_count = 0;
 
-  bool allow_zero_fee = true;
+  bool allow_rta_fee = true;
 
   for(attempt_count = 1; ;attempt_count++)
   {
@@ -3770,7 +3770,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions(std::vector<crypto
         {
           transfer(dst_vector, fake_outs_count, unused_transfers_indices, unlock_time, needed_fee, extra, tx, ptx, trusted_daemon);
           auto txBlob = t_serializable_object_to_blob(ptx.tx);
-          needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, allow_zero_fee);
+          needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, allow_rta_fee);
         } while (ptx.fee < needed_fee);
 
         ptx_vector.push_back(ptx);
@@ -4542,7 +4542,7 @@ static uint32_t get_count_above(const std::vector<wallet2::transfer_details> &tr
 // not generate spurious change in all txes, thus decreasing the instantaneous
 // usable balance.
 std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time,
-                                                                uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon, bool zero_fee_tx)
+                                                                uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon, bool rta_tx_fee)
 {
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
@@ -4650,7 +4650,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   {
     // this is used to build a tx that's 1 or 2 inputs, and 2 outputs, which
     // will get us a known fee.
-    uint64_t estimated_fee = calculate_fee(fee_per_kb, estimate_rct_tx_size(2, fake_outs_count + 1, 2), fee_multiplier, zero_fee_tx);
+    uint64_t estimated_fee = calculate_fee(fee_per_kb, estimate_rct_tx_size(2, fake_outs_count + 1, 2), fee_multiplier, rta_tx_fee);
     preferred_inputs = pick_preferred_rct_inputs(needed_money + estimated_fee);
     if (!preferred_inputs.empty())
     {
@@ -4790,7 +4790,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         transfer_selected(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
           detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), test_tx, test_ptx);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
-      needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, zero_fee_tx);
+      needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, rta_tx_fee);
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount + (!test_ptx.dust_added_to_fee ? test_ptx.dust : 0);
       LOG_PRINT_L2("Made a " << ((txBlob.size() + 1023) / 1024) << " kB tx, with " << print_money(available_for_fee) << " available for fee (" <<
         print_money(needed_fee) << " needed)");
@@ -4827,7 +4827,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         LOG_PRINT_L2("We made a tx, adjusting fee and saving it");
         do {
 
-          size_t tx_type = zero_fee_tx ? cryptonote::transaction::tx_type_rta : cryptonote::transaction::tx_type_generic;
+          size_t tx_type = rta_tx_fee ? cryptonote::transaction::tx_type_rta : cryptonote::transaction::tx_type_generic;
           if (use_rct)
             transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
               test_tx, test_ptx, tx_type);
@@ -4835,7 +4835,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
             transfer_selected(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
               detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), test_tx, test_ptx, tx_type);
           txBlob = t_serializable_object_to_blob(test_ptx.tx);
-          needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, zero_fee_tx);
+          needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, rta_tx_fee);
           LOG_PRINT_L2("Made an attempt at a  final " << ((txBlob.size() + 1023)/1024) << " kB tx, with " << print_money(test_ptx.fee) <<
             " fee  and " << print_money(test_ptx.change_dts.amount) << " change");
         } while (needed_fee > test_ptx.fee);
@@ -4972,7 +4972,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
   uint64_t needed_fee, available_for_fee = 0;
   uint64_t upper_transaction_size_limit = get_upper_transaction_size_limit();
   std::vector<std::vector<get_outs_entry>> outs;
-  bool allow_zero_fee = false;
+  bool allow_rta_fee = false;
 
   const bool use_rct = fake_outs_count > 0 && use_fork_rules(4, 0);
   const uint64_t fee_per_kb  = get_per_kb_fee();
@@ -5033,7 +5033,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
         transfer_selected(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
           detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), test_tx, test_ptx);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
-      needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, allow_zero_fee);
+      needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, allow_rta_fee);
       available_for_fee = test_ptx.fee + test_ptx.dests[0].amount + test_ptx.change_dts.amount;
       LOG_PRINT_L2("Made a " << ((txBlob.size() + 1023) / 1024) << " kB tx, with " << print_money(available_for_fee) << " available for fee (" <<
         print_money(needed_fee) << " needed)");
@@ -5050,7 +5050,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
           transfer_selected(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
             detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), test_tx, test_ptx);
         txBlob = t_serializable_object_to_blob(test_ptx.tx);
-        needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, allow_zero_fee);
+        needed_fee = calculate_fee(fee_per_kb, txBlob, fee_multiplier, allow_rta_fee);
         LOG_PRINT_L2("Made an attempt at a final " << ((txBlob.size() + 1023)/1024) << " kB tx, with " << print_money(test_ptx.fee) <<
           " fee  and " << print_money(test_ptx.change_dts.amount) << " change");
       } while (needed_fee > test_ptx.fee);

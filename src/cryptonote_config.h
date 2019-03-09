@@ -71,6 +71,8 @@
 #define DYNAMIC_FEE_PER_KB_BASE_BLOCK_REWARD            ((uint64_t)10 *  (COIN) ) // 10 * pow(10,10)
 #define DYNAMIC_FEE_PER_KB_BASE_FEE_V5                  ((uint64_t)20000000 * (uint64_t)CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5)
 
+#define RTA_TX_FEE                                      1000000000
+
 #define ORPHANED_BLOCKS_MAX_COUNT                       100
 
 
