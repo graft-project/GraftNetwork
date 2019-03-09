@@ -211,6 +211,11 @@ namespace cryptonote
   struct rta_header
   {
     std::string payment_id;
+    // pre-defined key indexes for POS, POS Proxy and Wallet Proxy
+    static constexpr size_t POS_KEY_INDEX = 0;
+    static constexpr size_t POS_PROXY_KEY_INDEX = 1;
+    static constexpr size_t WALLET_PROXY_KEY_INDEX = 2;
+
     std::vector<crypto::public_key> keys;
     BEGIN_SERIALIZE_OBJECT()
       FIELD(payment_id)
