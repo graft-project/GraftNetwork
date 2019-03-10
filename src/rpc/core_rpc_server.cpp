@@ -1778,9 +1778,9 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_stake_txs(const COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::request &req, COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp)
   {
-      LOG_PRINT_L0("RPC Request: on_supernode_stake_txs: start");
+      LOG_PRINT_L0("RPC Request: on_supernode_stakes: start");
       if (!check_core_busy())
       {
         error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
@@ -1788,12 +1788,11 @@ namespace cryptonote
         return false;
       }
 
-
-      // send p2p stake txs
+      // send p2p stakes
       m_p2p.set_supernode(req.supernode_public_id, req.network_address);
-      m_p2p.send_stake_transactions_to_supernode();
+      m_p2p.send_stakes_to_supernode();
       res.status = 0;
-      LOG_PRINT_L0("RPC Request: on_supernode_stake_txs: end");
+      LOG_PRINT_L0("RPC Request: on_supernode_stakes: end");
       return true;
   }
 

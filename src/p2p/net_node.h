@@ -405,7 +405,7 @@ namespace nodetool
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
-    void send_stake_transactions_to_supernode();
+    void send_stakes_to_supernode();
     void send_blockchain_based_list_to_supernode(uint64_t last_received_block_height);
 
     uint64_t get_announce_bytes_in() const { return m_announce_bytes_in; }
@@ -416,7 +416,7 @@ namespace nodetool
     uint64_t get_multicast_bytes_out() const { return m_multicast_bytes_out; }
 
   private:
-    void handle_stake_transactions_update(const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs);
+    void handle_stakes_update(const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes);
     void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
 
 

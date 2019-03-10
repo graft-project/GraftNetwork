@@ -2,6 +2,7 @@
 
 #include <cryptonote_config.h>
 #include <list>
+#include <unordered_map>
 
 #include "crypto/hash.h"
 #include "cryptonote_basic/cryptonote_basic.h"
@@ -14,7 +15,6 @@ struct stake_transaction
 {
   crypto::hash hash;
   uint64_t amount;
-  unsigned int tier; //based from index 0
   uint64_t block_height;
   uint64_t unlock_time;
   std::string supernode_public_id;
@@ -27,7 +27,6 @@ struct stake_transaction
   BEGIN_SERIALIZE_OBJECT()
     FIELD(amount)
     FIELD(hash)
-    FIELD(tier)
     FIELD(block_height)
     FIELD(unlock_time)
     FIELD(supernode_public_id)
@@ -37,11 +36,22 @@ struct stake_transaction
   END_SERIALIZE()
 };
 
+struct supernode_stake
+{
+  uint64_t amount;
+  unsigned int tier; //based from index 0
+  uint64_t block_height;
+  uint64_t unlock_time;
+  std::string supernode_public_id;
+  cryptonote::account_public_address supernode_public_address;
+};
+
 class StakeTransactionStorage
 {
 public:
   typedef std::vector<stake_transaction> stake_transaction_array;
   typedef std::list<crypto::hash>        block_hash_list;
+  typedef std::vector<supernode_stake>   supernode_stake_array;
 
   StakeTransactionStorage(const std::string& storage_file_name);
 
@@ -66,6 +76,21 @@ public:
   /// Add transaction
   void add_tx(const stake_transaction&);
 
+  /// Remove obsolete stake transactions
+  void remove_obsolete_txs(uint64_t block_number);
+
+  /// List of supernode stakes
+  const supernode_stake_array& get_supernode_stakes() const { return m_supernode_stakes; }
+
+  /// Search supernode stake by supernode public id (returns nullptr if no stake is found)
+  const supernode_stake* find_supernode_stake(const std::string& supernode_public_id) const;
+
+  /// Update supernode stakes (returns true if stakes have been updated, false if the result is same)
+  bool update_supernode_stakes(uint64_t block_number);
+
+  /// Clear supernode stakes
+  void clear_supernode_stakes();
+
   /// Save storage to file
   void store() const;
 
@@ -76,12 +101,17 @@ private:
   /// Load storage from file
   void load();
 
+  typedef std::unordered_map<std::string, size_t> supernode_stake_index_map;
+
 private:
   std::string m_storage_file_name;
   uint64_t m_last_processed_block_index;
   block_hash_list m_last_processed_block_hashes;
   size_t m_last_processed_block_hashes_count;
   stake_transaction_array m_stake_txs;
+  uint64_t m_supernode_stakes_update_block_number;
+  supernode_stake_array m_supernode_stakes;
+  supernode_stake_index_map m_supernode_stake_indexes;
   mutable bool m_need_store;
 };
 

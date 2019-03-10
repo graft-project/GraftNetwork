@@ -737,16 +737,16 @@ namespace cryptonote
      bool fluffy_blocks_enabled() const { return m_fluffy_blocks_enabled; }
 
      /**
-      * @brief set update handler for new stake transactions
+      * @brief set update handler for supernode stakes
       */
-     typedef StakeTransactionProcessor::stake_transactions_update_handler stake_transactions_update_handler;
+     typedef StakeTransactionProcessor::supernode_stakes_update_handler supernode_stakes_update_handler;
 
-     void set_update_stake_transactions_handler(const stake_transactions_update_handler&);
+     void set_update_stakes_handler(const supernode_stakes_update_handler&);
 
      /**
-      * @brief invoke stake transactions update handler
+      * @brief invoke stakes update handler
       */
-     void invoke_update_stake_transactions_handler();
+     void invoke_update_stakes_handler();
 
      /**
       * @brief set update handler for new blockchain based list

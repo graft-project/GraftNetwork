@@ -8,17 +8,8 @@ using namespace cryptonote;
 namespace
 {
 
-const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.bin";
-const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v1.bin";
-
-unsigned int get_tier(uint64_t stake)
-{
-  return 0 +
-    (stake >= config::graft::TIER1_STAKE_AMOUNT) +
-    (stake >= config::graft::TIER2_STAKE_AMOUNT) +
-    (stake >= config::graft::TIER3_STAKE_AMOUNT) +
-    (stake >= config::graft::TIER4_STAKE_AMOUNT);
-}
+const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.v1.bin";
+const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v2.bin";
 
 }
 
@@ -30,7 +21,7 @@ bool stake_transaction::is_valid(uint64_t block_index) const
   if (block_index < stake_first_valid_block)
     return false;
 
-  if (block_index > stake_last_valid_block)
+  if (block_index >= stake_last_valid_block)
     return false;
 
   return true;
@@ -38,9 +29,17 @@ bool stake_transaction::is_valid(uint64_t block_index) const
 
 StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
   : m_blockchain(blockchain)
-  , m_stake_transactions_need_update(true)
+  , m_stakes_need_update(true)
   , m_blockchain_based_list_need_update(true)
 {
+}
+
+const supernode_stake* StakeTransactionProcessor::find_supernode_stake(const std::string& supernode_public_id) const
+{
+  if (!m_storage)
+    return nullptr;
+
+  return m_storage->find_supernode_stake(supernode_public_id);
 }
 
 namespace
@@ -129,6 +128,8 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
   BlockchainDB& db = m_blockchain.get_db();
 
+    //analyze block transactions and add new stake transactions if exist
+
   stake_transaction stake_tx;
 
   for (const crypto::hash& tx_hash : block.tx_hashes)
@@ -187,38 +188,23 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
     stake_tx.block_height = block_index;
     stake_tx.hash = tx_hash;
     stake_tx.unlock_time = unlock_time;
-    stake_tx.tier = get_tier(stake_tx.amount);
-
-    if (!stake_tx.tier)
-    {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        << " because amount " << amount / double(COIN) << " is less than minimum required " << config::graft::TIER1_STAKE_AMOUNT / double(COIN));
-      continue;
-    }
 
     m_storage->add_tx(stake_tx);
-
-    m_stake_transactions_need_update = true;
 
     MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id
       << "', amount=" << amount / double(COIN));
   }
 
-  uint64_t prev_block = m_storage->get_last_processed_block_index();
+    //remove obsolete stake transactions from a storage
 
-  const stake_transaction_array& stake_txs = m_storage->get_txs();
+  m_storage->remove_obsolete_txs(block_index);
 
-  for (const stake_transaction& tx : stake_txs)
-  {
-    bool is_valid_for_this_block = tx.is_valid(block_index),
-         is_valid_for_prev_block = prev_block && tx.is_valid(prev_block);
+    //update supernode stakes
 
-    if (is_valid_for_prev_block != is_valid_for_this_block)
-    {
-      m_stake_transactions_need_update = true;
-      break;
-    }
-  }
+  if (m_storage->update_supernode_stakes(block_index))
+    m_stakes_need_update = true;
+
+    //update cache entries and save storage
 
   m_storage->add_last_processed_block(block_index, block_hash);
 
@@ -277,7 +263,7 @@ void StakeTransactionProcessor::synchronize()
     m_storage->remove_last_processed_block();
 
     if (stake_tx_count != m_storage->get_tx_count())
-      m_stake_transactions_need_update = true;
+      m_storage->clear_supernode_stakes();
 
     if (m_blockchain_based_list->block_height() == last_processed_block_index)
       m_blockchain_based_list->remove_latest_block();
@@ -320,8 +306,8 @@ void StakeTransactionProcessor::synchronize()
   if (m_storage->need_store())
     m_storage->store();
 
-  if (m_stake_transactions_need_update && m_on_stake_transactions_update)
-    invoke_update_stake_transactions_handler_impl();
+  if (m_stakes_need_update && m_on_stakes_update)
+    invoke_update_stakes_handler_impl();
 
   if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
     invoke_update_blockchain_based_list_handler_impl(height - first_block_index);
@@ -330,45 +316,19 @@ void StakeTransactionProcessor::synchronize()
     MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
 }
 
-void StakeTransactionProcessor::set_on_update_stake_transactions_handler(const stake_transactions_update_handler& handler)
+void StakeTransactionProcessor::set_on_update_stakes_handler(const supernode_stakes_update_handler& handler)
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
-  m_on_stake_transactions_update = handler;
+  m_on_stakes_update = handler;
 }
 
-void StakeTransactionProcessor::invoke_update_stake_transactions_handler_impl()
+void StakeTransactionProcessor::invoke_update_stakes_handler_impl()
 {
   try
   {
-    stake_transaction_array valid_stake_txs;
-    const stake_transaction_array& stake_txs = m_storage->get_txs();
+    m_on_stakes_update(m_storage->get_supernode_stakes());
 
-    valid_stake_txs.reserve(stake_txs.size());
-
-    uint64_t top_block_index = m_blockchain.get_db().height() - 1;
-
-    for (const stake_transaction& tx : stake_txs)
-    {
-      stake_transaction tx_copy = tx;
-
-      if (!tx_copy.is_valid(top_block_index))
-      {
-        uint64_t first_history_block = top_block_index - config::graft::SUPERNODE_HISTORY_SIZE;
-
-        if (tx_copy.block_height + tx_copy.unlock_time < first_history_block)
-          continue;
-
-          //add stake transaction with zero amount to indicate correspondent node presense for search in supernode
-
-        tx_copy.amount = 0;
-      }
-
-      valid_stake_txs.emplace_back(std::move(tx_copy));
-    }
-
-    m_on_stake_transactions_update(valid_stake_txs);
-
-    m_stake_transactions_need_update = false;
+    m_stakes_need_update = false;
   }
   catch (std::exception& e)
   {
@@ -376,17 +336,17 @@ void StakeTransactionProcessor::invoke_update_stake_transactions_handler_impl()
   }
 }
 
-void StakeTransactionProcessor::invoke_update_stake_transactions_handler(bool force)
+void StakeTransactionProcessor::invoke_update_stakes_handler(bool force)
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
 
-  if (!m_on_stake_transactions_update)
+  if (!m_on_stakes_update)
     return;
   
-  if (!m_stake_transactions_need_update && !force)
+  if (!m_stakes_need_update && !force)
     return;
 
-  invoke_update_stake_transactions_handler_impl();
+  invoke_update_stakes_handler_impl();
 }
 
 void StakeTransactionProcessor::set_on_update_blockchain_based_list_handler(const blockchain_based_list_update_handler& handler)

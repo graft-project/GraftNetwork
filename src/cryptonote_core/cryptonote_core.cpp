@@ -1096,14 +1096,14 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-  void core::set_update_stake_transactions_handler(const stake_transactions_update_handler& handler)
+  void core::set_update_stakes_handler(const supernode_stakes_update_handler& handler)
   {
-    m_graft_stake_transaction_processor.set_on_update_stake_transactions_handler(handler);
+    m_graft_stake_transaction_processor.set_on_update_stakes_handler(handler);
   }
   //-----------------------------------------------------------------------------------------------
-  void core::invoke_update_stake_transactions_handler()
+  void core::invoke_update_stakes_handler()
   {
-    m_graft_stake_transaction_processor.invoke_update_stake_transactions_handler(true);
+    m_graft_stake_transaction_processor.invoke_update_stakes_handler(true);
   }
   //-----------------------------------------------------------------------------------------------
   void core::set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler& handler)
@@ -1294,6 +1294,7 @@ namespace cryptonote
     m_check_updates_interval.do_call(boost::bind(&core::check_updates, this));
     m_miner.on_idle();
     m_mempool.on_idle();
+    m_graft_stake_transaction_processor.synchronize();
     return true;
   }
   //-----------------------------------------------------------------------------------------------

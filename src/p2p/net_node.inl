@@ -528,8 +528,8 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::init(const boost::program_options::variables_map& vm)
   {
-    m_payload_handler.get_core().set_update_stake_transactions_handler(
-      [&](const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs) { handle_stake_transactions_update(stake_txs); }
+    m_payload_handler.get_core().set_update_stakes_handler(
+      [&](const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes) { handle_stakes_update(stakes); }
     );
 
     m_payload_handler.get_core().set_update_blockchain_based_list_handler(
@@ -2933,43 +2933,42 @@ namespace nodetool
   }
 
   template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::handle_stake_transactions_update(const cryptonote::StakeTransactionProcessor::stake_transaction_array& stake_txs)
+  void node_server<t_payload_net_handler>::handle_stakes_update(const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes)
   {
-    static std::string supernode_endpoint("send_supernode_stake_txs");
+    static std::string supernode_endpoint("send_supernode_stakes");
 
     boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
 
     if (!m_have_supernode)
       return;
 
-    LOG_PRINT_L0("handle_stake_transactions_update to supernode");
+    LOG_PRINT_L0("handle_stakes_update to supernode");
 
-    cryptonote::COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS::request request;
+    cryptonote::COMMAND_RPC_SUPERNODE_STAKES::request request;
 
-    request.stake_txs.reserve(stake_txs.size());
+    request.stakes.reserve(stakes.size());
 
-    for (const cryptonote::stake_transaction& src_tx : stake_txs)
+    for (const cryptonote::supernode_stake& src_stake : stakes)
     {
-      cryptonote::COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS::stake_transaction dst_tx;
+      cryptonote::COMMAND_RPC_SUPERNODE_STAKES::supernode_stake dst_stake;
 
-      dst_tx.hash = epee::string_tools::pod_to_hex(src_tx.hash);
-      dst_tx.amount = src_tx.amount;
-      dst_tx.tier = src_tx.tier;
-      dst_tx.block_height = src_tx.block_height;
-      dst_tx.unlock_time = src_tx.unlock_time;
-      dst_tx.supernode_public_id = src_tx.supernode_public_id;
-      dst_tx.supernode_public_address = cryptonote::get_account_address_as_str(m_testnet, src_tx.supernode_public_address);
+      dst_stake.amount = src_stake.amount;
+      dst_stake.tier = src_stake.tier;
+      dst_stake.block_height = src_stake.block_height;
+      dst_stake.unlock_time = src_stake.unlock_time;
+      dst_stake.supernode_public_id = src_stake.supernode_public_id;
+      dst_stake.supernode_public_address = cryptonote::get_account_address_as_str(m_testnet, src_stake.supernode_public_address);
 
-      request.stake_txs.emplace_back(std::move(dst_tx));
+      request.stakes.emplace_back(std::move(dst_stake));
     }
 
-    post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS>(supernode_endpoint, request);
+    post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_STAKES>(supernode_endpoint, request);
   }
 
   template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::send_stake_transactions_to_supernode()
+  void node_server<t_payload_net_handler>::send_stakes_to_supernode()
   {
-    m_payload_handler.get_core().invoke_update_stake_transactions_handler();
+    m_payload_handler.get_core().invoke_update_stakes_handler();
   }
 
   template<class t_payload_net_handler>

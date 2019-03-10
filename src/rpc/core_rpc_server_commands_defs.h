@@ -1705,7 +1705,7 @@ namespace cryptonote
   };
 
   //---------- Graft RTA commands ---------------------
-  struct COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS
+  struct COMMAND_RPC_SUPERNODE_GET_STAKES
   {
     struct request
     {
@@ -1726,11 +1726,10 @@ namespace cryptonote
     };
   };
 
-  struct COMMAND_RPC_SUPERNODE_STAKE_TRANSACTIONS
+  struct COMMAND_RPC_SUPERNODE_STAKES
   {
-    struct stake_transaction
+    struct supernode_stake
     {
-      std::string hash;
       uint64_t amount;
       unsigned int tier;
       uint64_t block_height;
@@ -1738,7 +1737,6 @@ namespace cryptonote
       std::string supernode_public_id;
       std::string supernode_public_address;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(hash)
         KV_SERIALIZE(amount)
         KV_SERIALIZE(tier)
         KV_SERIALIZE(block_height)
@@ -1750,9 +1748,9 @@ namespace cryptonote
 
     struct request
     {
-      std::vector<stake_transaction> stake_txs;
+      std::vector<supernode_stake> stakes;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(stake_txs)
+        KV_SERIALIZE(stakes)
       END_KV_SERIALIZE_MAP()
     };
 

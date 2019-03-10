@@ -2,13 +2,15 @@
 #include "file_io_utils.h"
 #include "serialization/binary_utils.h"
 #include "cryptonote_basic/account_boost_serialization.h"
+#include "../graft_rta_config.h"
 
 using namespace cryptonote;
 
 namespace
 {
 
-const uint64_t BLOCK_HASHES_HISTORY_DEPTH = 1000;
+const uint64_t BLOCK_HASHES_HISTORY_DEPTH       = 1000;
+const uint64_t STAKE_TRANSACTIONS_HISTORY_DEPTH = BLOCK_HASHES_HISTORY_DEPTH + config::graft::STAKE_VALIDATION_PERIOD + config::graft::TRUSTED_RESTAKING_PERIOD;
 
 struct stake_transaction_file_data
 {
@@ -41,6 +43,7 @@ StakeTransactionStorage::StakeTransactionStorage(const std::string& storage_file
   , m_last_processed_block_index()
   , m_last_processed_block_hashes_count()
   , m_need_store()
+  , m_supernode_stakes_update_block_number()
 {
   load();
 }
@@ -104,7 +107,205 @@ void StakeTransactionStorage::remove_last_processed_block()
     m_stake_txs.clear();
 
     m_last_processed_block_index = 0;
- }
+  }
+}
+
+void StakeTransactionStorage::remove_obsolete_txs(uint64_t block_number)
+{
+  if (block_number < STAKE_TRANSACTIONS_HISTORY_DEPTH)
+    return;
+
+  stake_transaction_array::iterator it = std::remove_if(m_stake_txs.begin(), m_stake_txs.end(), [&](const stake_transaction& tx) {
+    return tx.block_height + tx.unlock_time < block_number - STAKE_TRANSACTIONS_HISTORY_DEPTH;
+  });
+
+  if (it == m_stake_txs.end())
+    return;
+
+  m_need_store = true;
+
+  m_stake_txs.erase(it, m_stake_txs.end());
+}
+
+void StakeTransactionStorage::clear_supernode_stakes()
+{
+  m_supernode_stakes.clear();
+  m_supernode_stake_indexes.clear();
+
+  m_supernode_stakes_update_block_number = 0;
+}
+
+namespace
+{
+
+unsigned int get_tier(uint64_t stake)
+{
+  return 0 +
+    (stake >= config::graft::TIER1_STAKE_AMOUNT) +
+    (stake >= config::graft::TIER2_STAKE_AMOUNT) +
+    (stake >= config::graft::TIER3_STAKE_AMOUNT) +
+    (stake >= config::graft::TIER4_STAKE_AMOUNT);
+}
+
+}
+
+bool StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
+{
+  if (block_number == m_supernode_stakes_update_block_number)
+    return false;
+
+  if (m_supernode_stakes_update_block_number)
+  {
+    bool updated = false;
+
+    if (m_stake_txs.empty() && !m_supernode_stakes.empty())
+      updated = true; 
+
+    for (const stake_transaction& tx : m_stake_txs)
+    {
+        //compare validity of transaction between this and previous updates
+
+      bool is_valid_for_this_block = tx.is_valid(block_number),
+           is_valid_for_prev_block = tx.is_valid(m_supernode_stakes_update_block_number);
+
+      if (is_valid_for_prev_block != is_valid_for_this_block)
+      {
+        updated = true;
+        break;
+      }
+    }
+
+    if (!updated)
+      return false;
+  }
+
+    //because transactions validity has changed, update all stakes
+
+  m_supernode_stakes.clear();
+  m_supernode_stake_indexes.clear();
+
+  try
+  {
+    m_supernode_stakes.reserve(m_stake_txs.size());
+
+    for (const stake_transaction& tx : m_stake_txs)
+    {
+      bool obsolete_stake = false;
+
+      if (!tx.is_valid(block_number))
+      {
+        uint64_t first_history_block = block_number - config::graft::SUPERNODE_HISTORY_SIZE;
+
+        if (tx.block_height + tx.unlock_time < first_history_block)
+          continue;
+
+          //add stake transaction with zero amount to indicate correspondent node presense for search in supernode
+
+        obsolete_stake = true;
+      }
+
+        //search for a stake of the corresponding supernode
+
+      supernode_stake_index_map::iterator it = m_supernode_stake_indexes.find(tx.supernode_public_id);
+
+      if (it == m_supernode_stake_indexes.end())
+      {
+          //add new supernode stake
+
+        supernode_stake new_stake;
+
+        if (obsolete_stake)
+        {
+          new_stake.amount       = 0;
+          new_stake.tier         = 0;
+          new_stake.block_height = 0;
+          new_stake.unlock_time  = 0;
+        }
+        else
+        {
+          new_stake.amount       = tx.amount;
+          new_stake.tier         = get_tier(new_stake.amount);
+          new_stake.block_height = tx.block_height;
+          new_stake.unlock_time  = tx.unlock_time;
+        }
+
+        new_stake.supernode_public_id      = tx.supernode_public_id;
+        new_stake.supernode_public_address = tx.supernode_public_address;
+
+        m_supernode_stakes.emplace_back(std::move(new_stake));
+
+        m_supernode_stake_indexes[tx.supernode_public_id] = m_supernode_stakes.size() - 1;
+
+        continue;
+      }
+
+        //update existing supernode's stake
+
+      if (obsolete_stake)
+        continue; //no need to aggregate fields from obsolete stake
+
+      supernode_stake& stake = m_supernode_stakes[it->second];
+
+      if (!stake.amount)
+      {
+          //set fields for supernode which has been constructed for obsolete stake
+
+        stake.amount       = tx.amount;
+        stake.tier         = get_tier(stake.amount);
+        stake.block_height = tx.block_height;
+        stake.unlock_time  = tx.unlock_time;
+
+        continue;
+      }
+
+        //aggregate fields for existing stake
+
+      stake.amount += tx.amount;
+      stake.tier    = get_tier(stake.amount);
+
+        //find intersection of stake transaction intervals
+
+      uint64_t min_block_height    = stake.block_height,
+               max_block_height    = min_block_height + stake.unlock_time,
+               min_tx_block_height = tx.block_height,
+               max_tx_block_height = min_tx_block_height + tx.unlock_time;
+
+      if (min_tx_block_height > min_block_height)
+        min_block_height = min_tx_block_height;
+
+      if (max_tx_block_height < max_block_height)
+        max_block_height = max_tx_block_height;
+
+      if (max_block_height <= min_block_height)
+        max_block_height = min_block_height;
+
+      stake.block_height = min_block_height;
+      stake.unlock_time  = max_block_height - min_block_height;
+    }
+  }
+  catch (...)
+  {
+    m_supernode_stakes.clear();
+    m_supernode_stake_indexes.clear();
+
+    m_supernode_stakes_update_block_number = 0;
+
+    throw;
+  }
+
+  m_supernode_stakes_update_block_number = block_number;
+
+  return true;
+}
+
+const supernode_stake* StakeTransactionStorage::find_supernode_stake(const std::string& supernode_public_id) const
+{
+  supernode_stake_index_map::const_iterator it = m_supernode_stake_indexes.find(supernode_public_id);
+
+  if (it == m_supernode_stake_indexes.end())
+    return nullptr;
+
+  return &m_supernode_stakes[it->second];
 }
 
 void StakeTransactionStorage::load()
