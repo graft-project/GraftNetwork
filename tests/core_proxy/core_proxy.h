@@ -102,8 +102,8 @@ namespace tests
     uint8_t get_hard_fork_version(uint64_t height) const { return 0; }
     cryptonote::difficulty_type get_block_cumulative_difficulty(uint64_t height) const { return 0; }
     bool fluffy_blocks_enabled() const { return false; }
-    typedef cryptonote::StakeTransactionProcessor::stake_transactions_update_handler stake_transactions_update_handler;
-    void set_update_stake_transactions_handler(const stake_transactions_update_handler&) {}
+    typedef cryptonote::StakeTransactionProcessor::supernode_stakes_update_handler supernode_stakes_update_handler;
+    void set_update_stakes_handler(const supernode_stakes_update_handler&) {}
     void invoke_stake_transactions_update_handler() {}
     typedef cryptonote::StakeTransactionProcessor::blockchain_based_list_update_handler blockchain_based_list_update_handler;
     void set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&) {}
