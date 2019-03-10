@@ -34,6 +34,9 @@
 
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
+#include "utils/utils.h"
+#include "net/http_client.h"
+#include "rpc/core_rpc_server_commands_defs.h"
 
 #include <boost/chrono/chrono.hpp>
 #include <boost/filesystem.hpp>
@@ -203,5 +206,91 @@ TEST_F(GraftWalletTest, PendingTxSerialization1)
     ASSERT_NO_THROW(wallet->commit_tx(ptx2));
 
     delete wallet;
+}
 
+// TODO: wrong place for this tests, but just for 'quick-n-dirty' purpose
+struct UtilsTest : public testing::Test
+{
+
+};
+
+TEST_F(UtilsTest, DecodeAmountWithTxKeySuccess)
+{
+  epee::net_utils::http::http_simple_client http_client;
+  using namespace cryptonote;
+  using namespace epee;
+  http_client.set_server("localhost:28681",  boost::optional<epee::net_utils::http::login>());
+  COMMAND_RPC_GET_TRANSACTIONS::request req;
+  COMMAND_RPC_GET_TRANSACTIONS::response res;
+  std::string txid = "c2243e28d43cf3c7d9b4de8ae3327b7abf648bf66fba407b988f38ae95d859f1";
+  std::string wallet_addr = "F8pVph8wtL2RZay5j94D3WWpR7bTsWfmiRoya93f7udXaNXuB4DpEVp2uoupu6KpzTHTKbfdm92fRd6x3mPRfD5ZNxjjwYs";
+  std::string tx_key_str = "96acbc90bc4682cbc0984856bc3475c4a89ff9575e7a85ef4f9945ca71c63b0d";
+
+  crypto::secret_key tx_key;
+  epee::string_tools::hex_to_pod(tx_key_str, tx_key);
+
+  req.txs_hashes.push_back(txid);
+  bool r = (!net_utils::invoke_http_json("/gettransactions", req, res, http_client) || (res.txs.size() != 1 && res.txs_as_hex.size() != 1));
+  ASSERT_FALSE(r);
+
+  cryptonote::blobdata tx_data;
+  bool ok;
+  if (res.txs.size() == 1)
+    ok = string_tools::parse_hexstr_to_binbuff(res.txs.front().as_hex, tx_data);
+  else
+    ok = string_tools::parse_hexstr_to_binbuff(res.txs_as_hex.front(), tx_data);
+  ASSERT_TRUE(ok);
+  crypto::hash tx_hash, tx_prefix_hash;
+  cryptonote::transaction tx;
+  ASSERT_TRUE(cryptonote::parse_and_validate_tx_from_blob(tx_data, tx, tx_hash, tx_prefix_hash));
+
+  uint64_t amount = 0;
+  account_public_address address;
+  get_account_address_from_str(address, true, wallet_addr);
+  std::vector<std::pair<size_t, uint64_t>> outputs;
+  ASSERT_TRUE(::Utils::get_tx_amount(address, tx_key, tx, outputs, amount));
+  MDEBUG("amount: " << amount);
+  ASSERT_TRUE(amount > 0);
+
+
+}
+
+
+TEST_F(UtilsTest, DecodeAmountWithTxKeyFail)
+{
+  epee::net_utils::http::http_simple_client http_client;
+  using namespace cryptonote;
+  using namespace epee;
+  http_client.set_server("localhost:28681",  boost::optional<epee::net_utils::http::login>());
+  COMMAND_RPC_GET_TRANSACTIONS::request req;
+  COMMAND_RPC_GET_TRANSACTIONS::response res;
+  std::string txid = "2d1a8ec99e44e8a27cda9668c326cadc2f2eef962d1e99fcb1ac9c143b1336c1";
+  std::string wallet_addr = "F8pVph8wtL2RZay5j94D3WWpR7bTsWfmiRoya93f7udXaNXuB4DpEVp2uoupu6KpzTHTKbfdm92fRd6x3mPRfD5ZNxjjwYs";
+  std::string tx_key_str = "96acbc90bc4682cbc0984856bc3475c4a89ff9575e7a85ef4f9945ca71c63b0d";
+
+  crypto::secret_key tx_key;
+  epee::string_tools::hex_to_pod(tx_key_str, tx_key);
+
+  req.txs_hashes.push_back(txid);
+  bool r = (!net_utils::invoke_http_json("/gettransactions", req, res, http_client) || (res.txs.size() != 1 && res.txs_as_hex.size() != 1));
+  ASSERT_FALSE(r);
+
+  cryptonote::blobdata tx_data;
+  bool ok;
+  if (res.txs.size() == 1)
+    ok = string_tools::parse_hexstr_to_binbuff(res.txs.front().as_hex, tx_data);
+  else
+    ok = string_tools::parse_hexstr_to_binbuff(res.txs_as_hex.front(), tx_data);
+  ASSERT_TRUE(ok);
+  crypto::hash tx_hash, tx_prefix_hash;
+  cryptonote::transaction tx;
+  ASSERT_TRUE(cryptonote::parse_and_validate_tx_from_blob(tx_data, tx, tx_hash, tx_prefix_hash));
+
+  uint64_t amount = 0;
+  account_public_address address;
+  get_account_address_from_str(address, true, wallet_addr);
+  std::vector<std::pair<size_t, uint64_t>> outputs;
+  ASSERT_TRUE(::Utils::get_tx_amount(address, tx_key, tx, outputs, amount));
+  MDEBUG("amount: " << amount);
+  ASSERT_FALSE(amount > 0);
 }

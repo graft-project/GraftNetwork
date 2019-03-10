@@ -30,9 +30,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <ringct/rctSigs.h>
 #include <cryptonote_basic/account.h>
 #include <cryptonote_basic/cryptonote_basic.h>
+
 #include <vector>
 
 namespace Utils {
@@ -45,6 +45,8 @@ namespace Utils {
  * \return                   - true on success
  */
 bool lookup_account_outputs_ringct(const cryptonote::account_keys &acc, const cryptonote::transaction &tx,
+                                   std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered);
+bool get_tx_amount(const cryptonote::account_public_address &address, const crypto::secret_key &key, const cryptonote::transaction &tx,
                                    std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered);
 
 } // namespace
