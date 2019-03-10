@@ -1792,9 +1792,11 @@ namespace cryptonote
     {
       std::string supernode_public_id;
       std::string supernode_public_address;
+      uint64_t    amount;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(supernode_public_id)
         KV_SERIALIZE(supernode_public_address)
+        KV_SERIALIZE(amount)
       END_KV_SERIALIZE_MAP()
     };
 

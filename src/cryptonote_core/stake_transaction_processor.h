@@ -21,7 +21,7 @@ public:
   void init_storages(const std::string& config_dir);
 
   /// Search supernode stake by supernode public id (returns nullptr if no stake is found)
-  const supernode_stake* find_supernode_stake(const std::string& supernode_public_id) const;
+  const supernode_stake* find_supernode_stake(uint64_t block_number, const std::string& supernode_public_id) const;
 
   /// Synchronize with blockchain
   void synchronize();

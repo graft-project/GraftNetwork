@@ -8,8 +8,8 @@ using namespace cryptonote;
 namespace
 {
 
-const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.v1.bin";
-const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v2.bin";
+const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.v2.bin";
+const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v3.bin";
 
 }
 
@@ -34,12 +34,12 @@ StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
 {
 }
 
-const supernode_stake* StakeTransactionProcessor::find_supernode_stake(const std::string& supernode_public_id) const
+const supernode_stake* StakeTransactionProcessor::find_supernode_stake(uint64_t block_number, const std::string& supernode_public_id) const
 {
   if (!m_storage)
     return nullptr;
 
-  return m_storage->find_supernode_stake(supernode_public_id);
+  return m_storage->find_supernode_stake(block_number, supernode_public_id);
 }
 
 namespace
@@ -195,14 +195,11 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
       << "', amount=" << amount / double(COIN));
   }
 
-    //remove obsolete stake transactions from a storage
-
-  m_storage->remove_obsolete_txs(block_index);
-
     //update supernode stakes
 
-  if (m_storage->update_supernode_stakes(block_index))
-    m_stakes_need_update = true;
+  m_storage->update_supernode_stakes(block_index);
+
+  m_stakes_need_update = true; //TODO: cache for stakes
 
     //update cache entries and save storage
 
@@ -326,7 +323,7 @@ void StakeTransactionProcessor::invoke_update_stakes_handler_impl()
 {
   try
   {
-    m_on_stakes_update(m_storage->get_supernode_stakes());
+    m_on_stakes_update(m_storage->get_supernode_stakes(m_blockchain.get_db().height() - 1));
 
     m_stakes_need_update = false;
   }

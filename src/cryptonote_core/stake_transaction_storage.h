@@ -76,17 +76,14 @@ public:
   /// Add transaction
   void add_tx(const stake_transaction&);
 
-  /// Remove obsolete stake transactions
-  void remove_obsolete_txs(uint64_t block_number);
-
   /// List of supernode stakes
-  const supernode_stake_array& get_supernode_stakes() const { return m_supernode_stakes; }
+  const supernode_stake_array& get_supernode_stakes(uint64_t block_number);
 
   /// Search supernode stake by supernode public id (returns nullptr if no stake is found)
-  const supernode_stake* find_supernode_stake(const std::string& supernode_public_id) const;
+  const supernode_stake* find_supernode_stake(uint64_t block_number, const std::string& supernode_public_id);
 
-  /// Update supernode stakes (returns true if stakes have been updated, false if the result is same)
-  bool update_supernode_stakes(uint64_t block_number);
+  /// Update supernode stakes
+  void update_supernode_stakes(uint64_t block_number);
 
   /// Clear supernode stakes
   void clear_supernode_stakes();

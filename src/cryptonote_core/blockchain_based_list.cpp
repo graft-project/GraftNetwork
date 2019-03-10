@@ -86,7 +86,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
   if (block_height != m_block_height + 1)
     throw std::runtime_error("block_height should be next after the block already processed");
 
-  const StakeTransactionStorage::supernode_stake_array& stakes = stake_txs_storage.get_supernode_stakes();
+  const StakeTransactionStorage::supernode_stake_array& stakes = stake_txs_storage.get_supernode_stakes(block_height);
 
     //build blockchain based list for each tier
 
@@ -124,6 +124,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
       sn.supernode_public_id      = stake.supernode_public_id;
       sn.supernode_public_address = stake.supernode_public_address;
+      sn.amount                   = stake.amount;
       sn.block_height             = stake.block_height;
       sn.unlock_time              = stake.unlock_time;
 

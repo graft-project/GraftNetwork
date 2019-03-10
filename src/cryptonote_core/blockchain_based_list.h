@@ -15,10 +15,12 @@ public:
   {    
     std::string supernode_public_id;
     cryptonote::account_public_address supernode_public_address;
+    uint64_t amount;
     uint64_t block_height;
     uint64_t unlock_time;
 
     BEGIN_SERIALIZE_OBJECT()
+      FIELD(amount)
       FIELD(block_height)
       FIELD(unlock_time)
       FIELD(supernode_public_id)

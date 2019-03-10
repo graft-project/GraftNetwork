@@ -3000,6 +3000,7 @@ namespace nodetool
 
         dst_supernode.supernode_public_id      = src_supernode.supernode_public_id;
         dst_supernode.supernode_public_address = cryptonote::get_account_address_as_str(m_testnet, src_supernode.supernode_public_address);
+        dst_supernode.amount                   = src_supernode.amount;
 
         dst_tier.supernodes.emplace_back(std::move(dst_supernode));
       }
