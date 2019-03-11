@@ -134,65 +134,76 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
   for (const crypto::hash& tx_hash : block.tx_hashes)
   {
-    const transaction& tx = db.get_tx(tx_hash);
-
-    if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
-      continue;
-
-    crypto::public_key W;
-    if (!epee::string_tools::hex_to_pod(stake_tx.supernode_public_id, W) || !check_key(W))
+    try
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash
-        << " because of invalid supernode public identifier '" << stake_tx.supernode_public_id << "'");
-      continue;
+      const transaction& tx = db.get_tx(tx_hash);
+
+      if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
+        continue;
+
+      crypto::public_key W;
+      if (!epee::string_tools::hex_to_pod(stake_tx.supernode_public_id, W) || !check_key(W))
+      {
+        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash
+          << " because of invalid supernode public identifier '" << stake_tx.supernode_public_id << "'");
+        continue;
+      }
+
+      std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_blockchain.testnet(), stake_tx.supernode_public_address);
+      std::string data = supernode_public_address_str + ":" + stake_tx.supernode_public_id;
+      crypto::hash hash;
+      crypto::cn_fast_hash(data.data(), data.size(), hash);
+
+      if (!crypto::check_signature(hash, W, stake_tx.supernode_signature))
+      {
+        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+          << " because of invalid supernode signature (mismatch)");
+        continue;
+      }
+
+      uint64_t unlock_time = tx.unlock_time - block_index;
+
+      if (unlock_time < config::graft::STAKE_MIN_UNLOCK_TIME)
+      {
+        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+          << " because unlock time " << unlock_time << " is less than minimum allowed " << config::graft::STAKE_MIN_UNLOCK_TIME);
+        continue;
+      }
+
+      if (unlock_time > config::graft::STAKE_MAX_UNLOCK_TIME)
+      {
+        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+          << " because unlock time " << unlock_time << " is greater than maximum allowed " << config::graft::STAKE_MAX_UNLOCK_TIME);
+        continue;
+      }
+
+      uint64_t amount = get_transaction_amount(tx, stake_tx.supernode_public_address, stake_tx.tx_secret_key);
+
+      if (!amount)
+      {
+        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+          << " because of error at parsing amount");
+        continue;
+      }
+
+      stake_tx.amount = amount;
+      stake_tx.block_height = block_index;
+      stake_tx.hash = tx_hash;
+      stake_tx.unlock_time = unlock_time;
+
+      m_storage->add_tx(stake_tx);
+
+      MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id
+        << "', amount=" << amount / double(COIN));
     }
-
-    std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_blockchain.testnet(), stake_tx.supernode_public_address);
-    std::string data = supernode_public_address_str + ":" + stake_tx.supernode_public_id;
-    crypto::hash hash;
-    crypto::cn_fast_hash(data.data(), data.size(), hash);
-
-    if (!crypto::check_signature(hash, W, stake_tx.supernode_signature))
+    catch (std::exception& e)
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        << " because of invalid supernode signature (mismatch)");
-      continue;
+      MCLOG(el::Level::Warning, "global", "Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of error at parsing: " << e.what());
     }
-
-    uint64_t unlock_time = tx.unlock_time - block_index;
-
-    if (unlock_time < config::graft::STAKE_MIN_UNLOCK_TIME)
+    catch (...)
     {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        << " because unlock time " << unlock_time << " is less than minimum allowed " << config::graft::STAKE_MIN_UNLOCK_TIME);
-      continue;
+      MCLOG(el::Level::Warning, "global", "Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of unknown error at parsing");
     }
-
-    if (unlock_time > config::graft::STAKE_MAX_UNLOCK_TIME)
-    {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        << " because unlock time " << unlock_time << " is greater than maximum allowed " << config::graft::STAKE_MAX_UNLOCK_TIME);
-      continue;
-    }
-
-    uint64_t amount = get_transaction_amount(tx, stake_tx.supernode_public_address, stake_tx.tx_secret_key);
-
-    if (!amount)
-    {
-      MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-        << " because of error at parsing amount");
-      continue;
-    }
-
-    stake_tx.amount = amount;
-    stake_tx.block_height = block_index;
-    stake_tx.hash = tx_hash;
-    stake_tx.unlock_time = unlock_time;
-
-    m_storage->add_tx(stake_tx);
-
-    MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id
-      << "', amount=" << amount / double(COIN));
   }
 
     //update supernode stakes
