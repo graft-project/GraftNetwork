@@ -416,9 +416,8 @@ namespace nodetool
     uint64_t get_multicast_bytes_out() const { return m_multicast_bytes_out; }
 
   private:
-    void handle_stakes_update(const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes);
+    void handle_stakes_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes);
     void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
-
 
   private:
     std::multimap<int, std::string> m_supernode_requests_timestamps;

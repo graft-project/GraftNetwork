@@ -1748,8 +1748,10 @@ namespace cryptonote
 
     struct request
     {
+      uint64_t block_height;
       std::vector<supernode_stake> stakes;
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(block_height)
         KV_SERIALIZE(stakes)
       END_KV_SERIALIZE_MAP()
     };
@@ -1810,10 +1812,10 @@ namespace cryptonote
 
     struct request
     {
-      uint64_t block_number;
+      uint64_t block_height;
       std::vector<tier> tiers;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(block_number)
+        KV_SERIALIZE(block_height)
         KV_SERIALIZE(tiers)
       END_KV_SERIALIZE_MAP()
     };

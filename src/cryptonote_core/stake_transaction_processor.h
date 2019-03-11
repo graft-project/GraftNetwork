@@ -26,7 +26,7 @@ public:
   /// Synchronize with blockchain
   void synchronize();
 
-  typedef std::function<void(const supernode_stake_array&)> supernode_stakes_update_handler;
+  typedef std::function<void(uint64_t block_number, const supernode_stake_array&)> supernode_stakes_update_handler;
 
   /// Update handler for new stakes
   void set_on_update_stakes_handler(const supernode_stakes_update_handler&);
@@ -45,7 +45,7 @@ public:
 
 private:
   void process_block(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
-  void invoke_update_stakes_handler_impl();
+  void invoke_update_stakes_handler_impl(uint64_t block_index);
   void invoke_update_blockchain_based_list_handler_impl(size_t depth);
   void process_block_stake_transaction(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
   void process_block_blockchain_based_list(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);

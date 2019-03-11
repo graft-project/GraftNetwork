@@ -304,7 +304,7 @@ void StakeTransactionProcessor::synchronize()
     m_storage->store();
 
   if (m_stakes_need_update && m_on_stakes_update)
-    invoke_update_stakes_handler_impl();
+    invoke_update_stakes_handler_impl(height - 1);
 
   if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
     invoke_update_blockchain_based_list_handler_impl(height - first_block_index);
@@ -319,11 +319,11 @@ void StakeTransactionProcessor::set_on_update_stakes_handler(const supernode_sta
   m_on_stakes_update = handler;
 }
 
-void StakeTransactionProcessor::invoke_update_stakes_handler_impl()
+void StakeTransactionProcessor::invoke_update_stakes_handler_impl(uint64_t block_index)
 {
   try
   {
-    m_on_stakes_update(m_storage->get_supernode_stakes(m_blockchain.get_db().height() - 1));
+    m_on_stakes_update(block_index, m_storage->get_supernode_stakes(block_index));
 
     m_stakes_need_update = false;
   }
@@ -343,7 +343,7 @@ void StakeTransactionProcessor::invoke_update_stakes_handler(bool force)
   if (!m_stakes_need_update && !force)
     return;
 
-  invoke_update_stakes_handler_impl();
+  invoke_update_stakes_handler_impl(m_blockchain.get_db().height() - 1);
 }
 
 void StakeTransactionProcessor::set_on_update_blockchain_based_list_handler(const blockchain_based_list_update_handler& handler)
