@@ -215,16 +215,19 @@ namespace cryptonote
     static constexpr size_t POS_KEY_INDEX = 0;
     static constexpr size_t POS_PROXY_KEY_INDEX = 1;
     static constexpr size_t WALLET_PROXY_KEY_INDEX = 2;
+    uint64_t auth_sample_height = 0; // block height for auth sample generation
 
     std::vector<crypto::public_key> keys;
     BEGIN_SERIALIZE_OBJECT()
       FIELD(payment_id)
+      FIELD(auth_sample_height)
       FIELD(keys)
     END_SERIALIZE()
     bool operator== (const rta_header &other) const
     {
       return this->payment_id == other.payment_id
-          && this->keys == other.keys;
+          && this->keys == other.keys
+          && this->auth_sample_height == other.auth_sample_height;
     }
   };
 

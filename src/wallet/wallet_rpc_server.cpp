@@ -558,6 +558,8 @@ namespace tools
 
     cryptonote::rta_header rta_header;
     rta_header.payment_id = req.graft_payment_id;
+    rta_header.auth_sample_height = req.auth_sample_height;
+
     for (const std::string &key_str : req.supernode_keys) {
       crypto::public_key key;
       if (!epee::string_tools::hex_to_pod(key_str, key)) {
@@ -583,6 +585,9 @@ namespace tools
         return false;
       }
 
+      if (!req.do_not_relay)
+        m_wallet->commit_tx(ptx_vector);
+
       // populate response with tx hash
       res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector.back().tx));
       if (req.get_tx_key)
@@ -591,9 +596,12 @@ namespace tools
       }
       res.fee = ptx_vector.back().fee;
 
-      cryptonote::blobdata blob;
-      tx_to_blob(ptx_vector.back().tx, blob);
-      res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
+      if (req.get_tx_hex)
+      {
+        cryptonote::blobdata blob;
+        tx_to_blob(ptx_vector.back().tx, blob);
+        res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
+      }
 
       // return encrypted tx key
       std::string encrypted_key_blob;

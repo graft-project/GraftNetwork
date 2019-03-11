@@ -46,6 +46,7 @@
 #include "common/perf_timer.h"
 #include "crypto/hash.h"
 #include "stake_transaction_processor.h"
+#include "graft_rta_config.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "txpool"
@@ -1073,10 +1074,16 @@ namespace cryptonote
   {
     bool result = true;
 
+    if (rta_hdr.keys.size() == 0) {
+      MERROR("Failed to validate rta tx, missing auth sample keys for tx: " << txid );
+      return false;
+    }
+#if 0  // don't validate signatures for rta mining
     if (rta_hdr.keys.size() != rta_signs.size()) {
       MERROR("Failed to validate rta tx: " << txid << ", keys.size() != signatures.size()");
       return false;
     }
+
     for (const auto &rta_sign : rta_signs) {
       // check if key index is in range
       if (rta_sign.key_index >= rta_hdr.keys.size()) {
@@ -1085,11 +1092,6 @@ namespace cryptonote
         break;
       }
 
-      result &= validate_supernode(m_blockchain.get_current_blockchain_height(), rta_hdr.keys[rta_sign.key_index]);
-      if (!result) {
-        MERROR("Failed to validate rta tx: " << epee::string_tools::pod_to_hex(txid) << ", key: " << rta_hdr.keys[rta_sign.key_index] << " doesn't belong to a valid supernode");
-        break;
-      }
 
       result &= crypto::check_signature(txid, rta_hdr.keys[rta_sign.key_index], rta_sign.signature);
       if (!result) {
@@ -1097,13 +1099,21 @@ namespace cryptonote
         break;
       }
     }
+#endif
+    for (const crypto::public_key &key : rta_hdr.keys) {
+      result &= validate_supernode(rta_hdr.auth_sample_height, key);
+      if (!result) {
+        MERROR("Failed to validate rta tx: " << epee::string_tools::pod_to_hex(txid) << ", key: " << key << " doesn't belong to a valid supernode");
+        break;
+      }
+    }
+
     return result;
   }
 
   bool tx_memory_pool::validate_supernode(uint64_t height, const public_key &id) const
   {
-    // TODO: add pointer/reference to the StakeTransactionProcessor to this class and
-    // check if key belongs to a valid supernode
-    return true;
+    supernode_stake * stake = const_cast<supernode_stake*>(m_stp->find_supernode_stake(height, epee::string_tools::pod_to_hex(id)));
+    return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
   };
 }

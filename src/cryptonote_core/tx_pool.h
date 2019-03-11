@@ -331,6 +331,11 @@ namespace cryptonote
     size_t validate(uint8_t version);
 
 
+    void set_stake_transaction_processor(StakeTransactionProcessor * arg)
+    {
+      m_stp = arg;
+    }
+
 #define CURRENT_MEMPOOL_ARCHIVE_VER    11
 #define CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER    12
 
@@ -460,7 +465,7 @@ namespace cryptonote
 
     bool validate_rta_tx(const crypto::hash &txid, const std::vector<cryptonote::rta_signature> &rta_signs, const cryptonote::rta_header &rta_hdr) const;
 
-    bool validate_supernode(uint64_t heigh, const crypto::public_key &id) const;
+    bool validate_supernode(uint64_t height, const crypto::public_key &id) const;
 
     //TODO: confirm the below comments and investigate whether or not this
     //      is the desired behavior
@@ -508,6 +513,7 @@ private:
     std::unordered_set<crypto::hash> m_timed_out_transactions;
 
     Blockchain& m_blockchain;  //!< reference to the Blockchain object
+    StakeTransactionProcessor * m_stp = nullptr;
   };
 }
 

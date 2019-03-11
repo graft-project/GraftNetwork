@@ -210,7 +210,7 @@ namespace wallet_rpc
     {
       std::list<std::string> supernode_keys;
       std::string graft_payment_id;
-
+      uint64_t auth_sample_height;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(destinations)
         KV_SERIALIZE(priority)
@@ -220,6 +220,7 @@ namespace wallet_rpc
         KV_SERIALIZE(get_tx_key)
         KV_SERIALIZE(supernode_keys)
         KV_SERIALIZE(graft_payment_id)
+        KV_SERIALIZE(auth_sample_height)
         KV_SERIALIZE_OPT(do_not_relay, false)
         KV_SERIALIZE_OPT(get_tx_hex, false)
       END_KV_SERIALIZE_MAP()
