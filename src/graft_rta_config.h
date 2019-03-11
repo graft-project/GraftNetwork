@@ -12,6 +12,7 @@ namespace graft
 
 constexpr uint64_t STAKE_MIN_UNLOCK_TIME = 50;
 constexpr uint64_t STAKE_MAX_UNLOCK_TIME = 5000;
+constexpr uint64_t STAKE_MIN_UNLOCK_TIME_FOR_WALLET = STAKE_MIN_UNLOCK_TIME + 10;
 constexpr uint64_t STAKE_VALIDATION_PERIOD = 6;
 constexpr uint64_t TRUSTED_RESTAKING_PERIOD = 6;
 constexpr uint64_t SUPERNODE_HISTORY_SIZE = 100;

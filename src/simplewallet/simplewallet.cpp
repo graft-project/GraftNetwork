@@ -2546,9 +2546,9 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
       return true;
     }
 
-    if (locked_blocks < config::graft::STAKE_MIN_UNLOCK_TIME)
+    if (locked_blocks < config::graft::STAKE_MIN_UNLOCK_TIME_FOR_WALLET)
     {
-      fail_msg_writer() << tr("locked blocks number ") << locked_blocks << tr(" is less than minimum required ") << config::graft::STAKE_MIN_UNLOCK_TIME;
+      fail_msg_writer() << tr("locked blocks number ") << locked_blocks << tr(" is less than minimum required ") << config::graft::STAKE_MIN_UNLOCK_TIME_FOR_WALLET;
       return true;
     }
 
