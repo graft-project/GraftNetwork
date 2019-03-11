@@ -59,7 +59,7 @@ namespace Monero {
 
 struct RtaSignature
 {
-    std::string address;
+    size_t key_index;
     std::string signature;
 };
 

@@ -72,6 +72,7 @@ namespace cryptonote
    * \param graft_extra   - graft fields to add
    * \return              - true on success
    */
+  // TODO:  probably we will remove "..graft_tx_extra.." methods
   bool add_graft_tx_extra_to_extra(transaction &tx, const supernode::GraftTxExtra &graft_extra);
 
   /*!
@@ -122,6 +123,22 @@ namespace cryptonote
      cryptonote::account_public_address &supernode_public_address,
      crypto::signature &supernode_signature,
      crypto::secret_key &tx_secret_key);
+
+  /*!
+   * \brief add_graft_rta_header_to_extra - add rta_header to the extra
+   * \param extra                         - extra to add fields to
+   * \param rta_header                    - source rta_header
+   * \return                              - true on success
+   */
+  bool add_graft_rta_header_to_extra(std::vector<uint8_t> &extra, const rta_header &rta_header);
+
+  /*!
+   * \brief get_graft_rta_header_from_extra - read rta_header from tx extra
+   * \param tx                              - input transaction
+   * \param rta_header                      - output rta_header
+   * \return                                - true on success
+   */
+  bool get_graft_rta_header_from_extra(const transaction& tx, rta_header &rta_header);
 
   bool add_extra_nonce_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& extra_nonce);
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type);

@@ -934,6 +934,29 @@ namespace cryptonote
       return true;
   }
 
+  bool add_graft_rta_header_to_extra(std::vector<uint8_t> &extra, const rta_header &rta_header)
+  {
+    std::string blob;
+    ::serialization::dump_binary(const_cast<struct rta_header&>(rta_header), blob);
+    tx_extra_graft_rta_header container;
+    container.data = blob;
+    blob.clear();
+    ::serialization::dump_binary(container, blob);
+    extra.push_back(TX_EXTRA_GRAFT_RTA_HEADER_TAG);
+    std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
+    return true;
+  }
+
+  bool get_graft_rta_header_from_extra(const transaction &tx, rta_header &rta_header)
+  {
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx.extra, tx_extra_fields);
+    tx_extra_graft_rta_header rta_header_data;
+    if(!find_tx_extra_field_by_type(tx_extra_fields, rta_header_data))
+      return false;
+    return ::serialization::parse_binary(rta_header_data.data, rta_header);
+  }
+
   bool add_graft_tx_secret_key_to_extra(std::vector<uint8_t> &extra, const crypto::secret_key& secret_key)
   {
       tx_extra_graft_tx_secret_key container;

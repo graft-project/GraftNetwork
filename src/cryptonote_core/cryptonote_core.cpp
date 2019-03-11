@@ -407,7 +407,7 @@ namespace cryptonote
         blocks_per_sync, sync_mode, fast_sync);
 
     r = m_blockchain_storage.init(db, m_testnet, test_options);
-
+    m_mempool.set_stake_transaction_processor(&m_graft_stake_transaction_processor);
     r = m_mempool.init();
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize memory pool");
 

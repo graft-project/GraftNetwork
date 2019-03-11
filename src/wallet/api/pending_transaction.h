@@ -54,6 +54,7 @@ public:
     bool save(std::ostream &stream);
     std::vector<std::string> getRawTransaction() const override;
     void updateTransactionCache() override;
+    // TODO: update for new rta tx structure
     void putRtaSignatures(const std::vector<RtaSignature> &) override;
 private:
     friend class WalletImpl;

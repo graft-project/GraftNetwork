@@ -48,6 +48,7 @@ using namespace epee;
 #include "mnemonics/electrum-words.h"
 #include "rpc/rpc_args.h"
 #include "rpc/core_rpc_server_commands_defs.h"
+#include "utils/cryptmsg.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.rpc"
@@ -521,6 +522,117 @@ namespace tools
     }
     return true;
   }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_transfer_rta(const wallet_rpc::COMMAND_RPC_TRANSFER_RTA::request& req, wallet_rpc::COMMAND_RPC_TRANSFER_RTA::response& res, epee::json_rpc::error& er)
+  {
+    std::vector<cryptonote::tx_destination_entry> dsts;
+    std::vector<uint8_t> extra;
+
+    LOG_PRINT_L3("on_transfer_rta starts");
+    if (!m_wallet) return not_open(er);
+    if (m_wallet->restricted())
+    {
+      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Command unavailable in restricted mode.";
+      return false;
+    }
+
+    // validate the transfer requested and populate dsts & extra
+    if (!validate_transfer(req.destinations, req.payment_id, dsts, extra, er))
+    {
+      return false;
+    }
+
+    // fill rta_header
+    if (req.supernode_keys.empty()) {
+      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      er.message = "Missing supernode keys";
+      return false;
+    }
+
+    if (req.graft_payment_id.empty()) {
+      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      er.message = "Missing RTA payment id";
+      return false;
+    }
+
+    cryptonote::rta_header rta_header;
+    rta_header.payment_id = req.graft_payment_id;
+    rta_header.auth_sample_height = req.auth_sample_height;
+
+    for (const std::string &key_str : req.supernode_keys) {
+      crypto::public_key key;
+      if (!epee::string_tools::hex_to_pod(key_str, key)) {
+        er.code = WALLET_RPC_ERROR_CODE_WRONG_SUPERNODE_KEY;
+        er.message = "Failed to parse key";
+        return false;
+      }
+      rta_header.keys.push_back(key);
+    }
+
+    cryptonote::add_graft_rta_header_to_extra(extra, rta_header);
+
+    try
+    {
+      uint64_t mixin = adjust_mixin(req.mixin);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, req.priority, extra, m_trusted_daemon, true);
+
+      // reject proposed transactions if there are more than one.  see on_transfer_split below.
+      if (ptx_vector.size() != 1)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "Transaction would be too large.  try /transfer_split.";
+        return false;
+      }
+
+      if (!req.do_not_relay)
+        m_wallet->commit_tx(ptx_vector);
+
+      // populate response with tx hash
+      res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector.back().tx));
+      if (req.get_tx_key)
+      {
+        res.tx_key = epee::string_tools::pod_to_hex(ptx_vector.back().tx_key);
+      }
+      res.fee = ptx_vector.back().fee;
+
+      if (req.get_tx_hex)
+      {
+        cryptonote::blobdata blob;
+        tx_to_blob(ptx_vector.back().tx, blob);
+        res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
+      }
+
+      // return encrypted tx key
+      std::string encrypted_key_blob;
+      graft::crypto_tools::encryptMessage(std::string(reinterpret_cast<const char*>(&ptx_vector.back().tx_key),
+                                                      sizeof(crypto::secret_key)),
+                                         rta_header.keys, encrypted_key_blob);
+      res.encrypted_tx_key = epee::string_tools::buff_to_hex_nodelimer(encrypted_key_blob);
+      return true;
+    }
+    catch (const tools::error::daemon_busy& e)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_DAEMON_IS_BUSY;
+      er.message = e.what();
+      return false;
+    }
+    catch (const std::exception& e)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      er.message = e.what();
+      return false;
+    }
+    catch (...)
+    {
+      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+      er.message = "WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR";
+      return false;
+    }
+    return true;
+
+  }
+
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_transfer_split(const wallet_rpc::COMMAND_RPC_TRANSFER_SPLIT::request& req, wallet_rpc::COMMAND_RPC_TRANSFER_SPLIT::response& res, epee::json_rpc::error& er)
   {

@@ -203,11 +203,11 @@ void  PendingTransactionImpl::putRtaSignatures(const std::vector<RtaSignature> &
     std::vector<cryptonote::rta_signature> bin_signs;
     for (const auto &sign : signs) {
         cryptonote::rta_signature bin_sign;
-
-        if (!cryptonote::get_account_address_from_str(bin_sign.address, m_wallet.testnet(), sign.address)) {
-            LOG_ERROR("error parsing address from string: " << sign.address);
-            continue;
-        }
+//        TODO: update for new rta transaction
+//        if (!cryptonote::get_account_address_from_str(bin_sign.address, m_wallet.testnet(), sign.address)) {
+//            LOG_ERROR("error parsing address from string: " << sign.address);
+//            continue;
+//        }
 
         epee::string_tools::hex_to_pod(sign.signature, bin_sign.signature);
         bin_signs.push_back(bin_sign);
