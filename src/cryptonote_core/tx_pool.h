@@ -50,6 +50,7 @@
 namespace cryptonote
 {
   class Blockchain;
+  class StakeTransactionProcessor;
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
@@ -106,7 +107,8 @@ namespace cryptonote
      * @param id the transaction's hash
      * @param blob_size the transaction's size
      */
-    bool add_tx(transaction &tx, const crypto::hash &id, size_t blob_size, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version);
+    bool add_tx(transaction &tx, const crypto::hash &id, size_t blob_size, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay,
+                uint8_t version);
 
     /**
      * @brief add a transaction to the transaction pool
@@ -454,6 +456,11 @@ namespace cryptonote
      * @return true if the transaction is good to go, otherwise false
      */
     bool is_transaction_ready_to_go(txpool_tx_meta_t& txd, transaction &tx) const;
+
+
+    bool validate_rta_tx(const crypto::hash &txid, const std::vector<cryptonote::rta_signature> &rta_signs, const cryptonote::rta_header &rta_hdr) const;
+
+    bool validate_supernode(uint64_t heigh, const crypto::public_key &id) const;
 
     //TODO: confirm the below comments and investigate whether or not this
     //      is the desired behavior
