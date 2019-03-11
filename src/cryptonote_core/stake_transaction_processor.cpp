@@ -139,7 +139,7 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
     if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
       continue;
 
-    /*crypto::public_key W;
+    crypto::public_key W;
     if (!epee::string_tools::hex_to_pod(stake_tx.supernode_public_id, W) || !check_key(W))
     {
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash
@@ -157,7 +157,7 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
       MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
         << " because of invalid supernode signature (mismatch)");
       continue;
-    }*/
+    }
 
     uint64_t unlock_time = tx.unlock_time - block_index;
 
