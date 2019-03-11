@@ -233,16 +233,16 @@ namespace cryptonote
 
   struct rta_signature
   {
-    size_t key_index; // reference to the corresponding pubkey. alternatively we can just iterate by matching signatures and keys
+    //   size_t key_index; // reference to the corresponding pubkey. alternatively we can just iterate by matching signatures and keys
+    account_public_address address;
     crypto::signature signature;
     BEGIN_SERIALIZE_OBJECT()
-      FIELD(key_index)
+      FIELD(address)
       FIELD(signature)
     END_SERIALIZE()
     bool operator== (const rta_signature &other) const
     {
-      return this->key_index == other.key_index
-          && this->signature == other.signature;
+      return this->signature == other.signature;
     }
   };
 

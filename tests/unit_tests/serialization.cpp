@@ -696,11 +696,13 @@ TEST(Serialization, serializes_rta_transaction_correctly)
   crypto::hash tx_hash;
   ASSERT_TRUE(cryptonote::get_transaction_hash(tx, tx_hash));
 
+#if 0 // TODO: enable when rta_signature done
   for (size_t i = 0; i < 10; ++i) {
       crypto::signature sign;
       crypto::generate_signature(tx_hash, accounts[i].get_keys().m_account_address.m_view_public_key, accounts[i].get_keys().m_view_secret_key, sign);
       tx.rta_signatures.push_back({i, sign});
   }
+#endif
 
   ASSERT_TRUE(serialization::dump_binary(tx, blob));
   ASSERT_TRUE(serialization::parse_binary(blob, tx1));
