@@ -114,9 +114,8 @@ namespace cryptonote
 
     PERF_TIMER(add_tx);
 
-    LOG_PRINT_L1("tx_type: " << tx.type);
-    LOG_PRINT_L1("tx_version: " << tx.version);
-    LOG_PRINT_L1("tx.rta_signatures.size(): " << tx.rta_signatures.size());
+    MTRACE("tx_type: " << tx.type);
+    MTRACE("tx_version: " << tx.version);
 
     if (tx.version == 0)
     {
@@ -185,10 +184,17 @@ namespace cryptonote
         tvc.m_verifivation_failed = true;
         return false;
       }
+      std::vector<cryptonote::rta_signature> rta_signatures;
+      if (!cryptonote::get_graft_rta_signatures_from_extra2(tx, rta_signatures)) {
+        MERROR("Failed to parse rta signatures from tx extra: " << id);
+        tvc.m_rta_signature_failed = true;
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
 
-      bool is_rta_tx_valid = validate_rta_tx(id, tx.rta_signatures, rta_hdr);
+      bool is_rta_tx_valid = validate_rta_tx(id, rta_signatures, rta_hdr);
       if (!kept_by_block && !is_rta_tx_valid) {
-        LOG_ERROR("failed to validate rta tx, tx contains " << tx.rta_signatures.size() << " signatures");
+        LOG_ERROR("failed to validate rta tx, tx contains " << rta_signatures.size() << " signatures");
         tvc.m_rta_signature_failed = true;
         tvc.m_verifivation_failed = true;
         return false;

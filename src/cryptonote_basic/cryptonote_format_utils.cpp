@@ -1000,4 +1000,28 @@ namespace cryptonote
 
       return true;
   }
+
+  bool add_graft_rta_signatures_to_extra2(std::vector<uint8_t> &extra, const std::vector<rta_signature> &rta_signatures)
+  {
+    std::string blob;
+    ::serialization::dump_binary(const_cast<std::vector<rta_signature> &>(rta_signatures), blob);
+    tx_extra_graft_rta_signatures container;
+    container.data = blob;
+    blob.clear();
+    ::serialization::dump_binary(container, blob);
+    extra.push_back(TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG);
+    std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
+    return true;
+  }
+
+  bool get_graft_rta_signatures_from_extra2(const transaction &tx, std::vector<rta_signature> &rta_signatures)
+  {
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx.extra2, tx_extra_fields);
+    tx_extra_graft_rta_signatures rta_signatures_data;
+    if(!find_tx_extra_field_by_type(tx_extra_fields, rta_signatures_data))
+      return false;
+    return ::serialization::parse_binary(rta_signatures_data.data, rta_signatures);
+  }
+
 }

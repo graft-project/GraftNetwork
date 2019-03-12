@@ -299,21 +299,27 @@ TEST(parse_tx_extra, handles_rta_signatures)
     }
 
     ASSERT_TRUE(cryptonote::add_graft_rta_header_to_extra(tx.extra, rta_hdr_in));
+    ASSERT_TRUE(cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr_out));
+    ASSERT_TRUE(rta_hdr_in == rta_hdr_out);
     crypto::hash tx_hash;
     ASSERT_TRUE(cryptonote::get_transaction_hash(tx, tx_hash));
 
-#if 0 // TODO: enable when rta_signature done
+    std::vector<cryptonote::rta_signature> signatures_in, signatures_out;
+
+
     for (size_t i = 0; i < 10; ++i) {
         crypto::signature sign;
         crypto::generate_signature(tx_hash, accounts[i].get_keys().m_account_address.m_view_public_key, accounts[i].get_keys().m_view_secret_key, sign);
-        tx.rta_signatures.push_back({i, sign});
+        signatures_in.push_back({i, sign});
     }
+    ASSERT_TRUE(cryptonote::add_graft_rta_signatures_to_extra2(tx.extra2, signatures_in));
 
-    ASSERT_TRUE(cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr_out));
+    ASSERT_TRUE(cryptonote::get_graft_rta_signatures_from_extra2(tx, signatures_out));
+    ASSERT_EQ(signatures_in, signatures_out);
+
     for (size_t i = 0; i < 10; ++i) {
-        const crypto::signature & sign = tx.rta_signatures[i].signature;
+        const crypto::signature & sign = signatures_out[i].signature;
         ASSERT_TRUE(crypto::check_signature(tx_hash, rta_hdr_out.keys[i], sign));
     }
-#endif
 }
 

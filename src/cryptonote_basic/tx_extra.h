@@ -46,6 +46,7 @@
 #define TX_EXTRA_GRAFT_STAKE_TX_TAG         0x10 // TODO: change this to 0x80 before public testnet release
 #define TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG    0x11 // TODO: change this to 0x81 before public testnet release
 #define TX_EXTRA_GRAFT_RTA_HEADER_TAG       0x83
+#define TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG   0x84
 
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
 
@@ -211,13 +212,22 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
+  struct tx_extra_graft_rta_signatures
+  {
+    std::string data;
+    BEGIN_SERIALIZE()
+      FIELD(data)
+    END_SERIALIZE()
+  };
+
 
   // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
   //   varint tag;
   //   varint size;
   //   varint data[];
   typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag,
-    tx_extra_mysterious_minergate, tx_extra_graft_extra, tx_extra_graft_stake_tx, tx_extra_graft_tx_secret_key, tx_extra_graft_rta_header> tx_extra_field;
+    tx_extra_mysterious_minergate, tx_extra_graft_extra, tx_extra_graft_stake_tx,
+    tx_extra_graft_tx_secret_key, tx_extra_graft_rta_header, tx_extra_graft_rta_signatures> tx_extra_field;
 }
 
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding, TX_EXTRA_TAG_PADDING);
@@ -229,3 +239,4 @@ VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_extra, TX_EXTRA_GRAFT_EXT
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_stake_tx, TX_EXTRA_GRAFT_STAKE_TX_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_tx_secret_key, TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_rta_header, TX_EXTRA_GRAFT_RTA_HEADER_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_rta_signatures, TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG);

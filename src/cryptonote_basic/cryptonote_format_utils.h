@@ -140,6 +140,22 @@ namespace cryptonote
    */
   bool get_graft_rta_header_from_extra(const transaction& tx, rta_header &rta_header);
 
+  /*!
+   * \brief add_graft_rta_signatures_to_extra - add rta_signatures to the 'extra' container
+   * \param extra                             - 'extra' container
+   * \param rta_signatures                    - rta signatures to add
+   * \return                                  - true on success
+   */
+  bool add_graft_rta_signatures_to_extra2(std::vector<uint8_t> &extra, const std::vector<rta_signature> &rta_signatures);
+
+  /*!
+   * \brief get_graft_rta_signatures_from_extra2 - read rta signatures from tx extra2 field
+   * \param tx                                   - input transaction
+   * \param rta_signatures                       - output rta signatures
+   * \return                                     - true on success
+   */
+  bool get_graft_rta_signatures_from_extra2(const transaction& tx, std::vector<rta_signature> &rta_signatures);
+
   bool add_extra_nonce_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& extra_nonce);
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type);
   void set_payment_id_to_tx_extra_nonce(blobdata& extra_nonce, const crypto::hash& payment_id);
