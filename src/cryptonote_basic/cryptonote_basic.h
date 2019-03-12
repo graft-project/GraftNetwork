@@ -233,11 +233,10 @@ namespace cryptonote
 
   struct rta_signature
   {
-    //   size_t key_index; // reference to the corresponding pubkey. alternatively we can just iterate by matching signatures and keys
-    account_public_address address;
+    size_t key_index; // reference to the corresponding pubkey. alternatively we can just iterate by matching signatures and keys
     crypto::signature signature;
     BEGIN_SERIALIZE_OBJECT()
-      FIELD(address)
+      FIELD(key_index)
       FIELD(signature)
     END_SERIALIZE()
     bool operator== (const rta_signature &other) const
@@ -275,11 +274,12 @@ namespace cryptonote
     // 1. checking if 'tx_extra_graft_rta_header' is present in tx_extra
     // 2. simply checking tx version, so 'type' only needed for 'alpha' compatibilty.
     size_t type = tx_type_generic;
-    std::vector<rta_signature> rta_signatures;
+
+    std::vector<uint8_t> extra2;
 
     transaction();
-    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), type(t.type), rta_signatures(t.rta_signatures) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
-    transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; type = t.type; rta_signatures = t.rta_signatures; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } return *this; }
+    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), type(t.type), extra2(t.extra2) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
+    transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; type = t.type; extra2 = extra2; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } return *this; }
     virtual ~transaction();
     void set_null();
     void invalidate_hashes();
@@ -287,7 +287,6 @@ namespace cryptonote
     void set_hash_valid(bool v) const { hash_valid.store(v,std::memory_order_release); }
     bool is_blob_size_valid() const { return blob_size_valid.load(std::memory_order_acquire); }
     void set_blob_size_valid(bool v) const { blob_size_valid.store(v,std::memory_order_release); }
-    void put_rta_signatures(const std::vector<rta_signature> &signatures) { rta_signatures = signatures; }
 
     BEGIN_SERIALIZE_OBJECT()
       if (!typename Archive<W>::is_saving())
@@ -353,7 +352,7 @@ namespace cryptonote
       if (version >= 3)
       {
         FIELD(type)
-        FIELD(rta_signatures)
+        FIELD(extra2)
       }
     END_SERIALIZE()
 

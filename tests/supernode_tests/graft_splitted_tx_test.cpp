@@ -35,6 +35,7 @@
 
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
+#include "cryptonote_basic/cryptonote_format_utils.h"
 
 #include <boost/chrono/chrono.hpp>
 #include <boost/filesystem.hpp>
@@ -239,12 +240,12 @@ TEST_F(GraftSplittedFeeTest, RtaSignatures)
       const cryptonote::account_keys &keys = wallet->get_account().get_keys();
       crypto::hash tx_hash = cryptonote::get_transaction_hash(ptx.tx);
       crypto::generate_signature(tx_hash, keys.m_account_address.m_spend_public_key, keys.m_spend_secret_key, sign.signature);
-      std::vector<cryptonote::rta_signature> rta_signatures;
+      std::vector<cryptonote::rta_signature> rta_signatures_in, rta_signatures_out;
       for (int i = 0; i < 8; ++i) {
-        rta_signatures.push_back(sign);
+        rta_signatures_in.push_back(sign);
       }
 
-      ptx.tx.put_rta_signatures(rta_signatures);
+      cryptonote::add_graft_rta_signatures_to_extra2(ptx.tx.extra2, rta_signatures_in);
 
       cryptonote::blobdata tx_blob;
       ASSERT_TRUE(tx_to_blob(ptx.tx, tx_blob));
@@ -254,13 +255,11 @@ TEST_F(GraftSplittedFeeTest, RtaSignatures)
       ASSERT_TRUE(cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx_test, tx_hash2, tx_prefix_hash));
 
       ASSERT_TRUE(tx_hash == tx_hash2);
-      ASSERT_TRUE(tx_test.rta_signatures.size() == 8);
-      ASSERT_TRUE(ptx.tx.rta_signatures.size() == tx_test.rta_signatures.size());
-      for (size_t i = 0; i < ptx.tx.rta_signatures.size(); ++i) {
-        crypto::signature sign1 = ptx.tx.rta_signatures.at(i).signature;
-        crypto::signature sign2 = tx_test.rta_signatures.at(i).signature;
-        ASSERT_TRUE(sign1 == sign2);
-      }
+      cryptonote::get_graft_rta_signatures_from_extra2(tx_test, rta_signatures_out);
+
+
+      ASSERT_TRUE(rta_signatures_in  == rta_signatures_out);
+
       ASSERT_TRUE(ptx.tx.version == 3);
       ASSERT_TRUE(tx_test.version == 3);
       EXPECT_NO_THROW(wallet->commit_tx(ptx));
@@ -330,7 +329,9 @@ TEST_F(GraftSplittedFeeTest, RtaTransaction)
   ASSERT_TRUE(cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash2, tx_prefix_hash));
   ASSERT_TRUE(tx.version == 3);
   ASSERT_TRUE(epee::string_tools::pod_to_hex(tx_hash2) == ptx->txid()[0]);
-  ASSERT_TRUE(tx.rta_signatures.size() == 8);
+  std::vector<cryptonote::rta_signature> rta_signatures;
+  ASSERT_TRUE(cryptonote::get_graft_rta_signatures_from_extra2(tx, rta_signatures));
+  ASSERT_TRUE(rta_signatures.size() == 8);
   // ASSERT_TRUE(crypto::check_signature(tx_hash2, tx.rta_signatures[0].address.m_spend_public_key, tx.rta_signatures[0].signature));
   ASSERT_TRUE(tx.type == cryptonote::transaction::tx_type_rta);
   ASSERT_TRUE(ptx->commit());

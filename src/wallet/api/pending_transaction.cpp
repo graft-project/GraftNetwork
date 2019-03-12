@@ -213,7 +213,7 @@ void  PendingTransactionImpl::putRtaSignatures(const std::vector<RtaSignature> &
         bin_signs.push_back(bin_sign);
     }
     tools::wallet2::pending_tx & ptx =  m_pending_tx[0];
-    ptx.tx.put_rta_signatures(bin_signs);
+    cryptonote::add_graft_rta_signatures_to_extra2(ptx.tx.extra2, bin_signs);
 }
 
 
