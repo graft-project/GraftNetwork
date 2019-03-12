@@ -43,8 +43,8 @@
 // TODO: suggested to remove
 #define TX_EXTRA_GRAFT_EXTRA_TAG            0x04
 
-#define TX_EXTRA_GRAFT_STAKE_TX_TAG         0x10 // TODO: change this to 0x80 before public testnet release
-#define TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG    0x11 // TODO: change this to 0x81 before public testnet release
+#define TX_EXTRA_GRAFT_STAKE_TX_TAG         0x80
+#define TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG    0x81
 #define TX_EXTRA_GRAFT_RTA_HEADER_TAG       0x83
 #define TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG   0x84
 
