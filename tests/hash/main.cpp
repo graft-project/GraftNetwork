@@ -54,13 +54,26 @@ extern "C" {
     tree_hash((const char (*)[32]) data, length >> 5, hash);
   }
   static void cn_slow_hash_0(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 0/*variant*/, 0/*prehashed*/);
+    return cn_slow_hash(data, length, hash, 0/*variant*/, 0/*prehashed*/, 0/*modifier*/);
   }
   static void cn_slow_hash_1(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 1/*variant*/, 0/*prehashed*/);
+    return cn_slow_hash(data, length, hash, 1/*variant*/, 0/*prehashed*/, 0/*modifier*/);
   }
   static void cn_slow_hash_2(const void *data, size_t length, char *hash) {
-    return cn_slow_hash(data, length, hash, 2/*variant*/, 0/*prehashed*/);
+    return cn_slow_hash(data, length, hash, 2/*variant*/, 0/*prehashed*/, 0/*modifier*/);
+  }
+  static void cn_slow_hash_0_waltz(const void *data, size_t length, char *hash) {
+    return cn_slow_hash(data, length, hash, 0/*variant*/, 0/*prehashed*/, CN_MODIFIER_WALTZ/*modifier*/);
+  }
+  static void cn_slow_hash_1_waltz(const void *data, size_t length, char *hash) {
+    return cn_slow_hash(data, length, hash, 1/*variant*/, 0/*prehashed*/, CN_MODIFIER_WALTZ/*modifier*/);
+  }
+  static void cn_slow_hash_2_waltz(const void *data, size_t length, char *hash) {
+    return cn_slow_hash(data, length, hash, 2/*variant*/, 0/*prehashed*/, CN_MODIFIER_WALTZ/*modifier*/);
+  }
+  static void cn_slow_hash_2_reverse_waltz(const void *data, size_t length, char *hash) {
+    return cn_slow_hash(data, length, hash, 2/*variant*/, 0/*prehashed*/,
+                        CN_MODIFIER_REVERSE_WALTZ/*modifier*/);
   }
 }
 POP_WARNINGS
@@ -72,7 +85,9 @@ struct hash_func {
 } hashes[] = {{"fast", cn_fast_hash}, {"slow", cn_slow_hash_0}, {"tree", hash_tree},
   {"extra-blake", hash_extra_blake}, {"extra-groestl", hash_extra_groestl},
   {"extra-jh", hash_extra_jh}, {"extra-skein", hash_extra_skein},
-  {"slow-1", cn_slow_hash_1}, {"slow-2", cn_slow_hash_2}};
+  {"slow-1", cn_slow_hash_1}, {"slow-2", cn_slow_hash_2},
+  {"slow-0-waltz", cn_slow_hash_0_waltz}, {"slow-1-waltz", cn_slow_hash_1_waltz},
+  {"slow-2-waltz", cn_slow_hash_2_waltz}, {"slow-2-reverse-waltz", cn_slow_hash_2_reverse_waltz}};
 
 int test_variant2_int_sqrt();
 int test_variant2_int_sqrt_ref();

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2019, The Graft Project
 // 
 // All rights reserved.
 // 
@@ -25,61 +25,47 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
-// Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
+//
+// Parts of this file are originally copyright (c) 2014-2017 The Monero Project
 
 #pragma once
 
-#include <stddef.h>
+#include "crypto/crypto.h"
+#include "cryptonote_basic/cryptonote_basic.h"
 
-#include "common/pod-class.h"
-#include "generic-ops.h"
-
-namespace crypto {
-
-  extern "C" {
-#include "hash-ops.h"
-  }
+class test_cn_slow_hash_reverse_waltz
+{
+public:
+  static const size_t loop_count = 10;
 
 #pragma pack(push, 1)
-  POD_CLASS hash {
-    char data[HASH_SIZE];
-  };
-  POD_CLASS hash8 {
-    char data[8];
+  struct data_t
+  {
+    char data[13];
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(hash) == HASH_SIZE, "Invalid structure size");
-  static_assert(sizeof(hash8) == 8, "Invalid structure size");
+  static_assert(13 == sizeof(data_t), "Invalid structure size");
 
-  /*
-    Cryptonight hash functions
-  */
+  bool init()
+  {
+    if (!epee::string_tools::hex_to_pod("63617665617420656d70746f72", m_data))
+      return false;
 
-  inline void cn_fast_hash(const void *data, std::size_t length, hash &hash) {
-    cn_fast_hash(data, length, reinterpret_cast<char *>(&hash));
+    if (!epee::string_tools::hex_to_pod("85a922478a5bec6c48a1f574f46dd75ae11852bcd4d75690890e5c199f71161b", m_expected_hash))
+      return false;
+
+    return true;
   }
 
-  inline hash cn_fast_hash(const void *data, std::size_t length) {
-    hash h;
-    cn_fast_hash(data, length, reinterpret_cast<char *>(&h));
-    return h;
+  bool test()
+  {
+    crypto::hash hash;
+    crypto::cn_slow_hash(&m_data, sizeof(m_data), hash, 2, CN_MODIFIER_REVERSE_WALTZ);
+    return hash == m_expected_hash;
   }
 
-  inline void cn_slow_hash(const void *data, std::size_t length, hash &hash, int variant = 0, int modifier = 0) {
-    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), variant, 0/*prehashed*/, modifier);
-  }
-
-  inline void cn_slow_hash_prehashed(const void *data, std::size_t length, hash &hash, int variant = 0, int modifier = 0) {
-    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), variant, 1/*prehashed*/, modifier);
-  }
-
-  inline void tree_hash(const hash *hashes, std::size_t count, hash &root_hash) {
-    tree_hash(reinterpret_cast<const char (*)[HASH_SIZE]>(hashes), count, reinterpret_cast<char *>(&root_hash));
-  }
-
-}
-
-CRYPTO_MAKE_HASHABLE(hash)
-CRYPTO_MAKE_COMPARABLE(hash8)
+private:
+  data_t m_data;
+  crypto::hash m_expected_hash;
+};

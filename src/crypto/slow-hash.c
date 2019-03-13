@@ -113,34 +113,34 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
     sqrt_result = state.hs.w[13]; \
   } while (0)
 
-#define VARIANT2_SHUFFLE_ADD_SSE2(base_ptr, offset) \
+#define VARIANT2_SHUFFLE_ADD_SSE2(base_ptr, offset, reverse) \
   do if (variant >= 2) \
   { \
-    const __m128i chunk1 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10))); \
+    const __m128i chunk1 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ (reverse ? 0x30 : 0x10)))); \
     const __m128i chunk2 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20))); \
-    const __m128i chunk3 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30))); \
+    const __m128i chunk3 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ (reverse ? 0x10 : 0x30)))); \
     _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10)), _mm_add_epi64(chunk3, _b1)); \
     _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20)), _mm_add_epi64(chunk1, _b)); \
     _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x30)), _mm_add_epi64(chunk2, _a)); \
   } while (0)
 
-#define VARIANT2_SHUFFLE_ADD_NEON(base_ptr, offset) \
+#define VARIANT2_SHUFFLE_ADD_NEON(base_ptr, offset, reverse) \
   do if (variant >= 2) \
   { \
-    const uint64x2_t chunk1 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x10))); \
+    const uint64x2_t chunk1 = vld1q_u64(U64((base_ptr) + ((offset) ^ (reverse ? 0x30 : 0x10)))); \
     const uint64x2_t chunk2 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x20))); \
-    const uint64x2_t chunk3 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x30))); \
+    const uint64x2_t chunk3 = vld1q_u64(U64((base_ptr) + ((offset) ^ (reverse ? 0x10 : 0x30)))); \
     vst1q_u64(U64((base_ptr) + ((offset) ^ 0x10)), vaddq_u64(chunk3, vreinterpretq_u64_u8(_b1))); \
     vst1q_u64(U64((base_ptr) + ((offset) ^ 0x20)), vaddq_u64(chunk1, vreinterpretq_u64_u8(_b))); \
     vst1q_u64(U64((base_ptr) + ((offset) ^ 0x30)), vaddq_u64(chunk2, vreinterpretq_u64_u8(_a))); \
   } while (0)
 
-#define VARIANT2_PORTABLE_SHUFFLE_ADD(base_ptr, offset) \
+#define VARIANT2_PORTABLE_SHUFFLE_ADD(base_ptr, offset, reverse) \
   do if (variant >= 2) \
   { \
-    uint64_t* chunk1 = U64((base_ptr) + ((offset) ^ 0x10)); \
+    uint64_t* chunk1 = U64((base_ptr) + ((offset) ^ (reverse ? 0x30 : 0x10))); \
     uint64_t* chunk2 = U64((base_ptr) + ((offset) ^ 0x20)); \
-    uint64_t* chunk3 = U64((base_ptr) + ((offset) ^ 0x30)); \
+    uint64_t* chunk3 = U64((base_ptr) + ((offset) ^ (reverse ? 0x10 : 0x30))); \
     \
     const uint64_t chunk1_old[2] = { chunk1[0], chunk1[1] }; \
     \
@@ -288,8 +288,8 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
  * bit multiply.
  * This code is based upon an optimized implementation by dga.
  */
-#define post_aes() \
-  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j); \
+#define post_aes(reverse) \
+  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j, reverse); \
   _mm_store_si128(R128(c), _c); \
   _mm_store_si128(R128(&hp_state[j]), _mm_xor_si128(_b, _c)); \
   VARIANT1_1(&hp_state[j]); \
@@ -299,7 +299,7 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
   VARIANT2_INTEGER_MATH_SSE2(b, c); \
   __mul(); \
   VARIANT2_2(); \
-  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j); \
+  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j, reverse); \
   a[0] += hi; a[1] += lo; \
   p = U64(&hp_state[j]); \
   p[0] = a[0];  p[1] = a[1]; \
@@ -693,7 +693,7 @@ void slow_hash_free_state(void)
  * @param length the length in bytes of the data
  * @param hash a pointer to a buffer in which the final 256 bit hash will be stored
  */
-void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed)
+void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier)
 {
     RDATA_ALIGN16 uint8_t expandedKey[240];  /* These buffers are aligned to use later with SSE functions */
 
@@ -762,9 +762,10 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
 
     /* CryptoNight Step 3:  Bounce randomly 1,048,576 times (1<<20) through the mixing buffer,
-     * using 524,288 iterations of the following mixing function.  Each execution
-     * performs two reads and writes from the mixing buffer.
+     * using 524,288 (CryptoNight) or 393,216 (CryptoNight Waltz) iterations of the following
+     * mixing function. Each execution performs two reads and writes from the mixing buffer.
      */
+    uint64_t iters = (modifier & CN_MODIFIER_WALTZ) ? (3 * ITER) / 8 : ITER / 2;
 
     _b = _mm_load_si128(R128(b));
     _b1 = _mm_load_si128(R128(b) + 1);
@@ -772,20 +773,44 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     // the useAes test is only performed once, not every iteration.
     if(useAes)
     {
-        for(i = 0; i < ITER / 2; i++)
+        if(modifier & CN_MODIFIER_REVERSE)
         {
-            pre_aes();
-            _c = _mm_aesenc_si128(_c, _a);
-            post_aes();
+            for(i = 0; i < iters; i++)
+            {
+                pre_aes();
+                _c = _mm_aesenc_si128(_c, _a);
+                post_aes(1);
+            }
+        }
+        else
+        {
+            for(i = 0; i < iters; i++)
+            {
+                pre_aes();
+                _c = _mm_aesenc_si128(_c, _a);
+                post_aes(0);
+            }
         }
     }
     else
     {
-        for(i = 0; i < ITER / 2; i++)
+        if(modifier & CN_MODIFIER_REVERSE)
         {
-            pre_aes();
-            aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
-            post_aes();
+            for(i = 0; i < iters; i++)
+            {
+                pre_aes();
+                aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
+                post_aes(1);
+            }
+        }
+        else
+        {
+            for(i = 0; i < iters; i++)
+            {
+                pre_aes();
+                aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
+                post_aes(0);
+            }
         }
     }
 
@@ -891,8 +916,8 @@ union cn_slow_hash_state
   _c = vld1q_u8(&hp_state[j]); \
   _a = vld1q_u8((const uint8_t *)a); \
 
-#define post_aes() \
-  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j); \
+#define post_aes(reverse) \
+  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j, reverse); \
   vst1q_u8((uint8_t *)c, _c); \
   vst1q_u8(&hp_state[j], veorq_u8(_b, _c)); \
   VARIANT1_1(&hp_state[j]); \
@@ -902,7 +927,7 @@ union cn_slow_hash_state
   VARIANT2_PORTABLE_INTEGER_MATH(b, c); \
   __mul(); \
   VARIANT2_2(); \
-  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j); \
+  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j, reverse); \
   a[0] += hi; a[1] += lo; \
   p = U64(&hp_state[j]); \
   p[0] = a[0];  p[1] = a[1]; \
@@ -1040,7 +1065,7 @@ STATIC INLINE void aes_pseudo_round_xor(const uint8_t *in, uint8_t *out, const u
   }
 }
 
-void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed)
+void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier)
 {
     RDATA_ALIGN16 uint8_t expandedKey[240];
     RDATA_ALIGN16 uint8_t hp_state[MEMORY];
@@ -1090,20 +1115,36 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
 
     /* CryptoNight Step 3:  Bounce randomly 1,048,576 times (1<<20) through the mixing buffer,
-     * using 524,288 iterations of the following mixing function.  Each execution
-     * performs two reads and writes from the mixing buffer.
+     * using 524,288 (CryptoNight) or 393,216 (CryptoNight Waltz) iterations of the following
+     * mixing function. Each execution performs two reads and writes from the mixing buffer.
      */
 
     _b = vld1q_u8((const uint8_t *)b);
     _b1 = vld1q_u8(((const uint8_t *)b) + AES_BLOCK_SIZE);
 
-    for(i = 0; i < ITER / 2; i++)
+    uint64_t iters = (modifier & CN_MODIFIER_WALTZ) ? (3 * ITER) / 8 : ITER / 2;
+
+    if(modifier & CN_MODIFIER_REVERSE)
     {
-        pre_aes();
-        _c = vaeseq_u8(_c, zero);
-        _c = vaesmcq_u8(_c);
-        _c = veorq_u8(_c, _a);
-        post_aes();
+        for(i = 0; i < iters; i++)
+        {
+            pre_aes();
+            _c = vaeseq_u8(_c, zero);
+            _c = vaesmcq_u8(_c);
+            _c = veorq_u8(_c, _a);
+            post_aes(1);
+        }
+    }
+    else
+    {
+        for(i = 0; i < iters; i++)
+        {
+            pre_aes();
+            _c = vaeseq_u8(_c, zero);
+            _c = vaesmcq_u8(_c);
+            _c = veorq_u8(_c, _a);
+            post_aes(0);
+        }
     }
 
     /* CryptoNight Step 4:  Sequentially pass through the mixing buffer and use 10 rounds
@@ -1246,7 +1287,7 @@ STATIC INLINE void xor_blocks(uint8_t* a, const uint8_t* b)
   U64(a)[1] ^= U64(b)[1];
 }
 
-void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed)
+void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier)
 {
     uint8_t text[INIT_SIZE_BYTE];
     uint8_t a[AES_BLOCK_SIZE];
@@ -1301,7 +1342,10 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     U64(b)[0] = U64(&state.k[16])[0] ^ U64(&state.k[48])[0];
     U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
 
-    for(i = 0; i < ITER / 2; i++)
+    uint64_t iters = (modifier & CN_MODIFIER_WALTZ) ? (3 * ITER) / 8 : ITER / 2;
+    uint8_t isReverse = (modifier & CN_MODIFIER_REVERSE) ? 1 : 0;
+
+    for(i = 0; i < iters; i++)
     {
       #define MASK ((uint32_t)(((MEMORY / AES_BLOCK_SIZE) - 1) << 4))
       #define state_index(x) ((*(uint32_t *) x) & MASK)
@@ -1312,7 +1356,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
       aesb_single_round(p, p, a);
       copy_block(c1, p);
 
-      VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
+      VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j, isReverse);
       xor_blocks(p, b);
       VARIANT1_1(p);
 
@@ -1324,7 +1368,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
       VARIANT2_PORTABLE_INTEGER_MATH(c, c1);
       mul(c1, c, d);
       VARIANT2_2_PORTABLE();
-      VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
+      VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j, isReverse);
       sum_half_blocks(a, d);
       swap_blocks(a, c);
       xor_blocks(a, c);
@@ -1448,7 +1492,7 @@ union cn_slow_hash_state {
 };
 #pragma pack(pop)
 
-void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed) {
+void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier) {
   uint8_t long_state[MEMORY];
   union cn_slow_hash_state state;
   uint8_t text[INIT_SIZE_BYTE];
@@ -1486,7 +1530,10 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     b[i] = state.k[AES_BLOCK_SIZE + i] ^ state.k[AES_BLOCK_SIZE * 3 + i];
   }
 
-  for (i = 0; i < ITER / 2; i++) {
+  uint64_t iters = (modifier & CN_MODIFIER_WALTZ) ? (3 * ITER) / 8 : ITER / 2;
+  uint8_t isReverse = (modifier & CN_MODIFIER_REVERSE) ? 1 : 0;
+
+  for (i = 0; i < iters; i++) {
     /* Dependency chain: address -> read value ------+
      * written value <-+ hard function (AES or MUL) <+
      * next address  <-+
@@ -1495,7 +1542,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     j = e2i(a, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
     copy_block(c1, &long_state[j]);
     aesb_single_round(c1, c1, a);
-    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
+    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j, isReverse);
     copy_block(&long_state[j], c1);
     xor_blocks(&long_state[j], b);
     assert(j == e2i(a, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE);
@@ -1506,7 +1553,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     VARIANT2_PORTABLE_INTEGER_MATH(c2, c1);
     mul(c1, c2, d);
     VARIANT2_2_PORTABLE();
-    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
+    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j, isReverse);
     swap_blocks(a, c1);
     sum_half_blocks(c1, d);
     swap_blocks(c1, c2);

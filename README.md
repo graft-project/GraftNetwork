@@ -27,11 +27,11 @@ Portions Copyright (c) 2012-2013, The Cryptonote developers
 
 ## Introduction
 
-Graft Network is a private, secure, untraceable, decentralised digital currency. You are your bank, you control your funds, and nobody can trace your transfers unless you allow them to do so.
+Graft Network is a private, secure, untraceable, decentralized digital cryptocurrency. You are your bank. You control your funds and nobody can trace your transactions unless you allow them to do so.
 
-**Privacy:** Graft Network uses a cryptographically sound system to allow you to send and receive funds without your transactions being easily revealed on the blockchain (the ledger of transactions that everyone has). This ensures that your purchases, receipts, and all transfers remain absolutely private by default.
+**Privacy:** Graft Network uses a cryptographically sound system to allow you to send and receive funds without your transactions being easily revealed on the blockchain (the ledger of transactions that everyone has access to). This ensures that your purchases, receipts, and all transfers remain absolutely private by default.
 
-**Security:** Using the power of a distributed peer-to-peer consensus network, every transaction on the network is cryptographically secured. Individual wallets have a 25 word mnemonic seed that is only displayed once, and can be written down to backup the wallet. Wallet files are encrypted with a passphrase to ensure they are useless if stolen.
+**Security:** Using the power of a distributed peer-to-peer consensus network, every transaction on the network is cryptographically secured. Individual wallets have a 25-word mnemonic seed that is only displayed once, and can be written down to backup the wallet. Wallet files are encrypted with a passphrase to ensure they are useless if stolen.
 
 **Untraceability:** By taking advantage of ring signatures, a special property of a certain type of cryptography, Graft Network is able to ensure that transactions are not only untraceable, but have an optional measure of ambiguity that ensures that transactions cannot easily be tied back to an individual user or computer.
 
@@ -39,9 +39,9 @@ Graft Network is a private, secure, untraceable, decentralised digital currency.
 
 This is the core implementation of Graft Network. It is open source and completely free to use without restrictions, except for those specified in the license agreement below. There are no restrictions on anyone creating an alternative implementation of Graft Network that uses the protocol and network in a compatible manner.
 
-As with many development projects, the repository on Github is considered to be the "staging" area for the latest changes. Before changes are merged into that branch on the main repository, they are tested by individual developers in their own branches, submitted as a pull request, and then subsequently tested by contributors who focus on testing and code reviews. That having been said, the repository should be carefully considered before using it in a production environment, unless there is a patch in the repository for a particular show-stopping issue you are experiencing. It is generally a better idea to use a tagged release for stability.
+As with many development projects, the repository on Github is considered to be the "staging" area for the latest changes. Before changes are merged into that branch on the main repository, they are tested by individual developers in their own branches, submitted as a pull request, and then subsequently tested by contributors who focus on testing and code reviews. Having said that, the repository should be carefully considered before using it in a production environment, unless there is a patch in the repository for a particular show-stopping issue you are experiencing. It is generally a better idea to use a tagged release for stability.
 
-**Anyone is welcome to contribute to Graft Network's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
+**Anyone is welcome to contribute to Graft Network's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase, it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
 
 ## Supporting the Project
 
@@ -65,19 +65,14 @@ Graft Network uses a fixed-schedule hard fork mechanism to implement new feature
 Dates are provided in the format YYYY-MM-DD. 
 
 
-| Fork Date              | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |  
+| Fork Date         | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |
 | ----------------- | ----------------- | ---------------------- | -------------------------- | ------------------ |
 | 2018-01-18        | v7                | 1.0.0                | 1.0.1                    | First release      |
 | 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
 | 2018-04-23        | v9                | 1.2.0                | 1.2.3                    | Fix for Difficulty Adjustment Algorithm      |
-| 2018-08-14        | v10               | 1.3.1                | 1.3.1                    | RTA Alpha1        |
-| 2018-10-29        | v11               | 1.3.2                | 1.3.2                    | RTA Alpha2  |
-| 2018-11-12        | v12               | 1.3.3                | 1.3.3                    | Public RTA alpha3 |
-| 2019-01-17        | v12               | 1.3.4                | 1.3.4                    | Public RTA alpha4 |
-| 2019-01-30        | v12               | 1.3.4.1              | 1.3.4.1                  | Public RTA alpha4.1 |
-| 2019-02-13        | v12               | 1.3.4.2              | 1.3.4.2                  | Public RTA alpha4.2 |
-| 2019-03-07        | v13               | 1.3.5              | 1.3.5                  | Public RTA alpha5 |
-
+| 2018-09-17        | v10               | 1.4.4                | 1.4.5                    | Block reward halved       |
+| 2018-10-31        | v11               | 1.5.0                | 1.5.1                    | PoW algorithm from Monero v8 (CN v2), enabled checkpoints for mainnet  |
+| 2019-03-07        | v12               | 1.6.0                | 1.6.0                    | Own PoW algorithm - CryptoNight V8 ReverseWaltz - tweaked from CryptoNight Monero v8 (CN v2)  |
 
 ## Installing Graft Network from a Package
 
@@ -102,7 +97,7 @@ library archives (`.a`).
 | CMake          | 3.0.0         | NO       | `cmake`            | `cmake`        | NO       |                |
 | pkg-config     | any           | NO       | `pkg-config`       | `base-devel`   | NO       |                |
 | Boost          | 1.58          | NO       | `libboost-all-dev` | `boost`        | NO       | C++ libraries  |
-| OpenSSL        | 1.0.2^^       | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
+| OpenSSL        | 1.0.2         | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
 | libunbound     | 1.4.16        | YES      | `libunbound-dev`   | `unbound`      | NO       | DNS resolver   |
 | libminiupnpc   | 2.0           | YES      | `libminiupnpc-dev` | `miniupnpc`    | YES      | NAT punching   |
 | libunwind      | any           | NO       | `libunwind8-dev`   | `libunwind`    | YES      | Stack traces   |

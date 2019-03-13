@@ -114,7 +114,9 @@ static const struct {
   // hf 10 - decrease block reward, 2018-09-17
   { 10, 176000, 0, 1537142400 },
   // hf 11 - Monero V8/CN variant 2 PoW, ~2018-10-31T17:00:00+00
-  { 11, 207700, 0, 1541005200 }
+  { 11, 207700, 0, 1541005200 },
+  // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-07T05:00:00+00
+  { 12, 299200, 0, 1551934800 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -143,11 +145,13 @@ static const struct {
   { 7, 1, 0, 1501709789 },
   // GRAFT: public testnet hardfork v8 from block 57640
   { 8, 57780, 0, 1522838800 },
-  { 9, 67350, 0,   1524229900 },
-  { 10, 139210, 0, 1534270000 }, // rta-alpha1 hf
-  { 11, 187065, 0, 1540796400 }, // rta-alpha2 hf
-  { 12, 199740, 0, 1542182400 }, // rta-alpha public hf (includes PoW change to CN variant 2)
-  { 13, 274220, 0, 1551924000 }  // rta-alpha5 (rta-mining)
+  { 9, 67350, 0, 1524229900 },
+  // hf 10 - decrease block reward, 2018-09-12
+  { 10, 164550, 0, 1536760800 },
+  // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
+  { 11, 194130, 0, 1540400400 },
+  // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-05T05:00:00+00
+  { 12, 286500, 0, 1551762000 }
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
