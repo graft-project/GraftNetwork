@@ -252,76 +252,84 @@ void StakeTransactionProcessor::synchronize()
 
     //unroll already processed blocks for alternative chains
   
-  for (;;)
-  {
-    size_t   stake_tx_count = m_storage->get_tx_count();
-    uint64_t last_processed_block_index = m_storage->get_last_processed_block_index();
+  try {
 
-    if (!last_processed_block_index)
-      break;
-    
-    const crypto::hash& last_processed_block_hash  = m_storage->get_last_processed_block_hash();
-    crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
+    for (;;)
+    {
+      size_t   stake_tx_count = m_storage->get_tx_count();
+      uint64_t last_processed_block_index = m_storage->get_last_processed_block_index();
 
-    if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
-      break; //latest block hash is the same as processed
+      if (!last_processed_block_index)
+        break;
 
-    MCLOG(el::Level::Info, "global", "Stake transactions processing: unroll block " << last_processed_block_index);
+      const crypto::hash& last_processed_block_hash  = m_storage->get_last_processed_block_hash();
+      crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
 
-    m_storage->remove_last_processed_block();
+      if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
+        break; //latest block hash is the same as processed
 
-    if (stake_tx_count != m_storage->get_tx_count())
-      m_storage->clear_supernode_stakes();
+      MCLOG(el::Level::Info, "global", "Stake transactions processing: unroll block " << last_processed_block_index);
 
-    if (m_blockchain_based_list->block_height() == last_processed_block_index)
-      m_blockchain_based_list->remove_latest_block();
-  }
+      m_storage->remove_last_processed_block();
+
+      if (stake_tx_count != m_storage->get_tx_count())
+        m_storage->clear_supernode_stakes();
+
+      if (m_blockchain_based_list->block_height() == last_processed_block_index)
+        m_blockchain_based_list->remove_latest_block();
+    }
 
     //apply new blocks
 
-  uint64_t first_block_index = m_storage->get_last_processed_block_index() + 1,
-           height = db.height();
+    uint64_t first_block_index = m_storage->get_last_processed_block_index() + 1,
+        height = db.height();
 
-  if (first_block_index > m_blockchain_based_list->block_height() + 1)
-    first_block_index = m_blockchain_based_list->block_height() + 1;
+    if (first_block_index > m_blockchain_based_list->block_height() + 1)
+      first_block_index = m_blockchain_based_list->block_height() + 1;
 
-  static const uint64_t SYNC_DEBUG_LOG_STEP = 10000;
+    static const uint64_t SYNC_DEBUG_LOG_STEP = 10000;
 
-  bool need_finalize_log_messages = false;
-  
-  for (uint64_t i=first_block_index, sync_debug_log_next_index=i + 1; i<height; i++)
-  {
-    if (i == sync_debug_log_next_index)
+    bool need_finalize_log_messages = false;
+
+    for (uint64_t i=first_block_index, sync_debug_log_next_index=i + 1; i<height; i++)
     {
-      MCLOG(el::Level::Info, "global", "RTA block sync " << i << "/" << height);
+      if (i == sync_debug_log_next_index)
+      {
+        MCLOG(el::Level::Info, "global", "RTA block sync " << i << "/" << height);
 
-      need_finalize_log_messages = true;
-      sync_debug_log_next_index  = i + SYNC_DEBUG_LOG_STEP;
+        need_finalize_log_messages = true;
+        sync_debug_log_next_index  = i + SYNC_DEBUG_LOG_STEP;
 
-      if (sync_debug_log_next_index >= height)
-        sync_debug_log_next_index = height - 1;
+        if (sync_debug_log_next_index >= height)
+          sync_debug_log_next_index = height - 1;
+      }
+
+      crypto::hash block_hash = db.get_block_hash_from_height(i);
+      const block& block      = db.get_block(block_hash);
+
+      process_block(i, block, block_hash, false);
     }
 
-    crypto::hash block_hash = db.get_block_hash_from_height(i);
-    const block& block      = db.get_block(block_hash);
+    if (m_blockchain_based_list->need_store())
+      m_blockchain_based_list->store();
 
-    process_block(i, block, block_hash, false);
+    if (m_storage->need_store())
+      m_storage->store();
+
+    if (m_stakes_need_update && m_on_stakes_update)
+      invoke_update_stakes_handler_impl(height - 1);
+
+    if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
+      invoke_update_blockchain_based_list_handler_impl(height - first_block_index);
+
+    if (need_finalize_log_messages)
+      MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
+  } catch (const std::exception &e) {
+    MWARNING(e.what());
   }
 
-  if (m_blockchain_based_list->need_store())
-    m_blockchain_based_list->store();
 
-  if (m_storage->need_store())
-    m_storage->store();
 
-  if (m_stakes_need_update && m_on_stakes_update)
-    invoke_update_stakes_handler_impl(height - 1);
-
-  if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
-    invoke_update_blockchain_based_list_handler_impl(height - first_block_index);
-
-  if (need_finalize_log_messages)
-    MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
 }
 
 void StakeTransactionProcessor::set_on_update_stakes_handler(const supernode_stakes_update_handler& handler)
