@@ -531,7 +531,8 @@ namespace cryptonote
     bad_semantics_txes_lock.unlock();
 
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
-    const size_t max_tx_version = version == 1 ? 1 : CURRENT_TRANSACTION_VERSION;
+    // don't allow rta tx until hf 13
+    const size_t max_tx_version = version == 1 ? 1 : version < 13 ? 2 : CURRENT_TRANSACTION_VERSION;
     if (tx.version == 0 || tx.version > max_tx_version)
     {
       // v3 is the latest one we know
