@@ -151,7 +151,9 @@ static const struct {
   // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
   { 11, 194130, 0, 1540400400 },
   // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-05T05:00:00+00
-  { 12, 286500, 0, 1551762000 }
+  { 12, 286500, 0, 1551762000 },
+  // hf 13 - RTA transactions, RTA mining
+  { 13, 287171, 0, 1552510800 }
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
