@@ -313,7 +313,7 @@ namespace cryptonote
     catch (...) { }
 
     MGINFO("Initialize stake transaction processor");
-    m_graft_stake_transaction_processor.init_storages(m_config_folder);
+    m_graft_stake_transaction_processor.init_storages(folder.string());
 
     BlockchainDB* db = new_db(db_type);
     if (db == NULL)
