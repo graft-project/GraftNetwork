@@ -30,9 +30,9 @@
 
 #pragma once
 #include <boost/asio/ip/address_v4.hpp>
+#include <boost/asio.hpp> // cross-platform way to include a header with 'ntohl' 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 
-#include <netinet/in.h>
 
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
 #include "cryptonote_basic/cryptonote_basic.h"
