@@ -209,6 +209,7 @@ namespace wallet_rpc
     struct request : public COMMAND_RPC_TRANSFER::request
     {
       std::list<std::string> supernode_keys;
+      std::list<std::string> supernode_signatures;
       std::string graft_payment_id;
       uint64_t auth_sample_height;
       BEGIN_KV_SERIALIZE_MAP()
@@ -219,6 +220,7 @@ namespace wallet_rpc
         KV_SERIALIZE(payment_id)
         KV_SERIALIZE(get_tx_key)
         KV_SERIALIZE(supernode_keys)
+        KV_SERIALIZE(supernode_signatures)
         KV_SERIALIZE(graft_payment_id)
         KV_SERIALIZE(auth_sample_height)
         KV_SERIALIZE_OPT(do_not_relay, false)

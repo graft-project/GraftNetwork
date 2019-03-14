@@ -560,9 +560,17 @@ namespace tools
     rta_header.payment_id = req.graft_payment_id;
     rta_header.auth_sample_height = req.auth_sample_height;
 
-    for (const std::string &key_str : req.supernode_keys) {
+#if 0 // no rta signatures yet;
+    if (req.supernode_keys.size() != req.supernode_signatures.size()) {
+      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      er.message = "Number of signatures and keys mismatches";
+      return false;
+    }
+#endif
+
+    for (const std::string &s_key : req.supernode_keys) {
       crypto::public_key key;
-      if (!epee::string_tools::hex_to_pod(key_str, key)) {
+      if (!epee::string_tools::hex_to_pod(s_key, key)) {
         er.code = WALLET_RPC_ERROR_CODE_WRONG_SUPERNODE_KEY;
         er.message = "Failed to parse key";
         return false;
@@ -571,6 +579,18 @@ namespace tools
     }
 
     cryptonote::add_graft_rta_header_to_extra(extra, rta_header);
+
+    std::vector<cryptonote::rta_signature> rta_signatures;
+    size_t key_index = 0;
+    for (const std::string &s_sign : req.supernode_signatures) {
+      crypto::signature sign;
+      if (!epee::string_tools::hex_to_pod(s_sign, sign)) {
+        er.code = WALLET_RPC_ERROR_CODE_WRONG_SIGNATURE;
+        er.message = "Failed to parse signature";
+        return false;
+      }
+      rta_signatures.push_back({key_index++, sign});
+    }
 
     try
     {
@@ -583,6 +603,12 @@ namespace tools
         er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
         er.message = "Transaction would be too large.  try /transfer_split.";
         return false;
+      }
+
+      if (!cryptonote::add_graft_rta_signatures_to_extra2(ptx_vector.back().tx.extra2, rta_signatures))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
+        er.message = "Can't put rta signatures to tx";
       }
 
       if (!req.do_not_relay)
@@ -609,7 +635,6 @@ namespace tools
                                                       sizeof(crypto::secret_key)),
                                          rta_header.keys, encrypted_key_blob);
       res.encrypted_tx_key = epee::string_tools::buff_to_hex_nodelimer(encrypted_key_blob);
-      return true;
     }
     catch (const tools::error::daemon_busy& e)
     {
