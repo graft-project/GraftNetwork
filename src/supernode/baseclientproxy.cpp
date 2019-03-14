@@ -363,21 +363,10 @@ bool supernode::BaseClientProxy::validate_transfer(tools::GraftWallet2 *wallet,
                                                    std::vector<cryptonote::tx_destination_entry> &dsts,
                                                    std::vector<uint8_t> &extra)
 {
-  return false;
-#if 0
-<<<<<<< HEAD
-    std::unique_ptr<tools::GraftWallet2> wal = initWallet(base64_decode(account), password);
-    if (!wal)
-||||||| merged common ancestors
-    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(account), password);
-    if (!wal)
-=======
     if (!wallet)
->>>>>>> master
     {
         return false;
     }
-
     cryptonote::tx_destination_entry de;
     bool has_payment_id;
     crypto::hash8 payment_id_short;
@@ -397,74 +386,16 @@ bool supernode::BaseClientProxy::validate_transfer(tools::GraftWallet2 *wallet,
     {
         // copy-pasted from simplewallet.cpp:2212
         crypto::hash payment_id_long;
-        bool r = tools::GraftWallet::parse_long_payment_id(payment_id, payment_id_long);
+        bool r = tools::GraftWallet2::parse_long_payment_id(payment_id, payment_id_long);
         if (r)
         {
             std::string extra_nonce;
             cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, payment_id_long);
             r = cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce);
         }
-<<<<<<< HEAD
-        integrated_payment_id = new_payment_id;
-        cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, integrated_payment_id);
-
-        /* Append Payment ID data into extra */
-        if (!cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce))
-        {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "Something went wrong with integrated payment_id.";
-            return false;
-        }
-    }
-
-    if (!payment_id.empty())
-    {
-        /* Just to clarify */
-        const std::string& payment_id_str = payment_id;
-
-        crypto::hash long_payment_id;
-        crypto::hash8 short_payment_id;
-
-        /* Parse payment ID */
-        if (tools::GraftWallet2::parse_long_payment_id(payment_id_str, long_payment_id))
-        {
-            cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, long_payment_id);
-        }
-        /* or short payment ID */
-        else if (tools::GraftWallet2::parse_short_payment_id(payment_id_str, short_payment_id))
-||||||| merged common ancestors
-        integrated_payment_id = new_payment_id;
-        cryptonote::set_encrypted_payment_id_to_tx_extra_nonce(extra_nonce, integrated_payment_id);
-
-        /* Append Payment ID data into extra */
-        if (!cryptonote::add_extra_nonce_to_tx_extra(extra, extra_nonce))
-        {
-//            er.code = WALLET_RPC_ERROR_CODE_WRONG_PAYMENT_ID;
-//            er.message = "Something went wrong with integrated payment_id.";
-            return false;
-        }
-    }
-
-    if (!payment_id.empty())
-    {
-        /* Just to clarify */
-        const std::string& payment_id_str = payment_id;
-
-        crypto::hash long_payment_id;
-        crypto::hash8 short_payment_id;
-
-        /* Parse payment ID */
-        if (tools::GraftWallet::parse_long_payment_id(payment_id_str, long_payment_id))
-        {
-            cryptonote::set_payment_id_to_tx_extra_nonce(extra_nonce, long_payment_id);
-        }
-        /* or short payment ID */
-        else if (tools::GraftWallet::parse_short_payment_id(payment_id_str, short_payment_id))
-=======
         else
->>>>>>> master
         {
-            r = tools::GraftWallet::parse_short_payment_id(payment_id, payment_id_short);
+            r = tools::GraftWallet2::parse_short_payment_id(payment_id, payment_id_short);
             if (r)
             {
                 std::string extra_nonce;
@@ -491,7 +422,6 @@ bool supernode::BaseClientProxy::validate_transfer(tools::GraftWallet2 *wallet,
             return false;
         }
     }
-    #endif
     return true;
 }
 
