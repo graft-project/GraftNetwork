@@ -10,6 +10,8 @@ namespace config
 namespace graft
 {
 
+constexpr uint8_t STAKE_TRANSACTION_PROCESSING_DB_VERSION = 13;
+
 constexpr uint64_t STAKE_MIN_UNLOCK_TIME = 10;
 constexpr uint64_t STAKE_MAX_UNLOCK_TIME = 5000;
 constexpr uint64_t STAKE_MIN_UNLOCK_TIME_FOR_WALLET = 60;
