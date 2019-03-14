@@ -126,91 +126,94 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
   if (block_index <= m_storage->get_last_processed_block_index())
     return;
 
-  BlockchainDB& db = m_blockchain.get_db();
-
-    //analyze block transactions and add new stake transactions if exist
-
-  stake_transaction stake_tx;
-
-  for (const crypto::hash& tx_hash : block.tx_hashes)
+  if (m_blockchain.get_hard_fork_version(block_index) >= config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
   {
-    try
+    BlockchainDB& db = m_blockchain.get_db();
+
+      //analyze block transactions and add new stake transactions if exist
+
+    stake_transaction stake_tx;
+
+    for (const crypto::hash& tx_hash : block.tx_hashes)
     {
-      const transaction& tx = db.get_tx(tx_hash);
-
-      if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
-        continue;
-
-      crypto::public_key W;
-      if (!epee::string_tools::hex_to_pod(stake_tx.supernode_public_id, W) || !check_key(W))
+      try
       {
-        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash
-          << " because of invalid supernode public identifier '" << stake_tx.supernode_public_id << "'");
-        continue;
+        const transaction& tx = db.get_tx(tx_hash);
+
+        if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
+          continue;
+
+        crypto::public_key W;
+        if (!epee::string_tools::hex_to_pod(stake_tx.supernode_public_id, W) || !check_key(W))
+        {
+          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash
+            << " because of invalid supernode public identifier '" << stake_tx.supernode_public_id << "'");
+          continue;
+        }
+
+        std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_blockchain.testnet(), stake_tx.supernode_public_address);
+        std::string data = supernode_public_address_str + ":" + stake_tx.supernode_public_id;
+        crypto::hash hash;
+        crypto::cn_fast_hash(data.data(), data.size(), hash);
+
+        if (!crypto::check_signature(hash, W, stake_tx.supernode_signature))
+        {
+          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+            << " because of invalid supernode signature (mismatch)");
+          continue;
+        }
+
+        uint64_t unlock_time = tx.unlock_time - block_index;
+
+        if (unlock_time < config::graft::STAKE_MIN_UNLOCK_TIME)
+        {
+          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+            << " because unlock time " << unlock_time << " is less than minimum allowed " << config::graft::STAKE_MIN_UNLOCK_TIME);
+          continue;
+        }
+
+        if (unlock_time > config::graft::STAKE_MAX_UNLOCK_TIME)
+        {
+          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+            << " because unlock time " << unlock_time << " is greater than maximum allowed " << config::graft::STAKE_MAX_UNLOCK_TIME);
+          continue;
+        }
+
+        uint64_t amount = get_transaction_amount(tx, stake_tx.supernode_public_address, stake_tx.tx_secret_key);
+
+        if (!amount)
+        {
+          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+            << " because of error at parsing amount");
+          continue;
+        }
+
+        stake_tx.amount = amount;
+        stake_tx.block_height = block_index;
+        stake_tx.hash = tx_hash;
+        stake_tx.unlock_time = unlock_time;
+
+        m_storage->add_tx(stake_tx);
+
+        MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id
+          << "', amount=" << amount / double(COIN));
       }
-
-      std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_blockchain.testnet(), stake_tx.supernode_public_address);
-      std::string data = supernode_public_address_str + ":" + stake_tx.supernode_public_id;
-      crypto::hash hash;
-      crypto::cn_fast_hash(data.data(), data.size(), hash);
-
-      if (!crypto::check_signature(hash, W, stake_tx.supernode_signature))
+      catch (std::exception& e)
       {
-        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-          << " because of invalid supernode signature (mismatch)");
-        continue;
+        MCLOG(el::Level::Warning, "global", "Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of error at parsing: " << e.what());
       }
-
-      uint64_t unlock_time = tx.unlock_time - block_index;
-
-      if (unlock_time < config::graft::STAKE_MIN_UNLOCK_TIME)
+      catch (...)
       {
-        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-          << " because unlock time " << unlock_time << " is less than minimum allowed " << config::graft::STAKE_MIN_UNLOCK_TIME);
-        continue;
+        MCLOG(el::Level::Warning, "global", "Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of unknown error at parsing");
       }
-
-      if (unlock_time > config::graft::STAKE_MAX_UNLOCK_TIME)
-      {
-        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-          << " because unlock time " << unlock_time << " is greater than maximum allowed " << config::graft::STAKE_MAX_UNLOCK_TIME);
-        continue;
-      }
-
-      uint64_t amount = get_transaction_amount(tx, stake_tx.supernode_public_address, stake_tx.tx_secret_key);
-
-      if (!amount)
-      {
-        MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-          << " because of error at parsing amount");
-        continue;
-      }
-
-      stake_tx.amount = amount;
-      stake_tx.block_height = block_index;
-      stake_tx.hash = tx_hash;
-      stake_tx.unlock_time = unlock_time;
-
-      m_storage->add_tx(stake_tx);
-
-      MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id
-        << "', amount=" << amount / double(COIN));
     }
-    catch (std::exception& e)
-    {
-      MCLOG(el::Level::Warning, "global", "Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of error at parsing: " << e.what());
-    }
-    catch (...)
-    {
-      MCLOG(el::Level::Warning, "global", "Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of unknown error at parsing");
-    }
+
+    m_stakes_need_update = true; //TODO: cache for stakes
+
+      //update supernode stakes
+
+    m_storage->update_supernode_stakes(block_index);
   }
-
-    //update supernode stakes
-
-  m_storage->update_supernode_stakes(block_index);
-
-  m_stakes_need_update = true; //TODO: cache for stakes
 
     //update cache entries and save storage
 
@@ -256,27 +259,35 @@ void StakeTransactionProcessor::synchronize()
 
     for (;;)
     {
-      size_t   stake_tx_count = m_storage->get_tx_count();
-      uint64_t last_processed_block_index = m_storage->get_last_processed_block_index();
+      try
+      {
+        size_t   stake_tx_count = m_storage->get_tx_count();
+        uint64_t last_processed_block_index = m_storage->get_last_processed_block_index();
 
-      if (!last_processed_block_index)
-        break;
+        if (!last_processed_block_index)
+          break;
 
-      const crypto::hash& last_processed_block_hash  = m_storage->get_last_processed_block_hash();
-      crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
+        const crypto::hash& last_processed_block_hash  = m_storage->get_last_processed_block_hash();
+        crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
 
-      if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
-        break; //latest block hash is the same as processed
+        if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
+          break; //latest block hash is the same as processed
 
-      MCLOG(el::Level::Info, "global", "Stake transactions processing: unroll block " << last_processed_block_index);
+        MCLOG(el::Level::Info, "global", "Stake transactions processing: unroll block " << last_processed_block_index);
 
-      m_storage->remove_last_processed_block();
+        m_storage->remove_last_processed_block();
 
-      if (stake_tx_count != m_storage->get_tx_count())
-        m_storage->clear_supernode_stakes();
+        if (stake_tx_count != m_storage->get_tx_count())
+          m_storage->clear_supernode_stakes();
 
-      if (m_blockchain_based_list->block_height() == last_processed_block_index)
-        m_blockchain_based_list->remove_latest_block();
+        if (m_blockchain_based_list->block_height() == last_processed_block_index)
+          m_blockchain_based_list->remove_latest_block();
+      }
+      catch (BLOCK_DNE&)
+      {
+        //block does not exist, waiting until it will be received
+        return;
+      }
     }
 
     //apply new blocks
@@ -291,23 +302,33 @@ void StakeTransactionProcessor::synchronize()
 
     bool need_finalize_log_messages = false;
 
-    for (uint64_t i=first_block_index, sync_debug_log_next_index=i + 1; i<height; i++)
+    uint64_t last_block_index = first_block_index;
+
+    for (uint64_t sync_debug_log_next_index=first_block_index + 1; last_block_index<height; last_block_index++)
     {
-      if (i == sync_debug_log_next_index)
+      if (last_block_index == sync_debug_log_next_index)
       {
-        MCLOG(el::Level::Info, "global", "RTA block sync " << i << "/" << height);
+        MCLOG(el::Level::Info, "global", "RTA block sync " << last_block_index << "/" << height);
 
         need_finalize_log_messages = true;
-        sync_debug_log_next_index  = i + SYNC_DEBUG_LOG_STEP;
+        sync_debug_log_next_index  = last_block_index + SYNC_DEBUG_LOG_STEP;
 
         if (sync_debug_log_next_index >= height)
           sync_debug_log_next_index = height - 1;
       }
 
-      crypto::hash block_hash = db.get_block_hash_from_height(i);
-      const block& block      = db.get_block(block_hash);
+      try
+      {
+        crypto::hash block_hash = db.get_block_hash_from_height(last_block_index);
+        const block& block      = db.get_block(block_hash);
 
-      process_block(i, block, block_hash, false);
+        process_block(last_block_index, block, block_hash, false);
+      }
+      catch (BLOCK_DNE&)
+      {
+        //block does not exist, waiting until it will be received
+        break;
+      }
     }
 
     if (m_blockchain_based_list->need_store())
@@ -317,19 +338,18 @@ void StakeTransactionProcessor::synchronize()
       m_storage->store();
 
     if (m_stakes_need_update && m_on_stakes_update)
-      invoke_update_stakes_handler_impl(height - 1);
+      invoke_update_stakes_handler_impl(last_block_index - 1);
 
     if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
-      invoke_update_blockchain_based_list_handler_impl(height - first_block_index);
+      invoke_update_blockchain_based_list_handler_impl(last_block_index - first_block_index);
 
     if (need_finalize_log_messages)
       MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
-  } catch (const std::exception &e) {
+  }
+  catch (const std::exception &e)
+  {
     MWARNING(e.what());
   }
-
-
-
 }
 
 void StakeTransactionProcessor::set_on_update_stakes_handler(const supernode_stakes_update_handler& handler)
