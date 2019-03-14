@@ -29,6 +29,11 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
+#include <boost/asio/ip/address_v4.hpp>
+#include <boost/asio.hpp> // cross-platform way to include a header with 'ntohl' 
+#include <boost/date_time/posix_time/posix_time_types.hpp>
+
+
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/difficulty.h"
@@ -484,7 +489,6 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
 
-
     struct response
     {
       std::string status;
@@ -498,6 +502,7 @@ namespace cryptonote
       bool overspend;
       bool fee_too_low;
       bool not_rct;
+      bool rta_validation_failed;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
@@ -511,6 +516,7 @@ namespace cryptonote
         KV_SERIALIZE(overspend)
         KV_SERIALIZE(fee_too_low)
         KV_SERIALIZE(not_rct)
+        KV_SERIALIZE(rta_validation_failed)
       END_KV_SERIALIZE_MAP()
     };
   };
@@ -884,15 +890,22 @@ namespace cryptonote
     uint32_t ip;
     uint16_t port;
     uint64_t last_seen;
+    std::string last_seen_str;
 
     peer() = default;
 
     peer(uint64_t id, const std::string &host, uint64_t last_seen)
       : id(id), host(host), ip(0), port(0), last_seen(last_seen)
-    {}
+    {
+        last_seen_str = boost::posix_time::to_simple_string(boost::posix_time::from_time_t(last_seen));
+    }
     peer(uint64_t id, uint32_t ip, uint16_t port, uint64_t last_seen)
-      : id(id), host(std::to_string(ip)), ip(ip), port(port), last_seen(last_seen)
-    {}
+      : id(id), ip(ntohl(ip)), port(port), last_seen(last_seen)
+    {
+        auto _ip = boost::asio::ip::address_v4(this->ip);
+        host = _ip.to_string();
+        last_seen_str = boost::posix_time::to_simple_string(boost::posix_time::from_time_t(last_seen));
+    }
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(id)
@@ -900,6 +913,7 @@ namespace cryptonote
       KV_SERIALIZE(ip)
       KV_SERIALIZE(port)
       KV_SERIALIZE(last_seen)
+      KV_SERIALIZE(last_seen_str)
     END_KV_SERIALIZE_MAP()
   };
 
@@ -1686,6 +1700,314 @@ namespace cryptonote
         KV_SERIALIZE(target_height)
         KV_SERIALIZE(peers)
         KV_SERIALIZE(spans)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  //---------- Graft RTA commands ---------------------
+  struct COMMAND_RPC_SUPERNODE_GET_STAKES
+  {
+    struct request
+    {
+      std::string supernode_public_id;
+      std::string network_address;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernode_public_id)
+        KV_SERIALIZE(network_address)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_SUPERNODE_STAKES
+  {
+    struct supernode_stake
+    {
+      uint64_t amount;
+      unsigned int tier;
+      uint64_t block_height;
+      uint64_t unlock_time;
+      std::string supernode_public_id;
+      std::string supernode_public_address;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(amount)
+        KV_SERIALIZE(tier)
+        KV_SERIALIZE(block_height)
+        KV_SERIALIZE(unlock_time)
+        KV_SERIALIZE(supernode_public_id)
+        KV_SERIALIZE(supernode_public_address)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      uint64_t block_height;
+      std::vector<supernode_stake> stakes;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(block_height)
+        KV_SERIALIZE(stakes)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST
+  {
+    struct request
+    {
+      std::string supernode_public_id;
+      std::string network_address;
+      uint64_t    last_received_block_height;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernode_public_id)
+        KV_SERIALIZE(network_address)
+        KV_SERIALIZE(last_received_block_height)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST
+  {
+    struct supernode
+    {
+      std::string supernode_public_id;
+      std::string supernode_public_address;
+      uint64_t    amount;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernode_public_id)
+        KV_SERIALIZE(supernode_public_address)
+        KV_SERIALIZE(amount)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct tier
+    {
+      std::vector<supernode> supernodes;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernodes)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      uint64_t block_height;
+      std::vector<tier> tiers;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(block_height)
+        KV_SERIALIZE(tiers)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_SUPERNODE_ANNOUNCE
+  {
+    struct request
+    {
+
+      std::string supernode_public_id;
+      uint64_t height;
+      std::string signature;
+      std::string network_address;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernode_public_id)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(signature)
+        KV_SERIALIZE(network_address)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_BROADCAST
+  {
+    struct request
+    {
+      std::string sender_address;
+      std::string callback_uri;
+      std::string data;
+      bool wait_answer;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(sender_address)
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_MULTICAST
+  {
+    struct request
+    {
+      std::list<std::string> receiver_addresses;
+      std::string sender_address;
+      std::string callback_uri;
+      std::string data;
+      bool wait_answer;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(receiver_addresses)
+        KV_SERIALIZE(sender_address)
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_UNICAST
+  {
+    struct request
+    {
+      std::string receiver_address;
+      std::string sender_address;
+      std::string callback_uri;
+      std::string data;
+      bool wait_answer;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(receiver_address)
+        KV_SERIALIZE(sender_address)
+        KV_SERIALIZE(callback_uri)
+        KV_SERIALIZE(data)
+        KV_SERIALIZE(wait_answer)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct peer_data
+  {
+      std::string host;
+      uint16_t port;
+      uint64_t id;
+      int64_t last_seen;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(host)
+        KV_SERIALIZE(port)
+        KV_SERIALIZE(id)
+        KV_SERIALIZE(last_seen)
+      END_KV_SERIALIZE_MAP()
+  };
+
+  struct route_data
+  {
+    std::string address;
+    uint64_t last_announce_height;
+    uint64_t last_announce_time;
+    uint64_t max_hop;
+    std::vector<peer_data> peers;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(address)
+      KV_SERIALIZE(last_announce_height)
+      KV_SERIALIZE(last_announce_time)
+      KV_SERIALIZE(max_hop)
+      KV_SERIALIZE(peers)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  struct COMMAND_RPC_TUNNEL_DATA
+  {
+    struct request
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::string supernode_address;
+      std::vector<route_data> tunnels;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(supernode_address)
+        KV_SERIALIZE(tunnels)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_RTA_STATS
+  {
+    struct request
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      uint64_t announce_bytes_in;
+      uint64_t announce_bytes_out;
+      uint64_t broadcast_bytes_in;
+      uint64_t broadcast_bytes_out;
+      uint64_t multicast_bytes_in;
+      uint64_t multicast_bytes_out;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(announce_bytes_in)
+        KV_SERIALIZE(announce_bytes_out)
+        KV_SERIALIZE(broadcast_bytes_in)
+        KV_SERIALIZE(broadcast_bytes_out)
+        KV_SERIALIZE(multicast_bytes_in)
+        KV_SERIALIZE(multicast_bytes_out)
       END_KV_SERIALIZE_MAP()
     };
   };

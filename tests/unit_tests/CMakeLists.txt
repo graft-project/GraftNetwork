@@ -39,6 +39,7 @@ set(unit_tests_sources
   checkpoints.cpp
   command_line.cpp
   crypto.cpp
+  cryptmsg_test.cpp
   decompose_amount_into_digits.cpp
   dns_resolver.cpp
   epee_boosted_tcp_server.cpp

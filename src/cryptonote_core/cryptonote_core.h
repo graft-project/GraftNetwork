@@ -43,6 +43,7 @@
 #include "common/thread_group.h"
 #include "tx_pool.h"
 #include "blockchain.h"
+#include "stake_transaction_processor.h"
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/connection_context.h"
 #include "cryptonote_basic/cryptonote_stat_info.h"
@@ -735,6 +736,30 @@ namespace cryptonote
       */
      bool fluffy_blocks_enabled() const { return m_fluffy_blocks_enabled; }
 
+     /**
+      * @brief set update handler for supernode stakes
+      */
+     typedef StakeTransactionProcessor::supernode_stakes_update_handler supernode_stakes_update_handler;
+
+     void set_update_stakes_handler(const supernode_stakes_update_handler&);
+
+     /**
+      * @brief invoke stakes update handler
+      */
+     void invoke_update_stakes_handler();
+
+     /**
+      * @brief set update handler for new blockchain based list
+      */
+     typedef StakeTransactionProcessor::blockchain_based_list_update_handler blockchain_based_list_update_handler;
+
+     void set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&);
+
+     /**
+      * @brief invoke blockchain based list update handler
+      */
+     void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height);
+
    private:
 
      /**
@@ -900,6 +925,7 @@ namespace cryptonote
 
      tx_memory_pool m_mempool; //!< transaction pool instance
      Blockchain m_blockchain_storage; //!< Blockchain instance
+     StakeTransactionProcessor m_graft_stake_transaction_processor; //<! StakeTransactionProcessor instance
 
      i_cryptonote_protocol* m_pprotocol; //!< cryptonote protocol instance
 

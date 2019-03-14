@@ -139,9 +139,7 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
-
   typedef boost::variant<txin_gen, txin_to_script, txin_to_scripthash, txin_to_key> txin_v;
-
   typedef boost::variant<txout_to_script, txout_to_scripthash, txout_to_key> txout_target_v;
 
   //typedef std::pair<uint64_t, txout> out_t;
@@ -158,6 +156,9 @@ namespace cryptonote
 
   };
 
+
+
+
   class transaction_prefix
   {
 
@@ -173,15 +174,75 @@ namespace cryptonote
 
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
-      if(version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
+      if (version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
       VARINT_FIELD(unlock_time)
       FIELD(vin)
       FIELD(vout)
       FIELD(extra)
     END_SERIALIZE()
-
   public:
-    transaction_prefix(){}
+
+  };
+
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct account_public_address
+  {
+    crypto::public_key m_spend_public_key;
+    crypto::public_key m_view_public_key;
+
+    BEGIN_SERIALIZE_OBJECT()
+      FIELD(m_spend_public_key)
+      FIELD(m_view_public_key)
+    END_SERIALIZE()
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_spend_public_key)
+      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_view_public_key)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  // container for RTA identities (public keys)
+  // stores RTA payment ID, PoS public one-time identification key (used to identify PoS in the network and protect data for it),
+  // auth sample supernode public identification keys (graftnode will need it to validate auth sample signatures),
+  // PoS and Wallet Proxy Supernode identification keys to transaction_header.extra.
+  // TODO: better name?
+  struct rta_header
+  {
+    std::string payment_id;
+    // pre-defined key indexes for POS, POS Proxy and Wallet Proxy
+    static constexpr size_t POS_KEY_INDEX = 0;
+    static constexpr size_t POS_PROXY_KEY_INDEX = 1;
+    static constexpr size_t WALLET_PROXY_KEY_INDEX = 2;
+    uint64_t auth_sample_height = 0; // block height for auth sample generation
+
+    std::vector<crypto::public_key> keys;
+    BEGIN_SERIALIZE_OBJECT()
+      FIELD(payment_id)
+      FIELD(auth_sample_height)
+      FIELD(keys)
+    END_SERIALIZE()
+    bool operator== (const rta_header &other) const
+    {
+      return this->payment_id == other.payment_id
+          && this->keys == other.keys
+          && this->auth_sample_height == other.auth_sample_height;
+    }
+  };
+
+  struct rta_signature
+  {
+    size_t key_index; // reference to the corresponding pubkey. alternatively we can just iterate by matching signatures and keys
+    crypto::signature signature;
+    BEGIN_SERIALIZE_OBJECT()
+      FIELD(key_index)
+      FIELD(signature)
+    END_SERIALIZE()
+    bool operator== (const rta_signature &other) const
+    {
+      return this->signature == other.signature;
+    }
   };
 
   class transaction: public transaction_prefix
@@ -199,9 +260,26 @@ namespace cryptonote
     mutable crypto::hash hash;
     mutable size_t blob_size;
 
+    // graft: introducing transaction type. currently this field is not used to calculate tx hash
+    // TODO: probably move it to transaction_prefix.extra
+    enum tx_type {
+      // generic monero transaction;
+      tx_type_generic = 0,
+      // supernode 'zero-fee' transaction
+      tx_type_rta = 1,
+      tx_type_invalid = 255
+    };
+    // graft: tx type field
+    // TODO: consider to removed 'type' field. we can check if transaction is rta either by
+    // 1. checking if 'tx_extra_graft_rta_header' is present in tx_extra
+    // 2. simply checking tx version, so 'type' only needed for 'alpha' compatibilty.
+    size_t type = tx_type_generic;
+
+    std::vector<uint8_t> extra2;
+
     transaction();
-    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
-    transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } return *this; }
+    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), type(t.type), extra2(t.extra2) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
+    transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; type = t.type; extra2 = extra2; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } return *this; }
     virtual ~transaction();
     void set_null();
     void invalidate_hashes();
@@ -250,7 +328,7 @@ namespace cryptonote
         }
         ar.end_array();
       }
-      else
+      else if (version >= 2)
       {
         ar.tag("rct_signatures");
         if (!vin.empty())
@@ -269,6 +347,12 @@ namespace cryptonote
             ar.end_object();
           }
         }
+      }
+      // version >= 3 is rta transaction: allowed 0 fee and auth sample signatures
+      if (version >= 3)
+      {
+        FIELD(type)
+        FIELD(extra2)
       }
     END_SERIALIZE()
 
@@ -293,6 +377,7 @@ namespace cryptonote
       }
       return true;
     }
+
 
   private:
     static size_t get_signature_size(const txin_v& tx_in);
@@ -323,6 +408,7 @@ namespace cryptonote
     rct_signatures.type = rct::RCTTypeNull;
     set_hash_valid(false);
     set_blob_size_valid(false);
+    type = tx_type_generic;
   }
 
   inline
@@ -399,24 +485,7 @@ namespace cryptonote
   };
 
 
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
-  struct account_public_address
-  {
-    crypto::public_key m_spend_public_key;
-    crypto::public_key m_view_public_key;
 
-    BEGIN_SERIALIZE_OBJECT()
-      FIELD(m_spend_public_key)
-      FIELD(m_view_public_key)
-    END_SERIALIZE()
-
-    BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_spend_public_key)
-      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_view_public_key)
-    END_KV_SERIALIZE_MAP()
-  };
 
   struct keypair
   {

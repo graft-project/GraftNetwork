@@ -58,7 +58,7 @@
 #include "supernode/TxPool.h"
 #include "supernode/WalletProxy.h"
 #include "supernode/WalletPayObject.h"
-#include "supernode/graft_wallet.h"
+#include "supernode/graft_wallet2.h"
 #include "supernode/PosProxy.h"
 #include "supernode/AuthSample.h"
 #include "supernode/api/pending_transaction.h"
@@ -178,7 +178,7 @@ struct GraftRTATest1 : public testing::Test
 
     GraftRTATest1()
     {
-        GraftWallet *wallet = new GraftWallet(true, false);
+        GraftWallet2 *wallet = new GraftWallet2(true, false);
         wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
         string wallet_path = wallet_root_path + "/miner_wallet";
         bdb_path  = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_blockchain";

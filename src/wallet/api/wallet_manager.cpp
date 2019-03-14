@@ -68,6 +68,14 @@ Wallet *WalletManagerImpl::createWallet(const std::string &path, const std::stri
     return wallet;
 }
 
+Wallet *WalletManagerImpl::createNewWallet(const string &password, const string &language,
+                                           bool testnet)
+{
+    WalletImpl * wallet = new WalletImpl(testnet);
+    wallet->create(password, language);
+    return wallet;
+}
+
 Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, bool testnet)
 {
     WalletImpl * wallet = new WalletImpl(testnet);
@@ -87,6 +95,16 @@ Wallet *WalletManagerImpl::recoveryWallet(const std::string &path, const std::st
     return wallet;
 }
 
+Wallet *WalletManagerImpl::restoreWallet(const string &mnemonic, bool testnet, uint64_t restoreHeight)
+{
+    WalletImpl * wallet = new WalletImpl(testnet);
+    if(restoreHeight > 0){
+        wallet->setRefreshFromBlockHeight(restoreHeight);
+    }
+    wallet->recover(mnemonic);
+    return wallet;
+}
+
 Wallet *WalletManagerImpl::createWalletFromKeys(const std::string &path, 
                                                 const std::string &language,
                                                 bool testnet, 
@@ -100,6 +118,15 @@ Wallet *WalletManagerImpl::createWalletFromKeys(const std::string &path,
         wallet->setRefreshFromBlockHeight(restoreHeight);
     }
     wallet->recoverFromKeys(path, language, addressString, viewKeyString, spendKeyString);
+    return wallet;
+}
+
+Wallet *WalletManagerImpl::createWalletFromData(const string &data, const string &password,
+                                                bool testnet, std::string cache_file,
+                                                bool use_base64)
+{
+    WalletImpl * wallet = new WalletImpl(testnet);
+    wallet->recoverFromData(data, password, cache_file, use_base64);
     return wallet;
 }
 

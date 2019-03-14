@@ -898,6 +898,8 @@ namespace cryptonote
 
     void cancel();
 
+    bool testnet() const { return m_testnet; }
+
     /**
      * @brief called when we see a tx originating from a block
      *

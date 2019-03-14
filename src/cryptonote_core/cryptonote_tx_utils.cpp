@@ -156,16 +156,18 @@ namespace cryptonote
     return destinations[0].addr.m_view_public_key;
   }
   //---------------------------------------------------------------
-  bool construct_tx_and_get_tx_key(const account_keys& sender_account_keys, const std::vector<tx_source_entry>& sources, const std::vector<tx_destination_entry>& destinations, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, crypto::secret_key &tx_key, bool rct)
+  bool construct_tx_and_get_tx_key(const account_keys& sender_account_keys, const std::vector<tx_source_entry>& sources, const std::vector<tx_destination_entry>& destinations,
+                                   std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, crypto::secret_key &tx_key, bool rct, uint32_t tx_type)
   {
     std::vector<rct::key> amount_keys;
     tx.set_null();
     amount_keys.clear();
 
-    tx.version = rct ? 2 : 1;
+    tx.version = rct ? (tx_type == transaction::tx_type_rta? 3 : 2) : 1;
     tx.unlock_time = unlock_time;
 
     tx.extra = extra;
+    tx.type = tx_type;
     keypair txkey = keypair::generate();
     remove_field_from_tx_extra(tx.extra, typeid(tx_extra_pub_key));
     add_tx_pub_key_to_extra(tx, txkey.pub);
@@ -204,6 +206,18 @@ namespace cryptonote
             return false;
           }
           LOG_PRINT_L1("Encrypted payment ID: " << payment_id);
+        }
+      }
+
+      tx_extra_graft_stake_tx stake_tx_extra;
+      if(find_tx_extra_field_by_type(tx_extra_fields, stake_tx_extra))
+      {
+        LOG_PRINT_L1("Adding tx_key to stake transaction: " << tx_key);
+
+        if (!add_graft_tx_secret_key_to_extra(tx.extra, tx_key))
+        {
+          LOG_ERROR("Failed to add tx_key to stake transaction");
+          return false;
         }
       }
     }
@@ -459,10 +473,11 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  bool construct_tx(const account_keys& sender_account_keys, const std::vector<tx_source_entry>& sources, const std::vector<tx_destination_entry>& destinations, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time)
+  bool construct_tx(const account_keys& sender_account_keys, const std::vector<tx_source_entry>& sources, const std::vector<tx_destination_entry>& destinations,
+                    std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, uint32_t tx_type)
   {
      crypto::secret_key tx_key;
-     return construct_tx_and_get_tx_key(sender_account_keys, sources, destinations, extra, tx, unlock_time, tx_key);
+     return construct_tx_and_get_tx_key(sender_account_keys, sources, destinations, extra, tx, unlock_time, tx_key, false, tx_type);
   }
   //---------------------------------------------------------------
   bool generate_genesis_block(

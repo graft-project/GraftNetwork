@@ -204,6 +204,44 @@ namespace wallet_rpc
     };
   };
 
+  struct COMMAND_RPC_TRANSFER_RTA
+  {
+    struct request : public COMMAND_RPC_TRANSFER::request
+    {
+      std::list<std::string> supernode_keys;
+      std::list<std::string> supernode_signatures;
+      std::string graft_payment_id;
+      uint64_t auth_sample_height;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(destinations)
+        KV_SERIALIZE(priority)
+        KV_SERIALIZE(mixin)
+        KV_SERIALIZE(unlock_time)
+        KV_SERIALIZE(payment_id)
+        KV_SERIALIZE(get_tx_key)
+        KV_SERIALIZE(supernode_keys)
+        KV_SERIALIZE(supernode_signatures)
+        KV_SERIALIZE(graft_payment_id)
+        KV_SERIALIZE(auth_sample_height)
+        KV_SERIALIZE_OPT(do_not_relay, false)
+        KV_SERIALIZE_OPT(get_tx_hex, false)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response : public COMMAND_RPC_TRANSFER::response
+    {
+      std::string encrypted_tx_key; // encrypted tx key using multiple key encryption
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(tx_hash)
+        KV_SERIALIZE(tx_key)
+        KV_SERIALIZE(amount_keys)
+        KV_SERIALIZE(fee)
+        KV_SERIALIZE(tx_blob)
+        KV_SERIALIZE(encrypted_tx_key)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
   struct COMMAND_RPC_SWEEP_DUST
   {
     struct request

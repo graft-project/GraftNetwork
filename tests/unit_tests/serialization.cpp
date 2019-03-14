@@ -672,6 +672,94 @@ TEST(Serialization, serializes_ringct_types)
 }
 
 
+TEST(Serialization, serializes_rta_transaction_correctly)
+{
+  string blob;
+
+  // Empty tx
+  cryptonote::transaction tx;
+  cryptonote::transaction tx1;
+  tx.version = 3;
+  tx.type = cryptonote::transaction::tx_type_rta;
+  cryptonote::rta_header rta_hdr_in, rta_hdr_out;
+  std::vector<cryptonote::account_base> accounts;
+
+  for (size_t i = 0; i < 10; ++i) {
+      cryptonote::account_base acc;
+      acc.generate();
+      rta_hdr_in.keys.push_back(acc.get_keys().m_account_address.m_view_public_key);
+      accounts.push_back(acc);
+  }
+
+  cryptonote::add_graft_rta_header_to_extra(tx.extra, rta_hdr_in);
+
+  crypto::hash tx_hash;
+  ASSERT_TRUE(cryptonote::get_transaction_hash(tx, tx_hash));
+
+
+  std::vector<cryptonote::rta_signature> signatures1, signatures2;
+
+  for (size_t i = 0; i < 10; ++i) {
+      crypto::signature sign;
+      crypto::generate_signature(tx_hash, accounts[i].get_keys().m_account_address.m_view_public_key, accounts[i].get_keys().m_view_secret_key, sign);
+      signatures1.push_back({i, sign});
+  }
+
+  ASSERT_TRUE(cryptonote::add_graft_rta_signatures_to_extra2(tx.extra2, signatures1));
+
+
+  ASSERT_TRUE(serialization::dump_binary(tx, blob));
+  ASSERT_TRUE(serialization::parse_binary(blob, tx1));
+  ASSERT_EQ(tx, tx1);
+  ASSERT_TRUE(cryptonote::get_graft_rta_signatures_from_extra2(tx, signatures2));
+  ASSERT_EQ(signatures1, signatures2);
+
+  crypto::hash tx_hash1;
+  ASSERT_TRUE(cryptonote::get_transaction_hash(tx1, tx_hash1));
+  ASSERT_EQ(tx_hash, tx_hash1);
+  ASSERT_TRUE(cryptonote::get_graft_rta_header_from_extra(tx1, rta_hdr_out));
+  ASSERT_EQ(rta_hdr_in, rta_hdr_out);
+}
+
+TEST(Serialization, empty_rta_signatures)
+{
+  string blob;
+
+  // Empty tx
+  cryptonote::transaction tx_in;
+  cryptonote::transaction tx_out;
+  tx_in.version = 3;
+  tx_in.type = cryptonote::transaction::tx_type_rta;
+  cryptonote::rta_header rta_hdr_in, rta_hdr_out;
+  std::vector<cryptonote::account_base> accounts;
+
+  for (size_t i = 0; i < 10; ++i) {
+      cryptonote::account_base acc;
+      acc.generate();
+      rta_hdr_in.keys.push_back(acc.get_keys().m_account_address.m_view_public_key);
+      accounts.push_back(acc);
+  }
+
+  cryptonote::add_graft_rta_header_to_extra(tx_in.extra, rta_hdr_in);
+
+  crypto::hash tx_hash;
+  ASSERT_TRUE(cryptonote::get_transaction_hash(tx_in, tx_hash));
+
+
+  std::vector<cryptonote::rta_signature> signatures1, signatures2;
+
+  ASSERT_TRUE(cryptonote::add_graft_rta_signatures_to_extra2(tx_in.extra2, signatures1));
+
+
+  ASSERT_TRUE(serialization::dump_binary(tx_in, blob));
+  ASSERT_TRUE(serialization::parse_binary(blob, tx_out));
+  ASSERT_EQ(tx_in, tx_out);
+  ASSERT_TRUE(cryptonote::get_graft_rta_signatures_from_extra2(tx_out, signatures2));
+  ASSERT_EQ(signatures1, signatures2);
+
+}
+
+
 TEST(Serialization, portability_wallet)
 {
   const bool testnet = true;

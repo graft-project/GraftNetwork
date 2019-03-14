@@ -53,7 +53,12 @@ using namespace epee;
 
 namespace cryptonote
 {
-
+  // TODO: move to some utils/helpers library
+  bool validate_wallet(const std::string &wallet_addr, bool testnet)
+  {
+    cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+    return wallet_addr.size() && cryptonote::get_account_address_from_str(acc, testnet, wallet_addr);
+  }
   //-----------------------------------------------------------------------------------
   void core_rpc_server::init_options(boost::program_options::options_description& desc)
   {
@@ -649,6 +654,8 @@ namespace cryptonote
         res.reason = "fee too low";
       if ((res.not_rct = tvc.m_not_rct))
         res.reason = "tx is not ringct";
+      if ((res.rta_validation_failed = tvc.m_rta_signature_failed))
+        res.reason = "RTA validation failed";
       return true;
     }
 
@@ -1750,6 +1757,187 @@ namespace cryptonote
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_supernode_announce: start");
+      if (!check_core_busy())
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+        error_resp.message = "Core is busy.";
+        return false;
+      }
+
+      // send p2p announce
+      m_p2p.set_supernode(req.supernode_public_id, req.network_address);
+      m_p2p.do_supernode_announce(req);
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_supernode_announce: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_supernode_stakes: start");
+      if (!check_core_busy())
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+        error_resp.message = "Core is busy.";
+        return false;
+      }
+
+      // send p2p stakes
+      m_p2p.set_supernode(req.supernode_public_id, req.network_address);
+      m_p2p.send_stakes_to_supernode();
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_supernode_stakes: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request &req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: start");
+      if (!check_core_busy())
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+        error_resp.message = "Core is busy.";
+        return false;
+      }
+
+      // send p2p stake txs
+      m_p2p.set_supernode(req.supernode_public_id, req.network_address);
+      m_p2p.send_blockchain_based_list_to_supernode(req.last_received_block_height);
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_broadcast: start");
+      if (!check_core_busy())
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+          error_resp.message = "Core is busy.";
+          return false;
+      }
+
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+      std::string sender_address = req.sender_address;
+      crypto::public_key dummy_key;
+      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+          error_resp.message = "Failed to parse sender id";
+          return false;
+      }
+
+      m_p2p.do_broadcast(req);
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_broadcast: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_multicast: start");
+      if (!check_core_busy())
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+          error_resp.message = "Core is busy.";
+          return false;
+      }
+
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+      crypto::public_key dummy_key;
+      for (auto addr : req.receiver_addresses)
+      {
+          if (addr.empty() || !epee::string_tools::hex_to_pod(addr, dummy_key))
+          {
+              error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+              error_resp.message = "Failed to parse receiver id";
+              return false;
+          }
+      }
+
+      std::string sender_address = req.sender_address;
+      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+          error_resp.message = "Failed to parse sender id";
+          return false;
+      }
+
+      m_p2p.do_multicast(req);
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_multicast: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_unicast: start");
+      if (!check_core_busy())
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_CORE_BUSY;
+          error_resp.message = "Core is busy.";
+          return false;
+      }
+
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+
+      std::string receiver_address = req.receiver_address;
+      crypto::public_key dummy_key;
+      if (receiver_address.empty() || !epee::string_tools::hex_to_pod(receiver_address, dummy_key))
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+          error_resp.message = "Failed to parse receiver id";
+          return false;
+      }
+
+      std::string sender_address = req.sender_address;
+      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+          error_resp.message = "Failed to parse sender id";
+          return false;
+      }
+
+      m_p2p.do_unicast(req);
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_unicast: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_get_tunnels: start");
+      res.supernode_address = m_p2p.get_supernode_address();
+      res.tunnels = m_p2p.get_tunnels();
+      LOG_PRINT_L0("RPC Request: on_get_tunnels: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+
+  bool core_rpc_server::on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp)
+  {
+      res.announce_bytes_in = m_p2p.get_announce_bytes_in();
+      res.announce_bytes_out = m_p2p.get_announce_bytes_out();
+      res.broadcast_bytes_in = m_p2p.get_broadcast_bytes_in();
+      res.broadcast_bytes_out = m_p2p.get_broadcast_bytes_out();
+      res.multicast_bytes_in = m_p2p.get_multicast_bytes_in();
+      res.multicast_bytes_out = m_p2p.get_multicast_bytes_out();
+      return true;
+  }
+
   //------------------------------------------------------------------------------------------------------------------------------
 
   const command_line::arg_descriptor<std::string> core_rpc_server::arg_rpc_bind_port = {

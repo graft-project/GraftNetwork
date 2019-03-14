@@ -39,8 +39,10 @@ class WalletManagerImpl : public WalletManager
 public:
     Wallet * createWallet(const std::string &path, const std::string &password,
                           const std::string &language, bool testnet);
+    Wallet *createNewWallet(const std::string &password, const std::string &language, bool testnet) override;
     Wallet * openWallet(const std::string &path, const std::string &password, bool testnet);
     virtual Wallet * recoveryWallet(const std::string &path, const std::string &memo, bool testnet, uint64_t restoreHeight);
+    Wallet *restoreWallet(const std::string &mnemonic, bool testnet, uint64_t restoreHeight) override;
     virtual Wallet * createWalletFromKeys(const std::string &path, 
                                                     const std::string &language,
                                                     bool testnet, 
@@ -48,6 +50,10 @@ public:
                                                     const std::string &addressString,
                                                     const std::string &viewKeyString,
                                                     const std::string &spendKeyString = "");
+    Wallet * createWalletFromData(const std::string &data, const std::string &password,
+                                  bool testnet, std::string cache_file = std::string(),
+                                  bool use_base64 = true) override;
+
     virtual bool closeWallet(Wallet *wallet);
     bool walletExists(const std::string &path);
     bool verifyWalletPassword(const std::string &keys_file_name, const std::string &password, bool watch_only) const;

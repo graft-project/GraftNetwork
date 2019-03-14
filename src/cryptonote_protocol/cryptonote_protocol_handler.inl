@@ -783,10 +783,11 @@ namespace cryptonote
         drop_connection(context, false, false);
         return 1;
       }
-      if(tvc.m_should_be_relayed)
+      if(tvc.m_should_be_relayed) {
         ++tx_blob_it;
-      else
+      } else {
         arg.txs.erase(tx_blob_it++);
+      }
     }
 
     if(arg.txs.size())

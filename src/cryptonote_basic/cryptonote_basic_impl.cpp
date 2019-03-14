@@ -114,8 +114,8 @@ namespace cryptonote {
 
     if (current_block_size <= median_size) {
       reward = base_reward;
-      if (version >= 10) {
-          // halving reward since version 10
+      if (version >= 12) { // XXX Be careful when merging back to master, in master "halving" version is 10
+          // halving reward since version 12
           reward /= 2;
       }
       return true;
@@ -144,8 +144,8 @@ namespace cryptonote {
     assert(reward_lo < base_reward);
 
     reward = reward_lo;
-    if (version >= 10) {
-        // halving reward since version 10
+    if (version >= 12) { // XXX Be careful when merging back to master, in master "halving" version is 10
+        // halving reward since version 12
         reward /= 2;
     }
     return true;

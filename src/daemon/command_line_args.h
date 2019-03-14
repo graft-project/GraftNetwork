@@ -41,6 +41,11 @@ namespace daemon_args
   , "Specify configuration file"
   , std::string(CRYPTONOTE_NAME ".conf")
   };
+  const command_line::arg_descriptor<std::string> arg_log_format = {
+    "log-format"
+  , "Specify log format"
+  , ""
+  };
   const command_line::arg_descriptor<std::string> arg_log_file = {
     "log-file"
   , "Specify log file"

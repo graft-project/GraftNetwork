@@ -31,6 +31,7 @@
 #pragma once
 
 #include <boost/uuid/uuid.hpp>
+#include <unordered_map>
 #include "serialization/keyvalue_serialization.h"
 #include "net/net_utils_base.h"
 #include "misc_language.h"
@@ -38,6 +39,7 @@
 #ifdef ALLOW_DEBUG_COMMANDS
 #include "crypto/crypto.h"
 #endif
+#include "rpc/core_rpc_server_commands_defs.h"
 
 namespace nodetool
 {
@@ -125,7 +127,6 @@ namespace nodetool
     return ss.str();
   }
 
-
   struct network_config
   {
     BEGIN_KV_SERIALIZE_MAP()
@@ -158,9 +159,108 @@ namespace nodetool
       KV_SERIALIZE(my_port)
     END_KV_SERIALIZE_MAP()
   };
-  
+
+  struct supernode_route
+  {
+      crypto::public_key addr;
+      uint64_t last_announce_height;
+      uint64_t last_announce_time;
+      uint64_t max_hop;
+      std::vector<peerlist_entry> peers;
+  };
 
 #define P2P_COMMANDS_POOL_BASE 1000
+
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct COMMAND_SUPERNODE_ANNOUNCE
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 20;
+
+      struct request : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request
+      {
+          uint64_t hop;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(supernode_public_id)
+            KV_SERIALIZE(height)
+            KV_SERIALIZE(signature)
+            KV_SERIALIZE(network_address)
+            KV_SERIALIZE(hop)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::response { };
+  };
+
+  struct COMMAND_BROADCAST
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 21;
+
+      struct request : public cryptonote::COMMAND_RPC_BROADCAST::request
+      {
+          uint64_t hop;
+          std::string message_id;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(sender_address)
+            KV_SERIALIZE(callback_uri)
+            KV_SERIALIZE(data)
+            KV_SERIALIZE(wait_answer)
+            KV_SERIALIZE(hop)
+            KV_SERIALIZE(message_id)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response : public cryptonote::COMMAND_RPC_BROADCAST::response { };
+  };
+
+  struct COMMAND_MULTICAST
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 22;
+
+      struct request : public cryptonote::COMMAND_RPC_MULTICAST::request
+      {
+          uint64_t hop;
+          std::string message_id;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(receiver_addresses)
+            KV_SERIALIZE(sender_address)
+            KV_SERIALIZE(callback_uri)
+            KV_SERIALIZE(data)
+            KV_SERIALIZE(wait_answer)
+            KV_SERIALIZE(hop)
+            KV_SERIALIZE(message_id)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response : public cryptonote::COMMAND_RPC_MULTICAST::response { };
+  };
+
+  struct COMMAND_UNICAST
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 23;
+
+      struct request : public cryptonote::COMMAND_RPC_UNICAST::request
+      {
+          uint64_t hop;
+          std::string message_id;
+
+          BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(receiver_address)
+            KV_SERIALIZE(sender_address)
+            KV_SERIALIZE(callback_uri)
+            KV_SERIALIZE(data)
+            KV_SERIALIZE(wait_answer)
+            KV_SERIALIZE(hop)
+            KV_SERIALIZE(message_id)
+          END_KV_SERIALIZE_MAP()
+      };
+
+      struct response : public cryptonote::COMMAND_RPC_UNICAST::response { };
+  };
 
   /************************************************************************/
   /*                                                                      */
@@ -447,7 +547,15 @@ namespace nodetool
   };
   
 #endif
-
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  //TODO: Look unused
+  struct NOTIFY_SUPERNODE_ANNOUNCE
+  {
+      const static int ID = P2P_COMMANDS_POOL_BASE + 10;
+      struct request : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request {};
+  };
 
   inline crypto::hash get_proof_of_trust_hash(const nodetool::proof_of_trust& pot)
   {

@@ -39,6 +39,10 @@
 
 #define MLOG_LOG(x) CINFO(el::base::Writer,el::base::DispatchAction::FileOnlyLog,MONERO_DEFAULT_LOG_CATEGORY) << x
 
+thread_local std::string mlog_current_log_category;
+
+bool mlog_syslog = false;
+
 using namespace epee;
 
 static std::string generate_log_filename(const char *base)
@@ -112,14 +116,34 @@ static const char *get_default_categories(int level)
   return categories;
 }
 
-void mlog_configure(const std::string &filename_base, bool console)
+// %rfile custom specifier can be used in addition to the Logging Format Specifiers of the Easylogging++
+// %rfile similar to %file but the path is relative to topmost CMakeLists.txt
+void mlog_configure(const std::string &filename_base, bool console, const char* format)
 {
+  //support %rlog
+  static bool once = false;
+  if(!once)
+  {
+    once = true;
+    auto rfile = [](const el::LogMessage* lm)-> std::string
+    {
+      assert(sizeof(CMAKE_ROOT_SOURCE_DIR) < lm->file().size());
+      return lm->file().substr(sizeof(CMAKE_ROOT_SOURCE_DIR));
+    };
+    el::Helpers::installCustomFormatSpecifier(el::CustomFormatSpecifier("%rfile", rfile));
+  }
+
   el::Configurations c;
   c.setGlobally(el::ConfigurationType::Filename, filename_base);
   c.setGlobally(el::ConfigurationType::ToFile, "true");
-  const char *log_format = getenv("MONERO_LOG_FORMAT");
-  if (!log_format)
-    log_format = MLOG_BASE_FORMAT;
+
+  const char *log_format = format;
+  if(!log_format)
+  {
+    log_format = getenv("MONERO_LOG_FORMAT");
+    if (!log_format)
+      log_format = MLOG_BASE_FORMAT;
+  }
   c.setGlobally(el::ConfigurationType::Format, log_format);
   c.setGlobally(el::ConfigurationType::ToStandardOutput, console ? "true" : "false");
   c.setGlobally(el::ConfigurationType::MaxLogFileSize, "104850000"); // 100 MB - 7600 bytes

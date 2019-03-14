@@ -45,6 +45,8 @@
 #include "warnings.h"
 #include "common/perf_timer.h"
 #include "crypto/hash.h"
+#include "stake_transaction_processor.h"
+#include "graft_rta_config.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "txpool"
@@ -111,6 +113,10 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL(m_transactions_lock);
 
     PERF_TIMER(add_tx);
+
+    MTRACE("tx_type: " << tx.type);
+    MTRACE("tx_version: " << tx.version);
+
     if (tx.version == 0)
     {
       // v0 never accepted
@@ -164,11 +170,43 @@ namespace cryptonote
       fee = tx.rct_signatures.txnFee;
     }
 
-    if (!kept_by_block && !m_blockchain.check_fee(blob_size, fee))
-    {
-      tvc.m_verifivation_failed = true;
-      tvc.m_fee_too_low = true;
-      return false;
+    // LOG_PRINT_L0("tx_type: " << tx.type);
+    // Only allow zero fee if: (pick the one condition)
+    // 1. if tx.type == tx_type_rta and tx.rta_signatures.size() > 0
+    // 2. if tx.version >= 3 and tx.rta_signatures.size() > 0
+
+    bool is_rta_tx = tx.type == transaction::tx_type_rta;
+    if (is_rta_tx) {
+      cryptonote::rta_header rta_hdr;
+      if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
+        MERROR("Failed to parse rta-header from tx extra: " << id);
+        tvc.m_rta_signature_failed = true;
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+      std::vector<cryptonote::rta_signature> rta_signatures;
+      if (!cryptonote::get_graft_rta_signatures_from_extra2(tx, rta_signatures)) {
+        MERROR("Failed to parse rta signatures from tx extra: " << id);
+        tvc.m_rta_signature_failed = true;
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+
+      bool is_rta_tx_valid = validate_rta_tx(id, rta_signatures, rta_hdr);
+      if (!kept_by_block && !is_rta_tx_valid) {
+        LOG_ERROR("failed to validate rta tx, tx contains " << rta_signatures.size() << " signatures");
+        tvc.m_rta_signature_failed = true;
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+
+    } else {
+      if (!kept_by_block && !m_blockchain.check_fee(blob_size, fee))
+      {
+        tvc.m_verifivation_failed = true;
+        tvc.m_fee_too_low = true;
+        return false;
+      }
     }
 
     size_t tx_size_limit = get_transaction_size_limit(version);
@@ -280,8 +318,9 @@ namespace cryptonote
         return false;
       }
       tvc.m_added_to_pool = true;
-
-      if(meta.fee > 0 && !do_not_relay)
+      LOG_PRINT_L3("!! meta.fee: " << meta.fee);
+      LOG_PRINT_L3("!! do_not_relay: " << do_not_relay);
+      if ((tx.type == transaction::tx_type_rta || meta.fee > 0) && !do_not_relay)
         tvc.m_should_be_relayed = true;
     }
 
@@ -1035,4 +1074,52 @@ namespace cryptonote
   {
     return true;
   }
+
+  //---------------------------------------------------------------------------------
+  bool tx_memory_pool::validate_rta_tx(const crypto::hash &txid, const std::vector<rta_signature> &rta_signs, const rta_header &rta_hdr) const
+  {
+    bool result = true;
+
+    if (rta_hdr.keys.size() == 0) {
+      MERROR("Failed to validate rta tx, missing auth sample keys for tx: " << txid );
+      return false;
+    }
+#if 0  // don't validate signatures for rta mining
+    if (rta_hdr.keys.size() != rta_signs.size()) {
+      MERROR("Failed to validate rta tx: " << txid << ", keys.size() != signatures.size()");
+      return false;
+    }
+
+    for (const auto &rta_sign : rta_signs) {
+      // check if key index is in range
+      if (rta_sign.key_index >= rta_hdr.keys.size()) {
+        MERROR("signature: " << rta_sign.signature << " has wrong key index: " << rta_sign.key_index);
+        result = false;
+        break;
+      }
+
+
+      result &= crypto::check_signature(txid, rta_hdr.keys[rta_sign.key_index], rta_sign.signature);
+      if (!result) {
+        MERROR("Failed to validate rta tx signature: " << epee::string_tools::pod_to_hex(txid) << " for key: " << rta_hdr.keys[rta_sign.key_index]);
+        break;
+      }
+    }
+#endif
+    for (const crypto::public_key &key : rta_hdr.keys) {
+      result &= validate_supernode(rta_hdr.auth_sample_height, key);
+      if (!result) {
+        MERROR("Failed to validate rta tx: " << epee::string_tools::pod_to_hex(txid) << ", key: " << key << " doesn't belong to a valid supernode");
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  bool tx_memory_pool::validate_supernode(uint64_t height, const public_key &id) const
+  {
+    supernode_stake * stake = const_cast<supernode_stake*>(m_stp->find_supernode_stake(height, epee::string_tools::pod_to_hex(id)));
+    return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
+  };
 }

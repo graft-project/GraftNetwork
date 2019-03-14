@@ -131,7 +131,10 @@ namespace tools
 
     static bool verify_password(const std::string& keys_file_name, const std::string& password, bool watch_only);
 
-    wallet2(bool testnet = false, bool restricted = false) : m_run(true), m_callback(0), m_testnet(testnet), m_always_confirm_transfers(true), m_print_ring_members(false), m_store_tx_info(true), m_default_mixin(0), m_default_priority(0), m_refresh_type(RefreshOptimizeCoinbase), m_auto_refresh(true), m_refresh_from_block_height(0), m_confirm_missing_payment_id(true), m_ask_password(true), m_min_output_count(0), m_min_output_value(0), m_merge_destinations(false), m_confirm_backlog(true), m_is_initialized(false), m_restricted(restricted), is_old_file_format(false), m_node_rpc_proxy(m_http_client, m_daemon_rpc_mutex) {}
+    wallet2(bool testnet = false, bool restricted = false,
+            boost::shared_ptr<boost::asio::io_service> ios = boost::shared_ptr<boost::asio::io_service>{new boost::asio::io_service()})
+        : m_run(true), m_callback(0), m_testnet(testnet), m_always_confirm_transfers(true), m_print_ring_members(false), m_store_tx_info(true), m_default_mixin(0), m_default_priority(0), m_refresh_type(RefreshOptimizeCoinbase), m_auto_refresh(true), m_refresh_from_block_height(0), m_confirm_missing_payment_id(true), m_ask_password(true), m_min_output_count(0), m_min_output_value(0), m_merge_destinations(false), m_confirm_backlog(true), m_is_initialized(false), m_restricted(restricted), is_old_file_format(false),
+          m_http_client(ios), m_node_rpc_proxy(m_http_client, m_daemon_rpc_mutex) {}
 
     struct transfer_details
     {
@@ -325,6 +328,9 @@ namespace tools
     void rewrite(const std::string& wallet_name, const std::string& password);
     void write_watch_only_wallet(const std::string& wallet_name, const std::string& password);
     void load(const std::string& wallet, const std::string& password);
+    /*!
+     * \brief store - stores wallet's cache, keys and address file using existing password to encrypt the keys
+     */
     void store();
     /*!
      * \brief store_to - stores wallet to another file(s), deleting old ones
@@ -396,6 +402,11 @@ namespace tools
      */
     uint64_t unlocked_balance(uint64_t till_block = 0) const;
     uint64_t unlocked_dust_balance(const tx_dust_policy &dust_policy) const;
+    /*!
+     * \brief unspent_balance - like balance(), but only counts transfers for which we have the key image allowing verification of being unspent
+     * \return wallet balance in atomic units
+     */
+    uint64_t unspent_balance() const;
     template<typename T>
     void transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, const size_t fake_outputs_count, const std::vector<size_t> &unused_transfers_indices, uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, bool trusted_daemon);
     template<typename T>
@@ -405,25 +416,53 @@ namespace tools
     template<typename T>
     void transfer_selected(const std::vector<cryptonote::tx_destination_entry>& dsts, const std::list<size_t> selected_transfers, size_t fake_outputs_count,
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
-      uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx);
+      uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx,
+                           size_t tx_type = cryptonote::transaction::tx_type_generic);
     void transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::list<size_t> selected_transfers, size_t fake_outputs_count,
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
-      uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx);
+      uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, size_t tx_type = cryptonote::transaction::tx_type_generic);
 
     void commit_tx(pending_tx& ptx_vector);
     void commit_tx(std::vector<pending_tx>& ptx_vector);
     bool save_tx(const std::vector<pending_tx>& ptx_vector, const std::string &filename);
+    bool save_tx_signed(const std::vector<pending_tx>& ptx_vector, std::ostream &oss);
     // load unsigned tx from file and sign it. Takes confirmation callback as argument. Used by the cli wallet
     bool sign_tx(const std::string &unsigned_filename, const std::string &signed_filename, std::vector<wallet2::pending_tx> &ptx, std::function<bool(const unsigned_tx_set&)> accept_func = NULL);
     // sign unsigned tx. Takes unsigned_tx_set as argument. Used by GUI
     bool sign_tx(unsigned_tx_set &exported_txs, const std::string &signed_filename, std::vector<wallet2::pending_tx> &ptx);
     // load unsigned_tx_set from file. 
     bool load_unsigned_tx(const std::string &unsigned_filename, unsigned_tx_set &exported_txs);
-    bool load_tx(const std::string &signed_filename, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
+    bool load_tx(const std::string &signed_filename, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = nullptr);
+    bool load_tx(std::vector<tools::wallet2::pending_tx> &ptx, std::istream &stream,
+                 std::function<bool(const signed_tx_set&)> accept_func = nullptr);
     std::vector<pending_tx> create_transactions(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
-    std::vector<wallet2::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
+    std::vector<wallet2::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
+                                                           const uint64_t unlock_time, uint32_t priority,
+                                                           const std::vector<uint8_t> extra, bool trusted_daemon,
+                                                           bool rta_tx_fee = false);
+
+    /*!
+     * \brief create_transactions_graft - creates graft transaction
+     * \param recepient_address - address who receive the coins
+     * \param auth_sample       - vector of addresses in auth sample (should be 8 addresses for now)
+     * \param amount            - amount to be sent
+     * \param fee_percentage    - fee percentage. fee is paid by recipient and distributed over auth sample
+     * \param unlock_time
+     * \param priority
+     * \param extra
+     * \param trusted_daemon
+     * \return
+     */
+    std::vector<wallet2::pending_tx> create_transactions_graft(const std::string &recepient_address, const std::vector<std::string> &auth_sample,
+                                                               uint64_t amount, double fee_percent,
+                                                               const uint64_t unlock_time, uint32_t priority,
+                                                               const std::vector<uint8_t> extra, bool trusted_daemon);
+
     std::vector<wallet2::pending_tx> create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
     std::vector<wallet2::pending_tx> create_transactions_from(const cryptonote::account_public_address &address, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
+    std::vector<wallet2::pending_tx> create_transactions_graft(const string &recipient_address, const std::vector<std::string> &auth_sample, uint64_t amount,
+                              double fee_percent, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra,
+                              bool trusted_daemon, uint64_t &recipient_amount, uint64_t &fee_per_destination);
     std::vector<pending_tx> create_unmixable_sweep_transactions(bool trusted_daemon);
     bool check_connection(uint32_t *version = NULL, uint32_t timeout = 200000);
     void get_transfers(wallet2::transfer_container& incoming_transfers) const;
@@ -436,6 +475,7 @@ namespace tools
 
     uint64_t get_blockchain_current_height() const { return m_local_bc_height; }
     void rescan_spent();
+    void rescan_unspent();
     void rescan_blockchain(bool refresh = true);
     bool is_transfer_unlocked(const transfer_details& td) const;
     template <class t_archive>
@@ -615,7 +655,11 @@ namespace tools
     uint64_t get_fee_multiplier(uint32_t priority, int fee_algorithm = -1);
     uint64_t get_per_kb_fee();
 
-  private:
+    bool get_amount_from_tx(const pending_tx &ptx, uint64_t &amount);
+    bool get_amount_from_tx(const cryptonote::transaction &tx, uint64_t &amount);
+
+
+  protected:
     /*!
      * \brief  Stores wallet information to wallet file.
      * \param  keys_file_name Name of wallet file
@@ -666,6 +710,7 @@ namespace tools
     crypto::public_key get_tx_pub_key_from_received_outs(const tools::wallet2::transfer_details &td) const;
     bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
+    std::pair<crypto::key_image, crypto::signature> get_signed_key_image(const transfer_details &td) const;
 
     cryptonote::account_base m_account;
     boost::optional<epee::net_utils::http::login> m_daemon_login;
@@ -1042,7 +1087,8 @@ namespace tools
 
   template<typename T>
   void wallet2::transfer(const std::vector<cryptonote::tx_destination_entry>& dsts, size_t fake_outputs_count, const std::vector<size_t> &unused_transfers_indices,
-    uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx, bool trusted_daemon)
+    uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy,
+                         cryptonote::transaction& tx, pending_tx &ptx, bool trusted_daemon)
   {
     using namespace cryptonote;
     // throw if attempting a transaction with no destinations

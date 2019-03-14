@@ -116,7 +116,9 @@ static const struct {
   // hf 11 - Monero V8/CN variant 2 PoW, ~2018-10-31T17:00:00+00
   { 11, 207700, 0, 1541005200 },
   // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-07T05:00:00+00
-  { 12, 299200, 0, 1551934800 }
+  { 12, 299200, 0, 1551934800 },
+  // hf 13 - RTA transactions, RTA mining, ~2019-03-18T16:00:00+00
+  { 13, 307080, 0, 1552924800 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -151,7 +153,9 @@ static const struct {
   // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
   { 11, 194130, 0, 1540400400 },
   // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-05T05:00:00+00
-  { 12, 286500, 0, 1551762000 }
+  { 12, 286500, 0, 1551762000 },
+  // hf 13 - RTA transactions, RTA mining, ~2019-03-15T05:00:00+00
+  { 13, 287770, 0, 1552626000 }
 };
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
 static const uint64_t testnet_hard_fork_version_1_till = 1;
@@ -790,7 +794,8 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   {
       return next_difficulty(timestamps, difficulties, target);
   }
-  else if (version == 8 || version >= 10)
+  // XXX be careful when merging it back to master! in mainnet its version 10
+  else if (version == 8 || version >= 12)
   {
       return next_difficulty_v8(timestamps, difficulties, target);
   }
@@ -1013,7 +1018,8 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   if (ideal_hardfork_version < 8) {
       LOG_PRINT_L2("old difficulty algo");
       result = next_difficulty(timestamps, cumulative_difficulties, target);
-  } else if (ideal_hardfork_version == 8 || ideal_hardfork_version >= 10) {
+      // XXX be careful when merging it back to master! in mainnet its version 10
+  } else if (ideal_hardfork_version == 8 || ideal_hardfork_version >= 12) {
       LOG_PRINT_L2("new difficulty algo");
       result = next_difficulty_v8(timestamps, cumulative_difficulties, target);
   } else {
@@ -2446,7 +2452,7 @@ bool Blockchain::have_tx_keyimges_as_spent(const transaction &tx) const
 bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_prefix_hash, const std::vector<std::vector<rct::ctkey>> &pubkeys)
 {
   PERF_TIMER(expand_transaction_2);
-  CHECK_AND_ASSERT_MES(tx.version == 2, false, "Transaction version is not 2");
+  CHECK_AND_ASSERT_MES(tx.version == CURRENT_TRANSACTION_VERSION || tx.version == 2, false, "Transaction version is not 2 or 3");
 
   rct::rctSig &rv = tx.rct_signatures;
 
@@ -2581,7 +2587,8 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     }
 
     // min/max tx version based on HF, and we accept v1 txes if having a non mixable
-    const size_t max_tx_version = (hf_version <= 3) ? 1 : 2;
+    // TODO: do proper hardfork
+    const size_t max_tx_version = (hf_version <= 3) ? 1 : 3;
     if (tx.version > max_tx_version)
     {
       MERROR_VER("transaction version " << (unsigned)tx.version << " is higher than max accepted version " << max_tx_version);

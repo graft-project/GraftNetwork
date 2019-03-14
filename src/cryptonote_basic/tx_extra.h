@@ -30,6 +30,8 @@
 
 #pragma once
 
+#include "cryptonote_basic.h" // only need rta_header so it probably make sense to move it to separate file
+
 
 #define TX_EXTRA_PADDING_MAX_COUNT          255
 #define TX_EXTRA_NONCE_MAX_COUNT            255
@@ -38,7 +40,14 @@
 #define TX_EXTRA_TAG_PUBKEY                 0x01
 #define TX_EXTRA_NONCE                      0x02
 #define TX_EXTRA_MERGE_MINING_TAG           0x03
+// TODO: suggested to remove
 #define TX_EXTRA_GRAFT_EXTRA_TAG            0x04
+
+#define TX_EXTRA_GRAFT_STAKE_TX_TAG         0x80
+#define TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG    0x81
+#define TX_EXTRA_GRAFT_RTA_HEADER_TAG       0x83
+#define TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG   0x84
+
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
@@ -79,7 +88,7 @@ namespace cryptonote
     template <template <bool> class Archive>
     bool do_serialize(Archive<true>& ar)
     {
-      if(TX_EXTRA_PADDING_MAX_COUNT < size)
+      if (TX_EXTRA_PADDING_MAX_COUNT < size)
         return false;
 
       // i = 1 - because of variant tag
@@ -108,7 +117,7 @@ namespace cryptonote
 
     BEGIN_SERIALIZE()
       FIELD(nonce)
-      if(TX_EXTRA_NONCE_MAX_COUNT < nonce.size()) return false;
+      if (TX_EXTRA_NONCE_MAX_COUNT < nonce.size()) return false;
     END_SERIALIZE()
   };
 
@@ -178,12 +187,47 @@ namespace cryptonote
       END_SERIALIZE()
   };
 
+  struct tx_extra_graft_stake_tx
+  {
+      std::string data;
+      BEGIN_SERIALIZE()
+        FIELD(data)
+      END_SERIALIZE()
+  };
+
+  struct tx_extra_graft_tx_secret_key
+  {
+    crypto::secret_key secret_key;
+
+    BEGIN_SERIALIZE()
+      FIELD(secret_key)
+    END_SERIALIZE()
+  };
+
+  struct tx_extra_graft_rta_header
+  {
+    std::string data;
+    BEGIN_SERIALIZE()
+      FIELD(data)
+    END_SERIALIZE()
+  };
+
+  struct tx_extra_graft_rta_signatures
+  {
+    std::string data;
+    BEGIN_SERIALIZE()
+      FIELD(data)
+    END_SERIALIZE()
+  };
+
+
   // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
   //   varint tag;
   //   varint size;
   //   varint data[];
   typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag,
-    tx_extra_mysterious_minergate, tx_extra_graft_extra> tx_extra_field;
+    tx_extra_mysterious_minergate, tx_extra_graft_extra, tx_extra_graft_stake_tx,
+    tx_extra_graft_tx_secret_key, tx_extra_graft_rta_header, tx_extra_graft_rta_signatures> tx_extra_field;
 }
 
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding, TX_EXTRA_TAG_PADDING);
@@ -192,3 +236,7 @@ VARIANT_TAG(binary_archive, cryptonote::tx_extra_nonce, TX_EXTRA_NONCE);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_merge_mining_tag, TX_EXTRA_MERGE_MINING_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_extra, TX_EXTRA_GRAFT_EXTRA_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_stake_tx, TX_EXTRA_GRAFT_STAKE_TX_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_tx_secret_key, TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_rta_header, TX_EXTRA_GRAFT_RTA_HEADER_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_rta_signatures, TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG);

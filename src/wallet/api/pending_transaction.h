@@ -51,8 +51,11 @@ public:
     uint64_t fee() const;
     std::vector<std::string> txid() const;
     uint64_t txCount() const;
-    // TODO: continue with interface;
-
+    bool save(std::ostream &stream);
+    std::vector<std::string> getRawTransaction() const override;
+    void updateTransactionCache() override;
+    // TODO: update for new rta tx structure
+    void putRtaSignatures(const std::vector<RtaSignature> &) override;
 private:
     friend class WalletImpl;
     WalletImpl &m_wallet;

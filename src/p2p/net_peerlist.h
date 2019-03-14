@@ -85,6 +85,7 @@ namespace nodetool
     bool remove_from_peer_gray(const peerlist_entry& pe);
     bool get_and_empty_anchor_peerlist(std::vector<anchor_peerlist_entry>& apl);
     bool remove_from_peer_anchor(const epee::net_utils::network_address& addr);
+    bool find_peer(peerid_type id, peerlist_entry& pe);
     
   private:
     struct by_time{};
@@ -482,6 +483,33 @@ namespace nodetool
     pe = *epee::misc_utils::move_it_backward(--by_time_index.end(), random_index);
 
     return true;
+
+    CATCH_ENTRY_L0("peerlist_manager::get_random_gray_peer()", false);
+  }
+  //--------------------------------------------------------------------------------------------------
+  inline
+  bool peerlist_manager::find_peer(peerid_type id, peerlist_entry& pe)
+  {
+    TRY_ENTRY();
+
+    CRITICAL_REGION_LOCAL(m_peerlist_lock);
+
+    for (auto it = m_peers_white.begin(); it != m_peers_white.end(); it++) {
+        if ( (*it).id == id) {
+            pe = *it;
+            return true;
+        }
+    }
+
+    for (auto it = m_peers_gray.begin(); it != m_peers_gray.end(); it++) {
+        if ( (*it).id == id) {
+            pe = *it;
+            return true;
+        }
+    }
+
+
+    return false;
 
     CATCH_ENTRY_L0("peerlist_manager::get_random_gray_peer()", false);
   }

@@ -167,8 +167,55 @@ uint64_t PendingTransactionImpl::fee() const
 
 uint64_t PendingTransactionImpl::txCount() const
 {
-    return m_pending_tx.size();
+  return m_pending_tx.size();
 }
+
+bool PendingTransactionImpl::save(std::ostream &stream)
+{
+  return m_wallet.m_wallet->save_tx_signed(m_pending_tx, stream);
+}
+
+std::vector<std::string> PendingTransactionImpl::getRawTransaction() const
+{
+    std::vector<std::string> txs;
+    for (auto rit = m_pending_tx.rbegin(); rit != m_pending_tx.rend(); ++rit)
+    {
+        const tools::wallet2::pending_tx & ptx = *rit;
+        txs.push_back(epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx)));
+    }
+    return txs;
+}
+
+void PendingTransactionImpl::updateTransactionCache()
+{
+    m_wallet.pauseRefresh();
+    for (auto rit = m_pending_tx.rbegin(); rit != m_pending_tx.rend(); ++rit)
+    {
+        m_wallet.m_wallet->update_tx_cache(*rit);
+    }
+    m_wallet.startRefresh();
+}
+
+void  PendingTransactionImpl::putRtaSignatures(const std::vector<RtaSignature> &signs)
+{
+    if (m_pending_tx.empty())
+        return;
+    std::vector<cryptonote::rta_signature> bin_signs;
+    for (const auto &sign : signs) {
+        cryptonote::rta_signature bin_sign;
+//        TODO: update for new rta transaction
+//        if (!cryptonote::get_account_address_from_str(bin_sign.address, m_wallet.testnet(), sign.address)) {
+//            LOG_ERROR("error parsing address from string: " << sign.address);
+//            continue;
+//        }
+
+        epee::string_tools::hex_to_pod(sign.signature, bin_sign.signature);
+        bin_signs.push_back(bin_sign);
+    }
+    tools::wallet2::pending_tx & ptx =  m_pending_tx[0];
+    cryptonote::add_graft_rta_signatures_to_extra2(ptx.tx.extra2, bin_signs);
+}
+
 
 }
 

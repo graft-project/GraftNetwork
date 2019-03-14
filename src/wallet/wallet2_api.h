@@ -56,6 +56,13 @@ namespace Monero {
         bool set;
     };
 
+
+struct RtaSignature
+{
+    size_t key_index;
+    std::string signature;
+};
+
 /**
  * @brief Transaction-like interface for sending money
  */
@@ -79,6 +86,12 @@ struct PendingTransaction
     virtual std::string errorString() const = 0;
     // commit transaction or save to file if filename is provided.
     virtual bool commit(const std::string &filename = "", bool overwrite = false) = 0;
+    /*!
+     * @brief save - serializes transaction to the stream. Can be loaded back with Wallet::loadTransaction
+     * @param oss    stream object to save to
+     * @return       true if saved successfully
+     */
+    virtual bool save(std::ostream &oss) = 0;
     virtual uint64_t amount() const = 0;
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
@@ -88,6 +101,17 @@ struct PendingTransaction
      * \return
      */
     virtual uint64_t txCount() const = 0;
+    /*!
+     * \brief getRawTransaction Serializes signed transaction into binary data.
+     * \return                  list of serialized signed transactions
+     */
+    virtual std::vector<std::string> getRawTransaction() const = 0;
+    /*!
+     * \brief updateTransactionCache Store transaction data into wallet cache
+     */
+    virtual void updateTransactionCache() = 0;
+
+    virtual void putRtaSignatures(const std::vector<RtaSignature> &) = 0;
 };
 
 /**
@@ -447,6 +471,20 @@ struct Wallet
      */
     virtual bool synchronized() const = 0;
 
+    /*!
+     * \brief  Returns wallet private data in binary format
+     * \param  password       Password of wallet file
+     * \param  use_base64     Use Base64 for data conversion
+     * \return                Wallet private data in binary format, which can converted to Base64
+     */
+    virtual std::string getWalletData(const std::string &password, bool use_base64 = true) const = 0;
+
+    /*!
+     * \brief  Saves wallet cache in specified cache file
+     * \param  cache_file     Path to the cache file
+     */
+    virtual void saveCache(const std::string &cache_file) const = 0;
+
     static std::string displayAmount(uint64_t amount);
     static uint64_t amountFromString(const std::string &amount);
     static uint64_t amountFromDouble(double amount);
@@ -503,17 +541,42 @@ struct Wallet
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
      *                          after object returned
      */
-
     virtual PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
                                                    optional<uint64_t> amount, uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
+
+    struct TransactionDestination
+    {
+        std::string address;
+        std::string payment_id;
+        optional<uint64_t> amount;
+    };
+
+    /*!
+     * \brief createTransaction creates transaction. if dst_addr is an integrated address, payment_id is ignored
+     * \param destinations      destinations vector
+     * \param mixin_count       mixin count. if 0 passed, wallet will use default value
+     * \param priority
+     * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
+     *                          after object returned
+     */
+    virtual PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
+                                                   bool rtaTransaction = false,
+                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
+
+    /*!
+     * \brief loadTransaction loads previously serialized transaction from stream
+     * \param iss               stream to load from
+     * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
+     *                          after object returned
+     */
+    virtual PendingTransaction * loadTransaction(std::istream &iss) = 0;
 
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
      *                          after object returned
      */
-
     virtual PendingTransaction * createSweepUnmixableTransaction() = 0;
     
    /*!
@@ -535,6 +598,13 @@ struct Wallet
      * \param t -  pointer to the "PendingTransaction" object. Pointer is not valid after function returned;
      */
     virtual void disposeTransaction(PendingTransaction * t) = 0;
+
+    /*!
+     * \brief getAmountFromTransaction - returns total amount from transaction addressed to this wallet
+     * \param t - pointer to "PendingTransaction" object
+     * \return  - true on success
+     */
+    virtual bool getAmountFromTransaction(PendingTransaction * t, uint64_t &amount) = 0;
 
    /*!
     * \brief exportKeyImages - exports key images to file
@@ -620,6 +690,13 @@ struct WalletManager
      * \return                Wallet instance (Wallet::status() needs to be called to check if created successfully)
      */
     virtual Wallet * createWallet(const std::string &path, const std::string &password, const std::string &language, bool testnet = false) = 0;
+    /*!
+     * \brief  Creates new wallet
+     * \param  password       Password of wallet file
+     * \param  language       Language to be used to generate electrum seed memo
+     * \return                Wallet instance (Wallet::status() needs to be called to check if created successfully)
+     */
+    virtual Wallet * createNewWallet(const std::string &password, const std::string &language, bool testnet = false) = 0;
 
     /*!
      * \brief  Opens existing wallet
@@ -639,6 +716,15 @@ struct WalletManager
      */
     virtual Wallet * recoveryWallet(const std::string &path, const std::string &memo, bool testnet = false, uint64_t restoreHeight = 0) = 0;
 
+    /*!
+     * \brief  Restore existing wallet using mnemonic seed (electrum seed)
+     * \param  memo           memo (25 words electrum seed)
+     * \param  testnet        testnet
+     * \param  restoreHeight  restore from start height
+     * \return                Wallet instance (Wallet::status() needs to be called to check if recovered successfully)
+     */
+    virtual Wallet *restoreWallet(const std::string &mnemonic, bool testnet = false, uint64_t restoreHeight = 0) = 0;
+
    /*!
     * \brief  recovers existing wallet using keys. Creates a view only wallet if spend key is omitted
     * \param  path           Name of wallet file to be created
@@ -657,6 +743,17 @@ struct WalletManager
                                                     const std::string &addressString,
                                                     const std::string &viewKeyString,
                                                     const std::string &spendKeyString = "") = 0;
+
+    /*!
+     * \brief  Opens existing wallet
+     * \param  data           Account data
+     * \param  password       Password of wallet file
+     * \return                Wallet instance (Wallet::status() needs to be called to check if opened successfully)
+     */
+    virtual Wallet * createWalletFromData(const std::string &data, const std::string &password,
+                                          bool testnet = false,
+                                          std::string cache_file = std::string(),
+                                          bool use_base64 = true) = 0;
 
     /*!
      * \brief Closes wallet. In case operation succeded, wallet object deleted. in case operation failed, wallet object not deleted

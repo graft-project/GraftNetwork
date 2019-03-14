@@ -256,6 +256,21 @@ void connection_basic::sleep_before_packet(size_t packet_size, int phase,  int q
 	}
 
 }
+
+int64_t connection_basic::sleep_before_packet(size_t packet_size)
+{
+    CRITICAL_REGION_LOCAL(	network_throttle_manager::m_lock_get_global_throttle_out );
+    double delay = network_throttle_manager::get_global_throttle_out().get_sleep_time_after_tick( packet_size ); // decission from global
+    return  (delay * 1000);
+}
+
+void connection_basic::update_traffic_limits(size_t packet_size)
+{
+    CRITICAL_REGION_LOCAL(	network_throttle_manager::m_lock_get_global_throttle_out );
+    network_throttle_manager::get_global_throttle_out().handle_trafic_exact( packet_size * 700); // increase counter - global
+}
+
+
 void connection_basic::set_start_time() {
 	CRITICAL_REGION_LOCAL(	network_throttle_manager::m_lock_get_global_throttle_out );
 	m_start_time = network_throttle_manager::get_global_throttle_out().get_time_seconds();

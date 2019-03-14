@@ -31,7 +31,7 @@
 #define WALLET_PAY_OBJECT_H_
 
 #include "BaseRTAObject.h"
-#include "graft_wallet.h"
+#include "graft_wallet2.h"
 
 #include <memory>
 
@@ -70,7 +70,7 @@ namespace supernode {
         WalletProxy* m_Owner = nullptr;
         vector<string> m_Signs;
         string m_TransactionPoolID;
-        std::unique_ptr<tools::GraftWallet> m_wallet;
+        std::unique_ptr<tools::GraftWallet2> m_wallet;
 
 
 	};
