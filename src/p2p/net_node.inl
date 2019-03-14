@@ -469,17 +469,17 @@ namespace nodetool
                               + epee::string_tools::num_to_string_fast(ipv4.port()) );
         }
     }
-    else if (testnet)
+    if (testnet)
     {
-      full_addrs.insert("18.214.197.224:28680");
-      full_addrs.insert("18.214.197.50:28680");
-      full_addrs.insert("35.169.179.171:28680");
+      full_addrs.insert("18.214.245.162:28880");
+      full_addrs.insert("52.204.250.197:28880");
+      full_addrs.insert("34.225.70.106:28880");
     }
     else
     {
-      full_addrs.insert("18.214.197.224:18980");
-      full_addrs.insert("18.214.197.50:18980");
-      full_addrs.insert("35.169.179.171:18980");
+      full_addrs.insert("13.58.215.50:18980");
+      full_addrs.insert("13.59.105.220:18980");
+      full_addrs.insert("18.216.94.64:18980");
     }
     return full_addrs;
   }
