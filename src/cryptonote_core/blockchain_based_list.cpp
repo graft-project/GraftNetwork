@@ -10,7 +10,7 @@ namespace
 {
 
 const size_t BLOCKCHAIN_BASED_LIST_SIZE = 32; //TODO: configuration parameter
-const size_t PREVIOS_BLOCKCHAIN_BASED_LIST_MAX_SIZE = 1; //TODO: configuration parameter
+const size_t PREVIOS_BLOCKCHAIN_BASED_LIST_MAX_SIZE = 16; //TODO: configuration parameter
 const size_t BLOCKCHAIN_BASED_LISTS_HISTORY_DEPTH   = 1000;
 
 }
