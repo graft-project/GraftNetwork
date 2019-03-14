@@ -117,7 +117,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
       if (!is_valid_stake(block_height, stake.block_height, stake.unlock_time))
         continue;
 
-      if (stake.tier != i)
+      if (stake.tier != i + 1)
         continue;
 
       supernode sn;
