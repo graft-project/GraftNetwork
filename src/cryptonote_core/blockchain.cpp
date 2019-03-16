@@ -117,8 +117,8 @@ static const struct {
   { 11, 207700, 0, 1541005200 },
   // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-07T05:00:00+00
   { 12, 299200, 0, 1551934800 },
-  // hf 13 - RTA transactions, RTA mining, ~2019-03-18T16:00:00+00
-  { 13, 307080, 0, 1552924800 }
+  // hf 13 - RTA transactions, RTA mining, ~2019-03-20T14:00:00+00
+  { 13, 308460, 0, 1553090400 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
