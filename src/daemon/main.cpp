@@ -173,8 +173,6 @@ int main(int argc, char const * argv[])
     bf::path relative_path_base = data_dir;
 
     const std::string config = command_line::get_arg(vm, daemon_args::arg_config_file);
-    if(!config.empty())
-      MDEBUG("Config file: '" << config << "'" << std::endl);
 
     boost::filesystem::path data_dir_path(data_dir);
     boost::filesystem::path config_path(config);
@@ -233,6 +231,10 @@ int main(int argc, char const * argv[])
     {
       mlog_set_log(command_line::get_arg(vm, daemon_args::arg_log_level).c_str());
     }
+
+    if(!config.empty())
+      MTRACE("Config file: '" << config << "'" << std::endl);
+
 
     // after logs initialized
     tools::create_directories_if_necessary(data_dir.string());
