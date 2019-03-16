@@ -158,7 +158,7 @@ namespace config
   uint16_t const P2P_DEFAULT_PORT = 18980;
   uint16_t const RPC_DEFAULT_PORT = 18981;
   boost::uuids::uuid const NETWORK_ID = { {
-        0x54 ,0x68, 0x65, 0x20, 0x41, 0x72 , 0x74, 0x20, 0x6F, 0x76, 0x20, 0x57, 0x61, 0x72, 0x20, 0x35
+        0x54 ,0x68, 0x65, 0x20, 0x41, 0x72 , 0x74, 0x20, 0x6F, 0x66, 0x20, 0x57, 0x61, 0x72, 0x20, 0x35
     } }; // Bender's nightmare
   //std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd08807121017767aafcde9be00dcfd098715ebcf7f410daebc582fda69d24a28e9d0bc890d1";
   // https://monero.stackexchange.com/questions/2886/how-can-i-create-a-new-monero-genesis-block?rq=1
