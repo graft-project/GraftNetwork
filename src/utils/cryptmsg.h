@@ -32,7 +32,7 @@
 #include "crypto/crypto.h"
 #include <vector>
 
-namespace graft::crypto_tools {
+namespace graft { namespace crypto_tools {
 
 /*!
  * \brief encryptMessage - encrypts data for recipients using their B public keys (assumed public view keys).
@@ -62,4 +62,4 @@ void encryptMessage(const std::string& input, const crypto::public_key& Bkey, st
  */
 bool decryptMessage(const std::string& input, const crypto::secret_key& bkey, std::string& output);
 
-} //namespace graft::crypto_tools
+}} //namespace graft::crypto_tools
