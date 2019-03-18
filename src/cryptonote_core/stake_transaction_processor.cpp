@@ -114,11 +114,28 @@ uint64_t get_transaction_amount(const transaction& tx, const account_public_addr
 
 void StakeTransactionProcessor::init_storages(const std::string& config_dir)
 {
+  CRITICAL_REGION_LOCAL1(m_storage_lock);
+
   if (m_storage || m_blockchain_based_list)
     throw std::runtime_error("StakeTransactionProcessor storages have been already initialized");
 
-  m_storage.reset(new StakeTransactionStorage(config_dir + "/" + STAKE_TRANSACTION_STORAGE_FILE_NAME));
-  m_blockchain_based_list.reset(new BlockchainBasedList(config_dir + "/" + BLOCKCHAIN_BASED_LIST_FILE_NAME));
+  m_config_dir = config_dir;
+}
+
+void StakeTransactionProcessor::init_storages_impl()
+{
+  if (m_storage || m_blockchain_based_list)
+    throw std::runtime_error("StakeTransactionProcessor storages have been already initialized");
+
+  uint64_t first_block_number = m_blockchain.get_earliest_ideal_height_for_version(config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION);
+
+  if (first_block_number)
+    first_block_number--;
+
+  MCLOG(el::Level::Info, "global", "Initialize stake processing storages. First block height is " << first_block_number);
+
+  m_storage.reset(new StakeTransactionStorage(m_config_dir + "/" + STAKE_TRANSACTION_STORAGE_FILE_NAME, first_block_number));
+  m_blockchain_based_list.reset(new BlockchainBasedList(m_config_dir + "/" + BLOCKCHAIN_BASED_LIST_FILE_NAME, first_block_number));
 }
 
 void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage)
@@ -248,23 +265,26 @@ void StakeTransactionProcessor::synchronize()
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
 
-  if (!m_storage || !m_blockchain_based_list)
-    throw std::runtime_error("StakeTransactionProcessor storages have not been initialized");
-
   BlockchainDB& db = m_blockchain.get_db();
+
+  uint64_t height = db.height();
+
+  if (!height || m_blockchain.get_hard_fork_version(height - 1) < config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
+    return;
+
+  if (!m_storage || !m_blockchain_based_list)
+  {
+    init_storages_impl();
+  }
 
     //unroll already processed blocks for alternative chains
   
-  try {
-    uint64_t height = db.height();
-
-    for (;;)
+  try
+  {
+    while (m_storage->has_last_processed_block())
     {
       size_t   stake_tx_count = m_storage->get_tx_count();
       uint64_t last_processed_block_index = m_storage->get_last_processed_block_index();
-
-      if (!last_processed_block_index)
-        break;
 
       if (last_processed_block_index < height)
       {
@@ -301,24 +321,19 @@ void StakeTransactionProcessor::synchronize()
     if (first_block_index > m_blockchain_based_list->block_height() + 1)
       first_block_index = m_blockchain_based_list->block_height() + 1;
 
-    static const uint64_t SYNC_DEBUG_LOG_STEP = 10000;
+    static const uint64_t SYNC_DEBUG_LOG_STEP  = 10000;
+    static const uint64_t MAX_ITERATIONS_COUNT = 10000;
 
-    bool need_finalize_log_messages = false;
+    uint64_t last_block_index = first_block_index,
+             last_block_index_for_sync = height;
 
-    uint64_t last_block_index = first_block_index;
+    if (last_block_index_for_sync - last_block_index > MAX_ITERATIONS_COUNT)
+      last_block_index_for_sync = first_block_index + MAX_ITERATIONS_COUNT;
 
-    for (uint64_t sync_debug_log_next_index=first_block_index + 1; last_block_index<height; last_block_index++)
+    for (; last_block_index<last_block_index_for_sync; last_block_index++)
     {
-      if (last_block_index == sync_debug_log_next_index)
-      {
-        MCLOG(el::Level::Info, "global", "RTA block sync " << last_block_index << "/" << height);
-
-        need_finalize_log_messages = true;
-        sync_debug_log_next_index  = last_block_index + SYNC_DEBUG_LOG_STEP;
-
-        if (sync_debug_log_next_index >= height)
-          sync_debug_log_next_index = height - 1;
-      }
+      if (last_block_index % SYNC_DEBUG_LOG_STEP == 0 || last_block_index == height - 1)
+        MCLOG(el::Level::Info, "global", "RTA block sync " << last_block_index << "/" << (height - 1));
 
       try
       {
@@ -340,14 +355,17 @@ void StakeTransactionProcessor::synchronize()
     if (m_storage->need_store())
       m_storage->store();
 
-    if (m_stakes_need_update && m_on_stakes_update)
-      invoke_update_stakes_handler_impl(last_block_index - 1);
+    if (last_block_index == height)
+    {
+      if (m_stakes_need_update && m_on_stakes_update)
+        invoke_update_stakes_handler_impl(last_block_index - 1);
 
-    if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
-      invoke_update_blockchain_based_list_handler_impl(last_block_index - first_block_index);
+      if (m_blockchain_based_list_need_update && m_on_blockchain_based_list_update)
+        invoke_update_blockchain_based_list_handler_impl(last_block_index - first_block_index);
 
-    if (need_finalize_log_messages)
-      MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
+      if (first_block_index != last_block_index)
+        MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
+    }
   }
   catch (const std::exception &e)
   {

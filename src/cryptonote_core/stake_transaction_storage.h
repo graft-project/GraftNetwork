@@ -53,7 +53,7 @@ public:
   typedef std::list<crypto::hash>        block_hash_list;
   typedef std::vector<supernode_stake>   supernode_stake_array;
 
-  StakeTransactionStorage(const std::string& storage_file_name);
+  StakeTransactionStorage(const std::string& storage_file_name, uint64_t first_block_number);
 
   /// Get number of transactions
   size_t get_tx_count() const { return m_stake_txs.size(); }
@@ -66,6 +66,9 @@ public:
   
   /// Get array of last block hashes
   const crypto::hash& get_last_processed_block_hash() const;
+
+  /// Has last processed blocks
+  bool has_last_processed_block() const { return m_last_processed_block_hashes_count > 0; }
 
   /// Add new processed block
   void add_last_processed_block(uint64_t index, const crypto::hash& hash);
@@ -109,6 +112,7 @@ private:
   uint64_t m_supernode_stakes_update_block_number;
   supernode_stake_array m_supernode_stakes;
   supernode_stake_index_map m_supernode_stake_indexes;
+  uint64_t m_first_block_number;
   mutable bool m_need_store;
 };
 

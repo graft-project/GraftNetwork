@@ -4194,6 +4194,11 @@ bool Blockchain::get_hard_fork_voting_info(uint8_t version, uint32_t &window, ui
   return m_hardfork->get_voting_info(version, window, votes, threshold, earliest_height, voting);
 }
 
+uint64_t Blockchain::get_earliest_ideal_height_for_version(uint8_t version) const
+{
+  return m_hardfork->get_earliest_ideal_height_for_version(version);
+}
+
 std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> Blockchain:: get_output_histogram(const std::vector<uint64_t> &amounts, bool unlocked, uint64_t recent_cutoff) const
 {
   return m_db->get_output_histogram(amounts, unlocked, recent_cutoff);

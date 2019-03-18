@@ -775,6 +775,11 @@ namespace cryptonote
     bool get_hard_fork_voting_info(uint8_t version, uint32_t &window, uint32_t &votes, uint32_t &threshold, uint64_t &earliest_height, uint8_t &voting) const;
 
     /**
+     * @brief returns the earliest block a given version may activate
+     */
+    uint64_t get_earliest_ideal_height_for_version(uint8_t version) const;
+
+    /**
      * @brief remove transactions from the transaction pool (if present)
      *
      * @param txids a list of hashes of transactions to be removed

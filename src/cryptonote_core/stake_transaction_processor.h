@@ -44,6 +44,7 @@ public:
   void invoke_update_blockchain_based_list_handler(bool force = true, size_t depth = 1);
 
 private:
+  void init_storages_impl();
   void process_block(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
   void invoke_update_stakes_handler_impl(uint64_t block_index);
   void invoke_update_blockchain_based_list_handler_impl(size_t depth);
@@ -51,6 +52,7 @@ private:
   void process_block_blockchain_based_list(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
 
 private:
+  std::string m_config_dir;
   Blockchain& m_blockchain;
   std::unique_ptr<StakeTransactionStorage> m_storage;
   std::unique_ptr<BlockchainBasedList> m_blockchain_based_list;

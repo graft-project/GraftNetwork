@@ -39,12 +39,13 @@ struct stake_transaction_file_data
 
 }
 
-StakeTransactionStorage::StakeTransactionStorage(const std::string& storage_file_name)
+StakeTransactionStorage::StakeTransactionStorage(const std::string& storage_file_name, uint64_t first_block_number)
   : m_storage_file_name(storage_file_name)
-  , m_last_processed_block_index()
+  , m_last_processed_block_index(first_block_number)
   , m_last_processed_block_hashes_count()
   , m_need_store()
   , m_supernode_stakes_update_block_number()
+  , m_first_block_number(first_block_number)
 {
   load();
 }
@@ -87,7 +88,7 @@ void StakeTransactionStorage::add_last_processed_block(uint64_t index, const cry
 
 void StakeTransactionStorage::remove_last_processed_block()
 {
-  if (!m_last_processed_block_index)
+  if (!m_last_processed_block_hashes_count)
     return;
 
   m_need_store = true;
@@ -107,7 +108,7 @@ void StakeTransactionStorage::remove_last_processed_block()
 
     m_stake_txs.clear();
 
-    m_last_processed_block_index = 0;
+    m_last_processed_block_index = m_first_block_number;
   }
 }
 
@@ -144,7 +145,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
   if (block_number == m_supernode_stakes_update_block_number)
     return;
 
-  MDEBUG("Build stakes for block " << block_number);
+  MCLOG(el::Level::Info, "global", "Build stakes for block " << block_number);
 
   m_supernode_stakes.clear();
   m_supernode_stake_indexes.clear();
@@ -169,7 +170,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
         obsolete_stake = true;
       }
 
-      MDEBUG("...use stake transaction " << tx.hash << " as " << (obsolete_stake ? "obsolete" : "normal") << " stake transaction ");
+      MCLOG(el::Level::Info, "global", "...use stake transaction " << tx.hash << " as " << (obsolete_stake ? "obsolete" : "normal") << " stake transaction ");
 
         //compute stake validity period
 
@@ -200,7 +201,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
           new_stake.block_height = min_tx_block_height;
           new_stake.unlock_time  = max_tx_block_height - min_tx_block_height;
 
-          MDEBUG("...first stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount << ", tier=" <<
+          MCLOG(el::Level::Info, "global", "...first stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount << ", tier=" <<
             new_stake.tier << ", validity=[" << min_tx_block_height << ";" << max_tx_block_height << ")");
         }
 
@@ -219,7 +220,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
       if (obsolete_stake)
         continue; //no need to aggregate fields from obsolete stake
 
-      MDEBUG("...accumulate stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount <<
+      MCLOG(el::Level::Info, "global", "...accumulate stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount <<
         ", validity=[" << min_tx_block_height << ";" << max_tx_block_height << ")");
 
       supernode_stake& stake = m_supernode_stakes[it->second];
@@ -258,7 +259,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
       stake.block_height = min_block_height;
       stake.unlock_time  = max_block_height - min_block_height;
 
-      MDEBUG("...stake for supernode " << tx.supernode_public_id << ": amount=" << stake.amount << ", tier=" << stake.tier <<
+      MCLOG(el::Level::Info, "global", "...stake for supernode " << tx.supernode_public_id << ": amount=" << stake.amount << ", tier=" << stake.tier <<
         ", validity=[" << min_block_height << ";" << max_block_height << ")");
     }
   }

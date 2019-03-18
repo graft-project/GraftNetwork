@@ -15,10 +15,11 @@ const size_t BLOCKCHAIN_BASED_LISTS_HISTORY_DEPTH   = 1000;
 
 }
 
-BlockchainBasedList::BlockchainBasedList(const std::string& m_storage_file_name)
+BlockchainBasedList::BlockchainBasedList(const std::string& m_storage_file_name, uint64_t first_block_number)
   : m_storage_file_name(m_storage_file_name)
-  , m_block_height()
+  , m_block_height(first_block_number)
   , m_history_depth()
+  , m_first_block_number(first_block_number)
   , m_need_store()
 {
   load();
@@ -186,7 +187,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
 void BlockchainBasedList::remove_latest_block()
 {
-  if (!m_block_height)
+  if (!m_history_depth)
     return;
 
   m_need_store = true;
@@ -197,7 +198,7 @@ void BlockchainBasedList::remove_latest_block()
   m_history.pop_back();
 
   if (m_history.empty())
-    m_block_height = 0;
+    m_block_height = m_first_block_number;
 }
 
 namespace
