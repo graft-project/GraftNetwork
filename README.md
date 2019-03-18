@@ -18,7 +18,7 @@ Portions Copyright (c) 2012-2013, The Cryptonote developers
 
 | Operating System      | Processor | Status |
 | --------------------- | -------- |--------|
-
+| Ubuntu 18 | | |
 ## Coverage
 
 | Type      | Status |
