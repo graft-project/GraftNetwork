@@ -83,6 +83,8 @@ Not available yet!
 
 ### Dependencies
 
+**Due to gcc 7.3.0 being a hard requirement right now, we strongly recomend to use Ubuntu 18.04 as a build platform
+
 The following table summarizes the tools and libraries required to build.  A
 few of the libraries are also included in this repository (marked as
 "Vendored"). By default, the build uses the library installed on the system,
@@ -94,7 +96,7 @@ library archives (`.a`).
 
 | Dep            | Min. Version  | Vendored | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose        |
 | -------------- | ------------- | ---------| ------------------ | -------------- | -------- | -------------- |
-| GCC            | 4.7.3         | NO       | `build-essential`  | `base-devel`   | NO       |                |
+| GCC            | 7.3.0         | NO       | `build-essential`  | `base-devel`   | NO       |                |
 | CMake          | 3.0.0         | NO       | `cmake`            | `cmake`        | NO       |                |
 | pkg-config     | any           | NO       | `pkg-config`       | `base-devel`   | NO       |                |
 | Boost          | 1.58          | NO       | `libboost-all-dev` | `boost`        | NO       | C++ libraries  |
