@@ -118,12 +118,11 @@ build the library binary manually. This can be done with the following command `
 ### Cloning the repository
 Clone recursively to pull-in needed submodule(s):
 
-         git clone --recursive https://github.com/graft-project/GraftNetwork
+         git clone --recurse-submodules https://github.com/graft-project/GraftNetwork
 
 If you already have a repo cloned, initialize and update:
 
-         cd GraftNetwork && git submodule init && git submodule update
-
+         cd GraftNetwork
 
 
 ### Build instructions
