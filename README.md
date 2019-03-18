@@ -83,7 +83,7 @@ Not available yet!
 
 ### Dependencies
 
-**Due to gcc 7.3.0 being a hard requirement right now, we strongly recomend to use Ubuntu 18.04 as a build platform
+**Due to gcc 7.3.0 being a hard requirement right now, we strongly recomend to use Ubuntu 18.04 as a build platform**
 
 The following table summarizes the tools and libraries required to build.  A
 few of the libraries are also included in this repository (marked as
