@@ -187,8 +187,8 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
         {
           new_stake.amount       = tx.amount;
           new_stake.tier         = get_tier(new_stake.amount);
-          new_stake.block_height = tx.block_height;
-          new_stake.unlock_time  = tx.unlock_time;
+          new_stake.block_height = tx.block_height + config::graft::STAKE_VALIDATION_PERIOD;
+          new_stake.unlock_time  = tx.unlock_time + config::graft::TRUSTED_RESTAKING_PERIOD - config::graft::STAKE_VALIDATION_PERIOD;
         }
 
         new_stake.supernode_public_id      = tx.supernode_public_id;
@@ -214,8 +214,8 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
 
         stake.amount       = tx.amount;
         stake.tier         = get_tier(stake.amount);
-        stake.block_height = tx.block_height;
-        stake.unlock_time  = tx.unlock_time;
+        stake.block_height = tx.block_height + config::graft::STAKE_VALIDATION_PERIOD;
+        stake.unlock_time  = tx.unlock_time + config::graft::TRUSTED_RESTAKING_PERIOD - config::graft::STAKE_VALIDATION_PERIOD;
 
         continue;
       }

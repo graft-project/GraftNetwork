@@ -47,8 +47,8 @@ bool is_valid_stake(uint64_t block_height, uint64_t stake_block_height, uint64_t
   if (block_height < stake_block_height)
     return false; //stake transaction block is in future
 
-  uint64_t stake_first_valid_block = stake_block_height + config::graft::STAKE_VALIDATION_PERIOD,
-           stake_last_valid_block  = stake_block_height + stake_unlock_time + config::graft::TRUSTED_RESTAKING_PERIOD;
+  uint64_t stake_first_valid_block = stake_block_height,
+           stake_last_valid_block  = stake_block_height + stake_unlock_time;
 
   if (stake_last_valid_block <= block_height)
     return false; //stake transaction is not valid
