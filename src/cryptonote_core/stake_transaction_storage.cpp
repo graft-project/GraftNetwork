@@ -1,3 +1,4 @@
+#include "blockchain.h"
 #include "stake_transaction_storage.h"
 #include "file_io_utils.h"
 #include "serialization/binary_utils.h"
@@ -143,6 +144,8 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
   if (block_number == m_supernode_stakes_update_block_number)
     return;
 
+  MDEBUG("Build stakes for block " << block_number);
+
   m_supernode_stakes.clear();
   m_supernode_stake_indexes.clear();
 
@@ -166,6 +169,13 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
         obsolete_stake = true;
       }
 
+      MDEBUG("...use stake transaction " << tx.hash << " as " << (obsolete_stake ? "obsolete" : "normal") << " stake transaction ");
+
+        //compute stake validity period
+
+      uint64_t min_tx_block_height = tx.block_height + config::graft::STAKE_VALIDATION_PERIOD,
+               max_tx_block_height = tx.block_height + tx.unlock_time + config::graft::TRUSTED_RESTAKING_PERIOD;
+
         //search for a stake of the corresponding supernode
 
       supernode_stake_index_map::iterator it = m_supernode_stake_indexes.find(tx.supernode_public_id);
@@ -187,8 +197,11 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
         {
           new_stake.amount       = tx.amount;
           new_stake.tier         = get_tier(new_stake.amount);
-          new_stake.block_height = tx.block_height + config::graft::STAKE_VALIDATION_PERIOD;
-          new_stake.unlock_time  = tx.unlock_time + config::graft::TRUSTED_RESTAKING_PERIOD - config::graft::STAKE_VALIDATION_PERIOD;
+          new_stake.block_height = min_tx_block_height;
+          new_stake.unlock_time  = max_tx_block_height - min_tx_block_height;
+
+          MDEBUG("...first stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount << ", tier=" <<
+            new_stake.tier << ", validity=[" << min_tx_block_height << ";" << max_tx_block_height << ")");
         }
 
         new_stake.supernode_public_id      = tx.supernode_public_id;
@@ -206,6 +219,9 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
       if (obsolete_stake)
         continue; //no need to aggregate fields from obsolete stake
 
+      MDEBUG("...accumulate stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount <<
+        ", validity=[" << min_tx_block_height << ";" << max_tx_block_height << ")");
+
       supernode_stake& stake = m_supernode_stakes[it->second];
 
       if (!stake.amount)
@@ -214,8 +230,8 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
 
         stake.amount       = tx.amount;
         stake.tier         = get_tier(stake.amount);
-        stake.block_height = tx.block_height + config::graft::STAKE_VALIDATION_PERIOD;
-        stake.unlock_time  = tx.unlock_time + config::graft::TRUSTED_RESTAKING_PERIOD - config::graft::STAKE_VALIDATION_PERIOD;
+        stake.block_height = min_tx_block_height;
+        stake.unlock_time  = max_tx_block_height - min_tx_block_height;
 
         continue;
       }
@@ -227,10 +243,8 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
 
         //find intersection of stake transaction intervals
 
-      uint64_t min_block_height    = stake.block_height,
-               max_block_height    = min_block_height + stake.unlock_time,
-               min_tx_block_height = tx.block_height,
-               max_tx_block_height = min_tx_block_height + tx.unlock_time;
+      uint64_t min_block_height = stake.block_height,
+               max_block_height = min_block_height + stake.unlock_time;
 
       if (min_tx_block_height > min_block_height)
         min_block_height = min_tx_block_height;
@@ -243,6 +257,9 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
 
       stake.block_height = min_block_height;
       stake.unlock_time  = max_block_height - min_block_height;
+
+      MDEBUG("...stake for supernode " << tx.supernode_public_id << ": amount=" << stake.amount << ", tier=" << stake.tier <<
+        ", validity=[" << min_block_height << ";" << max_block_height << ")");
     }
   }
   catch (...)

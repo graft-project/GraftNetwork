@@ -39,25 +39,6 @@ const BlockchainBasedList::supernode_tier_array& BlockchainBasedList::tiers(size
   return *it;
 }
 
-namespace
-{
-
-bool is_valid_stake(uint64_t block_height, uint64_t stake_block_height, uint64_t stake_unlock_time)
-{
-  if (block_height < stake_block_height)
-    return false; //stake transaction block is in future
-
-  uint64_t stake_first_valid_block = stake_block_height,
-           stake_last_valid_block  = stake_block_height + stake_unlock_time;
-
-  if (stake_last_valid_block <= block_height)
-    return false; //stake transaction is not valid
-
-  return true;
-}
-
-}
-
 void BlockchainBasedList::select_supernodes(size_t items_count, const supernode_array& src_list, supernode_array& dst_list)
 {
   size_t src_list_size = src_list.size();
@@ -98,23 +79,33 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
     prev_supernodes.clear();
     current_supernodes.clear();
 
-      //prepare lists of valid supernodes (stake period is valid)
+      //prepare lists of valid supernodes for this tier
 
     if (!m_history.empty())
-      prev_supernodes = m_history.back()[i];
+    {
+      const supernode_array& full_prev_supernodes = m_history.back()[i];
 
-    prev_supernodes.erase(std::remove_if(prev_supernodes.begin(), prev_supernodes.end(), [block_height](const supernode& desc) {
-      return !is_valid_stake(block_height, desc.block_height, desc.unlock_time);
-    }), prev_supernodes.end());
+      prev_supernodes.reserve(full_prev_supernodes.size());
+
+      for (const supernode& sn : full_prev_supernodes)
+      {
+        const supernode_stake* stake = stake_txs_storage.find_supernode_stake(block_height, sn.supernode_public_id);
+
+        if (!stake || !stake->amount)
+          continue;
+
+        if (stake->tier != i + 1)
+          continue;
+
+        prev_supernodes.push_back(sn);
+      }
+    }
 
     current_supernodes.reserve(stakes.size());
 
     for (const supernode_stake& stake : stakes)
     {
       if (!stake.amount)
-        continue;
-
-      if (!is_valid_stake(block_height, stake.block_height, stake.unlock_time))
         continue;
 
       if (stake.tier != i + 1)

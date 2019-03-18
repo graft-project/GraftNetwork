@@ -9,7 +9,7 @@ namespace
 {
 
 const char* STAKE_TRANSACTION_STORAGE_FILE_NAME = "stake_transactions.v2.bin";
-const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v4.bin";
+const char* BLOCKCHAIN_BASED_LIST_FILE_NAME     = "blockchain_based_list.v5.bin";
 
 }
 
