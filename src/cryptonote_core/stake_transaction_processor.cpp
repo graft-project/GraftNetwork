@@ -256,44 +256,47 @@ void StakeTransactionProcessor::synchronize()
     //unroll already processed blocks for alternative chains
   
   try {
+    uint64_t height = db.height();
 
     for (;;)
     {
-      try
+      size_t   stake_tx_count = m_storage->get_tx_count();
+      uint64_t last_processed_block_index = m_storage->get_last_processed_block_index();
+
+      if (!last_processed_block_index)
+        break;
+
+      if (last_processed_block_index < height)
       {
-        size_t   stake_tx_count = m_storage->get_tx_count();
-        uint64_t last_processed_block_index = m_storage->get_last_processed_block_index();
+        try
+        {
+          const crypto::hash& last_processed_block_hash  = m_storage->get_last_processed_block_hash();
+          crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
 
-        if (!last_processed_block_index)
-          break;
-
-        const crypto::hash& last_processed_block_hash  = m_storage->get_last_processed_block_hash();
-        crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
-
-        if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
-          break; //latest block hash is the same as processed
-
-        MCLOG(el::Level::Info, "global", "Stake transactions processing: unroll block " << last_processed_block_index);
-
-        m_storage->remove_last_processed_block();
-
-        if (stake_tx_count != m_storage->get_tx_count())
-          m_storage->clear_supernode_stakes();
-
-        if (m_blockchain_based_list->block_height() == last_processed_block_index)
-          m_blockchain_based_list->remove_latest_block();
+          if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
+            break; //latest block hash is the same as processed
+        }
+        catch (BLOCK_DNE&)
+        {
+          //block does not exist, waiting until it will be received
+          return;
+        }
       }
-      catch (BLOCK_DNE&)
-      {
-        //block does not exist, waiting until it will be received
-        return;
-      }
+      
+      MCLOG(el::Level::Warning, "global", "Stake transactions processing: unroll block " << last_processed_block_index << " (height=" << height << ")");
+
+      m_storage->remove_last_processed_block();
+
+      if (stake_tx_count != m_storage->get_tx_count())
+        m_storage->clear_supernode_stakes();
+
+      if (m_blockchain_based_list->block_height() == last_processed_block_index)
+        m_blockchain_based_list->remove_latest_block();
     }
 
     //apply new blocks
 
-    uint64_t first_block_index = m_storage->get_last_processed_block_index() + 1,
-        height = db.height();
+    uint64_t first_block_index = m_storage->get_last_processed_block_index() + 1;
 
     if (first_block_index > m_blockchain_based_list->block_height() + 1)
       first_block_index = m_blockchain_based_list->block_height() + 1;
