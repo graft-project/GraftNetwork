@@ -15,10 +15,11 @@ const size_t BLOCKCHAIN_BASED_LISTS_HISTORY_DEPTH   = 1000;
 
 }
 
-BlockchainBasedList::BlockchainBasedList(const std::string& m_storage_file_name)
+BlockchainBasedList::BlockchainBasedList(const std::string& m_storage_file_name, uint64_t first_block_number)
   : m_storage_file_name(m_storage_file_name)
-  , m_block_height()
+  , m_block_height(first_block_number)
   , m_history_depth()
+  , m_first_block_number(first_block_number)
   , m_need_store()
 {
   load();
@@ -37,25 +38,6 @@ const BlockchainBasedList::supernode_tier_array& BlockchainBasedList::tiers(size
   std::advance(it, depth);
 
   return *it;
-}
-
-namespace
-{
-
-bool is_valid_stake(uint64_t block_height, uint64_t stake_block_height, uint64_t stake_unlock_time)
-{
-  if (block_height < stake_block_height)
-    return false; //stake transaction block is in future
-
-  uint64_t stake_first_valid_block = stake_block_height + config::graft::STAKE_VALIDATION_PERIOD,
-           stake_last_valid_block  = stake_block_height + stake_unlock_time + config::graft::TRUSTED_RESTAKING_PERIOD;
-
-  if (stake_last_valid_block <= block_height)
-    return false; //stake transaction is not valid
-
-  return true;
-}
-
 }
 
 void BlockchainBasedList::select_supernodes(size_t items_count, const supernode_array& src_list, supernode_array& dst_list)
@@ -98,23 +80,33 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
     prev_supernodes.clear();
     current_supernodes.clear();
 
-      //prepare lists of valid supernodes (stake period is valid)
+      //prepare lists of valid supernodes for this tier
 
     if (!m_history.empty())
-      prev_supernodes = m_history.back()[i];
+    {
+      const supernode_array& full_prev_supernodes = m_history.back()[i];
 
-    prev_supernodes.erase(std::remove_if(prev_supernodes.begin(), prev_supernodes.end(), [block_height](const supernode& desc) {
-      return !is_valid_stake(block_height, desc.block_height, desc.unlock_time);
-    }), prev_supernodes.end());
+      prev_supernodes.reserve(full_prev_supernodes.size());
+
+      for (const supernode& sn : full_prev_supernodes)
+      {
+        const supernode_stake* stake = stake_txs_storage.find_supernode_stake(block_height, sn.supernode_public_id);
+
+        if (!stake || !stake->amount)
+          continue;
+
+        if (stake->tier != i + 1)
+          continue;
+
+        prev_supernodes.push_back(sn);
+      }
+    }
 
     current_supernodes.reserve(stakes.size());
 
     for (const supernode_stake& stake : stakes)
     {
       if (!stake.amount)
-        continue;
-
-      if (!is_valid_stake(block_height, stake.block_height, stake.unlock_time))
         continue;
 
       if (stake.tier != i + 1)
@@ -195,7 +187,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
 void BlockchainBasedList::remove_latest_block()
 {
-  if (!m_block_height)
+  if (!m_history_depth)
     return;
 
   m_need_store = true;
@@ -206,7 +198,7 @@ void BlockchainBasedList::remove_latest_block()
   m_history.pop_back();
 
   if (m_history.empty())
-    m_block_height = 0;
+    m_block_height = m_first_block_number;
 }
 
 namespace

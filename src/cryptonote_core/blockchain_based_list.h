@@ -33,7 +33,7 @@ public:
   typedef std::list<supernode_tier_array>  list_history;
 
   /// Constructors
-  BlockchainBasedList(const std::string& file_name);
+  BlockchainBasedList(const std::string& file_name, uint64_t first_block_number);
 
   /// List of tiers
   const supernode_tier_array& tiers(size_t depth = 0) const;
@@ -69,6 +69,7 @@ private:
   uint64_t m_block_height;
   size_t m_history_depth;
   std::mt19937_64 m_rng;
+  uint64_t m_first_block_number;
   mutable bool m_need_store;
 };
 
