@@ -68,8 +68,8 @@ class Serialization_portability_wallet_Test;
 namespace tools
 {
   class ringdb;
-  class wallet2;
   class Notify;
+  class wallet2;
 
   class wallet_keys_unlocker
   {
@@ -151,11 +151,13 @@ namespace tools
 
   class GraftWallet;
   class wallet_keys_unlocker;
+
   class wallet2
   {
     friend class ::Serialization_portability_wallet_Test;
     friend class GraftWallet;
     friend class wallet_keys_unlocker;
+
   public:
     static constexpr const std::chrono::seconds rpc_timeout = std::chrono::minutes(3) + std::chrono::seconds(30);
 
@@ -628,7 +630,8 @@ namespace tools
      *                     wallet's private keys should be already loaded before this call
      * \param filename - filename pointing to the file with cache
      */
-    void load_cache(const std::string &filename);
+    void load_cache(const std::string& filename);
+    void check_load_cache(const std::string& filename);
     void store();
     /*!
      * \brief store_to  Stores wallet to another file(s), deleting old ones
@@ -804,6 +807,8 @@ namespace tools
     bool is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height) const;
 
     uint64_t get_last_block_reward() const { return m_last_block_reward; }
+
+    void dbg_dump_view_spend_keys(void) const;
 
     template <class t_archive>
     inline void serialize(t_archive &a, const unsigned int ver)
@@ -1908,3 +1913,4 @@ namespace tools
   }
   //----------------------------------------------------------------------------------------------------
 }
+

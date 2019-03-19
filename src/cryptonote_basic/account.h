@@ -1,21 +1,21 @@
 // Copyright (c) 2014-2018, The Monero Project
-// 
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -25,7 +25,7 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
+//
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
@@ -33,6 +33,7 @@
 #include "cryptonote_basic.h"
 #include "crypto/crypto.h"
 #include "serialization/keyvalue_serialization.h"
+#include "common/dbg.h"
 
 namespace cryptonote
 {
@@ -62,11 +63,22 @@ namespace cryptonote
     void encrypt_viewkey(const crypto::chacha_key &key);
     void decrypt_viewkey(const crypto::chacha_key &key);
 
+    void encrypt_spendkey(const crypto::chacha_key& key);
+    void decrypt_spendkey(const crypto::chacha_key& key);
+
     hw::device& get_device()  const ;
     void set_device( hw::device &hwdev) ;
 
   private:
     void xor_with_key_stream(const crypto::chacha_key &key);
+
+  public:
+    account_keys(void);
+    ~account_keys(void);
+
+  private:
+    dbg::CodecCounter cc_vk_;
+    dbg::CodecCounter cc_sk_;
   };
 
   /************************************************************************/
@@ -83,7 +95,10 @@ namespace cryptonote
     void create_from_viewkey(const cryptonote::account_public_address& address, const crypto::secret_key& viewkey);
     bool make_multisig(const crypto::secret_key &view_secret_key, const crypto::secret_key &spend_secret_key, const crypto::public_key &spend_public_key, const std::vector<crypto::secret_key> &multisig_keys);
     void finalize_multisig(const crypto::public_key &spend_public_key);
+
+    account_keys& get_keys_dbg();
     const account_keys& get_keys() const;
+
     std::string get_public_address_str(network_type nettype) const;
     std::string get_public_integrated_address_str(const crypto::hash8 &payment_id, network_type nettype) const;
 
@@ -103,6 +118,9 @@ namespace cryptonote
     void decrypt_keys(const crypto::chacha_key &key) { m_keys.decrypt(key); }
     void encrypt_viewkey(const crypto::chacha_key &key) { m_keys.encrypt_viewkey(key); }
     void decrypt_viewkey(const crypto::chacha_key &key) { m_keys.decrypt_viewkey(key); }
+
+    void encrypt_spendkey(const crypto::chacha_key& key) { m_keys.encrypt_spendkey(key); }
+    void decrypt_spendkey(const crypto::chacha_key& key) { m_keys.decrypt_spendkey(key); }
 
     template <class t_archive>
     inline void serialize(t_archive &a, const unsigned int /*ver*/)

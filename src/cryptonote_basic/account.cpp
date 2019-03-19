@@ -1,21 +1,21 @@
 // Copyright (c) 2014-2018, The Monero Project
-// 
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -25,7 +25,7 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
+//
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include <fstream>
@@ -34,6 +34,8 @@
 #include "account.h"
 #include "warnings.h"
 #include "crypto/crypto.h"
+#include "common/util.h"
+
 extern "C"
 {
 #include "crypto/keccak.h"
@@ -51,8 +53,19 @@ using namespace std;
 
 DISABLE_VS_WARNINGS(4244 4345)
 
-  namespace cryptonote
+namespace cryptonote
 {
+  account_keys::account_keys(void)
+  : cc_vk_(m_view_secret_key, "vk")
+  , cc_sk_(m_spend_secret_key, "sk")
+  {
+    dbg::mk_hint_ptr_pair("acc-keys-ctor", this);
+  }
+
+  account_keys::~account_keys(void)
+  {
+    dbg::mk_hint_ptr_pair("acc-keys-dtor", this);
+  }
 
   //-----------------------------------------------------------------
   hw::device& account_keys::get_device() const  {
@@ -88,6 +101,9 @@ DISABLE_VS_WARNINGS(4244 4345)
   //-----------------------------------------------------------------
   void account_keys::xor_with_key_stream(const crypto::chacha_key &key)
   {
+    cc_vk_.on_call_enter(m_view_secret_key);
+    cc_sk_.on_call_enter(m_spend_secret_key);
+
     // encrypt a large enough byte stream with chacha20
     epee::wipeable_string key_stream = get_key_stream(key, m_encryption_iv, sizeof(crypto::secret_key) * (2 + m_multisig_keys.size()));
     const char *ptr = key_stream.data();
@@ -100,6 +116,9 @@ DISABLE_VS_WARNINGS(4244 4345)
       for (size_t i = 0; i < sizeof(crypto::secret_key); ++i)
         k.data[i] ^= *ptr++;
     }
+
+    cc_vk_.on_call_exit(m_view_secret_key);
+    cc_sk_.on_call_exit(m_spend_secret_key);
   }
   //-----------------------------------------------------------------
   void account_keys::encrypt(const crypto::chacha_key &key)
@@ -115,19 +134,58 @@ DISABLE_VS_WARNINGS(4244 4345)
   //-----------------------------------------------------------------
   void account_keys::encrypt_viewkey(const crypto::chacha_key &key)
   {
+    cc_vk_.on_call_enter(m_view_secret_key);
+
+    char b0[sizeof(crypto::secret_key)];
+    for(u32 i = 0, cnt = sizeof(crypto::secret_key); i < cnt; ++i)
+      b0[i] = m_view_secret_key.data[i];
+
     // encrypt a large enough byte stream with chacha20
     epee::wipeable_string key_stream = get_key_stream(key, m_encryption_iv, sizeof(crypto::secret_key) * 2);
     const char *ptr = key_stream.data();
     ptr += sizeof(crypto::secret_key);
     for (size_t i = 0; i < sizeof(crypto::secret_key); ++i)
       m_view_secret_key.data[i] ^= *ptr++;
+
+    bool diff_found = false;
+    for(u32 i = 0, cnt = sizeof(crypto::secret_key); i < cnt; ++i)
+      if((diff_found = (b0[i] != m_view_secret_key.data[i])))
+        break;
+
+    if(!diff_found)
+      MDEBUG("WARN - NO DIFF after encoding loop");
+
+    cc_vk_.on_call_exit(m_view_secret_key);
   }
   //-----------------------------------------------------------------
   void account_keys::decrypt_viewkey(const crypto::chacha_key &key)
   {
     encrypt_viewkey(key);
   }
+
+  ///////////////////////////////////////////////////////////////////////////////////////
+  void account_keys::encrypt_spendkey(const crypto::chacha_key& key)
+  {
+    cc_sk_.on_call_enter(m_spend_secret_key);
+
+    // encrypt a large enough byte stream with chacha20
+    epee::wipeable_string key_stream = get_key_stream(key, m_encryption_iv, sizeof(crypto::secret_key) * 2);
+    const char* ptr = key_stream.data();
+    ptr += sizeof(crypto::secret_key);
+    for(size_t i = 0; i < sizeof(crypto::secret_key); ++i)
+      m_spend_secret_key.data[i] ^= *ptr++;
+
+    cc_sk_.on_call_exit(m_spend_secret_key);
+  }
   //-----------------------------------------------------------------
+  void account_keys::decrypt_spendkey(const crypto::chacha_key& key)
+  {
+    encrypt_spendkey(key);
+  }
+  ///////////////////////////////////////////////////////////////////////////////////////
+
+
+
   account_base::account_base()
   {
     set_null();
@@ -245,6 +303,11 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_keys.m_account_address.m_spend_public_key = spend_public_key;
   }
   //-----------------------------------------------------------------
+  account_keys& account_base::get_keys_dbg()
+  {
+    return m_keys;
+  }
+
   const account_keys& account_base::get_keys() const
   {
     return m_keys;
