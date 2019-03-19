@@ -61,11 +61,11 @@ test-go-r:
 
 test-core-r:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) &&  $(MAKE) core_tests
+	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE) core_tests
 
 test-core-d:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) &&  $(MAKE) core_tests
+	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE) core_tests
 
 #test-core-r:
 #	mkdir -p $(builddir)/release
@@ -79,12 +79,31 @@ test-core-d:
 
 test-unit-r:
 	mkdir -p $(builddir)/release
-	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) &&  $(MAKE) unit_tests
+	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE) unit_tests
 
 test-unit-d:
 	mkdir -p $(builddir)/debug
-	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) &&  $(MAKE) unit_tests
+	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE) unit_tests
 
+device-r:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE) device
+
+wallet-d:
+	mkdir -p $(builddir)/debug
+	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE) simplewallet
+
+wallet-dnt:
+	mkdir -p $(builddir)/debug
+	cd $(builddir)/debug && cmake -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE) simplewallet
+
+wallet-r:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release && cmake -D BUILD_TESTS=ON -D CMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE) simplewallet
+
+wallet-rnt:
+	mkdir -p $(builddir)/release
+	cd $(builddir)/release cmake -D CMAKE_BUILD_TYPE=Release $(topdir) && $(MAKE) simplewallet
 
 debug-all:
 	mkdir -p $(builddir)/debug

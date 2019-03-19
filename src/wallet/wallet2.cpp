@@ -5110,11 +5110,14 @@ void wallet2::load_cache(const string &cache_filename)
 
     r = ::serialization::parse_binary(buf, cache_file_data);
     THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + cache_filename + '\"');
+
     crypto::chacha_key key;
     generate_chacha_key_from_secret_keys(key);
+
     std::string cache_data;
     cache_data.resize(cache_file_data.cache_data.size());
-    crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
+
+    crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), m_cache_key, cache_file_data.iv, &cache_data[0]);
 
     try {
       std::stringstream iss;
@@ -5322,12 +5325,15 @@ void wallet2::store_cache(const string &filename)
 
   wallet2::cache_file_data cache_file_data = boost::value_initialized<wallet2::cache_file_data>();
   cache_file_data.cache_data = oss.str();
+
   crypto::chacha_key key;
   generate_chacha_key_from_secret_keys(key);
+
   std::string cipher;
   cipher.resize(cache_file_data.cache_data.size());
+
   cache_file_data.iv = crypto::rand<crypto::chacha_iv>();
-  crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
+  crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), m_cache_key, cache_file_data.iv, &cipher[0]);
   cache_file_data.cache_data = cipher;
 
 #ifdef WIN32
