@@ -55,6 +55,7 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "default"
 #endif
 
+#ifdef ENABLE_TLS_LOG_CATEGORY
 #ifdef __cplusplus
 #if __cplusplus >= 201103L
 
@@ -69,6 +70,7 @@ extern thread_local std::string mlog_current_log_category;
 
 #endif //__cplusplus >= 201103L
 #endif //__cplusplus
+#endif //ENABLE_TLS_LOG_CATEGORY
 
 #ifndef MONERO_LOG_CATEGORY
 #define MONERO_LOG_CATEGORY MONERO_DEFAULT_LOG_CATEGORY

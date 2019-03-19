@@ -146,6 +146,14 @@ endif()
 
 add_definitions(-DMONERO_DEFAULT_LOG_CATEGORY="cryptonode" -DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
 
+if(NOT DEFINED ENABLE_TLS_LOG_CATEGORY)
+    option(ENABLE_TLS_LOG_CATEGORY "Enable TLS-based logging." OFF)
+endif()
+
+if(ENABLE_TLS_LOG_CATEGORY)
+    add_definitions(-DENABLE_TLS_LOG_CATEGORY)
+endif()
+
 if(NOT DEFINED ENABLE_SYSLOG)
     option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
 endif()

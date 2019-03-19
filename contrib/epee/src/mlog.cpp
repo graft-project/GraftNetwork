@@ -39,7 +39,9 @@
 
 #define MLOG_LOG(x) CINFO(el::base::Writer,el::base::DispatchAction::FileOnlyLog,MONERO_DEFAULT_LOG_CATEGORY) << x
 
+#ifdef ENABLE_TLS_LOG_CATEGORY
 thread_local std::string mlog_current_log_category;
+#endif
 
 bool mlog_syslog = false;
 
