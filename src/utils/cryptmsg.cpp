@@ -33,7 +33,7 @@
 
 namespace {
 
-static_assert(201103L <= __cplusplus);
+static_assert(201103L <= __cplusplus, "C++11 compiler required");
 
 #if 0
 //can be used to check manually
@@ -100,7 +100,7 @@ struct CryptoMessageHead
 uint32_t getBhash(const crypto::public_key& B)
 {
     uint32_t res = 0;
-    static_assert(sizeof(B) % sizeof(res) == 0);
+    static_assert(sizeof(B) % sizeof(res) == 0, "public key size must be a multiple of 4");
     const uint32_t* p = reinterpret_cast<const uint32_t*>(&B);
     for(int i = 0, cnt = sizeof(B) / sizeof(res); i < cnt; ++i, ++p)
     {
@@ -239,7 +239,7 @@ size_t decryptMsg(size_t inputSize, const uint8_t* input, const crypto::secret_k
 
 } //namespace
 
-namespace graft::crypto_tools {
+namespace graft { namespace crypto_tools {
 
 void encryptMessage(const std::string& input, const std::vector<crypto::public_key>& Bkeys, std::string& output)
 {
@@ -284,5 +284,5 @@ bool decryptMessage(const std::string& input, const crypto::secret_key& bkey, st
     return true;
 }
 
-} //namespace graft::crypto_tools
+}} //namespace graft::crypto_tools
 
