@@ -73,7 +73,7 @@ Dates are provided in the format YYYY-MM-DD.
 | 2018-09-17        | v10               | 1.4.4                | 1.4.5                    | Block reward halved       |
 | 2018-10-31        | v11               | 1.5.0                | 1.5.1                    | PoW algorithm from Monero v8 (CN v2), enabled checkpoints for mainnet  |
 | 2019-03-07        | v12               | 1.6.0                | 1.6.0                    | Own PoW algorithm - CryptoNight V8 ReverseWaltz - tweaked from CryptoNight Monero v8 (CN v2)  |
-| 2019-03-20        | v13               | 1.7.2                | 1.7.2                    | RTA Mining  |
+| 2019-03-20        | v13               | 1.7.3                | 1.7.3                    | RTA Mining  |
 
 ## Installing Graft Network from a Package
 
