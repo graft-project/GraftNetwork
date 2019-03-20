@@ -383,6 +383,9 @@ void StakeTransactionProcessor::invoke_update_stakes_handler_impl(uint64_t block
 {
   try
   {
+    if (!m_storage)
+      return;
+
     m_on_stakes_update(block_index, m_storage->get_supernode_stakes(block_index));
 
     m_stakes_need_update = false;
@@ -416,6 +419,9 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl
 {
   try
   {
+    if (!m_blockchain_based_list)
+      return;
+
     if (!m_blockchain_based_list->block_height())
       return; //empty blockchain based list
 
