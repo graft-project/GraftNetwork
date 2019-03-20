@@ -60,12 +60,14 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
         _add_executable(${ARGV})
 
         if (TARGET ${_name})
-            add_custom_command(TARGET ${_name} POST_BUILD
-                COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
-                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
-                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
-                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
-            )
+            if(NOT APPLE)
+                add_custom_command(TARGET ${_name} POST_BUILD
+                    COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
+                    COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                    COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                    COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
+                )
+            endif()
         endif()
     endfunction()
 

@@ -517,3 +517,19 @@ bool load_txt_records_from_dns(std::vector<std::string> &good_records, const std
 }  // namespace tools::dns_utils
 
 }  // namespace tools
+
+// fix to avoid fork of libunbound: replacements for OpenSSL 1.1.x functions for OSX
+#if defined(__APPLE__) && OPENSSL_VERSION_NUMBER < 0x10100000L
+  extern "C"
+  {
+    EVP_MD_CTX *EVP_MD_CTX_new(void)
+    {
+      return EVP_MD_CTX_create();
+    }
+
+    int EVP_MD_CTX_reset(EVP_MD_CTX *ctx)
+    {
+      return EVP_MD_CTX_destroy(ctx);
+    }
+  }
+#endif
