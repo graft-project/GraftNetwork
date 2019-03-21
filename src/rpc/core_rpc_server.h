@@ -131,8 +131,9 @@ namespace cryptonote
       BEGIN_JSON_RPC_MAP("/json_rpc/rta")
         MAP_JON_RPC_WE("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
         MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
-        MAP_JON_RPC_WE("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST)
-        MAP_JON_RPC_WE("unicast",                on_unicast,                    COMMAND_RPC_UNICAST)
+        MAP_JON_RPC_WE("wide_broadcast",         on_wide_broadcast,             COMMAND_RPC_BROADCAST)
+        MAP_JON_RPC_WE("register_supernode",     on_register_supernode,         COMMAND_RPC_REGISTER_SUPERNODE)
+        MAP_JON_RPC_WE("redirect_supernode_id",  on_redirect_supernode_id,      COMMAND_RPC_REDIRECT_SUPERNODE_ID)
 
         MAP_JON_RPC_WE("get_tunnels",              on_get_tunnels,              COMMAND_RPC_TUNNEL_DATA)
         MAP_JON_RPC_WE("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES)
@@ -201,9 +202,10 @@ namespace cryptonote
     bool on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request& req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response& res, epee::json_rpc::error& error_resp);
     bool on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request& req, COMMAND_RPC_SUPERNODE_GET_STAKES::response& res, epee::json_rpc::error& error_resp);
     bool on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request& req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response& res, epee::json_rpc::error& error_resp);
-    bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);
+    bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp, bool wide = false);
+    bool on_wide_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
+    bool on_register_supernode(const COMMAND_RPC_REGISTER_SUPERNODE::request& req, COMMAND_RPC_REGISTER_SUPERNODE::response& res, epee::json_rpc::error& error_resp);
+    bool on_redirect_supernode_id(const COMMAND_RPC_REDIRECT_SUPERNODE_ID::request& req, COMMAND_RPC_REDIRECT_SUPERNODE_ID::response& res, epee::json_rpc::error& error_resp);
 
     bool on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, epee::json_rpc::error &error_resp);
     bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp);
@@ -220,6 +222,7 @@ private:
     nodetool::node_server<cryptonote::t_cryptonote_protocol_handler<cryptonote::core> >& m_p2p;
     bool m_testnet;
     bool m_restricted;
+    uint32_t m_broadcast_hops = 0;
   };
 }
 

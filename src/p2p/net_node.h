@@ -68,6 +68,7 @@ DISABLE_VS_WARNINGS(4355)
 namespace nodetool
 {
   using Uuid = boost::uuids::uuid;
+  using Clock = std::chrono::steady_clock;
 
   template<class base_type>
   struct p2p_connection_context_t: base_type //t_payload_net_handler::connection_context //public net_utils::connection_context_base
@@ -152,17 +153,7 @@ namespace nodetool
      * \brief do_broadcast - posts broadcast message to p2p network
      * \param req
      */
-    void do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req);
-    /*!
-     * \brief do_multicast - posts multicast message to p2p network
-     * \param req
-     */
-    void do_multicast(const cryptonote::COMMAND_RPC_MULTICAST::request &req);
-    /*!
-     * \brief do_unicast - posts unicast message to p2p network
-     * \param req
-     */
-    void do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req);
+    void do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req, uint64_t hop = 0);
 
     std::vector<cryptonote::route_data> get_tunnels() const;
 
@@ -182,8 +173,6 @@ namespace nodetool
     BEGIN_INVOKE_MAP2(node_server)
       HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
       HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_broadcast)
-      HANDLE_NOTIFY_T2(COMMAND_MULTICAST, &node_server::handle_multicast)
-      HANDLE_NOTIFY_T2(COMMAND_UNICAST, &node_server::handle_unicast)
 
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
@@ -200,8 +189,6 @@ namespace nodetool
     enum PeerType { anchor = 0, white, gray };
 
     //----------------- helper functions ------------------------------------------------
-    bool multicast_send(int command, const std::string &data, const std::list<std::string> &addresses,
-                        const std::list<peerid_type> &exclude_peerids = std::list<peerid_type>());
     uint64_t get_max_hop(const std::list<std::string> &addresses);
     std::list<std::string> get_routes();
 
@@ -239,8 +226,6 @@ namespace nodetool
     //----------------- commands handlers ----------------------------------------------
     int handle_supernode_announce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
     int handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
-    int handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context);
-    int handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context);
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);
@@ -382,14 +367,13 @@ namespace nodetool
             m_supernode_uri = std::move(parsed.uri);
         }
         if ((parsed.host != m_supernode_client.get_host())
-                && (std::to_string(parsed.port) != m_supernode_client.get_port())) {
+                || (std::to_string(parsed.port) != m_supernode_client.get_port())) {
             if (m_supernode_client.is_connected()) {
                 m_supernode_client.disconnect();
             }
             boost::optional<epee::net_utils::http::login> supernode_login;
             m_supernode_client.set_server(m_supernode_http_addr, supernode_login);
         }
-        m_have_supernode = true;
     }
 
     std::string get_supernode_address() const
@@ -397,13 +381,54 @@ namespace nodetool
         return m_supernode_str;
     }
 
-    void reset_supernode() {
+    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
+
+    Clock::time_point get_death_time()
+    {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_supernode_str.erase();
-        m_have_supernode = false;
+        return Clock::now() + std::chrono::milliseconds(m_redirect_timeout_ms);
     }
 
-    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
+    std::string check_supernode_id()
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        if(m_supernode_id.empty()) return m_supernode_id;
+        if(m_supernode_id_death < Clock::now())
+        {
+            m_redirect_supernode_ids.clear();
+            m_supernode_id.clear();
+        }
+        return m_supernode_id;
+    }
+
+    bool has_supernode()
+    {
+        return !check_supernode_id().empty();
+    }
+
+    void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req)
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        if(m_supernode_id != req.supernode_id)
+        {
+            m_redirect_supernode_ids.clear();
+        }
+        m_supernode_id = req.supernode_id;
+        m_supernode_url = req.supernode_url;
+        m_redirect_uri = req.redirect_uri;
+        m_redirect_timeout_ms = req.redirect_timeout_ms;
+        m_supernode_id_death = get_death_time();
+
+        m_supernode_uri = req.supernode_url;
+        set_supernode(req.supernode_id, req.supernode_url);
+    }
+
+    void redirect_id_add(const std::string& id)
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        if(check_supernode_id().empty()) return;
+        m_redirect_supernode_ids.emplace(id, get_death_time());
+    }
 
     void send_stakes_to_supernode();
     void send_blockchain_based_list_to_supernode(uint64_t last_received_block_height);
@@ -423,15 +448,21 @@ namespace nodetool
     std::multimap<int, std::string> m_supernode_requests_timestamps;
     std::set<std::string> m_supernode_requests_cache;
     std::map<std::string, nodetool::supernode_route> m_supernode_routes;
-    crypto::public_key m_supernode_addr;
     std::string m_supernode_str;
-    bool m_have_supernode;
     std::string m_supernode_http_addr; // host:port
     std::string m_supernode_uri;
     epee::net_utils::http::http_simple_client m_supernode_client;
     boost::recursive_mutex m_supernode_lock;
     boost::recursive_mutex m_request_cache_lock;
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
+
+    std::chrono::steady_clock::time_point m_supernode_id_death;
+    std::string m_supernode_id; //supernode public identification key
+    std::string m_supernode_url; //base URL for forwarding requests to supernode
+    std::string m_redirect_uri; //special uri for UDHT protocol redirection mechanism
+
+    uint32_t m_redirect_timeout_ms;
+    std::map<std::string, Clock::time_point> m_redirect_supernode_ids; //recipients ids to redirect to the supernode
 
     std::string m_config_folder;
 
