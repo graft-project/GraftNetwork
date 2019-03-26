@@ -471,9 +471,9 @@ namespace nodetool
     }
     if (testnet)
     {
-      full_addrs.insert("18.214.245.162:28880");
-      full_addrs.insert("52.204.250.197:28880");
-      full_addrs.insert("34.225.70.106:28880");
+      full_addrs.insert("18.214.197.224:38880");
+      full_addrs.insert("18.214.197.50:38880");
+      full_addrs.insert("35.169.179.171:38880");
     }
     else
     {
