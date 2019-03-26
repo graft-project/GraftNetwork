@@ -56,7 +56,7 @@ private:
   Blockchain& m_blockchain;
   std::unique_ptr<StakeTransactionStorage> m_storage;
   std::unique_ptr<BlockchainBasedList> m_blockchain_based_list;
-  epee::critical_section m_storage_lock;
+  mutable epee::critical_section m_storage_lock;
   supernode_stakes_update_handler m_on_stakes_update;
   blockchain_based_list_update_handler m_on_blockchain_based_list_update;
   bool m_stakes_need_update;
