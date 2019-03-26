@@ -36,6 +36,8 @@ StakeTransactionProcessor::StakeTransactionProcessor(Blockchain& blockchain)
 
 const supernode_stake* StakeTransactionProcessor::find_supernode_stake(uint64_t block_number, const std::string& supernode_public_id) const
 {
+  CRITICAL_REGION_LOCAL1(m_storage_lock);
+
   if (!m_storage)
     return nullptr;
 
