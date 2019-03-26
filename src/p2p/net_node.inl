@@ -1099,7 +1099,9 @@ namespace nodetool
                       oss << "m_supernode_url = " << m_supernode_url << " m_supernode_uri = " << m_supernode_uri;
                       MDEBUG("m_supernode_url") << oss.str();
                   }
-
+#ifdef UDHT_INFO
+                  arg.hops = arg.hop;
+#endif
                   post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast_to_me", arg, arg.callback_uri);
               }
 
@@ -1111,6 +1113,9 @@ namespace nodetool
                       callback_url = m_redirect_uri;
                   }
                   cryptonote::COMMAND_RPC_REDIRECT_BROADCAST::request redirect_req;
+#ifdef UDHT_INFO
+                  arg.hops = arg.hop;
+#endif
                   redirect_req.request = arg;
                   for(auto& it : known_addresses)
                   {
