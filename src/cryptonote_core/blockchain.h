@@ -797,7 +797,7 @@ namespace cryptonote
      * @param earliest_height the earliest height at which <version> is allowed
      * @param voting which version this node is voting for/using
      *
-     * @return whether the version queried is enabled 
+     * @return whether the version queried is enabled
      */
     bool get_hard_fork_voting_info(uint8_t version, uint32_t &window, uint32_t &votes, uint32_t &threshold, uint64_t &earliest_height, uint8_t &voting) const;
 
@@ -1086,6 +1086,8 @@ namespace cryptonote
      * @return false if any output is not yet unlocked, or is missing, otherwise true
      */
     bool check_tx_input(size_t tx_version,const txin_to_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height);
+
+    void dbg_dump_lmdb_outputs(void) const;
 
     /**
      * @brief validate a transaction's inputs and their keys

@@ -931,6 +931,13 @@ uint64_t BlockchainLMDB::add_output(const crypto::hash& tx_hash,
     const rct::key *commitment)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+
+  MDEBUG("BlockchainLMDB::add_output  tx " << tx_hash
+    << "  amount:" << tx_output.amount);
+
+  if(!tx_output.amount)
+    tools::log_stack_trace("--- dbg --- ZERO amount -- ALARMA");
+
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
   uint64_t m_height = height();
@@ -2743,7 +2750,7 @@ bool BlockchainLMDB::for_all_transactions(std::function<bool(const crypto::hash&
   return fret;
 }
 
-bool BlockchainLMDB::for_all_outputs(std::function<bool(uint64_t amount, const crypto::hash &tx_hash, uint64_t height, size_t tx_idx)> f) const
+bool BlockchainLMDB::for_all_outputs(std::function<bool(uint64_t amount, const crypto::hash& tx_hash, uint64_t height, size_t tx_idx)> f) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();

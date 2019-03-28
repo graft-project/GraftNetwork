@@ -86,27 +86,29 @@ namespace cryptonote {
     return CRYPTONOTE_MAX_TX_SIZE;
   }
   //-----------------------------------------------------------------------------------------------
-  bool get_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint8_t version) {
-    static_assert(DIFFICULTY_TARGET_V2%60==0&&DIFFICULTY_TARGET_V1%60==0,"difficulty targets must be a multiple of 60");
+  bool get_block_reward(size_t median_weight, size_t current_block_weight,
+    uint64_t already_generated_coins, uint64_t &reward, uint8_t version)
+  {
+    static_assert(DIFFICULTY_TARGET_V2%60==0&&DIFFICULTY_TARGET_V1%60==0, "difficulty targets must be a multiple of 60");
+
     const int target = version < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
     const int target_minutes = target / 60;
     const int emission_speed_factor = EMISSION_SPEED_FACTOR_PER_MINUTE - (target_minutes-1);
 
+    MDEBUG("get-block-reward --- dbg ---- hf-ver:" << (int)version
+      << "  med-wght:" << median_weight
+      << "  AGC:" << already_generated_coins);
+
     const uint64_t first_reward = 8301030000000000000U;
 
-    if(version >= 6 && median_weight > 0 && already_generated_coins < first_reward)
+    if(false && version >= 6 && median_weight > 0 && already_generated_coins < first_reward)
     {
-      MDEBUG("------------- HIT2  hf-ver:" << (int)version
-        << "  med-wght:" << median_weight << "  AGC:" << already_generated_coins);
-
+      MDEBUG("--- dbg --- first-reward-HIT   [" << first_reward << "]");
       reward = first_reward;
       return true;
     }
     else
-      MDEBUG("------------- MISS  hf-ver:" << (int)version
-        << "  med-wght:" << median_weight
-        << "  AGC:" << already_generated_coins
-        << "  first-reward:" << first_reward);
+      MDEBUG("--- dbg --- first-reward-MISS");
 
     uint64_t base_reward = (MONEY_SUPPLY - already_generated_coins) >> emission_speed_factor;
     if (base_reward < FINAL_SUBSIDY_PER_MINUTE*target_minutes)

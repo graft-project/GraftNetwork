@@ -74,7 +74,10 @@ namespace cryptonote
     LOG_PRINT_L2("destinations include " << num_stdaddresses << " standard addresses and " << num_subaddresses << " subaddresses");
   }
   //---------------------------------------------------------------
-  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version) {
+  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins,
+    size_t current_block_weight, uint64_t fee, const account_public_address &miner_address,
+    transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version)
+  {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
@@ -116,7 +119,7 @@ namespace cryptonote
       [&out_amounts](uint64_t a_chunk) { out_amounts.push_back(a_chunk); },
       [&out_amounts](uint64_t a_dust) { out_amounts.push_back(a_dust); });
 
-    LOG_PRINT_L1("construct_miner_tx: out-amount-cnt:" << out_amounts.size());
+    MDEBUG("construct_miner_tx: out-amount-cnt:" << out_amounts.size());
 
     CHECK_AND_ASSERT_MES(1 <= max_outs, false, "max_out must be non-zero");
     if (height == 0 || hard_fork_version >= 4)
@@ -130,7 +133,7 @@ namespace cryptonote
         for (size_t n = 1; n < out_amounts.size(); ++n)
           out_amounts[n - 1] = out_amounts[n];
         out_amounts.pop_back();
-        LOG_PRINT_L1("construct_miner_tx:  UPD-dec   out-amount-cnt:" << out_amounts.size());
+        MDEBUG("construct_miner_tx:  UPD-dec   out-amount-cnt:" << out_amounts.size());
       }
     }
     else
@@ -138,7 +141,7 @@ namespace cryptonote
       CHECK_AND_ASSERT_MES(max_outs >= out_amounts.size(), false, "max_out exceeded");
     }
 
-    LOG_PRINT_L1("construct_miner_tx: out-amount-cnt-2:" << out_amounts.size());
+    MDEBUG("construct_miner_tx: out-amount-cnt-2:" << out_amounts.size());
 
     uint64_t summary_amounts = 0;
     for (size_t no = 0; no < out_amounts.size(); no++)
@@ -202,8 +205,18 @@ namespace cryptonote
     return addr.m_view_public_key;
   }
   //---------------------------------------------------------------
-  bool construct_tx_with_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, const crypto::secret_key &tx_key, const std::vector<crypto::secret_key> &additional_tx_keys, bool rct, rct::RangeProofType range_proof_type, rct::multisig_out *msout, bool shuffle_outs)
+  bool construct_tx_with_tx_key(const account_keys& sender_account_keys,
+    const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses,
+    std::vector<tx_source_entry>& sources,
+    std::vector<tx_destination_entry>& destinations,
+    const boost::optional<cryptonote::account_public_address>& change_addr,
+    std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time,
+    const crypto::secret_key &tx_key,
+    const std::vector<crypto::secret_key> &additional_tx_keys, bool rct,
+    rct::RangeProofType range_proof_type, rct::multisig_out *msout, bool shuffle_outs)
   {
+    MDEBUG("construct_tx_with_tx_key --- enter");
+
     hw::device &hwdev = sender_account_keys.get_device();
 
     if (sources.empty())
@@ -292,7 +305,10 @@ namespace cryptonote
       keypair& in_ephemeral = in_contexts.back().in_ephemeral;
       crypto::key_image img;
       const auto& out_key = reinterpret_cast<const crypto::public_key&>(src_entr.outputs[src_entr.real_output].second.dest);
-      if(!generate_key_image_helper(sender_account_keys, subaddresses, out_key, src_entr.real_out_tx_key, src_entr.real_out_additional_tx_keys, src_entr.real_output_in_tx_index, in_ephemeral,img, hwdev))
+
+      if(!generate_key_image_helper(sender_account_keys, subaddresses, out_key,
+        src_entr.real_out_tx_key, src_entr.real_out_additional_tx_keys,
+        src_entr.real_output_in_tx_index, in_ephemeral, img, hwdev))
       {
         LOG_ERROR("Key image generation failed!");
         return false;
@@ -611,8 +627,18 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  bool construct_tx_and_get_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys, bool rct, rct::RangeProofType range_proof_type, rct::multisig_out *msout)
+  bool construct_tx_and_get_tx_key(
+    const account_keys& sender_account_keys,
+    const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses,
+    std::vector<tx_source_entry>& sources,
+    std::vector<tx_destination_entry>& destinations,
+    const boost::optional<cryptonote::account_public_address>& change_addr,
+    std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time,
+    crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys,
+    bool rct, rct::RangeProofType range_proof_type, rct::multisig_out* msout)
   {
+    MDEBUG("construct_tx_and_get_tx_key --- called");
+
     hw::device &hwdev = sender_account_keys.get_device();
     hwdev.open_tx(tx_key);
 
@@ -621,15 +647,19 @@ namespace cryptonote
     size_t num_subaddresses = 0;
     account_public_address single_dest_subaddress;
     classify_addresses(destinations, change_addr, num_stdaddresses, num_subaddresses, single_dest_subaddress);
-    bool need_additional_txkeys = num_subaddresses > 0 && (num_stdaddresses > 0 || num_subaddresses > 1);
-    if (need_additional_txkeys)
+
+    const bool need_additional_txkeys = num_subaddresses > 0 && (num_stdaddresses > 0 || num_subaddresses > 1);
+    if(need_additional_txkeys)
     {
       additional_tx_keys.clear();
-      for (const auto &d: destinations)
+      for(const auto &d: destinations)
         additional_tx_keys.push_back(keypair::generate(sender_account_keys.get_device()).sec);
     }
 
-    bool r = construct_tx_with_tx_key(sender_account_keys, subaddresses, sources, destinations, change_addr, extra, tx, unlock_time, tx_key, additional_tx_keys, rct, range_proof_type, msout);
+    bool r = construct_tx_with_tx_key(sender_account_keys, subaddresses, sources,
+      destinations, change_addr, extra, tx, unlock_time, tx_key, additional_tx_keys,
+      rct, range_proof_type, msout);
+
     hwdev.close_tx();
     return r;
   }

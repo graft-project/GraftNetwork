@@ -54,6 +54,7 @@
 #include "ringct/rctSigs.h"
 #include "common/perf_timer.h"
 #include "common/notify.h"
+#include "common/stack_trace.h"
 #if defined(PER_BLOCK_CHECKPOINT)
 #include "blocks/blocks.h"
 #endif
@@ -219,9 +220,11 @@ bool Blockchain::have_tx_keyimg_as_spent(const crypto::key_image &key_im) const
 // and collects the public key for each from the transaction it was included in
 // via the visitor passed to it.
 template <class visitor_t>
-bool Blockchain::scan_outputkeys_for_indexes(size_t tx_version, const txin_to_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height) const
+bool Blockchain::scan_outputkeys_for_indexes(size_t tx_version, const txin_to_key& tx_in_to_key,
+  visitor_t& vis, const crypto::hash& tx_prefix_hash, uint64_t* pmax_related_block_height) const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
+  MDEBUG("Blockchain::scan_outputkeys_for_indexes --- dbg --- called");
 
   // ND: Disable locking and make method private.
   //CRITICAL_REGION_LOCAL(m_blockchain_lock);
@@ -249,7 +252,7 @@ bool Blockchain::scan_outputkeys_for_indexes(size_t tx_version, const txin_to_ke
     }
   }
 
-  if (!found)
+  if(!found)
   {
     try
     {
@@ -1213,16 +1216,19 @@ bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height)
 }
 //------------------------------------------------------------------
 // This function validates the miner transaction reward
-bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version)
+bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight,
+  uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
+
   //validate reward
   uint64_t money_in_use = 0;
-  for (auto& o: b.miner_tx.vout)
+  for(auto& o: b.miner_tx.vout)
     money_in_use += o.amount;
   partial_block_reward = false;
 
-  if (version == 3) {
+  if(version == 3)
+  {
     for (auto &o: b.miner_tx.vout) {
       if (!is_valid_decomposed_amount(o.amount)) {
         MERROR_VER("miner tx output " << print_money(o.amount) << " is not a valid decomposed amount");
@@ -1233,19 +1239,34 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
 
   std::vector<size_t> last_blocks_weights;
   get_last_n_blocks_weights(last_blocks_weights, CRYPTONOTE_REWARD_BLOCKS_WINDOW);
-  if (!get_block_reward(epee::misc_utils::median(last_blocks_weights), cumulative_block_weight, already_generated_coins, base_reward, version))
+  if(!get_block_reward(epee::misc_utils::median(last_blocks_weights), cumulative_block_weight, already_generated_coins, base_reward, version))
   {
     MERROR_VER("block weight " << cumulative_block_weight << " is bigger than allowed for this blockchain");
     return false;
   }
+
+  MDEBUG("validate_miner_transaction  money-in-use:" << print_money(money_in_use)
+    << "  block-reward:" << print_money(base_reward + fee)
+    << "  base-reward:" << print_money(base_reward)
+    << "  fee:" << print_money(fee));
+
+  {
+    auto mtx = b.miner_tx;
+    MDEBUG("blk-miner-tx  " << obj_to_json_str(mtx));
+    //tools::log_stack_trace("validate_miner_transaction");
+  }
+
   if(base_reward + fee < money_in_use && already_generated_coins > 0)
   //if(base_reward + fee < money_in_use)
   {
-    MERROR_VER("coinbase transaction spend too much money (" << print_money(money_in_use) << "). Block reward is " << print_money(base_reward + fee) << "(" << print_money(base_reward) << "+" << print_money(fee) << ")");
+    MERROR_VER("coinbase transaction spend too much money ("
+      << print_money(money_in_use) << "). Block reward is " << print_money(base_reward + fee)
+      << "(" << print_money(base_reward) << "+" << print_money(fee) << ")");
     return false;
   }
+
   // From hard fork 2, we allow a miner to claim less block reward than is allowed, in case a miner wants less dust
-  if (m_hardfork->get_current_version() < 2)
+  if(m_hardfork->get_current_version() < 2)
   {
     if(base_reward + fee != money_in_use && already_generated_coins > 0)
     //if(base_reward + fee < money_in_use)
@@ -2597,6 +2618,35 @@ bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_pr
 
   return true;
 }
+
+
+bool dbg_dump_lmdb_output(uint64_t amount, const crypto::hash& tx_hash, uint64_t height, size_t tx_idx)
+{
+  MDEBUG("amount:" << amount << "  tx-hash [" << "" << "]  height:" << height
+    << "  tx-idx:" << tx_idx);
+  return true;
+}
+
+void Blockchain::dbg_dump_lmdb_outputs(void) const
+{
+  u32 rec_cnt = 0;
+  std::ostringstream m;
+  auto output_dump = [&](const uint64_t amount, const crypto::hash& tx_hash,
+    const uint64_t height, const size_t tx_idx) -> bool
+  {
+    ++rec_cnt;
+    m << std::endl
+      << "amount:" << amount
+      << "  tx " << tx_hash
+      << "  height:" << height
+      << "  tx-idx:" << tx_idx;
+    return true;
+  };
+  m_db->for_all_outputs(output_dump);
+  m << std::endl << "rec-cnt:" << rec_cnt;
+  MDEBUG(m.str());
+}
+
 //------------------------------------------------------------------
 // This function validates transaction inputs and their keys.
 // FIXME: consider moving functionality specific to one input into
@@ -2607,6 +2657,9 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 {
   PERF_TIMER(check_tx_inputs);
   LOG_PRINT_L3("Blockchain::" << __func__);
+  MDEBUG("Blockchain::check-tx-inputs --- dbg --- called");
+  tools::log_stack_trace("Blockchain::check_tx_inputs --- dbg --- called");
+
   size_t sig_index = 0;
   if(pmax_used_block_height)
     *pmax_used_block_height = 0;
@@ -2617,18 +2670,33 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
   // from hard fork 2, we require mixin at least 2 unless one output cannot mix with 2 others
   // if one output cannot mix with 2 others, we accept at most 1 output that can mix
-  if (hf_version >= 2)
+  if(hf_version >= 2)
   {
     size_t n_unmixable = 0, n_mixable = 0;
     size_t mixin = std::numeric_limits<size_t>::max();
-    const size_t min_mixin = hf_version >= HF_VERSION_MIN_MIXIN_10 ? 10 : hf_version >= HF_VERSION_MIN_MIXIN_6 ? 6 : hf_version >= HF_VERSION_MIN_MIXIN_4 ? 4 : 2;
-    for (const auto& txin : tx.vin)
+
+    const size_t min_mixin =
+      hf_version >= HF_VERSION_MIN_MIXIN_10 ? 10 :
+        hf_version >= HF_VERSION_MIN_MIXIN_6 ? 6 :
+          hf_version >= HF_VERSION_MIN_MIXIN_4 ? 4 : 2;
+
+    MDEBUG("Blockchain::check-tx-inputs --- dbg --- tx-vin-cnt:" << tx.vin.size());
+    dbg_dump_lmdb_outputs();
+
+    for(const auto& txin : tx.vin)
     {
       // non txin_to_key inputs will be rejected below
-      if (txin.type() == typeid(txin_to_key))
+      if(txin.type() == typeid(txin_to_key))
       {
         const txin_to_key& in_to_key = boost::get<txin_to_key>(txin);
-        if (in_to_key.amount == 0)
+
+        MDEBUG("Blockchain::check-tx-inputs --- dbg --- in_to_key.amount:" << in_to_key.amount);
+        {
+          auto tx2 = tx;
+          MDEBUG("tx  " << obj_to_json_str(tx2));
+        }
+
+        if(in_to_key.amount == 0)
         {
           // always consider rct inputs mixable. Even if there's not enough rct
           // inputs on the chain to mix with, this is going to be the case for
@@ -2640,12 +2708,12 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
           uint64_t n_outputs = m_db->get_num_outputs(in_to_key.amount);
           MDEBUG("output size " << print_money(in_to_key.amount) << ": " << n_outputs << " available");
           // n_outputs includes the output we're considering
-          if (n_outputs <= min_mixin)
+          if(n_outputs <= min_mixin)
             ++n_unmixable;
           else
             ++n_mixable;
         }
-        if (in_to_key.key_offsets.size() - 1 < mixin)
+        if(in_to_key.key_offsets.size() - 1 < mixin)
           mixin = in_to_key.key_offsets.size() - 1;
       }
     }
@@ -2693,7 +2761,8 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
   //// from v7, sorted ins
   //if (hf_version >= 7) {
   // from v13, sorted ins
-  if (hf_version >= 13) {
+  if(hf_version >= 13)
+  {
     const crypto::key_image *last_key_image = NULL;
     for (size_t n = 0; n < tx.vin.size(); ++n)
     {
@@ -2711,6 +2780,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       }
     }
   }
+
   auto it = m_check_txin_table.find(tx_prefix_hash);
   if(it == m_check_txin_table.end())
   {
@@ -2767,9 +2837,12 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 #endif
     }
 
+    MDEBUG("--- dbg --- just before to call check_tx_input");
     // make sure that output being spent matches up correctly with the
     // signature spending it.
-    if (!check_tx_input(tx.version, in_to_key, tx_prefix_hash, tx.version == 1 ? tx.signatures[sig_index] : std::vector<crypto::signature>(), tx.rct_signatures, pubkeys[sig_index], pmax_used_block_height))
+    if(!check_tx_input(tx.version, in_to_key, tx_prefix_hash,
+      tx.version == 1 ? tx.signatures[sig_index] : std::vector<crypto::signature>(),
+      tx.rct_signatures, pubkeys[sig_index], pmax_used_block_height))
     {
       it->second[in_to_key.k_image] = false;
       MERROR_VER("Failed to check ring signature for tx " << get_transaction_hash(tx) << "  vin key with k_image: " << in_to_key.k_image << "  sig_index: " << sig_index);
@@ -3025,15 +3098,20 @@ uint64_t Blockchain::get_fee_quantization_mask()
 //------------------------------------------------------------------
 uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version)
 {
-  MDEBUG("Blockchain::get_dynamic_base_fee: bw:" << block_reward
-    << "  med-bw:" << median_block_weight);
-
   const uint64_t min_block_weight = get_min_block_weight(version);
+
+  MDEBUG("Blockchain::get_dynamic_base_fee: blk-reward:" << block_reward
+    << "  med-bw:" << median_block_weight
+    << "  hf-ver:" << (u32)version
+    << "  min-bw:" << min_block_weight
+    << "  DFRTW:" << DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT);
+
   if (median_block_weight < min_block_weight)
     median_block_weight = min_block_weight;
-  uint64_t hi, lo;
+  uint64_t hi = 0;
+  uint64_t lo = 0;
 
-  if (version >= HF_VERSION_PER_BYTE_FEE)
+  if(version >= HF_VERSION_PER_BYTE_FEE)
   {
     lo = mul128(block_reward, DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT, &hi);
     div128_32(hi, lo, min_block_weight, &hi, &lo);
@@ -3041,8 +3119,7 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
     assert(hi == 0);
     lo /= 5;
 
-    MDEBUG("Blockchain::get_dynamic_base_fee ----- 01:" << lo
-      << "  med-bw:" << median_block_weight << "  min-bw:" << min_block_weight);
+    MDEBUG("Blockchain::get_dynamic_base_fee ---- dbg --- (version >= HF_VERSION_PER_BYTE_FEE)  ret-val:" << lo);
 
     return lo;
   }
@@ -3064,7 +3141,7 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
   uint64_t qlo = (lo + mask - 1) / mask * mask;
   MDEBUG("lo " << print_money(lo) << ", qlo " << print_money(qlo) << ", mask " << mask);
 
-  MDEBUG("Blockchain::get_dynamic_base_fee ----- 02:" << qlo / 10);
+  MDEBUG("Blockchain::get_dynamic_base_fee ----- 03:" << qlo / 10);
   return qlo / 10;
 }
 
@@ -3079,19 +3156,18 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   uint64_t median = 0;
   uint64_t already_generated_coins = 0;
   uint64_t base_reward = 0;
-  if (version >= HF_VERSION_DYNAMIC_FEE)
+  if(version >= HF_VERSION_DYNAMIC_FEE)
   {
     MDEBUG("Blockchain::check_fee ----- 01" << std::endl);
 
     median = m_current_block_cumul_weight_limit / 2;
     already_generated_coins = m_db->height() ? m_db->get_block_already_generated_coins(m_db->height() - 1) : 0;
-    if (!get_block_reward(median, 1, already_generated_coins, base_reward, version))
+    if(!get_block_reward(median, 1, already_generated_coins, base_reward, version))
       return false;
   }
 
   uint64_t needed_fee;
   if(version >= HF_VERSION_PER_BYTE_FEE)
-  //if(false)
   {
     MDEBUG("Blockchain::check_fee, 'version >= HF_VERSION_PER_BYTE_FEE', base_reward:"
       << base_reward << "  median:" << median << std::endl);
@@ -3111,7 +3187,7 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   else
   {
     uint64_t fee_per_kb;
-    if (version < HF_VERSION_DYNAMIC_FEE)
+    if(version < HF_VERSION_DYNAMIC_FEE)
     {
       fee_per_kb = FEE_PER_KB;
       MDEBUG("Blockchain::check_fee ----- 04" << std::endl);
@@ -3137,53 +3213,6 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   }
   return true;
 }
-
-
-/* -- the code below - code from graft-master. It looks like we use old logic.
-  While monero used some new one.
-
-  const uint8_t version = get_current_hard_fork_version();
-
-  uint64_t fee_per_kb;
-  if (version < HF_VERSION_DYNAMIC_FEE)
-  {
-    fee_per_kb = FEE_PER_KB;
-  }
-  else
-  {
-    uint64_t median = m_current_block_cumul_sz_limit / 2;
-    uint64_t already_generated_coins = m_db->height() ? m_db->get_block_already_generated_coins(m_db->height() - 1) : 0;
-    uint64_t base_reward;
-    if (!get_block_reward(median, 1, already_generated_coins, base_reward, version))
-      return false;
-    fee_per_kb = get_dynamic_per_kb_fee(base_reward, median, version);
-  }
-  MDEBUG("Using " << print_money(fee) << "/kB fee");
-
-  uint64_t needed_fee = blob_size / 1024;
-  needed_fee += (blob_size % 1024) ? 1 : 0;
-  needed_fee *= fee_per_kb;
-
-  if (fee < needed_fee * 0.98) // keep a little buffer on acceptance
-  {
-    MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
-    return false;
-  }
-  return true;
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -3253,9 +3282,13 @@ bool Blockchain::is_tx_spendtime_unlocked(uint64_t unlock_time) const
 // This function locates all outputs associated with a given input (mixins)
 // and validates that they exist and are usable.  It also checks the ring
 // signature for each input.
-bool Blockchain::check_tx_input(size_t tx_version, const txin_to_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height)
+bool Blockchain::check_tx_input(size_t tx_version, const txin_to_key& txin,
+  const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig,
+  const rct::rctSig& rct_signatures, std::vector<rct::ctkey>& output_keys,
+  uint64_t* pmax_related_block_height)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
+  MDEBUG("Blockchain::check_tx_input --- dbg --- called");
 
   // ND:
   // 1. Disable locking and make method private.
@@ -3292,9 +3325,10 @@ bool Blockchain::check_tx_input(size_t tx_version, const txin_to_key& txin, cons
 
   // collect output keys
   outputs_visitor vi(output_keys, *this);
-  if (!scan_outputkeys_for_indexes(tx_version, txin, vi, tx_prefix_hash, pmax_related_block_height))
+  if(!scan_outputkeys_for_indexes(tx_version, txin, vi, tx_prefix_hash, pmax_related_block_height))
   {
-    MERROR_VER("Failed to get output keys for tx with amount = " << print_money(txin.amount) << " and count indexes " << txin.key_offsets.size());
+    MERROR_VER("Failed to get output keys for tx with amount = "
+      << print_money(txin.amount) << " and count indexes " << txin.key_offsets.size());
     return false;
   }
 

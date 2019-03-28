@@ -1,22 +1,22 @@
 // Copyright (c) 2017, The Graft Project
 // Copyright (c) 2014-2018, The Monero Project
-// 
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -26,7 +26,7 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
+//
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include "include_base_utils.h"
@@ -43,6 +43,8 @@ using namespace epee;
 #include "crypto/hash.h"
 #include "ringct/rctSigs.h"
 #include "serialization/binary_utils.h"
+#include "common/dbg.h"
+#include "common/stack_trace.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "cn"
@@ -217,24 +219,31 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  bool generate_key_image_helper(const account_keys& ack, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, const crypto::public_key& out_key, const crypto::public_key& tx_public_key, const std::vector<crypto::public_key>& additional_tx_public_keys, size_t real_output_index, keypair& in_ephemeral, crypto::key_image& ki, hw::device &hwdev)
+  bool generate_key_image_helper(const account_keys& ack,
+    const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses,
+    const crypto::public_key& out_key, const crypto::public_key& tx_public_key,
+    const std::vector<crypto::public_key>& additional_tx_public_keys,
+    size_t real_output_index, keypair& in_ephemeral, crypto::key_image& ki,
+    hw::device& hwdev)
   {
     crypto::key_derivation recv_derivation = AUTO_VAL_INIT(recv_derivation);
     bool r = hwdev.generate_key_derivation(tx_public_key, ack.m_view_secret_key, recv_derivation);
-    if (!r)
+    if(!r)
     {
-      MWARNING("key image helper: failed to generate_key_derivation(" << tx_public_key << ", " << ack.m_view_secret_key << ")");
+      MWARNING("key image helper: failed to generate_key_derivation(" << tx_public_key
+        << ", " << ack.m_view_secret_key << ")");
       memcpy(&recv_derivation, rct::identity().bytes, sizeof(recv_derivation));
     }
 
     std::vector<crypto::key_derivation> additional_recv_derivations;
-    for (size_t i = 0; i < additional_tx_public_keys.size(); ++i)
+    for(size_t i = 0; i < additional_tx_public_keys.size(); ++i)
     {
       crypto::key_derivation additional_recv_derivation = AUTO_VAL_INIT(additional_recv_derivation);
       r = hwdev.generate_key_derivation(additional_tx_public_keys[i], ack.m_view_secret_key, additional_recv_derivation);
-      if (!r)
+      if(!r)
       {
-        MWARNING("key image helper: failed to generate_key_derivation(" << additional_tx_public_keys[i] << ", " << ack.m_view_secret_key << ")");
+        MWARNING("key image helper: failed to generate_key_derivation("
+          << additional_tx_public_keys[i] << ", " << ack.m_view_secret_key << ")");
       }
       else
       {
@@ -242,10 +251,15 @@ namespace cryptonote
       }
     }
 
-    boost::optional<subaddress_receive_info> subaddr_recv_info = is_out_to_acc_precomp(subaddresses, out_key, recv_derivation, additional_recv_derivations, real_output_index,hwdev);
-    CHECK_AND_ASSERT_MES(subaddr_recv_info, false, "key image helper: given output pubkey doesn't seem to belong to this address");
+    boost::optional<subaddress_receive_info> subaddr_recv_info =
+      is_out_to_acc_precomp(subaddresses, out_key, recv_derivation,
+        additional_recv_derivations, real_output_index, hwdev);
 
-    return generate_key_image_helper_precomp(ack, out_key, subaddr_recv_info->derivation, real_output_index, subaddr_recv_info->index, in_ephemeral, ki, hwdev);
+    CHECK_AND_ASSERT_MES(subaddr_recv_info, false,
+      "key image helper: given output pubkey doesn't seem to belong to this address");
+
+    return generate_key_image_helper_precomp(ack, out_key, subaddr_recv_info->derivation,
+      real_output_index, subaddr_recv_info->index, in_ephemeral, ki, hwdev);
   }
   //---------------------------------------------------------------
   bool generate_key_image_helper_precomp(const account_keys& ack, const crypto::public_key& out_key, const crypto::key_derivation& recv_derivation, size_t real_output_index, const subaddress_index& received_index, keypair& in_ephemeral, crypto::key_image& ki, hw::device &hwdev)
@@ -713,23 +727,45 @@ namespace cryptonote
     return false;
   }
   //---------------------------------------------------------------
-  boost::optional<subaddress_receive_info> is_out_to_acc_precomp(const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, const crypto::public_key& out_key, const crypto::key_derivation& derivation, const std::vector<crypto::key_derivation>& additional_derivations, size_t output_index, hw::device &hwdev)
+  boost::optional<subaddress_receive_info> is_out_to_acc_precomp(
+    const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses,
+    const crypto::public_key& out_key,
+    const crypto::key_derivation& derivation,
+    const std::vector<crypto::key_derivation>& additional_derivations,
+    size_t output_index, hw::device &hwdev)
   {
+
     // try the shared tx pubkey
     crypto::public_key subaddress_spendkey;
     hwdev.derive_subaddress_public_key(out_key, derivation, output_index, subaddress_spendkey);
+
+    const auto& it = subaddresses.begin();
+
+    MDEBUG("is_out_to_acc_precomp  sub-addr-cnt:" << subaddresses.size()
+      << std::endl << "out-key            [" << dbg::dump_as_hex_bytes(out_key) << "]"
+      << std::endl << "sa-pub-key         [" << dbg::dump_as_hex_bytes(it->first) << "]"
+      //<< std::endl << "sa-idx [" << it->second << "]"
+      << std::endl << "deriv-key          [" << dbg::dump_as_hex_bytes(derivation) << "]"
+      << std::endl << "output-idx         [" << output_index << "]"
+      << std::endl << "sud-addr-spend-key [" << dbg::dump_as_hex_bytes(subaddress_spendkey) << "]");
+
+    tools::log_stack_trace("dbg --- is_out_to_acc_precomp");
+
     auto found = subaddresses.find(subaddress_spendkey);
-    if (found != subaddresses.end())
+    if(found != subaddresses.end())
       return subaddress_receive_info{ found->second, derivation };
+
     // try additional tx pubkeys if available
-    if (!additional_derivations.empty())
+    if(!additional_derivations.empty())
     {
       CHECK_AND_ASSERT_MES(output_index < additional_derivations.size(), boost::none, "wrong number of additional derivations");
       hwdev.derive_subaddress_public_key(out_key, additional_derivations[output_index], output_index, subaddress_spendkey);
       found = subaddresses.find(subaddress_spendkey);
-      if (found != subaddresses.end())
+      if(found != subaddresses.end())
         return subaddress_receive_info{ found->second, additional_derivations[output_index] };
     }
+
+    MDEBUG("is_out_to_acc_precomp  --- FAILED");
     return boost::none;
   }
   //---------------------------------------------------------------

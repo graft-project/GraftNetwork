@@ -226,14 +226,16 @@ bool test_generator::construct_block_manually(block& blk, const block& prev_bloc
   max_outs          = actual_params & bf_max_outs ? max_outs : 9999;
   hf_version        = actual_params & bf_hf_version ? hf_version : 1;
 
-  MDEBUG("test_generator::construct_block_manually  maj-ver:" << (int)blk.major_version
-    << "  min-ver:" << (int)blk.minor_version << "  hf-ver:" << (int)hf_version << std::endl);
+  const size_t height = get_block_height(prev_block) + 1;
 
-  size_t height = get_block_height(prev_block) + 1;
+  MDEBUG("test_generator::construct_block_manually  maj-ver:" << (int)blk.major_version
+    << "  min-ver:" << (int)blk.minor_version << "  hf-ver:" << (int)hf_version
+    << "  h:" << height);
+
   uint64_t already_generated_coins = get_already_generated_coins(prev_block);
   std::vector<size_t> block_weights;
   get_last_n_block_weights(block_weights, get_block_hash(prev_block), CRYPTONOTE_REWARD_BLOCKS_WINDOW);
-  if (actual_params & bf_miner_tx)
+  if(actual_params & bf_miner_tx)
   {
     blk.miner_tx = miner_tx;
   }
@@ -241,7 +243,9 @@ bool test_generator::construct_block_manually(block& blk, const block& prev_bloc
   {
     size_t current_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
     // TODO: This will work, until size of constructed block is less then CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE
-    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, current_block_weight, 0, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), max_outs, hf_version))
+    if(!construct_miner_tx(height, misc_utils::median(block_weights),
+        already_generated_coins, current_block_weight, 0,
+        miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), max_outs, hf_version))
       return false;
   }
 

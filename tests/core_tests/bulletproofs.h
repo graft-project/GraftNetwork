@@ -31,6 +31,17 @@
 #pragma once
 #include "chaingen.h"
 
+namespace cryptonote
+{
+  struct tx_source_entry;
+  struct tx_destination_entry;
+  class transaction;
+}
+
+using cryptonote::tx_source_entry;
+using cryptonote::tx_destination_entry;
+using cryptonote::transaction;
+
 struct gen_bp_tx_validation_base : public test_chain_unit_base
 {
   gen_bp_tx_validation_base()
@@ -81,10 +92,26 @@ struct gen_bp_tx_validation_base : public test_chain_unit_base
     return true;
   }
 
-  bool generate_with(std::vector<test_event_entry>& events, size_t mixin,
-      size_t n_txes, const uint64_t *amounts_paid, bool valid, const rct::RangeProofType *range_proof_type,
-      const std::function<bool(std::vector<cryptonote::tx_source_entry> &sources, std::vector<cryptonote::tx_destination_entry> &destinations, size_t)> &pre_tx,
-      const std::function<bool(cryptonote::transaction &tx, size_t)> &post_tx) const;
+
+  using PreTx = std::function<bool(std::vector<tx_source_entry>& sources,
+    std::vector<tx_destination_entry>& destinations, size_t tx_idx)>;
+
+  using PostTx = std::function<bool(transaction& tx, size_t tx_idx)>;
+
+  bool generate_with(std::vector<test_event_entry>& events,
+      size_t mixin, size_t n_txes, const uint64_t* amounts_paid, bool valid,
+      const rct::RangeProofType* range_proof_type,
+      const PreTx& pre_tx, const PostTx& post_tx) const;
+
+  bool generate_with_one_more_and_skip_first(std::vector<test_event_entry>& events,
+      size_t mixin, size_t n_txes, const uint64_t* amounts_paid, bool valid,
+      const rct::RangeProofType* range_proof_type,
+      const PreTx& pre_tx, const PostTx& post_tx) const;
+
+  bool generate_with_mix(std::vector<test_event_entry>& events,
+      size_t mixin, size_t n_txes, const uint64_t* amounts_paid, bool valid,
+      const rct::RangeProofType* range_proof_type,
+      const PreTx& pre_tx, const PostTx& post_tx) const;
 
   bool check_bp(const cryptonote::transaction &tx, size_t tx_idx, const size_t *sizes, const char *context) const;
 
@@ -95,7 +122,23 @@ private:
 
 template<>
 struct get_test_options<gen_bp_tx_validation_base> {
-  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(13, 73), std::make_pair(0, 0)};
+  const std::pair<uint8_t, uint64_t> hard_forks[4] =
+    {
+      std::make_pair(1, 0),
+      std::make_pair(2, 1),
+      std::make_pair(13, 73),
+
+      //std::make_pair(1, 0),
+      //std::make_pair(2, 1),
+      //std::make_pair(13, 73),
+
+      //std::make_pair(1, 0),
+      //std::make_pair(7, 1),
+      //std::make_pair(13, 74),
+
+      std::make_pair(0, 0)
+    };
+
   const cryptonote::test_options test_options = {
     hard_forks
   };

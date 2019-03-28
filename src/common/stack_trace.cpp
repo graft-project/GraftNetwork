@@ -54,6 +54,7 @@
     auto elpp = ELPP; \
     if (elpp) { \
       CINFO(el::base::Writer,el::base::DispatchAction::FileOnlyLog,MONERO_DEFAULT_LOG_CATEGORY) << x; \
+      std::cout << x << std::endl; \
     } \
     else { \
       std::cout << x << std::endl; \
