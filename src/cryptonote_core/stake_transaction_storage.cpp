@@ -5,6 +5,9 @@
 #include "cryptonote_basic/account_boost_serialization.h"
 #include "../graft_rta_config.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "staketransaction.storage"
+
 using namespace cryptonote;
 
 namespace
@@ -145,7 +148,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
   if (block_number == m_supernode_stakes_update_block_number)
     return;
 
-  MCLOG(el::Level::Info, "global", "Build stakes for block " << block_number);
+  MDEBUG("Build stakes for block " << block_number);
 
   m_supernode_stakes.clear();
   m_supernode_stake_indexes.clear();
@@ -170,7 +173,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
         obsolete_stake = true;
       }
 
-      MCLOG(el::Level::Info, "global", "...use stake transaction " << tx.hash << " as " << (obsolete_stake ? "obsolete" : "normal") << " stake transaction ");
+      MDEBUG("...use stake transaction " << tx.hash << " as " << (obsolete_stake ? "obsolete" : "normal") << " stake transaction ");
 
         //compute stake validity period
 
@@ -201,7 +204,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
           new_stake.block_height = min_tx_block_height;
           new_stake.unlock_time  = max_tx_block_height - min_tx_block_height;
 
-          MCLOG(el::Level::Info, "global", "...first stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount << ", tier=" <<
+          MDEBUG("...first stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount << ", tier=" <<
             new_stake.tier << ", validity=[" << min_tx_block_height << ";" << max_tx_block_height << ")");
         }
 
@@ -220,7 +223,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
       if (obsolete_stake)
         continue; //no need to aggregate fields from obsolete stake
 
-      MCLOG(el::Level::Info, "global", "...accumulate stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount <<
+      MDEBUG("...accumulate stake transaction for supernode " << tx.supernode_public_id << ": amount=" << tx.amount <<
         ", validity=[" << min_tx_block_height << ";" << max_tx_block_height << ")");
 
       supernode_stake& stake = m_supernode_stakes[it->second];
@@ -259,7 +262,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
       stake.block_height = min_block_height;
       stake.unlock_time  = max_block_height - min_block_height;
 
-      MCLOG(el::Level::Info, "global", "...stake for supernode " << tx.supernode_public_id << ": amount=" << stake.amount << ", tier=" << stake.tier <<
+      MDEBUG("...stake for supernode " << tx.supernode_public_id << ": amount=" << stake.amount << ", tier=" << stake.tier <<
         ", validity=[" << min_block_height << ";" << max_block_height << ")");
     }
   }
