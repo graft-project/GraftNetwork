@@ -3,6 +3,9 @@
 #include "stake_transaction_processor.h"
 #include "../graft_rta_config.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "staketransaction.processor"
+
 using namespace cryptonote;
 
 namespace
@@ -53,7 +56,7 @@ uint64_t get_transaction_amount(const transaction& tx, const account_public_addr
 
   if (!crypto::generate_key_derivation(address.m_view_public_key, tx_key, derivation))
   {
-    MCLOG(el::Level::Warning, "global", "failed to generate key derivation from supplied parameters");
+    MWARNING("failed to generate key derivation from supplied parameters");
     return 0;
   }
 
@@ -134,7 +137,7 @@ void StakeTransactionProcessor::init_storages_impl()
   if (first_block_number)
     first_block_number--;
 
-  MCLOG(el::Level::Info, "global", "Initialize stake processing storages. First block height is " << first_block_number);
+  MDEBUG("Initialize stake processing storages. First block height is " << first_block_number);
 
   m_storage.reset(new StakeTransactionStorage(m_config_dir + "/" + STAKE_TRANSACTION_STORAGE_FILE_NAME, first_block_number));
   m_blockchain_based_list.reset(new BlockchainBasedList(m_config_dir + "/" + BLOCKCHAIN_BASED_LIST_FILE_NAME, first_block_number));
@@ -165,7 +168,7 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
         crypto::public_key W;
         if (!epee::string_tools::hex_to_pod(stake_tx.supernode_public_id, W) || !check_key(W))
         {
-          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash
+          MWARNING("Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash
             << " because of invalid supernode public identifier '" << stake_tx.supernode_public_id << "'");
           continue;
         }
@@ -177,7 +180,7 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
         if (!crypto::check_signature(hash, W, stake_tx.supernode_signature))
         {
-          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+          MWARNING("Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
             << " because of invalid supernode signature (mismatch)");
           continue;
         }
@@ -186,14 +189,14 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
         if (unlock_time < config::graft::STAKE_MIN_UNLOCK_TIME)
         {
-          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+          MWARNING("Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
             << " because unlock time " << unlock_time << " is less than minimum allowed " << config::graft::STAKE_MIN_UNLOCK_TIME);
           continue;
         }
 
         if (unlock_time > config::graft::STAKE_MAX_UNLOCK_TIME)
         {
-          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+          MWARNING("Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
             << " because unlock time " << unlock_time << " is greater than maximum allowed " << config::graft::STAKE_MAX_UNLOCK_TIME);
           continue;
         }
@@ -202,7 +205,7 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
         if (!amount)
         {
-          MCLOG(el::Level::Warning, "global", "Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
+          MWARNING("Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
             << " because of error at parsing amount");
           continue;
         }
@@ -214,16 +217,16 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
         m_storage->add_tx(stake_tx);
 
-        MCLOG(el::Level::Info, "global", "New stake transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id
+        MDEBUG("New stake transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id
           << "', amount=" << amount / double(COIN));
       }
       catch (std::exception& e)
       {
-        MCLOG(el::Level::Warning, "global", "Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of error at parsing: " << e.what());
+        MWARNING("Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of error at parsing: " << e.what());
       }
       catch (...)
       {
-        MCLOG(el::Level::Warning, "global", "Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of unknown error at parsing");
+        MWARNING("Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of unknown error at parsing");
       }
     }
 
@@ -305,7 +308,7 @@ void StakeTransactionProcessor::synchronize()
         }
       }
       
-      MCLOG(el::Level::Warning, "global", "Stake transactions processing: unroll block " << last_processed_block_index << " (height=" << height << ")");
+      MWARNING("Stake transactions processing: unroll block " << last_processed_block_index << " (height=" << height << ")");
 
       m_storage->remove_last_processed_block();
 
@@ -335,7 +338,7 @@ void StakeTransactionProcessor::synchronize()
     for (; last_block_index<last_block_index_for_sync; last_block_index++)
     {
       if (last_block_index % SYNC_DEBUG_LOG_STEP == 0 || last_block_index == height - 1)
-        MCLOG(el::Level::Info, "global", "RTA block sync " << last_block_index << "/" << (height - 1));
+        MDEBUG("RTA block sync " << last_block_index << "/" << (height - 1));
 
       try
       {
@@ -366,7 +369,7 @@ void StakeTransactionProcessor::synchronize()
         invoke_update_blockchain_based_list_handler_impl(last_block_index - first_block_index);
 
       if (first_block_index != last_block_index)
-        MCLOG(el::Level::Info, "global", "Stake transactions sync OK");
+        MDEBUG("Stake transactions sync OK");
     }
   }
   catch (const std::exception &e)
@@ -394,7 +397,7 @@ void StakeTransactionProcessor::invoke_update_stakes_handler_impl(uint64_t block
   }
   catch (std::exception& e)
   {
-    MCLOG(el::Level::Error, "global", "exception in StakeTransactionProcessor stake transactions update handler: " << e.what());
+    MCLOG(el::Level::Error, MONERO_DEFAULT_LOG_CATEGORY, "exception in StakeTransactionProcessor stake transactions update handler: " << e.what());
   }
 }
 
@@ -442,7 +445,7 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler_impl
   }
   catch (std::exception& e)
   {
-    MCLOG(el::Level::Error, "global", "exception in StakeTransactionProcessor blockchain based list update handler: " << e.what());
+    MCLOG(el::Level::Error, MONERO_DEFAULT_LOG_CATEGORY, "exception in StakeTransactionProcessor blockchain based list update handler: " << e.what());
   }
 }
 
