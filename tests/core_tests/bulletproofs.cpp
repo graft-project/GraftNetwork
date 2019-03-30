@@ -47,7 +47,6 @@ using namespace cryptonote;
 //----------------------------------------------------------------------------------------------------------------------
 // Tests
 
-
 bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& events,
     size_t mixin, size_t n_txes, const uint64_t* amounts_paid, bool valid,
     const rct::RangeProofType* range_proof_type,
@@ -60,9 +59,10 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
 
   // create 12 miner accounts, and have them mine the next 12 blocks
   cryptonote::account_base miner_accounts[12];
-  const cryptonote::block *prev_block = &blk_0;
+  const cryptonote::block* prev_block = &blk_0;
   cryptonote::block blocks[12 + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW];
-  for (size_t n = 0; n < 12; ++n) {
+  for(size_t n = 0; n < 12; ++n)
+  {
     miner_accounts[n].generate();
     CHECK_AND_ASSERT_MES(generator.construct_block_manually(blocks[n], *prev_block, miner_accounts[n],
         test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version,
@@ -165,7 +165,6 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
       return false;
     }
 
-    crypto::secret_key tx_key;
     std::vector<crypto::secret_key> additional_tx_keys;
 
     const auto& spend_pub_key =
@@ -178,6 +177,7 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     MDEBUG("gen_bp_tx_validation_base  sub-addr-spend-pub-key ["
       << dbg::dump_as_hex_bytes(spend_pub_key) << "]");
 
+    crypto::secret_key tx_key;
     bool r = construct_tx_and_get_tx_key(miner_accounts[n].get_keys(), subaddresses,
       sources, destinations, cryptonote::account_public_address{},
       std::vector<uint8_t>(), rct_txes.back(), 0, tx_key, additional_tx_keys, true,

@@ -3209,12 +3209,13 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   if(fee < needed_fee * 0.98) // keep a little 2% buffer on acceptance - no integer overflow
   {
     MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
+
+    tools::log_stack_trace("FAIL at check-fee");
+
     return false;
   }
   return true;
 }
-
-
 
 //------------------------------------------------------------------
 uint64_t Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_blocks) const

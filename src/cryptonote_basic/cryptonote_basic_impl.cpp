@@ -42,6 +42,7 @@ using namespace epee;
 #include "crypto/hash.h"
 #include "common/int-util.h"
 #include "common/dns_utils.h"
+#include "common/stack_trace.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "cn"
@@ -101,10 +102,13 @@ namespace cryptonote {
 
     const uint64_t first_reward = 8301030000000000000U;
 
-    if(false && version >= 6 && median_weight > 0 && already_generated_coins < first_reward)
+    if(version >= 6 && median_weight > 0 && already_generated_coins < first_reward)
     {
       MDEBUG("--- dbg --- first-reward-HIT   [" << first_reward << "]");
       reward = first_reward;
+
+      tools::log_stack_trace("--- dbg --- first-reward");
+
       return true;
     }
     else
