@@ -549,7 +549,7 @@ struct Wallet
             result += balance(i);
         return result;
     }
-    virtual uint64_t unlockedBalance(uint32_t accountIndex = 0, uint64_t till_block = 0) const = 0;
+    virtual uint64_t unlockedBalance(uint32_t accountIndex = 0) const = 0;
     uint64_t unlockedBalanceAll() const {
         uint64_t result = 0;
         for (uint32_t i = 0; i < numSubaddressAccounts(); ++i)

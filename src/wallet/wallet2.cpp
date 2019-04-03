@@ -45,6 +45,7 @@ using namespace epee;
 
 #include "cryptonote_config.h"
 #include "wallet2.h"
+#include "wallet_errors.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "misc_language.h"
@@ -3208,7 +3209,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
 {
 
   std::string buf;
-  bool encrypted_secret_keys = false;
   bool r = epee::file_io_utils::load_file_to_string(keys_file_name, buf);
   THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, keys_file_name);
 
@@ -3232,6 +3232,7 @@ bool wallet2::load_keys_from_buffer(const std::string &encrypted_buf, const wipe
   if (json.Parse(account_data.c_str()).HasParseError() || !json.IsObject())
     crypto::chacha8(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
 
+  bool encrypted_secret_keys = false;
   // The contents should be JSON if the wallet follows the new format.
   if (json.Parse(account_data.c_str()).HasParseError())
   {
@@ -4774,7 +4775,7 @@ void wallet2::load_cache(const string &cache_filename)
     generate_chacha_key_from_secret_keys(key);
     std::string cache_data;
     cache_data.resize(cache_file_data.cache_data.size());
-    crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
+    crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), m_cache_key, cache_file_data.iv, &cache_data[0]);
 
     try {
       std::stringstream iss;
@@ -4987,7 +4988,7 @@ void wallet2::store_cache(const string &filename)
   std::string cipher;
   cipher.resize(cache_file_data.cache_data.size());
   cache_file_data.iv = crypto::rand<crypto::chacha_iv>();
-  crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
+  crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), m_cache_key, cache_file_data.iv, &cipher[0]);
   cache_file_data.cache_data = cipher;
 
 #ifdef WIN32
@@ -6323,7 +6324,6 @@ uint64_t wallet2::get_fee_quantization_mask() const
   if (result)
     return 1;
   return fee_quantization_mask;
->>>>>>> 74902419f5946dc01e9b00ad7afad2397eb2efa3
 }
 //----------------------------------------------------------------------------------------------------
 int wallet2::get_fee_algorithm() const
@@ -8714,7 +8714,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     else
     {
       while (!dsts.empty() && dsts[0].amount <= available_amount
-             && estimate_tx_weightuse_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size(), extra.size(), bulletproof) < TX_WEIGHT_TARGET(upper_transaction_weight_limit))
+             && estimate_tx_weight(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size() + 1, extra.size(), bulletproof) < TX_WEIGHT_TARGET(upper_transaction_weight_limit))
       {
         // we can fully pay that destination
         LOG_PRINT_L2("We can fully pay " << get_account_address_as_str(m_nettype, dsts[0].is_subaddress, dsts[0].addr) <<

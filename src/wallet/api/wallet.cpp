@@ -39,6 +39,7 @@
 #include "subaddress_account.h"
 #include "common_defines.h"
 #include "common/util.h"
+#include "wallet/wallet_errors.h"
 
 #include "mnemonics/electrum-words.h"
 #include "mnemonics/english.h"
@@ -927,7 +928,7 @@ uint64_t WalletImpl::balance(uint32_t accountIndex) const
 }
 
 
-uint64_t WalletImpl::unlockedBalance(uint32_t accountIndex, uint64_t /*till_block*/) const
+uint64_t WalletImpl::unlockedBalance(uint32_t accountIndex) const
 {
     // TODO: implement till_block
     return m_wallet->unlocked_balance(accountIndex/*, till_block*/);

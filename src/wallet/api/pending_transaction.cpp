@@ -30,6 +30,7 @@
 
 #include "pending_transaction.h"
 #include "wallet.h"
+#include "wallet/wallet_errors.h"
 #include "common_defines.h"
 
 #include "cryptonote_basic/cryptonote_format_utils.h"

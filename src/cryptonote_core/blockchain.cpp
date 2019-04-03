@@ -1223,7 +1223,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     // from hard fork 2, since a miner can claim less than the full block reward, we update the base_reward
     // to show the amount of coins that were actually generated, the remainder will be pushed back for later
     // emission. This modifies the emission curve very slightly.
-    CHECK_AND_ASSERT_MES(money_in_use - fee <= base_reward, false, "base reward calculation bug");
+    CHECK_AND_ASSERT_MES(money_in_use - (fee / 2) <= base_reward, false, "base reward calculation bug");
     if(base_reward + fee != money_in_use)
       partial_block_reward = true;
     base_reward = money_in_use - fee;
@@ -3028,7 +3028,7 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
     needed_fee *= fee_per_kb;
   }
 
-  if (fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
+  if (fee < needed_fee * 0.98) // keep a little 2% buffer on acceptance - no integer overflow
   {
     MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
     return false;

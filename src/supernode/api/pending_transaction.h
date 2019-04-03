@@ -29,6 +29,7 @@
 // Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
 #include "wallet/api/wallet2_api.h"
+#include "wallet/wallet2.h"
 #include "../graft_wallet.h"
 
 #include <string>
@@ -53,9 +54,13 @@ public:
     std::vector<uint32_t> subaddrAccount() const;
     std::vector<std::set<uint32_t>> subaddrIndices() const;
     // TODO: continue with interface;
-    void setPendingTx(std::vector<tools::GraftWallet::pending_tx> pending_tx);
+    void setPendingTx(std::vector<tools::wallet2::pending_tx> pending_tx);
     void setStatus(int status);
     void setErrorString(const std::string &message);
+
+    std::string multisigSignData() override;
+    void signMultisigTx() override;
+    std::vector<std::string> signersKeys() const override;
 
 private:
     tools::GraftWallet *mWallet;
@@ -64,7 +69,6 @@ private:
     std::string m_errorString;
     std::vector<tools::wallet2::pending_tx> m_pending_tx;
 };
-
 
 }
 

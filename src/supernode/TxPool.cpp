@@ -67,8 +67,8 @@ bool TxPool::get(const string &hash_str, cryptonote::transaction &out_tx)
     }
 
     // get the pool state
-    cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES::request req;
-    cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES::response res;
+    cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::request req;
+    cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::response res;
 
     bool r = epee::net_utils::invoke_http_json("/get_transaction_pool_hashes.bin", req, res, m_http_client, m_rpc_timeout);
     if (!r) {

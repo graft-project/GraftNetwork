@@ -63,6 +63,7 @@
 #include "ringct/rctSigs.h"
 #include "multisig/multisig.h"
 #include "wallet/wallet_args.h"
+#include "wallet/wallet_errors.h"
 #include "version.h"
 #include <stdexcept>
 
@@ -333,7 +334,7 @@ namespace
     std::stringstream prompt;
     prompt << sw::tr("For URL: ") << url
            << ", " << dnssec_str << std::endl
-           << sw::tr(" Monero Address = ") << addresses[0]
+           << sw::tr(" Graft Address = ") << addresses[0]
            << std::endl
            << sw::tr("Is this OK? (Y/n) ")
     ;
@@ -1800,7 +1801,7 @@ bool simple_wallet::save_known_rings(const std::vector<std::string> &args)
 
 bool simple_wallet::version(const std::vector<std::string> &args)
 {
-  message_writer() << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")";
+  message_writer() << "Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ")";
   return true;
 }
 
