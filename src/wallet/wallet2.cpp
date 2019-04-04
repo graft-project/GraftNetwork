@@ -1721,6 +1721,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     {
       transfer_details& td = m_transfers[it->second];
       uint64_t amount = boost::get<cryptonote::txin_to_key>(in).amount;
+      // TODO: monero code is different here, but modified in earlier commits
       if (amount > 0)
       {
         if(amount != td.amount())

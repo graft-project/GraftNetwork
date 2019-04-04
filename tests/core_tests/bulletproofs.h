@@ -95,7 +95,7 @@ private:
 
 template<>
 struct get_test_options<gen_bp_tx_validation_base> {
-  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(8, 73), std::make_pair(0, 0)};
+  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(13, 73), std::make_pair(0, 0)};
   const cryptonote::test_options test_options = {
     hard_forks
   };

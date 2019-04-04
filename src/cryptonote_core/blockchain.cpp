@@ -114,6 +114,15 @@ static const struct {
   { 7, 1, 0, 1503046577 } ,
   // GRAFT: updated v8 hf block
   { 8, 64445, 0, 1523570400 },
+  { 9, 68000, 0, 1524229900},
+  // hf 10 - decrease block reward, 2018-09-17
+  { 10, 176000, 0, 1537142400 },
+  // hf 11 - Monero V8/CN variant 2 PoW, ~2018-10-31T17:00:00+00
+  { 11, 207700, 0, 1541005200 },
+  // hf 12 - Graft CryptoNight Waltz PoW, 2019-01-24
+  { 12, 357100, 0, 1555949074 },
+  // hf 13 - merge of Monero v0.13.0.4 into Graft-master, 2019-03-xx
+  { 13, 357500, 0, 1556009074 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -143,6 +152,18 @@ static const struct {
   { 7, 1, 0, 1501709789 },
   // GRAFT: public testnet hardfork v8 from block 57640
   { 8, 57780, 0, 1522838800 },
+  { 9, 67350, 0, 1524229900 },
+  // hf 10 - decrease block reward, 2018-09-12
+  { 10, 164550, 0, 1536760800 },
+  // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
+  //{ 11, 194130, 0, 1540400400 },
+  { 11, 194130, 0, 1540400400 },
+  // hf 12 - Graft CryptoNight Waltz PoW, 2019-01-24
+  //{ 12, 257600, 0, 1555949074 },
+  { 12, 277140, 0, 1555949074 },
+  // hf 13 - merge of Monero v0.13.0.4 into Graft-master, 2019-03-xx
+  //{ 13, 257755, 0, 1556050074 }
+  { 13, 277150, 0, 1556050074 }
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
@@ -406,36 +427,6 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     MINFO("Blockchain not loaded, generating genesis block.");
     block bl = boost::value_initialized<block>();
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
-
-/*
-<< HEAD
-    if (m_nettype == TESTNET)
-    {
-      generate_genesis_block(bl, config::testnet::GENESIS_TX, config::testnet::GENESIS_NONCE);
-    }
-    else if (m_nettype == STAGENET)
-    {
-      generate_genesis_block(bl, config::stagenet::GENESIS_TX, config::stagenet::GENESIS_NONCE);
-    }
-    else
-    {
-      generate_genesis_block(bl, config::GENESIS_TX, config::GENESIS_NONCE);
-    }
-
-|| merged common ancestors
-    if (m_nettype == TESTNET)
-    {
-      generate_genesis_block(bl, config::testnet::GENESIS_TX, config::testnet::GENESIS_NONCE);
-    }
-    else if (m_nettype == STAGENET)
-    {
-      generate_genesis_block(bl, config::stagenet::GENESIS_TX, config::stagenet::GENESIS_NONCE);
-    }
-    else
-    {
-      generate_genesis_block(bl, config::GENESIS_TX, config::GENESIS_NONCE);
-    }
-*/
 
     generate_genesis_block(bl, get_config(m_nettype).GENESIS_TX, get_config(m_nettype).GENESIS_NONCE);
     add_new_block(bl, bvc);
@@ -915,9 +906,13 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   {
       return next_difficulty(timestamps, difficulties, target);
   }
-  else
+  else if (version == 8 || version >= 10)
   {
       return next_difficulty_v8(timestamps, difficulties, target);
+  }
+  else
+  {
+      return next_difficulty_v9(timestamps, difficulties, target);
   }
 }
 //------------------------------------------------------------------
@@ -1139,9 +1134,12 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   if (ideal_hardfork_version < 8) {
       LOG_PRINT_L2("old difficulty algo");
       result = next_difficulty(timestamps, cumulative_difficulties, target);
-  } else {
+  } else if (ideal_hardfork_version == 8 || ideal_hardfork_version >= 10) {
       LOG_PRINT_L2("new difficulty algo");
       result = next_difficulty_v8(timestamps, cumulative_difficulties, target);
+  } else {
+      LOG_PRINT_L2("new difficulty algo with faster decresing difficulty");
+      return next_difficulty_v9(timestamps, cumulative_difficulties, target);
   }
   LOG_PRINT_L2("difficulty: " << result);
   return result;
@@ -1456,11 +1454,14 @@ bool Blockchain::complete_timestamps_vector(uint64_t start_top_height, std::vect
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
-  if(timestamps.size() >= BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW)
+  uint8_t version = get_current_hard_fork_version();
+  uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+
+  if(timestamps.size() >= blockchain_timestamp_check_window)
     return true;
 
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  size_t need_elements = BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW - timestamps.size();
+  size_t need_elements = blockchain_timestamp_check_window - timestamps.size();
   CHECK_AND_ASSERT_MES(start_top_height < m_db->height(), false, "internal error: passed start_height not < " << " m_db->height() -- " << start_top_height << " >= " << m_db->height());
   size_t stop_offset = start_top_height > need_elements ? start_top_height - need_elements : 0;
   timestamps.reserve(timestamps.size() + start_top_height - stop_offset);
@@ -2414,26 +2415,26 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
     }
   }
 
-  // from v8, allow bulletproofs
-  if (hf_version < 8) {
+  // from v13, allow bulletproofs
+  if (hf_version < 13) {
     if (tx.version >= 2) {
       const bool bulletproof = rct::is_rct_bulletproof(tx.rct_signatures.type);
       if (bulletproof || !tx.rct_signatures.p.bulletproofs.empty())
       {
-        MERROR_VER("Bulletproofs are not allowed before v8");
+        MERROR_VER("Bulletproofs are not allowed before v13");
         tvc.m_invalid_output = true;
         return false;
       }
     }
   }
 
-  // from v9, forbid borromean range proofs
-  if (hf_version > 8) {
+  // from v13, forbid borromean range proofs
+  if (hf_version >= 13) {
     if (tx.version >= 2) {
       const bool borromean = rct::is_rct_borromean(tx.rct_signatures.type);
       if (borromean)
       {
-        MERROR_VER("Borromean range proofs are not allowed after v8");
+        MERROR_VER("Borromean range proofs are not allowed starting from v13");
         tvc.m_invalid_output = true;
         return false;
       }
@@ -2548,8 +2549,13 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
   {
     size_t n_unmixable = 0, n_mixable = 0;
     size_t mixin = std::numeric_limits<size_t>::max();
-    const size_t min_mixin = hf_version >= HF_VERSION_MIN_MIXIN_10 ? 10 : hf_version >= HF_VERSION_MIN_MIXIN_6 ? 6 : hf_version >= HF_VERSION_MIN_MIXIN_4 ? 4 : 2;
-    for (const auto& txin : tx.vin)
+
+    const size_t min_mixin =
+      hf_version >= HF_VERSION_MIN_MIXIN_10 ? 10 :
+        hf_version >= HF_VERSION_MIN_MIXIN_6 ? 6 :
+          hf_version >= HF_VERSION_MIN_MIXIN_4 ? 4 : 2;
+
+    for(const auto& txin : tx.vin)
     {
       // non txin_to_key inputs will be rejected below
       if (txin.type() == typeid(txin_to_key))
@@ -2617,8 +2623,8 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     }
   }
 
-  // from v7, sorted ins
-  if (hf_version >= 7) {
+  // from v13, sorted ins
+  if (hf_version >= 13) {
     const crypto::key_image *last_key_image = NULL;
     for (size_t n = 0; n < tx.vin.size(); ++n)
     {
@@ -3030,6 +3036,15 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
 
   if (fee < needed_fee * 0.98) // keep a little 2% buffer on acceptance - no integer overflow
   {
+#if 1
+    const uint64_t first_reward = 8301030000000000000U;
+    const bool first_block = (version >= 6 && median > 0 && already_generated_coins < first_reward);
+    if(first_block)
+    {
+      //tools::log_stack_trace("FAIL at check-fee, but this is first-block");
+      return true;
+    }
+#endif
     MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
     return false;
   }
@@ -3172,6 +3187,8 @@ bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const 
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   median_ts = epee::misc_utils::median(timestamps);
+  const uint8_t version = get_current_hard_fork_version();
+  const uint64_t blockchain_timestamp_check_window = version < 13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
 
   if(b.timestamp < median_ts)
   {
@@ -3192,14 +3209,17 @@ bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const 
 bool Blockchain::check_block_timestamp(const block& b, uint64_t& median_ts) const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
-  if(b.timestamp > get_adjusted_time() + CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT)
+  uint8_t version = get_current_hard_fork_version();
+  uint64_t cryptonote_block_future_time_limit = version < 13 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
+  uint64_t blockchain_timestamp_check_window  = version < 13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  if(b.timestamp > get_adjusted_time() + cryptonote_block_future_time_limit)
   {
-    MERROR_VER("Timestamp of block with id: " << get_block_hash(b) << ", " << b.timestamp << ", bigger than adjusted time + 2 hours");
+    MERROR_VER("Timestamp of block with id: " << get_block_hash(b) << ", " << b.timestamp << ", bigger than adjusted time + " << cryptonote_block_future_time_limit << " seconds");
     return false;
   }
 
   // if not enough blocks, no proper median yet, return true
-  if(m_db->height() < BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW)
+  if(m_db->height() < blockchain_timestamp_check_window)
   {
     return true;
   }
