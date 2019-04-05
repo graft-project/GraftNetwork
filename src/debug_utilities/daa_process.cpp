@@ -148,7 +148,7 @@ public:
         size_t begin, end;
         if (m_counter < DIFFICULTY_WINDOW + DIFFICULTY_LAG) {
             begin = 0;
-            end = min(m_counter, (size_t) DIFFICULTY_WINDOW);
+            end = min(m_counter, (uint64_t) DIFFICULTY_WINDOW);
         } else {
             end = m_counter - DIFFICULTY_LAG;
             begin = end - DIFFICULTY_WINDOW;

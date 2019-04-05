@@ -464,7 +464,7 @@ namespace nodetool
     {
         for (const auto& na : m_custom_seed_nodes)
         {
-            const auto& ipv4 = na.as<const epee::net_utils::ipv4_network_address>();
+            const auto& ipv4 = na.template as<const epee::net_utils::ipv4_network_address>();
             full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
                               + epee::string_tools::num_to_string_fast(ipv4.port()) );
         }

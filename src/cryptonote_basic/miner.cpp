@@ -619,7 +619,7 @@ namespace cryptonote
       }
       else
       {
-        on_ac_power = !battery_powered;
+        on_ac_power = !(bool)battery_powered;
       }
 
       if( m_is_background_mining_started )
