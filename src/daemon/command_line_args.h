@@ -52,6 +52,11 @@ namespace daemon_args
       return val;
     }
   };
+  const command_line::arg_descriptor<std::string> arg_log_format = {
+    "log-format"
+  , "Specify log format"
+  , ""
+  };
   const command_line::arg_descriptor<std::string, false, true, 2> arg_log_file = {
     "log-file"
   , "Specify log file"

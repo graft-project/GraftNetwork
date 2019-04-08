@@ -28,9 +28,8 @@
 //
 // Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
-#include "wallet/api/wallet2_api.h"
-#include "wallet/wallet2.h"
-#include "../graft_wallet.h"
+#include "wallet/wallet2_api.h"
+#include "../graft_wallet2.h"
 
 #include <string>
 #include <vector>
@@ -41,7 +40,7 @@ namespace Monero {
 class GraftPendingTransactionImpl : public PendingTransaction
 {
 public:
-    GraftPendingTransactionImpl(tools::GraftWallet *graft_wallet);
+    GraftPendingTransactionImpl(tools::GraftWallet2 *graft_wallet);
     ~GraftPendingTransactionImpl();
     int status() const;
     std::string errorString() const;
@@ -51,24 +50,23 @@ public:
     uint64_t fee() const;
     std::vector<std::string> txid() const;
     uint64_t txCount() const;
-    std::vector<uint32_t> subaddrAccount() const;
-    std::vector<std::set<uint32_t>> subaddrIndices() const;
+    bool save(std::ostream &os);
+
+    std::vector<std::string> getRawTransaction() const override;
+    void updateTransactionCache() override;
     // TODO: continue with interface;
-    void setPendingTx(std::vector<tools::wallet2::pending_tx> pending_tx);
+    void setPendingTx(std::vector<tools::GraftWallet2::pending_tx> pending_tx);
     void setStatus(int status);
     void setErrorString(const std::string &message);
-
-    std::string multisigSignData() override;
-    void signMultisigTx() override;
-    std::vector<std::string> signersKeys() const override;
-
+    void putRtaSignatures(const std::vector<RtaSignature> &) override;
 private:
-    tools::GraftWallet *mWallet;
+    tools::GraftWallet2 *mWallet;
 
     int  m_status;
     std::string m_errorString;
-    std::vector<tools::wallet2::pending_tx> m_pending_tx;
+    std::vector<tools::GraftWallet2::pending_tx> m_pending_tx;
 };
+
 
 }
 

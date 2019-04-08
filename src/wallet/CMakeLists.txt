@@ -32,12 +32,14 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 set(wallet_sources
   wallet2.cpp
+  graft_wallet.cpp
   wallet_args.cpp
   ringdb.cpp
   node_rpc_proxy.cpp)
 
 set(wallet_private_headers
   wallet2.h
+  graft_wallet.h
   wallet_args.h
   wallet_errors.h
   wallet_rpc_server.h
@@ -58,6 +60,8 @@ target_link_libraries(wallet
     cryptonote_core
     mnemonics
     ${LMDB_LIBRARY}
+    p2p
+    utils
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
@@ -118,7 +122,8 @@ if (BUILD_GUI_DEPS)
             ringct
             ringct_basic
             checkpoints
-            version)
+            version
+            utils)
 
     foreach(lib ${libs_to_merge})
         list(APPEND objlibs $<TARGET_OBJECTS:obj_${lib}>) # matches naming convention in src/CMakeLists.txt

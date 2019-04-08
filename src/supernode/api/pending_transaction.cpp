@@ -29,7 +29,6 @@
 // Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 
 #include "pending_transaction.h"
-#include "supernode/wallet_errors.h"
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
@@ -44,7 +43,7 @@ using namespace std;
 namespace Monero {
 
 
-GraftPendingTransactionImpl::GraftPendingTransactionImpl(tools::GraftWallet *graft_wallet)
+GraftPendingTransactionImpl::GraftPendingTransactionImpl(tools::GraftWallet2 *graft_wallet)
     : mWallet(graft_wallet)
 {
   m_status = Status_Ok;
@@ -162,27 +161,31 @@ uint64_t GraftPendingTransactionImpl::fee() const
 
 uint64_t GraftPendingTransactionImpl::txCount() const
 {
-    return m_pending_tx.size();
+  return m_pending_tx.size();
 }
 
-std::vector<uint32_t> GraftPendingTransactionImpl::subaddrAccount() const
+bool GraftPendingTransactionImpl::save(ostream &os)
 {
-    std::vector<uint32_t> result;
-    for (const auto& ptx : m_pending_tx)
-        result.push_back(ptx.construction_data.subaddr_account);
-    return result;
+  return mWallet->save_tx_signed(m_pending_tx, os);
 }
 
-std::vector<std::set<uint32_t>> GraftPendingTransactionImpl::subaddrIndices() const
+std::vector<string> GraftPendingTransactionImpl::getRawTransaction() const
 {
-    std::vector<std::set<uint32_t>> result;
-    for (const auto& ptx : m_pending_tx)
-        result.push_back(ptx.construction_data.subaddr_indices);
-    return result;
+    std::vector<std::string> txs;
+    for (auto rit = m_pending_tx.rbegin(); rit != m_pending_tx.rend(); ++rit)
+    {
+        tools::GraftWallet2::pending_tx ptx = *rit;
+        txs.push_back(epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx)));
+    }
+    return txs;
 }
 
+void GraftPendingTransactionImpl::updateTransactionCache()
+{
+    //Unused method
+}
 
-void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::wallet2::pending_tx> pending_tx)
+void GraftPendingTransactionImpl::setPendingTx(std::vector<tools::GraftWallet2::pending_tx> pending_tx)
 {
     m_pending_tx = pending_tx;
 }
@@ -197,67 +200,9 @@ void GraftPendingTransactionImpl::setErrorString(const string &message)
     m_errorString = message;
 }
 
-//TODO-MERGE: write real implementation in here
-std::string GraftPendingTransactionImpl::multisigSignData()
+void GraftPendingTransactionImpl::putRtaSignatures(const std::vector<RtaSignature> &)
 {
-  /*
-    try
-    {
-        if(!m_wallet.multisig().isMultisig)
-        {
-            throw std::runtime_error("wallet is not multisig");
-        }
-        tools::wallet2::multisig_tx_set txSet;
-        txSet.m_ptx = m_pending_tx;
-        txSet.m_signers = m_signers;
-        auto cipher = m_wallet.m_wallet->save_multisig_tx(txSet);
-        return epee::string_tools::buff_to_hex_nodelimer(cipher);
-    }
-    catch (const std::exception& e)
-    {
-        m_status = Status_Error;
-        m_errorString = std::string(tr("Couldn't multisig sign data: ")) + e.what();
-    }
-    */
-    return std::string();
-}
 
-//TODO-MERGE: write real implementation in here
-void GraftPendingTransactionImpl::signMultisigTx()
-{
-  /*
-    try
-    {
-        std::vector<crypto::hash> ignore;
-        tools::wallet2::multisig_tx_set txSet;
-        txSet.m_ptx = m_pending_tx;
-        txSet.m_signers = m_signers;
-        if (!m_wallet.m_wallet->sign_multisig_tx(txSet, ignore)) {
-            throw std::runtime_error("couldn't sign multisig transaction");
-        }
-        std::swap(m_pending_tx, txSet.m_ptx);
-        std::swap(m_signers, txSet.m_signers);
-    }
-    catch(const std::exception& e)
-    {
-        m_status = Status_Error;
-        m_errorString = std::string(tr("Couldn't sign multisig transaction: ")) + e.what();
-    }
-    */
-}
-
-//TODO-MERGE: write real implementation in here
-std::vector<std::string> GraftPendingTransactionImpl::signersKeys() const
-{
-    std::vector<std::string> keys;
-    /*
-    keys.reserve(m_signers.size());
-    for(const auto& signer: m_signers)
-    {
-        keys.emplace_back(tools::base58::encode(cryptonote::t_serializable_object_to_blob(signer)));
-    }
-    */
-    return keys;
 }
 
 }

@@ -308,6 +308,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
 
 		if (speed_limit_is_enabled()) {
+#if 0
 			do // keep sleeping if we should sleep
 			{
 				{ //_scope_dbg1("CRITICAL_REGION_LOCAL");
@@ -322,6 +323,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 					boost::this_thread::sleep_for(boost::chrono::milliseconds(ms));
 				}
 			} while(delay > 0);
+#endif
 		} // any form of sleeping
 		
       //_info("[sock " << socket_.native_handle() << "] RECV " << bytes_transferred);
@@ -412,18 +414,29 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     if (m_was_shutdown) return false;
 		// TODO avoid copy
 
+        // I think that author of this was a little drunk, or something else |
 		const double factor = 32; // TODO config
 		typedef long long signed int t_safe; // my t_size to avoid any overunderflow in arithmetic
 		const t_safe chunksize_good = (t_safe)( 1024 * std::max(1.0,factor) );
         const t_safe chunksize_max = chunksize_good * 2 ;
-		const bool allow_split = (m_connection_type == e_connection_type_RPC) ? false : true; // do not split RPC data
+        /*const */bool allow_split = (m_connection_type == e_connection_type_RPC) ? false : true; // do not split RPC data
+
 
         CHECK_AND_ASSERT_MES(! (chunksize_max<0), false, "Negative chunksize_max" ); // make sure it is unsigned before removin sign with cast:
         long long unsigned int chunksize_max_unsigned = static_cast<long long unsigned int>( chunksize_max ) ;
+        // may be it's better to use "long long long long long long unsigned int" or use multiprecision arithmetics?no? really?
+
+        allow_split = false; // splitting for upload speed control...
+                             // But it's allowed for non RPC connections
+                             // and
+                             // upload speed control turned on ONLY for RPC connections
+                             // So, splitting is meaningless
+                             // * Actually I had turned off RPC connection speed controls, because it hangs io_service threads.
 
         if (allow_split && (cb > chunksize_max_unsigned)) {
 			{ // LOCK: chunking
     		epee::critical_region_t<decltype(m_chunking_lock)> send_guard(m_chunking_lock); // *** critical *** 
+            // Here we should also lock m_send_que_lock but we've forgotten, haven't we?
 
 				MDEBUG("do_send() will SPLIT into small chunks, from packet="<<cb<<" B for ptr="<<ptr);
 				t_safe all = cb; // all bytes to send 
@@ -451,7 +464,6 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 					void *chunk_start = ((char*)ptr) + pos;
 					MDEBUG("chunk_start="<<chunk_start<<" ptr="<<ptr<<" pos="<<pos);
 					CHECK_AND_ASSERT_MES(chunk_start >= ptr, false, "Pointer wraparound"); // not wrapped around address?
-					//std::memcpy( (void*)buf, chunk_start, len);
 
 					MDEBUG("part of " << lenall << ": pos="<<pos << " len="<<len);
 
@@ -509,32 +521,15 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     
     // No sleeping here; sleeping is done once and for all in "handle_write"
 
-    m_send_que_lock.lock(); // *** critical ***
+    m_send_que_lock.lock(); // *** critical *** // NIH principle?
+                             // One could use boost::recursive_mutex and boost::recursive_mutex::scoped_lock
     epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){m_send_que_lock.unlock();});
 
-    long int retry=0;
-    const long int retry_limit = 5*4;
-    while (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT)
-    {
-        retry++;
-
-        /* if ( ::cryptonote::core::get_is_stopping() ) { // TODO re-add fast stop
-            _fact("ABORT queue wait due to stopping");
-            return false; // aborted
-        }*/
-
-        long int ms = 250 + (rand()%50);
-        MDEBUG("Sleeping because QUEUE is FULL, in " << __FUNCTION__ << " for " << ms << " ms before packet_size="<<cb); // XXX debug sleep
-        m_send_que_lock.unlock();
-        boost::this_thread::sleep(boost::posix_time::milliseconds( ms ) );
-        m_send_que_lock.lock();
-        _dbg1("sleep for queue: " << ms);
-
-        if (retry > retry_limit) {
-            MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
-            shutdown();
-            return false;
-        }
+    while (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT) {// Than means that connection too slow,
+                                                                    // 1024 packs maxsize of 64K should be enough
+      MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
+      self->shutdown();
+      return false;
     }
 
     m_send_que.resize(m_send_que.size()+1);
@@ -551,27 +546,22 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     else
     { // no active operation
 
-        if(m_send_que.size()!=1)
-        {
+        if(m_send_que.size()!=1) {// It means that we've forgotten protect m_send_que
+                                  // by m_send_que_lock somewhere in the code
             _erro("Looks like no active operations, but send que size != 1!!");
             return false;
         }
 
         auto size_now = m_send_que.front().size();
         MDEBUG("do_send_chunk() NOW SENSD: packet="<<size_now<<" B");
-        if (speed_limit_is_enabled())
-			do_send_handler_write( ptr , size_now ); // (((H)))
 
         CHECK_AND_ASSERT_MES( size_now == m_send_que.front().size(), false, "Unexpected queue size");
         reset_timer(get_default_timeout(), false);
         boost::asio::async_write(socket_, boost::asio::buffer(m_send_que.front().data(), size_now ) ,
-                                 //strand_.wrap(
+//                                 strand_.wrap( // Was commented. Why?
                                  boost::bind(&connection<t_protocol_handler>::handle_write, self, _1, _2)
-                                 //)
+//                                 )
                                  );
-        //_dbg3("(chunk): " << size_now);
-        //logger_handle_net_write(size_now);
-        //_info("[sock " << socket_.native_handle() << "] Async send requested " << m_send_que.front().size());
     }
     
     //do_send_handler_stop( ptr , cb ); // empty function
@@ -706,30 +696,59 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   }
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
-  void connection<t_protocol_handler>::handle_write(const boost::system::error_code& e, size_t cb)
+  void connection<t_protocol_handler>::handle_write(const boost::system::error_code& e, size_t bytes_sent)
   {
     TRY_ENTRY();
-    LOG_TRACE_CC(context, "[sock " << socket_.native_handle() << "] Async send calledback " << cb);
+    LOG_TRACE_CC(context, "[sock " << socket_.native_handle() << "] Async send calledback " << bytes_sent);
 
-    if (e)
-    {
+    if (e) { // my crutch
+      for (auto entry : on_write_callback_list) { // my "crutch"
+          m_send_que_lock.lock();
+          connection<t_protocol_handler>::callback_type callback = entry.second;
+          m_send_que_lock.unlock();
+          if (callback) {
+              (*callback.get())(e);
+          }
+
+      }
+      m_send_que_lock.lock();
+      on_write_callback_list.clear();
+      m_send_que_lock.unlock();
+
+
       _dbg1("[sock " << socket_.native_handle() << "] Some problems at write: " << e.message() << ':' << e.value());
       shutdown();
       return;
     }
-    logger_handle_net_write(cb);
 
+#if 0
                 // The single sleeping that is needed for correctly handling "out" speed throttling
 		if (speed_limit_is_enabled()) {
 			sleep_before_packet(cb, 1, 1);
 		}
+#endif
 
     bool do_shutdown = false;
+    connection<t_protocol_handler>::callback_type callback; // my "crutch"
     CRITICAL_REGION_BEGIN(m_send_que_lock);
-    if(m_send_que.empty())
+    if(m_send_que.empty()) // we've forgotten protect m_send_que by m_send_mutex_lock
     {
       _erro("[sock " << socket_.native_handle() << "] m_send_que.size() == 0 at handle_write!");
       return;
+    }
+
+    if (on_write_callback_list.size()) { // my crutch
+      std::pair<int64_t, callback_type>& next_callback = on_write_callback_list.front();
+      next_callback.first -= bytes_sent;
+      int64_t tmp = next_callback.first;
+      if (tmp <= 0) {
+        callback = next_callback.second;
+        on_write_callback_list.pop_front();
+        if (on_write_callback_list.size() && tmp < 0) {
+            std::pair<int64_t, callback_type>& next_callback = on_write_callback_list.front();
+            next_callback.first += tmp;
+        }
+      }
     }
 
     m_send_que.pop_front();
@@ -745,24 +764,56 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 		reset_timer(get_default_timeout(), false);
 		auto size_now = m_send_que.front().size();
 		MDEBUG("handle_write() NOW SENDS: packet="<<size_now<<" B" <<", from  queue size="<<m_send_que.size());
-		if (speed_limit_is_enabled())
-			do_send_handler_write_from_queue(e, m_send_que.front().size() , m_send_que.size()); // (((H)))
-		CHECK_AND_ASSERT_MES( size_now == m_send_que.front().size(), void(), "Unexpected queue size");
+#if 0 // Hang io thread for any time by sleep instruction is a bad idea
+        if (speed_limit_is_enabled())
+            do_send_handler_write_from_queue(e, m_send_que.front().size() , m_send_que.size()); // (((H)))
+#endif // Comment thread sleep instructions
+
+        // Whether we've forgotten somewhere protect m_send_que by m_send_que_lock
+        CHECK_AND_ASSERT_MES( size_now == m_send_que.front().size(), void(), "Unexpected queue size");
+
 		boost::asio::async_write(socket_, boost::asio::buffer(m_send_que.front().data(), size_now) , 
-        // strand_.wrap(
+         strand_.wrap( // Was commented. Why?
           boost::bind(&connection<t_protocol_handler>::handle_write, connection<t_protocol_handler>::shared_from_this(), _1, _2)
-				// )
+                 )
         );
-      //_dbg3("(normal)" << size_now);
     }
     CRITICAL_REGION_END();
+    if (callback)
+        (*callback.get())(e);
+
 
     if(do_shutdown)
     {
+      boost::system::error_code ec =
+              boost::system::errc::make_error_code(boost::system::errc::operation_canceled);
+      for (auto entry : on_write_callback_list) { // my "crutch"
+        m_send_que_lock.lock();
+        connection<t_protocol_handler>::callback_type callback = entry.second;
+        m_send_que_lock.unlock();
+        if (callback)
+          (*callback.get())(ec);
+      }
+      m_send_que_lock.lock();
+      on_write_callback_list.clear();
+      m_send_que_lock.unlock();
+
       shutdown();
     }
     CATCH_ENTRY_L0("connection<t_protocol_handler>::handle_write", void());
   }
+
+  template<class t_protocol_handler>
+  void connection<t_protocol_handler>::handle_write_after_delay1(const boost::system::error_code& e, size_t bytes_sent)
+  {
+  }
+
+  template<class t_protocol_handler>
+  void connection<t_protocol_handler>::handle_write_after_delay2(const boost::system::error_code& e, size_t bytes_sent)
+  {
+  }
+
+
 
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
@@ -775,7 +826,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
   template<class t_protocol_handler>
   bool connection<t_protocol_handler>::speed_limit_is_enabled() const {
-		return m_connection_type != e_connection_type_RPC ;
+        return m_connection_type != e_connection_type_RPC ;
 	}
 
   /************************************************************************/
@@ -792,6 +843,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 	m_pfilter(NULL), m_thread_index(0),
 		m_connection_type( connection_type ),
     new_connection_()
+  , m_strand(io_service_)
   {
     create_server_type_map();
     m_thread_name_prefix = "NET";
@@ -806,6 +858,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 		m_pfilter(NULL), m_thread_index(0),
 		m_connection_type(connection_type),
     new_connection_()
+  , m_strand(io_service_)
   {
     create_server_type_map();
     m_thread_name_prefix = "NET";
@@ -1019,7 +1072,7 @@ POP_WARNINGS
     connections_mutex.lock();
     for (auto &c: connections_)
     {
-      c->cancel();
+      c.second->cancel();
     }
     connections_.clear();
     connections_mutex.unlock();
@@ -1084,10 +1137,11 @@ POP_WARNINGS
 
     connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_config, m_sock_count, m_sock_number, m_pfilter, m_connection_type) );
     connections_mutex.lock();
-    connections_.insert(new_connection_l);
+    connections_.push_back(std::make_pair(boost::get_system_time(), new_connection_l));
+    auto entry = --connections_.end();
     MDEBUG("connections_ size now " << connections_.size());
     connections_mutex.unlock();
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); connections_.erase(new_connection_l); });
+    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); connections_.erase(entry); });
     boost::asio::ip::tcp::socket&  sock_ = new_connection_l->socket();
     
     //////////////////////////////////////////////////////////////////////////
@@ -1175,7 +1229,7 @@ POP_WARNINGS
 
     // start adds the connection to the config object's list, so we don't need to have it locally anymore
     connections_mutex.lock();
-    connections_.erase(new_connection_l);
+    connections_.erase(entry);
     connections_mutex.unlock();
     bool r = new_connection_l->start(false, 1 < m_threads_count);
     if (r)
@@ -1201,10 +1255,11 @@ POP_WARNINGS
     TRY_ENTRY();    
     connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_config, m_sock_count, m_sock_number, m_pfilter, m_connection_type) );
     connections_mutex.lock();
-    connections_.insert(new_connection_l);
+    connections_.push_back(std::make_pair(boost::get_system_time(), new_connection_l));
+    auto entry = --connections_.end();
     MDEBUG("connections_ size now " << connections_.size());
     connections_mutex.unlock();
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); connections_.erase(new_connection_l); });
+    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); connections_.erase(entry); });
     boost::asio::ip::tcp::socket&  sock_ = new_connection_l->socket();
     
     //////////////////////////////////////////////////////////////////////////
@@ -1264,7 +1319,7 @@ POP_WARNINGS
 
             // start adds the connection to the config object's list, so we don't need to have it locally anymore
             connections_mutex.lock();
-            connections_.erase(new_connection_l);
+            connections_.erase(entry);
             connections_mutex.unlock();
             bool r = new_connection_l->start(false, 1 < m_threads_count);
             if (r)

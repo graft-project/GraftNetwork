@@ -33,7 +33,7 @@
 #define WALLET_IMPL_H
 
 #include "wallet/api/wallet2_api.h"
-#include "wallet/wallet2.h"
+#include "wallet/graft_wallet.h"
 
 #include <string>
 #include <boost/thread/mutex.hpp>
@@ -57,6 +57,7 @@ public:
     ~WalletImpl();
     bool create(const std::string &path, const std::string &password,
                 const std::string &language);
+    bool create(const std::string &password, const std::string &language);
     bool createWatchOnly(const std::string &path, const std::string &password,
                             const std::string &language) const override;
     bool open(const std::string &path, const std::string &password);
@@ -71,6 +72,7 @@ public:
     // following two methods are deprecated since they create passwordless wallets
     // use the two equivalent methods above
     bool recover(const std::string &path, const std::string &seed);
+    bool recover(const std::string &seed);
     // deprecated: use recoverFromKeysWithPassword() instead
     bool recoverFromKeys(const std::string &path,
                             const std::string &language,
@@ -80,6 +82,9 @@ public:
     bool recoverFromDevice(const std::string &path,
                            const std::string &password,
                            const std::string &device_name);
+    bool recoverFromData(const std::string &data, const std::string &password,
+                         const std::string &cache_file = std::string(),
+                         bool use_bse64 = true);
     Device getDeviceType() const override;
     bool close(bool store = true);
     std::string seed() const override;
@@ -128,6 +133,9 @@ public:
     void hardForkInfo(uint8_t &version, uint64_t &earliest_height) const override;
     bool useForkRules(uint8_t version, int64_t early_blocks) const override;
 
+    std::string getWalletData(const std::string &password, bool use_base64 = true) const override;
+    void saveCache(const std::string &cache_file) const override;
+
     void addSubaddressAccount(const std::string& label) override;
     size_t numSubaddressAccounts() const override;
     size_t numSubaddresses(uint32_t accountIndex) const override;
@@ -150,11 +158,18 @@ public:
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
+    PendingTransaction * loadTransaction(std::istream &iss) override;
+    PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
+                                           bool rtaTransaction = true,
+                                           PendingTransaction::Priority = PendingTransaction::Priority_Low) override;
     virtual PendingTransaction * createSweepUnmixableTransaction() override;
     bool submitTransaction(const std::string &fileName) override;
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename) override;
     bool exportKeyImages(const std::string &filename) override;
     bool importKeyImages(const std::string &filename) override;
+
+    PendingTransaction * loadSignedTx(std::istream &stream);
+    virtual bool getAmountFromTransaction(PendingTransaction * t, uint64_t &amount) override;
 
     virtual void disposeTransaction(PendingTransaction * t) override;
     virtual TransactionHistory * history() override;
@@ -218,7 +233,7 @@ private:
     friend class SubaddressImpl;
     friend class SubaddressAccountImpl;
 
-    std::unique_ptr<tools::wallet2> m_wallet;
+    std::unique_ptr<tools::GraftWallet> m_wallet;
     mutable boost::mutex m_statusMutex;
     mutable int m_status;
     mutable std::string m_errorString;

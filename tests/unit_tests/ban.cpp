@@ -84,6 +84,13 @@ public:
   bool fluffy_blocks_enabled() const { return false; }
   uint64_t prevalidate_block_hashes(uint64_t height, const std::vector<crypto::hash> &hashes) { return 0; }
   void stop() {}
+  void invoke_update_stakes_handler() {}
+  typedef cryptonote::StakeTransactionProcessor::supernode_stakes_update_handler supernode_stakes_update_handler;
+  void set_update_stakes_handler(const supernode_stakes_update_handler&) {}
+  void invoke_stake_transactions_update_handler() {}
+  typedef cryptonote::StakeTransactionProcessor::blockchain_based_list_update_handler blockchain_based_list_update_handler;
+  void set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&) {}
+  void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height) {}
 };
 
 typedef nodetool::node_server<cryptonote::t_cryptonote_protocol_handler<test_core>> Server;

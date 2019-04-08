@@ -88,21 +88,18 @@ add_subdirectory(crypto)
 add_subdirectory(functional_tests)
 add_subdirectory(performance_tests)
 add_subdirectory(core_proxy)
-if (NOT DISABLE_SUPERNODE)
 add_subdirectory(unit_tests)
-endif()
 add_subdirectory(difficulty)
 add_subdirectory(hash)
 add_subdirectory(net_load_tests)
 
 if (NOT DISABLE_SUPERNODE)
-    add_subdirectory(supernode_tests)
+    #add_subdirectory(supernode_tests)
 endif()
 
 if (BUILD_GUI_DEPS)
   add_subdirectory(libwallet_api_tests)
 endif()
-
 
 # add_subdirectory(daemon_tests)
 

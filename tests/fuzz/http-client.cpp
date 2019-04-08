@@ -34,6 +34,7 @@
 class dummy_client
 {
 public:
+  dummy_client(boost::shared_ptr<boost::asio::io_service> = boost::shared_ptr<boost::asio::io_service>{new boost::asio::io_service()}) {}
   bool connect(const std::string& addr, int port, std::chrono::milliseconds timeout, bool ssl = false, const std::string& bind_ip = "0.0.0.0") { return true; }
   bool connect(const std::string& addr, const std::string& port, std::chrono::milliseconds timeout, bool ssl = false, const std::string& bind_ip = "0.0.0.0") { return true; }
   bool disconnect() { return true; }

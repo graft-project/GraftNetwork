@@ -75,6 +75,97 @@ namespace cryptonote
   std::vector<crypto::public_key> get_additional_tx_pub_keys_from_extra(const std::vector<uint8_t>& tx_extra);
   std::vector<crypto::public_key> get_additional_tx_pub_keys_from_extra(const transaction_prefix& tx);
   bool add_additional_tx_pub_keys_to_extra(std::vector<uint8_t>& tx_extra, const std::vector<crypto::public_key>& additional_pub_keys);
+
+  /*!
+   * \brief add_graft_tx_extra_to_extra - adds graft extra fields to tx
+   * \param tx            - transaction fields to be added to
+   * \param graft_extra   - graft fields to add
+   * \return              - true on success
+   */
+  // TODO:  probably we will remove "..graft_tx_extra.." methods
+  bool add_graft_tx_extra_to_extra(transaction &tx, const supernode::GraftTxExtra &graft_extra);
+
+  /*!
+   * @brief add_graft_tx_extra_to_extra - overloaded function to add graft extra directly to tx extra
+   * @param extra                 - extra to add fields to
+   * @param graft_extra           - graft fields to add
+   * @return                      - true on success
+   */
+  bool add_graft_tx_extra_to_extra(std::vector<uint8_t>& extra, const supernode::GraftTxExtra &graft_extra);
+
+  /*!
+   * \brief get_graft_tx_extra_from_extra - read graft extra fields from tx extra
+   * \param tx                    - source transaction
+   * \param graft_tx_extra        - destination graft extra fields
+   * \return                      - true on success
+   */
+  bool get_graft_tx_extra_from_extra(const transaction &tx, supernode::GraftTxExtra &graft_tx_extra);
+
+  /*!
+   * \brief add_graft_stake_tx_extra_to_extra - adds graft stake transaction fields to extra
+   * \param extra                - extra to add fields to
+   * \param supernode_public_id  - public identifier of supernode
+   * \param supernode_wallet_id  - supernode public wallet address
+   * \return                     - true on success
+   */
+  bool add_graft_stake_tx_extra_to_extra(std::vector<uint8_t> &extra, const std::string &supernode_public_id,
+    const cryptonote::account_public_address &supernode_public_address, const crypto::signature& supernode_signature);
+
+  /*!
+   * \brief add_graft_tx_secret_key_to_extra - adds graft transaction secret key to extra
+   * \param extra       - extra to add fields to
+   * \param secret_key  - secret key
+   * \return            - true on success
+   */
+  bool add_graft_tx_secret_key_to_extra(std::vector<uint8_t> &extra, const crypto::secret_key& secret_key);
+
+  /*!
+   * \brief get_graft_stake_tx_extra_from_extra - gets graft stake transaction fields from extra
+   * \param tx                   - source transaction
+   * \param supernode_public_id  - public identifier of supernode
+   * \param supernode_wallet_id  - supernode public wallet address
+   * \param tx_secret_key        - transaction secret key
+   * \return                     - true on success
+   */
+  bool get_graft_stake_tx_extra_from_extra
+    (const transaction &tx,
+     std::string &supernode_public_id,
+     cryptonote::account_public_address &supernode_public_address,
+     crypto::signature &supernode_signature,
+     crypto::secret_key &tx_secret_key);
+
+  /*!
+   * \brief add_graft_rta_header_to_extra - add rta_header to the extra
+   * \param extra                         - extra to add fields to
+   * \param rta_header                    - source rta_header
+   * \return                              - true on success
+   */
+  bool add_graft_rta_header_to_extra(std::vector<uint8_t> &extra, const rta_header &rta_header);
+
+  /*!
+   * \brief get_graft_rta_header_from_extra - read rta_header from tx extra
+   * \param tx                              - input transaction
+   * \param rta_header                      - output rta_header
+   * \return                                - true on success
+   */
+  bool get_graft_rta_header_from_extra(const transaction& tx, rta_header &rta_header);
+
+  /*!
+   * \brief add_graft_rta_signatures_to_extra - add rta_signatures to the 'extra' container
+   * \param extra                             - 'extra' container
+   * \param rta_signatures                    - rta signatures to add
+   * \return                                  - true on success
+   */
+  bool add_graft_rta_signatures_to_extra2(std::vector<uint8_t> &extra, const std::vector<rta_signature> &rta_signatures);
+
+  /*!
+   * \brief get_graft_rta_signatures_from_extra2 - read rta signatures from tx extra2 field
+   * \param tx                                   - input transaction
+   * \param rta_signatures                       - output rta signatures
+   * \return                                     - true on success
+   */
+  bool get_graft_rta_signatures_from_extra2(const transaction& tx, std::vector<rta_signature> &rta_signatures);
+
   bool add_extra_nonce_to_tx_extra(std::vector<uint8_t>& tx_extra, const blobdata& extra_nonce);
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type);
   void set_payment_id_to_tx_extra_nonce(blobdata& extra_nonce, const crypto::hash& payment_id);

@@ -58,6 +58,14 @@ Wallet *WalletManagerImpl::createWallet(const std::string &path, const std::stri
     return wallet;
 }
 
+Wallet *WalletManagerImpl::createNewWallet(const std::string &password, const std::string &language,
+                                           bool testnet)
+{
+    WalletImpl * wallet = new WalletImpl(testnet ? NetworkType::TESTNET : NetworkType::MAINNET);
+    wallet->create(password, language);
+    return wallet;
+}
+
 Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
@@ -70,6 +78,16 @@ Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string
 Wallet *WalletManagerImpl::recoveryWallet(const std::string &path, const std::string &mnemonic, NetworkType nettype, uint64_t restoreHeight)
 {
     return recoveryWallet(path, "", mnemonic, nettype, restoreHeight);
+}
+
+Wallet *WalletManagerImpl::restoreWallet(const std::string &mnemonic, bool testnet, uint64_t restoreHeight)
+{
+    WalletImpl * wallet = new WalletImpl(testnet ? NetworkType::TESTNET : NetworkType::MAINNET);
+    if(restoreHeight > 0){
+        wallet->setRefreshFromBlockHeight(restoreHeight);
+    }
+    wallet->recover(mnemonic);
+    return wallet;
 }
 
 Wallet *WalletManagerImpl::createWalletFromKeys(const std::string &path,
@@ -135,6 +153,15 @@ Wallet *WalletManagerImpl::createWalletFromDevice(const std::string &path,
         wallet->setSubaddressLookahead(lookahead->first, lookahead->second);
     }
     wallet->recoverFromDevice(path, password, deviceName);
+    return wallet;
+}
+
+Wallet *WalletManagerImpl::createWalletFromData(const std::string &data, const std::string &password,
+                                                bool testnet, std::string cache_file,
+                                                bool use_base64)
+{
+    WalletImpl * wallet = new WalletImpl(testnet ? NetworkType::TESTNET : NetworkType::MAINNET);
+    wallet->recoverFromData(data, password, cache_file, use_base64);
     return wallet;
 }
 

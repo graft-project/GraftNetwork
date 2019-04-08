@@ -159,7 +159,8 @@ namespace net_utils
 		bool is_loopback() const { return self ? self->is_loopback() : false; }
 		bool is_local() const { return self ? self->is_local() : false; }
 		uint8_t get_type_id() const { return self ? self->get_type_id() : 0; }
-		template<typename Type> const Type &as() const { return as_mutable<const Type>(); }
+        template<typename Type> Type &as() { if (get_type_id() != Type::ID) throw std::runtime_error("Bad type"); return *(Type*)self.get(); }
+        template<typename Type> const Type &as() const { return as_mutable<const Type>(); }
 
 		BEGIN_KV_SERIALIZE_MAP()
 			uint8_t type = is_store ? this_ref.get_type_id() : 0;

@@ -179,6 +179,7 @@ namespace cryptonote
   core::core(i_cryptonote_protocol* pprotocol):
               m_mempool(m_blockchain_storage),
               m_blockchain_storage(m_mempool),
+              m_graft_stake_transaction_processor(m_blockchain_storage),
               m_miner(this),
               m_miner_address(boost::value_initialized<account_public_address>()),
               m_starter_message_showed(false),
@@ -449,7 +450,11 @@ namespace cryptonote
     // folder might not be a directory, etc, etc
     catch (...) { }
 
+    MGINFO("Initialize stake transaction processor");
+    m_graft_stake_transaction_processor.init_storages(folder.string());
+
     std::unique_ptr<BlockchainDB> db(new_db(db_type));
+
     if (db == NULL)
     {
       LOG_ERROR("Attempted to use non-existent database type");
@@ -582,8 +587,13 @@ namespace cryptonote
     const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
     r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty);
 
+    m_mempool.set_stake_transaction_processor(&m_graft_stake_transaction_processor);
+
     r = m_mempool.init(max_txpool_weight);
+
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize memory pool");
+
+    m_graft_stake_transaction_processor.synchronize();
 
     // now that we have a valid m_blockchain_storage, we can clean out any
     // transactions in the pool that do not conform to the current fork
@@ -703,10 +713,11 @@ namespace cryptonote
     bad_semantics_txes_lock.unlock();
 
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
-    const size_t max_tx_version = version == 1 ? 1 : 2;
+    // don't allow rta tx until hf 13
+    const size_t max_tx_version = version == 1 ? 1 : version < 13 ? 2 : CURRENT_TRANSACTION_VERSION;
     if (tx.version == 0 || tx.version > max_tx_version)
     {
-      // v2 is the latest one we know
+      // v3 is the latest one we know
       tvc.m_verifivation_failed = true;
       return false;
     }
@@ -1249,7 +1260,8 @@ namespace cryptonote
     for (const auto &tx_hash: b.tx_hashes)
     {
       cryptonote::blobdata txblob;
-      CHECK_AND_ASSERT_THROW_MES(pool.get_transaction(tx_hash, txblob), "Transaction not found in pool");
+      CHECK_AND_ASSERT_THROW_MES(pool.get_transaction(tx_hash, txblob),
+                                 std::string("Transaction not found in pool: ") + epee::string_tools::pod_to_hex(tx_hash));
       bce.txs.push_back(txblob);
     }
     return bce;
@@ -1316,9 +1328,34 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::add_new_block(const block& b, block_verification_context& bvc)
   {
-    return m_blockchain_storage.add_new_block(b, bvc);
-  }
+    if (!m_blockchain_storage.add_new_block(b, bvc))
+      return false;
 
+    m_graft_stake_transaction_processor.synchronize();
+
+    return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::set_update_stakes_handler(const supernode_stakes_update_handler& handler)
+  {
+    m_graft_stake_transaction_processor.set_on_update_stakes_handler(handler);
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::invoke_update_stakes_handler()
+  {
+    m_graft_stake_transaction_processor.invoke_update_stakes_handler(true);
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler& handler)
+  {
+    m_graft_stake_transaction_processor.set_on_update_blockchain_based_list_handler(handler);
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height)
+  {
+    uint64_t depth = m_blockchain_storage.get_current_blockchain_height() - last_received_block_height;
+    m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, depth);
+  }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks)
   {
@@ -1509,6 +1546,7 @@ namespace cryptonote
     m_check_disk_space_interval.do_call(boost::bind(&core::check_disk_space, this));
     m_miner.on_idle();
     m_mempool.on_idle();
+    m_graft_stake_transaction_processor.synchronize();
     return true;
   }
   //-----------------------------------------------------------------------------------------------
