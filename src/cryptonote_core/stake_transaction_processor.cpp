@@ -150,18 +150,33 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
   if (m_blockchain.get_hard_fork_version(block_index) >= config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
   {
-    BlockchainDB& db = m_blockchain.get_db();
-
       //analyze block transactions and add new stake transactions if exist
 
     stake_transaction stake_tx;
 
-    for (const crypto::hash& tx_hash : block.tx_hashes)
+    std::list<transaction> txs;
+    std::list<crypto::hash> missed_txs;
+    
+    if (!m_blockchain.get_transactions(block.tx_hashes, txs, missed_txs))
     {
+      MWARNING("Unable to get transactions for block #" << block_index);
+      return;
+    }
+
+    if (!missed_txs.empty())
+    {
+      MWARNING("Some transactions for block #" << block_index << " have been missed:");
+
+      for (const crypto::hash& tx_hash : missed_txs)
+        MWARNING("  " << tx_hash);
+    }
+
+    for (const transaction& tx : txs)
+    {
+      const crypto::hash tx_hash = get_transaction_prefix_hash(tx);
+
       try
       {
-        const transaction& tx = db.get_tx(tx_hash);
-
         if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
           continue;
 
@@ -270,9 +285,7 @@ void StakeTransactionProcessor::synchronize()
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
 
-  BlockchainDB& db = m_blockchain.get_db();
-
-  uint64_t height = db.height();
+  uint64_t height = m_blockchain.get_current_blockchain_height();
 
   if (!height || m_blockchain.get_hard_fork_version(height - 1) < config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
     return;
@@ -296,7 +309,7 @@ void StakeTransactionProcessor::synchronize()
         try
         {
           const crypto::hash& last_processed_block_hash  = m_storage->get_last_processed_block_hash();
-          crypto::hash        last_blockchain_block_hash = db.get_block_hash_from_height(last_processed_block_index);
+          crypto::hash        last_blockchain_block_hash = m_blockchain.get_block_id_by_height(last_processed_block_index);
 
           if (!memcmp(&last_processed_block_hash.data[0], &last_blockchain_block_hash.data[0], sizeof(last_blockchain_block_hash.data)))
             break; //latest block hash is the same as processed
@@ -342,8 +355,14 @@ void StakeTransactionProcessor::synchronize()
 
       try
       {
-        crypto::hash block_hash = db.get_block_hash_from_height(last_block_index);
-        const block& block      = db.get_block(block_hash);
+        crypto::hash block_hash = m_blockchain.get_block_id_by_height(last_block_index);
+        block block;
+
+        if (!m_blockchain.get_block_by_hash(block_hash, block))
+        {
+          MWARNING("Block with hash " << block_hash << " has not been found");
+          throw std::runtime_error("Error at parsing blockchain. Block hash has not been found");
+        }
 
         process_block(last_block_index, block, block_hash, false);
       }
