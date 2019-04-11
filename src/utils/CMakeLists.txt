@@ -51,6 +51,7 @@ monero_add_library(utils
   ${utils_private_headers})
 target_link_libraries(utils
   PUBLIC
+    ringct
     common
     cryptonote_basic
   PRIVATE

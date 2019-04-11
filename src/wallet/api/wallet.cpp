@@ -98,9 +98,6 @@ namespace {
             throw runtime_error("Multisig wallet is not finalized yet");
         }
     }
-    void checkMultisigWalletReady(const std::unique_ptr<tools::wallet2> &wallet) {
-        return checkMultisigWalletReady(wallet.get());
-    }
     void checkMultisigWalletReady(const std::unique_ptr<tools::GraftWallet> &wallet) {
         return checkMultisigWalletReady(wallet.get());
     }
@@ -118,9 +115,6 @@ namespace {
         if (ready) {
             throw runtime_error("Multisig wallet is already finalized");
         }
-    }
-    void checkMultisigWalletNotReady(const std::unique_ptr<tools::wallet2> &wallet) {
-        return checkMultisigWalletNotReady(wallet.get());
     }
     void checkMultisigWalletNotReady(const std::unique_ptr<tools::GraftWallet> &wallet) {
         return checkMultisigWalletNotReady(wallet.get());
