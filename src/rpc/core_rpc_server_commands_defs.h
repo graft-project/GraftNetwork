@@ -1909,6 +1909,9 @@ namespace cryptonote
       std::list<std::string> receiver_addresses;
       std::string sender_address;
       std::string callback_uri;
+#ifdef UDHT_INFO
+      uint64_t hops;
+#endif
       std::string data;
       bool wait_answer;
       BEGIN_KV_SERIALIZE_MAP()
@@ -1917,6 +1920,9 @@ namespace cryptonote
         KV_SERIALIZE(callback_uri)
         KV_SERIALIZE(data)
         KV_SERIALIZE(wait_answer)
+#ifdef UDHT_INFO
+        KV_SERIALIZE(hops)
+#endif
       END_KV_SERIALIZE_MAP()
     };
 
