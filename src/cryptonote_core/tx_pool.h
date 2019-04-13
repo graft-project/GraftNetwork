@@ -384,10 +384,10 @@ namespace cryptonote
      */
     void set_txpool_max_weight(size_t bytes);
 
-    void set_stake_transaction_processor(StakeTransactionProcessor * arg)
-    {
-      m_stp = arg;
-    }
+    //void set_stake_transaction_processor(StakeTransactionProcessor * arg)
+    //{
+    //  m_stp = arg;
+    //}
 
 #define CURRENT_MEMPOOL_ARCHIVE_VER    11
 #define CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER    13
@@ -595,7 +595,7 @@ private:
 
     mutable std::unordered_map<crypto::hash, std::tuple<bool, tx_verification_context, uint64_t, crypto::hash>> m_input_cache;
 
-    StakeTransactionProcessor * m_stp = nullptr;
+    //StakeTransactionProcessor * m_stp = nullptr;
   };
 }
 

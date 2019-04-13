@@ -976,7 +976,7 @@ namespace cryptonote
 
      tx_memory_pool m_mempool; //!< transaction pool instance
      Blockchain m_blockchain_storage; //!< Blockchain instance
-     StakeTransactionProcessor m_graft_stake_transaction_processor; //<! StakeTransactionProcessor instance
+     //StakeTransactionProcessor m_graft_stake_transaction_processor; //<! StakeTransactionProcessor instance
 
      i_cryptonote_protocol* m_pprotocol; //!< cryptonote protocol instance
 

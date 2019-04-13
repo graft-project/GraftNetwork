@@ -179,7 +179,7 @@ namespace cryptonote
   core::core(i_cryptonote_protocol* pprotocol):
               m_mempool(m_blockchain_storage),
               m_blockchain_storage(m_mempool),
-              m_graft_stake_transaction_processor(m_blockchain_storage),
+              //m_graft_stake_transaction_processor(m_blockchain_storage),
               m_miner(this),
               m_miner_address(boost::value_initialized<account_public_address>()),
               m_starter_message_showed(false),
@@ -450,8 +450,8 @@ namespace cryptonote
     // folder might not be a directory, etc, etc
     catch (...) { }
 
-    MGINFO("Initialize stake transaction processor");
-    m_graft_stake_transaction_processor.init_storages(folder.string());
+    //MGINFO("Initialize stake transaction processor");
+    //m_graft_stake_transaction_processor.init_storages(folder.string());
 
     std::unique_ptr<BlockchainDB> db(new_db(db_type));
 
@@ -587,13 +587,13 @@ namespace cryptonote
     const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
     r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty);
 
-    m_mempool.set_stake_transaction_processor(&m_graft_stake_transaction_processor);
+    //m_mempool.set_stake_transaction_processor(&m_graft_stake_transaction_processor);
 
     r = m_mempool.init(max_txpool_weight);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize memory pool");
 
-    m_graft_stake_transaction_processor.synchronize();
+    //m_graft_stake_transaction_processor.synchronize();
 
     // now that we have a valid m_blockchain_storage, we can clean out any
     // transactions in the pool that do not conform to the current fork
@@ -1331,30 +1331,30 @@ namespace cryptonote
     if (!m_blockchain_storage.add_new_block(b, bvc))
       return false;
 
-    m_graft_stake_transaction_processor.synchronize();
+    //m_graft_stake_transaction_processor.synchronize();
 
     return true;
   }
   //-----------------------------------------------------------------------------------------------
   void core::set_update_stakes_handler(const supernode_stakes_update_handler& handler)
   {
-    m_graft_stake_transaction_processor.set_on_update_stakes_handler(handler);
+    //m_graft_stake_transaction_processor.set_on_update_stakes_handler(handler);
   }
   //-----------------------------------------------------------------------------------------------
   void core::invoke_update_stakes_handler()
   {
-    m_graft_stake_transaction_processor.invoke_update_stakes_handler(true);
+    //m_graft_stake_transaction_processor.invoke_update_stakes_handler(true);
   }
   //-----------------------------------------------------------------------------------------------
   void core::set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler& handler)
   {
-    m_graft_stake_transaction_processor.set_on_update_blockchain_based_list_handler(handler);
+    //m_graft_stake_transaction_processor.set_on_update_blockchain_based_list_handler(handler);
   }
   //-----------------------------------------------------------------------------------------------
   void core::invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height)
   {
-    uint64_t depth = m_blockchain_storage.get_current_blockchain_height() - last_received_block_height;
-    m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, depth);
+    //uint64_t depth = m_blockchain_storage.get_current_blockchain_height() - last_received_block_height;
+    //m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, depth);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks)
@@ -1546,7 +1546,7 @@ namespace cryptonote
     m_check_disk_space_interval.do_call(boost::bind(&core::check_disk_space, this));
     m_miner.on_idle();
     m_mempool.on_idle();
-    m_graft_stake_transaction_processor.synchronize();
+    //m_graft_stake_transaction_processor.synchronize();
     return true;
   }
   //-----------------------------------------------------------------------------------------------

@@ -1475,7 +1475,8 @@ namespace cryptonote
 
   bool tx_memory_pool::validate_supernode(uint64_t height, const public_key &id) const
   {
-    supernode_stake * stake = const_cast<supernode_stake*>(m_stp->find_supernode_stake(height, epee::string_tools::pod_to_hex(id)));
-    return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
+    return true; //TODO: remove debug code
+    //supernode_stake * stake = const_cast<supernode_stake*>(m_stp->find_supernode_stake(height, epee::string_tools::pod_to_hex(id)));
+    //return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
   };
 }
