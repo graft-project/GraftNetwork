@@ -1138,10 +1138,17 @@ POP_WARNINGS
     connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_config, m_sock_count, m_sock_number, m_pfilter, m_connection_type) );
     connections_mutex.lock();
     connections_.push_back(std::make_pair(boost::get_system_time(), new_connection_l));
-    auto entry = --connections_.end();
+    auto remove_connection = [](std::deque<std::pair<boost::system_time, connection_ptr>>& connections, const connection_ptr& c) {
+      for (auto it=connections.begin(); it!=connections.end(); ++it)
+        if (it->second == c)
+        {
+          connections.erase(it);
+          return;
+        }
+    };
     MDEBUG("connections_ size now " << connections_.size());
     connections_mutex.unlock();
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); connections_.erase(entry); });
+    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); remove_connection(connections_, new_connection_l); });
     boost::asio::ip::tcp::socket&  sock_ = new_connection_l->socket();
     
     //////////////////////////////////////////////////////////////////////////
@@ -1229,7 +1236,7 @@ POP_WARNINGS
 
     // start adds the connection to the config object's list, so we don't need to have it locally anymore
     connections_mutex.lock();
-    connections_.erase(entry);
+    remove_connection(connections_, new_connection_l);
     connections_mutex.unlock();
     bool r = new_connection_l->start(false, 1 < m_threads_count);
     if (r)
@@ -1256,10 +1263,17 @@ POP_WARNINGS
     connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_config, m_sock_count, m_sock_number, m_pfilter, m_connection_type) );
     connections_mutex.lock();
     connections_.push_back(std::make_pair(boost::get_system_time(), new_connection_l));
-    auto entry = --connections_.end();
+    auto remove_connection = [](std::deque<std::pair<boost::system_time, connection_ptr>>& connections, const connection_ptr& c) {
+      for (auto it=connections.begin(); it!=connections.end(); ++it)
+        if (it->second == c)
+        {
+          connections.erase(it);
+          return;
+        }
+    };
     MDEBUG("connections_ size now " << connections_.size());
     connections_mutex.unlock();
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); connections_.erase(entry); });
+    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); remove_connection(connections_, new_connection_l); });
     boost::asio::ip::tcp::socket&  sock_ = new_connection_l->socket();
     
     //////////////////////////////////////////////////////////////////////////
@@ -1319,7 +1333,7 @@ POP_WARNINGS
 
             // start adds the connection to the config object's list, so we don't need to have it locally anymore
             connections_mutex.lock();
-            connections_.erase(entry);
+            remove_connection(connections_, new_connection_l);
             connections_mutex.unlock();
             bool r = new_connection_l->start(false, 1 < m_threads_count);
             if (r)
