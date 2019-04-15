@@ -33,11 +33,7 @@
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 set(supernode_sources
-    api/pending_transaction.cpp
     healthcheckapi.cpp
-    graft_wallet2.cpp
-    wallet_args.cpp
-    node_rpc_proxy.cpp
     AuthSample.cpp
     AuthSampleObject.cpp
     BaseRTAObject.cpp
@@ -64,13 +60,8 @@ set(supernode_sources
 set(supernode_api_headers)
 
 set(supernode_private_headers
-    api/pending_transaction.h
     healthcheckapi.h
     graft_defines.h
-    graft_wallet2.h
-    wallet_args.h
-    wallet_errors.h
-    node_rpc_proxy.h
     AuthSample.h
     AuthSampleObject.h
     BaseRTAObject.h
@@ -87,6 +78,7 @@ set(supernode_private_headers
     P2P_Broadcast.h
     supernode_common_struct.h
     supernode_rpc_command.h
+    grafttxextra.h
     TxPool.h
     WorkerPool.h)
 
@@ -138,6 +130,7 @@ if (NOT BUILD_GUI_DEPS)
         PRIVATE
         supernode
         wallet
+        wallet_api
         epee
         rpc
         cryptonote_core

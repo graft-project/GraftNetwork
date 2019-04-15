@@ -47,8 +47,20 @@ class GraftWallet : public wallet2
 {
   friend class ::Serialization_portability_wallet_Test;
 public:
-  GraftWallet(bool testnet = false);
-//  static bool verify(const std::string &message, const std::string &address, const std::string &signature, cryptonote::network_type nettype);
+  GraftWallet(cryptonote::network_type nettype, uint64_t kdf_rounds = 1, bool unattended = false);
+
+  static std::unique_ptr<GraftWallet> createWallet(const std::string &daemon_address,
+                                                   const std::string &daemon_host, int daemon_port,
+                                                   const std::string &daemon_login,
+                                                   cryptonote::network_type nettype);
+  static std::unique_ptr<GraftWallet> createWallet(const std::string &account_data, const std::string &password,
+                                                   const std::string &daemon_address, const std::string &daemon_host,
+                                                   int daemon_port, const std::string &daemon_login,
+                                                   cryptonote::network_type nettype, bool use_base64);
+
+
+  static bool verify_message(const std::string &message, const std::string &address,
+                             const std::string &signature, cryptonote::network_type nettype);
 
   /*!
    * \brief Generates a wallet or restores one.
@@ -80,12 +92,8 @@ public:
 
   std::string getAccountData(const std::string& password, bool use_base64 = true);
 
-//  Monero::PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
-//                                                     boost::optional<uint64_t> amount, uint32_t mixin_count,
-//                                                     const supernode::GraftTxExtra &graftExtra,
-//                                                     Monero::PendingTransaction::Priority priority = Monero::PendingTransaction::Priority_Low);
-private:
   std::string store_keys_to_data(const std::string& password, bool watch_only = false);
+private:
   bool load_keys_from_data(const std::string& data, const std::string& password);
 };
 

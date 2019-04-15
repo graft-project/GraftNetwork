@@ -158,7 +158,6 @@ public:
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
-    PendingTransaction * loadTransaction(std::istream &iss) override;
     PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
                                            bool rtaTransaction = true,
                                            PendingTransaction::Priority = PendingTransaction::Priority_Low) override;
