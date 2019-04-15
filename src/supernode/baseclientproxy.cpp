@@ -220,16 +220,17 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
         std::vector<tools::GraftWallet2::pending_tx> ptx_vector =
                 wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, false);
 
-        // reject proposed transactions if there are more than one.  see on_transfer_split below.
-        if (ptx_vector.size() != 1)
+        uint64_t fees = 0;
+        for (const auto ptx : ptx_vector)
         {
-            //        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-            //        er.message = "Transaction would be too large.  try /transfer_split.";
+            fees += ptx.fee;
+        }
+        if (fees == 0)
+        {
             out.Result = ERROR_OPEN_WALLET_FAILED;
             return false;
         }
-
-        out.Fee = ptx_vector.back().fee;
+        out.Fee = fees;
     }
     catch (const tools::error::daemon_busy& e)
     {
@@ -296,40 +297,14 @@ bool supernode::BaseClientProxy::Transfer(const supernode::rpc_command::TRANSFER
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
         bool do_not_relay = false;
-        bool get_tx_key = false;
-        bool get_tx_hex = false;
         std::vector<tools::GraftWallet2::pending_tx> ptx_vector =
                 wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, false);
 
-        // reject proposed transactions if there are more than one.  see on_transfer_split below.
-        if (ptx_vector.size() != 1)
-        {
-            //        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
-            //        er.message = "Transaction would be too large.  try /transfer_split.";
-            out.Result = ERROR_OPEN_WALLET_FAILED;
-            return false;
-        }
-
-        if (!do_not_relay)
+        if (!do_not_relay && ptx_vector.size() > 0)
         {
             wal->commit_tx(ptx_vector);
             storeWalletState(wal.get());
         }
-
-        // populate response with tx hash
-        //        std::string tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector.back().tx));
-        //        if (get_tx_key)
-        //        {
-        //            std::string tx_key = epee::string_tools::pod_to_hex(ptx_vector.back().tx_key);
-        //        }
-        //        uint64_t fee = ptx_vector.back().fee;
-
-        //        if (get_tx_hex)
-        //        {
-        //            cryptonote::blobdata blob;
-        //            tx_to_blob(ptx_vector.back().tx, blob);
-        //            res.tx_blob = epee::string_tools::buff_to_hex_nodelimer(blob);
-        //        }
     }
     catch (const tools::error::daemon_busy& e)
     {
