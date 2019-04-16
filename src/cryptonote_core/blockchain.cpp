@@ -2415,26 +2415,26 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
     }
   }
 
-  // from v13, allow bulletproofs
-  if (hf_version < 13) {
+  // from v14, allow bulletproofs
+  if (hf_version < HF_VERSION_MONERO_13) {
     if (tx.version >= 2) {
       const bool bulletproof = rct::is_rct_bulletproof(tx.rct_signatures.type);
       if (bulletproof || !tx.rct_signatures.p.bulletproofs.empty())
       {
-        MERROR_VER("Bulletproofs are not allowed before v13");
+        MERROR_VER("Bulletproofs are not allowed before v14");
         tvc.m_invalid_output = true;
         return false;
       }
     }
   }
 
-  // from v13, forbid borromean range proofs
-  if (hf_version >= 13) {
+  // from v14, forbid borromean range proofs
+  if (hf_version >= HF_VERSION_MONERO_13) {
     if (tx.version >= 2) {
       const bool borromean = rct::is_rct_borromean(tx.rct_signatures.type);
       if (borromean)
       {
-        MERROR_VER("Borromean range proofs are not allowed starting from v13");
+        MERROR_VER("Borromean range proofs are not allowed starting from v14");
         tvc.m_invalid_output = true;
         return false;
       }
@@ -2620,8 +2620,8 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     }
   }
 
-  // from v13, sorted ins
-  if (hf_version >= 13) {
+  // from v14, sorted ins
+  if (hf_version >= HF_VERSION_MONERO_13) {
     const crypto::key_image *last_key_image = NULL;
     for (size_t n = 0; n < tx.vin.size(); ++n)
     {
@@ -3185,7 +3185,7 @@ bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const 
   LOG_PRINT_L3("Blockchain::" << __func__);
   median_ts = epee::misc_utils::median(timestamps);
   const uint8_t version = get_current_hard_fork_version();
-  const uint64_t blockchain_timestamp_check_window = version < 13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  const uint64_t blockchain_timestamp_check_window = version < HF_VERSION_MONERO_13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
 
   if(b.timestamp < median_ts)
   {
@@ -3207,8 +3207,8 @@ bool Blockchain::check_block_timestamp(const block& b, uint64_t& median_ts) cons
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   uint8_t version = get_current_hard_fork_version();
-  uint64_t cryptonote_block_future_time_limit = version < 13 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
-  uint64_t blockchain_timestamp_check_window  = version < 13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  uint64_t cryptonote_block_future_time_limit = version < HF_VERSION_MONERO_13 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
+  uint64_t blockchain_timestamp_check_window  = version < HF_VERSION_MONERO_13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
   if(b.timestamp > get_adjusted_time() + cryptonote_block_future_time_limit)
   {
     MERROR_VER("Timestamp of block with id: " << get_block_hash(b) << ", " << b.timestamp << ", bigger than adjusted time + " << cryptonote_block_future_time_limit << " seconds");
