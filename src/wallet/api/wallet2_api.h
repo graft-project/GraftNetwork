@@ -817,14 +817,6 @@ struct Wallet
     virtual PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
                                                    bool rtaTransaction = false,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
- 
-    /*!
-     * \brief loadTransaction loads previously serialized transaction from stream
-     * \param iss               stream to load from
-     * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
-     *                          after object returned
-     */
-    virtual PendingTransaction * loadTransaction(std::istream &iss) = 0;
 
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.

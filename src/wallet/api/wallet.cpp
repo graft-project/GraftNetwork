@@ -384,7 +384,7 @@ WalletImpl::WalletImpl(NetworkType nettype, uint64_t kdf_rounds)
     , m_rebuildWalletCache(false)
     , m_is_connected(false)
 {
-    m_wallet.reset(new tools::GraftWallet(static_cast<cryptonote::network_type>(nettype) == cryptonote::TESTNET/*, kdf_rounds, true*/));
+    m_wallet.reset(new tools::GraftWallet(static_cast<cryptonote::network_type>(nettype), kdf_rounds, true));
     m_history.reset(new TransactionHistoryImpl(this));
     m_wallet2Callback.reset(new Wallet2CallbackImpl(this));
     m_wallet->callback(m_wallet2Callback.get());
@@ -423,8 +423,8 @@ bool WalletImpl::create(const std::string &path, const std::string &password, co
     clearStatus();
     m_recoveringFromSeed = false;
     m_recoveringFromDevice = false;
-    bool keys_file_exists;
-    bool wallet_file_exists;
+    bool keys_file_exists = false;
+    bool wallet_file_exists = false;
     tools::wallet2::wallet_exists(path, keys_file_exists, wallet_file_exists);
     LOG_PRINT_L3("wallet_path: " << path << "");
     LOG_PRINT_L3("keys_file_exists: " << std::boolalpha << keys_file_exists << std::noboolalpha
@@ -489,7 +489,7 @@ bool WalletImpl::create(const string &password, const string &language)
 bool WalletImpl::createWatchOnly(const std::string &path, const std::string &password, const std::string &language) const
 {
     clearStatus();
-    std::unique_ptr<tools::GraftWallet> view_wallet(new tools::GraftWallet(m_wallet->nettype() == cryptonote::TESTNET));
+    std::unique_ptr<tools::GraftWallet> view_wallet(new tools::GraftWallet(m_wallet->nettype()));
 
     // Store same refresh height as original wallet
     view_wallet->set_refresh_from_block_height(m_wallet->get_refresh_from_block_height());
@@ -1585,17 +1585,6 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     // Resume refresh thread
     startRefresh();
     return transaction;
-}
-
-PendingTransaction *WalletImpl::loadTransaction(istream &iss)
-{
-  clearStatus();
-  PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
-  if (!m_wallet->load_tx(transaction->m_pending_tx, iss)) {
-    transaction->m_status = Status_Error;
-    transaction->m_errorString = "Error loading transaction from stream";
-  }
-  return transaction;
 }
 
 PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::TransactionDestination> &destinations,

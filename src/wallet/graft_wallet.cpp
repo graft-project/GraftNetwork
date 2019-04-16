@@ -24,10 +24,70 @@ namespace
  * \param  two_random     Whether it is a non-deterministic wallet
  * \return                The secret key of the generated wallet
  */
-tools::GraftWallet::GraftWallet(bool testnet)
-    : wallet2(testnet ? cryptonote::TESTNET : cryptonote::MAINNET)
+tools::GraftWallet::GraftWallet(cryptonote::network_type nettype, uint64_t kdf_rounds, bool unattended)
+    : wallet2(nettype, kdf_rounds, unattended)
 {
 
+}
+
+std::unique_ptr<tools::GraftWallet> tools::GraftWallet::createWallet(const std::string &daemon_address,
+                           const std::string &daemon_host, int daemon_port,
+                           const std::string &daemon_login, cryptonote::network_type nettype)
+{
+    //make_basic() analogue
+    THROW_WALLET_EXCEPTION_IF(!daemon_address.empty() && !daemon_host.empty() && 0 != daemon_port,
+                              tools::error::wallet_internal_error,
+                              tools::GraftWallet::tr("can't specify daemon host or port more than once"));
+    boost::optional<epee::net_utils::http::login> login{};
+    if (!daemon_login.empty())
+    {
+        std::string ldaemon_login(daemon_login);
+
+        auto parsed = tools::login::parse(std::move(ldaemon_login), false, nullptr);
+        if (!parsed)
+        {
+            return nullptr;
+        }
+        login.emplace(std::move(parsed->username), std::move(parsed->password).password());
+    }
+    std::string ldaemon_host = daemon_host.empty() ? "localhost" : daemon_host;
+    if (!daemon_port)
+    {
+        daemon_port = cryptonote::get_config(nettype).RPC_DEFAULT_PORT;
+    }
+    std::string ldaemon_address = daemon_address;
+    if (daemon_address.empty())
+    {
+        ldaemon_address = std::string("http://") + ldaemon_host + ":" + std::to_string(daemon_port);
+    }
+    std::unique_ptr<tools::GraftWallet> wallet(new tools::GraftWallet(nettype));
+    wallet->init(std::move(ldaemon_address), std::move(login));
+    return wallet;
+}
+
+std::unique_ptr<tools::GraftWallet> tools::GraftWallet::createWallet(const std::string &account_data,
+                  const std::string &password, const std::string &daemon_address,
+                  const std::string &daemon_host, int daemon_port, const std::string &daemon_login,
+                  cryptonote::network_type nettype, bool use_base64)
+{
+    auto wallet = createWallet(daemon_address, daemon_host, daemon_port, daemon_login, nettype);
+    if (wallet)
+    {
+        wallet->loadFromData(account_data, password, "" /*cache_file*/, use_base64);
+    }
+    return std::move(wallet);
+}
+
+bool tools::GraftWallet::verify_message(const std::string &message, const std::string &address,
+                                        const std::string &signature, cryptonote::network_type nettype)
+{
+    cryptonote::address_parse_info addr;
+    if (!cryptonote::get_account_address_from_str(addr, nettype, address))
+    {
+        LOG_PRINT_L0("!get_account_integrated_address_from_str");
+        return false;
+    }
+    return wallet2::verify(message, addr.address, signature);
 }
 
 crypto::secret_key tools::GraftWallet::generateFromData(const std::string &password,
@@ -97,8 +157,6 @@ void tools::GraftWallet::loadFromData(const std::string &data, const std::string
     {
         check_genesis(genesis_hash);
     }
-
-    //m_local_bc_height = m_blockchain.size(); //TODO: no such variable m_local_bc_height
 }
 
 void tools::GraftWallet::load_cache(const std::string &filename)

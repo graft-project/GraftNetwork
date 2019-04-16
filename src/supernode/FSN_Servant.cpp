@@ -132,9 +132,9 @@ FSN_Servant::FSN_Servant(const string &bdb_path, const string &node_addr, const 
         if (!boost::filesystem::create_directories(m_fsnWalletsDir))
             throw std::runtime_error("Error creating FSN view only wallets directory");
     }
-
-    if (!initBlockchain(bdb_path, nettype))
-        throw std::runtime_error("Failed to open blockchain");
+//FIXME: Commented since blockchain loading disabled.
+//    if (!initBlockchain(bdb_path, nettype))
+//        throw std::runtime_error("Failed to open blockchain");
 
 }
 
@@ -170,7 +170,8 @@ FSN_Servant::LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums
     All_FSN_Guard.lock();
 
     for (uint64_t block_index = endBlock; block_index >= startFromBlock; --block_index) {
-        const cryptonote::block block = m_bdb->get_block_from_height(block_index);
+//FIXME: Commented since blockchain loading disabled.
+//        const cryptonote::block block = m_bdb->get_block_from_height(block_index);
         //2. for each blocks, apply function from xmrblocks (page.h:show_my_outputs)
         // TODO: can be faster algorithm?
         for (const auto & fsn_wallet : All_FSN) {
@@ -187,12 +188,12 @@ FSN_Servant::LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums
 
             LOG_PRINT_L3("pub spend key: " << epee::string_tools::pod_to_hex(address_info.address.m_spend_public_key));
             LOG_PRINT_L3("pub view key: " << epee::string_tools::pod_to_hex(address_info.address.m_view_public_key));
-
-            if (proofCoinbaseTx(address_info.address, block, viewkey)) {
-                result.push_back(std::make_pair(block_index, fsn_wallet));
-                // stop wallets loop as we already found the wallet who solved block
-                break;
-            }
+//FIXME: Commented since blockchain loading disabled.
+//            if (proofCoinbaseTx(address_info.address, block, viewkey)) {
+//                result.push_back(std::make_pair(block_index, fsn_wallet));
+//                // stop wallets loop as we already found the wallet who solved block
+//                break;
+//            }
         }
     }
     All_FSN_Guard.unlock();
@@ -314,7 +315,6 @@ bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &addr
 
 bool FSN_Servant::initBlockchain(const string &dbpath, network_type nettype)
 {
-
     m_bc = nullptr;
     m_mempool = new cryptonote::tx_memory_pool(*m_bc);
     m_bc = new cryptonote::Blockchain(*m_mempool);
