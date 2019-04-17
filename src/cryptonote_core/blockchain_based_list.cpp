@@ -1,10 +1,8 @@
-#include "blockchain_based_list.h"
 #include "file_io_utils.h"
-#include "serialization/binary_utils.h"
-#include "serialization/crypto.h"
-#include "serialization/list.h"
 #include "stake_transaction_processor.h"
 #include "graft_rta_config.h"
+#include "blockchain_based_list.h"
+#include "serialization/binary_utils.h"
 
 using namespace cryptonote;  
 
