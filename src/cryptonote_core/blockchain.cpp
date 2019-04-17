@@ -122,7 +122,9 @@ static const struct {
   // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-07T05:00:00+00
   { 12, 299200, 0, 1551934800 },
   // hf 13 - RTA transactions, RTA mining, ~2019-03-20T14:00:00+00
-  { 13, 308460, 0, 1553090400 }
+  { 13, 308460, 0, 1553090400 },
+  // hf 14 Bullet proof
+  { 14, 500000, 0, 1560000000 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -161,7 +163,9 @@ static const struct {
   // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-05T05:00:00+00
   { 12, 286500, 0, 1551762000 },
   // hf 13 - RTA transactions, RTA mining, ~2019-03-15T05:00:00+00
-  { 13, 287770, 0, 1552626000 }
+  { 13, 287770, 0, 1552626000 },
+  // hf 14 Bullet proof
+  { 14, 500000, 0, 1560000000 },
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
