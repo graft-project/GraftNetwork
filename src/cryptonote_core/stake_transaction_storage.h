@@ -8,6 +8,8 @@
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "serialization/crypto.h"
 #include "serialization/list.h"
+#include "serialization/vector.h"
+#include "serialization/string.h"
 
 namespace cryptonote
 {
