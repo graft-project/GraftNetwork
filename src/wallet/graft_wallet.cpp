@@ -6,14 +6,32 @@
 #include "rapidjson/writer.h"
 #include "common/json_util.h"
 #include "string_coding.h"
+#include <boost/format.hpp>
+
+#define SUBADDRESS_LOOKAHEAD_MAJOR 50
+#define SUBADDRESS_LOOKAHEAD_MINOR 200
+
+#define CACHE_KEY_TAIL 0x8d
+
+using namespace crypto;
 
 namespace
 {
-  bool verify_keys(const crypto::secret_key& sec, const crypto::public_key& expected_pub)
+  std::string get_default_db_path(cryptonote::network_type nettype)
   {
-    crypto::public_key pub;
-    bool r = crypto::secret_key_to_public_key(sec, pub);
-    return r && expected_pub == pub;
+    boost::filesystem::path dir = tools::get_default_data_dir();
+    // remove .bitmonero, replace with .shared-ringdb
+    dir = dir.remove_filename();
+    dir /= ".shared-ringdb";
+    switch (nettype) {
+    case cryptonote::TESTNET:
+        return (boost::filesystem::path(dir.string()) / "testnet").string();
+    case cryptonote::STAGENET:
+        return (boost::filesystem::path(dir.string()) / "stagenet").string();
+    case cryptonote::MAINNET:
+    default:
+        return dir.string();
+    }
   }
 }
 /*!
@@ -62,6 +80,7 @@ std::unique_ptr<tools::GraftWallet> tools::GraftWallet::createWallet(const std::
     }
     std::unique_ptr<tools::GraftWallet> wallet(new tools::GraftWallet(nettype));
     wallet->init(std::move(ldaemon_address), std::move(login));
+    wallet->set_ring_database(get_default_db_path(nettype));
     return wallet;
 }
 
@@ -100,22 +119,19 @@ crypto::secret_key tools::GraftWallet::generateFromData(const std::string &passw
 
     m_account_public_address = m_account.get_keys().m_account_address;
     m_watch_only = false;
+    m_multisig = false;
+    m_multisig_threshold = 0;
+    m_multisig_signers.clear();
+    m_key_device_type = hw::device::device_type::SOFTWARE;
+    setup_cache_keys(password);
 
-    // -1 month for fluctuations in block time and machine date/time setup.
-    // avg seconds per block
-    const int seconds_per_block = DIFFICULTY_TARGET_V2;
-    // ~num blocks per month
-    const uint64_t blocks_per_month = 60*60*24*30/seconds_per_block;
-
-    // try asking the daemon first
-    if(m_refresh_from_block_height == 0 && !recover){
-      uint64_t height = estimate_blockchain_height();
-      m_refresh_from_block_height = height >= blocks_per_month ? height - blocks_per_month : 0;
+    // calculate a starting refresh height
+    if(m_refresh_from_block_height == 0 && !recover)
+    {
+        m_refresh_from_block_height = estimate_blockchain_height();
     }
 
-    cryptonote::block b;
-    generate_genesis(b);
-    m_blockchain.push_back(get_block_hash(b));
+    setup_new_blockchain();
 
     return retval;
 }
@@ -152,96 +168,26 @@ void tools::GraftWallet::loadFromData(const std::string &data, const std::string
     if (m_blockchain.empty())
     {
         m_blockchain.push_back(genesis_hash);
+        m_last_block_reward = cryptonote::get_outs_money_amount(genesis.miner_tx);
     }
     else
     {
         check_genesis(genesis_hash);
     }
-}
 
-void tools::GraftWallet::load_cache(const std::string &filename)
-{
-    wallet2::cache_file_data cache_file_data;
-    std::string buf;
-    bool r = epee::file_io_utils::load_file_to_string(filename, buf);
-    THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, filename);
-    // try to read it as an encrypted cache
+    trim_hashchain();
+
+    if (get_num_subaddress_accounts() == 0)
+      add_subaddress_account(tr("Primary account"));
+
     try
     {
-        LOG_PRINT_L0("Trying to decrypt cache data");
-        r = ::serialization::parse_binary(buf, cache_file_data);
-        THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + filename + '\"');
-        crypto::chacha_key key;
-        generate_chacha_key_from_secret_keys(key);
-        std::string cache_data;
-        cache_data.resize(cache_file_data.cache_data.size());
-        crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
-
-        std::stringstream iss;
-        iss << cache_data;
-        try {
-            boost::archive::portable_binary_iarchive ar(iss);
-            ar >> *this;
-        }
-        catch (...)
-        {
-            LOG_PRINT_L0("Failed to open portable binary, trying unportable");
-            boost::filesystem::copy_file(filename, filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
-            iss.str("");
-            iss << cache_data;
-            boost::archive::binary_iarchive ar(iss);
-            ar >> *this;
-        }
+      find_and_save_rings(false);
     }
-    catch (...)
+    catch (const std::exception &e)
     {
-        LOG_PRINT_L0("Failed to load encrypted cache, trying unencrypted");
-        std::stringstream iss;
-        iss << buf;
-        try {
-            boost::archive::portable_binary_iarchive ar(iss);
-            ar >> *this;
-        }
-        catch (...)
-        {
-            LOG_PRINT_L0("Failed to open portable binary, trying unportable");
-            boost::filesystem::copy_file(filename, filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
-            iss.str("");
-            iss << buf;
-            boost::archive::binary_iarchive ar(iss);
-            ar >> *this;
-        }
+      MERROR("Failed to save rings, will try again next time");
     }
-    THROW_WALLET_EXCEPTION_IF(
-                m_account_public_address.m_spend_public_key != m_account.get_keys().m_account_address.m_spend_public_key ||
-            m_account_public_address.m_view_public_key  != m_account.get_keys().m_account_address.m_view_public_key,
-                error::wallet_files_doesnt_correspond, m_keys_file, filename);
-}
-
-void tools::GraftWallet::store_cache(const std::string &filename)
-{
-    // preparing wallet data
-    std::stringstream oss;
-    boost::archive::portable_binary_oarchive ar(oss);
-    ar << *static_cast<tools::wallet2*>(this);
-
-    wallet2::cache_file_data cache_file_data = boost::value_initialized<wallet2::cache_file_data>();
-    cache_file_data.cache_data = oss.str();
-    crypto::chacha_key key;
-    generate_chacha_key_from_secret_keys(key);
-    std::string cipher;
-    cipher.resize(cache_file_data.cache_data.size());
-    cache_file_data.iv = crypto::rand<crypto::chacha_iv>();
-    crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cipher[0]);
-    cache_file_data.cache_data = cipher;
-
-    // save to new file
-    std::ofstream ostr;
-    ostr.open(filename, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);
-    binary_archive<true> oar(ostr);
-    bool success = ::serialization::serialize(oar, cache_file_data);
-    ostr.close();
-    THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
 }
 
 void tools::GraftWallet::update_tx_cache(const tools::wallet2::pending_tx &ptx)
@@ -269,12 +215,12 @@ void tools::GraftWallet::update_tx_cache(const tools::wallet2::pending_tx &ptx)
             amount_in += m_transfers[idx].amount();
         }
     }
-    std::set<uint32_t> subaddr_indices; //TODO: check indices
-    add_unconfirmed_tx(ptx.tx, amount_in, dests, payment_id, ptx.change_dts.amount, 0, subaddr_indices);
+    add_unconfirmed_tx(ptx.tx, amount_in, dests, payment_id, ptx.change_dts.amount, ptx.construction_data.subaddr_account, ptx.construction_data.subaddr_indices);
     if (store_tx_info())
     {
         LOG_PRINT_L2("storing tx key " << ptx.tx_key);
         m_tx_keys.insert(std::make_pair(txid, ptx.tx_key));
+        m_additional_tx_keys.insert(std::make_pair(txid, ptx.additional_tx_keys));
         LOG_PRINT_L2("there're  " << m_tx_keys.size() << " stored keys");
     }
 
@@ -283,6 +229,12 @@ void tools::GraftWallet::update_tx_cache(const tools::wallet2::pending_tx &ptx)
     for(size_t idx: ptx.selected_transfers)
     {
         set_spent(idx, 0);
+    }
+
+    // tx generated, get rid of used k values
+    for (size_t idx: ptx.selected_transfers)
+    {
+        m_transfers[idx].m_multisig_k.clear();
     }
 }
 
@@ -308,101 +260,13 @@ std::string tools::GraftWallet::store_keys_to_data(const std::string &password, 
 
     ///Return only account_data
     return account_data;
-
-    wallet2::keys_file_data keys_file_data = boost::value_initialized<wallet2::keys_file_data>();
-
-    // Create a JSON object with "key_data" and "seed_language" as keys.
-    rapidjson::Document json;
-    json.SetObject();
-    rapidjson::Value value(rapidjson::kStringType);
-    value.SetString(account_data.c_str(), account_data.length());
-    json.AddMember("key_data", value, json.GetAllocator());
-    if (!seed_language.empty())
-    {
-      value.SetString(seed_language.c_str(), seed_language.length());
-      json.AddMember("seed_language", value, json.GetAllocator());
-    }
-
-    rapidjson::Value value2(rapidjson::kNumberType);
-    value2.SetInt(watch_only ? 1 :0); // WTF ? JSON has different true and false types, and not boolean ??
-    json.AddMember("watch_only", value2, json.GetAllocator());
-
-    value2.SetInt(m_always_confirm_transfers ? 1 :0);
-    json.AddMember("always_confirm_transfers", value2, json.GetAllocator());
-
-    value2.SetInt(m_print_ring_members ? 1 :0);
-    json.AddMember("print_ring_members", value2, json.GetAllocator());
-
-    value2.SetInt(m_store_tx_info ? 1 :0);
-    json.AddMember("store_tx_info", value2, json.GetAllocator());
-
-    value2.SetUint(m_default_mixin);
-    json.AddMember("default_mixin", value2, json.GetAllocator());
-
-    value2.SetUint(m_default_priority);
-    json.AddMember("default_priority", value2, json.GetAllocator());
-
-    value2.SetInt(m_auto_refresh ? 1 :0);
-    json.AddMember("auto_refresh", value2, json.GetAllocator());
-
-    value2.SetInt(m_refresh_type);
-    json.AddMember("refresh_type", value2, json.GetAllocator());
-
-    value2.SetUint64(m_refresh_from_block_height);
-    json.AddMember("refresh_height", value2, json.GetAllocator());
-
-    value2.SetInt(m_confirm_missing_payment_id ? 1 :0);
-    json.AddMember("confirm_missing_payment_id", value2, json.GetAllocator());
-
-    value2.SetInt(m_ask_password ? 1 :0);
-    json.AddMember("ask_password", value2, json.GetAllocator());
-
-    value2.SetUint(m_min_output_count);
-    json.AddMember("min_output_count", value2, json.GetAllocator());
-
-    value2.SetUint64(m_min_output_value);
-    json.AddMember("min_output_value", value2, json.GetAllocator());
-
-    value2.SetInt(cryptonote::get_default_decimal_point());
-    json.AddMember("default_decimal_point", value2, json.GetAllocator());
-
-    value2.SetInt(m_merge_destinations ? 1 :0);
-    json.AddMember("merge_destinations", value2, json.GetAllocator());
-
-    value2.SetInt(m_confirm_backlog ? 1 :0);
-    json.AddMember("confirm_backlog", value2, json.GetAllocator());
-
-    value2.SetInt(testnet() ? 1 :0);
-    json.AddMember("testnet", value2, json.GetAllocator());
-
-    // Serialize the JSON object
-    rapidjson::StringBuffer buffer;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-    json.Accept(writer);
-    account_data = buffer.GetString();
-
-    // Encrypt the entire JSON object.
-    crypto::chacha_key key;
-    crypto::generate_chacha_key(password, key, m_kdf_rounds);
-    std::string cipher;
-    cipher.resize(account_data.size());
-    keys_file_data.iv = crypto::rand<crypto::chacha_iv>();
-    crypto::chacha8(account_data.data(), account_data.size(), key, keys_file_data.iv, &cipher[0]);
-    keys_file_data.account_data = cipher;
-
-    std::string buf;
-    r = ::serialization::dump_binary(keys_file_data, buf);
-    CHECK_AND_ASSERT_THROW_MES(r, "failed to serialize wallet data");
-
-    ///Return all wallet data
-    LOG_PRINT_L0(sizeof(buf));
-    LOG_PRINT_L0(buf.size());
-    return buf;
 }
 
 bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std::string &password)
 {
+    rapidjson::Document json;
     std::string account_data;
+    bool r = false;
     if (false)
     {
         wallet2::keys_file_data keys_file_data;
@@ -412,7 +276,9 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         crypto::chacha_key key;
         crypto::generate_chacha_key(password, key, m_kdf_rounds);
         account_data.resize(keys_file_data.account_data.size());
-        crypto::chacha8(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
+        crypto::chacha20(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
+        if (json.Parse(account_data.c_str()).HasParseError() || !json.IsObject())
+          crypto::chacha8(keys_file_data.account_data.data(), keys_file_data.account_data.size(), key, keys_file_data.iv, &account_data[0]);
     }
     else
     {
@@ -420,11 +286,15 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
     }
 
     // The contents should be JSON if the wallet follows the new format.
-    rapidjson::Document json;
     if (json.Parse(account_data.c_str()).HasParseError())
     {
         is_old_file_format = true;
         m_watch_only = false;
+        m_multisig = false;
+        m_multisig_threshold = 0;
+        m_multisig_signers.clear();
+        m_multisig_rounds_passed = 0;
+        m_multisig_derivations.clear();
         m_always_confirm_transfers = false;
         m_print_ring_members = false;
         m_default_mixin = 0;
@@ -432,13 +302,25 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         m_auto_refresh = true;
         m_refresh_type = RefreshType::RefreshDefault;
         m_confirm_missing_payment_id = true;
-        m_ask_password = AskPasswordType::AskPasswordToDecrypt;
+        m_confirm_non_default_ring_size = true;
+        m_ask_password = AskPasswordToDecrypt;
         m_min_output_count = 0;
         m_min_output_value = 0;
         m_merge_destinations = false;
         m_confirm_backlog = true;
+        m_confirm_backlog_threshold = 0;
+        m_confirm_export_overwrite = true;
+        m_auto_low_priority = true;
+        m_segregate_pre_fork_outputs = true;
+        m_key_reuse_mitigation2 = true;
+        m_segregation_height = 0;
+        m_ignore_fractional_outputs = true;
+        m_subaddress_lookahead_major = SUBADDRESS_LOOKAHEAD_MAJOR;
+        m_subaddress_lookahead_minor = SUBADDRESS_LOOKAHEAD_MINOR;
+        m_device_name = "";
+        m_key_device_type = hw::device::device_type::SOFTWARE;
     }
-    else
+    else if (json.IsObject())
     {
         if (!json.HasMember("key_data"))
         {
@@ -453,6 +335,12 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         const char *field_key_data = json["key_data"].GetString();
         account_data = std::string(field_key_data, field_key_data + json["key_data"].GetStringLength());
 
+        if (json.HasMember("key_on_device"))
+        {
+          GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, key_on_device, int, Int, false, hw::device::device_type::SOFTWARE);
+          m_key_device_type = static_cast<hw::device::device_type>(field_key_on_device);
+        }
+
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, seed_language, std::string, String, false, std::string());
         if (field_seed_language_found)
         {
@@ -460,6 +348,51 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         }
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, watch_only, int, Int, false, false);
         m_watch_only = field_watch_only;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, multisig, int, Int, false, false);
+        m_multisig = field_multisig;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, multisig_threshold, unsigned int, Uint, m_multisig, 0);
+        m_multisig_threshold = field_multisig_threshold;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, multisig_rounds_passed, unsigned int, Uint, false, 0);
+        m_multisig_rounds_passed = field_multisig_rounds_passed;
+        if (m_multisig)
+        {
+          if (!json.HasMember("multisig_signers"))
+          {
+            LOG_ERROR("Field multisig_signers not found in JSON");
+            return false;
+          }
+          if (!json["multisig_signers"].IsString())
+          {
+            LOG_ERROR("Field multisig_signers found in JSON, but not String");
+            return false;
+          }
+          const char *field_multisig_signers = json["multisig_signers"].GetString();
+          std::string multisig_signers = std::string(field_multisig_signers, field_multisig_signers + json["multisig_signers"].GetStringLength());
+          r = ::serialization::parse_binary(multisig_signers, m_multisig_signers);
+          if (!r)
+          {
+            LOG_ERROR("Field multisig_signers found in JSON, but failed to parse");
+            return false;
+          }
+
+          //previous version of multisig does not have this field
+          if (json.HasMember("multisig_derivations"))
+          {
+            if (!json["multisig_derivations"].IsString())
+            {
+              LOG_ERROR("Field multisig_derivations found in JSON, but not String");
+              return false;
+            }
+            const char *field_multisig_derivations = json["multisig_derivations"].GetString();
+            std::string multisig_derivations = std::string(field_multisig_derivations, field_multisig_derivations + json["multisig_derivations"].GetStringLength());
+            r = ::serialization::parse_binary(multisig_derivations, m_multisig_derivations);
+            if (!r)
+            {
+              LOG_ERROR("Field multisig_derivations found in JSON, but failed to parse");
+              return false;
+            }
+          }
+        }
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, always_confirm_transfers, int, Int, false, true);
         m_always_confirm_transfers = field_always_confirm_transfers;
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, print_ring_members, int, Int, false, true);
@@ -497,9 +430,15 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         m_refresh_from_block_height = field_refresh_height;
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_missing_payment_id, int, Int, false, true);
         m_confirm_missing_payment_id = field_confirm_missing_payment_id;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_non_default_ring_size, int, Int, false, true);
+        m_confirm_non_default_ring_size = field_confirm_non_default_ring_size;
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ask_password, AskPasswordType, Int, false, AskPasswordToDecrypt);
         m_ask_password = field_ask_password;
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_decimal_point, int, Int, false, CRYPTONOTE_DISPLAY_DECIMAL_POINT);
+        // x100, we force decimal point = 10 for existing wallets
+        if (field_default_decimal_point != CRYPTONOTE_DISPLAY_DECIMAL_POINT)
+          field_default_decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
+
         cryptonote::set_default_decimal_point(field_default_decimal_point);
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, min_output_count, uint32_t, Uint, false, 0);
         m_min_output_count = field_min_output_count;
@@ -509,20 +448,88 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         m_merge_destinations = field_merge_destinations;
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_backlog, int, Int, false, true);
         m_confirm_backlog = field_confirm_backlog;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, testnet, int, Int, false, testnet());
-        // Wallet is being opened with testnet flag, but is saved as a mainnet wallet
-        THROW_WALLET_EXCEPTION_IF(testnet() && !field_testnet, error::wallet_internal_error, "Mainnet wallet can not be opened as testnet wallet");
-        // Wallet is being opened without testnet flag but is saved as a testnet wallet.
-        THROW_WALLET_EXCEPTION_IF(!testnet() && field_testnet, error::wallet_internal_error, "Testnet wallet can not be opened as mainnet wallet");
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_backlog_threshold, uint32_t, Uint, false, 0);
+        m_confirm_backlog_threshold = field_confirm_backlog_threshold;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_export_overwrite, int, Int, false, true);
+        m_confirm_export_overwrite = field_confirm_export_overwrite;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, auto_low_priority, int, Int, false, true);
+        m_auto_low_priority = field_auto_low_priority;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, nettype, uint8_t, Uint, false, static_cast<uint8_t>(m_nettype));
+        // The network type given in the program argument is inconsistent with the network type saved in the wallet
+        THROW_WALLET_EXCEPTION_IF(static_cast<uint8_t>(m_nettype) != field_nettype, error::wallet_internal_error,
+                                  (boost::format("%s wallet cannot be opened as %s wallet")
+                                   % (field_nettype == 0 ? "Mainnet" : field_nettype == 1 ? "Testnet" : "Stagenet")
+                                   % (m_nettype == cryptonote::MAINNET ? "mainnet" : m_nettype == cryptonote::TESTNET
+                                                                         ? "testnet" : "stagenet")).str());
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, segregate_pre_fork_outputs, int, Int, false, true);
+        m_segregate_pre_fork_outputs = field_segregate_pre_fork_outputs;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, key_reuse_mitigation2, int, Int, false, true);
+        m_key_reuse_mitigation2 = field_key_reuse_mitigation2;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, segregation_height, int, Uint, false, 0);
+        m_segregation_height = field_segregation_height;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ignore_fractional_outputs, int, Int, false, true);
+        m_ignore_fractional_outputs = field_ignore_fractional_outputs;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, subaddress_lookahead_major, uint32_t, Uint, false, SUBADDRESS_LOOKAHEAD_MAJOR);
+        m_subaddress_lookahead_major = field_subaddress_lookahead_major;
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, subaddress_lookahead_minor, uint32_t, Uint, false, SUBADDRESS_LOOKAHEAD_MINOR);
+        m_subaddress_lookahead_minor = field_subaddress_lookahead_minor;
+
+        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, device_name, std::string, String, false, std::string());
+        if (m_device_name.empty())
+        {
+          if (field_device_name_found)
+          {
+            m_device_name = field_device_name;
+          }
+          else
+          {
+            m_device_name = m_key_device_type == hw::device::device_type::LEDGER ? "Ledger" : "default";
+          }
+        }
+    }
+    else
+    {
+      THROW_WALLET_EXCEPTION(error::wallet_internal_error, "invalid password");
+      return false;
+    }
+
+    r = epee::serialization::load_t_from_binary(m_account, account_data);
+    THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
+    if (m_key_device_type == hw::device::device_type::LEDGER) {
+      LOG_PRINT_L0("Account on device. Initing device...");
+      hw::device &hwdev = hw::get_device(m_device_name);
+      hwdev.set_name(m_device_name);
+      hwdev.init();
+      hwdev.connect();
+      m_account.set_device(hwdev);
+      LOG_PRINT_L0("Device inited...");
+    } else if (key_on_device()) {
+      THROW_WALLET_EXCEPTION(error::wallet_internal_error, "hardware device not supported");
     }
 
     const cryptonote::account_keys& keys = m_account.get_keys();
-    bool r = epee::serialization::load_t_from_binary(m_account, account_data);
+    hw::device &hwdev = m_account.get_device();
+    r = r && hwdev.verify_keys(keys.m_view_secret_key,  keys.m_account_address.m_view_public_key);
     THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
-    r = r && verify_keys(keys.m_view_secret_key,  keys.m_account_address.m_view_public_key);
+    if(!m_watch_only && !m_multisig)
+      r = r && hwdev.verify_keys(keys.m_spend_secret_key, keys.m_account_address.m_spend_public_key);
     THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
-    if(!m_watch_only)
-        r = r && verify_keys(keys.m_spend_secret_key, keys.m_account_address.m_spend_public_key);
-    THROW_WALLET_EXCEPTION_IF(!r, error::invalid_password);
+
+    if (r)
+      setup_cache_keys(password);
+
     return true;
+}
+
+void tools::GraftWallet::setup_cache_keys(const epee::wipeable_string &password)
+{
+  crypto::chacha_key key;
+  crypto::generate_chacha_key(password.data(), password.size(), key, m_kdf_rounds);
+
+  static_assert(HASH_SIZE == sizeof(crypto::chacha_key), "Mismatched sizes of hash and chacha key");
+  epee::mlocked<tools::scrubbed_arr<char, HASH_SIZE+1>> cache_key_data;
+  memcpy(cache_key_data.data(), &key, HASH_SIZE);
+  cache_key_data[HASH_SIZE] = CACHE_KEY_TAIL;
+  cn_fast_hash(cache_key_data.data(), HASH_SIZE+1, (crypto::hash&)m_cache_key);
+  get_ringdb_key();
 }

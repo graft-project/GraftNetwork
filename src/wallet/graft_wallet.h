@@ -30,13 +30,8 @@
 
 
 #include "wallet2.h"
-//#include "grafttxextra.h"
 #include "api/wallet2_api.h"
 #include <memory>
-
-
-//#undef MONERO_DEFAULT_LOG_CATEGORY
-//#define MONERO_DEFAULT_LOG_CATEGORY "wallet.graftwallet"
 
 class Serialization_portability_wallet_Test;
 
@@ -76,17 +71,6 @@ public:
 
   void loadFromData(const std::string& data, const std::string& password,
                     const std::string &cache_file = std::string(), bool use_base64 = true);
-  /*!
-   * \brief load_cache - loads cache from given filename.
-   *                     wallet's private keys should be already loaded before this call
-   * \param filename - filename pointing to the file with cache
-   */
-  void load_cache(const std::string &filename);
-  /*!
-   * \brief store_cache - stores only cache to the file. cache is encrypted using wallet's private keys
-   * \param path - filename to store the cache
-   */
-  void store_cache(const std::string &filename);
 
   void update_tx_cache(const pending_tx &ptx);
 
@@ -95,6 +79,7 @@ public:
   std::string store_keys_to_data(const std::string& password, bool watch_only = false);
 private:
   bool load_keys_from_data(const std::string& data, const std::string& password);
+  void setup_cache_keys(const epee::wipeable_string &password);
 };
 
 }

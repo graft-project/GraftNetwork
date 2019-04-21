@@ -207,7 +207,11 @@ vector< boost::shared_ptr<supernode::FSN_Data> > FSN_Servant::GetAuthSample(uint
 }
 uint64_t FSN_Servant::GetCurrentBlockHeight() const
 {
-    return m_bc->get_current_blockchain_height();
+    if (m_bc)
+    {
+        return m_bc->get_current_blockchain_height();
+    }
+    return 0;
 }
 
 

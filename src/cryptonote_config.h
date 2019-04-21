@@ -141,7 +141,7 @@
 
 #define HF_VERSION_MONERO_13                    14
 #define HF_VERSION_DYNAMIC_FEE                  4
-#define HF_VERSION_MIN_MIXIN_4                  13
+#define HF_VERSION_MIN_MIXIN_4                  6
 #define HF_VERSION_MIN_MIXIN_6                  7
 #define HF_VERSION_MIN_MIXIN_10                 HF_VERSION_MONERO_13
 #define HF_VERSION_ENFORCE_RCT                  6
