@@ -100,8 +100,8 @@ extern void aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *ex
   { \
     U64(b)[2] = state.hs.w[8] ^ state.hs.w[10]; \
     U64(b)[3] = state.hs.w[9] ^ state.hs.w[11]; \
-    division_result = state.hs.w[12]; \
-    sqrt_result = state.hs.w[13]; \
+    division_result = SWAP64LE(state.hs.w[12]); \
+    sqrt_result = SWAP64LE(state.hs.w[13]); \
   } while (0)
 
 #define VARIANT2_PORTABLE_INIT() \
@@ -616,7 +616,7 @@ BOOL SetLockPagesPrivilege(HANDLE hProcess, BOOL bEnable)
  * the allocated buffer.
  */
 
-void slow_hash_allocate_state(void)
+void cn_slow_hash_allocate_state(void)
 {
     if(hp_state != NULL)
         return;
@@ -649,7 +649,7 @@ void slow_hash_allocate_state(void)
  *@brief frees the state allocated by slow_hash_allocate_state
  */
 
-void slow_hash_free_state(void)
+void cn_slow_hash_free_state(void)
 {
     if(hp_state == NULL)
         return;
@@ -723,7 +723,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
 
     // this isn't supposed to happen, but guard against it for now.
     if(hp_state == NULL)
-        slow_hash_allocate_state();
+        cn_slow_hash_allocate_state();
 
     // locals to avoid constant TLS dereferencing
     uint8_t *local_hp_state = hp_state;
@@ -864,13 +864,13 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
 }
 
 #elif !defined NO_AES && (defined(__arm__) || defined(__aarch64__))
-void slow_hash_allocate_state(void)
+void cn_slow_hash_allocate_state(void)
 {
   // Do nothing, this is just to maintain compatibility with the upgraded slow-hash.c
   return;
 }
 
-void slow_hash_free_state(void)
+void cn_slow_hash_free_state(void)
 {
   // As above
   return;
@@ -1446,13 +1446,13 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
 #else
 // Portable implementation as a fallback
 
-void slow_hash_allocate_state(void)
+void cn_slow_hash_allocate_state(void)
 {
   // Do nothing, this is just to maintain compatibility with the upgraded slow-hash.c
   return;
 }
 
-void slow_hash_free_state(void)
+void cn_slow_hash_free_state(void)
 {
   // As above
   return;
@@ -1629,3 +1629,15 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
 }
 
 #endif
+
+void slow_hash_allocate_state(void)
+{
+  cn_slow_hash_allocate_state();
+  rx_slow_hash_allocate_state();
+}
+
+void slow_hash_free_state(void)
+{
+  cn_slow_hash_free_state();
+  rx_slow_hash_free_state();
+}
