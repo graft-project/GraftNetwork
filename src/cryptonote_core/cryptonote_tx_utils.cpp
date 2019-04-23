@@ -980,10 +980,10 @@ namespace cryptonote
   void get_altblock_longhash(const block& b, crypto::hash& res, const uint64_t main_height, const uint64_t height, const uint64_t seed_height, const crypto::hash& seed_hash)
   {
     blobdata bd = get_block_hashing_blob(b);
-    rx_alt_slowhash(main_height, seed_height, seed_hash.data, bd.data(), bd.size(), res.data);
+    rx_slow_hash(main_height, seed_height, seed_hash.data, bd.data(), bd.size(), res.data, 0, 1);
   }
 
-  bool get_block_longhash(const Blockchain *pbc, const block &b, crypto::hash &res, const uint64_t height, const int miners)
+  bool get_block_longhash(const Blockchain *pbc, const block& b, crypto::hash& res, const uint64_t height, const int miners)
   {
     const blobdata bd                 = get_block_hashing_blob(b);
     const uint8_t hf_version          = b.major_version;
@@ -994,16 +994,20 @@ namespace cryptonote
 #endif
 
     if (hf_version >= network_version_12_checkpointing) {
-      uint64_t seed_height;
-      if (rx_needhash(height, &seed_height)) {
-        crypto::hash hash;
-        if (pbc != NULL)
-          hash = pbc->get_pending_block_id_by_height(seed_height);
-        else
-          memset(&hash, 0, sizeof(hash));  // only happens when generating genesis block
-        rx_seedhash(seed_height, hash.data, miners);
+      uint64_t seed_height, main_height;
+      crypto::hash hash;
+      if (pbc != NULL)
+      {
+        seed_height = rx_seedheight(height);
+        hash = pbc->get_pending_block_id_by_height(seed_height);
+        main_height = pbc->get_current_blockchain_height();
+      } else
+      {
+        memset(&hash, 0, sizeof(hash));  // only happens when generating genesis block
+        seed_height = 0;
+        main_height = 0;
       }
-      rx_slow_hash(bd.data(), bd.size(), res.data, miners);
+      rx_slow_hash(main_height, seed_height, hash.data, bd.data(), bd.size(), res.data, miners, 0);
       return true;
     }
 

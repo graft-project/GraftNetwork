@@ -500,7 +500,10 @@ static bool mlog(el::Level level, const char *category, const char *format, va_l
 
   try
   {
+    /* TODO(loki): when pulling upstream epee changes change this to:
     MCLOG(level, category, el::Color::Default, p);
+    */
+    MCLOG(level, category, p);
   }
   catch(...)
   {
