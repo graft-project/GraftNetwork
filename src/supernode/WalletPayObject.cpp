@@ -30,9 +30,12 @@
 #include "WalletPayObject.h"
 #include "graft_defines.h"
 #include "WalletProxy.h"
-#include "wallet/api/wallet2_api.h"
+#include "wallet/api/pending_transaction.h"
+#include "wallet/wallet_errors.h"
 
 using namespace Monero;
+
+static const size_t DEFAULT_MIXIN = 6;
 
 void supernode::WalletPayObject::Owner(WalletProxy* o) { m_Owner = o; }
 
@@ -106,8 +109,6 @@ bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& s
 
     }
 
-
-
     if( !PutTXToPool() ) return false;
 
     rpc_command::WALLET_PUT_TX_IN_POOL::request req;
@@ -117,7 +118,6 @@ bool supernode::WalletPayObject::_Init(const rpc_command::WALLET_PAY::request& s
     vector<rpc_command::WALLET_PUT_TX_IN_POOL::response> vv_out;
 
     if( !m_SubNetBroadcast.Send( dapi_call::WalletPutTxInPool, req, vv_out) ) return false;
-
 
     return true;
 }
@@ -129,9 +129,6 @@ bool supernode::WalletPayObject::GetPayStatus(const rpc_command::WALLET_GET_TRAN
     out.Result = STATUS_OK;
     return true;
 }
-
-
-
 
 bool supernode::WalletPayObject::PutTXToPool() {
     // TODO: IMPL. all needed data we have in TransactionRecord + m_Signs.
@@ -159,37 +156,40 @@ bool supernode::WalletPayObject::PutTXToPool() {
     //        LOG_PRINT_L0("pushing sign to tx extra: " << sign);
     //    }
 
-    std::unique_ptr<Monero::PendingTransaction> ptx {
-        m_wallet->createTransaction(TransactionRecord.POSAddress,
-                                    "",
-                                    TransactionRecord.Amount,
-                                    0,
-                                    tx_extra,
-                                    Monero::PendingTransaction::Priority_Medium
-                                    )};
-
-    if (ptx->status() != PendingTransaction::Status_Ok) {
-        LOG_ERROR("Failed to create tx: " << ptx->errorString());
+    int result = BaseClientProxy::create_transfer(m_wallet.get(), TransactionRecord.POSAddress, TransactionRecord.Amount, "");
+    if (result != STATUS_OK)
+    {
         return false;
     }
+//    std::unique_ptr<Monero::PendingTransaction> ptx {
+//        m_wallet->createTransaction(TransactionRecord.POSAddress,
+//                                    "",
+//                                    TransactionRecord.Amount,
+//                                    0,
+//                                    tx_extra,
+//                                    Monero::PendingTransaction::Priority_Medium
+//                                    )};
 
-    if (!ptx->commit()) {
-        LOG_ERROR("Failed to send tx: " << ptx->errorString());
-        return false;
-    }
+//    if (ptx->status() != PendingTransaction::Status_Ok) {
+//        LOG_ERROR("Failed to create tx: " << ptx->errorString());
+//        return false;
+//    }
 
-    if (ptx->txCount() == 0) {
-        LOG_ERROR("Interlal error: txCount == 0");
-        return false;
-    }
-    if (ptx->txCount() > 1) {
-        LOG_ERROR("TODO: we should handle this somehow");
-        throw std::runtime_error(std::string("tx was splitted by ") + std::to_string(ptx->txCount()) + " transactions, we dont hadle it now");
-    }
+//    if (!ptx->commit()) {
+//        LOG_ERROR("Failed to send tx: " << ptx->errorString());
+//        return false;
+//    }
 
-    m_TransactionPoolID = ptx->txid()[0];
+//    if (ptx->txCount() == 0) {
+//        LOG_ERROR("Interlal error: txCount == 0");
+//        return false;
+//    }
+//    if (ptx->txCount() > 1) {
+//        LOG_ERROR("TODO: we should handle this somehow");
+//        throw std::runtime_error(std::string("tx was splitted by ") + std::to_string(ptx->txCount()) + " transactions, we dont hadle it now");
+//    }
+
+//    m_TransactionPoolID = ptx->txid()[0];
     m_Owner->storeWalletState(m_wallet.get());
     return true;
 }
-
-

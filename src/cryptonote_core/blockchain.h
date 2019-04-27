@@ -945,6 +945,9 @@ namespace cryptonote
 
     void cancel();
 
+    cryptonote::network_type nettype() const { return m_nettype; }
+    bool testnet() const { return m_nettype == cryptonote::TESTNET; }
+
     /**
      * @brief called when we see a tx originating from a block
      *

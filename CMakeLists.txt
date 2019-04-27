@@ -44,8 +44,6 @@ message(STATUS "CMake version ${CMAKE_VERSION}")
 
 project(graftnetwork)
 
-set(DISABLE_SUPERNODE ${APPLE})
-
 function (die msg)
   if (NOT WIN32)
     string(ASCII 27 Esc)
@@ -104,6 +102,38 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
   message(STATUS "Setting default build type: ${CMAKE_BUILD_TYPE}")
 endif()
+
+if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+    message("==> The configuration is ${CMAKE_BUILD_TYPE}. Debug info will be extracted into separate files.")
+
+    function (add_executable _name)
+        _add_executable(${ARGV})
+
+        if (TARGET ${_name})
+            add_custom_command(TARGET ${_name} POST_BUILD
+                COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
+            )
+        endif()
+    endfunction()
+
+    function (add_library _name _type)
+        _add_library(${ARGV})
+
+        if (TARGET ${_name} AND ${_type} STREQUAL SHARED)
+            add_custom_command(TARGET ${_name} POST_BUILD
+                COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
+            )
+        endif()
+    endfunction()
+
+endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+
 string(TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_LOWER)
 
 # ARCH defines the target architecture, either by an explicit identifier or
@@ -195,6 +225,21 @@ endif()
 
 set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
+
+if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
+# CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
+    set(CMAKE_ROOT_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+endif()
+
+add_definitions(-DMONERO_DEFAULT_LOG_CATEGORY="cryptonode" -DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
+
+if(NOT DEFINED ENABLE_SYSLOG)
+    option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
+endif()
+
+if(ENABLE_SYSLOG)
+    add_definitions(-DELPP_SYSLOG)
+endif()
 
 # set this to 0 if per-block checkpoint needs to be disabled
 set(PER_BLOCK_CHECKPOINT 1)
@@ -437,6 +482,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "(SunOS|Solaris)")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthreads")
 endif ()
 
+# Handle OpenSSL, used for sha256sum on binary updates
 if (APPLE AND NOT IOS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64 -fvisibility=default")
   if (NOT OpenSSL_DIR)
@@ -523,6 +569,9 @@ else()
     set(ARCH native CACHE STRING "CPU to build for: -march value or 'default' to not pass -march at all")
   endif()
   message(STATUS "Building on ${CMAKE_SYSTEM_PROCESSOR} for ${ARCH}")
+  if(APPLE)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lz")
+  endif()
   if(ARCH STREQUAL "default")
     set(ARCH_FLAG "")
   elseif(PPC64LE)
@@ -882,7 +931,7 @@ endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 if(MINGW)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wa,-mbig-obj")
-  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32)
+  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32;bcrypt)
   if(DEPENDS)
     set(ICU_LIBRARIES ${Boost_LOCALE_LIBRARY} sicuio sicuin sicuuc sicudt sicutu iconv)
   else()

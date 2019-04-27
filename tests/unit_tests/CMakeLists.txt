@@ -42,6 +42,7 @@ set(unit_tests_sources
   checkpoints.cpp
   command_line.cpp
   crypto.cpp
+  cryptmsg_test.cpp
   decompose_amount_into_digits.cpp
   device.cpp
   dns_resolver.cpp
@@ -103,7 +104,7 @@ target_link_libraries(unit_tests
     wallet_api
     p2p
     version
-    supernode
+    #supernode
     ${Boost_CHRONO_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${GTEST_LIBRARIES}

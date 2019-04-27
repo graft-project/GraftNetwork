@@ -83,6 +83,7 @@ int main(int argc, char const * argv[])
 
       // Settings
       command_line::add_arg(core_settings, daemon_args::arg_log_file);
+      command_line::add_arg(core_settings, daemon_args::arg_log_format);
       command_line::add_arg(core_settings, daemon_args::arg_log_level);
       command_line::add_arg(core_settings, daemon_args::arg_max_log_file_size);
       command_line::add_arg(core_settings, daemon_args::arg_max_log_files);
@@ -140,7 +141,7 @@ int main(int argc, char const * argv[])
       return 0;
     }
 
-    std::string config = command_line::get_arg(vm, daemon_args::arg_config_file);
+    const std::string config = command_line::get_arg(vm, daemon_args::arg_config_file);
     boost::filesystem::path config_path(config);
     boost::system::error_code ec;
     if (bf::exists(config_path, ec))
@@ -205,14 +206,36 @@ int main(int argc, char const * argv[])
     bf::path log_file_path {data_dir / std::string(CRYPTONOTE_NAME ".log")};
     if (!command_line::is_arg_defaulted(vm, daemon_args::arg_log_file))
       log_file_path = command_line::get_arg(vm, daemon_args::arg_log_file);
-    log_file_path = bf::absolute(log_file_path, relative_path_base);
-    mlog_configure(log_file_path.string(), true, command_line::get_arg(vm, daemon_args::arg_max_log_file_size), command_line::get_arg(vm, daemon_args::arg_max_log_files));
 
+    // Set log format
+    std::string format;
+    if (!vm["log-format"].defaulted())
+    {
+      format = command_line::get_arg(vm, daemon_args::arg_log_format).c_str();
+    }
+
+#ifdef ELPP_SYSLOG
+    if (log_file_path == "syslog")
+    {//redirect log to syslog
+      INITIALIZE_SYSLOG("graftnoded");
+      mlog_syslog = true;
+      mlog_configure("", false, format.empty()? nullptr : format.c_str());
+    }
+    else
+#endif
+    {
+      log_file_path = bf::absolute(log_file_path, relative_path_base);
+      mlog_configure(log_file_path.string(), true, format.empty()? nullptr : format.c_str());
+    }
     // Set log level
     if (!command_line::is_arg_defaulted(vm, daemon_args::arg_log_level))
     {
       mlog_set_log(command_line::get_arg(vm, daemon_args::arg_log_level).c_str());
     }
+
+    if(!config.empty())
+      MTRACE("Config file: '" << config << "'" << std::endl);
+
 
     // after logs initialized
     tools::create_directories_if_necessary(data_dir.string());

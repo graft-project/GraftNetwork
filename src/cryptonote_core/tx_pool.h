@@ -51,6 +51,7 @@
 namespace cryptonote
 {
   class Blockchain;
+  class StakeTransactionProcessor;
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
@@ -383,6 +384,11 @@ namespace cryptonote
      */
     void set_txpool_max_weight(size_t bytes);
 
+    void set_stake_transaction_processor(StakeTransactionProcessor * arg)
+    {
+      m_stp = arg;
+    }
+
 #define CURRENT_MEMPOOL_ARCHIVE_VER    11
 #define CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER    13
 
@@ -527,6 +533,11 @@ namespace cryptonote
      */
     void prune(size_t bytes = 0);
 
+
+    bool validate_rta_tx(const crypto::hash &txid, const std::vector<cryptonote::rta_signature> &rta_signs, const cryptonote::rta_header &rta_hdr) const;
+
+    bool validate_supernode(uint64_t height, const crypto::public_key &id) const;
+
     //TODO: confirm the below comments and investigate whether or not this
     //      is the desired behavior
     //! map key images to transactions which spent them
@@ -583,6 +594,8 @@ private:
     size_t m_txpool_weight;
 
     mutable std::unordered_map<crypto::hash, std::tuple<bool, tx_verification_context, uint64_t, crypto::hash>> m_input_cache;
+
+    StakeTransactionProcessor * m_stp = nullptr;
   };
 }
 

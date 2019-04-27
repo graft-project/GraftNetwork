@@ -17,7 +17,8 @@ sudo apt-get install -y \
     libldns-dev \
     libexpat1-dev \
     doxygen \
-    graphviz
+    graphviz \
+    libssl-dev
 
 if [ ${VER[1]} == "18.04" ]; then
     sudo apt-get install -y libssl1.0-dev

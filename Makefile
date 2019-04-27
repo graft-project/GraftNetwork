@@ -62,6 +62,10 @@ debug-static-all:
 	mkdir -p $(builddir)/debug
 	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D STATIC=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE)
 
+debug-static-test:
+	mkdir -p $(builddir)/debug
+	cd $(builddir)/debug && cmake -D BUILD_TESTS=ON -D STATIC=ON -D CMAKE_BUILD_TYPE=Debug $(topdir) && $(MAKE) && $(MAKE) ARGS="-E libwallet_api_tests" test
+
 debug-static-win64:
 	mkdir -p $(builddir)/debug
 	cd $(builddir)/debug && cmake -G "MSYS Makefiles" -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=Debug -D BUILD_TAG="win-x64" -D CMAKE_TOOLCHAIN_FILE=$(topdir)/cmake/64-bit-toolchain.cmake -D MSYS2_FOLDER=c:/msys64 $(topdir) && $(MAKE)
@@ -74,8 +78,22 @@ cmake-release:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -D CMAKE_BUILD_TYPE=Release $(topdir)
 
+cmake-release-syslog:
+	mkdir -p build/release
+	cd build/release && cmake -D CMAKE_BUILD_TYPE=Release -D ENABLE_SYSLOG=ON ../..
+
+cmake-release-syslog-static:
+	mkdir -p build/release
+	cd build/release && cmake -D CMAKE_BUILD_TYPE=Release -D ENABLE_SYSLOG=ON -D STATIC=ON ../..
+
 release: cmake-release
 	cd $(builddir)/release && $(MAKE)
+
+release-syslog: cmake-release-syslog
+	cd build/release && $(MAKE)
+
+release-syslog-static: cmake-release-syslog-static
+	cd build/release && $(MAKE)
 
 release-test:
 	mkdir -p $(builddir)/release
@@ -88,6 +106,10 @@ release-all:
 release-static:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=release $(topdir) && $(MAKE)
+
+release-static-locking:
+	mkdir -p build/release
+	cd build/release && cmake -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=release ../.. && $(MAKE) CXX_FLAGS=-DLOCK_RTA_SENDING
 
 coverage:
 	mkdir -p $(builddir)/debug
@@ -120,6 +142,10 @@ release-static-linux-armv8:
 release-static-linux-x86_64:
 	mkdir -p $(builddir)/release
 	cd $(builddir)/release && cmake -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=release -D BUILD_TAG="linux-x64" $(topdir) && $(MAKE)
+
+release-static-linux-x86_64-debug-info:
+	mkdir -p build/release
+	cd build/release && cmake -D STATIC=ON -D ARCH="x86-64" -D BUILD_64=ON -D CMAKE_BUILD_TYPE=RelWithDebInfo -D BUILD_TAG="linux-x64" ../.. && $(MAKE)
 
 release-static-freebsd-x86_64:
 	mkdir -p $(builddir)/release

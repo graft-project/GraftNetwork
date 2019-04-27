@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2019, The Graft Project
 //
 // All rights reserved.
 //
@@ -25,32 +25,41 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#include <boost/optional/optional.hpp>
-#include <boost/program_options/options_description.hpp>
-#include <boost/program_options/positional_options.hpp>
-#include <boost/program_options/variables_map.hpp>
+//
 
-#include "common/command_line.h"
+#pragma once
 
-namespace wallet_args
-{
-  command_line::arg_descriptor<std::string> arg_generate_from_json();
-  command_line::arg_descriptor<std::string> arg_wallet_file();
+#include "crypto/crypto.h"
+#include <vector>
 
-  const char* tr(const char* str);
+namespace graft { namespace crypto_tools {
 
-  /*! Processes command line arguments (`argc` and `argv`) using `desc_params`
-  and `positional_options`, while adding parameters for log files and
-  concurrency. Log file and concurrency arguments are handled, along with basic
-  global init for the wallet process.
+/*!
+ * \brief encryptMessage - encrypts data for recipients using their B public keys (assumed public view keys).
+ *
+ * \param input - data to encrypt.
+ * \param Bkeys - vector of B keys for each recipients.
+ * \param output - resulting encripted message.
+ */
+void encryptMessage(const std::string& input, const std::vector<crypto::public_key>& Bkeys, std::string& output);
 
-  \return The list of parsed options, iff there are no errors.*/
-  boost::optional<boost::program_options::variables_map> main(
-    int argc, char** argv,
-    const char* const usage,
-    const char* const notice,
-    boost::program_options::options_description desc_params,
-    const boost::program_options::positional_options_description& positional_options,
-    const std::function<void(const std::string&, bool)> &print,
-    const char *default_log_name, bool log_to_console = false);
-}
+/*!
+ * \brief encryptMessage - encrypts data for single recipient using B public keys (assumed public view key).
+ *
+ * \param input - data to encrypt.
+ * \param Bkey - B keys of recipient.
+ * \param output - resulting encripted message.
+ */
+void encryptMessage(const std::string& input, const crypto::public_key& Bkey, std::string& output);
+
+/*!
+ * \brief decryptMessage - (reverse of encryptMessage) decrypts data for one of the recipients using his secret key b.
+ *
+ * \param input - data that was created by encryptForBs.
+ * \param bkey - secret key corresponding to one of Bs that were used to encrypt.
+ * \param output - resulting decrypted data.
+ * \return true on success or false otherwise
+ */
+bool decryptMessage(const std::string& input, const crypto::secret_key& bkey, std::string& output);
+
+}} //namespace graft::crypto_tools

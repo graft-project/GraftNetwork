@@ -31,49 +31,47 @@
 #define WALLET_PAY_OBJECT_H_
 
 #include "BaseRTAObject.h"
-#include "graft_wallet.h"
+#include "wallet/graft_wallet.h"
+#include "wallet/api/wallet2_api.h"
 
 #include <memory>
 
 namespace supernode {
 
-	class WalletProxy;
+class WalletProxy;
 
-	class WalletPayObject : public BaseRTAObject {
-		public:
-		void Owner(WalletProxy* o);
-        /*!
+class WalletPayObject : public BaseRTAObject {
+public:
+    void Owner(WalletProxy* o);
+    /*!
          * @brief OpenSourceWallet - opens temporary wallet
          * @param wallet           - serialized wallet keys
          * @param walletPass       - key's password?
          * @return                 - true if success
          */
-        bool OpenSenderWallet(const std::string &wallet, const std::string &walletPass);
-        /*!
+    bool OpenSenderWallet(const std::string &wallet, const std::string &walletPass);
+    /*!
          * \brief Init - actually sends tx to tx pool
          * \param src - transaction details
          * \return    - true if tx sent sucessfully
          */
-		bool Init(const rpc_command::WALLET_PAY::request& src);
+    bool Init(const rpc_command::WALLET_PAY::request& src);
 
-		void BeforStart();
+    void BeforStart();
 
-		bool GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out);
+    bool GetPayStatus(const rpc_command::WALLET_GET_TRANSACTION_STATUS::request& in, rpc_command::WALLET_GET_TRANSACTION_STATUS::response& out);
 
+protected:
+    virtual bool PutTXToPool();
+    bool _Init(const rpc_command::WALLET_PAY::request& src);
 
-		protected:
-		virtual bool PutTXToPool();
-		bool _Init(const rpc_command::WALLET_PAY::request& src);
-
-		protected:
-        NTransactionStatus m_Status = NTransactionStatus::None;
-        WalletProxy* m_Owner = nullptr;
-        vector<string> m_Signs;
-        string m_TransactionPoolID;
-        std::unique_ptr<tools::GraftWallet> m_wallet;
-
-
-	};
+protected:
+    NTransactionStatus m_Status = NTransactionStatus::None;
+    WalletProxy* m_Owner = nullptr;
+    vector<string> m_Signs;
+    string m_TransactionPoolID;
+    std::unique_ptr<tools::GraftWallet> m_wallet;
+};
 
 }
 

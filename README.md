@@ -1,12 +1,16 @@
 # Graft Network
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 Copyright (c) 2017-2018, The Graft Project
 ||||||| merged common ancestors
 Copyright (c) 2017, The Graft Project
 =======
 Copyright (c) 2018, The Graft Project
 >>>>>>> master
+=======
+Copyright (c) 2019, The Graft Project
+>>>>>>> origin/master
 
 ## Monero Fork (Monero version 0.12)
 
@@ -65,11 +69,11 @@ These builds are of the master branch, which is used for active development and 
 
 ## Introduction
 
-Graft Network is a private, secure, untraceable, decentralised digital currency. You are your bank, you control your funds, and nobody can trace your transfers unless you allow them to do so.
+Graft Network is a private, secure, untraceable, decentralized digital cryptocurrency. You are your bank. You control your funds and nobody can trace your transactions unless you allow them to do so.
 
-**Privacy:** Graft Network uses a cryptographically sound system to allow you to send and receive funds without your transactions being easily revealed on the blockchain (the ledger of transactions that everyone has). This ensures that your purchases, receipts, and all transfers remain absolutely private by default.
+**Privacy:** Graft Network uses a cryptographically sound system to allow you to send and receive funds without your transactions being easily revealed on the blockchain (the ledger of transactions that everyone has access to). This ensures that your purchases, receipts, and all transfers remain absolutely private by default.
 
-**Security:** Using the power of a distributed peer-to-peer consensus network, every transaction on the network is cryptographically secured. Individual wallets have a 25 word mnemonic seed that is only displayed once, and can be written down to backup the wallet. Wallet files are encrypted with a passphrase to ensure they are useless if stolen.
+**Security:** Using the power of a distributed peer-to-peer consensus network, every transaction on the network is cryptographically secured. Individual wallets have a 25-word mnemonic seed that is only displayed once, and can be written down to backup the wallet. Wallet files are encrypted with a passphrase to ensure they are useless if stolen.
 
 **Untraceability:** By taking advantage of ring signatures, a special property of a certain type of cryptography, Graft Network is able to ensure that transactions are not only untraceable, but have an optional measure of ambiguity that ensures that transactions cannot easily be tied back to an individual user or computer.
 
@@ -77,9 +81,9 @@ Graft Network is a private, secure, untraceable, decentralised digital currency.
 
 This is the core implementation of Graft Network. It is open source and completely free to use without restrictions, except for those specified in the license agreement below. There are no restrictions on anyone creating an alternative implementation of Graft Network that uses the protocol and network in a compatible manner.
 
-As with many development projects, the repository on Github is considered to be the "staging" area for the latest changes. Before changes are merged into that branch on the main repository, they are tested by individual developers in their own branches, submitted as a pull request, and then subsequently tested by contributors who focus on testing and code reviews. That having been said, the repository should be carefully considered before using it in a production environment, unless there is a patch in the repository for a particular show-stopping issue you are experiencing. It is generally a better idea to use a tagged release for stability.
+As with many development projects, the repository on Github is considered to be the "staging" area for the latest changes. Before changes are merged into that branch on the main repository, they are tested by individual developers in their own branches, submitted as a pull request, and then subsequently tested by contributors who focus on testing and code reviews. Having said that, the repository should be carefully considered before using it in a production environment, unless there is a patch in the repository for a particular show-stopping issue you are experiencing. It is generally a better idea to use a tagged release for stability.
 
-**Anyone is welcome to contribute to Graft Network's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
+**Anyone is welcome to contribute to Graft Network's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase, it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
 
 
 ## Supporting the Project
@@ -139,10 +143,20 @@ See [Vulnerability Response Process](VULNERABILITY_RESPONSE_PROCESS.md).
 Graft Network uses a fixed-schedule hard fork mechanism to implement new features. This means that users of Graft Network (end users and service providers) need to run current versions and update their software on a regular schedule. Here is the current schedule, versions, and compatibility.
 Dates are provided in the format YYYY-MM-DD. 
 
+<<<<<<< HEAD
 | Fork Date              | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |  
+=======
+
+| Fork Date         | Consensus version | Minimum Graft Network Version | Recommended Graft Network Version | Details            |
+>>>>>>> origin/master
 | ----------------- | ----------------- | ---------------------- | -------------------------- | ------------------ |
 | 2018-01-18        | v7                | 1.0.0                | 1.0.1                    | First release      |
 | 2018-04-10        | v8                | 1.1.0                | 1.1.2                    | Anti-ASIC change from Monero (Cryptonight variant 1), Improved Difficulty Adjustment Algorithm (new algorithm based on the LWMA difficulty algorithm)      |
+| 2018-04-23        | v9                | 1.2.0                | 1.2.3                    | Fix for Difficulty Adjustment Algorithm      |
+| 2018-09-17        | v10               | 1.4.4                | 1.4.5                    | Block reward halved       |
+| 2018-10-31        | v11               | 1.5.0                | 1.5.1                    | PoW algorithm from Monero v8 (CN v2), enabled checkpoints for mainnet  |
+| 2019-03-07        | v12               | 1.6.0                | 1.6.0                    | Own PoW algorithm - CryptoNight V8 ReverseWaltz - tweaked from CryptoNight Monero v8 (CN v2)  |
+| 2019-03-20        | v13               | 1.7.4                | 1.7.4                    | RTA Mining  |
 
 <<<<<<< HEAD
 ## Installing Graft Network from a Package
@@ -230,7 +244,13 @@ Approximately three months prior to a scheduled software upgrade, a branch from 
 
 ### Dependencies
 
+<<<<<<< HEAD
 The following table summarizes the tools and libraries required to build. A
+=======
+**Due to gcc 7.3.0 being a hard requirement right now, we strongly recomend to use Ubuntu 18.04 as a build platform**
+
+The following table summarizes the tools and libraries required to build.  A
+>>>>>>> origin/master
 few of the libraries are also included in this repository (marked as
 "Vendored"). By default, the build uses the library installed on the system,
 and ignores the vendored sources. However, if no library is found installed on
@@ -239,6 +259,7 @@ sources are also used for statically-linked builds because distribution
 packages often include only shared library binaries (`.so`) but not static
 library archives (`.a`).
 
+<<<<<<< HEAD
 | Dep          | Min. version  | Vendored | Debian/Ubuntu pkg  | Arch pkg     | Fedora            | Optional | Purpose        |
 | ------------ | ------------- | -------- | ------------------ | ------------ | ----------------- | -------- | -------------- |
 | GCC          | 4.7.3         | NO       | `build-essential`  | `base-devel` | `gcc`             | NO       |                |
@@ -259,10 +280,29 @@ library archives (`.a`).
 | Doxygen      | any           | NO       | `doxygen`          | `doxygen`    | `doxygen`         | YES      | Documentation  |
 | Graphviz     | any           | NO       | `graphviz`         | `graphviz`   | `graphviz`        | YES      | Documentation  |
 
+=======
+| Dep            | Min. Version  | Vendored | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose        |
+| -------------- | ------------- | ---------| ------------------ | -------------- | -------- | -------------- |
+| GCC            | 4.7.3         | NO       | `build-essential`  | `base-devel`   | NO       |                |
+| CMake          | 3.0.0         | NO       | `cmake`            | `cmake`        | NO       |                |
+| pkg-config     | any           | NO       | `pkg-config`       | `base-devel`   | NO       |                |
+| Boost          | 1.58          | NO       | `libboost-all-dev` | `boost`        | NO       | C++ libraries  |
+| OpenSSL        | 1.0.2         | NO       | `libssl-dev`       | `openssl`      | NO       | sha256 sum     |
+| libunbound     | 1.4.16        | YES      | `libunbound-dev`   | `unbound`      | NO       | DNS resolver   |
+| libminiupnpc   | 2.0           | YES      | `libminiupnpc-dev` | `miniupnpc`    | YES      | NAT punching   |
+| libunwind      | any           | NO       | `libunwind8-dev`   | `libunwind`    | YES      | Stack traces   |
+| liblzma        | any           | NO       | `liblzma-dev`      | `xz`           | YES      | For libunwind  |
+| ldns           | 1.6.17        | NO       | `libldns-dev`      | `ldns`         | YES      | SSL toolkit    |
+| expat          | 1.1           | NO       | `libexpat1-dev`    | `expat`        | YES      | XML parsing    |
+| GTest          | 1.5           | YES      | `libgtest-dev`^    | `gtest`        | YES      | Test suite     |
+| Doxygen        | any           | NO       | `doxygen`          | `doxygen`      | YES      | Documentation  |
+| Graphviz       | any           | NO       | `graphviz`         | `graphviz`     | YES      | Documentation  |
+>>>>>>> origin/master
 
 [^] On Debian/Ubuntu `libgtest-dev` only includes sources and headers. You must
 build the library binary manually. This can be done with the following command ```sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/ ```
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 ||||||| merged common ancestors
 ### Cloning the repository
@@ -290,6 +330,19 @@ If you already have a repo cloned, initialize and update:
 `$ cd monero && git submodule init && git submodule update`
 
 >>>>>>> 74902419f5946dc01e9b00ad7afad2397eb2efa3
+=======
+
+### Cloning the repository
+Clone recursively to pull-in needed submodule(s):
+
+         git clone --recurse-submodules https://github.com/graft-project/GraftNetwork
+
+If you already have a repo cloned, initialize and update:
+
+         cd GraftNetwork
+
+
+>>>>>>> origin/master
 ### Build instructions
 
 Graft Network uses the CMake build system and a top-level [Makefile](Makefile) that
@@ -301,6 +354,7 @@ invokes cmake commands as needed.
 * Change to the root of the source code directory, change to the most recent release branch, and build:
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         cd GraftNetwork
 ||||||| merged common ancestors
         cd monero
@@ -309,6 +363,10 @@ invokes cmake commands as needed.
         git checkout v0.13.0.4
 >>>>>>> 74902419f5946dc01e9b00ad7afad2397eb2efa3
         make
+=======
+         cd GraftNetwork
+         make
+>>>>>>> origin/master
 
     *Optional*: If your machine has several cores and enough memory, enable
     parallel build by running `make -j<number of threads>` instead of `make`. For

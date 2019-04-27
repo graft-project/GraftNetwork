@@ -53,7 +53,7 @@ namespace supernode {
 		const string& IP() const;
 		const string& Port() const;
 
-    void setServant(FSN_Servant *servant);
+        void setServant(FSN_Servant *servant);
 
 		protected:
 		class SCallHandler {
@@ -135,7 +135,7 @@ namespace supernode {
 		protected:
 		string m_IP;
 		string m_Port;
-    FSN_Servant *m_Servant = nullptr;
+        FSN_Servant *m_Servant = nullptr;
 	};
 
 };

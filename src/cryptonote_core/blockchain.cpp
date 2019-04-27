@@ -119,10 +119,12 @@ static const struct {
   { 10, 176000, 0, 1537142400 },
   // hf 11 - Monero V8/CN variant 2 PoW, ~2018-10-31T17:00:00+00
   { 11, 207700, 0, 1541005200 },
-  // hf 12 - Graft CryptoNight Waltz PoW, 2019-01-24
-  { 12, 357100, 0, 1555949074 },
-  // hf 13 - merge of Monero v0.13.0.4 into Graft-master, 2019-03-xx
-  { 13, 357500, 0, 1556009074 }
+  // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-07T05:00:00+00
+  { 12, 299200, 0, 1551934800 },
+  // hf 13 - RTA transactions, RTA mining, ~2019-03-20T14:00:00+00
+  { 13, 308460, 0, 1553090400 },
+  // hf 14 Bullet proof
+  { 14, 500000, 0, 1560000000 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -158,12 +160,12 @@ static const struct {
   // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
   //{ 11, 194130, 0, 1540400400 },
   { 11, 194130, 0, 1540400400 },
-  // hf 12 - Graft CryptoNight Waltz PoW, 2019-01-24
-  //{ 12, 257600, 0, 1555949074 },
-  { 12, 277140, 0, 1555949074 },
-  // hf 13 - merge of Monero v0.13.0.4 into Graft-master, 2019-03-xx
-  //{ 13, 257755, 0, 1556050074 }
-  { 13, 277150, 0, 1556050074 }
+  // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-05T05:00:00+00
+  { 12, 286500, 0, 1551762000 },
+  // hf 13 - RTA transactions, RTA mining, ~2019-03-15T05:00:00+00
+  { 13, 287770, 0, 1552626000 },
+  // hf 14 Bullet proof
+  { 14, 312190, 0, 1556294400 },
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
@@ -906,7 +908,8 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   {
       return next_difficulty(timestamps, difficulties, target);
   }
-  else if (version == 8 || version >= 10)
+  // XXX be careful when merging it back to master! in mainnet its version 10; LK: use version 12 instead of 10 during the merge
+  else if (version == 8 || version >= 12)
   {
       return next_difficulty_v8(timestamps, difficulties, target);
   }
@@ -1134,7 +1137,8 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   if (ideal_hardfork_version < 8) {
       LOG_PRINT_L2("old difficulty algo");
       result = next_difficulty(timestamps, cumulative_difficulties, target);
-  } else if (ideal_hardfork_version == 8 || ideal_hardfork_version >= 10) {
+      // XXX be careful when merging it back to master! in mainnet its version 10; LK: using version 12 instead of 10 during the merge
+  } else if (ideal_hardfork_version == 8 || ideal_hardfork_version >= 12) {
       LOG_PRINT_L2("new difficulty algo");
       result = next_difficulty_v8(timestamps, cumulative_difficulties, target);
   } else {
@@ -1221,7 +1225,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     // from hard fork 2, since a miner can claim less than the full block reward, we update the base_reward
     // to show the amount of coins that were actually generated, the remainder will be pushed back for later
     // emission. This modifies the emission curve very slightly.
-    CHECK_AND_ASSERT_MES(money_in_use - (fee / 2) <= base_reward, false, "base reward calculation bug");
+    CHECK_AND_ASSERT_MES(money_in_use - (fee / 2) <= base_reward * 2, false, "base reward calculation bug");
     if(base_reward + fee != money_in_use)
       partial_block_reward = true;
     base_reward = money_in_use - fee;
@@ -1303,12 +1307,24 @@ bool Blockchain::create_block_template(block& b, const account_public_address& m
   b.major_version = m_hardfork->get_current_version();
   b.minor_version = m_hardfork->get_ideal_version();
   b.prev_id = get_tail_id();
+
   b.timestamp = time(NULL);
 
-  uint64_t median_ts;
-  if (!check_block_timestamp(b, median_ts))
-  {
-    b.timestamp = median_ts;
+  uint8_t version = get_current_hard_fork_version();
+  uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+
+  if(m_db->height() >= blockchain_timestamp_check_window) {
+    std::vector<uint64_t> timestamps;
+    auto h = m_db->height();
+
+    for(size_t offset = h - blockchain_timestamp_check_window; offset < h; ++offset)
+    {
+      timestamps.push_back(m_db->get_block_timestamp(offset));
+    }
+    uint64_t median_ts = epee::misc_utils::median(timestamps);
+    if (b.timestamp < median_ts) {
+      b.timestamp = median_ts;
+    }
   }
 
   diffic = get_difficulty_for_next_block();
@@ -2415,26 +2431,26 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
     }
   }
 
-  // from v13, allow bulletproofs
-  if (hf_version < 13) {
+  // from v14, allow bulletproofs
+  if (hf_version < HF_VERSION_MONERO_13) {
     if (tx.version >= 2) {
       const bool bulletproof = rct::is_rct_bulletproof(tx.rct_signatures.type);
       if (bulletproof || !tx.rct_signatures.p.bulletproofs.empty())
       {
-        MERROR_VER("Bulletproofs are not allowed before v13");
+        MERROR_VER("Bulletproofs are not allowed before v14");
         tvc.m_invalid_output = true;
         return false;
       }
     }
   }
 
-  // from v13, forbid borromean range proofs
-  if (hf_version >= 13) {
+  // from v14, forbid borromean range proofs
+  if (hf_version >= HF_VERSION_MONERO_13) {
     if (tx.version >= 2) {
       const bool borromean = rct::is_rct_borromean(tx.rct_signatures.type);
       if (borromean)
       {
-        MERROR_VER("Borromean range proofs are not allowed starting from v13");
+        MERROR_VER("Borromean range proofs are not allowed starting from v14");
         tvc.m_invalid_output = true;
         return false;
       }
@@ -2458,7 +2474,7 @@ bool Blockchain::have_tx_keyimges_as_spent(const transaction &tx) const
 bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_prefix_hash, const std::vector<std::vector<rct::ctkey>> &pubkeys)
 {
   PERF_TIMER(expand_transaction_2);
-  CHECK_AND_ASSERT_MES(tx.version == 2, false, "Transaction version is not 2");
+  CHECK_AND_ASSERT_MES(tx.version == CURRENT_TRANSACTION_VERSION || tx.version == 2, false, "Transaction version is not 2 or 3");
 
   rct::rctSig &rv = tx.rct_signatures;
 
@@ -2550,10 +2566,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     size_t n_unmixable = 0, n_mixable = 0;
     size_t mixin = std::numeric_limits<size_t>::max();
 
-    const size_t min_mixin =
-      hf_version >= HF_VERSION_MIN_MIXIN_10 ? 10 :
-        hf_version >= HF_VERSION_MIN_MIXIN_6 ? 6 :
-          hf_version >= HF_VERSION_MIN_MIXIN_4 ? 4 : 2;
+    const size_t min_mixin = hf_version >= HF_VERSION_MIN_MIXIN_4 ? 4 : 2;
 
     for(const auto& txin : tx.vin)
     {
@@ -2607,7 +2620,8 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     }
 
     // min/max tx version based on HF, and we accept v1 txes if having a non mixable
-    const size_t max_tx_version = (hf_version <= 3) ? 1 : 2;
+    // TODO: do proper hardfork
+    const size_t max_tx_version = (hf_version <= 3) ? 1 : 3;
     if (tx.version > max_tx_version)
     {
       MERROR_VER("transaction version " << (unsigned)tx.version << " is higher than max accepted version " << max_tx_version);
@@ -2623,8 +2637,8 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     }
   }
 
-  // from v13, sorted ins
-  if (hf_version >= 13) {
+  // from v14, sorted ins
+  if (hf_version >= HF_VERSION_MONERO_13) {
     const crypto::key_image *last_key_image = NULL;
     for (size_t n = 0; n < tx.vin.size(); ++n)
     {
@@ -3188,11 +3202,11 @@ bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const 
   LOG_PRINT_L3("Blockchain::" << __func__);
   median_ts = epee::misc_utils::median(timestamps);
   const uint8_t version = get_current_hard_fork_version();
-  const uint64_t blockchain_timestamp_check_window = version < 13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  const uint64_t blockchain_timestamp_check_window = version < HF_VERSION_MONERO_13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
 
   if(b.timestamp < median_ts)
   {
-    MERROR_VER("Timestamp of block with id: " << get_block_hash(b) << ", " << b.timestamp << ", less than median of last " << BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW << " blocks, " << median_ts);
+    MERROR_VER("Timestamp of block with id: " << get_block_hash(b) << ", " << b.timestamp << ", less than median of last " << blockchain_timestamp_check_window << " blocks, " << median_ts);
     return false;
   }
 
@@ -3210,8 +3224,8 @@ bool Blockchain::check_block_timestamp(const block& b, uint64_t& median_ts) cons
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   uint8_t version = get_current_hard_fork_version();
-  uint64_t cryptonote_block_future_time_limit = version < 13 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
-  uint64_t blockchain_timestamp_check_window  = version < 13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  uint64_t cryptonote_block_future_time_limit = version < HF_VERSION_MONERO_13 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
+  uint64_t blockchain_timestamp_check_window  = version < HF_VERSION_MONERO_13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
   if(b.timestamp > get_adjusted_time() + cryptonote_block_future_time_limit)
   {
     MERROR_VER("Timestamp of block with id: " << get_block_hash(b) << ", " << b.timestamp << ", bigger than adjusted time + " << cryptonote_block_future_time_limit << " seconds");
@@ -3228,7 +3242,7 @@ bool Blockchain::check_block_timestamp(const block& b, uint64_t& median_ts) cons
   auto h = m_db->height();
 
   // need most recent 60 blocks, get index of first of those
-  size_t offset = h - BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW;
+  size_t offset = h - blockchain_timestamp_check_window;
   timestamps.reserve(h - offset);
   for(;offset < h; ++offset)
   {

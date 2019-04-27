@@ -33,11 +33,7 @@
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 set(supernode_sources
-    api/pending_transaction.cpp
     healthcheckapi.cpp
-    graft_wallet.cpp
-    wallet_args.cpp
-    node_rpc_proxy.cpp
     AuthSample.cpp
     AuthSampleObject.cpp
     BaseRTAObject.cpp
@@ -64,13 +60,8 @@ set(supernode_sources
 set(supernode_api_headers)
 
 set(supernode_private_headers
-    api/pending_transaction.h
     healthcheckapi.h
     graft_defines.h
-    graft_wallet.h
-    wallet_args.h
-    wallet_errors.h
-    node_rpc_proxy.h
     AuthSample.h
     AuthSampleObject.h
     BaseRTAObject.h
@@ -87,6 +78,7 @@ set(supernode_private_headers
     P2P_Broadcast.h
     supernode_common_struct.h
     supernode_rpc_command.h
+    grafttxextra.h
     TxPool.h
     WorkerPool.h)
 
@@ -107,6 +99,7 @@ target_link_libraries(supernode
     blockchain_db
     cncrypto
     cryptonote_protocol
+    utils
     ${Boost_CHRONO_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
@@ -117,16 +110,7 @@ target_link_libraries(supernode
     ${EXTRA_LIBRARIES})
 add_dependencies(supernode version)
 
-if (USE_READLINE AND GNU_READLINE_FOUND)
-  target_link_libraries(supernode
-    PUBLIC
-    epee_readline
-    PRIVATE
-    ${GNU_READLINE_LIBRARY})
-endif()
-
-
-#if (NOT BUILD_GUI_DEPS)
+if (NOT BUILD_GUI_DEPS)
     set(supernode_rpc_sources
         main.cpp
         )
@@ -167,7 +151,7 @@ endif()
         PROPERTY
         OUTPUT_NAME "graft-supernode")
     install(TARGETS supernode_rpc_server DESTINATION bin)
-#endif()
+endif()
 
 
 # build and install libsupernode_merged only if we building for GUI
