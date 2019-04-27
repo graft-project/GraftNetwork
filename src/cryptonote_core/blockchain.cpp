@@ -4334,6 +4334,11 @@ void Blockchain::unlock()
   m_blockchain_lock.unlock();
 }
 
+bool Blockchain::try_lock()
+{
+  return m_blockchain_lock.tryLock();
+}
+
 bool Blockchain::for_all_key_images(std::function<bool(const crypto::key_image&)> f) const
 {
   return m_db->for_all_key_images(f);

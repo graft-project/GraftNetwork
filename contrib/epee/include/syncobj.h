@@ -112,6 +112,11 @@ namespace epee
       return m_section.try_lock();
     }
 
+    bool try_lock()
+    {
+      return tryLock();
+    }
+
     // to make copy fake
     critical_section& operator=(const critical_section& section)
     {

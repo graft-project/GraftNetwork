@@ -283,7 +283,9 @@ void StakeTransactionProcessor::process_block(uint64_t block_index, const block&
 
 void StakeTransactionProcessor::synchronize()
 {
-  CRITICAL_REGION_LOCAL1(m_storage_lock);
+  std::unique_lock<epee::critical_section> storage_lock{m_storage_lock, std::defer_lock};
+  std::unique_lock<Blockchain> blockchain_lock{m_blockchain, std::defer_lock};
+  std::lock(storage_lock, blockchain_lock);
 
   uint64_t height = m_blockchain.get_current_blockchain_height();
 
