@@ -2464,7 +2464,7 @@ void GraftWallet2::load_graft(const string &data, const string &password, const 
 }
 
 PendingTransaction *GraftWallet2::createTransaction(const string &dst_addr, const string &payment_id,
-                                                   optional<uint64_t> amount, uint32_t mixin_count, const GraftTxExtra &graftExtra,
+                                                   boost::optional<uint64_t> amount, uint32_t mixin_count, const GraftTxExtra &graftExtra,
                                                    PendingTransaction::Priority priority)
 {
     int status = 0;
@@ -5008,6 +5008,37 @@ static uint32_t get_count_above(const std::vector<GraftWallet2::transfer_details
       ++count;
   return count;
 }
+
+/*
+std::vector<GraftWallet2::pending_tx> GraftWallet2::create_disqualification_transactions(const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon)
+{
+    crypto::secret_key tx_key;
+    crypto::public_key tmp;
+    crypto::generate_keys(tmp, tx_key);
+
+    pending_tx ptx;
+    cryptonote::transaction& tx = ptx.tx;
+
+
+    ptx.key_images = ""; // key_images;
+    ptx.fee = 0; //(dust_policy.add_to_fee ? fee+dust : fee);
+    ptx.dust = 0; // ((dust_policy.add_to_fee || dust_sent_elsewhere) ? dust : 0);
+    ptx.dust_added_to_fee = false; // dust_policy.add_to_fee;
+//    ptx.tx = tx;
+//    ptx.change_dts = change_dts;
+//    ptx.selected_transfers = selected_transfers;
+    ptx.tx_key = tx_key;
+//    ptx.dests = dsts;
+//    ptx.construction_data.sources = sources;
+//    ptx.construction_data.change_dts = change_dts;
+//    ptx.construction_data.splitted_dsts = splitted_dsts;
+//    ptx.construction_data.selected_transfers = selected_transfers;
+    ptx.construction_data.extra = tx.extra;
+    ptx.construction_data.unlock_time = unlock_time;
+    ptx.construction_data.use_rct = false;
+//    ptx.construction_data.dests = dsts;
+}
+*/
 
 // Another implementation of transaction creation that is hopefully better
 // While there is anything left to pay, it goes through random outputs and tries

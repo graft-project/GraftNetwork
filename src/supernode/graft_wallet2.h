@@ -344,7 +344,7 @@ namespace tools
 
 
     PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
-                                                       optional<uint64_t> amount, uint32_t mixin_count,
+                                                       boost::optional<uint64_t> amount, uint32_t mixin_count,
                                                        const supernode::GraftTxExtra &graftExtra,
                                                        PendingTransaction::Priority priority = PendingTransaction::Priority_Low);
 
@@ -480,6 +480,7 @@ namespace tools
     std::vector<GraftWallet2::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count,
                                                                const uint64_t unlock_time, uint32_t priority,
                                                                const std::vector<uint8_t> extra, bool trusted_daemon);
+//    std::vector<GraftWallet2::pending_tx> create_disqualification_transactions(const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
     std::vector<GraftWallet2::pending_tx> create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
     std::vector<GraftWallet2::pending_tx> create_transactions_from(const cryptonote::account_public_address &address, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t> extra, bool trusted_daemon);
     std::vector<pending_tx> create_unmixable_sweep_transactions(bool trusted_daemon);
