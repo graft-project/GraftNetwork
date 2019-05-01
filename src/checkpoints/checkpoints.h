@@ -110,7 +110,7 @@ struct height_to_hash_json {
 crypto::hash get_newest_hardcoded_checkpoint(cryptonote::network_type nettype, uint64_t *height);
 bool         load_checkpoints_from_json     (const std::string &json_hashfile_fullpath, std::vector<height_to_hash> &checkpoint_hashes);
 
-/**
+ /**
    * @brief A container for blockchain checkpoints
    *
    * A checkpoint is a pre-defined hash for the block at a given height.
@@ -213,7 +213,7 @@ public:
      */
   // TODO: deleted bool check_for_conflicts(const checkpoints& other) const;
   
-  /**
+     /**
      * @brief loads the default main chain checkpoints
      * @param nettype network type
      *

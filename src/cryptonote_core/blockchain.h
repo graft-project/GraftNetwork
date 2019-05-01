@@ -92,6 +92,18 @@ namespace cryptonote
   class Blockchain
   {
   public:
+
+    /**
+     * @brief Now-defunct (TODO: remove) struct from in-memory blockchain
+     */
+    struct transaction_chain_entry
+    {
+      transaction tx;
+      uint64_t m_keeper_block_height;
+      size_t m_blob_size;
+      std::vector<uint64_t> m_global_output_indexes;
+    };
+
     /**
      * @brief container for passing a block and metadata about it on the blockchain
      */
@@ -150,13 +162,6 @@ namespace cryptonote
      * @return true on success, false if any uninitialization steps fail
      */
     bool deinit();
-
-    /**
-     * @brief assign a set of blockchain checkpoint hashes
-     *
-     * @param chk_pts the set of checkpoints to assign
-     */
-    void set_checkpoints(checkpoints&& chk_pts) { m_checkpoints = chk_pts; }
 
     /**
      * @brief get blocks and transactions from blocks based on start height and count
@@ -705,43 +710,14 @@ namespace cryptonote
      */
     std::vector<uint64_t> get_transactions_heights(const std::vector<crypto::hash>& txs_ids) const;
 
-    //debug functions
-
-    /**
-     * @brief check the blockchain against a set of checkpoints
-     *
-     * If a block fails a checkpoint and enforce is enabled, the blockchain
-     * will be rolled back to two blocks prior to that block.  If enforce
-     * is disabled, as is currently the default case with DNS-based checkpoints,
-     * an error will be printed to the user but no other action will be taken.
-     *
-     * @param points the checkpoints to check against
-     * @param enforce whether or not to take action on failure
-     */
-    void check_against_checkpoints(const checkpoints& points, bool enforce);
-
-    /**
-     * @brief configure whether or not to enforce DNS-based checkpoints
-     *
-     * @param enforce the new enforcement setting
-     */
-    void set_enforce_dns_checkpoints(bool enforce);
-
     /**
      * @brief loads new checkpoints from a file and optionally from DNS
      *
      * @param file_path the path of the file to look for and load checkpoints from
-     * @param check_dns whether or not to check for new DNS-based checkpoints
      *
      * @return false if any enforced checkpoint type fails to load, otherwise true
      */
-    bool update_checkpoints(const std::string& file_path, bool check_dns);
-    
-    
-    bool update_checkpoint(checkpoint_t const &checkpoint);
-
-    bool get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const;
-
+    bool update_checkpoints(const std::string& file_path);
 
     // user options, must be called before calling init()
 
@@ -775,6 +751,12 @@ namespace cryptonote
      * @brief Put DB in safe sync mode
      */
     void safesyncmode(const bool onoff);
+
+    /**
+     * @brief Get the nettype
+     * @return the nettype
+     */
+    network_type nettype() const { return m_nettype; }
 
     /**
      * @brief set whether or not to show/print time statistics
@@ -1011,7 +993,6 @@ namespace cryptonote
 
     void cancel();
 
-    cryptonote::network_type nettype() const { return m_nettype; }
     bool testnet() const { return m_nettype == cryptonote::TESTNET; }
 
     /**

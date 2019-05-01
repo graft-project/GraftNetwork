@@ -50,6 +50,7 @@ typedef struct mdb_txn_cursors
   MDB_cursor *m_txc_blocks;
   MDB_cursor *m_txc_block_heights;
   MDB_cursor *m_txc_block_info;
+  MDB_cursor *m_txc_block_checkpoints;
 
   MDB_cursor *m_txc_output_txs;
   MDB_cursor *m_txc_output_amounts;
@@ -77,6 +78,7 @@ typedef struct mdb_txn_cursors
 #define m_cur_blocks	m_cursors->m_txc_blocks
 #define m_cur_block_heights	m_cursors->m_txc_block_heights
 #define m_cur_block_info	m_cursors->m_txc_block_info
+#define m_cur_block_checkpoints m_cursors->m_txc_block_checkpoints
 #define m_cur_output_txs	m_cursors->m_txc_output_txs
 #define m_cur_output_amounts	m_cursors->m_txc_output_amounts
 #define m_cur_txs	m_cursors->m_txc_txs
@@ -99,6 +101,7 @@ typedef struct mdb_rflags
   bool m_rf_blocks;
   bool m_rf_block_heights;
   bool m_rf_block_info;
+  bool m_rf_block_checkpoints;
   bool m_rf_output_txs;
   bool m_rf_output_amounts;
   bool m_rf_txs;
@@ -315,7 +318,11 @@ public:
                             , const difficulty_type& cumulative_difficulty
                             , const uint64_t& coins_generated
                             , const std::vector<std::pair<transaction, blobdata>>& txs
-                            );
+                            ) override;
+  virtual void update_block_checkpoint(checkpoint_t const &checkpoint) override;
+  virtual bool get_block_checkpoint   (uint64_t height, checkpoint_t &checkpoint) const override;
+  virtual bool get_top_checkpoint     (checkpoint_t &checkpoint) const override;
+  virtual std::vector<checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = 0) const override;
 
   virtual void set_batch_transactions(bool batch_transactions);
   virtual bool batch_start(uint64_t batch_num_blocks=0, uint64_t batch_bytes=0);
@@ -439,12 +446,14 @@ private:
 
   void cleanup_batch();
 
+  bool get_block_checkpoint_internal(uint64_t height, checkpoint_t &checkpoint, MDB_cursor_op op) const;
 private:
   MDB_env* m_env;
 
   MDB_dbi m_blocks;
   MDB_dbi m_block_heights;
   MDB_dbi m_block_info;
+  MDB_dbi m_block_checkpoints;
 
   MDB_dbi m_txs;
   MDB_dbi m_txs_pruned;

@@ -27,8 +27,8 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef SYUPERNODE_HELPERS_H_H__H
-#define SYUPERNODE_HELPERS_H_H__H
+#ifndef SYUPERNODE_HELPERS_H
+#define SYUPERNODE_HELPERS_H
 
 #include <boost/tokenizer.hpp>
 #include <string>
@@ -40,6 +40,14 @@ namespace helpers {
 };
 };
 
+namespace loki
+{
+double      round           (double);
+double      exp2            (double);
+std::string hex64_to_base32z(std::string const& src);
+template <typename T, size_t N>
+constexpr size_t array_count(T (&)[N]) { return N; }
+}; // namespace Loki
 
 
 

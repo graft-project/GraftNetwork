@@ -858,7 +858,6 @@ public:
   virtual std::vector<checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = GET_ALL_CHECKPOINTS) const = 0;
   virtual bool get_immutable_checkpoint(checkpoint_t *immutable_checkpoint, uint64_t block_height) const;
   
-  
   /**
    * @brief checks if a block exists
    *
@@ -1592,43 +1591,6 @@ public:
    * @param: sz the block size
    */
   virtual void add_max_block_size(uint64_t sz) = 0;
-
-  /**
-   * @brief add a new alternative block
-   *
-   * @param: blkid the block hash
-   * @param: data: the metadata for the block
-   * @param: blob: the block's blob
-   */
-  virtual void add_alt_block(const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata &blob) = 0;
-
-  /**
-   * @brief get an alternative block by hash
-   *
-   * @param: blkid the block hash
-   * @param: data: the metadata for the block
-   * @param: blob: the block's blob
-   *
-   * @return true if the block was found in the alternative blocks list, false otherwise
-   */
-  virtual bool get_alt_block(const crypto::hash &blkid, alt_block_data_t *data, cryptonote::blobdata *blob) = 0;
-
-  /**
-   * @brief remove an alternative block
-   *
-   * @param: blkid the block hash
-   */
-  virtual void remove_alt_block(const crypto::hash &blkid) = 0;
-
-  /**
-   * @brief get the number of alternative blocks stored
-   */
-  virtual uint64_t get_alt_block_count() = 0;
-
-  /**
-   * @brief drop all alternative blocks
-   */
-  virtual void drop_alt_blocks() = 0;
 
   /**
    * @brief add a new alternative block

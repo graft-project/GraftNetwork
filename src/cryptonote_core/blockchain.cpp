@@ -1,4 +1,5 @@
 // Copyright (c) 2017-2019, The Graft Project
+// Copyright (c)      2018, The Loki Project
 // Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
@@ -412,6 +413,10 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   m_db = db;
 
   m_nettype = test_options != NULL ? FAKECHAIN : nettype;
+
+  if (!m_checkpoints.init(m_nettype, m_db))
+    throw std::runtime_error("Failed to initialize checkpoints");
+
   m_offline = offline;
   m_fixed_difficulty = fixed_difficulty;
   if (m_hardfork == nullptr)
@@ -4129,8 +4134,11 @@ bool Blockchain::check_blockchain_pruning()
 
 uint64_t Blockchain::get_immutable_height() const
 {
-  constexpr size_t MAX_ROLLBACK_HEIGHT = 50; // TODO: checkpoints
-  return this->get_current_blockchain_height() - MAX_ROLLBACK_HEIGHT;
+  auto lock = tools::unique_lock(*this);
+  checkpoint_t checkpoint;
+  if (m_db->get_immutable_checkpoint(&checkpoint, get_current_blockchain_height()))
+    return checkpoint.height;
+  return 0;
 }
 //------------------------------------------------------------------
 uint64_t Blockchain::get_next_long_term_block_weight(uint64_t block_weight) const
@@ -4260,87 +4268,76 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc)
   return handle_block_to_main_chain(bl, id, bvc);
 }
 //------------------------------------------------------------------
-//TODO: Refactor, consider returning a failure height and letting
-//      caller decide course of action.
-void Blockchain::check_against_checkpoints(const checkpoints& points, bool enforce)
-{
-  const auto& pts = points.get_points();
-  bool stop_batch;
-
-  CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  stop_batch = m_db->batch_start();
-  const uint64_t blockchain_height = m_db->height();
-  for (const auto& pt : pts)
-  {
-    // if the checkpoint is for a block we don't have yet, move on
-    if (pt.first >= blockchain_height)
-    {
-      continue;
-    }
-
-    if (!points.check_block(pt.first, m_db->get_block_hash_from_height(pt.first)))
-    {
-      // if asked to enforce checkpoints, roll back to a couple of blocks before the checkpoint
-      if (enforce)
-      {
-        LOG_ERROR("Local blockchain failed to pass a checkpoint, rolling back!");
-        std::list<block> empty;
-        rollback_blockchain_switching(empty, pt.first - 2);
-      }
-      else
-      {
-        LOG_ERROR("WARNING: local blockchain failed to pass a MoneroPulse checkpoint, and you could be on a fork. You should either sync up from scratch, OR download a fresh blockchain bootstrap, OR enable checkpoint enforcing with the --enforce-dns-checkpointing command-line option");
-      }
-    }
-  }
-  if (stop_batch)
-    m_db->batch_stop();
-}
-//------------------------------------------------------------------
 // returns false if any of the checkpoints loading returns false.
 // That should happen only if a checkpoint is added that conflicts
 // with an existing checkpoint.
-bool Blockchain::update_checkpoints(const std::string& file_path, bool check_dns)
+bool Blockchain::update_checkpoints(const std::string& file_path)
 {
-  if (!m_checkpoints.load_checkpoints_from_json(file_path))
-  {
-      return false;
-  }
+  std::vector<height_to_hash> checkpoint_hashes;
+  if (!cryptonote::load_checkpoints_from_json(file_path, checkpoint_hashes))
+    return false;
 
-  // if we're checking both dns and json, load checkpoints from dns.
-  // if we're not hard-enforcing dns checkpoints, handle accordingly
-  if (m_enforce_dns_checkpoints && check_dns && !m_offline)
+  std::vector<height_to_hash>::const_iterator first_to_check = checkpoint_hashes.end();
+  std::vector<height_to_hash>::const_iterator one_past_last_to_check  = checkpoint_hashes.end();
+
+  uint64_t prev_max_height = m_checkpoints.get_max_height();
+  LOG_PRINT_L1("Adding checkpoints from blockchain hashfile: " << file_path);
+  LOG_PRINT_L1("Hard-coded max checkpoint height is " << prev_max_height);
+  for (std::vector<height_to_hash>::const_iterator it = checkpoint_hashes.begin(); it != one_past_last_to_check; it++)
   {
-    if (!m_checkpoints.load_checkpoints_from_dns())
-    {
-      return false;
+    uint64_t height;
+    height = it->height;
+    if (height <= prev_max_height) {
+      LOG_PRINT_L1("ignoring checkpoint height " << height);
+    } else {
+      if (first_to_check == checkpoint_hashes.end())
+        first_to_check = it;
+
+      std::string blockhash = it->hash;
+      LOG_PRINT_L1("Adding checkpoint height " << height << ", hash=" << blockhash);
+
+      if (!m_checkpoints.add_checkpoint(height, blockhash))
+      {
+        one_past_last_to_check = it;
+        LOG_PRINT_L1("Failed to add checkpoint at height " << height << ", hash=" << blockhash);
+        break;
+      }
     }
   }
-  
-  else if (check_dns && !m_offline)
+
+  /*
+   * If a block fails a checkpoint the blockchain
+   * will be rolled back to two blocks prior to that block.
+   */
+  //TODO: Refactor, consider returning a failure height and letting
+  //      caller decide course of action.
+  bool result = true;
   {
-    checkpoints dns_points;
-    dns_points.load_checkpoints_from_dns();
-    if (m_checkpoints.check_for_conflicts(dns_points))
+    CRITICAL_REGION_LOCAL(m_blockchain_lock);
+    bool stop_batch = m_db->batch_start();
+
+    for (std::vector<height_to_hash>::const_iterator it = first_to_check; it != one_past_last_to_check; it++)
     {
-      check_against_checkpoints(dns_points, false);
+      uint64_t block_height = it->height;
+      if (block_height >= m_db->height()) // if the checkpoint is for a block we don't have yet, move on
+        break;
+
+      if (!m_checkpoints.check_block(block_height, m_db->get_block_hash_from_height(block_height), nullptr))
+      {
+        // roll back to a couple of blocks before the checkpoint
+        LOG_ERROR("Local blockchain failed to pass a checkpoint, rolling back!");
+        std::list<block> empty;
+        rollback_blockchain_switching(empty, block_height- 2);
+        result = false;
+      }
     }
-    else
-    {
-      MERROR("One or more checkpoints fetched from DNS conflicted with existing checkpoints!");
-    }
+
+    if (stop_batch)
+      m_db->batch_stop();
   }
 
-  check_against_checkpoints(m_checkpoints, true);
-
-  return true;
+  return result;
 }
-//------------------------------------------------------------------
-void Blockchain::set_enforce_dns_checkpoints(bool enforce_checkpoints)
-{
-  m_enforce_dns_checkpoints = enforce_checkpoints;
-}
-
 bool Blockchain::update_checkpoint(cryptonote::checkpoint_t const &checkpoint)
 {
   auto lock = tools::unique_lock(*this);

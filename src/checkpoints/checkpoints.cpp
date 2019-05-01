@@ -181,30 +181,30 @@ namespace cryptonote
   //---------------------------------------------------------------------------
   bool checkpoints::is_alternative_block_allowed(uint64_t blockchain_height, uint64_t block_height, bool *rta_checkpoint)
   {
-    if (rta_checkpoint)
-      *rta_checkpoint = false;
-
-    if (0 == block_height)
-      return false;
-
-    {
-      std::vector<checkpoint_t> const first_checkpoint = m_db->get_checkpoints_range(0, blockchain_height, 1);
-      if (first_checkpoint.empty() || blockchain_height < first_checkpoint[0].height)
-        return true;
-    }
-
-    checkpoint_t immutable_checkpoint;
-    uint64_t immutable_height = 0;
-    if (m_db->get_immutable_checkpoint(&immutable_checkpoint, blockchain_height))
-    {
-      immutable_height = immutable_checkpoint.height;
-      if (rta_checkpoint)
-        *rta_checkpoint = (immutable_checkpoint.type == checkpoint_type::supernode);
-    }
-
-    m_immutable_height = std::max(immutable_height, m_immutable_height);
-    bool result        = block_height > m_immutable_height;
-    return result;
+     if (rta_checkpoint)
+       *rta_checkpoint = false;
+ 
+     if (0 == block_height)
+       return false;
+ 
+     {   
+       std::vector<checkpoint_t> const first_checkpoint = m_db->get_checkpoints_range(0, blockchain_height, 1); 
+       if (first_checkpoint.empty() || blockchain_height < first_checkpoint[0].height)
+         return true;
+     }   
+ 
+     checkpoint_t immutable_checkpoint;
+     uint64_t immutable_height = 0;
+     if (m_db->get_immutable_checkpoint(&immutable_checkpoint, blockchain_height))
+     {   
+       immutable_height = immutable_checkpoint.height;
+       if (rta_checkpoint)
+         *rta_checkpoint = (immutable_checkpoint.type == checkpoint_type::supernode);
+     }   
+ 
+     m_immutable_height = std::max(immutable_height, m_immutable_height);
+     bool result        = block_height > m_immutable_height;
+     return result;
   }
   //---------------------------------------------------------------------------
   uint64_t checkpoints::get_max_height() const
@@ -216,10 +216,11 @@ namespace cryptonote
 
     return result;
   }
-
-  bool checkpoints::init(network_type nettype, BlockchainDB *db)
+  //---------------------------------------------------------------------------
+  bool checkpoints::init(network_type nettype, struct BlockchainDB *db)
   {
-  
+    *this = {};
+    m_db = db;
     *this     = {};
     m_db      = db;
     m_nettype = nettype;
@@ -235,8 +236,8 @@ namespace cryptonote
         ADD_CHECKPOINT(checkpoint.height, checkpoint.hash);
       }
     }
-
     return true;
+    
   }
- 
+
 }
