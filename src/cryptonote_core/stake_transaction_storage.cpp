@@ -8,6 +8,9 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "staketransaction.storage"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "staketransaction.storage"
+
 using namespace cryptonote;
 
 namespace

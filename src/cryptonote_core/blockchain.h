@@ -942,6 +942,7 @@ namespace cryptonote
 
     void lock();
     void unlock();
+    bool try_lock();
 
     void cancel();
 
