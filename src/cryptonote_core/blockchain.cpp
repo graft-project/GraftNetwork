@@ -158,7 +158,6 @@ static const struct {
   // hf 10 - decrease block reward, 2018-09-12
   { 10, 164550, 0, 1536760800 },
   // hf 11 - Monero V8/CN variant 2 PoW, 2018-10-24
-  //{ 11, 194130, 0, 1540400400 },
   { 11, 194130, 0, 1540400400 },
   // hf 12 - Graft CryptoNight Reverse Waltz PoW, ~2019-03-05T05:00:00+00
   { 12, 286500, 0, 1551762000 },
@@ -2920,16 +2919,16 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       return false;
     }
 
-    // for bulletproofs, check they're only multi-output after v8
+    // for bulletproofs, check they're only multi-output after v14
     if (rct::is_rct_bulletproof(rv.type))
     {
-      if (hf_version < 8)
+      if (hf_version < HF_VERSION_MONERO_13)
       {
         for (const rct::Bulletproof &proof: rv.p.bulletproofs)
         {
           if (proof.V.size() > 1)
           {
-            MERROR_VER("Multi output bulletproofs are invalid before v8");
+            MERROR_VER("Multi output bulletproofs are invalid before v14");
             return false;
           }
         }
