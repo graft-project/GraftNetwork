@@ -477,6 +477,7 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler(bool
 {
   CRITICAL_REGION_LOCAL1(m_storage_lock);
 
+  MDEBUG("invoke_update_blockchain_based_list_handler ") <<force << " depth:" << depth;
   if (!m_on_blockchain_based_list_update)
     return;
 

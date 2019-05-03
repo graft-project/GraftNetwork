@@ -221,22 +221,47 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
-  struct tx_extra_graft_disqualification_data
+  struct tx_extra_graft_signer_item
   {
     uint64_t block_height;
     crypto::hash block_hash;
     crypto::public_key id;
     BEGIN_SERIALIZE()
       FIELD(block_height)
+      FIELD(block_hash)
+      FIELD(id)
     END_SERIALIZE()
   };
 
   struct tx_extra_graft_disqualification
   {
-    std::string data;
-    std::vector<crypto::signature> signs;
+      struct disqualification_item
+      {
+        uint64_t block_height;
+        crypto::hash block_hash;
+        crypto::public_key id;
+        BEGIN_SERIALIZE()
+          FIELD(block_height)
+          FIELD(block_hash)
+          FIELD(id)
+        END_SERIALIZE()
+      };
+
+      struct signer_item
+      {
+        crypto::public_key signer_id;
+        crypto::signature sign;
+        BEGIN_SERIALIZE()
+          FIELD(signer_id)
+          FIELD(sign)
+        END_SERIALIZE()
+      };
+
+    disqualification_item item;
+    std::vector<signer_item> signs;
     BEGIN_SERIALIZE()
-      FIELD(data)
+      FIELD(item)
+      FIELD(signs)
     END_SERIALIZE()
   };
 

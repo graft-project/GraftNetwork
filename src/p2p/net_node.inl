@@ -3017,6 +3017,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::send_blockchain_based_list_to_supernode(uint64_t last_received_block_height)
   {
+    MDEBUG("::send_blockchain_based_list_to_supernode last_received_block_height:") << last_received_block_height;
     m_payload_handler.get_core().invoke_update_blockchain_based_list_handler(last_received_block_height);
   }
 }

@@ -175,8 +175,13 @@ namespace cryptonote
     // 1. if tx.type == tx_type_rta and tx.rta_signatures.size() > 0
     // 2. if tx.version >= 3 and tx.rta_signatures.size() > 0
 
+    bool is_disqualification_tx = (tx.version == 123);
     bool is_rta_tx = tx.type == transaction::tx_type_rta;
-    if (is_rta_tx) {
+    if(is_disqualification_tx)
+    {
+
+    }
+    else if (is_rta_tx) {
       cryptonote::rta_header rta_hdr;
       if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
         MERROR("Failed to parse rta-header from tx extra: " << id);
@@ -246,7 +251,7 @@ namespace cryptonote
     uint64_t max_used_block_height = 0;
     cryptonote::txpool_tx_meta_t meta;
     bool ch_inp_res = m_blockchain.check_tx_inputs(tx, max_used_block_height, max_used_block_id, tvc, kept_by_block);
-    if(!ch_inp_res)
+    if(!ch_inp_res && !is_disqualification_tx)
     {
       // if the transaction was valid before (kept_by_block), then it
       // may become valid again, so ignore the failed inputs check.

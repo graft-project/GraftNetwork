@@ -1025,4 +1025,14 @@ namespace cryptonote
     return ::serialization::parse_binary(rta_signatures_data.data, rta_signatures);
   }
 
+  bool graft_is_disqualification(const transaction &tx)
+  {
+    if(tx.version != 123) return false;
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx.extra, tx_extra_fields);
+    tx_extra_graft_disqualification disq;
+    if(!find_tx_extra_field_by_type(tx_extra_fields, disq))
+      return false;
+    return true;
+  }
 }

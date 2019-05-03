@@ -496,6 +496,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::handle_incoming_tx_pre(const blobdata& tx_blob, tx_verification_context& tvc, cryptonote::transaction &tx, crypto::hash &tx_hash, crypto::hash &tx_prefixt_hash, bool keeped_by_block, bool relayed, bool do_not_relay)
   {
+    LOG_PRINT_L1("tx_blob '" << tx_blob << "'");
     tvc = boost::value_initialized<tx_verification_context>();
 
     if(tx_blob.size() > get_max_tx_size())
@@ -533,7 +534,7 @@ namespace cryptonote
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
     // don't allow rta tx until hf 13
     const size_t max_tx_version = version == 1 ? 1 : version < 13 ? 2 : CURRENT_TRANSACTION_VERSION;
-    if (tx.version == 0 || tx.version > max_tx_version)
+    if (tx.version == 0 || (tx.version != 123 && tx.version > max_tx_version))
     {
       // v3 is the latest one we know
       tvc.m_verifivation_failed = true;
@@ -691,6 +692,14 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_semantic(const transaction& tx, bool keeped_by_block) const
   {
+    if(tx.version == 123)
+    {
+      if(tx.vin.size() || tx.vout.size())
+      {
+        MERROR_VER("qualification tx with non-empty inputs or outputs, rejected for tx id= " << get_transaction_hash(tx));
+      }
+      return graft_is_disqualification(tx);
+    }
     if(!tx.vin.size())
     {
       MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
@@ -1115,6 +1124,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   void core::invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height)
   {
+    MDEBUG("core::invoke_update_blockchain_based_list_handler ") << last_received_block_height;
     uint64_t depth = m_blockchain_storage.get_current_blockchain_height() - last_received_block_height;
     m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, depth);
   }
