@@ -258,10 +258,10 @@ namespace cryptonote
       };
 
     disqualification_item item;
-    std::vector<signer_item> signs;
+    std::vector<signer_item> signers;
     BEGIN_SERIALIZE()
       FIELD(item)
-      FIELD(signs)
+      FIELD(signers)
     END_SERIALIZE()
   };
 

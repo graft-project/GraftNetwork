@@ -179,7 +179,12 @@ namespace cryptonote
     bool is_rta_tx = tx.type == transaction::tx_type_rta;
     if(is_disqualification_tx)
     {
-
+        if(!graft_check_disqualification(tx))
+        {
+            MERROR("Invalid disqualification transaction with id " << id);
+            tvc.m_verifivation_failed = true;
+            return false;
+        }
     }
     else if (is_rta_tx) {
       cryptonote::rta_header rta_hdr;
@@ -250,8 +255,8 @@ namespace cryptonote
     crypto::hash max_used_block_id = null_hash;
     uint64_t max_used_block_height = 0;
     cryptonote::txpool_tx_meta_t meta;
-    bool ch_inp_res = m_blockchain.check_tx_inputs(tx, max_used_block_height, max_used_block_id, tvc, kept_by_block);
-    if(!ch_inp_res && !is_disqualification_tx)
+    bool ch_inp_res = is_disqualification_tx || m_blockchain.check_tx_inputs(tx, max_used_block_height, max_used_block_id, tvc, kept_by_block);
+    if(!ch_inp_res)
     {
       // if the transaction was valid before (kept_by_block), then it
       // may become valid again, so ignore the failed inputs check.
