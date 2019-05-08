@@ -214,6 +214,11 @@ namespace cryptonote
     "is acted upon."
   , ""
   };
+  static const command_line::arg_descriptor<bool> arg_keep_alt_blocks  = {
+    "keep-alt-blocks"
+  , "Keep alternative blocks on restart"
+  , false
+  };
 
   //-----------------------------------------------------------------------------------------------
   core::core(i_cryptonote_protocol* pprotocol):
@@ -333,6 +338,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_prune_blockchain);
     command_line::add_arg(desc, arg_reorg_notify);
     command_line::add_arg(desc, arg_block_rate_notify);
+    command_line::add_arg(desc, arg_keep_alt_blocks);
 
     miner::init_options(desc);
     BlockchainDB::init_options(desc);
@@ -471,6 +477,7 @@ namespace cryptonote
     std::string check_updates_string = command_line::get_arg(vm, arg_check_updates);
     size_t max_txpool_weight = command_line::get_arg(vm, arg_max_txpool_weight);
     bool prune_blockchain = command_line::get_arg(vm, arg_prune_blockchain);
+    bool keep_alt_blocks = command_line::get_arg(vm, arg_keep_alt_blocks);
 
     boost::filesystem::path folder(m_config_folder);
     if (m_nettype == FAKECHAIN)
@@ -696,6 +703,9 @@ namespace cryptonote
 
     r = m_miner.init(vm, m_nettype);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize miner instance");
+
+    if (!keep_alt_blocks && !m_blockchain_storage.get_db().is_read_only())
+      m_blockchain_storage.get_db().drop_alt_blocks();
 
     if (prune_blockchain)
     {
@@ -1683,7 +1693,7 @@ namespace cryptonote
         break;
       case HardFork::UpdateNeeded:
         level = el::Level::Info;
-        MCLOG(level, "global", el::Color::Default, "Last scheduled hard fork time suggests a daemon update will be released within the next couple months.");
+        MCLOG(level, "global", "Last scheduled hard fork time suggests a daemon update will be released within the next couple months.");
         break;
       default:
         break;

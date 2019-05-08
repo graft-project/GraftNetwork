@@ -965,7 +965,7 @@ namespace cryptonote
     switch (variant)
     {
       case 0: res.pow_algorithm = "Cryptonight"; break;
-      case 1: case: 2: case 3: case 4: res.pow_algorithm = "CNv1 (Cryptonight variant 1)"; break;
+      case 1: case 2: case 3: case 4: res.pow_algorithm = "CNv1 (Cryptonight variant 1)"; break;
       case 5: case 6: case 7: case 8: case 9: case 10: case 11: res.pow_algorithm = "Cryptonight Reverse Waltz"; break;
       case 12: res.pow_algorithm = "RandomX"; break;
       default: res.pow_algorithm = "I'm not sure actually"; break;
