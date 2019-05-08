@@ -22,13 +22,16 @@ struct stake_transaction_file_data
   size_t last_processed_block_hashes_count;
   StakeTransactionStorage::stake_transaction_array& stake_txs;
   StakeTransactionStorage::block_hash_list& block_hashes;
+  StakeTransactionStorage::disqualification_array& disqualifications;
+
 
   stake_transaction_file_data(uint64_t in_last_processed_block_index, StakeTransactionStorage::stake_transaction_array& in_stake_txs,
-    size_t in_last_processed_block_hashes_count, StakeTransactionStorage::block_hash_list& in_block_hashes)
+    size_t in_last_processed_block_hashes_count, StakeTransactionStorage::block_hash_list& in_block_hashes, StakeTransactionStorage::disqualification_array& disqualifications)
     : last_processed_block_index(in_last_processed_block_index)
     , last_processed_block_hashes_count(in_last_processed_block_hashes_count)
     , stake_txs(in_stake_txs)
     , block_hashes(in_block_hashes)
+    , disqualifications(disqualifications)
   {
   }
 
@@ -37,6 +40,7 @@ struct stake_transaction_file_data
     FIELD(last_processed_block_hashes_count)
     FIELD(block_hashes)
     FIELD(stake_txs)
+    FIELD(disqualifications)
   END_SERIALIZE()
 };
 
@@ -58,6 +62,23 @@ void StakeTransactionStorage::add_tx(const stake_transaction& tx)
   m_stake_txs.push_back(tx);
 
   m_need_store = true;
+}
+
+void StakeTransactionStorage::add_disquals(const disqualification_array& disqs)
+{
+    //sort and merge
+  auto middle = m_disqualifications.insert(m_disqualifications.end(), disqs.begin(), disqs.end());
+  std::sort(middle, m_disqualifications.end(), disqualification::less_id_str);
+  std::inplace_merge(m_disqualifications.begin(), middle, m_disqualifications.end(), disqualification::less_id_str);
+
+  m_need_store = true;
+}
+
+bool StakeTransactionStorage::is_disqualified(uint64_t block_number, const std::string& supernode_public_id) const
+{
+  disqualification tmp; tmp.id_str = supernode_public_id;
+  auto pair = std::equal_range(m_disqualifications.begin(), m_disqualifications.end(), tmp, disqualification::less_id_str);
+  return std::any_of(pair.first, pair.second, [block_number](const disqualification& v){ return v.is_active_for(block_number); });
 }
 
 const crypto::hash& StakeTransactionStorage::get_last_processed_block_hash() const
@@ -121,10 +142,17 @@ const StakeTransactionStorage::supernode_stake_array& StakeTransactionStorage::g
   return m_supernode_stakes;
 }
 
+const StakeTransactionStorage::supernode_disqualification_array& StakeTransactionStorage::get_supernode_disqualiications(uint64_t block_number)
+{
+  update_supernode_stakes(block_number);
+  return m_supernode_disqualifications;
+}
+
 void StakeTransactionStorage::clear_supernode_stakes()
 {
   m_supernode_stakes.clear();
   m_supernode_stake_indexes.clear();
+  m_supernode_disqualifications.clear();
 
   m_supernode_stakes_update_block_number = 0;
 }
@@ -152,9 +180,19 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
 
   m_supernode_stakes.clear();
   m_supernode_stake_indexes.clear();
+  m_supernode_disqualifications.clear();
 
   try
   {
+      //disqualifications
+    for(const auto& disq : m_disqualifications)
+    {
+      if(!disq.is_active_for(block_number))
+        continue;
+      m_supernode_disqualifications.push_back(disq.blob);
+    }
+
+      //stakes
     m_supernode_stakes.reserve(m_stake_txs.size());
 
     for (const stake_transaction& tx : m_stake_txs)
@@ -270,6 +308,7 @@ void StakeTransactionStorage::update_supernode_stakes(uint64_t block_number)
   {
     m_supernode_stakes.clear();
     m_supernode_stake_indexes.clear();
+    m_supernode_disqualifications.clear();
 
     m_supernode_stakes_update_block_number = 0;
 
@@ -307,7 +346,8 @@ void StakeTransactionStorage::load()
 
     StakeTransactionStorage::stake_transaction_array tmp_stake_txs;
     StakeTransactionStorage::block_hash_list tmp_block_hashes;
-    stake_transaction_file_data data(0, tmp_stake_txs, 0, tmp_block_hashes);
+    StakeTransactionStorage::disqualification_array tmp_disqualifications;
+    stake_transaction_file_data data(0, tmp_stake_txs, 0, tmp_block_hashes, tmp_disqualifications);
 
     r = ::serialization::parse_binary(buffer, data);
 
@@ -318,6 +358,7 @@ void StakeTransactionStorage::load()
 
     std::swap(m_stake_txs, data.stake_txs);
     std::swap(m_last_processed_block_hashes, data.block_hashes);
+    std::swap(m_disqualifications, data.disqualifications);
 
     m_need_store = false;
   }
@@ -331,7 +372,8 @@ void StakeTransactionStorage::load()
 void StakeTransactionStorage::store() const
 {
   stake_transaction_file_data data(m_last_processed_block_index, const_cast<stake_transaction_array&>(m_stake_txs),
-    m_last_processed_block_hashes_count, const_cast<block_hash_list&>(m_last_processed_block_hashes));
+    m_last_processed_block_hashes_count, const_cast<block_hash_list&>(m_last_processed_block_hashes)
+    , const_cast<disqualification_array&>(m_disqualifications));
 
   std::ofstream ostr;
   ostr.open(m_storage_file_name, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);

@@ -2,6 +2,7 @@
 
 #include "stake_transaction_processor.h"
 #include "../graft_rta_config.h"
+#include "serialization/binary_utils.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "staketransaction.processor"
@@ -171,12 +172,39 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
         MWARNING("  " << tx_hash);
     }
 
+    StakeTransactionStorage::disqualification_array disquals;
+
     for (const transaction& tx : txs)
     {
       const crypto::hash tx_hash = get_transaction_prefix_hash(tx);
 
       try
       {
+        if(tx.version == 123)
+        {
+              continue;
+          tx_extra_graft_disqualification disq_extra;
+          if(graft_check_disqualification(tx, &disq_extra))
+          {
+              MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash);
+              continue;
+          }
+
+          disqualification disq;
+          ::serialization::dump_binary(disq_extra, disq.blob);
+          disq.block_index = block_index;
+          disq.id = disq_extra.item.id;
+          disq.id_str = epee::string_tools::pod_to_hex(disq.id);
+          //TODO: check unlock_time
+
+          MDEBUG("New disqualification transaction found at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_id '" << disq.id_str << "'");
+
+          disquals.push_back(std::move(disq));
+          continue;
+        } //if(tx.version == 123)
+
+        stake_transaction stake_tx;
+
         if (!get_graft_stake_tx_extra_from_extra(tx, stake_tx.supernode_public_id, stake_tx.supernode_public_address, stake_tx.supernode_signature, stake_tx.tx_secret_key))
           continue;
 
@@ -245,6 +273,8 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
         MWARNING("Ignore transaction at block #" << block_index << ", tx_hash=" << tx_hash << " because of unknown error at parsing");
       }
     }
+
+    m_storage->add_disquals(disquals);
 
     m_stakes_need_update = true; //TODO: cache for stakes
 
@@ -413,7 +443,7 @@ void StakeTransactionProcessor::invoke_update_stakes_handler_impl(uint64_t block
     if (!m_storage)
       return;
 
-    m_on_stakes_update(block_index, m_storage->get_supernode_stakes(block_index));
+    m_on_stakes_update(block_index, m_storage->get_supernode_stakes(block_index), m_storage->get_supernode_disqualiications(block_index));
 
     m_stakes_need_update = false;
   }

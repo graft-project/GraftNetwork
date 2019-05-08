@@ -14,6 +14,7 @@ class StakeTransactionProcessor
 {
 public:
   typedef StakeTransactionStorage::supernode_stake_array supernode_stake_array;
+  typedef StakeTransactionStorage::supernode_disqualification_array supernode_disqualification_array;
 
   StakeTransactionProcessor(Blockchain& blockchain);
 
@@ -26,7 +27,7 @@ public:
   /// Synchronize with blockchain
   void synchronize();
 
-  typedef std::function<void(uint64_t block_number, const supernode_stake_array&)> supernode_stakes_update_handler;
+  typedef std::function<void(uint64_t block_number, const supernode_stake_array&, const supernode_disqualification_array&)> supernode_stakes_update_handler;
 
   /// Update handler for new stakes
   void set_on_update_stakes_handler(const supernode_stakes_update_handler&);

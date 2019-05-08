@@ -2275,9 +2275,11 @@ namespace cryptonote
     {
       uint64_t block_height;
       std::vector<supernode_stake> stakes;
+      std::vector<blobdata> disqualifications; //tx_extra_graft_disqualification;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(block_height)
         KV_SERIALIZE(stakes)
+        KV_SERIALIZE(disqualifications)
       END_KV_SERIALIZE_MAP()
     };
 
