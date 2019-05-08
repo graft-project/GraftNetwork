@@ -46,12 +46,47 @@ struct supernode_stake
   cryptonote::account_public_address supernode_public_address;
 };
 
+//TODO: find good place for it common with supernode
+constexpr size_t DISQUALIFICATION_DURATION_BLOCK_COUNT = 10;
+
+struct disqualification
+{
+  std::string blob; //tx_extra_graft_disqualification
+  crypto::public_key id;
+  uint64_t block_index; //block_index where transaction is stored, not that from the blob. disqualifications should be applied from next block
+  //uint64_t unlock_time == block_height + DISQUALIFICATION_DURATION_BLOCK_COUNT
+  std::string id_str;
+
+  BEGIN_SERIALIZE_OBJECT()
+    FIELD(blob)
+    FIELD(id)
+    FIELD(block_index)
+    if (!typename Archive<W>::is_saving())
+    {
+      id_str = epee::string_tools::pod_to_hex(id);
+    }
+  END_SERIALIZE()
+
+  bool is_active_for(uint64_t block_index_target) const
+  {
+      //from next block where the transaction is stored
+    return block_index < block_index_target && block_index_target <= block_index + DISQUALIFICATION_DURATION_BLOCK_COUNT;
+  }
+
+  static bool less_id_str(const disqualification& l, const disqualification& r)
+  {
+    return l.id_str < r.id_str;
+  }
+};
+
 class StakeTransactionStorage
 {
 public:
   typedef std::vector<stake_transaction> stake_transaction_array;
   typedef std::list<crypto::hash>        block_hash_list;
   typedef std::vector<supernode_stake>   supernode_stake_array;
+  typedef std::vector<disqualification>  disqualification_array;
+  typedef vector<std::string> supernode_disqualification_array;
 
   StakeTransactionStorage(const std::string& storage_file_name, uint64_t first_block_number);
 
@@ -59,7 +94,7 @@ public:
   size_t get_tx_count() const { return m_stake_txs.size(); }
 
   /// Get transactions
-  const stake_transaction_array& get_txs() const { return m_stake_txs; }
+//  const stake_transaction_array& get_txs() const { return m_stake_txs; }
 
   /// Index of last processed block
   uint64_t get_last_processed_block_index() const { return m_last_processed_block_index; }
@@ -78,12 +113,15 @@ public:
 
   /// Add transaction
   void add_tx(const stake_transaction&);
+  void add_disquals(const disqualification_array& disqs);
 
   /// List of supernode stakes
   const supernode_stake_array& get_supernode_stakes(uint64_t block_number);
+  const supernode_disqualification_array& get_supernode_disqualiications(uint64_t block_number);
 
   /// Search supernode stake by supernode public id (returns nullptr if no stake is found)
   const supernode_stake* find_supernode_stake(uint64_t block_number, const std::string& supernode_public_id);
+  bool is_disqualified(uint64_t block_number, const std::string& supernode_public_id) const;
 
   /// Update supernode stakes
   void update_supernode_stakes(uint64_t block_number);
@@ -110,10 +148,13 @@ private:
   size_t m_last_processed_block_hashes_count;
   stake_transaction_array m_stake_txs;
   uint64_t m_supernode_stakes_update_block_number;
-  supernode_stake_array m_supernode_stakes;
-  supernode_stake_index_map m_supernode_stake_indexes;
+  supernode_stake_array m_supernode_stakes; //an array valid for m_supernode_stakes_update_block_number
+  supernode_stake_index_map m_supernode_stake_indexes; //maps supernode_id to index in m_supernode_stakes, valid for m_supernode_stakes_update_block_number
   uint64_t m_first_block_number;
   mutable bool m_need_store;
+
+  disqualification_array m_disqualifications; //sorted by id_str
+  supernode_disqualification_array m_supernode_disqualifications; //an array valid for m_supernode_stakes_update_block_number
 };
 
 }

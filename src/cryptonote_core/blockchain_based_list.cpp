@@ -98,6 +98,9 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
         if (stake->tier != i + 1)
           continue;
 
+        if (stake_txs_storage.is_disqualified(block_height, sn.supernode_public_id))
+          continue;
+
         prev_supernodes.push_back(sn);
       }
     }
