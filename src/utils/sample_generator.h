@@ -33,6 +33,8 @@
 #include <random>
 #include <algorithm>
 #include <array>
+
+#include "crypto/crypto.h"
 #include "misc_log_ex.h"
 
 namespace graft { namespace generator {
@@ -104,6 +106,11 @@ uniform_select(const POD& seed, size_t count, const std::vector<T>& src, std::ve
     uniform_select(do_not_seed{}, count, src, dst);
 }
 
+constexpr int32_t TIERS = 4;
+constexpr int32_t ITEMS_PER_TIER = 2;
+constexpr int32_t DISQUALIFICATION_SAMPLE_SIZE = TIERS * ITEMS_PER_TIER;
+constexpr int32_t DISQUALIFICATION_CANDIDATES_SIZE = TIERS * ITEMS_PER_TIER;
+
 /*!
  * \brief selectSample - selects a sample such as BBQS and QCl.
  *
@@ -112,8 +119,6 @@ uniform_select(const POD& seed, size_t count, const std::vector<T>& src, std::ve
  * \param out - resulting flat list.
  * \param prefix - it is for logging.
  */
-constexpr int32_t TIERS = 4;
-
 template<typename T, typename Tiers = std::array<std::vector<T>, TIERS>>
 bool selectSample(size_t sample_size, const Tiers& bbl_tiers, std::vector<T>& out, const char* prefix)
 {
@@ -175,6 +180,25 @@ bool selectSample(size_t sample_size, const Tiers& bbl_tiers, std::vector<T>& ou
     MDEBUG("..." << out.size() << " supernodes has been selected");
 
     return out.size() == sample_size;
+}
+
+/*!
+ * \brief select_BBQS_QCL - generates BBQS and QCl from bbl.
+ *
+ * \param block_hash - hash of the block corresponding to BBL.
+ * \param bbl_tiers - tiers of somehow sorted items.
+ * \param bbqs - resulting BBQS.
+ * \param qcl - resulting QCL.
+ */
+
+template<typename T, typename Tiers = std::array<std::vector<T>, TIERS>>
+bool select_BBQS_QCL(crypto::hash block_hash, const Tiers& bbl_tiers, std::vector<T>& bbqs, std::vector<T>& qcl)
+{
+    //seed once
+    generator::seed_uniform_select(block_hash);
+    bool res1 = selectSample(DISQUALIFICATION_SAMPLE_SIZE, bbl_tiers, bbqs, "BBQS");
+    bool res2 = selectSample(DISQUALIFICATION_CANDIDATES_SIZE, bbl_tiers, qcl, "QCL");
+    return res1 && res2;
 }
 
 }} //namespace graft::crypto_tools
