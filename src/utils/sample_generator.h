@@ -104,4 +104,77 @@ uniform_select(const POD& seed, size_t count, const std::vector<T>& src, std::ve
     uniform_select(do_not_seed{}, count, src, dst);
 }
 
+/*!
+ * \brief selectSample - selects a sample such as BBQS and QCl.
+ *
+ * \param sample_size - required resulting size.
+ * \param bbl_tiers - tiers of somehow sorted items.
+ * \param out - resulting flat list.
+ * \param prefix - it is for logging.
+ */
+constexpr int32_t TIERS = 4;
+
+template<typename T, typename Tiers = std::array<std::vector<T>, TIERS>>
+bool selectSample(size_t sample_size, const Tiers& bbl_tiers, std::vector<T>& out, const char* prefix)
+{
+    assert(sample_size % TIERS == 0);
+
+    //select sample_size for each tier
+    std::array<std::vector<T>, TIERS> tier_supernodes;
+    for (size_t i=0; i<TIERS; ++i)
+    {
+        auto& src = bbl_tiers[i];
+        auto& dst = tier_supernodes[i];
+        dst.reserve(sample_size);
+        uniform_select(do_not_seed{}, sample_size, src, dst);
+        if (dst.size() != sample_size)
+        {
+          LOG_ERROR("unable to select supernodes for " << prefix << " sample");
+          return false;
+        }
+        MDEBUG("..." << dst.size() << " supernodes has been selected for tier " << (i + 1) << " from blockchain based list with " << src.size() << " supernodes");
+    }
+
+    auto items_per_tier = sample_size / TIERS;
+
+    std::array<int, TIERS> select;
+    select.fill(items_per_tier);
+    // If we are short of the needed SNs on any tier try selecting additional SNs from the highest
+    // tier with surplus SNs.  For example, if tier 2 is short by 1, look for a surplus first at
+    // tier 4, then tier 3, then tier 1.
+    for (int i = 0; i < TIERS; i++) {
+        int deficit_i = select[i] - int(tier_supernodes[i].size());
+        for (int j = TIERS-1; deficit_i > 0 && j >= 0; j--) {
+            if (i == j) continue;
+            int surplus_j = int(tier_supernodes[j].size()) - select[j];
+            if (surplus_j > 0) {
+                // Tier j has more SNs than needed, so select an extra SN from tier j to make up for
+                // the deficiency at tier i.
+                int transfer = std::min(deficit_i, surplus_j);
+                select[i] -= transfer;
+                select[j] += transfer;
+                deficit_i -= transfer;
+            }
+        }
+        // If we still have a deficit then no other tier has a surplus; we'll just have to work with
+        // a smaller sample because there aren't enough SNs on the entire network.
+        if (deficit_i > 0)
+            select[i] -= deficit_i;
+    }
+
+    out.clear();
+    out.reserve(sample_size);
+    auto out_it = back_inserter(out);
+    for (int i = 0; i < TIERS; i++) {
+        std::copy(tier_supernodes[i].begin(), tier_supernodes[i].begin() + select[i], out_it);
+    }
+
+    if (out.size() > sample_size)
+      out.resize(sample_size);
+
+    MDEBUG("..." << out.size() << " supernodes has been selected");
+
+    return out.size() == sample_size;
+}
+
 }} //namespace graft::crypto_tools
