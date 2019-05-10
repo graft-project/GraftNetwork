@@ -33,9 +33,13 @@ set(cryptonote_core_sources
   cryptonote_tx_utils.cpp
   stake_transaction_storage.cpp
   stake_transaction_processor.cpp
-  blockchain_based_list.cpp)
+  blockchain_based_list.cpp
+  ../utils/sample_generator.cpp
+)
 
-set(cryptonote_core_headers)
+set(cryptonote_core_headers
+  ../utils/sample_generator.h
+)
 
 set(cryptonote_core_private_headers
   blockchain_storage_boost_serialization.h
