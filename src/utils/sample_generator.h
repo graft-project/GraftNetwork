@@ -108,8 +108,9 @@ uniform_select(const POD& seed, size_t count, const std::vector<T>& src, std::ve
 
 constexpr int32_t TIERS = 4;
 constexpr int32_t ITEMS_PER_TIER = 2;
-constexpr int32_t DISQUALIFICATION_SAMPLE_SIZE = TIERS * ITEMS_PER_TIER;
-constexpr int32_t DISQUALIFICATION_CANDIDATES_SIZE = TIERS * ITEMS_PER_TIER;
+constexpr int32_t BBQS_SIZE = TIERS * ITEMS_PER_TIER;
+constexpr int32_t QCL_SIZE = TIERS * ITEMS_PER_TIER;
+constexpr int32_t REQUIRED_BBQS_VOTES = (BBQS_SIZE*2 + (3-1))/3;
 
 /*!
  * \brief selectSample - selects a sample such as BBQS and QCl.
@@ -196,8 +197,8 @@ bool select_BBQS_QCL(crypto::hash block_hash, const Tiers& bbl_tiers, std::vecto
 {
     //seed once
     generator::seed_uniform_select(block_hash);
-    bool res1 = selectSample(DISQUALIFICATION_SAMPLE_SIZE, bbl_tiers, bbqs, "BBQS");
-    bool res2 = selectSample(DISQUALIFICATION_CANDIDATES_SIZE, bbl_tiers, qcl, "QCL");
+    bool res1 = selectSample(BBQS_SIZE, bbl_tiers, bbqs, "BBQS");
+    bool res2 = selectSample(QCL_SIZE, bbl_tiers, qcl, "QCL");
     return res1 && res2;
 }
 
