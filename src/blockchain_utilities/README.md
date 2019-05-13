@@ -21,7 +21,7 @@ This loads the existing blockchain and exports it to `$MONERO_DATA_DIR/export/bl
 `$ graft-blockchain-import`
 
 This imports blocks from `$MONERO_DATA_DIR/export/blockchain.raw` (exported using the
-`monero-blockchain-export` tool as described above) into the current database.
+`graft-blockchain-export` tool as described above) into the current database.
 
 Defaults: `--batch on`, `--batch size 20000`, `--verify on`
 
@@ -34,10 +34,10 @@ the `graft-blockchain-import` command again, and it will restart from where it l
 
 ```bash
 ## use default settings to import blockchain.raw into database
-$ monero-blockchain-import
+$ graft-blockchain-import
 
 ## fast import with large batch size, database mode "fastest", verification off
-$ monero-blockchain-import --batch-size 20000 --database lmdb#fastest --verify off
+$ graft-blockchain-import --batch-size 20000 --database lmdb#fastest --verify off
 
 ```
 

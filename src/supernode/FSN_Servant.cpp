@@ -59,7 +59,7 @@ crypto::public_key get_tx_gen_pub_key(const transaction &tx)
 }
 
 
-// copied code from monero-blockchain-explorer
+// copied code from graft-blockchain-explorer
 // TODO: optimize it for the purpose
 crypto::public_key get_tx_pub_key_from_received_outs(const transaction &tx)
 {
