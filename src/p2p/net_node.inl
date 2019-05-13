@@ -489,10 +489,6 @@ namespace nodetool
     }
     else if (nettype == cryptonote::STAGENET)
     {
-      // TODO: graft stagenet nodes
-      full_addrs.insert("34.204.170.120:38880");
-      full_addrs.insert("54.88.58.35:38880");
-      full_addrs.insert("34.228.64.99:38880");
     }
     else if (nettype == cryptonote::FAKECHAIN)
     {
