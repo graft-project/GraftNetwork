@@ -191,19 +191,6 @@ namespace cryptonote
               m_update_download(0),
               m_nettype(UNDEFINED),
               m_update_available(false)
-/*
-              m_threadpool(tools::threadpool::getInstance()),
-              m_update_download(0),
-              m_nettype(UNDEFINED)
-
-||| merged common ancestors
-              m_threadpool(tools::threadpool::getInstance()),
-              m_update_download(0)
-===
-              m_update_download(0),
-              m_nettype(UNDEFINED),
-              m_update_available(false)
-*/
   {
     m_checkpoints_updating.clear();
     set_cryptonote_protocol(pprotocol);
