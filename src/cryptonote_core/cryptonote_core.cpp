@@ -303,6 +303,9 @@ namespace cryptonote
 
     auto data_dir = boost::filesystem::path(m_config_folder);
 
+    if (m_nettype == STAGENET)
+      throw std::runtime_error("StageNet is not supported by Graft at this time");
+
     if (m_nettype == MAINNET)
     {
       cryptonote::checkpoints checkpoints;
