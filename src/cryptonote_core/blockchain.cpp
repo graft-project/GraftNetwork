@@ -2563,7 +2563,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     size_t n_unmixable = 0, n_mixable = 0;
     size_t mixin = std::numeric_limits<size_t>::max();
 
-    const size_t min_mixin = hf_version >= HF_VERSION_MIN_MIXIN_4 ? 4 : 2;
+    const size_t min_mixin = hf_version >= HF_VERSION_MIN_MIXIN_10 ? 10 : hf_version >= HF_VERSION_MIN_MIXIN_4 ? 4 : 2;
 
     for(const auto& txin : tx.vin)
     {
@@ -3199,7 +3199,7 @@ bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const 
   LOG_PRINT_L3("Blockchain::" << __func__);
   median_ts = epee::misc_utils::median(timestamps);
   const uint8_t version = get_current_hard_fork_version();
-  const uint64_t blockchain_timestamp_check_window = version < HF_VERSION_MONERO_13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  const uint64_t blockchain_timestamp_check_window = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
 
   if(b.timestamp < median_ts)
   {
@@ -3221,8 +3221,8 @@ bool Blockchain::check_block_timestamp(const block& b, uint64_t& median_ts) cons
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   uint8_t version = get_current_hard_fork_version();
-  uint64_t cryptonote_block_future_time_limit = version < HF_VERSION_MONERO_13 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
-  uint64_t blockchain_timestamp_check_window  = version < HF_VERSION_MONERO_13 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
+  uint64_t cryptonote_block_future_time_limit = version < 9 ? CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT : CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9;
+  uint64_t blockchain_timestamp_check_window  = version < 9 ? BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW : BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9;
   if(b.timestamp > get_adjusted_time() + cryptonote_block_future_time_limit)
   {
     MERROR_VER("Timestamp of block with id: " << get_block_hash(b) << ", " << b.timestamp << ", bigger than adjusted time + " << cryptonote_block_future_time_limit << " seconds");
