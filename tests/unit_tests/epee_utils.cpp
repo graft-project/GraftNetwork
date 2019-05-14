@@ -586,7 +586,6 @@ TEST(NetUtils, NetworkAddress)
   const auto ip_local = boost::endian::native_to_big(0x0A000000u);
 
   struct custom_address {
-    enum { ID = 100 };
     constexpr static bool equal(const custom_address&) noexcept { return false; }
     constexpr static bool less(const custom_address&) noexcept { return false; }
     constexpr static bool is_same_host(const custom_address&) noexcept { return false; }
