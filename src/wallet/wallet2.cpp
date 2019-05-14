@@ -3165,13 +3165,6 @@ bool wallet2::store_keys_to_buffer(const wipeable_string &password, std::string 
   r = ::serialization::dump_binary(keys_file_data, output_buffer);
   lock_keys_file();
 
-  //unlock_keys_file();
-  //std::string buf;
-  //r = ::serialization::dump_binary(keys_file_data, buf);
-  //r = r && epee::file_io_utils::save_string_to_file(keys_file_name, buf); //and never touch wallet_keys_file again, only read
-  //CHECK_AND_ASSERT_MES(r, false, "failed to generate wallet keys file " << keys_file_name);
-  //lock_keys_file();
-
   return true;
 }
 //----------------------------------------------------------------------------------------------------
