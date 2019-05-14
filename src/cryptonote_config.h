@@ -165,8 +165,7 @@ namespace config
 
   uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 90; // 'G'
   uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 91;
-  // TODO: subaddress prefix
-  uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 42;
+  uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 102; // 'J' (https://xmr.llcoins.net/addresstests.html)
   uint16_t const P2P_DEFAULT_PORT = 18980;
   uint16_t const RPC_DEFAULT_PORT = 18981;
   uint16_t const ZMQ_RPC_DEFAULT_PORT = 18982;
@@ -183,8 +182,7 @@ namespace config
   {
     uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 84; // 'F'
     uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 85;
-    // TODO: subaddress prefix
-    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 42;
+    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 112; // 'K' (https://xmr.llcoins.net/addresstests.html)
     uint16_t const P2P_DEFAULT_PORT = 28880;
     uint16_t const RPC_DEFAULT_PORT = 28881;
     uint16_t const ZMQ_RPC_DEFAULT_PORT = 28882;
