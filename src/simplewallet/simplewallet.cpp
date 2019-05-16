@@ -2348,13 +2348,12 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::sweep_single, this, _1),
                            tr("sweep_single [<priority>] [<ring_size>] [outputs=<N>] <key_image> <address> [<payment_id>]"),
                            tr("Send a single output of the given key image to an address without change."));
-//Disable donations for Graft
-#if 0
+
   m_cmd_binder.set_handler("donate",
                            boost::bind(&simple_wallet::donate, this, _1),
                            tr("donate [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <amount> [<payment_id>]"),
-                           tr("Donate <amount> to the development team (donate.getmonero.org)."));
-#endif
+                           tr("Donate <amount> to the development team."));
+
   m_cmd_binder.set_handler("sign_transfer",
                            boost::bind(&simple_wallet::sign_transfer, this, _1),
                            tr("sign_transfer [export_raw]"),
@@ -5996,11 +5995,11 @@ bool simple_wallet::donate(const std::vector<std::string> &args_)
   amount_str = local_args.back();
   local_args.pop_back();
   // push back address, amount, payment id
-  local_args.push_back(MONERO_DONATION_ADDR);
+  local_args.push_back(DONATION_ADDR);
   local_args.push_back(amount_str);
   if (!payment_id_str.empty())
     local_args.push_back(payment_id_str);
-  message_writer() << (boost::format(tr("Donating %s %s to The Monero Project (donate.getmonero.org or %s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % MONERO_DONATION_ADDR).str();
+  message_writer() << (boost::format(tr("Donating %s %s to The Graft Project %s.")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % DONATION_ADDR).str();
   transfer(local_args);
   return true;
 }
