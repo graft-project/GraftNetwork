@@ -84,7 +84,8 @@ TEST(AddressFromTXT, Failure)
 
 TEST(AddressFromURL, Success)
 {
-  const std::string addr = MONERO_DONATION_ADDR;
+#if 0 // TODO: enable for graft?
+  const std::string addr = DONATION_ADDR;
 
   bool dnssec_result = false;
 
@@ -103,6 +104,7 @@ TEST(AddressFromURL, Success)
   {
     EXPECT_STREQ(addr.c_str(), addresses[0].c_str());
   }
+#endif
 }
 
 TEST(AddressFromURL, Failure)
