@@ -231,7 +231,7 @@ if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
     set(CMAKE_ROOT_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
 endif()
 
-add_definitions(-DMONERO_DEFAULT_LOG_CATEGORY="cryptonode" -DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
+add_definitions(-DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
 
 if(NOT DEFINED ENABLE_SYSLOG)
     option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
