@@ -1061,6 +1061,7 @@ namespace nodetool
               MDEBUG("P2P Request: handle_supernode_announce: " << (*it2).first << " " << (*it2).second.peers.size());
           }
 
+
           auto it = m_supernode_routes.find(supernode_str);
           if (it == m_supernode_routes.end())
           {
@@ -1075,13 +1076,16 @@ namespace nodetool
               break;
           }
 
+#if 0
+          // this check is not correct in case stake transactions if older tx has greater lock time than newer one
           if ((*it).second.last_announce_height > arg.height)
           {
               MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
-                    << " too old, corrent route height " << (*it).second.last_announce_height);
+                    << " too old (" << arg.height << ") "
+                    << ", corrent route height (" << (*it).second.last_announce_height) << ")";
               return 1;
           }
-
+#endif
           if ((*it).second.last_announce_height == arg.height && (*it).second.last_announce_time + DIFFICULTY_TARGET_V2 > (unsigned)time(nullptr))
           {
               MDEBUG("existing announce, height: " << arg.height << ", last_announce_time: " << (*it).second.last_announce_time
