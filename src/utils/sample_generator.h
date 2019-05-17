@@ -108,6 +108,7 @@ uniform_select(const POD& seed, size_t count, const std::vector<T>& src, std::ve
 
 constexpr int32_t TIERS = 4;
 constexpr int32_t ITEMS_PER_TIER = 2;
+constexpr int32_t AUTH_SAMPLE_SIZE = TIERS * ITEMS_PER_TIER;
 constexpr int32_t BBQS_SIZE = TIERS * ITEMS_PER_TIER;
 constexpr int32_t QCL_SIZE = TIERS * ITEMS_PER_TIER;
 constexpr int32_t REQUIRED_BBQS_VOTES = (BBQS_SIZE*2 + (3-1))/3;
@@ -202,4 +203,21 @@ bool select_BBQS_QCL(crypto::hash block_hash, const Tiers& bbl_tiers, std::vecto
     return res1 && res2;
 }
 
-}} //namespace graft::crypto_tools
+/*!
+ * \brief select_AuthSample - generates auth sample from bbl based on payment_id.
+ *
+ * \param payment_id
+ * \param bbl_tiers - tiers of somehow sorted items.
+ * \param auths - resulting auth sample.
+ */
+
+template<typename T, typename Tiers = std::array<std::vector<T>, TIERS>>
+bool select_AuthSample(const std::string& payment_id, const Tiers& bbl_tiers, std::vector<T>& auths)
+{
+    //seed once
+    generator::seed_uniform_select(payment_id);
+    bool res = selectSample(AUTH_SAMPLE_SIZE, bbl_tiers, auths, "auth");
+    return res;
+}
+
+}} //namespace graft::generator
