@@ -164,7 +164,7 @@ static const struct {
   // hf 13 - RTA transactions, RTA mining, ~2019-03-15T05:00:00+00
   { 13, 287770, 0, 1552626000 },
   // hf 14 Bullet proof
-  { 14, 312190, 0, 1556294400 },
+  { 14, 336400, 0, 1558504800 },
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
