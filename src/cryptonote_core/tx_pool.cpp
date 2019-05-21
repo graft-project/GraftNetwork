@@ -47,6 +47,7 @@
 #include "crypto/hash.h"
 #include "stake_transaction_processor.h"
 #include "graft_rta_config.h"
+#include "utils/sample_generator.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "txpool"
@@ -1116,6 +1117,10 @@ namespace cryptonote
       }
     }
 #endif
+
+    if(!belongs_to_auth_sample(rta_hdr))
+      return false;
+
     for (const crypto::public_key &key : rta_hdr.keys) {
       result &= validate_supernode(rta_hdr.auth_sample_height, key);
       if (!result) {
@@ -1132,4 +1137,30 @@ namespace cryptonote
     supernode_stake * stake = const_cast<supernode_stake*>(m_stp->find_supernode_stake(height, epee::string_tools::pod_to_hex(id)));
     return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
   };
+
+  bool tx_memory_pool::belongs_to_auth_sample(const rta_header& rta_hdr) const
+  {
+    bool ok = false;  // ok is true when every supernode from rta_hdr is member of auth_sample
+    std::vector<crypto::public_key> auth_sample_keys;
+    if(ok = (m_stp->get_auth_sample_keys(rta_hdr.auth_sample_height, rta_hdr.payment_id, auth_sample_keys)))
+    {
+      for(const auto& kr : rta_hdr.keys)
+      {
+        bool found = false;
+        for(const auto& kas : auth_sample_keys)
+          if(found = (kr == kas))
+            break;
+        if(!(ok = found))
+        {
+          MERROR("Key " << kr << " does not belong to auth-sample");
+          break;
+        }
+      }
+    }
+    else
+      MERROR("Obtaining of auth sample keys is failed");
+
+    return ok;
+  }
 }
+

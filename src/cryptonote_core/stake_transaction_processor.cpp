@@ -614,3 +614,18 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler(bool
 
   invoke_update_blockchain_based_list_handler_impl(depth);
 }
+
+bool StakeTransactionProcessor::get_auth_sample_keys(const uint64_t auth_sample_height,
+  const std::string& payment_id, std::vector<crypto::public_key>& auth_sample_keys) const
+{
+  const size_t depth = m_blockchain_based_list->block_height() - auth_sample_height;
+  auto& tiers = m_blockchain_based_list->tiers(depth);
+  auto bbl_idxs = makeBBLindexes(tiers);
+
+  std::vector<TI> bbqs_idxs;
+  graft::generator::select_AuthSample(payment_id, bbl_idxs, bbqs_idxs);
+  auth_sample_keys = fromIndexes(tiers, bbqs_idxs);
+
+  return (auth_sample_keys.size() == graft::generator::AUTH_SAMPLE_SIZE);
+}
+

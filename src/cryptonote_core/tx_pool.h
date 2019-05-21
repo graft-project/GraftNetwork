@@ -466,6 +466,7 @@ namespace cryptonote
     bool validate_rta_tx(const crypto::hash &txid, const std::vector<cryptonote::rta_signature> &rta_signs, const cryptonote::rta_header &rta_hdr) const;
 
     bool validate_supernode(uint64_t height, const crypto::public_key &id) const;
+    bool belongs_to_auth_sample(const rta_header& rta_hdr) const;
 
     //TODO: confirm the below comments and investigate whether or not this
     //      is the desired behavior
