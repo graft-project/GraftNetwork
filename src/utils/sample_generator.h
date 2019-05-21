@@ -120,6 +120,7 @@ constexpr int32_t REQUIRED_BBQS_VOTES = (BBQS_SIZE*2 + (3-1))/3;
  * \param bbl_tiers - tiers of somehow sorted items.
  * \param out - resulting flat list.
  * \param prefix - it is for logging.
+ * \return  - false if resulting size less than requested sample_size
  */
 template<typename T, typename Tiers = std::array<std::vector<T>, TIERS>>
 bool selectSample(size_t sample_size, const Tiers& bbl_tiers, std::vector<T>& out, const char* prefix)
@@ -134,11 +135,6 @@ bool selectSample(size_t sample_size, const Tiers& bbl_tiers, std::vector<T>& ou
         auto& dst = tier_supernodes[i];
         dst.reserve(sample_size);
         uniform_select(do_not_seed{}, sample_size, src, dst);
-        if (dst.size() != sample_size)
-        {
-          LOG_ERROR("unable to select supernodes for " << prefix << " sample");
-          return false;
-        }
         MDEBUG("..." << dst.size() << " supernodes has been selected for tier " << (i + 1) << " from blockchain based list with " << src.size() << " supernodes");
     }
 
@@ -191,6 +187,7 @@ bool selectSample(size_t sample_size, const Tiers& bbl_tiers, std::vector<T>& ou
  * \param bbl_tiers - tiers of somehow sorted items.
  * \param bbqs - resulting BBQS.
  * \param qcl - resulting QCL.
+ * \return  - false if at least one of the resulting sizes less than desired sizes of BBQS or QCL
  */
 
 template<typename T, typename Tiers = std::array<std::vector<T>, TIERS>>
@@ -209,6 +206,7 @@ bool select_BBQS_QCL(crypto::hash block_hash, const Tiers& bbl_tiers, std::vecto
  * \param payment_id
  * \param bbl_tiers - tiers of somehow sorted items.
  * \param auths - resulting auth sample.
+ * \return  - false if resulting size less than desired auth sample size
  */
 
 template<typename T, typename Tiers = std::array<std::vector<T>, TIERS>>
