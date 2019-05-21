@@ -1,5 +1,5 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -31,7 +31,6 @@
 
 #include "daemon/executor.h"
 
-#include "common/command_line.h"
 #include "cryptonote_config.h"
 #include "version.h"
 

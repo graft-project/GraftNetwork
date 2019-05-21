@@ -1,21 +1,22 @@
-// Copyright (c) 2014-2017, The Monero Project
-// 
+// Copyright (c) 2017-2018, The Graft Project
+// Copyright (c) 2014-2018, The Monero Project
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -25,7 +26,7 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
+//
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include <cstring>
@@ -38,7 +39,6 @@
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "ringct/rctSigs.h"
-#include "serialization/serialization.h"
 #include "serialization/binary_archive.h"
 #include "serialization/json_archive.h"
 #include "serialization/debug_archive.h"
@@ -47,7 +47,10 @@
 #include "serialization/binary_utils.h"
 #include "wallet/wallet2.h"
 #include "gtest/gtest.h"
+#include "unit_tests_utils.h"
+#include "device/device.hpp"
 using namespace std;
+using namespace crypto;
 
 namespace {
     static const string ADDRESS1 = "F8ER6NJ6zka6keUKJjX8ry44mVaXuQeVg5dPsuW3gyWRDzxCXpwuHVkMCNmrXZEMVHMFo5zEkoNTeb95hkqWgzMDSWFvana";
@@ -594,7 +597,7 @@ TEST(Serialization, serializes_ringct_types)
   rct::skpkGen(Sk, Pk);
   destinations.push_back(Pk);
   //compute rct data with mixin 500
-  s0 = rct::genRct(rct::zero(), sc, pc, destinations, amounts, amount_keys, 3);
+  s0 = rct::genRct(rct::zero(), sc, pc, destinations, amounts, amount_keys, NULL, NULL, 3, hw::get_device("default"));
 
   mg0 = s0.p.MGs[0];
   ASSERT_TRUE(serialization::dump_binary(mg0, blob));
@@ -762,22 +765,23 @@ TEST(Serialization, empty_rta_signatures)
 
 TEST(Serialization, portability_wallet)
 {
-  const bool testnet = true;
-  const bool restricted = false;
-  tools::wallet2 w(testnet, restricted);
-  string wallet_file = epee::string_tools::get_current_module_folder() + "/../../../../tests/data/wallet_serialization_portability";
+  const cryptonote::network_type nettype = cryptonote::TESTNET;
+  //const bool restricted = false;
+  //tools::wallet2 w(nettype, restricted);
+  tools::wallet2 w(nettype);
+  const boost::filesystem::path wallet_file = unit_test::data_dir / "wallet_serialization_portability";
   string password = "test";
   bool r = false;
   try
   {
-    w.load(wallet_file, password);
+    w.load(wallet_file.string(), password);
     r = true;
   }
   catch (const exception& e)
   {}
   ASSERT_TRUE(r);
   /*
-  fields of tools::wallet2 to be checked: 
+  fields of tools::wallet2 to be checked:
     std::vector<crypto::hash>                                       m_blockchain
     std::vector<transfer_details>                                   m_transfers               // TODO
     cryptonote::account_public_address                              m_account_public_address
@@ -828,9 +832,10 @@ TEST(Serialization, portability_wallet)
 //        std::cout << "size: " << it.second << std::endl;
 //    }
 
-    ASSERT_TRUE(w.m_key_images.find(ki[0])->second == 0);
-    ASSERT_TRUE(w.m_key_images.find(ki[1])->second == 1);
-    ASSERT_TRUE(w.m_key_images.find(ki[2])->second == 2);
+    ASSERT_EQ_MAP(0, w.m_key_images, ki[0]);
+    ASSERT_EQ_MAP(1, w.m_key_images, ki[1]);
+    ASSERT_EQ_MAP(2, w.m_key_images, ki[2]);
+
   }
   // unconfirmed txs
   ASSERT_TRUE(w.m_unconfirmed_txs.size() == 0);
@@ -877,12 +882,18 @@ TEST(Serialization, portability_wallet)
   // tx keys
   ASSERT_TRUE(w.m_tx_keys.size() == 1);
   {
-    auto tx_key0 = w.m_tx_keys.begin();
-//    std::cout << "epee::string_tools::pod_to_hex(tx_key0->first)  " << epee::string_tools::pod_to_hex(tx_key0->first) << std::endl;
-//    std::cout << "epee::string_tools::pod_to_hex(tx_key0->second) " << epee::string_tools::pod_to_hex(tx_key0->second) << std::endl;
-    ASSERT_TRUE(epee::string_tools::pod_to_hex(tx_key0->first) == "22d51db704e40da3b4b359f51b7560446af049dfd2cf01d26d761631a371b911");
-    ASSERT_TRUE(epee::string_tools::pod_to_hex(tx_key0->second) == "474054ac26dd71f87c99f62a29fd7bc05fcc8cb6bded11e03732f359be152e03");
-
+    const std::vector<std::pair<std::string, std::string>> txid_txkey =
+    {
+      {"22d51db704e40da3b4b359f51b7560446af049dfd2cf01d26d761631a371b911", "474054ac26dd71f87c99f62a29fd7bc05fcc8cb6bded11e03732f359be152e03"},
+    };
+    for (size_t i = 0; i < txid_txkey.size(); ++i)
+    {
+      crypto::hash txid;
+      crypto::secret_key txkey;
+      epee::string_tools::hex_to_pod(txid_txkey[i].first, txid);
+      epee::string_tools::hex_to_pod(txid_txkey[i].second, txkey);
+      ASSERT_EQ_MAP(txkey, w.m_tx_keys, txid);
+    }
   }
   // confirmed txs
   ASSERT_TRUE(w.m_confirmed_txs.size() == 1);
@@ -892,10 +903,8 @@ TEST(Serialization, portability_wallet)
     crypto::hash h[2];
     epee::string_tools::hex_to_pod("199ea366ca190788e12e7849c9625dd7cad33d2b926de10294005fc20cd41576", h[0]);
     epee::string_tools::hex_to_pod("22d51db704e40da3b4b359f51b7560446af049dfd2cf01d26d761631a371b911", h[1]);
-    auto t1 = w.m_tx_notes.find(h[0]);
-    auto t2 = w.m_tx_notes.find(h[1]);
-    ASSERT_TRUE(t1 != w.m_tx_notes.end() && t1->second == "sample note");
-    ASSERT_TRUE(t2 != w.m_tx_notes.end() && t2->second == "sample note 2");
+    ASSERT_EQ_MAP("sample note", w.m_tx_notes, h[0]);
+    ASSERT_EQ_MAP("sample note 2", w.m_tx_notes, h[1]);
   }
   // unconfirmed payments
   ASSERT_TRUE(w.m_unconfirmed_payments.size() == 0);
@@ -903,19 +912,18 @@ TEST(Serialization, portability_wallet)
   ASSERT_TRUE(w.m_pub_keys.size() == 3);
   {
     crypto::public_key pubkey[3];
+
 //    for (auto it : w.m_pub_keys) {
 //        std::cout << "pk: " << it.first << ", size: " << it.second << std::endl;
 //    }
     epee::string_tools::hex_to_pod("6932b7994a60ac1a65d901466f54782748d72d1949aa0be736673f80112e6336", pubkey[0]);
     epee::string_tools::hex_to_pod("accad0137be7cfd8f5378ebdb6d6226144592aff24a6a84f1489e03e764e2fef", pubkey[1]);
     epee::string_tools::hex_to_pod("9ca6a989cb0910c2e3ad02e1f0bad5d54629bab5d5a306358548d183ec10bbba", pubkey[2]);
-    auto pk0 = w.m_pub_keys.find(pubkey[0]);
-    auto pk1 = w.m_pub_keys.find(pubkey[1]);
-    auto pk2 = w.m_pub_keys.find(pubkey[2]);
 
-    ASSERT_TRUE(pk0 != w.m_pub_keys.end() &&  pk0->second == 0);
-    ASSERT_TRUE(pk1 != w.m_pub_keys.end() &&  pk1->second == 1);
-    ASSERT_TRUE(pk2 != w.m_pub_keys.end() &&  pk2->second == 2);
+    ASSERT_EQ_MAP(0, w.m_pub_keys, pubkey[0]);
+    ASSERT_EQ_MAP(1, w.m_pub_keys, pubkey[1]);
+    ASSERT_EQ_MAP(2, w.m_pub_keys, pubkey[2]);
+
   }
 
   // address book
@@ -933,9 +941,9 @@ TEST(Serialization, portability_wallet)
 TEST(Serialization, portability_outputs)
 {
   // read file
-  const std::string filename = epee::string_tools::get_current_module_folder() + "/../../../../tests/data/outputs";
+  const boost::filesystem::path filename = unit_test::data_dir / "outputs";
   std::string data;
-  bool r = epee::file_io_utils::load_file_to_string(filename, data);
+  bool r = epee::file_io_utils::load_file_to_string(filename.string(), data);
   ASSERT_TRUE(r);
   const size_t magiclen = strlen(OUTPUT_EXPORT_FILE_MAGIC);
   ASSERT_FALSE(data.size() < magiclen || memcmp(data.data(), OUTPUT_EXPORT_FILE_MAGIC, magiclen));
@@ -946,7 +954,7 @@ TEST(Serialization, portability_outputs)
     if(ciphertext.size() < prefix_size)
       return {};
     crypto::chacha_key key;
-    crypto::generate_chacha_key(&skey, sizeof(skey), key);
+    crypto::generate_chacha_key(&skey, sizeof(skey), key, 1);
     const crypto::chacha_iv &iv = *(const crypto::chacha_iv*)&ciphertext[0];
     std::string plaintext;
     plaintext.resize(ciphertext.size() - prefix_size);
@@ -961,7 +969,7 @@ TEST(Serialization, portability_outputs)
         return {};
     }
     crypto::chacha8(ciphertext.data() + sizeof(iv), ciphertext.size() - prefix_size, key, iv, &plaintext[0]);
-    return std::move(plaintext);
+    return plaintext;
   };
   crypto::secret_key view_secret_key;
   epee::string_tools::hex_to_pod("816d922dbc4a0ae6c5649a9dd8c0aba50e9fbd996de32405d228c7c61f14a90e", view_secret_key);
@@ -988,7 +996,7 @@ TEST(Serialization, portability_outputs)
   {}
   ASSERT_TRUE(r);
   /*
-  fields of tools::wallet2::transfer_details to be checked: 
+  fields of tools::wallet2::transfer_details to be checked:
     uint64_t                        m_block_height
     cryptonote::transaction_prefix  m_tx                        // TODO
     crypto::hash                    m_txid
@@ -1090,7 +1098,7 @@ TEST(Serialization, portability_outputs)
 }
 
 namespace helper {
-    void dump_unsigned_tx(const tools::wallet2::unsigned_tx_set &tx, bool testnet)
+    void dump_unsigned_tx(const tools::wallet2::unsigned_tx_set &tx, cryptonote::network_type nettype)
     {
         std::cout << "txes.size(): " << tx.txes.size() << std::endl;
         for (int i = 0; i < tx.txes.size(); ++i) {
@@ -1112,13 +1120,13 @@ namespace helper {
                 std::cout << "tse[" << j << "].mask: " << epee::string_tools::pod_to_hex(tse.mask) << std::endl;
             }
             std::cout << "tcd[" << i << "].change_dts.amount: "  << tcd.change_dts.amount << std::endl;
-            std::cout << "tcd[" << i << "].change_dts.addr:   "  << cryptonote::get_account_address_as_str(testnet, tcd.change_dts.addr) << std::endl;
+            std::cout << "tcd[" << i << "].change_dts.addr:   "  << cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr) << std::endl;
 
             auto &splitted_dsts = tcd.splitted_dsts;
             for (int j = 0; j < splitted_dsts.size(); ++j) {
                 auto splitted_dst = splitted_dsts[j];
                 std::cout << "tcd[" << i << "].splitted_dsts[" << j << "].amount: " << splitted_dst.amount << std::endl;
-                std::cout << "tcd[" << i << "].splitted_dsts[" << j << "].addr: " <<  cryptonote::get_account_address_as_str(testnet, splitted_dst.addr) << std::endl;
+                std::cout << "tcd[" << i << "].splitted_dsts[" << j << "].addr: " <<  cryptonote::get_account_address_as_str(nettype, false, splitted_dst.addr) << std::endl;
             }
 
             auto &selected_transfers = tcd.selected_transfers;
@@ -1136,7 +1144,7 @@ namespace helper {
             auto &dests = tcd.dests;
             for (int j = 0; j < dests.size(); ++j) {
                 std::cout << "tcd[" << i << "].dests[" << j << "].amount: " <<  tcd.dests[j].amount << std::endl;
-                std::cout << "tcd[" << i << "].dests[" << j << "].addr: " << cryptonote::get_account_address_as_str(testnet, tcd.dests[j].addr) << std::endl;
+                std::cout << "tcd[" << i << "].dests[" << j << "].addr: " << cryptonote::get_account_address_as_str(nettype, false, tcd.dests[j].addr) << std::endl;
             }
         }
 
@@ -1163,10 +1171,10 @@ namespace helper {
 #define UNSIGNED_TX_PREFIX "Graft unsigned tx set\003"
 TEST(Serialization, portability_unsigned_tx)
 {
-  const string filename = epee::string_tools::get_current_module_folder() + "/../../../../tests/data/unsigned_monero_tx";
+  const boost::filesystem::path filename = unit_test::data_dir / "unsigned_monero_tx";
   std::string s;
-  const bool testnet = true;
-  bool r = epee::file_io_utils::load_file_to_string(filename, s);
+  const cryptonote::network_type nettype = cryptonote::TESTNET;
+  bool r = epee::file_io_utils::load_file_to_string(filename.string(), s);
   ASSERT_TRUE(r);
   const size_t magiclen = strlen(UNSIGNED_TX_PREFIX);
   ASSERT_FALSE(strncmp(s.c_str(), UNSIGNED_TX_PREFIX, magiclen));
@@ -1180,7 +1188,7 @@ TEST(Serialization, portability_unsigned_tx)
     ar >> exported_txs;
     r = true;
   }
-  catch (...)  
+  catch (...)
   {}
   ASSERT_TRUE(r);
   // helper::dump_unsigned_tx(exported_txs, true);
@@ -1198,7 +1206,7 @@ TEST(Serialization, portability_unsigned_tx)
     uint64_t                                      unlock_time
     bool                                          use_rct
     std::vector<cryptonote::tx_destination_entry> dests
-  
+
   fields of cryptonote::tx_source_entry to be checked:
     std::vector<std::pair<uint64_t, rct::ctkey>>  outputs
     size_t                                        real_output
@@ -1207,7 +1215,7 @@ TEST(Serialization, portability_unsigned_tx)
     uint64_t                                      amount
     bool                                          rct
     rct::key                                      mask
-  
+
   fields of cryptonote::tx_destination_entry to be checked:
     uint64_t                amount
     account_public_address  addr
@@ -1246,11 +1254,10 @@ TEST(Serialization, portability_unsigned_tx)
 
   ASSERT_TRUE(epee::string_tools::pod_to_hex(tse.mask) == "796309c7e57439028f111714bd04c8bbe22167bd2f7c04c21dc99b0c16478003");
   // tcd.change_dts
+
   ASSERT_TRUE(tcd.change_dts.amount == 7784000000000);
 
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, tcd.change_dts.addr) == ADDRESS1);
-
-
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr) == ADDRESS1);
 
   // tcd.splitted_dsts
   ASSERT_TRUE(tcd.splitted_dsts.size() == 2);
@@ -1260,8 +1267,9 @@ TEST(Serialization, portability_unsigned_tx)
   ASSERT_TRUE(splitted_dst0.amount == 1000000000000);
   ASSERT_TRUE(splitted_dst1.amount == 7784000000000);
 
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst0.addr) == ADDRESS2);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst1.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst0.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst1.addr) == ADDRESS1);
+
   // tcd.selected_transfers
   ASSERT_TRUE(tcd.selected_transfers.size() == 2);
   ASSERT_TRUE(tcd.selected_transfers.front() == 0);
@@ -1274,8 +1282,9 @@ TEST(Serialization, portability_unsigned_tx)
   // tcd.dests
   ASSERT_TRUE(tcd.dests.size() == 1);
   auto& dest = tcd.dests[0];
+
   ASSERT_TRUE(dest.amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, dest.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, dest.addr) == ADDRESS2);
   // transfers
   ASSERT_TRUE(exported_txs.transfers.size() == 2);
   auto& td0 = exported_txs.transfers[0];
@@ -1318,10 +1327,10 @@ TEST(Serialization, portability_unsigned_tx)
 #define SIGNED_TX_PREFIX "Graft signed tx set\003"
 TEST(Serialization, portability_signed_tx)
 {
-  const string filename = epee::string_tools::get_current_module_folder() + "/../../../../tests/data/signed_monero_tx";
-  const bool testnet = true;
+  const boost::filesystem::path filename = unit_test::data_dir / "signed_monero_tx";
+  const cryptonote::network_type nettype = cryptonote::TESTNET;
   std::string s;
-  bool r = epee::file_io_utils::load_file_to_string(filename, s);
+  bool r = epee::file_io_utils::load_file_to_string(filename.string(), s);
   ASSERT_TRUE(r);
   const size_t magiclen = strlen(SIGNED_TX_PREFIX);
   ASSERT_FALSE(strncmp(s.c_str(), SIGNED_TX_PREFIX, magiclen));
@@ -1342,7 +1351,7 @@ TEST(Serialization, portability_signed_tx)
   fields of tools::wallet2::signed_tx_set to be checked:
     std::vector<pending_tx>         ptx
     std::vector<crypto::key_image>  key_images
-  
+
   fields of tools::walllet2::pending_tx to be checked:
     cryptonote::transaction                       tx                  // TODO
     uint64_t                                      dust
@@ -1364,8 +1373,9 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE (ptx.fee == 112000000000);
   ASSERT_FALSE(ptx.dust_added_to_fee);
   // ptx.change.{amount, addr}
+
   ASSERT_TRUE(ptx.change_dts.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, ptx.change_dts.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, ptx.change_dts.addr) == ADDRESS1);
 
   // ptx.selected_transfers
   ASSERT_TRUE(ptx.selected_transfers.size() == 2);
@@ -1375,8 +1385,9 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE(epee::string_tools::pod_to_hex(ptx.tx_key) == "0100000000000000000000000000000000000000000000000000000000000000");
   // ptx.dests
   ASSERT_TRUE(ptx.dests.size() == 1);
+
   ASSERT_TRUE(ptx.dests[0].amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, ptx.dests[0].addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, ptx.dests[0].addr) == ADDRESS2);
   // ptx.construction_data
   auto& tcd = ptx.construction_data;
   ASSERT_TRUE(tcd.sources.size() == 2);
@@ -1406,16 +1417,19 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE(tse.rct);
   ASSERT_TRUE(epee::string_tools::pod_to_hex(tse.mask) == "796309c7e57439028f111714bd04c8bbe22167bd2f7c04c21dc99b0c16478003");
   // ptx.construction_data.change_dts
+
   ASSERT_TRUE(tcd.change_dts.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, tcd.change_dts.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, tcd.change_dts.addr) == ADDRESS1);
   // ptx.construction_data.splitted_dsts
   ASSERT_TRUE(tcd.splitted_dsts.size() == 2);
   auto& splitted_dst0 = tcd.splitted_dsts[0];
   auto& splitted_dst1 = tcd.splitted_dsts[1];
+
   ASSERT_TRUE(splitted_dst0.amount == 1000000000000);
   ASSERT_TRUE(splitted_dst1.amount == 7784000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst0.addr) == ADDRESS2);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, splitted_dst1.addr) == ADDRESS1);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst0.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, splitted_dst1.addr) == ADDRESS1);
+
   // ptx.construction_data.selected_transfers
   ASSERT_TRUE(tcd.selected_transfers.size() == 2);
   ASSERT_TRUE(tcd.selected_transfers.front() == 0);
@@ -1427,8 +1441,10 @@ TEST(Serialization, portability_signed_tx)
   // ptx.construction_data.dests
   ASSERT_TRUE(tcd.dests.size() == 1);
   auto& dest = tcd.dests[0];
+
   ASSERT_TRUE(dest.amount == 1000000000000);
-  ASSERT_TRUE(cryptonote::get_account_address_as_str(testnet, dest.addr) == ADDRESS2);
+  ASSERT_TRUE(cryptonote::get_account_address_as_str(nettype, false, dest.addr) == ADDRESS2);
+
   // key_images
   ASSERT_TRUE(exported_txs.key_images.size() == 2);
   auto& ki0 = exported_txs.key_images[0];

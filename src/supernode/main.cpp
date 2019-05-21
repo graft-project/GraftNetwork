@@ -100,7 +100,8 @@ int main(int argc, const char** argv) {
 
 	// -------------------------------- Servant -----------------------------------------
 	const boost::property_tree::ptree& cf_ser = config.get_child("servant");
-	servant = new supernode::FSN_Servant_Test( cf_ser.get<string>("bdb_path"), cf_ser.get<string>("daemon_addr"), "", cf_ser.get<bool>("is_testnet") );
+    servant = new supernode::FSN_Servant_Test(cf_ser.get<string>("bdb_path"), cf_ser.get<string>("daemon_addr"), "",
+                                              cf_ser.get<bool>("is_testnet") ? cryptonote::TESTNET : cryptonote::MAINNET);
     dapi_server.setServant(servant);
 	if( !supernode::rpc_command::IsWalletProxyOnly() ) {
 		servant->Set( cf_ser.get<string>("stake_wallet_path"), "", cf_ser.get<string>("miner_wallet_path"), "");

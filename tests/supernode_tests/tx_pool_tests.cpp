@@ -30,8 +30,7 @@
 
 #include "gtest/gtest.h"
 
-#include "wallet/wallet2_api.h"
-//#include "wallet/wallet2.h"
+#include "wallet/api/wallet2_api.h"
 
 #include "include_base_utils.h"
 #include "cryptonote_config.h"
@@ -59,8 +58,6 @@
 #include "supernode/graft_wallet2.h"
 #include "supernode/api/pending_transaction.h"
 
-#include "wallet/wallet2_api.h"
-
 
 using namespace supernode;
 using namespace tools;
@@ -73,7 +70,7 @@ struct TxPoolTest : public testing::Test
 
     TxPoolTest()
     {
-        wallet = new GraftWallet2(true, false);
+        wallet = new GraftWallet2(true);
         string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
         string wallet_path = wallet_root_path + "/miner_wallet";
         wallet->load(wallet_path, "");
@@ -99,7 +96,7 @@ TEST_F(TxPoolTest, GetTx)
 
     ASSERT_TRUE(wallet != nullptr);
     ASSERT_TRUE(wallet->init(DAEMON_ADDR));
-    wallet->refresh();
+    wallet->refresh(wallet->is_trusted_daemon());  //TODO-MERGE: is it right fix?
     GraftTxExtra tx_extra;
     uint64_t AMOUNT = 10000000000000; // 10 GRF
 
@@ -121,7 +118,7 @@ TEST_F(TxPoolTest, GetTx)
     ASSERT_TRUE(ptx->status() == Monero::PendingTransaction::Status_Ok);
     std::cout << "sending : " << Wallet::displayAmount(ptx->amount()) << std::endl;
     bool commit_result = ptx->commit();
-    wallet->refresh();
+    wallet->refresh(wallet->is_trusted_daemon());  //TODO-MERGE: is it right fix?
     std::cout << "ptx error: " << ptx->errorString() << std::endl;
     std::cout << "commit  status: " << commit_result << std::endl;
     ASSERT_TRUE(ptx->txid().size() > 0);

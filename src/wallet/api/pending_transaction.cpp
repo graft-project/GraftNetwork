@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -30,10 +30,12 @@
 
 #include "pending_transaction.h"
 #include "wallet.h"
+#include "wallet/wallet_errors.h"
 #include "common_defines.h"
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
+#include "common/base58.h"
 
 #include <memory>
 #include <vector>
@@ -102,6 +104,11 @@ bool PendingTransactionImpl::commit(const std::string &filename, bool overwrite)
       }
       // Commit tx
       else {
+        auto multisigState = m_wallet.multisig();
+        if (multisigState.isMultisig && m_signers.size() < multisigState.threshold) {
+            throw runtime_error("Not enough signers to send multisig transaction");
+        }
+
         m_wallet.pauseRefresh();
         auto reverse_it = m_pending_tx.rbegin();
         for (; reverse_it != m_pending_tx.rend(); ++reverse_it) {
@@ -170,6 +177,73 @@ uint64_t PendingTransactionImpl::txCount() const
   return m_pending_tx.size();
 }
 
+std::vector<uint32_t> PendingTransactionImpl::subaddrAccount() const
+{
+    std::vector<uint32_t> result;
+    for (const auto& ptx : m_pending_tx)
+        result.push_back(ptx.construction_data.subaddr_account);
+    return result;
+}
+
+std::vector<std::set<uint32_t>> PendingTransactionImpl::subaddrIndices() const
+{
+    std::vector<std::set<uint32_t>> result;
+    for (const auto& ptx : m_pending_tx)
+        result.push_back(ptx.construction_data.subaddr_indices);
+    return result;
+}
+
+std::string PendingTransactionImpl::multisigSignData() {
+    try {
+        if (!m_wallet.multisig().isMultisig) {
+            throw std::runtime_error("wallet is not multisig");
+        }
+
+        tools::wallet2::multisig_tx_set txSet;
+        txSet.m_ptx = m_pending_tx;
+        txSet.m_signers = m_signers;
+        auto cipher = m_wallet.m_wallet->save_multisig_tx(txSet);
+
+        return epee::string_tools::buff_to_hex_nodelimer(cipher);
+    } catch (const std::exception& e) {
+        m_status = Status_Error;
+        m_errorString = std::string(tr("Couldn't multisig sign data: ")) + e.what();
+    }
+
+    return std::string();
+}
+
+void PendingTransactionImpl::signMultisigTx() {
+    try {
+        std::vector<crypto::hash> ignore;
+
+        tools::wallet2::multisig_tx_set txSet;
+        txSet.m_ptx = m_pending_tx;
+        txSet.m_signers = m_signers;
+
+        if (!m_wallet.m_wallet->sign_multisig_tx(txSet, ignore)) {
+            throw std::runtime_error("couldn't sign multisig transaction");
+        }
+
+        std::swap(m_pending_tx, txSet.m_ptx);
+        std::swap(m_signers, txSet.m_signers);
+    } catch (const std::exception& e) {
+        m_status = Status_Error;
+        m_errorString = std::string(tr("Couldn't sign multisig transaction: ")) + e.what();
+    }
+}
+
+std::vector<std::string> PendingTransactionImpl::signersKeys() const {
+    std::vector<std::string> keys;
+    keys.reserve(m_signers.size());
+
+    for (const auto& signer: m_signers) {
+        keys.emplace_back(tools::base58::encode(cryptonote::t_serializable_object_to_blob(signer)));
+    }
+
+    return keys;
+}
+
 bool PendingTransactionImpl::save(std::ostream &stream)
 {
   return m_wallet.m_wallet->save_tx_signed(m_pending_tx, stream);
@@ -215,7 +289,6 @@ void  PendingTransactionImpl::putRtaSignatures(const std::vector<RtaSignature> &
     tools::wallet2::pending_tx & ptx =  m_pending_tx[0];
     cryptonote::add_graft_rta_signatures_to_extra2(ptx.tx.extra2, bin_signs);
 }
-
 
 }
 

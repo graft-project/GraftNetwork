@@ -32,6 +32,7 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include <string>
 
 #include <iostream>

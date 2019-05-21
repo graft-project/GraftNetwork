@@ -213,9 +213,7 @@ bool FSN_ActualList::CheckIsFSN(boost::shared_ptr<FSN_Data> data) {
 
 
 	uint64_t bal = m_Servant->GetWalletBalance( m_Servant->GetCurrentBlockHeight(), data->Stake );
-	if(bal<s_MinStakeBalance) return false;
-
-	return true;
+    return bal > s_MinStakeBalance;
 }
 
 bool FSN_ActualList::FSN_CheckWalletOwnership(const rpc_command::FSN_CHECK_WALLET_OWNERSHIP::request& in, rpc_command::FSN_CHECK_WALLET_OWNERSHIP::response& out) {

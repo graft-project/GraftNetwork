@@ -20,4 +20,10 @@ sudo apt-get install -y \
     graphviz \
     libssl-dev
 
+if [ ${VER[1]} == "18.04" ]; then
+    sudo apt-get install -y libssl1.0-dev
+else
+    sudo apt-get install -y libssl-dev
+fi
+
 sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo mv libg* /usr/lib/

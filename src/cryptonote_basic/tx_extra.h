@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -40,8 +40,7 @@
 #define TX_EXTRA_TAG_PUBKEY                 0x01
 #define TX_EXTRA_NONCE                      0x02
 #define TX_EXTRA_MERGE_MINING_TAG           0x03
-// TODO: suggested to remove
-#define TX_EXTRA_GRAFT_EXTRA_TAG            0x04
+#define TX_EXTRA_TAG_ADDITIONAL_PUBKEYS     0x04
 
 #define TX_EXTRA_GRAFT_STAKE_TX_TAG         0x80
 #define TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG    0x81
@@ -49,9 +48,9 @@
 #define TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG   0x84
 
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
-
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
 #define TX_EXTRA_NONCE_ENCRYPTED_PAYMENT_ID 0x01
+#define TX_EXTRA_GRAFT_EXTRA_TAG            0x50
 
 namespace cryptonote
 {
@@ -169,6 +168,16 @@ namespace cryptonote
     }
   };
 
+  // per-output additional tx pubkey for multi-destination transfers involving at least one subaddress
+  struct tx_extra_additional_pub_keys
+  {
+    std::vector<crypto::public_key> data;
+
+    BEGIN_SERIALIZE()
+      FIELD(data)
+    END_SERIALIZE()
+  };
+
   struct tx_extra_mysterious_minergate
   {
     std::string data;
@@ -225,7 +234,7 @@ namespace cryptonote
   //   varint tag;
   //   varint size;
   //   varint data[];
-  typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag,
+  typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag, tx_extra_additional_pub_keys,
     tx_extra_mysterious_minergate, tx_extra_graft_extra, tx_extra_graft_stake_tx,
     tx_extra_graft_tx_secret_key, tx_extra_graft_rta_header, tx_extra_graft_rta_signatures> tx_extra_field;
 }
@@ -234,6 +243,7 @@ VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding, TX_EXTRA_TAG_PADDING);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_pub_key, TX_EXTRA_TAG_PUBKEY);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_nonce, TX_EXTRA_NONCE);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_merge_mining_tag, TX_EXTRA_MERGE_MINING_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_additional_pub_keys, TX_EXTRA_TAG_ADDITIONAL_PUBKEYS);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_extra, TX_EXTRA_GRAFT_EXTRA_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_stake_tx, TX_EXTRA_GRAFT_STAKE_TX_TAG);

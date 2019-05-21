@@ -38,8 +38,9 @@ namespace supernode {
 
 struct FSN_Servant_Test : public FSN_Servant {
 	public:
-	FSN_Servant_Test(const string &bdb_path, const string &daemon_addr, const string &fsn_wallets_dir, bool testnet = false) :
-        FSN_Servant(bdb_path, daemon_addr, /*login*/"", /*password*/"", fsn_wallets_dir, testnet) {}
+    FSN_Servant_Test(const string &bdb_path, const string &daemon_addr, const string &fsn_wallets_dir,
+                     cryptonote::network_type nettype = cryptonote::MAINNET) :
+        FSN_Servant(bdb_path, daemon_addr, /*login*/"", /*password*/"", fsn_wallets_dir, nettype) {}
 
 	unsigned AuthSampleSize() const override { return All_FSN.size(); }
 	vector<boost::shared_ptr<FSN_Data>> GetAuthSample(uint64_t forBlockNum) const override { return All_FSN; }

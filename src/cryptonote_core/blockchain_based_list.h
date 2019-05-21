@@ -3,6 +3,10 @@
 #include <random>
 
 #include "blockchain.h"
+#include "serialization/crypto.h"
+#include "serialization/list.h"
+#include "serialization/vector.h"
+#include "serialization/string.h"
 #include "cryptonote_core/stake_transaction_storage.h"
 
 namespace cryptonote

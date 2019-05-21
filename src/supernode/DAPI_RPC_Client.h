@@ -30,7 +30,6 @@
 #ifndef DAPI_RPC_CLIENT_H_
 #define DAPI_RPC_CLIENT_H_
 
-#include "net/http_base.h"
 #include "net/http_client.h"
 #include "net/jsonrpc_structs.h"
 #include "storages/portable_storage_template_helper.h"

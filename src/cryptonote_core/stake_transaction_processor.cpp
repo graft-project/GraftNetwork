@@ -154,8 +154,8 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
     stake_transaction stake_tx;
 
-    std::list<transaction> txs;
-    std::list<crypto::hash> missed_txs;
+    std::vector<transaction> txs;
+    std::vector<crypto::hash> missed_txs;
     
     if (!m_blockchain.get_transactions(block.tx_hashes, txs, missed_txs))
     {
@@ -188,7 +188,8 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
           continue;
         }
 
-        std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_blockchain.testnet(), stake_tx.supernode_public_address);
+        const bool is_subaddress = false;
+        std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_blockchain.nettype(), is_subaddress, stake_tx.supernode_public_address);
         std::string data = supernode_public_address_str + ":" + stake_tx.supernode_public_id;
         crypto::hash hash;
         crypto::cn_fast_hash(data.data(), data.size(), hash);

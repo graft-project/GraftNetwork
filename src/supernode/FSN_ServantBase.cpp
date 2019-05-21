@@ -65,9 +65,9 @@ string FSN_ServantBase::GetNodePassword() const
     return m_nodePassword;
 }
 
-bool FSN_ServantBase::IsTestnet() const
+cryptonote::network_type FSN_ServantBase::nettype() const
 {
-    return m_testnet;
+  return m_nettype;
 }
 
 void FSN_ServantBase::SetNodeAddress(const string &address)

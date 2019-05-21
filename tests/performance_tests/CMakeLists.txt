@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2017, The Monero Project
+# Copyright (c) 2014-2018, The Monero Project
 #
 # All rights reserved.
 #
@@ -43,7 +43,13 @@ set(performance_tests_headers
   generate_key_image.h
   generate_key_image_helper.h
   generate_keypair.h
+  signature.h
   is_out_to_acc.h
+  subaddress_expand.h
+  range_proof.h
+  bulletproof.h
+  crypto_ops.h
+  multiexp.h
   multi_tx_test_base.h
   performance_tests.h
   performance_utils.h
@@ -54,6 +60,7 @@ add_executable(performance_tests
   ${performance_tests_headers})
 target_link_libraries(performance_tests
   PRIVATE
+    wallet
     cryptonote_core
     common
     cncrypto

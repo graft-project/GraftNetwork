@@ -42,12 +42,13 @@ namespace Utils {
  * \param tx                 - transaction to check
  * \param outputs            - vector of pairs <output_index, amount>
  * \param total_transfered   - total amount addressed to given address in given transaction
+ * \param hwdev              - hardware device
  * \return                   - true on success
  */
 bool lookup_account_outputs_ringct(const cryptonote::account_keys &acc, const cryptonote::transaction &tx,
-                                   std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered);
+                                   std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered, hw::device &hwdev);
 bool get_tx_amount(const cryptonote::account_public_address &address, const crypto::secret_key &key, const cryptonote::transaction &tx,
-                                   std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered);
+                                   std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered, hw::device &hwdev);
 
 } // namespace
 

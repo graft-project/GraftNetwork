@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -82,7 +82,7 @@ protected:
 
 /* \struct binary_archive
  *
- * \brief the actualy binary archive type
+ * \brief the actually binary archive type
  *
  * \detailed The boolean template argument /a W is the is_saving
  * parameter for binary_archive_base.
@@ -99,7 +99,7 @@ struct binary_archive<false> : public binary_archive_base<std::istream, false>
 {
 
   explicit binary_archive(stream_type &s) : base_type(s) {
-    auto pos = stream_.tellg();
+    stream_type::streampos pos = stream_.tellg();
     stream_.seekg(0, std::ios_base::end);
     eof_pos_ = stream_.tellg();
     stream_.seekg(pos);

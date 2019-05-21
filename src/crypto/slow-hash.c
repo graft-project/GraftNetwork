@@ -438,7 +438,7 @@ STATIC INLINE void aes_256_assist2(__m128i* t1, __m128i * t3)
  * CPU AES support.
  * For more information about these functions, see page 19 of Intel's AES instructions
  * white paper:
- * http://www.intel.com/content/dam/www/public/us/en/documents/white-papers/aes-instructions-set-white-paper.pdf
+ * https://www.intel.com/content/dam/doc/white-paper/advanced-encryption-standard-new-instructions-set-paper.pdf
  *
  * @param key the input 128 bit key
  * @param expandedKey An output buffer to hold the generated key schedule
@@ -621,7 +621,7 @@ void slow_hash_allocate_state(void)
                                         MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 #else
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
-  defined(__DragonFly__)
+  defined(__DragonFly__) || defined(__NetBSD__)
     hp_state = mmap(0, MEMORY, PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANON, 0, 0);
 #else
@@ -653,7 +653,7 @@ void slow_hash_free_state(void)
     else
     {
 #if defined(_MSC_VER) || defined(__MINGW32__)
-        VirtualFree(hp_state, MEMORY, MEM_RELEASE);
+        VirtualFree(hp_state, 0, MEM_RELEASE);
 #else
         munmap(hp_state, MEMORY);
 #endif
@@ -687,7 +687,7 @@ void slow_hash_free_state(void)
  * AES support on x86 CPUs.
  *
  * A diagram of the inner loop of this function can be found at
- * http://www.cs.cmu.edu/~dga/crypto/xmr/cryptonight.png
+ * https://www.cs.cmu.edu/~dga/crypto/xmr/cryptonight.png
  *
  * @param data the data to hash
  * @param length the length in bytes of the data
@@ -1065,10 +1065,37 @@ STATIC INLINE void aes_pseudo_round_xor(const uint8_t *in, uint8_t *out, const u
   }
 }
 
+#ifdef FORCE_USE_HEAP
+STATIC INLINE void* aligned_malloc(size_t size, size_t align)
+{
+    void *result;
+#ifdef _MSC_VER
+    result = _aligned_malloc(size, align);
+#else
+    if (posix_memalign(&result, align, size)) result = NULL;
+#endif
+    return result;
+}
+
+STATIC INLINE void aligned_free(void *ptr)
+{
+#ifdef _MSC_VER
+    _aligned_free(ptr);
+#else
+    free(ptr);
+#endif
+}
+#endif /* FORCE_USE_HEAP */
+
 void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier)
 {
     RDATA_ALIGN16 uint8_t expandedKey[240];
+
+#ifndef FORCE_USE_HEAP
     RDATA_ALIGN16 uint8_t hp_state[MEMORY];
+#else
+    uint8_t *hp_state = (uint8_t *)aligned_malloc(MEMORY,16);
+#endif
 
     uint8_t text[INIT_SIZE_BYTE];
     RDATA_ALIGN16 uint64_t a[2];
@@ -1170,6 +1197,10 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     memcpy(state.init, text, INIT_SIZE_BYTE);
     hash_permutation(&state.hs);
     extra_hashes[state.hs.b[0] & 3](&state, 200, hash);
+
+#ifdef FORCE_USE_HEAP
+    aligned_free(hp_state);
+#endif
 }
 #else /* aarch64 && crypto */
 
@@ -1311,8 +1342,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
 #ifndef FORCE_USE_HEAP
     uint8_t long_state[MEMORY];
 #else
-    uint8_t *long_state = NULL;
-    long_state = (uint8_t *)malloc(MEMORY);
+    uint8_t *long_state = (uint8_t *)malloc(MEMORY);
 #endif
 
     if (prehashed) {
@@ -1493,7 +1523,12 @@ union cn_slow_hash_state {
 #pragma pack(pop)
 
 void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int prehashed, int modifier) {
+#ifndef FORCE_USE_HEAP
   uint8_t long_state[MEMORY];
+#else
+  uint8_t *long_state = (uint8_t *)malloc(MEMORY);
+#endif
+
   union cn_slow_hash_state state;
   uint8_t text[INIT_SIZE_BYTE];
   uint8_t a[AES_BLOCK_SIZE];
@@ -1581,6 +1616,10 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
   /*memcpy(hash, &state, 32);*/
   extra_hashes[state.hs.b[0] & 3](&state, 200, hash);
   oaes_free((OAES_CTX **) &aes_ctx);
+
+#ifdef FORCE_USE_HEAP
+  free(long_state);
+#endif
 }
 
 #endif

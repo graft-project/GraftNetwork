@@ -138,7 +138,8 @@ void supernode::DAPI_RPC_Server::setServant(FSN_Servant *servant)
 void supernode::DAPI_RPC_Server::Set(const string& ip, const string& port, int numThreads) {
 	m_Port = port;
 	m_IP = ip;
-	init(port, ip);
+    auto rng = [](size_t len, uint8_t *ptr){ return crypto::rand(len, ptr); };
+    init(rng, port, ip);
 	m_NumThreads = numThreads;
 }
 

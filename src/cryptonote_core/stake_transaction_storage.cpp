@@ -1,9 +1,9 @@
 #include "blockchain.h"
-#include "stake_transaction_storage.h"
 #include "file_io_utils.h"
-#include "serialization/binary_utils.h"
 #include "cryptonote_basic/account_boost_serialization.h"
+#include "serialization/binary_utils.h"
 #include "../graft_rta_config.h"
+#include "stake_transaction_storage.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "staketransaction.storage"

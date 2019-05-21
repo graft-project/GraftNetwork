@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -28,7 +28,7 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
-#include "wallet/wallet2_api.h"
+#include "wallet/api/wallet2_api.h"
 #include "wallet/wallet2.h"
 
 #include <string>
@@ -43,19 +43,28 @@ class PendingTransactionImpl : public PendingTransaction
 public:
     PendingTransactionImpl(WalletImpl &wallet);
     ~PendingTransactionImpl();
-    int status() const;
-    std::string errorString() const;
-    bool commit(const std::string &filename = "", bool overwrite = false);
-    uint64_t amount() const;
-    uint64_t dust() const;
-    uint64_t fee() const;
-    std::vector<std::string> txid() const;
-    uint64_t txCount() const;
-    bool save(std::ostream &stream);
+    int status() const override;
+    std::string errorString() const override;
+    bool commit(const std::string &filename = "", bool overwrite = false) override;
+    uint64_t amount() const override;
+    uint64_t dust() const override;
+    uint64_t fee() const override;
+    std::vector<std::string> txid() const override;
+    uint64_t txCount() const override;
+    std::vector<uint32_t> subaddrAccount() const override;
+    std::vector<std::set<uint32_t>> subaddrIndices() const override;
+    // TODO: continue with interface;
+
+    std::string multisigSignData() override;
+    void signMultisigTx() override;
+    std::vector<std::string> signersKeys() const override;
+
+    bool save(std::ostream &stream) override;
     std::vector<std::string> getRawTransaction() const override;
     void updateTransactionCache() override;
     // TODO: update for new rta tx structure
     void putRtaSignatures(const std::vector<RtaSignature> &) override;
+
 private:
     friend class WalletImpl;
     WalletImpl &m_wallet;
@@ -63,6 +72,7 @@ private:
     int  m_status;
     std::string m_errorString;
     std::vector<tools::wallet2::pending_tx> m_pending_tx;
+    std::unordered_set<crypto::public_key> m_signers;
 };
 
 

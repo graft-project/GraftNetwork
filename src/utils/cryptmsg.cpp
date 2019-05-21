@@ -51,7 +51,7 @@ inline size_t getEncryptChachaSize(size_t plainSize)
 void encryptChacha(const uint8_t* plain, size_t plain_size, const crypto::secret_key &skey, uint8_t* cipher)
 {
   crypto::chacha_key key;
-  crypto::generate_chacha_key(&skey, sizeof(skey), key);
+  crypto::generate_chacha_key(&skey, sizeof(skey), key, 1);
   crypto::chacha_iv& iv = *reinterpret_cast<crypto::chacha_iv*>(cipher);
   iv = crypto::rand<crypto::chacha_iv>();
   crypto::chacha8(plain, plain_size, key, iv, reinterpret_cast<char*>(cipher) + sizeof(iv));
@@ -61,7 +61,7 @@ void decryptChacha(const uint8_t* cipher, size_t cipher_size, const crypto::secr
 {
   const size_t prefix_size = sizeof(crypto::chacha_iv);
   crypto::chacha_key key;
-  crypto::generate_chacha_key(&skey, sizeof(skey), key);
+  crypto::generate_chacha_key(&skey, sizeof(skey), key, 1);
   const crypto::chacha_iv &iv = *reinterpret_cast<const crypto::chacha_iv*>(cipher);
   crypto::chacha8(reinterpret_cast<const char*>(cipher) + sizeof(iv), cipher_size - prefix_size, key, iv, reinterpret_cast<char*>(plain));
 }

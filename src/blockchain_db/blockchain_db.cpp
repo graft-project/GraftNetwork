@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017, The Monero Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -28,6 +28,7 @@
 
 #include <boost/range/adaptor/reversed.hpp>
 
+#include "string_tools.h"
 #include "blockchain_db.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "profile_tools.h"
@@ -86,8 +87,8 @@ const command_line::arg_descriptor<std::string> arg_db_type = {
 };
 const command_line::arg_descriptor<std::string> arg_db_sync_mode = {
   "db-sync-mode"
-, "Specify sync option, using format [safe|fast|fastest]:[sync|async]:[nblocks_per_sync]." 
-, "fast:async:1000"
+, "Specify sync option, using format [safe|fast|fastest]:[sync|async]:[<nblocks_per_sync>[blocks]|<nbytes_per_sync>[bytes]]." 
+, "fast:async:250000000bytes"
 };
 const command_line::arg_descriptor<bool> arg_db_salvage  = {
   "db-salvage"
@@ -120,10 +121,10 @@ void BlockchainDB::pop_block()
   pop_block(blk, txs);
 }
 
-void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transaction& tx, const crypto::hash* tx_hash_ptr)
+void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transaction& tx, const crypto::hash* tx_hash_ptr, const crypto::hash* tx_prunable_hash_ptr)
 {
   bool miner_tx = false;
-  crypto::hash tx_hash;
+  crypto::hash tx_hash, tx_prunable_hash;
   if (!tx_hash_ptr)
   {
     // should only need to compute hash for miner transactions
@@ -133,6 +134,13 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
   else
   {
     tx_hash = *tx_hash_ptr;
+  }
+  if (tx.version >= 2)
+  {
+    if (!tx_prunable_hash_ptr)
+      tx_prunable_hash = get_transaction_prunable_hash(tx);
+    else
+      tx_prunable_hash = *tx_prunable_hash_ptr;
   }
 
   for (const txin_v& tx_input : tx.vin)
@@ -160,7 +168,7 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
     }
   }
 
-  uint64_t tx_id = add_transaction_data(blk_hash, tx, tx_hash);
+  uint64_t tx_id = add_transaction_data(blk_hash, tx, tx_hash, tx_prunable_hash);
 
   std::vector<uint64_t> amount_output_indices;
 
@@ -188,12 +196,16 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
 }
 
 uint64_t BlockchainDB::add_block( const block& blk
-                                , const size_t& block_size
+                                , size_t block_weight
                                 , const difficulty_type& cumulative_difficulty
                                 , const uint64_t& coins_generated
                                 , const std::vector<transaction>& txs
                                 )
 {
+  // sanity
+  if (blk.tx_hashes.size() != txs.size())
+    throw std::runtime_error("Inconsistent tx/hashes sizes");
+
   block_txn_start(false);
 
   TIME_MEASURE_START(time1);
@@ -206,13 +218,22 @@ uint64_t BlockchainDB::add_block( const block& blk
   // call out to add the transactions
 
   time1 = epee::misc_utils::get_tick_count();
+
+  uint64_t num_rct_outs = 0;
   add_transaction(blk_hash, blk.miner_tx);
+  if (blk.miner_tx.version == 2)
+    num_rct_outs += blk.miner_tx.vout.size();
   int tx_i = 0;
-  crypto::hash tx_hash = null_hash;
+  crypto::hash tx_hash = crypto::null_hash;
   for (const transaction& tx : txs)
   {
     tx_hash = blk.tx_hashes[tx_i];
     add_transaction(blk_hash, tx, &tx_hash);
+    for (const auto &vout: tx.vout)
+    {
+      if (vout.amount == 0)
+        ++num_rct_outs;
+    }
     ++tx_i;
   }
   TIME_MEASURE_FINISH(time1);
@@ -220,7 +241,7 @@ uint64_t BlockchainDB::add_block( const block& blk
 
   // call out to subclass implementation to add the block & metadata
   time1 = epee::misc_utils::get_tick_count();
-  add_block(blk, block_size, cumulative_difficulty, coins_generated, blk_hash);
+  add_block(blk, block_weight, cumulative_difficulty, coins_generated, num_rct_outs, blk_hash);
   TIME_MEASURE_FINISH(time1);
   time_add_block1 += time1;
 
@@ -278,7 +299,7 @@ block BlockchainDB::get_block_from_height(const uint64_t& height) const
   blobdata bd = get_block_blob_from_height(height);
   block b;
   if (!parse_and_validate_block_from_blob(bd, b))
-    throw new DB_ERROR("Failed to parse block from blob retrieved from the db");
+    throw DB_ERROR("Failed to parse block from blob retrieved from the db");
 
   return b;
 }
@@ -288,7 +309,7 @@ block BlockchainDB::get_block(const crypto::hash& h) const
   blobdata bd = get_block_blob(h);
   block b;
   if (!parse_and_validate_block_from_blob(bd, b))
-    throw new DB_ERROR("Failed to parse block from blob retrieved from the db");
+    throw DB_ERROR("Failed to parse block from blob retrieved from the db");
 
   return b;
 }
@@ -299,7 +320,7 @@ bool BlockchainDB::get_tx(const crypto::hash& h, cryptonote::transaction &tx) co
   if (!get_tx_blob(h, bd))
     return false;
   if (!parse_and_validate_tx_from_blob(bd, tx))
-    throw new DB_ERROR("Failed to parse transaction from blob retrieved from the db");
+    throw DB_ERROR("Failed to parse transaction from blob retrieved from the db");
 
   return true;
 }
@@ -308,7 +329,7 @@ transaction BlockchainDB::get_tx(const crypto::hash& h) const
 {
   transaction tx;
   if (!get_tx(h, tx))
-    throw new TX_DNE(std::string("tx with hash ").append(epee::string_tools::pod_to_hex(h)).append(" not found in db").c_str());
+    throw TX_DNE(std::string("tx with hash ").append(epee::string_tools::pod_to_hex(h)).append(" not found in db").c_str());
   return tx;
 }
 

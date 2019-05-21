@@ -160,16 +160,17 @@ bool supernode::PosSaleObject::PoSTRSigned(const rpc_command::POS_TR_SIGNED::req
     cryptonote::account_keys pos_account;
     epee::string_tools::hex_to_pod(TransactionRecord.POSViewKey, pos_account.m_view_secret_key);
 
-    if (!cryptonote::get_account_address_from_str(pos_account.m_account_address, m_Servant->IsTestnet(), TransactionRecord.POSAddress)) {
+    address_parse_info addr_parse_info;
+    if (!cryptonote::get_account_address_from_str(addr_parse_info, m_Servant->nettype(), TransactionRecord.POSAddress)) {
         LOG_ERROR("Error parsing POS Address: " << TransactionRecord.POSAddress);
         return false;
     }
-
+    pos_account.m_account_address = addr_parse_info.address;
 
     uint64_t amount = 0;
     vector<pair<size_t, uint64_t>> outputs;
 
-    if (!Utils::lookup_account_outputs_ringct(pos_account, tx, outputs, amount)) {
+    if (!Utils::lookup_account_outputs_ringct(pos_account, tx, outputs, amount, hw::get_device("default"))) {
         LOG_ERROR("Error checking tx outputs");
         return false;
     }

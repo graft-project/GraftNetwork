@@ -1,4 +1,4 @@
-// Copyright (c) 2017, The Monero Project
+// Copyright (c) 2017-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -26,6 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <boost/algorithm/string.hpp>
 #include "misc_log_ex.h"
 #include "util.h"
 #include "dns_utils.h"
@@ -71,12 +72,12 @@ namespace tools
         continue;
 
       bool alnum = true;
-      for (auto c: hash)
+      for (auto c: fields[3])
         if (!isalnum(c))
           alnum = false;
-      if (hash.size() != 64 && !alnum)
+      if (fields[3].size() != 64 && !alnum)
       {
-        MWARNING("Invalid hash: " << hash);
+        MWARNING("Invalid hash: " << fields[3]);
         continue;
       }
 
@@ -101,9 +102,9 @@ namespace tools
 
   std::string get_update_url(const std::string &software, const std::string &subdir, const std::string &buildtag, const std::string &version, bool user)
   {
-    const char *base = user ? "https://downloads.getmonero.org/" : "http://updates.getmonero.org/";
+    const char *base = user ? "https://downloads.getmonero.org/" : "https://updates.getmonero.org/";
 #ifdef _WIN32
-    static const char extension[] = ".zip";
+    static const char *extension = strncmp(buildtag.c_str(), "install-", 8) ? ".zip" : ".exe";
 #else
     static const char extension[] = ".tar.bz2";
 #endif
