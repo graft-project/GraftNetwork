@@ -47,7 +47,6 @@
 #include "crypto/hash.h"
 #include "stake_transaction_processor.h"
 #include "graft_rta_config.h"
-#include "utils/sample_generator.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "txpool"
@@ -1141,24 +1140,33 @@ namespace cryptonote
   bool tx_memory_pool::belongs_to_auth_sample(const rta_header& rta_hdr) const
   {
     bool ok = false;  // ok is true when every supernode from rta_hdr is member of auth_sample
-    std::vector<crypto::public_key> auth_sample_keys;
-    if(ok = (m_stp->get_auth_sample_keys(rta_hdr.auth_sample_height, rta_hdr.payment_id, auth_sample_keys)))
+    std::vector<crypto::public_key> ask;  // auth sample keys
+    if(ok = (m_stp->get_auth_sample_keys(rta_hdr.auth_sample_height, rta_hdr.payment_id, ask)))
     {
-      for(const auto& kr : rta_hdr.keys)
+      for(const auto& key : rta_hdr.keys)
       {
-        bool found = false;
-        for(const auto& kas : auth_sample_keys)
-          if(found = (kr == kas))
-            break;
-        if(!(ok = found))
+        if(!(ok = std::any_of(ask.cbegin(), ask.cend(), [&key](const crypto::public_key& k) { return key == k; })))
         {
-          MERROR("Key " << kr << " does not belong to auth-sample");
+          MERROR("Key " << key << " does not belong to auth-sample");
           break;
         }
       }
     }
     else
       MERROR("Obtaining of auth sample keys is failed");
+
+#if 0
+    {
+      std::ostringstream m;
+      m << std::endl << "### DBG: keys to be checked against belonging to auth sample (cnt:"
+        << rta_hdr.keys.size() << "):";
+
+      for(const auto& k : rta_hdr.keys) m << std::endl << k;
+      m << std::endl << "### DBG: keys of auth sample (cnt:" << ask.size() << "):";
+      for(const auto& k : ask) m << std::endl << k;
+      MDEBUG(m.str());
+    }
+#endif
 
     return ok;
   }

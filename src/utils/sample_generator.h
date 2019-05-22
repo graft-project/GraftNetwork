@@ -134,11 +134,6 @@ bool selectSample(size_t sample_size, const Tiers& bbl_tiers, std::vector<T>& ou
         auto& dst = tier_supernodes[i];
         dst.reserve(sample_size);
         uniform_select(do_not_seed{}, sample_size, src, dst);
-        if (dst.size() != sample_size)
-        {
-          LOG_ERROR("unable to select supernodes for " << prefix << " sample");
-          return false;
-        }
         MDEBUG("..." << dst.size() << " supernodes has been selected for tier " << (i + 1) << " from blockchain based list with " << src.size() << " supernodes");
     }
 
