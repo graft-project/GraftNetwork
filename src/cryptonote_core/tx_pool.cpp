@@ -192,12 +192,12 @@ namespace cryptonote
     bool is_rta_tx = tx.type == transaction::tx_type_rta;
     if(is_disqualification_tx)
     {
-        if(!graft_check_disqualification(tx))
-        {
-            MERROR("Invalid disqualification transaction with id " << id);
-            tvc.m_verifivation_failed = true;
-            return false;
-        }
+      if(!graft_check_disqualification(tx))
+      {
+        MERROR("Invalid disqualification transaction with id " << id);
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
     }
     else if (is_rta_tx) {
       cryptonote::rta_header rta_hdr;
