@@ -235,27 +235,27 @@ namespace cryptonote
 
   struct tx_extra_graft_disqualification
   {
-      struct disqualification_item
-      {
-        uint64_t block_height;
-        crypto::hash block_hash;
-        crypto::public_key id;
-        BEGIN_SERIALIZE()
-          FIELD(block_height)
-          FIELD(block_hash)
-          FIELD(id)
-        END_SERIALIZE()
-      };
+    struct disqualification_item
+    {
+      uint64_t block_height;
+      crypto::hash block_hash;
+      crypto::public_key id;
+      BEGIN_SERIALIZE()
+        FIELD(block_height)
+        FIELD(block_hash)
+        FIELD(id)
+      END_SERIALIZE()
+    };
 
-      struct signer_item
-      {
-        crypto::public_key signer_id;
-        crypto::signature sign;
-        BEGIN_SERIALIZE()
-          FIELD(signer_id)
-          FIELD(sign)
-        END_SERIALIZE()
-      };
+    struct signer_item
+    {
+      crypto::public_key signer_id;
+      crypto::signature sign;
+      BEGIN_SERIALIZE()
+        FIELD(signer_id)
+        FIELD(sign)
+      END_SERIALIZE()
+    };
 
     disqualification_item item;
     std::vector<signer_item> signers;
