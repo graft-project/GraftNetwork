@@ -112,6 +112,7 @@ constexpr int32_t AUTH_SAMPLE_SIZE = TIERS * ITEMS_PER_TIER;
 constexpr int32_t BBQS_SIZE = TIERS * ITEMS_PER_TIER;
 constexpr int32_t QCL_SIZE = TIERS * ITEMS_PER_TIER;
 constexpr int32_t REQUIRED_BBQS_VOTES = (BBQS_SIZE*2 + (3-1))/3;
+constexpr int32_t REQUIRED_DISQUAL2_VOTES = 5;
 
 /*!
  * \brief selectSample - selects a sample such as BBQS and QCl.

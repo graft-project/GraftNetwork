@@ -2275,7 +2275,7 @@ namespace cryptonote
     {
       uint64_t block_height;
       std::vector<supernode_stake> stakes;
-      std::vector<blobdata> disqualifications; //tx_extra_graft_disqualification;
+      std::vector<blobdata> disqualifications; //tx_extra_graft_disqualification; is it required? looks like is not
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(block_height)
         KV_SERIALIZE(stakes)

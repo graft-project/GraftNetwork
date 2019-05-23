@@ -47,6 +47,7 @@
 #define TX_EXTRA_GRAFT_RTA_HEADER_TAG       0x83
 #define TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG   0x84
 #define TX_EXTRA_GRAFT_DISQUALIFICATION_TAG 0x85
+#define TX_EXTRA_GRAFT_DISQUALIFICATION2_TAG 0x86
 
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
@@ -274,6 +275,40 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
+  struct tx_extra_graft_disqualification2
+  {
+    struct disqualification_item
+    {
+      std::string payment_id;
+      uint64_t block_height;
+      crypto::hash block_hash;
+      std::vector<crypto::public_key> ids;
+      BEGIN_SERIALIZE()
+        FIELD(payment_id)
+        FIELD(block_height)
+        FIELD(block_hash)
+        FIELD(ids)
+      END_SERIALIZE()
+    };
+
+    struct signer_item
+    {
+      crypto::public_key signer_id;
+      crypto::signature sign;
+      BEGIN_SERIALIZE()
+        FIELD(signer_id)
+        FIELD(sign)
+      END_SERIALIZE()
+    };
+
+    disqualification_item item;
+    std::vector<signer_item> signers;
+    BEGIN_SERIALIZE()
+      FIELD(item)
+      FIELD(signers)
+    END_SERIALIZE()
+  };
+
   // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
   //   varint tag;
   //   varint size;
@@ -281,7 +316,7 @@ namespace cryptonote
   typedef boost::variant<tx_extra_padding, tx_extra_pub_key, tx_extra_nonce, tx_extra_merge_mining_tag, tx_extra_additional_pub_keys,
     tx_extra_mysterious_minergate, tx_extra_graft_extra, tx_extra_graft_stake_tx,
     tx_extra_graft_tx_secret_key, tx_extra_graft_rta_header, tx_extra_graft_rta_signatures,
-    tx_extra_graft_disqualification> tx_extra_field;
+    tx_extra_graft_disqualification, tx_extra_graft_disqualification2> tx_extra_field;
 }
 
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding, TX_EXTRA_TAG_PADDING);
@@ -296,3 +331,4 @@ VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_tx_secret_key, TX_EXTRA_G
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_rta_header, TX_EXTRA_GRAFT_RTA_HEADER_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_rta_signatures, TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_disqualification, TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_graft_disqualification2, TX_EXTRA_GRAFT_DISQUALIFICATION2_TAG);

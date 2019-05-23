@@ -1334,9 +1334,7 @@ namespace cryptonote
       return false;
     std::vector<tx_extra_field> tx_extra_fields;
     parse_tx_extra(tx.extra, tx_extra_fields);
-    if(!find_tx_extra_field_by_type(tx_extra_fields, disq))
-      return false;
-    return true;
+    return find_tx_extra_field_by_type(tx_extra_fields, disq);
   }
 
   bool graft_is_disqualification(const transaction &tx)
@@ -1359,6 +1357,43 @@ namespace cryptonote
       {
         if(!crypto::check_signature(hash, si.signer_id, si.sign))
             return false;
+      }
+    }
+    if(pdisq) *pdisq = std::move(disq);
+    return true;
+  }
+
+  bool graft_get_disqualification2(const transaction &tx, tx_extra_graft_disqualification2& disq)
+  {
+    if(tx.version != 124)
+      return false;
+    if(!tx.vin.empty() || !tx.vout.empty() || tx.rct_signatures.txnFee !=0)
+      return false;
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx.extra, tx_extra_fields);
+    return find_tx_extra_field_by_type(tx_extra_fields, disq);
+  }
+
+  bool graft_is_disqualification2(const transaction &tx)
+  {
+    tx_extra_graft_disqualification2 disq;
+    return graft_get_disqualification2(tx, disq);
+  }
+
+  bool graft_check_disqualification2(const transaction &tx, tx_extra_graft_disqualification2* pdisq)
+  {
+    tx_extra_graft_disqualification2 disq;
+    if(!graft_get_disqualification2(tx, disq))
+      return false;
+    {//check signs
+      std::string item_str;
+      ::serialization::dump_binary(disq.item, item_str);
+      crypto::hash hash;
+      crypto::cn_fast_hash(item_str.data(), item_str.size(), hash);
+      for(auto& si : disq.signers)
+      {
+        if(!crypto::check_signature(hash, si.signer_id, si.sign))
+          return false;
       }
     }
     if(pdisq) *pdisq = std::move(disq);
