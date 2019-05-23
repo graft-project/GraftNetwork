@@ -52,6 +52,9 @@ private:
   void process_block_stake_transaction(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
   void process_block_blockchain_based_list(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
 
+  void process_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash, uint64_t block_index, const crypto::hash& block_hash, StakeTransactionStorage::disqualification_array& disquals);
+  void process_disqualification2_transaction(const transaction& tx, const crypto::hash tx_hash, uint64_t block_index, const crypto::hash& block_hash, StakeTransactionStorage::disqualification2_storage_array& disquals2);
+
 private:
   std::string m_config_dir;
   Blockchain& m_blockchain;

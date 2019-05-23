@@ -23,15 +23,18 @@ struct stake_transaction_file_data
   StakeTransactionStorage::stake_transaction_array& stake_txs;
   StakeTransactionStorage::block_hash_list& block_hashes;
   StakeTransactionStorage::disqualification_array& disqualifications;
+  StakeTransactionStorage::disqualification2_storage_array& disqualifications2_storage;
 
 
   stake_transaction_file_data(uint64_t in_last_processed_block_index, StakeTransactionStorage::stake_transaction_array& in_stake_txs,
-    size_t in_last_processed_block_hashes_count, StakeTransactionStorage::block_hash_list& in_block_hashes, StakeTransactionStorage::disqualification_array& disqualifications)
+    size_t in_last_processed_block_hashes_count, StakeTransactionStorage::block_hash_list& in_block_hashes,
+    StakeTransactionStorage::disqualification_array& disqualifications, StakeTransactionStorage::disqualification2_storage_array& disqualifications2_storage)
     : last_processed_block_index(in_last_processed_block_index)
     , last_processed_block_hashes_count(in_last_processed_block_hashes_count)
     , stake_txs(in_stake_txs)
     , block_hashes(in_block_hashes)
     , disqualifications(disqualifications)
+    , disqualifications2_storage(disqualifications2_storage)
   {
   }
 
@@ -41,6 +44,7 @@ struct stake_transaction_file_data
     FIELD(block_hashes)
     FIELD(stake_txs)
     FIELD(disqualifications)
+    FIELD(disqualifications2_storage)
   END_SERIALIZE()
 };
 
@@ -66,6 +70,7 @@ void StakeTransactionStorage::add_tx(const stake_transaction& tx)
 
 void StakeTransactionStorage::add_disquals(const disqualification_array& disqs)
 {
+  if(disqs.empty()) return;
     //sort and merge
   auto middle = m_disqualifications.insert(m_disqualifications.end(), disqs.begin(), disqs.end());
   std::sort(middle, m_disqualifications.end(), disqualification::less_id_str);
@@ -74,11 +79,54 @@ void StakeTransactionStorage::add_disquals(const disqualification_array& disqs)
   m_need_store = true;
 }
 
+StakeTransactionStorage::disqualification2_array StakeTransactionStorage::disquals2_from_storage(const disqualification2_storage_array& disqs_store)
+{
+  disqualification2_array disqs;
+  disqs.reserve(disqs_store.size()); //at least
+  for(const auto& item_store : disqs_store)
+  {
+    tx_extra_graft_disqualification2 extra_d2;
+    bool res = serialization::parse_binary(item_store.blob, extra_d2);
+    assert(res);
+    for(const auto& id : extra_d2.item.ids)
+    {
+      disqualification2 d2;
+      d2.block_index = item_store.block_index;
+      d2.id_str = epee::string_tools::pod_to_hex(id);
+      disqs.emplace_back( std::move(d2) );
+    }
+  }
+  //sort
+  std::sort(disqs.begin(), disqs.end(), disqualification2::less_id_str);
+  return disqs;
+}
+
+void StakeTransactionStorage::add_disquals2(const disqualification2_storage_array& disqs_store)
+{
+  if(disqs_store.empty()) return;
+  m_disqualifications2_storage.insert(m_disqualifications2_storage.end(), disqs_store.begin(), disqs_store.end());
+    //make disqualification2 array from storage items
+  disqualification2_array disqs = disquals2_from_storage(disqs_store);
+    //merge
+  auto middle = m_disqualifications2.insert(m_disqualifications2.end(), disqs.begin(), disqs.end());
+  std::inplace_merge(m_disqualifications2.begin(), middle, m_disqualifications2.end(), disqualification2::less_id_str);
+
+  m_need_store = true;
+}
+
 bool StakeTransactionStorage::is_disqualified(uint64_t block_number, const std::string& supernode_public_id) const
 {
-  disqualification tmp; tmp.id_str = supernode_public_id;
-  auto pair = std::equal_range(m_disqualifications.begin(), m_disqualifications.end(), tmp, disqualification::less_id_str);
-  return std::any_of(pair.first, pair.second, [block_number](const disqualification& v){ return v.is_active_for(block_number); });
+  {//disqualification
+    disqualification tmp; tmp.id_str = supernode_public_id;
+    auto pair = std::equal_range(m_disqualifications.begin(), m_disqualifications.end(), tmp, disqualification::less_id_str);
+    bool res = std::any_of(pair.first, pair.second, [block_number](const disqualification& v){ return v.is_active_for(block_number); });
+    if(res) return true;
+  }
+  {//disqualification2
+    disqualification2 tmp; tmp.id_str = supernode_public_id;
+    auto pair = std::equal_range(m_disqualifications2.begin(), m_disqualifications2.end(), tmp, disqualification2::less_id_str);
+    return std::any_of(pair.first, pair.second, [block_number](const disqualification2& v){ return v.is_active_for(block_number); });
+  }
 }
 
 const crypto::hash& StakeTransactionStorage::get_last_processed_block_hash() const
@@ -347,7 +395,8 @@ void StakeTransactionStorage::load()
     StakeTransactionStorage::stake_transaction_array tmp_stake_txs;
     StakeTransactionStorage::block_hash_list tmp_block_hashes;
     StakeTransactionStorage::disqualification_array tmp_disqualifications;
-    stake_transaction_file_data data(0, tmp_stake_txs, 0, tmp_block_hashes, tmp_disqualifications);
+    StakeTransactionStorage::disqualification2_storage_array tmp_disqualifications2_storage;
+    stake_transaction_file_data data(0, tmp_stake_txs, 0, tmp_block_hashes, tmp_disqualifications, tmp_disqualifications2_storage);
 
     r = ::serialization::parse_binary(buffer, data);
 
@@ -359,6 +408,10 @@ void StakeTransactionStorage::load()
     std::swap(m_stake_txs, data.stake_txs);
     std::swap(m_last_processed_block_hashes, data.block_hashes);
     std::swap(m_disqualifications, data.disqualifications);
+    std::swap(m_disqualifications2_storage, data.disqualifications2_storage);
+
+    disqualification2_array disqs2 = disquals2_from_storage(m_disqualifications2_storage);
+    m_disqualifications2.swap(disqs2);
 
     m_need_store = false;
   }
@@ -373,7 +426,8 @@ void StakeTransactionStorage::store() const
 {
   stake_transaction_file_data data(m_last_processed_block_index, const_cast<stake_transaction_array&>(m_stake_txs),
     m_last_processed_block_hashes_count, const_cast<block_hash_list&>(m_last_processed_block_hashes)
-    , const_cast<disqualification_array&>(m_disqualifications));
+    , const_cast<disqualification_array&>(m_disqualifications)
+    , const_cast<disqualification2_storage_array&>(m_disqualifications2_storage));
 
   std::ofstream ostr;
   ostr.open(m_storage_file_name, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);

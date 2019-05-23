@@ -51,6 +51,7 @@ struct supernode_stake
 
 //TODO: find good place for it common with supernode
 constexpr size_t DISQUALIFICATION_DURATION_BLOCK_COUNT = 10;
+constexpr size_t DISQUALIFICATION2_DURATION_BLOCK_COUNT = 10;
 
 struct disqualification
 {
@@ -82,6 +83,34 @@ struct disqualification
   }
 };
 
+struct disqualification2_storage_item
+{
+  std::string blob; //tx_extra_graft_disqualification2
+  uint64_t block_index; //block_index where transaction is stored, not that from the blob. disqualifications should be applied from next block
+  BEGIN_SERIALIZE_OBJECT()
+    FIELD(blob)
+    FIELD(block_index)
+  END_SERIALIZE()
+};
+
+struct disqualification2
+{
+  std::string id_str;
+  uint64_t block_index; //block_index where transaction is stored, not that from the blob. disqualifications should be applied from next block
+  //uint64_t unlock_time == block_height + DISQUALIFICATION2_DURATION_BLOCK_COUNT
+
+  bool is_active_for(uint64_t block_index_target) const
+  {
+      //from next block where the transaction is stored
+    return block_index < block_index_target && block_index_target <= block_index + DISQUALIFICATION2_DURATION_BLOCK_COUNT;
+  }
+
+  static bool less_id_str(const disqualification2& l, const disqualification2& r)
+  {
+    return l.id_str < r.id_str;
+  }
+};
+
 class StakeTransactionStorage
 {
 public:
@@ -89,6 +118,8 @@ public:
   typedef std::list<crypto::hash>        block_hash_list;
   typedef std::vector<supernode_stake>   supernode_stake_array;
   typedef std::vector<disqualification>  disqualification_array;
+  typedef std::vector<disqualification2_storage_item> disqualification2_storage_array;
+  typedef std::vector<disqualification2> disqualification2_array;
   typedef vector<std::string> supernode_disqualification_array;
 
   StakeTransactionStorage(const std::string& storage_file_name, uint64_t first_block_number);
@@ -117,6 +148,7 @@ public:
   /// Add transaction
   void add_tx(const stake_transaction&);
   void add_disquals(const disqualification_array& disqs);
+  void add_disquals2(const disqualification2_storage_array& disqs_store);
 
   /// List of supernode stakes
   const supernode_stake_array& get_supernode_stakes(uint64_t block_number);
@@ -144,6 +176,9 @@ private:
 
   typedef std::unordered_map<std::string, size_t> supernode_stake_index_map;
 
+  //returns sorted array of disqualification2 from storage items
+  disqualification2_array disquals2_from_storage(const disqualification2_storage_array& disqs_store);
+
 private:
   std::string m_storage_file_name;
   uint64_t m_last_processed_block_index;
@@ -157,6 +192,8 @@ private:
   mutable bool m_need_store;
 
   disqualification_array m_disqualifications; //sorted by id_str
+  disqualification2_array m_disqualifications2; //sorted by id_str
+  disqualification2_storage_array m_disqualifications2_storage;
   supernode_disqualification_array m_supernode_disqualifications; //an array valid for m_supernode_stakes_update_block_number
 };
 

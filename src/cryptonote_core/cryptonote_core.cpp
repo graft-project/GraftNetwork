@@ -968,6 +968,14 @@ namespace cryptonote
       }
       return graft_is_disqualification(tx);
     }
+    if(tx.version == 124)
+    {
+      if(tx.vin.size() || tx.vout.size())
+      {
+        MERROR_VER("qualification2 tx with non-empty inputs or outputs, rejected for tx id= " << get_transaction_hash(tx));
+      }
+      return graft_is_disqualification2(tx);
+    }
     if(!tx.vin.size())
     {
       MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
