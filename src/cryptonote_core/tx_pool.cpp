@@ -48,6 +48,10 @@
 #include "stake_transaction_processor.h"
 #include "graft_rta_config.h"
 
+#include "utils/sample_generator.h" // bad idea to include the whole heavy header just 
+// because of one const - graft::generator::AUTH_SAMPLE_SIZE
+// It's better to hold all const's in separate lightweight header
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "txpool"
 
@@ -1085,16 +1089,116 @@ namespace cryptonote
     return true;
   }
 
+
   //---------------------------------------------------------------------------------
+
+  uint32_t get_rta_hdr_supernode_public_key_offset(const rta_header& rta_hdr)
+  {
+    return (rta_hdr.keys.size() == 8) ? 0 : 3; // supernode public keys offset
+  }
+
+  bool check_rta_sign_count(const std::vector<rta_signature>& rta_signs, const crypto::hash& txid)
+  {
+    const uint32_t cnt = rta_signs.size();
+    // according to spec/design there can be 6-8 signatures and we do check it in here
+    const bool ok = !((cnt < 6) || (cnt > graft::generator::AUTH_SAMPLE_SIZE));
+    if(!ok)
+      MERROR("Wrong amount of signatures:" << cnt << " for tx:" << txid << " It should be 6-"
+        << graft::generator::AUTH_SAMPLE_SIZE << ".");
+    return ok;
+  }
+
+  bool check_rta_keys_count(const rta_header& rta_hdr, const crypto::hash& txid)
+  {
+    const uint32_t cnt = rta_hdr.keys.size();
+
+    // so far there can be cases when we have only graft::generator::AUTH_SAMPLE_SIZE
+    // records (3 starting are missing)
+    const bool ok = (cnt == graft::generator::AUTH_SAMPLE_SIZE) 
+      || (cnt == (3 + graft::generator::AUTH_SAMPLE_SIZE));
+
+    if(!ok)
+      MERROR("Failed to validate rta tx, wrong amount ("
+        << cnt << ") of auth sample keys for tx:" << txid << ". Expected "
+        << (3 + graft::generator::AUTH_SAMPLE_SIZE));
+
+    return ok;
+  }
+
+  bool check_rta_sign_key_indexes(const std::vector<rta_signature>& rta_signs,
+    const crypto::hash& txid, const uint32_t sn_pkeys_off)
+  {
+    bool ok = true;
+    for(const auto& rs : rta_signs)
+    {
+      if((rs.key_index < sn_pkeys_off)
+        || (rs.key_index > (sn_pkeys_off + graft::generator::AUTH_SAMPLE_SIZE - 1)))
+      {
+        MERROR("Signature: " << rs.signature << " has wrong key index: "
+          << rs.key_index << ", tx: " << txid);
+        ok = false;
+        break;
+      }
+    }
+    return ok;
+  }
+
+  bool check_rta_signatures(const std::vector<rta_signature>& rta_signs,
+    const rta_header& rta_hdr, const crypto::hash& txid, const uint32_t sn_pkeys_off)
+  {
+    bool ok = true;
+    for(const auto& rs : rta_signs)
+    {
+      const int32_t idx = rs.key_index + sn_pkeys_off;
+
+      if(idx > (int32_t)(rta_hdr.keys.size() - 1))
+      {
+        MERROR("Fail at check_rta_signatures - out of index!");
+        return false;
+      }
+
+      const auto& key = rta_hdr.keys[idx];
+      if(!crypto::check_signature(txid, key, rs.signature))
+      {
+        MERROR("Failed to validate rta tx " << std::endl
+          << "signature: " << epee::string_tools::pod_to_hex(rs.signature) << std::endl
+          << "for key: " << key << std::endl
+          << "tx-id:    " << epee::string_tools::pod_to_hex(txid));
+        ok = false;
+        break;
+      }
+    }
+    return ok;
+  }
+
+  //---------------------------------------------------------------------------------
+
   bool tx_memory_pool::validate_rta_tx(const crypto::hash &txid, const std::vector<rta_signature> &rta_signs, const rta_header &rta_hdr) const
   {
     bool result = true;
 
+    if(!check_rta_sign_count(rta_signs, txid))
+      return false;
+
+    if(!check_rta_keys_count(rta_hdr, txid))
+      return false;
+
+    const auto sn_pkeys_off = get_rta_hdr_supernode_public_key_offset(rta_hdr);
+
+    if(!check_rta_sign_key_indexes(rta_signs, txid, sn_pkeys_off))
+      return false;
+
+    if(!check_rta_signatures(rta_signs, rta_hdr, txid, sn_pkeys_off))
+      return false;
+
+#if 0 
+    
     if (rta_hdr.keys.size() == 0) {
       MERROR("Failed to validate rta tx, missing auth sample keys for tx: " << txid );
       return false;
     }
-#if 0  // don't validate signatures for rta mining
+
+    // don't validate signatures for rta mining
     if (rta_hdr.keys.size() != rta_signs.size()) {
       MERROR("Failed to validate rta tx: " << txid << ", keys.size() != signatures.size()");
       return false;
@@ -1117,7 +1221,7 @@ namespace cryptonote
     }
 #endif
 
-    if(!belongs_to_auth_sample(rta_hdr))
+    if(!belongs_to_auth_sample(rta_hdr, sn_pkeys_off))
       return false;
 
     for (const crypto::public_key &key : rta_hdr.keys) {
@@ -1137,14 +1241,15 @@ namespace cryptonote
     return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
   };
 
-  bool tx_memory_pool::belongs_to_auth_sample(const rta_header& rta_hdr) const
+  bool tx_memory_pool::belongs_to_auth_sample(const rta_header& rta_hdr, const uint32_t sn_pkeys_off) const
   {
     bool ok = false;  // ok is true when every supernode from rta_hdr is member of auth_sample
     std::vector<crypto::public_key> ask;  // auth sample keys
     if(ok = (m_stp->get_auth_sample_keys(rta_hdr.auth_sample_height, rta_hdr.payment_id, ask)))
     {
-      for(const auto& key : rta_hdr.keys)
+      for(uint32_t i = sn_pkeys_off, cnt = rta_hdr.keys.size(); i < cnt; ++i)
       {
+        const auto& key = rta_hdr.keys[i];
         if(!(ok = std::any_of(ask.cbegin(), ask.cend(), [&key](const crypto::public_key& k) { return key == k; })))
         {
           MERROR("Key " << key << " does not belong to auth-sample");
@@ -1170,5 +1275,6 @@ namespace cryptonote
 
     return ok;
   }
+
 }
 
