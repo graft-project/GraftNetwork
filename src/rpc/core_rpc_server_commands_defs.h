@@ -2503,9 +2503,11 @@ namespace cryptonote
     {
       std::string supernode_address;
       std::vector<route_data> tunnels;
+      std::vector<std::string> supernodes_addresses;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(supernode_address)
         KV_SERIALIZE(tunnels)
+        KV_SERIALIZE(supernodes_addresses)
       END_KV_SERIALIZE_MAP()
     };
   };

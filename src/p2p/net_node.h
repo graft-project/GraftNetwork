@@ -72,6 +72,27 @@ namespace nodetool
     bool m_in_timedsync;
   };
 
+  struct local_supernode {
+    local_supernode(std::string host, uint64_t port, std::string uri) : http_host(std::move(host)), http_port(port), uri(std::move(uri)) {
+        client.set_server(http_host, std::to_string(http_port), {});
+    }
+
+    void update(const std::string &new_host, uint64_t new_port, const std::string &new_uri) {
+        if (new_host != http_host || new_port != http_port) {
+            if (client.is_connected()) client.disconnect();
+            client.set_server(new_host, std::to_string(new_port), {});
+            http_host = new_host;
+            http_port = new_port;
+            uri = new_uri;
+        }
+    }
+
+    std::string http_host;
+    uint64_t http_port;
+    std::string uri;
+    epee::net_utils::http::http_simple_client client;
+  };
+
   template<class t_payload_net_handler>
   class node_server: public epee::levin::levin_commands_handler<p2p_connection_context_t<typename t_payload_net_handler::connection_context> >,
                      public i_p2p_endpoint<typename t_payload_net_handler::connection_context>,
@@ -204,7 +225,7 @@ namespace nodetool
     // sometimes supernode gets very busy so it doesn't respond within 1 second, increasing timeout to 3s
     static constexpr size_t SUPERNODE_HTTP_TIMEOUT_MILLIS = 3 * 1000;
     template<class request_struct>
-    int post_request_to_supernode(const std::string &method, const typename request_struct::request &body,
+    int post_request_to_supernode(local_supernode &supernode, const std::string &method, const typename request_struct::request &body,
                                   const std::string &endpoint = std::string())
     {
         boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
@@ -220,14 +241,24 @@ namespace nodetool
             uri = endpoint;
         }
         typename request_struct::response resp = AUTO_VAL_INIT(resp);
-        bool r = epee::net_utils::invoke_http_json(m_supernode_uri + uri,
-                                                   req, resp, m_supernode_client,
+        bool r = epee::net_utils::invoke_http_json(supernode.uri + uri,
+                                                   req, resp, supernode.client,
                                                    std::chrono::milliseconds(size_t(SUPERNODE_HTTP_TIMEOUT_MILLIS)), "POST");
         if (!r || resp.status == 0)
         {
             return 0;
         }
         return 1;
+    }
+
+    template<class request_struct>
+    int post_request_to_supernodes(const std::string &method, const typename request_struct::request &body,
+                                   const std::string &endpoint = std::string())
+    {
+        int ret = 0;
+        for (auto &supernode : m_supernodes)
+            ret += post_request_to_supernode<request_struct>(supernode.second, method, body, endpoint);
+        return ret;
     }
 
     void remove_old_request_cache();
@@ -372,36 +403,53 @@ namespace nodetool
       epee::net_utils::connection_basic::set_save_graph(save_graph);
     }
 
-    void set_supernode(const std::string& addr, const std::string& url)
+    void add_supernode(const std::string& addr, const std::string& url)
     {
-        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_supernode_str = addr;//epee::string_tools::pod_to_hex(addr);
         epee::net_utils::http::url_content parsed{};
         bool ret = epee::net_utils::parse_url(url, parsed);
-        if (ret) {
-            m_supernode_http_addr = parsed.host + ":" +std::to_string(parsed.port);
-            m_supernode_uri = std::move(parsed.uri);
-        }
-        if ((parsed.host != m_supernode_client.get_host())
-                && (std::to_string(parsed.port) != m_supernode_client.get_port())) {
-            if (m_supernode_client.is_connected()) {
-                m_supernode_client.disconnect();
-            }
-            boost::optional<epee::net_utils::http::login> supernode_login;
-            m_supernode_client.set_server(m_supernode_http_addr, supernode_login);
-        }
-        m_have_supernode = true;
-    }
-
-    std::string get_supernode_address() const
-    {
-        return m_supernode_str;
-    }
-
-    void reset_supernode() {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-        m_supernode_str.erase();
-        m_have_supernode = false;
+        auto it = m_supernodes.find(addr);
+        if (!ret) {
+            if (it != m_supernodes.end()) m_supernodes.erase(it);
+        } else if (it == m_supernodes.end()) {
+            LOG_PRINT_L0("Adding supernode " << addr << " at " << parsed.host << ":" << parsed.port);
+            m_supernodes.emplace(std::piecewise_construct,
+                    std::forward_as_tuple(addr),
+                    std::forward_as_tuple(std::move(parsed.host), parsed.port, std::move(parsed.uri)));
+        } else {
+            it->second.update(parsed.host, parsed.port, parsed.uri);
+        }
+    }
+
+    std::vector<std::string> get_supernodes_addresses() {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        std::vector<std::string> addrs;
+        addrs.reserve(m_supernodes.size());
+        for (auto &sn : m_supernodes) {
+            addrs.push_back(sn.first);
+        }
+        return addrs;
+    }
+
+    std::string join_supernodes_addresses(const std::string &joiner = " ") {
+        std::ostringstream s;
+        bool first = true;
+        for (auto &addr : get_supernodes_addresses()) {
+            if (first) first = false;
+            else s << joiner;
+            s << addr;
+        }
+        return s.str();
+    }
+
+    bool remove_supernode(const std::string &addr) {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        return m_supernodes.erase(addr);
+    }
+
+    void reset_supernodes() {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+        m_supernodes.clear();
     }
 
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
@@ -424,12 +472,7 @@ namespace nodetool
     std::multimap<int, std::string> m_supernode_requests_timestamps;
     std::set<std::string> m_supernode_requests_cache;
     std::map<std::string, nodetool::supernode_route> m_supernode_routes;
-    crypto::public_key m_supernode_addr;
-    std::string m_supernode_str;
-    bool m_have_supernode;
-    std::string m_supernode_http_addr; // host:port
-    std::string m_supernode_uri;
-    epee::net_utils::http::http_simple_client m_supernode_client;
+    std::unordered_map<std::string, local_supernode> m_supernodes;
     boost::recursive_mutex m_supernode_lock;
     boost::recursive_mutex m_request_cache_lock;
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
