@@ -169,6 +169,20 @@ void StakeTransactionStorage::remove_last_processed_block()
     return tx.block_height == m_last_processed_block_index;
   }), m_stake_txs.end());
 
+  //rollback disqualifications
+  m_disqualifications.erase(std::remove_if(m_disqualifications.begin(), m_disqualifications.end(), [&](const disqualification& d) {
+      return d.block_index == m_last_processed_block_index;
+    }), m_disqualifications.end());
+
+  m_disqualifications2.erase(std::remove_if(m_disqualifications2.begin(), m_disqualifications2.end(), [&](const disqualification2& d) {
+      return d.block_index == m_last_processed_block_index;
+    }), m_disqualifications2.end());
+
+  m_disqualifications2_storage.erase(std::remove_if(m_disqualifications2_storage.begin(), m_disqualifications2_storage.end(), [&](const disqualification2_storage_item& d) {
+      return d.block_index == m_last_processed_block_index;
+    }), m_disqualifications2_storage.end());
+
+  //
   m_last_processed_block_hashes_count--;
   m_last_processed_block_index--;
 
