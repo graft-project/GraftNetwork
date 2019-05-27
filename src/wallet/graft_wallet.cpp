@@ -20,6 +20,9 @@ namespace
   std::string get_default_db_path(cryptonote::network_type nettype)
   {
     boost::filesystem::path dir = tools::get_default_data_dir();
+    // remove .bitmonero, replace with .shared-ringdb
+    dir = dir.remove_filename();
+    dir /= ".shared-ringdb";
     switch (nettype) {
     case cryptonote::TESTNET:
         return (boost::filesystem::path(dir.string()) / "testnet").string();
