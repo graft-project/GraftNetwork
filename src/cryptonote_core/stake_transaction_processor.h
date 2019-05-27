@@ -47,8 +47,11 @@ public:
   /// Turns on/off processing
   void set_enabled(bool arg);
 
-
   bool is_enabled() const;
+
+  /// Check that transaction with tx_hash does not exist yet. Those to be disqualified, and signers are in corresponding sets.
+  bool check_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash);
+  bool check_disqualification2_transaction(const transaction& tx, const crypto::hash tx_hash);
 
 private:
   void init_storages_impl();
