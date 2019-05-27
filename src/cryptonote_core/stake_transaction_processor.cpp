@@ -185,44 +185,49 @@ Ids fromIndexes(const Tiers& bbl_tiers, const std::vector<TI>& idxs)
 
 } //namespace
 
-void StakeTransactionProcessor::process_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash, uint64_t block_index, const crypto::hash& block_hash, StakeTransactionStorage::disqualification_array& disquals)
+bool StakeTransactionProcessor::check_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash)
 {
   assert(tx.version == 123);
 
+  //TODO: find out if such disqualification transaction with tx_hash already exists
+
   tx_extra_graft_disqualification disq_extra;
-  if(graft_check_disqualification(tx, &disq_extra))
+  if(!graft_check_disqualification(tx, &disq_extra))
   {
-    MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash);
-    return;
+    MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash);
+    return false;
   }
+  //TODO: it should be checked somewhere instead of this
+  /*
   if(block_index <= disq_extra.item.block_height)
   {
-    MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash
+    MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash
              << "; invalid block_height " << disq_extra.item.block_height << " current " << block_index);
-    return;
+    return false;
   }
+  */
   crypto::hash b_hash = m_blockchain.get_block_id_by_height(disq_extra.item.block_height);
   if(b_hash != disq_extra.item.block_hash)
   {
-    MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash
+    MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash
              << "; invalid block_hash ");
-    return;
+    return false;
   }
 
   //get BBL
   size_t depth = m_blockchain_based_list->block_height() - disq_extra.item.block_height;
   if(m_blockchain_based_list->history_depth() <= depth)
   {
-    MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash
+    MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash
              << "; out of history ");
-    return;
+    return false;
   }
 
   if(disq_extra.signers.size() < graft::generator::REQUIRED_BBQS_VOTES)
   {
-    MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash
+    MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash
              << "; lack of signers ");
-    return;
+    return false;
   }
   auto& tiers = m_blockchain_based_list->tiers(depth);
 
@@ -236,9 +241,9 @@ void StakeTransactionProcessor::process_disqualification_transaction(const trans
   if(std::none_of(qcl.begin(), qcl.end(), [&disq_extra](crypto::public_key& v)->bool { return v == disq_extra.item.id; } ))
   {
     std::string id_str = epee::string_tools::pod_to_hex(disq_extra.item.id);
-    MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash
+    MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash
              << "; disqualified id " << id_str << " is not in QCL");
-    return;
+    return false;
   }
 
   for(auto& si : disq_extra.signers)
@@ -246,10 +251,101 @@ void StakeTransactionProcessor::process_disqualification_transaction(const trans
     if(std::none_of(bbqs.begin(), bbqs.end(), [&si](crypto::public_key& v)->bool { return v == si.signer_id; } ))
     {
       std::string id_str = epee::string_tools::pod_to_hex(si.signer_id);
-      MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash
+      MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash
                << "; signer id " << id_str << " is not in BBQS");
-      return;
+      return false;
     }
+  }
+
+  return true;
+}
+
+bool StakeTransactionProcessor::check_disqualification2_transaction(const transaction& tx, const crypto::hash tx_hash)
+{
+  assert(tx.version == 124);
+
+  //TODO: find out if such disqualification transaction with tx_hash already exists
+
+  tx_extra_graft_disqualification2 disq_extra;
+  if(!graft_check_disqualification2(tx, &disq_extra))
+  {
+    MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash);
+    return false;
+  }
+  //TODO: it should be checked somewhere instead of this
+/*
+  if(block_index <= disq_extra.item.block_height)
+  {
+    MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash
+             << "; invalid block_height " << disq_extra.item.block_height << " current " << block_index);
+    return false;
+  }
+*/
+  crypto::hash b_hash = m_blockchain.get_block_id_by_height(disq_extra.item.block_height);
+  if(b_hash != disq_extra.item.block_hash)
+  {
+    MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash
+             << "; invalid block_hash ");
+    return false;
+  }
+
+  //get BBL
+  size_t depth = m_blockchain_based_list->block_height() - disq_extra.item.block_height;
+  if(m_blockchain_based_list->history_depth() <= depth)
+  {
+    MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash
+             << "; out of history ");
+    return false;
+  }
+
+  if(disq_extra.signers.size() < graft::generator::REQUIRED_DISQUAL2_VOTES)
+  {
+    MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash
+             << "; lack of signers ");
+    return false;
+  }
+  auto& tiers = m_blockchain_based_list->tiers(depth);
+
+  auto bbl_idxs = makeBBLindexes(tiers);
+
+  std::vector<TI> auths_idxs;
+  graft::generator::select_AuthSample(disq_extra.item.payment_id, bbl_idxs, auths_idxs);
+  Ids auths = fromIndexes(tiers, auths_idxs);
+
+  for(const auto& id : disq_extra.item.ids)
+  {
+    if(std::none_of(auths.begin(), auths.end(), [&id](crypto::public_key& v)->bool { return v == id; } ))
+    {
+      std::string id_str = epee::string_tools::pod_to_hex(id);
+      MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash
+               << "; disqualified id " << id_str << " is not in the auth sample");
+      return false;
+    }
+  }
+
+  for(const auto& si : disq_extra.signers)
+  {
+    if(std::none_of(auths.begin(), auths.end(), [&si](crypto::public_key& v)->bool { return v == si.signer_id; } ))
+    {
+      std::string id_str = epee::string_tools::pod_to_hex(si.signer_id);
+      MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash
+               << "; signer id " << id_str << " is not in the auth sample");
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void StakeTransactionProcessor::process_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash, uint64_t block_index, const crypto::hash& block_hash, StakeTransactionStorage::disqualification_array& disquals)
+{
+  assert(tx.version == 123);
+
+  tx_extra_graft_disqualification disq_extra;
+  if(!graft_get_disqualification(tx, disq_extra))
+  {
+    MWARNING("Ignore invalid disqualification transaction at block #" << block_index << ", tx_hash=" << tx_hash);
+    return;
   }
 
   disqualification disq;
@@ -268,68 +364,10 @@ void StakeTransactionProcessor::process_disqualification2_transaction(const tran
   assert(tx.version == 124);
 
   tx_extra_graft_disqualification2 disq_extra;
-  if(graft_check_disqualification2(tx, &disq_extra))
+  if(!graft_get_disqualification2(tx, disq_extra))
   {
     MWARNING("Ignore invalid disqualification2 transaction at block #" << block_index << ", tx_hash=" << tx_hash);
     return;
-  }
-  if(block_index <= disq_extra.item.block_height)
-  {
-    MWARNING("Ignore invalid disqualification2 transaction at block #" << block_index << ", tx_hash=" << tx_hash
-             << "; invalid block_height " << disq_extra.item.block_height << " current " << block_index);
-    return;
-  }
-  crypto::hash b_hash = m_blockchain.get_block_id_by_height(disq_extra.item.block_height);
-  if(b_hash != disq_extra.item.block_hash)
-  {
-    MWARNING("Ignore invalid disqualification2 transaction at block #" << block_index << ", tx_hash=" << tx_hash
-             << "; invalid block_hash ");
-    return;
-  }
-
-  //get BBL
-  size_t depth = m_blockchain_based_list->block_height() - disq_extra.item.block_height;
-  if(m_blockchain_based_list->history_depth() <= depth)
-  {
-    MWARNING("Ignore invalid disqualification2 transaction at block #" << block_index << ", tx_hash=" << tx_hash
-             << "; out of history ");
-    return;
-  }
-
-  if(disq_extra.signers.size() < graft::generator::REQUIRED_DISQUAL2_VOTES)
-  {
-    MWARNING("Ignore invalid disqualification2 transaction at block #" << block_index << ", tx_hash=" << tx_hash
-             << "; lack of signers ");
-    return;
-  }
-  auto& tiers = m_blockchain_based_list->tiers(depth);
-
-  auto bbl_idxs = makeBBLindexes(tiers);
-
-  std::vector<TI> auths_idxs;
-  graft::generator::select_AuthSample(disq_extra.item.payment_id, bbl_idxs, auths_idxs);
-  Ids auths = fromIndexes(tiers, auths_idxs);
-
-  for(const auto& id : disq_extra.item.ids)
-  {
-    if(std::none_of(auths.begin(), auths.end(), [&id](crypto::public_key& v)->bool { return v == id; } ))
-    {
-      std::string id_str = epee::string_tools::pod_to_hex(id);
-      MWARNING("Ignore invalid disqualification2 transaction at block #" << block_index << ", tx_hash=" << tx_hash
-               << "; disqualified id " << id_str << " is not in the auth sample");
-      return;
-    }
-  }
-
-  for(const auto& si : disq_extra.signers)
-  {
-    if(std::none_of(auths.begin(), auths.end(), [&si](crypto::public_key& v)->bool { return v == si.signer_id; } ))
-    {
-      std::string id_str = epee::string_tools::pod_to_hex(si.signer_id);
-      MWARNING("Ignore invalid disqualification2 transaction at block #" << block_index << ", tx_hash=" << tx_hash
-               << "; signer id " << id_str << " is not in the auth sample");
-      return;
-    }
   }
 
   disqualification2_storage_item disq;

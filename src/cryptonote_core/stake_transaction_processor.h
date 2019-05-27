@@ -44,6 +44,10 @@ public:
   /// Force invoke update handler for blockchain based list
   void invoke_update_blockchain_based_list_handler(bool force = true, size_t depth = 1);
 
+  /// Check that transaction with tx_hash does not exist yet. Those to be disqualified, and signers are in corresponding sets.
+  bool check_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash);
+  bool check_disqualification2_transaction(const transaction& tx, const crypto::hash tx_hash);
+
 private:
   void init_storages_impl();
   void process_block(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);

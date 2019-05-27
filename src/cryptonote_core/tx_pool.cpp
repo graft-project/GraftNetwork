@@ -193,7 +193,12 @@ namespace cryptonote
     bool is_rta_tx = tx.type == transaction::tx_type_rta;
     if(is_disqualification_tx)
     {
-      if(!graft_check_disqualification(tx))
+      //kept_by_block means that we already have checked the transaction once, and the check should pass.
+      //But in case we pop more than one block, and as such pop others stake and disqualification transactions in the popped blocks,
+      //it is possible that check of disqualification transaction will not pass again because of the history change,
+      //Note, that history change means a change of BBL as a function of block_height and previous stakes and disqualifications.
+      //Currently the fact is ignored, if we had checked once I assume the disqualifications will be valid, even if cannot be checked against previous history.
+      if(!kept_by_block && !m_stp->check_disqualification_transaction(tx, id))
       {
         MERROR("Invalid disqualification transaction with id " << id);
         tvc.m_verifivation_failed = true;
@@ -202,7 +207,7 @@ namespace cryptonote
     }
     else if (is_disqualification2_tx)
     {
-      if(!graft_check_disqualification2(tx))
+      if(!kept_by_block && !m_stp->check_disqualification2_transaction(tx, id))
       {
         MERROR("Invalid disqualification2 transaction with id " << id);
         tvc.m_verifivation_failed = true;
