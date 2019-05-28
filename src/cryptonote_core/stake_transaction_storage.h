@@ -120,7 +120,7 @@ public:
   typedef std::vector<disqualification>  disqualification_array;
   typedef std::vector<disqualification2_storage_item> disqualification2_storage_array;
   typedef std::vector<disqualification2> disqualification2_array;
-  typedef vector<std::string> supernode_disqualification_array;
+  typedef std::vector<std::string> supernode_disqualification_array;
 
   StakeTransactionStorage(const std::string& storage_file_name, uint64_t first_block_number);
 
