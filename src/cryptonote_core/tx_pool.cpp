@@ -205,8 +205,8 @@ namespace cryptonote
         return false;
       }
 
-      bool is_rta_tx_valid = validate_rta_tx(id, rta_signatures, rta_hdr);
-      if (!kept_by_block && !is_rta_tx_valid) {
+      // validate rta tx only if it wasn't processed before AND stake processing enabled
+      if (!kept_by_block && m_stp->is_enabled() && !validate_rta_tx(id, rta_signatures, rta_hdr)) {
         LOG_ERROR("failed to validate rta tx, tx contains " << rta_signatures.size() << " signatures");
         tvc.m_rta_signature_failed = true;
         tvc.m_verifivation_failed = true;
