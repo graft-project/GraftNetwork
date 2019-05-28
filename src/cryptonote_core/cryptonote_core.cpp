@@ -705,7 +705,7 @@ namespace cryptonote
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
     // don't allow rta tx until hf 13
     const size_t max_tx_version = version == 1 ? 1 : version < 13 ? 2 : CURRENT_TRANSACTION_VERSION;
-    if (tx.version == 0 || tx.version > max_tx_version)
+    if (tx.version == 0 || (tx.version != 123 && tx.version > max_tx_version))
     {
       // v3 is the latest one we know
       tvc.m_verifivation_failed = true;
@@ -960,6 +960,22 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_semantic(const transaction& tx, bool keeped_by_block) const
   {
+    if(tx.version == 123)
+    {
+      if(tx.vin.size() || tx.vout.size())
+      {
+        MERROR_VER("qualification tx with non-empty inputs or outputs, rejected for tx id= " << get_transaction_hash(tx));
+      }
+      return graft_is_disqualification(tx);
+    }
+    if(tx.version == 124)
+    {
+      if(tx.vin.size() || tx.vout.size())
+      {
+        MERROR_VER("qualification2 tx with non-empty inputs or outputs, rejected for tx id= " << get_transaction_hash(tx));
+      }
+      return graft_is_disqualification2(tx);
+    }
     if(!tx.vin.size())
     {
       MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
