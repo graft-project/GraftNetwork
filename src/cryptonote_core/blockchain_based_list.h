@@ -39,13 +39,13 @@ public:
   /// Constructors
   BlockchainBasedList(const std::string& file_name, uint64_t first_block_number);
 
-  /// List of tiers
+  /// List of tiers; resulting height is block_height - depth
   const supernode_tier_array& tiers(size_t depth = 0) const;
 
   /// Height of the corresponding block
   uint64_t block_height() const { return m_block_height; }
 
-  /// Number of blocks in history
+  /// Number of blocks in history; valid depth < history_depth()
   uint64_t history_depth() const { return m_history_depth; }
 
   /// Apply new block on top of the list
@@ -72,7 +72,6 @@ private:
   list_history m_history;
   uint64_t m_block_height;
   size_t m_history_depth;
-  std::mt19937_64 m_rng;
   uint64_t m_first_block_number;
   mutable bool m_need_store;
 };
