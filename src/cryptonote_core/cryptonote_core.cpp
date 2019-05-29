@@ -174,6 +174,11 @@ namespace cryptonote
   , "Run a program for each new block, '%s' will be replaced by the block hash"
   , ""
   };
+  static const command_line::arg_descriptor<bool> arg_disable_stake_tx_processing = {
+    "disable-stake-tx-processing"
+  , "Disable stake transaction processing."
+  , false
+  };
 
   //-----------------------------------------------------------------------------------------------
   core::core(i_cryptonote_protocol* pprotocol):
@@ -285,6 +290,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_disable_dns_checkpoints);
     command_line::add_arg(desc, arg_max_txpool_weight);
     command_line::add_arg(desc, arg_block_notify);
+    command_line::add_arg(desc, arg_disable_stake_tx_processing);
 
     miner::init_options(desc);
     BlockchainDB::init_options(desc);
@@ -333,6 +339,11 @@ namespace cryptonote
       test_drop_download();
 
     epee::debug::g_test_dbg_lock_sleep() = command_line::get_arg(vm, arg_test_dbg_lock_sleep);
+
+    if (get_arg(vm, arg_disable_stake_tx_processing)) {
+      MWARNING("stake transaction processing disabled");
+      m_graft_stake_transaction_processor.set_enabled(false);
+    }
 
     return true;
   }

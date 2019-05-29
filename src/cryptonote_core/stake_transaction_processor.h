@@ -43,6 +43,12 @@ public:
   /// Force invoke update handler for blockchain based list
   void invoke_update_blockchain_based_list_handler(bool force = true, size_t depth = 1);
 
+  /// Turns on/off processing
+  void set_enabled(bool arg);
+
+
+  bool is_enabled() const;
+
 private:
   void init_storages_impl();
   void process_block(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
@@ -61,6 +67,7 @@ private:
   blockchain_based_list_update_handler m_on_blockchain_based_list_update;
   bool m_stakes_need_update;
   bool m_blockchain_based_list_need_update;
+  bool m_enabled {true};
 };
 
 }

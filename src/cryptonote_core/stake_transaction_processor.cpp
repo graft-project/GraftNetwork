@@ -132,7 +132,8 @@ void StakeTransactionProcessor::init_storages_impl()
   if (m_storage || m_blockchain_based_list)
     throw std::runtime_error("StakeTransactionProcessor storages have been already initialized");
 
-  uint64_t first_block_number = m_blockchain.get_earliest_ideal_height_for_version(config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION);
+  uint64_t first_block_number = m_enabled ? m_blockchain.get_earliest_ideal_height_for_version(config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
+                                          : std::numeric_limits<uint64_t>().max();
 
   if (first_block_number)
     first_block_number--;
@@ -485,4 +486,14 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler(bool
     return;
 
   invoke_update_blockchain_based_list_handler_impl(depth);
+}
+
+void StakeTransactionProcessor::set_enabled(bool arg)
+{
+  m_enabled = arg;
+}
+
+bool StakeTransactionProcessor::is_enabled() const
+{
+  return m_enabled;
 }
