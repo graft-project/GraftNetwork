@@ -3,6 +3,7 @@
 #include "graft_rta_config.h"
 #include "blockchain_based_list.h"
 #include "serialization/binary_utils.h"
+#include "utils/sample_generator.h"
 
 using namespace cryptonote;  
 
@@ -42,22 +43,7 @@ const BlockchainBasedList::supernode_tier_array& BlockchainBasedList::tiers(size
 
 void BlockchainBasedList::select_supernodes(size_t items_count, const supernode_array& src_list, supernode_array& dst_list)
 {
-  size_t src_list_size = src_list.size();
-
-  if (items_count > src_list_size)
-    items_count = src_list_size;
-
-  for (size_t i=0; i<src_list_size; i++)
-  {
-    size_t random_value = m_rng() % (src_list_size - i);
-
-    if (random_value >= items_count)
-      continue;
-
-    dst_list.push_back(src_list[i]);
-
-    items_count--;
-  }
+  graft::generator::uniform_select(graft::generator::do_not_seed{}, items_count, src_list, dst_list);
 }
 
 void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash& block_hash, StakeTransactionStorage& stake_txs_storage)
@@ -72,13 +58,11 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
     //build blockchain based list for each tier
 
-  supernode_array prev_supernodes, current_supernodes;
   supernode_tier_array new_tier;
 
   for (size_t i=0; i<config::graft::TIERS_COUNT; i++)
   {
-    prev_supernodes.clear();
-    current_supernodes.clear();
+    supernode_array prev_supernodes;
 
       //prepare lists of valid supernodes for this tier
 
@@ -98,10 +82,14 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
         if (stake->tier != i + 1)
           continue;
 
+        if (stake_txs_storage.is_disqualified(block_height, sn.supernode_public_id))
+          continue;
+
         prev_supernodes.push_back(sn);
       }
     }
 
+    supernode_array current_supernodes;
     current_supernodes.reserve(stakes.size());
 
     for (const supernode_stake& stake : stakes)
@@ -123,26 +111,19 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
       current_supernodes.emplace_back(std::move(sn));
     }
 
-      //seed RNG
-
-    std::seed_seq seed(reinterpret_cast<const unsigned char*>(&block_hash.data[0]),
-                       reinterpret_cast<const unsigned char*>(&block_hash.data[sizeof block_hash.data]));
-
-    m_rng.seed(seed);
-
       //sort valid supernodes by the age of stake
 
     std::stable_sort(current_supernodes.begin(), current_supernodes.end(), [](const supernode& s1, const supernode& s2) {
       return s1.block_height < s2.block_height || (s1.block_height == s2.block_height && s1.supernode_public_id < s2.supernode_public_id);
     });
 
+      //seed RNG
+    graft::generator::seed_uniform_select(block_hash);
       //select supernodes from the previous list
-
     supernode_array new_supernodes;
-  
     select_supernodes(PREVIOS_BLOCKCHAIN_BASED_LIST_MAX_SIZE, prev_supernodes, new_supernodes);
 
-    if (new_supernodes.size() < BLOCKCHAIN_BASED_LIST_SIZE)
+    if (new_supernodes.size() < BLOCKCHAIN_BASED_LIST_SIZE) //looks like it is always true
     {
         //remove supernodes of prev list from current list
 

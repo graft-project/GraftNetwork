@@ -72,7 +72,6 @@ private:
   list_history m_history;
   uint64_t m_block_height;
   size_t m_history_depth;
-  std::mt19937_64 m_rng;
   uint64_t m_first_block_number;
   mutable bool m_need_store;
 };
