@@ -36,6 +36,7 @@ set(supernode_tests_sources
   walletproxy_test.cpp
   graft_wallet_tests.cpp
   graft_splitted_tx_test.cpp
+  rta_tx_validation.cpp
 )
 
 set(supernode_tests_headers
@@ -74,3 +75,4 @@ endif ()
 add_test(
   NAME    supernode_tests
   COMMAND supernode_tests)
+

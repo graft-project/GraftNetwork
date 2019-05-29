@@ -41,6 +41,7 @@
 #include "blockchain_db/blockchain_db.h"
 #include "common/boost_serialization_helper.h"
 #include "common/int-util.h"
+#include "common/rta_kit.h"
 #include "misc_language.h"
 #include "warnings.h"
 #include "common/perf_timer.h"
@@ -1084,17 +1085,35 @@ namespace cryptonote
   {
     return true;
   }
-
   //---------------------------------------------------------------------------------
+
   bool tx_memory_pool::validate_rta_tx(const crypto::hash &txid, const std::vector<rta_signature> &rta_signs, const rta_header &rta_hdr) const
   {
     bool result = true;
 
+    if(!rta::flow2::validation::check_rta_sign_count(rta_signs, txid))
+      return false;
+
+    if(!rta::flow2::validation::check_rta_keys_count(rta_hdr, txid))
+      return false;
+
+    const auto auth_sample_pkeys_off =
+      rta::flow2::validation::get_auth_sample_public_key_offset(rta_hdr);
+
+    if(!rta::flow2::validation::check_rta_sign_key_indexes(rta_signs, txid, auth_sample_pkeys_off))
+      return false;
+
+    if(!rta::flow2::validation::check_rta_signatures(rta_signs, rta_hdr, txid, auth_sample_pkeys_off))
+      return false;
+
+#if 0 
+    
     if (rta_hdr.keys.size() == 0) {
       MERROR("Failed to validate rta tx, missing auth sample keys for tx: " << txid );
       return false;
     }
-#if 0  // don't validate signatures for rta mining
+
+    // don't validate signatures for rta mining
     if (rta_hdr.keys.size() != rta_signs.size()) {
       MERROR("Failed to validate rta tx: " << txid << ", keys.size() != signatures.size()");
       return false;
@@ -1116,6 +1135,17 @@ namespace cryptonote
       }
     }
 #endif
+
+    std::vector<crypto::public_key> ask;  // auth sample keys
+    if(!m_stp->get_auth_sample_keys(rta_hdr.auth_sample_height, rta_hdr.payment_id, ask))
+    {
+      MERROR("Obtaining of auth sample keys is failed");
+      return false;
+    }
+
+    if(!rta::flow2::validation::belongs_to_auth_sample(ask, rta_hdr, auth_sample_pkeys_off))
+      return false;
+
     for (const crypto::public_key &key : rta_hdr.keys) {
       result &= validate_supernode(rta_hdr.auth_sample_height, key);
       if (!result) {
@@ -1133,3 +1163,4 @@ namespace cryptonote
     return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
   };
 }
+
