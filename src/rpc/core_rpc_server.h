@@ -155,15 +155,15 @@ namespace cryptonote
       END_JSON_RPC_MAP()
       // Graft RTA handlers start here
       BEGIN_JSON_RPC_MAP("/json_rpc/rta")
-        MAP_JON_RPC_WE("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE)
-        MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
-        MAP_JON_RPC_WE("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST)
-        MAP_JON_RPC_WE("unicast",                on_unicast,                    COMMAND_RPC_UNICAST)
+        MAP_JON_RPC_WE_IF("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE, !m_restricted)
+        MAP_JON_RPC_WE_IF("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST, !m_restricted)
+        MAP_JON_RPC_WE_IF("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST, !m_restricted)
+        MAP_JON_RPC_WE_IF("unicast",                on_unicast,                    COMMAND_RPC_UNICAST, !m_restricted)
 
-        MAP_JON_RPC_WE("get_tunnels",              on_get_tunnels,              COMMAND_RPC_TUNNEL_DATA)
-        MAP_JON_RPC_WE("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES)
-        MAP_JON_RPC_WE("send_supernode_blockchain_based_list", on_supernode_blockchain_based_list,  COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST)
-        MAP_JON_RPC_WE("get_stats", on_get_rta_stats,  COMMAND_RPC_RTA_STATS)
+        MAP_JON_RPC_WE_IF("get_tunnels",              on_get_tunnels,              COMMAND_RPC_TUNNEL_DATA, !m_restricted)
+        MAP_JON_RPC_WE_IF("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES, !m_restricted)
+        MAP_JON_RPC_WE_IF("send_supernode_blockchain_based_list", on_supernode_blockchain_based_list,  COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST, !m_restricted)
+        MAP_JON_RPC_WE_IF("get_stats", on_get_rta_stats,  COMMAND_RPC_RTA_STATS, !m_restricted)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
