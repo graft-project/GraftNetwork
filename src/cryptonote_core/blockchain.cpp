@@ -123,8 +123,8 @@ static const struct {
   { 12, 299200, 0, 1551934800 },
   // hf 13 - RTA transactions, RTA mining, ~2019-03-20T14:00:00+00
   { 13, 308460, 0, 1553090400 },
-  // hf 14 Bullet proof
-  { 14, 500000, 0, 1560000000 },
+  // hf 14 Bullet proof, ~2019-06-06T15:00:00+00
+  { 14, 364590, 0, 1559833200 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
