@@ -209,7 +209,7 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
 
     try
     {
-        uint64_t mixin = wal->default_mixin() > 0 ? wal->default_mixin() : 4;
+        uint64_t mixin = wal->adjust_mixin(6);
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
         uint32_t subaddr_count = 0;
@@ -413,7 +413,7 @@ int supernode::BaseClientProxy::create_transfer(tools::GraftWallet *wallet, cons
 
     try
     {
-        uint64_t mixin = wallet->default_mixin() > 0 ? wallet->default_mixin() : 6;
+        uint64_t mixin = wallet->adjust_mixin(6);
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
         bool do_not_relay = false;
