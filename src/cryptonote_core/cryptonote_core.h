@@ -804,9 +804,6 @@ namespace cryptonote
 
      void set_update_stakes_handler(const supernode_stakes_update_handler&);
 
-     /**
-      * @brief invoke stakes update handler
-      */
      void invoke_update_stakes_handler();
 
      /**
@@ -863,7 +860,6 @@ namespace cryptonote
      /// @brief return a reference to the service node list
      tx_memory_pool &get_pool() { return m_mempool; }
      
-
    private:
 
      /**
@@ -1075,6 +1071,8 @@ namespace cryptonote
      epee::math_helper::once_a_time_seconds<90, false> m_block_rate_interval; //!< interval for checking block rate
      epee::math_helper::once_a_time_seconds<60*60*5, true> m_blockchain_pruning_interval; //!< interval for incremental blockchain pruning
 
+     epee::math_helper::once_a_time_seconds<60*2, false> m_checkpoint_auto_relayer;
+
      std::atomic<bool> m_starter_message_showed; //!< has the "daemon will sync now" message been shown?
 
      uint64_t m_target_blockchain_height; //!< blockchain height target
@@ -1088,7 +1086,6 @@ namespace cryptonote
      time_t m_last_json_checkpoints_update; //!< time when json checkpoints were last updated
 
      std::atomic_flag m_checkpoints_updating; //!< set if checkpoints are currently updating to avoid multiple threads attempting to update at once
-     bool m_disable_dns_checkpoints;
 
      size_t block_sync_size;
 

@@ -253,6 +253,7 @@ namespace cryptonote
     bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
     bool on_checkpoint_vote(const COMMAND_RPC_CHECKPOINT_VOTE::request &req, COMMAND_RPC_CHECKPOINT_VOTE::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
 
+
 private:
     bool on_broadcast_impl(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp, bool wide = false, const connection_context *ctx = NULL);
     bool check_core_busy();

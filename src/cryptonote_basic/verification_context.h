@@ -55,14 +55,14 @@ namespace cryptonote
       KV_SERIALIZE(m_verification_failed)
       KV_SERIALIZE(m_invalid_block_height)
       KV_SERIALIZE(m_duplicate_voters)
-      KV_SERIALIZE(m_validator_index_out_of_bounds)
-      KV_SERIALIZE(m_worker_index_out_of_bounds)
+      KV_SERIALIZE(m_voter_index_out_of_bounds)
       KV_SERIALIZE(m_signature_not_valid)
       KV_SERIALIZE(m_added_to_pool)
       KV_SERIALIZE(m_not_enough_votes)
       KV_SERIALIZE(m_incorrect_voting_group)
       KV_SERIALIZE(m_invalid_vote_type)
       KV_SERIALIZE(m_votes_not_sorted)
+      KV_SERIALIZE(m_incorrect_voting_group)
     END_KV_SERIALIZE_MAP()
   };
 

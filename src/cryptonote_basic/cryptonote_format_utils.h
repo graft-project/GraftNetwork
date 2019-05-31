@@ -46,6 +46,8 @@ namespace epee
   class wipeable_string;
 }
 
+namespace rta  { struct checkpoint_vote; }
+
 namespace cryptonote
 {
   //---------------------------------------------------------------
@@ -232,31 +234,8 @@ namespace cryptonote
   std::string get_unit(unsigned int decimal_point = -1);
   std::string print_money(uint64_t amount, unsigned int decimal_point = -1);
 
-  // graft
-  /*!
-   * \brief add_graft_tx_extra_to_extra - adds graft extra fields to tx
-   * \param tx            - transaction fields to be added to
-   * \param graft_extra   - graft fields to add
-   * \return              - true on success
-   */
-  bool add_graft_tx_extra_to_extra(transaction &tx, const supernode::GraftTxExtra &graft_extra);
-
-  /*!
-   * @brief add_graft_tx_extra_to_extra - overloaded function to add graft extra directly to tx extra
-   * @param extra                 - extra to add fields to
-   * @param graft_extra           - graft fields to add
-   * @return                      - true on success
-   */
-  bool add_graft_tx_extra_to_extra(std::vector<uint8_t>& extra, const supernode::GraftTxExtra &graft_extra);
-
-  /*!
-   * \brief get_graft_tx_extra_from_extra - read graft extra fields from tx extra
-   * \param tx                    - source transaction
-   * \param graft_tx_extra        - destination graft extra fields
-   * \return                      - true on success
-   */
-  bool get_graft_tx_extra_from_extra(const transaction &tx, supernode::GraftTxExtra &graft_tx_extra);
-  
+  char const *print_tx_verification_context  (tx_verification_context const &tvc, transaction const *tx = nullptr);
+  char const *print_vote_verification_context(vote_verification_context const &vvc, rta::checkpoint_vote const *vote = nullptr);
   //---------------------------------------------------------------
   template<class t_object>
   bool t_serializable_object_from_blob(t_object& to, const blobdata& b_blob)

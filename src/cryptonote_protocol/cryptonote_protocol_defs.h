@@ -298,8 +298,9 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
-  };
-  
+  }; 
+
+    
   struct NOTIFY_NEW_CHECKPOINT_VOTE // TODO: multiple "vote" commands vs single "vote" command for every possible votes
   {
     const static int ID = BC_COMMANDS_POOL_BASE + 20;
@@ -307,7 +308,7 @@ namespace cryptonote
     {
       std::vector<rta::checkpoint_vote> votes;
 
-      BEGIN_KV_SERIALIZE_MAP()
+     BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(votes)
       END_KV_SERIALIZE_MAP()
     };

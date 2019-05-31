@@ -3381,6 +3381,9 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         }
       }
     }
+        }
+      }
+    }
   }
   return true;
 }
@@ -4377,12 +4380,18 @@ bool Blockchain::update_checkpoint(cryptonote::checkpoint_t const &checkpoint)
   return result;
 }
 //------------------------------------------------------------------
+bool Blockchain::update_checkpoint(cryptonote::checkpoint_t const &checkpoint)
+{
+  auto lock = tools::unique_lock(*this);
+  bool result = m_checkpoints.update_checkpoint(checkpoint);
+  return result;
+}
+
 bool Blockchain::get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const
 {
   auto lock = tools::unique_lock(*this);
   return m_checkpoints.get_checkpoint(height, checkpoint);
-}
-
+|
 //------------------------------------------------------------------
 void Blockchain::block_longhash_worker(uint64_t height, const epee::span<const block> &blocks, std::unordered_map<crypto::hash, crypto::hash> &map) const
 {

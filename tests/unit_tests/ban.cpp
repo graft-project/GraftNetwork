@@ -34,12 +34,9 @@
 #include "p2p/net_node.inl"
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.inl"
+#include "cryptonote_core/blockchain.h"
 
 #define MAKE_IPV4_ADDRESS(a,b,c,d) epee::net_utils::ipv4_network_address{MAKE_IP(a,b,c,d),0}
-
-namespace cryptonote {
-  class blockchain_storage;
-}
 
 class test_core
 {
@@ -110,6 +107,9 @@ public:
 
 private:
   fake_pool m_pool;
+  
+  bool add_checkpoint_vote(const rta::checkpoint_vote& vote, cryptonote::vote_verification_context &vvc) { return true; }
+
 };
 
 

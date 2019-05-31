@@ -35,6 +35,7 @@
 #include "cryptonote_core/blockchain.h"
 #include "blockchain_db/testdb.h"
 
+#include "blockchain_utilities/blockchain_objects.h"
 static const uint64_t test_distribution[32] = {
   0, 0, 0, 0, 0, 1, 5, 1, 4, 0, 0, 1, 0, 1, 2, 3, 1, 0, 2, 0, 1, 3, 8, 1, 3, 5, 7, 1, 5, 0, 2, 3
 };

@@ -218,6 +218,7 @@ namespace cryptonote
               m_blockchain_storage(m_mempool),
               m_graft_stake_transaction_processor(m_blockchain_storage),
               m_miner(this, &m_blockchain_storage),
+              m_miner(this),
               m_miner_address(boost::value_initialized<account_public_address>()),
               m_starter_message_showed(false),
               m_target_blockchain_height(0),
@@ -1267,6 +1268,57 @@ namespace cryptonote
     m_mempool.set_relayed(txs);
   }
   //-----------------------------------------------------------------------------------------------
+<<<<<<< HEAD
+||||||| parent of 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
+  bool core::relay_deregister_votes()
+  {
+    NOTIFY_NEW_DEREGISTER_VOTE::request req;
+    req.votes = m_deregister_vote_pool.get_relayable_votes();
+    if (!req.votes.empty())
+    {
+      cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
+      if (get_protocol()->relay_deregister_votes(req, fake_context))
+        m_deregister_vote_pool.set_relayed(req.votes);
+    }
+
+    return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::relay_checkpoint_votes()
+  {
+    const time_t now = time(nullptr);
+
+    // Get relayable votes
+    NOTIFY_NEW_CHECKPOINT_VOTE::request req = {};
+
+    std::vector<service_nodes::checkpoint_vote *> relayed_votes;
+    for (Blockchain::service_node_checkpoint_pool_entry &pool_entry: m_blockchain_storage.m_checkpoint_pool)
+    {
+      for (service_nodes::checkpoint_vote &vote : pool_entry.votes)
+      {
+        const time_t elapsed         = now - vote.time_last_sent_p2p;
+        const time_t RELAY_THRESHOLD = 60 * 2;
+        if (elapsed > RELAY_THRESHOLD)
+        {
+          relayed_votes.push_back(&vote);
+          req.votes.push_back(vote);
+        }
+      }
+    }
+
+    // Relay and update timestamp of when we last sent the vote
+    if (!req.votes.empty())
+    {
+      cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
+      if (get_protocol()->relay_checkpoint_votes(req, fake_context))
+      {
+        for (service_nodes::checkpoint_vote *vote : relayed_votes)
+          vote->time_last_sent_p2p = now;
+      }
+    }
+
+    return true;
+  }
   bool core::get_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
   {
     return m_blockchain_storage.create_block_template(b, adr, diffic, height, expected_reward, ex_nonce);
@@ -1931,6 +1983,82 @@ namespace cryptonote
     return si.available;
   }
   //-----------------------------------------------------------------------------------------------
+  //-----------------------------------------------------------------------------------------------
+  bool core::add_checkpoint_vote(const service_nodes::checkpoint_vote& vote, vote_verification_context &vvc)
+  {
+    // TODO(doyle): Not in this function but, need to add code for culling old
+    // checkpoints from the "staging" checkpoint pool.
+
+    // TODO(doyle): This is repeated logic for deregister votes and
+    // checkpointing votes, it is worth considering merging the two into
+    // a generic voting structure
+
+    // Check Vote Age
+    {
+      uint64_t const latest_height = std::max(get_current_blockchain_height(), get_target_blockchain_height());
+      if (vote.block_height >= latest_height)
+        return false;
+
+      uint64_t vote_age = latest_height - vote.block_height;
+      if (vote_age > ((service_nodes::CHECKPOINT_INTERVAL * 3) - 1))
+        return false;
+    }
+
+    // Validate Vote
+    {
+      const std::shared_ptr<const service_nodes::quorum_uptime_proof> state = get_uptime_quorum(vote.block_height);
+      if (!state)
+      {
+        // TODO(loki): Fatal error
+        LOG_ERROR("Quorum state for height: " << vote.block_height << " was not cached in daemon!");
+        return false;
+      }
+
+      if (vote.voters_quorum_index >= state->quorum_nodes.size())
+      {
+        LOG_PRINT_L1("TODO(doyle): CHECKPOINTING(doyle): Writeme");
+        return false;
+      }
+
+      // NOTE(loki): We don't validate that the hash belongs to a valid block
+      // just yet, just that the signature is valid.
+      crypto::public_key const &voters_pub_key = state->quorum_nodes[vote.voters_quorum_index];
+      if (!crypto::check_signature(vote.block_hash, voters_pub_key, vote.signature))
+      {
+        LOG_PRINT_L1("TODO(doyle): CHECKPOINTING(doyle): Writeme");
+        return false;
+      }
+    }
+
+    // TODO(doyle): CHECKPOINTING(doyle): We need to check the hash they're voting on matches across votes
+    // Get Matching Checkpoint
+    std::vector<Blockchain::service_node_checkpoint_pool_entry> &checkpoint_pool = m_blockchain_storage.m_checkpoint_pool;
+    auto it = std::find_if(checkpoint_pool.begin(), checkpoint_pool.end(), [&vote](Blockchain::service_node_checkpoint_pool_entry const &checkpoint) {
+        return (checkpoint.height == vote.block_height);
+    });
+
+    if (it == checkpoint_pool.end())
+    {
+      Blockchain::service_node_checkpoint_pool_entry pool_entry = {};
+      pool_entry.height                                         = vote.block_height;
+      checkpoint_pool.push_back(pool_entry);
+      it = (checkpoint_pool.end() - 1);
+    }
+
+    // Add Vote if Unique to Checkpoint
+    Blockchain::service_node_checkpoint_pool_entry &pool_entry = (*it);
+    auto vote_it = std::find_if(pool_entry.votes.begin(), pool_entry.votes.end(), [&vote](service_nodes::checkpoint_vote const &preexisting_vote) {
+        return (preexisting_vote.voters_quorum_index == vote.voters_quorum_index);
+    });
+
+    if (vote_it == pool_entry.votes.end())
+    {
+      m_blockchain_storage.add_checkpoint_vote(vote);
+      pool_entry.votes.push_back(vote);
+    }
+
+    return true;
+  }
   uint32_t core::get_blockchain_pruning_seed() const
   {
     return get_blockchain_storage().get_blockchain_pruning_seed();

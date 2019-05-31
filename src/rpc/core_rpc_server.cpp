@@ -1,6 +1,7 @@
 // Copyright (c) 2018-2019, The Graft Project
 // Copyright (c) 2014-2019, The Monero Project
-// 
+// Copyright (c)      2018, The Loki Project
+//
 // All rights reserved.
 // 
 // Redistribution and use in source and binary forms, with or without modification, are
@@ -2381,7 +2382,7 @@ namespace cryptonote
     return true;
   }
 
-  //------------------------------------------------------------------------------------------------------------------------------
+    //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: start");
@@ -2390,6 +2391,7 @@ namespace cryptonote
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: end");
       return true;
+
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
