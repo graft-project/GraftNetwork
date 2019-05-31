@@ -125,6 +125,8 @@ static const struct {
   { 13, 308460, 0, 1553090400 },
   // hf 14 Bullet proof, ~2019-06-06T15:00:00+00
   { 14, 364590, 0, 1559833200 },
+  // hf 15 disable non-bulletproof, ~2019-06-07T15:00:00+00
+  { 15, 365310, 0, 1559919600 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -165,6 +167,8 @@ static const struct {
   { 13, 287770, 0, 1552626000 },
   // hf 14 Bullet proof
   { 14, 336400, 0, 1558504800 },
+  // hf 15 disable non-bulletproof
+  { 15, 343750, 0, 1559401200 },
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
@@ -2441,8 +2445,8 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
     }
   }
 
-  // from v14, forbid borromean range proofs
-  if (hf_version >= HF_VERSION_MONERO_13) {
+  // from v15, forbid borromean range proofs
+  if (hf_version > HF_VERSION_MONERO_13) {
     if (tx.version >= 2) {
       const bool borromean = rct::is_rct_borromean(tx.rct_signatures.type);
       if (borromean)
