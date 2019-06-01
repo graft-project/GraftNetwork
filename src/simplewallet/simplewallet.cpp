@@ -5027,7 +5027,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
 
     if (amount < config::graft::TIER1_STAKE_AMOUNT)
     {
-      std::string accepted = command_line::input_line(tr("Stake amount ") + std::to_string(double(amount) / COIN) + tr(" is less than the minimum supernode stake ") +
+      std::string accepted = input_line(tr("Stake amount ") + std::to_string(double(amount) / COIN) + tr(" is less than the minimum supernode stake ") +
           std::to_string(double(config::graft::TIER1_STAKE_AMOUNT) / COIN) + tr("; are you sure you want to submit this partial stake? (Y/Yes/N/No): "));
       if (std::cin.eof())
         return true;
