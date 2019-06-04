@@ -34,6 +34,7 @@
 #include "misc_language.h"
 #include "wallet_errors.h"
 #include "ringdb.h"
+#include "syncobj.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.ringdb"
@@ -193,12 +194,16 @@ static size_t get_ring_data_size(size_t n_entries)
 
 enum { BLACKBALL_BLACKBALL, BLACKBALL_UNBLACKBALL, BLACKBALL_QUERY, BLACKBALL_CLEAR};
 
+static epee::critical_section g_mdb_env_lock;
+
 namespace tools
 {
 
+MDB_env *ringdb::env {nullptr};
+int ringdb::ref_counter {0};
+
 ringdb::ringdb(std::string filename, const std::string &genesis):
-  filename(filename),
-  env(NULL)
+  filename(filename)
 {
   MDB_txn *txn;
   bool tx_active = false;
@@ -206,14 +211,22 @@ ringdb::ringdb(std::string filename, const std::string &genesis):
 
   tools::create_directories_if_necessary(filename);
 
-  dbr = mdb_env_create(&env);
-  THROW_WALLET_EXCEPTION_IF(dbr, tools::error::wallet_internal_error, "Failed to create LDMB environment: " + std::string(mdb_strerror(dbr)));
-  dbr = mdb_env_set_maxdbs(env, 2);
-  THROW_WALLET_EXCEPTION_IF(dbr, tools::error::wallet_internal_error, "Failed to set max env dbs: " + std::string(mdb_strerror(dbr)));
-  const std::string actual_filename = get_rings_filename(filename); 
-  dbr = mdb_env_open(env, actual_filename.c_str(), 0, 0664);
-  THROW_WALLET_EXCEPTION_IF(dbr, tools::error::wallet_internal_error, "Failed to open rings database file '"
-      + actual_filename + "': " + std::string(mdb_strerror(dbr)));
+
+  {
+    CRITICAL_REGION_LOCAL(g_mdb_env_lock);
+    if (ref_counter == 0)
+    {
+      dbr = mdb_env_create(&env);
+      THROW_WALLET_EXCEPTION_IF(dbr, tools::error::wallet_internal_error, "Failed to create LDMB environment: " + std::string(mdb_strerror(dbr)));
+      dbr = mdb_env_set_maxdbs(env, 2);
+      THROW_WALLET_EXCEPTION_IF(dbr, tools::error::wallet_internal_error, "Failed to set max env dbs: " + std::string(mdb_strerror(dbr)));
+      const std::string actual_filename = get_rings_filename(filename);
+      dbr = mdb_env_open(env, actual_filename.c_str(), 0, 0664);
+      THROW_WALLET_EXCEPTION_IF(dbr, tools::error::wallet_internal_error, "Failed to open rings database file '"
+                                + actual_filename + "': " + std::string(mdb_strerror(dbr)));
+    }
+    ref_counter++;
+  }
 
   dbr = mdb_txn_begin(env, NULL, 0, &txn);
   THROW_WALLET_EXCEPTION_IF(dbr, tools::error::wallet_internal_error, "Failed to create LMDB transaction: " + std::string(mdb_strerror(dbr)));
@@ -240,7 +253,9 @@ ringdb::~ringdb()
 
 void ringdb::close()
 {
-  if (env)
+  CRITICAL_REGION_LOCAL(g_mdb_env_lock);
+  ref_counter--;
+  if (ref_counter == 0 && env)
   {
     mdb_dbi_close(env, dbi_rings);
     mdb_dbi_close(env, dbi_blackballs);
