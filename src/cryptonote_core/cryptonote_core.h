@@ -801,6 +801,11 @@ namespace cryptonote
       */
      void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height);
 
+     /**
+      * @brief for tests
+      */
+     const StakeTransactionProcessor& get_graft_stake_transaction_processor() const { return m_graft_stake_transaction_processor; }
+
    private:
 
      /**

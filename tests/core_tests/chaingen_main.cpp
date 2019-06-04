@@ -41,6 +41,7 @@ namespace
   const command_line::arg_descriptor<std::string> arg_test_data_path              = {"test_data_path", "", ""};
   const command_line::arg_descriptor<bool>        arg_generate_test_data          = {"generate_test_data", ""};
   const command_line::arg_descriptor<bool>        arg_play_test_data              = {"play_test_data", ""};
+  const command_line::arg_descriptor<bool>        arg_generate_and_play_test_rta  = {"generate_and_play_test_rta", ""};
   const command_line::arg_descriptor<bool>        arg_generate_and_play_test_data = {"generate_and_play_test_data", ""};
   const command_line::arg_descriptor<bool>        arg_test_transactions           = {"test_transactions", ""};
   const command_line::arg_descriptor<std::string> arg_filter                      = { "filter", "Regular expression filter for which tests to run" };
@@ -61,6 +62,7 @@ int main(int argc, char* argv[])
   command_line::add_arg(desc_options, arg_test_data_path);
   command_line::add_arg(desc_options, arg_generate_test_data);
   command_line::add_arg(desc_options, arg_play_test_data);
+  command_line::add_arg(desc_options, arg_generate_and_play_test_rta);
   command_line::add_arg(desc_options, arg_generate_and_play_test_data);
   command_line::add_arg(desc_options, arg_test_transactions);
   command_line::add_arg(desc_options, arg_filter);
@@ -94,6 +96,11 @@ int main(int argc, char* argv[])
   else if (command_line::get_arg(vm, arg_play_test_data))
   {
     PLAY("chain001.dat", gen_simple_chain_001);
+  }
+  else if (command_line::get_arg(vm, arg_generate_and_play_test_rta))
+  {
+    GENERATE_AND_PLAY(gen_rta);
+//    GENERATE_AND_PLAY(gen_simple_chain_001);
   }
   else if (command_line::get_arg(vm, arg_generate_and_play_test_data))
   {

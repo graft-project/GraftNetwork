@@ -141,8 +141,8 @@ void StakeTransactionProcessor::init_storages_impl()
 
   MDEBUG("Initialize stake processing storages. First block height is " << first_block_number);
 
-  m_storage.reset(new StakeTransactionStorage(m_config_dir + "/" + STAKE_TRANSACTION_STORAGE_FILE_NAME, first_block_number));
-  m_blockchain_based_list.reset(new BlockchainBasedList(m_config_dir + "/" + BLOCKCHAIN_BASED_LIST_FILE_NAME, first_block_number));
+  m_storage.reset(new StakeTransactionStorage(m_config_dir.empty()? m_config_dir : m_config_dir + "/" + STAKE_TRANSACTION_STORAGE_FILE_NAME, first_block_number));
+  m_blockchain_based_list.reset(new BlockchainBasedList(m_config_dir.empty()? m_config_dir : m_config_dir + "/" + BLOCKCHAIN_BASED_LIST_FILE_NAME, first_block_number));
 }
 
 namespace

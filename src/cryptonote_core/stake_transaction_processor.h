@@ -48,6 +48,10 @@ public:
   bool check_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash);
   bool check_disqualification2_transaction(const transaction& tx, const crypto::hash tx_hash);
 
+////////// for tests
+public:
+  const BlockchainBasedList::supernode_tier_array& get_tiers(size_t depth) const { return m_blockchain_based_list->tiers(depth); }
+
 private:
   void init_storages_impl();
   void process_block(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
