@@ -558,13 +558,13 @@ bool construct_miner_tx_manually(size_t height, uint64_t already_generated_coins
 
 bool construct_tx_to_key(const std::vector<test_event_entry>& events, cryptonote::transaction& tx, const block& blk_head,
                          const cryptonote::account_base& from, const cryptonote::account_base& to, uint64_t amount,
-                         uint64_t fee, size_t nmix)
+                         uint64_t fee, size_t nmix, const std::vector<uint8_t>& extra, uint32_t tx_type)
 {
   vector<tx_source_entry> sources;
   vector<tx_destination_entry> destinations;
   fill_tx_sources_and_destinations(events, blk_head, from, to, amount, fee, nmix, sources, destinations);
 
-  return construct_tx(from.get_keys(), sources, destinations, from.get_keys().m_account_address, std::vector<uint8_t>(), tx, 0);
+  return construct_tx(from.get_keys(), sources, destinations, from.get_keys().m_account_address, extra, tx, 0, tx_type);
 }
 
 transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const block& blk_head,

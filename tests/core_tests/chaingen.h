@@ -224,7 +224,7 @@ bool construct_miner_tx_manually(size_t height, uint64_t already_generated_coins
                                  uint64_t fee, cryptonote::keypair* p_txkey = 0);
 bool construct_tx_to_key(const std::vector<test_event_entry>& events, cryptonote::transaction& tx,
                          const cryptonote::block& blk_head, const cryptonote::account_base& from, const cryptonote::account_base& to,
-                         uint64_t amount, uint64_t fee, size_t nmix);
+                         uint64_t amount, uint64_t fee, size_t nmix, const std::vector<uint8_t>& extra = std::vector<uint8_t>(), uint32_t tx_type = cryptonote::transaction::tx_type_generic);
 cryptonote::transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const cryptonote::block& blk_head,
                                             const cryptonote::account_base& acc_from, const cryptonote::account_base& acc_to,
                                             uint64_t amount, uint64_t fee);
