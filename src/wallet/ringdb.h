@@ -60,8 +60,9 @@ namespace tools
 
   private:
     std::string filename;
-    MDB_env *env;
+    static MDB_env *env;
     MDB_dbi dbi_rings;
     MDB_dbi dbi_blackballs;
+    static int ref_counter;
   };
 }
