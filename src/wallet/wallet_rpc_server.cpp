@@ -1050,7 +1050,7 @@ namespace tools
         return false;
       }
       const cryptonote::account_public_address& supernode_public_address = dsts.front().addr;
-      std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_wallet->testnet(), supernode_public_address);
+      std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_wallet->nettype(), dsts.front().is_subaddress, supernode_public_address);
       std::string data = supernode_public_address_str + ":" + req.supernode_public_id;
       crypto::hash hash;
       crypto::cn_fast_hash(data.data(), data.size(), hash);
