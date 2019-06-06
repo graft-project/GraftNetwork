@@ -2987,12 +2987,14 @@ bool wallet2::clear()
 bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable_string& password, bool watch_only)
 {
   std::string buf;
+
+  unlock_keys_file();
   bool r = store_keys_to_buffer(password, buf, watch_only);
   if (!r)
     return r;
-
   r = epee::file_io_utils::save_string_to_file(keys_file_name, buf); //and never touch wallet_keys_file again, only read
   CHECK_AND_ASSERT_MES(r, false, "failed to generate wallet keys file " << keys_file_name);
+  lock_keys_file();
   return true;
 }
 
@@ -3166,9 +3168,8 @@ bool wallet2::store_keys_to_buffer(const wipeable_string &password, std::string 
   crypto::chacha20(account_data.data(), account_data.size(), key, keys_file_data.iv, &cipher[0]);
   keys_file_data.account_data = cipher;
 
-  unlock_keys_file();
   r = ::serialization::dump_binary(keys_file_data, output_buffer);
-  lock_keys_file();
+
 
   return true;
 }
@@ -5035,11 +5036,11 @@ void wallet2::store_cache(const string &filename)
 #ifdef WIN32
     // On Windows avoid using std::ofstream which does not work with UTF-8 filenames
     // The price to pay is temporary higher memory consumption for string stream + binary archive
-    std::ostringstream oss;
-    binary_archive<true> oar(oss);
+    std::ostringstream ostr;
+    binary_archive<true> oar(ostr);
     bool success = ::serialization::serialize(oar, cache_file_data);
     if (success) {
-        success = epee::file_io_utils::save_string_to_file(new_file, oss.str());
+        success = epee::file_io_utils::save_string_to_file(filename, ostr.str());
     }
     THROW_WALLET_EXCEPTION_IF(!success, error::file_save_error, filename);
 #else
