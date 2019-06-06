@@ -3,6 +3,10 @@
 #include "stake_transaction_processor.h"
 #include "../graft_rta_config.h"
 
+#include <mutex>
+
+
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "staketransaction.processor"
 
