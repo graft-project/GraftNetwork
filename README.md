@@ -283,15 +283,35 @@ application.
         pacman -Syuu  
 
 
+**_PLEASE NOTE:_**  boost version installed with MSYS2 (currently 1.70, June 2019) is not compatible with Graft, so you'll need to manually install previous boost version (see below)
+
+
 * Install dependencies:
 
     To build for 64-bit Windows:
 
-        pacman -S mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-boost mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi
+        pacman -S mingw-w64-x86_64-toolchain make mingw-w64-x86_64-cmake mingw-w64-x86_64-openssl mingw-w64-x86_64-zeromq mingw-w64-x86_64-libsodium mingw-w64-x86_64-hidapi
+
+        wget http://repo.msys2.org/mingw/x86_64/mingw-w64-x86_64-boost-1.69.0-2-any.pkg.tar.xz
+        wget http://repo.msys2.org/mingw/x86_64/mingw-w64-x86_64-icu-58.2-3-any.pkg.tar.xz
+
+        pacman -U mingw-w64-x86_64-icu-58.2-3-any.pkg.tar.xz
+        pacman -U mingw-w64-x86_64-boost-1.69.0-2-any.pkg.tar.xz
+
+
+    
 
     To build for 32-bit Windows:
  
-        pacman -S mingw-w64-i686-toolchain make mingw-w64-i686-cmake mingw-w64-i686-boost mingw-w64-i686-openssl mingw-w64-i686-zeromq mingw-w64-i686-libsodium mingw-w64-i686-hidapi
+        pacman -S mingw-w64-i686-toolchain make mingw-w64-i686-cmake mingw-w64-i686-openssl mingw-w64-i686-zeromq mingw-w64-i686-libsodium mingw-w64-i686-hidapi
+
+        wget http://repo.msys2.org/mingw/i686/mingw-w64-i686-boost-1.69.0-2-any.pkg.tar.xz
+        wget http://repo.msys2.org/mingw/i686/mingw-w64-i686-icu-58.2-3-any.pkg.tar.xz
+        
+        pacman -U mingw-w64-i686-icu-58.2-3-any.pkg.tar.xz
+        pacman -U mingw-w64-i686-boost-1.69.0-2-any.pkg.tar.xz
+
+
 
 * Open the MingW shell via `MinGW-w64-Win64 Shell` shortcut on 64-bit Windows
   or `MinGW-w64-Win64 Shell` shortcut on 32-bit Windows. Note that if you are
