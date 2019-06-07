@@ -221,6 +221,7 @@ namespace cryptonote
     }
 
     tx.version = rct ? (tx_type == transaction::tx_type_rta? 3 : 2) : 1;
+    tx.type = tx_type;
     tx.unlock_time = unlock_time;
 
     tx.extra = extra;
