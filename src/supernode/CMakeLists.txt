@@ -144,6 +144,8 @@ if (NOT BUILD_GUI_DEPS)
         ${Boost_PROGRAM_OPTIONS_LIBRARY}
         ${Boost_FILESYSTEM_LIBRARY}
         ${Boost_THREAD_LIBRARY}
+        ${Boost_LOCALE_LIBRARY}
+        ${ICU_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         ${EXTRA_LIBRARIES})
     add_dependencies(supernode_rpc_server version)
