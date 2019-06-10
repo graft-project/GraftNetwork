@@ -804,7 +804,7 @@ namespace cryptonote
      /**
       * @brief for tests
       */
-     const StakeTransactionProcessor& get_graft_stake_transaction_processor() const { return m_graft_stake_transaction_processor; }
+     StakeTransactionProcessor& get_graft_stake_transaction_processor() { return m_graft_stake_transaction_processor; }
 
    private:
 

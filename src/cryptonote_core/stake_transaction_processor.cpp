@@ -555,7 +555,8 @@ void StakeTransactionProcessor::synchronize()
 
   uint64_t height = m_blockchain.get_current_blockchain_height();
 
-  if (!height || m_blockchain.get_hard_fork_version(height - 1) < config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
+//  if (!height || m_blockchain.get_hard_fork_version(height - 1) < config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
+  if (m_blockchain.get_hard_fork_version(height? height - 1 : height) < config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
     return;
 
   if (!m_storage || !m_blockchain_based_list)

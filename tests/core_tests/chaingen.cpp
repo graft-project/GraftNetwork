@@ -107,8 +107,13 @@ bool test_generator::construct_block(cryptonote::block& blk, uint64_t height, co
                                      const cryptonote::account_base& miner_acc, uint64_t timestamp, uint64_t already_generated_coins,
                                      std::vector<size_t>& block_weights, const std::list<cryptonote::transaction>& tx_list)
 {
+/*
   blk.major_version = CURRENT_BLOCK_MAJOR_VERSION;
   blk.minor_version = CURRENT_BLOCK_MINOR_VERSION;
+*/
+  uint8_t ver = (height < 10)? CURRENT_BLOCK_MAJOR_VERSION : 14;
+  blk.major_version = ver;
+  blk.minor_version = ver;
   blk.timestamp = timestamp;
   blk.prev_id = prev_id;
 
@@ -318,14 +323,23 @@ namespace
 
 bool init_output_indices(map_output_idx_t& outs, std::map<uint64_t, std::vector<size_t> >& outs_mine, const std::vector<cryptonote::block>& blockchain, const map_hash2tx_t& mtx, const cryptonote::account_base& from) {
 
-    BOOST_FOREACH (const block& blk, blockchain) {
+    for(int idx1 = 0, cidx1 = blockchain.size(); idx1<cidx1; ++idx1)
+    {
+      const block& blk = blockchain[idx1];
+//    BOOST_FOREACH (const block& blk, blockchain) {
         vector<const transaction*> vtx;
         vtx.push_back(&blk.miner_tx);
 
-        BOOST_FOREACH(const crypto::hash &h, blk.tx_hashes) {
+        for(int idx2 = 0, cidx2 = blk.tx_hashes.size(); idx2<cidx2; ++idx2)
+        {
+          const crypto::hash &h = blk.tx_hashes[idx2];
+//        BOOST_FOREACH(const crypto::hash &h, blk.tx_hashes) {
             const map_hash2tx_t::const_iterator cit = mtx.find(h);
             if (mtx.end() == cit)
+            {
+              std::cout << "\n!!! block hash " << epee::string_tools::pod_to_hex(get_block_hash(blk)) << " transaction hash " << epee::string_tools::pod_to_hex(h) << " not found\n";
                 throw std::runtime_error("block contains an unknown tx hash");
+            }
 
             vtx.push_back(cit->second);
         }
@@ -562,6 +576,7 @@ bool construct_tx_to_key(const std::vector<test_event_entry>& events, cryptonote
 {
   vector<tx_source_entry> sources;
   vector<tx_destination_entry> destinations;
+  std::cout << "\n!!! block hash " << epee::string_tools::pod_to_hex(get_block_hash(blk_head)) << " transaction hash " << epee::string_tools::pod_to_hex(get_transaction_hash(tx)) << "\n";
   fill_tx_sources_and_destinations(events, blk_head, from, to, amount, fee, nmix, sources, destinations);
 
   return construct_tx(from.get_keys(), sources, destinations, from.get_keys().m_account_address, extra, tx, 0, tx_type);

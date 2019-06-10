@@ -99,13 +99,227 @@ bool one_block::verify_1(cryptonote::core& c, size_t ev_index, const std::vector
 */
 
 ////////
-// class rta;
+// class gen_rtaX;
 
-gen_rta::gen_rta()
+bool gen_rta::generate(std::vector<test_event_entry>& events) const
 {
-  REGISTER_CALLBACK("verify_callback_1", gen_rta::verify_callback_1);
+  //initialize
+//  const size_t mixin = 10;
+//  const size_t mixin = 1;
+  const size_t mixin = 10;
+  const uint64_t amounts_paid[] = {10000, (uint64_t)-1};
+  const size_t bp_sizes[] = {1, (size_t)-1};
+  const rct::RangeProofType range_proof_type[] = {rct::RangeProofPaddedBulletproof};
+  test_generator generator;
+//  bool res = generate_with(events, mixin, 1, amounts_paid, true, range_proof_type, NULL, [&](const cryptonote::transaction &tx, size_t tx_idx){ return check_bp(tx, tx_idx, bp_sizes, "gen_bp_tx_valid_1"); }, &generator);
+  bool res = generate_with(events, mixin, 1, amounts_paid, true, range_proof_type,
+    [](std::vector<cryptonote::tx_source_entry> &sources, std::vector<cryptonote::tx_destination_entry> &destinations, size_t tx_idx)->bool
+    {
+      return true;
+    },
+    [](cryptonote::transaction &tx, size_t tx_idx)->bool
+    {
+      return true;
+    }
+    , &generator);
+  CHECK_AND_ASSERT_MES(res, false, "gen_rta invalid initialization");
+
+//  generator.construct_block_manually
+  cryptonote::block blk_last = boost::get<cryptonote::block>(events.back());
+
+  cryptonote::account_base miner;
+  miner.generate();
+
+  for (size_t i = 0; i < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++i)
+  {
+    cryptonote::block blk_1;
+    CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk_1, blk_last, miner,
+//        test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_tx_hashes | test_generator::bf_hf_version | test_generator::bf_max_outs,
+        test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version,
+        14, 14, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+        crypto::hash(), 0, cryptonote::transaction(), std::vector<crypto::hash>(), 0, 6, 14),
+        false, "Failed to generate block");
+    events.push_back(blk_1);
+    blk_last = blk_1;
+  }
+
+  cryptonote::block blk_tx = blk_last;
+
+  for (size_t i = 0; i < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++i)
+  {
+    cryptonote::block blk_1;
+    CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk_1, blk_last, miner,
+//        test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_tx_hashes | test_generator::bf_hf_version | test_generator::bf_max_outs,
+        test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version,
+        14, 14, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+        crypto::hash(), 0, cryptonote::transaction(), std::vector<crypto::hash>(), 0, 6, 14),
+        false, "Failed to generate block");
+    events.push_back(blk_1);
+    blk_last = blk_1;
+  }
+
+  std::vector<cryptonote::tx_source_entry> sources;
+  {
+    sources.resize(1);
+    cryptonote::tx_source_entry& src = sources.back();
+//    src.amount = MK_COINS(1) + 1000000000;
+    src.amount = 5000000000000;
+    for(int i = 0; i < 11; ++i)
+    {
+/*
+      if(i == 0)
+      {
+        src.amount = blk_tx.miner_tx.vout[0].amount;
+      }
+*/
+      src.push_output(i, boost::get<cryptonote::txout_to_key>(blk_tx.miner_tx.vout[0].target).key, src.amount);
+    }
+    src.real_out_tx_key = cryptonote::get_tx_pub_key_from_extra(blk_tx.miner_tx);
+    src.real_output = 0;
+    src.real_output_in_tx_index = 0;
+    src.mask = rct::identity();
+    src.rct = false;
+  }
+
+  //fill outputs entry
+  std::vector<cryptonote::tx_destination_entry> destinations;
+  {
+    cryptonote::tx_destination_entry td;
+    td.addr = miner.get_keys().m_account_address;
+    td.amount = MK_COINS(1);
+    destinations.push_back(td);
+  }
+
+  cryptonote::transaction tx;
+  {
+    crypto::secret_key tx_key;
+    std::vector<crypto::secret_key> additional_tx_keys;
+    std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
+    subaddresses[miner.get_keys().m_account_address.m_spend_public_key] = {0,0};
+    bool r = cryptonote::construct_tx_and_get_tx_key(miner.get_keys(), subaddresses, sources, destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), tx, 0, tx_key, additional_tx_keys, true, rct::RangeProofPaddedBulletproof);
+    CHECK_AND_ASSERT_MES(r, false, "failed to construct transaction");
+
+
+    {
+      crypto::key_derivation derivation;
+      bool r = crypto::generate_key_derivation(destinations[0].addr.m_view_public_key, tx_key, derivation);
+      CHECK_AND_ASSERT_MES(r, false, "Failed to generate key derivation");
+      crypto::secret_key amount_key;
+      crypto::derivation_to_scalar(derivation, 0, amount_key);
+      rct::key rct_tx_mask;
+      if (tx.rct_signatures.type == rct::RCTTypeSimple || tx.rct_signatures.type == rct::RCTTypeBulletproof)
+        rct::decodeRctSimple(tx.rct_signatures, rct::sk2rct(amount_key), 0, rct_tx_mask, hw::get_device("default"));
+      else
+        rct::decodeRct(tx.rct_signatures, rct::sk2rct(amount_key), 0, rct_tx_mask, hw::get_device("default"));
+    }
+
+    events.push_back(tx);
+
+    std::vector<crypto::hash> tx_hashes;
+    tx_hashes.push_back(cryptonote::get_transaction_hash(tx));
+    LOG_PRINT_L0("Test tx: " << cryptonote::obj_to_json_str(tx));
+
+    cryptonote::block blk_tx1;
+
+    CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk_tx1, blk_last, miner,
+        test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_tx_hashes | test_generator::bf_hf_version | test_generator::bf_max_outs,
+        14, 14, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+        crypto::hash(), 0, cryptonote::transaction(), tx_hashes, 0, 6, 14),
+        false, "Failed to generate block");
+    events.push_back(blk_tx1);
+
+    blk_last = blk_tx1;
+
+  }
+
+  return true;
+
+  {
+    std::vector<uint8_t> extra;
+/*
+    {//generate extra
+      std::string id_str = epee::string_tools::pod_to_hex(pub[i]);
+      std::string supernode_public_address_str = cryptonote::get_account_address_as_str(cryptonote::TESTNET, false, accounts[i].get_keys().m_account_address);
+      std::string data = supernode_public_address_str + ":" + id_str;
+      crypto::hash hash;
+      crypto::cn_fast_hash(data.data(), data.size(), hash);
+      crypto::signature sign; crypto::generate_signature(hash, pub[i], sec[i], sign);
+      cryptonote::transaction tx;
+      cryptonote::add_graft_stake_tx_extra_to_extra(tx.extra, id_str, accounts[i].get_keys().m_account_address, sign);
+      extra = tx.extra;
+    }
+*/
+    cryptonote::transaction tx;
+    construct_tx_to_key(events, tx, blk_tx, miner, miner, MK_COINS(1), TESTS_DEFAULT_FEE, 0, extra, cryptonote::transaction::tx_type_generic);
+    tx.invalidate_hashes();
+    crypto::hash hash = cryptonote::get_transaction_hash(tx);
+    std::cout << "\n-->> my hash " << epee::string_tools::pod_to_hex(hash) << "\n";
+  //      tx_1[i].set_hash_valid(
+  //      cryptonote::add_graft_stake_tx_extra_to_extra(tx.extra, id_str, account.get_keys().m_account_address, )
+  //      MAKE_NEXT_BLOCK_TX1(events, blk_2, blk_a, account, tx);
+  //      MAKE_NEXT_BLOCK_TX1(events, blk_2, blk_ir, account, tx);
+    events.push_back(tx);
+  }
+
+/*
+  std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
+  subaddresses[miner.get_keys().m_account_address.m_spend_public_key] = {0,0};
+  bool r = cryptonote::construct_tx_and_get_tx_key(miner.get_keys(), subaddresses, sources, destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), rct_txes.back(), 0, tx_key, additional_tx_keys, true, range_proof_type[n]);
+  CHECK_AND_ASSERT_MES(r, false, "failed to construct transaction");
+*/
+  return true;
+
+  const int N = 1; //count of participants
+
+  cryptonote::account_base accounts[N];
+  for (size_t i = 0; i < N; ++i)
+  {
+    accounts[i].generate();
+/*
+    // rewind to mine
+    {
+      for (size_t j = 0; j < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++j)
+      {
+        cryptonote::block blk;
+        CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk, blk_last, accounts[i],
+            test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version,
+            2, 2, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+            crypto::hash(), 0, transaction(), std::vector<crypto::hash>(), 0, 0, 2),
+            false, "Failed to generate block");
+        events.push_back(blk);
+        blk_last = blk;
+      }
+    }
+    cryptonote::block blk_i = blk_last;
+    // rewind
+    {
+      for (size_t j = 0; j < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++j)
+      {
+        cryptonote::block blk;
+        CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk, blk_last, accounts[i],
+            test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version,
+            2, 2, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+            crypto::hash(), 0, transaction(), std::vector<crypto::hash>(), 0, 0, 2),
+            false, "Failed to generate block");
+        events.push_back(blk);
+        blk_last = blk;
+      }
+    }
+*/
+  }
+
+  return true;
+}
+
+
+////////
+// class gen_rtaX;
+
+gen_rtaX::gen_rtaX()
+{
+  REGISTER_CALLBACK("verify_callback_1", gen_rtaX::verify_callback_1);
 //  REGISTER_CALLBACK("verify_callback_2", gen_simple_chain_001::verify_callback_2);
-  REGISTER_CALLBACK("check_stake_proc", gen_rta::check_stake_proc);
+  REGISTER_CALLBACK("check_stake_proc", gen_rtaX::check_stake_proc);
 }
 
 #define MAKE_TX_MIX_R(VEC_EVENTS, TX_NAME, FROM, TO, AMOUNT, NMIX, HEAD)                       \
@@ -143,7 +357,7 @@ gen_rta::gen_rta()
   }                                                                                   \
   VEC_EVENTS.push_back(BLK_NAME);
 
-bool gen_rta::generate(std::vector<test_event_entry> &events)
+bool gen_rtaX::generate(std::vector<test_event_entry> &events)
 {
   //  { 14, 336400, 0, 1558504800 },
 //  uint64_t ts_start = 1338224400;
@@ -188,6 +402,7 @@ bool gen_rta::generate(std::vector<test_event_entry> &events)
 //      MAKE_ACCOUNT_R(events, accounts[i]);
 //      REWIND_BLOCKS(events, blk_ir, blk_i, account);
 
+//      MAKE_TX(events, tx_1, miner, account, MK_COINS(7), blk_1);
 //      MAKE_TX(events, tx_1, miner, account, MK_COINS(7), blk_1);
 //      MAKE_TX(events, tx_1, miner, account, MK_COINS(4), blk_1r);
 //      MAKE_TX(events, tx_1, miner, account, MK_COINS(1), blk_last);
@@ -328,10 +543,11 @@ bool temp(std::vector<test_event_entry> &events)
     return true;
 }
 
-bool gen_rta::check_stake_proc(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)
+bool gen_rtaX::check_stake_proc(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)
 {
-  DEFINE_TESTS_ERROR_CONTEXT("gen_rta::check_stake_proc");
-  const cryptonote::StakeTransactionProcessor& stp = c.get_graft_stake_transaction_processor();
+  DEFINE_TESTS_ERROR_CONTEXT("gen_rtaX::check_stake_proc");
+  cryptonote::StakeTransactionProcessor& stp = c.get_graft_stake_transaction_processor();
+  stp.synchronize();
 /*
   cryptonote::StakeTransactionProcessor stp(c.get_blockchain_storage());
   stp.init_storages("");
@@ -342,9 +558,9 @@ bool gen_rta::check_stake_proc(cryptonote::core& c, size_t ev_index, const std::
   return true;
 }
 
-bool gen_rta::verify_callback_1(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)
+bool gen_rtaX::verify_callback_1(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)
 {
-  DEFINE_TESTS_ERROR_CONTEXT("gen_rta::verify_callback_1");
+  DEFINE_TESTS_ERROR_CONTEXT("gen_rtaX::verify_callback_1");
   CHECK_TEST_CONDITION(c.get_pool_transactions_count() == 1);
   return true;
 }

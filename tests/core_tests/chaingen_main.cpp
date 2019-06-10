@@ -99,6 +99,7 @@ int main(int argc, char* argv[])
   }
   else if (command_line::get_arg(vm, arg_generate_and_play_test_rta))
   {
+//    GENERATE_AND_PLAY(gen_bp_tx_valid_1);
     GENERATE_AND_PLAY(gen_rta);
 //    GENERATE_AND_PLAY(gen_simple_chain_001);
   }

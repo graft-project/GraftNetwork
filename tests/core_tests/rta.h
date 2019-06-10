@@ -45,14 +45,54 @@
 #include "multisig.h"
 #include "bulletproofs.h"
 */
+#include "bulletproofs.h"
 /************************************************************************/
 /*                                                                      */
 /************************************************************************/
-class gen_rta: public test_chain_unit_base
+struct gen_rta : public gen_bp_tx_validation_base
+{
+  bool generate(std::vector<test_event_entry>& events) const;
+
+/*
+  //it is for not to break other tests
+  bool check_tx_verification_context(const cryptonote::tx_verification_context& tvc, bool tx_added, size_t event_idx, const cryptonote::transaction& tx)
+  {
+    return !gen_bp_tx_validation_base::check_tx_verification_context(tvc, tx_added, event_idx, tx);
+  }
+*/
+};
+
+
+template<> struct get_test_options<gen_rta>: public get_test_options<gen_bp_tx_validation_base>
+{
+};
+
+template<> constexpr uint64_t get_fixed_difficulty<get_test_options<gen_rta>>()
+{
+  return 1;
+}
+
+/////////////////////
+
+class gen_rtaX: public test_chain_unit_base
 {
   bool check_stake_proc(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events);
 public:
-  gen_rta();
+  gen_rtaX();
   bool generate(std::vector<test_event_entry> &events);
   bool verify_callback_1(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events); 
 };
+
+template<>
+struct get_test_options<gen_rtaX> {
+//  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(14, 10), std::make_pair(0, 0)};
+//  const std::pair<uint8_t, uint64_t> hard_forks[3] = {std::make_pair(1, 0), std::make_pair(14, 10), std::make_pair(0, 0)};
+//  const std::pair<uint8_t, uint64_t> hard_forks[4] = { {1, 0}, {2, 1}, {14, 10}, {0, 0} };
+  const std::pair<uint8_t, uint64_t> hard_forks[4] = { {1, 0}, {14, 10}, {0, 0} };
+  const cryptonote::test_options test_options = {
+    hard_forks
+  };
+  static constexpr uint64_t fixed_difficulty = 1;
+};
+
+template<> constexpr uint64_t get_fixed_difficulty<get_test_options<gen_rtaX>>() { return 1; }

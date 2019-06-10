@@ -44,7 +44,7 @@ using namespace cryptonote;
 bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& events,
     size_t mixin, size_t n_txes, const uint64_t *amounts_paid, bool valid, const rct::RangeProofType *range_proof_type,
     const std::function<bool(std::vector<tx_source_entry> &sources, std::vector<tx_destination_entry> &destinations, size_t tx_idx)> &pre_tx,
-    const std::function<bool(transaction &tx, size_t tx_idx)> &post_tx) const
+    const std::function<bool(transaction &tx, size_t tx_idx)> &post_tx, test_generator* pgenerator) const
 {
   uint64_t ts_start = 1338224400;
 
@@ -83,6 +83,15 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     }
     blk_r = blk_last;
   }
+
+/*
+  if(pgenerator)
+  {
+    *pgenerator = generator;
+    return true;
+  }
+*/
+//  for(int tmp=0; tmp<2; ++tmp){
 
   // create 4 txes from these miners in another block, to generate some rct outputs
   std::vector<transaction> rct_txes;
@@ -145,10 +154,11 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
       return false;
     }
 
+/*
     //events.push_back(rct_txes.back());
     starting_rct_tx_hashes.push_back(get_transaction_hash(rct_txes.back()));
     LOG_PRINT_L0("Test tx: " << obj_to_json_str(rct_txes.back()));
-
+*/
     for (int o = 0; amounts_paid[o] != (uint64_t)-1; ++o)
     {
       crypto::key_derivation derivation;
@@ -163,13 +173,24 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
         rct::decodeRct(rct_txes.back().rct_signatures, rct::sk2rct(amount_key), o, rct_tx_mask, hw::get_device("default"));
     }
 
+    events.push_back(rct_txes.back());
+    starting_rct_tx_hashes.push_back(get_transaction_hash(rct_txes.back()));
+    LOG_PRINT_L0("Test tx: " << obj_to_json_str(rct_txes.back()));
+
     while (amounts_paid[0] != (size_t)-1)
       ++amounts_paid;
     ++amounts_paid;
   }
   if (!valid)
     DO_CALLBACK(events, "mark_invalid_tx");
-  events.push_back(rct_txes);
+//  events.push_back(rct_txes);
+
+  std::cout << "\n!!! starting_rct_tx_hashes ";
+  for(const auto& h : starting_rct_tx_hashes)
+  {
+    std::cout << epee::string_tools::pod_to_hex(h) << " ";
+  }
+  std::cout << "\n";
 
   CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk_txes, blk_last, miner_account,
       test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_tx_hashes | test_generator::bf_hf_version | test_generator::bf_max_outs,
@@ -180,6 +201,9 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     DO_CALLBACK(events, "mark_invalid_block");
   events.push_back(blk_txes);
   blk_last = blk_txes;
+
+//  } //tmp
+  if(pgenerator) *pgenerator = generator;
 
   return true;
 }

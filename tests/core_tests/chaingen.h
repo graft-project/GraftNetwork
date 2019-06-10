@@ -360,6 +360,7 @@ public:
     bool tx_added = pool_size + 1 == m_c.get_pool_transactions_count();
     bool r = check_tx_verification_context(tvc, tx_added, m_ev_index, tx, m_validator);
     CHECK_AND_NO_ASSERT_MES(r, false, "tx verification context check failed");
+//    CHECK_AND_ASSERT_MES(r, false, "tx verification context check failed");
     return true;
   }
 
@@ -490,6 +491,8 @@ struct get_test_options {
   get_test_options():hard_forks{std::make_pair((uint8_t)1, (uint64_t)0), std::make_pair((uint8_t)0, (uint64_t)0)}{}
 };
 
+template<typename T> constexpr uint64_t get_fixed_difficulty() { return 0; }
+
 //--------------------------------------------------------------------------
 template<class t_test_class>
 inline bool do_replay_events(std::vector<test_event_entry>& events)
@@ -511,6 +514,12 @@ inline bool do_replay_events(std::vector<test_event_entry>& events)
   // FIXME: make sure that vm has arg_testnet_on set to true or false if
   // this test needs for it to be so.
   get_test_options<t_test_class> gto;
+  constexpr uint64_t fixed_difficulty = get_fixed_difficulty<decltype(gto)>();
+  if(fixed_difficulty)
+  {
+    vm.at("fixed-difficulty").value() = fixed_difficulty;
+  }
+
   if (!c.init(vm, NULL, &gto.test_options))
   {
     MERROR("Failed to init core");
