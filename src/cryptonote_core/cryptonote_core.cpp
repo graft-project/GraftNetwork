@@ -66,6 +66,14 @@ DISABLE_VS_WARNINGS(4355)
 
 #define BAD_SEMANTICS_TXES_MAX_SIZE 100
 
+void tmp_dbg_func(const std::string& s, const cryptonote::transaction& tx)
+{
+  MCINFO("tx.rct_signatures", "tmp_dbg_func " << s << ENDL);
+  bool ok = rct::verRctNonSemanticsSimple(tx.rct_signatures);
+  assert(ok);
+  MCINFO("tx.rct_signatures", "" << s << " done" << ENDL);
+}
+
 namespace cryptonote
 {
   const command_line::arg_descriptor<bool, false> arg_testnet_on  = {
@@ -856,7 +864,7 @@ namespace cryptonote
     tools::threadpool::waiter waiter;
     std::vector<blobdata>::const_iterator it = tx_blobs.begin();
     for (size_t i = 0; i < tx_blobs.size(); i++, ++it) {
-      tpool.submit(&waiter, [&, i, it] {
+//      tpool.submit(&waiter, [&, i, it] {
         try
         {
           results[i].res = handle_incoming_tx_pre(*it, tvc[i], results[i].tx, results[i].hash, results[i].prefix_hash, keeped_by_block, relayed, do_not_relay);
@@ -866,9 +874,15 @@ namespace cryptonote
           MERROR_VER("Exception in handle_incoming_tx_pre: " << e.what());
           results[i].res = false;
         }
-      });
+//      });
     }
     waiter.wait(&tpool);
+    {//something wrong here
+/*
+      transaction& tx = results[0].tx;
+      tmp_dbg_func("Xpoint 1 handle_incoming_txs", tx);
+*/
+    }
     it = tx_blobs.begin();
     std::vector<bool> already_have(tx_blobs.size(), false);
     for (size_t i = 0; i < tx_blobs.size(); i++, ++it) {
@@ -900,6 +914,8 @@ namespace cryptonote
       }
     }
     waiter.wait(&tpool);
+
+    tmp_dbg_func("Xpoint 2 handle_incoming_txs", results[0].tx);
 
     std::vector<tx_verification_batch_info> tx_info;
     tx_info.reserve(tx_blobs.size());

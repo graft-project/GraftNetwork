@@ -117,6 +117,7 @@ void tmp_dbg_func(const std::string& s)
   MCINFO("tx.rct_signatures", "" << s << " done" << ENDL);
 }
 
+/*
 void tmp_dbg_func(const std::string& s, const cryptonote::transaction& tx)
 {
   MCINFO("tx.rct_signatures", "tmp_dbg_func " << s << ENDL);
@@ -124,6 +125,7 @@ void tmp_dbg_func(const std::string& s, const cryptonote::transaction& tx)
   assert(ok);
   MCINFO("tx.rct_signatures", "" << s << " done" << ENDL);
 }
+*/
 
 bool gen_rta::call_func(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)
 {
@@ -150,6 +152,8 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
   //initialize
 //  const size_t mixin = 10;
 //  const size_t mixin = 1;
+
+  //// create blockchain with 14 hardfork using existing generate_with function
   const size_t mixin = 10;
   const uint64_t amounts_paid[] = {10000, (uint64_t)-1};
   const size_t bp_sizes[] = {1, (size_t)-1};
@@ -169,10 +173,12 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
   CHECK_AND_ASSERT_MES(res, false, "gen_rta invalid initialization");
 
 //  generator.construct_block_manually
+  //// it is the last block we start with
   cryptonote::block blk_last = boost::get<cryptonote::block>(events.back());
 
 //  DO_CALLBACK(events, "call func");
 
+  //// create miner account and mine some money
   cryptonote::account_base miner;
   miner.generate();
 
@@ -189,6 +195,8 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
     blk_last = blk_1;
   }
 
+  //// this is the block with which we can create a transaction, there are some money,
+  //// but first we need to rewind the blockchain so the block will be valid
   cryptonote::block blk_tx = blk_last;
 //  DO_CALLBACK(events, "call func");
 
@@ -206,6 +214,7 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
   }
 
   DO_CALLBACK(events, "call func");
+  //// create sources for our transaction. note, they are referencing to blk_tx, not the blk_last
   std::vector<cryptonote::tx_source_entry> sources;
   {
     sources.resize(1);
@@ -229,6 +238,7 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
     src.rct = false;
   }
 
+  //// create destinations for our transaction
   //fill outputs entry
   std::vector<cryptonote::tx_destination_entry> destinations;
   {
@@ -238,6 +248,7 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
     destinations.push_back(td);
   }
 
+  //// create our transaction
   cryptonote::transaction tx;
   {
     crypto::secret_key tx_key;
@@ -246,6 +257,8 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
     subaddresses[miner.get_keys().m_account_address.m_spend_public_key] = {0,0};
     bool r = cryptonote::construct_tx_and_get_tx_key(miner.get_keys(), subaddresses, sources, destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), tx, 0, tx_key, additional_tx_keys, true, rct::RangeProofPaddedBulletproof);
     CHECK_AND_ASSERT_MES(r, false, "failed to construct transaction");
+
+    //// we should have our transaction here
 
     bool ok = rct::verRctNonSemanticsSimple(tx.rct_signatures);
     CHECK_AND_ASSERT_MES(ok, false, " rct::verRctNonSemanticsSimple failed");
@@ -283,10 +296,12 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
         rct::decodeRct(tx.rct_signatures, rct::sk2rct(amount_key), 0, rct_tx_mask, hw::get_device("default"));
     }
 */
+    //// push our transaction into events
     DO_CALLBACK(events, "call func");
     events.push_back(tx);
     DO_CALLBACK(events, "call func");
 
+    //// create a block with our transaction
     std::vector<crypto::hash> tx_hashes;
     tx_hashes.push_back(cryptonote::get_transaction_hash(tx));
     LOG_PRINT_L0("Test tx: " << cryptonote::obj_to_json_str(tx));

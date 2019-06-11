@@ -359,9 +359,9 @@ public:
     size_t pool_size = m_c.get_pool_transactions_count();
     tmp_dbg_func("point 1", tx);
     m_c.handle_incoming_tx(t_serializable_object_to_blob(tx), tvc, m_txs_keeped_by_block, false, false);
-    tmp_dbg_func("point 2", tx);
+//    tmp_dbg_func("point 2", tx);
     bool tx_added = pool_size + 1 == m_c.get_pool_transactions_count();
-    tmp_dbg_func("point 3", tx);
+//    tmp_dbg_func("point 3", tx);
     bool r = check_tx_verification_context(tvc, tx_added, m_ev_index, tx, m_validator);
     tmp_dbg_func("point 4", tx);
     CHECK_AND_NO_ASSERT_MES(r, false, "tx verification context check failed");
