@@ -159,6 +159,8 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     starting_rct_tx_hashes.push_back(get_transaction_hash(rct_txes.back()));
     LOG_PRINT_L0("Test tx: " << obj_to_json_str(rct_txes.back()));
 */
+
+/*
     for (int o = 0; amounts_paid[o] != (uint64_t)-1; ++o)
     {
       crypto::key_derivation derivation;
@@ -172,6 +174,7 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
       else
         rct::decodeRct(rct_txes.back().rct_signatures, rct::sk2rct(amount_key), o, rct_tx_mask, hw::get_device("default"));
     }
+*/
 
     events.push_back(rct_txes.back());
     starting_rct_tx_hashes.push_back(get_transaction_hash(rct_txes.back()));
@@ -181,8 +184,10 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
       ++amounts_paid;
     ++amounts_paid;
   }
+/*
   if (!valid)
     DO_CALLBACK(events, "mark_invalid_tx");
+*/
 //  events.push_back(rct_txes);
 
   std::cout << "\n!!! starting_rct_tx_hashes ";
@@ -197,8 +202,10 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
       14, 14, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
       crypto::hash(), 0, transaction(), starting_rct_tx_hashes, 0, 6, 14),
       false, "Failed to generate block");
+/*
   if (!valid)
     DO_CALLBACK(events, "mark_invalid_block");
+*/
   events.push_back(blk_txes);
   blk_last = blk_txes;
 

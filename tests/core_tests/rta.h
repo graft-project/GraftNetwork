@@ -46,13 +46,18 @@
 #include "bulletproofs.h"
 */
 #include "bulletproofs.h"
+
 /************************************************************************/
 /*                                                                      */
 /************************************************************************/
 struct gen_rta : public gen_bp_tx_validation_base
 {
-  bool generate(std::vector<test_event_entry>& events) const;
+  bool generate(std::vector<test_event_entry>& events);
 
+  gen_rta();
+  bool call_func(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events);
+  void DoCallback(std::vector<test_event_entry>& events, std::function<void()> callback);
+  void push_callback(std::function<void()> callback);
 /*
   //it is for not to break other tests
   bool check_tx_verification_context(const cryptonote::tx_verification_context& tvc, bool tx_added, size_t event_idx, const cryptonote::transaction& tx)

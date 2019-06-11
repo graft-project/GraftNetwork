@@ -1055,9 +1055,9 @@ namespace rct {
         results.clear();
         results.resize(rv.mixRing.size());
         for (size_t i = 0 ; i < rv.mixRing.size() ; i++) {
-          tpool.submit(&waiter, [&, i] {
+//          tpool.submit(&waiter, [&, i] {
               results[i] = verRctMGSimple(message, rv.p.MGs[i], rv.mixRing[i], pseudoOuts[i]);
-          });
+//          });
         }
         waiter.wait(&tpool);
 

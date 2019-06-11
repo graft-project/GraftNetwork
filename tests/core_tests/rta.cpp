@@ -101,8 +101,52 @@ bool one_block::verify_1(cryptonote::core& c, size_t ev_index, const std::vector
 ////////
 // class gen_rtaX;
 
-bool gen_rta::generate(std::vector<test_event_entry>& events) const
+gen_rta::gen_rta()
 {
+  REGISTER_CALLBACK("call func", gen_rta::call_func);
+}
+
+std::deque<std::function<void()>> lambdas;
+
+void tmp_dbg_func(const std::string& s)
+{
+  static int i = 0; ++i;
+  MCINFO("tx.rct_signatures", "" << s << ENDL);
+  auto& fun = lambdas.front();
+  fun();
+  MCINFO("tx.rct_signatures", "" << s << " done" << ENDL);
+}
+
+void tmp_dbg_func(const std::string& s, const cryptonote::transaction& tx)
+{
+  MCINFO("tx.rct_signatures", "tmp_dbg_func " << s << ENDL);
+  bool ok = rct::verRctNonSemanticsSimple(tx.rct_signatures);
+  assert(ok);
+  MCINFO("tx.rct_signatures", "" << s << " done" << ENDL);
+}
+
+bool gen_rta::call_func(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)
+{
+  auto& fun = lambdas.front();
+  fun();
+  lambdas.pop_front();
+  return true;
+}
+
+void gen_rta::push_callback(std::function<void()> callback)
+{
+  lambdas.push_back(callback);
+}
+
+void gen_rta::DoCallback(std::vector<test_event_entry>& events, std::function<void()> callback)
+{
+  lambdas.push_back(callback);
+  DO_CALLBACK(events, "call func");
+}
+
+bool gen_rta::generate(std::vector<test_event_entry>& events)
+{
+//  DO_CALLBACK(events, "call func");
   //initialize
 //  const size_t mixin = 10;
 //  const size_t mixin = 1;
@@ -127,6 +171,8 @@ bool gen_rta::generate(std::vector<test_event_entry>& events) const
 //  generator.construct_block_manually
   cryptonote::block blk_last = boost::get<cryptonote::block>(events.back());
 
+//  DO_CALLBACK(events, "call func");
+
   cryptonote::account_base miner;
   miner.generate();
 
@@ -144,6 +190,7 @@ bool gen_rta::generate(std::vector<test_event_entry>& events) const
   }
 
   cryptonote::block blk_tx = blk_last;
+//  DO_CALLBACK(events, "call func");
 
   for (size_t i = 0; i < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++i)
   {
@@ -158,6 +205,7 @@ bool gen_rta::generate(std::vector<test_event_entry>& events) const
     blk_last = blk_1;
   }
 
+  DO_CALLBACK(events, "call func");
   std::vector<cryptonote::tx_source_entry> sources;
   {
     sources.resize(1);
@@ -199,7 +247,29 @@ bool gen_rta::generate(std::vector<test_event_entry>& events) const
     bool r = cryptonote::construct_tx_and_get_tx_key(miner.get_keys(), subaddresses, sources, destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), tx, 0, tx_key, additional_tx_keys, true, rct::RangeProofPaddedBulletproof);
     CHECK_AND_ASSERT_MES(r, false, "failed to construct transaction");
 
+    bool ok = rct::verRctNonSemanticsSimple(tx.rct_signatures);
+    CHECK_AND_ASSERT_MES(ok, false, " rct::verRctNonSemanticsSimple failed");
 
+//    MCINFO("tx.rct_signatures", "tx.rct_signatures: " << ENDL << obj_to_json_str(tx.rct_signatures) << ENDL);
+    MCINFO("tx.rct_signatures", "tx: " << ENDL << obj_to_json_str(tx) << ENDL);
+
+    auto func = [tx]()
+    {
+      static int i = 0;
+      ++i;
+      bool ok = rct::verRctNonSemanticsSimple(tx.rct_signatures);
+      assert(ok);
+    };
+
+    for(int i = 0; i<10; ++i)
+    {
+      push_callback(func);
+    }
+//    bool verRctNonSemanticsSimple(const rctSig & rv)
+
+//    rct::genRctSimple()
+
+/*
     {
       crypto::key_derivation derivation;
       bool r = crypto::generate_key_derivation(destinations[0].addr.m_view_public_key, tx_key, derivation);
@@ -212,12 +282,16 @@ bool gen_rta::generate(std::vector<test_event_entry>& events) const
       else
         rct::decodeRct(tx.rct_signatures, rct::sk2rct(amount_key), 0, rct_tx_mask, hw::get_device("default"));
     }
-
+*/
+    DO_CALLBACK(events, "call func");
     events.push_back(tx);
+    DO_CALLBACK(events, "call func");
 
     std::vector<crypto::hash> tx_hashes;
     tx_hashes.push_back(cryptonote::get_transaction_hash(tx));
     LOG_PRINT_L0("Test tx: " << cryptonote::obj_to_json_str(tx));
+
+    DO_CALLBACK(events, "call func");
 
     cryptonote::block blk_tx1;
 

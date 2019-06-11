@@ -55,7 +55,8 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "tests.core"
 
-
+void tmp_dbg_func(const std::string& s);
+void tmp_dbg_func(const std::string& s, const cryptonote::transaction& tx);
 
 struct callback_entry
 {
@@ -356,9 +357,13 @@ public:
 
     cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
     size_t pool_size = m_c.get_pool_transactions_count();
+    tmp_dbg_func("point 1", tx);
     m_c.handle_incoming_tx(t_serializable_object_to_blob(tx), tvc, m_txs_keeped_by_block, false, false);
+    tmp_dbg_func("point 2", tx);
     bool tx_added = pool_size + 1 == m_c.get_pool_transactions_count();
+    tmp_dbg_func("point 3", tx);
     bool r = check_tx_verification_context(tvc, tx_added, m_ev_index, tx, m_validator);
+    tmp_dbg_func("point 4", tx);
     CHECK_AND_NO_ASSERT_MES(r, false, "tx verification context check failed");
 //    CHECK_AND_ASSERT_MES(r, false, "tx verification context check failed");
     return true;
@@ -497,6 +502,13 @@ template<typename T> constexpr uint64_t get_fixed_difficulty() { return 0; }
 template<class t_test_class>
 inline bool do_replay_events(std::vector<test_event_entry>& events)
 {
+  t_test_class g;
+  return do_replay_events(g, events);
+}
+
+template<class t_test_class>
+inline bool do_replay_events(t_test_class& g, std::vector<test_event_entry>& events)
+{
   boost::program_options::options_description desc("Allowed options");
   cryptonote::core::init_options(desc);
   boost::program_options::variables_map vm;
@@ -536,8 +548,11 @@ inline bool do_replay_events(std::vector<test_event_entry>& events)
   }
   c.get_blockchain_storage().flush_txes_from_pool(pool_txs);
 
+/*
   t_test_class validator;
   bool ret = replay_events_through_core<t_test_class>(c, events, validator);
+*/
+  bool ret = replay_events_through_core<t_test_class>(c, events, g);
   c.deinit();
   return ret;
 }
@@ -683,9 +698,10 @@ inline bool do_replay_file(const std::string& filename)
     std::vector<test_event_entry> events;                                                                  \
     ++tests_count;                                                                                         \
     bool generated = false;                                                                                \
+    genclass g;                                                                                            \
     try                                                                                                    \
     {                                                                                                      \
-      genclass g;                                                                                          \
+      /*genclass g;*/                                                                                          \
       generated = g.generate(events);;                                                                     \
     }                                                                                                      \
     catch (const std::exception& ex)                                                                       \
@@ -696,7 +712,7 @@ inline bool do_replay_file(const std::string& filename)
     {                                                                                                      \
       MERROR(#genclass << " generation failed: generic exception");                                        \
     }                                                                                                      \
-    if (generated && do_replay_events< genclass >(events))                                                 \
+    if (generated && do_replay_events< genclass >(g, events))                                                 \
     {                                                                                                      \
       MGINFO_GREEN("#TEST# Succeeded " << #genclass);                                                      \
     }                                                                                                      \

@@ -1183,6 +1183,7 @@ namespace cryptonote
     }
 
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
+    MCINFO("tx.rct_signatures", "tx: " << ENDL << obj_to_json_str(tx) << ENDL);
     return m_mempool.add_tx(tx, tx_hash, tx_weight, tvc, keeped_by_block, relayed, do_not_relay, version);
   }
   //-----------------------------------------------------------------------------------------------
