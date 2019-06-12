@@ -856,6 +856,12 @@ namespace cryptonote
     TRY_ENTRY();
     CRITICAL_REGION_LOCAL(m_incoming_tx_lock);
 
+    {
+      transaction tx; crypto::hash tx_hash; crypto::hash tx_prefix_hash;
+      parse_tx_from_blob(tx, tx_hash, tx_prefix_hash, tx_blobs[0]);
+//      tmp_dbg_func("Xpoint 1 handle_incoming_txs", tx);
+    }
+
     struct result { bool res; cryptonote::transaction tx; crypto::hash hash; crypto::hash prefix_hash; bool in_txpool; bool in_blockchain; };
     std::vector<result> results(tx_blobs.size());
 
@@ -878,10 +884,18 @@ namespace cryptonote
     }
     waiter.wait(&tpool);
     {//something wrong here
-/*
-      transaction& tx = results[0].tx;
-      tmp_dbg_func("Xpoint 1 handle_incoming_txs", tx);
-*/
+      LOG_PRINT_L0("DBG handle_incoming_txs tx_blobs.size()->" << tx_blobs.size() << ":" << ENDL);
+      for (size_t i = 0; i < tx_blobs.size(); ++i)
+      {
+        LOG_PRINT_L0("tx_blobs[" << i << "]->" << epee::string_tools::buff_to_hex_nodelimer(tx_blobs[i]) << ":" << ENDL);
+      }
+      for (size_t i = 0; i < tx_blobs.size(); ++i)
+      {
+        if(tx_blobs[i].empty()) continue;
+        transaction& tx = results[i].tx;
+        LOG_PRINT_L0("Xpoint 1 dump tx[" << i <<"]: " << cryptonote::obj_to_json_str(tx));
+//        tmp_dbg_func("Xpoint 1 handle_incoming_txs", tx);
+      }
     }
     it = tx_blobs.begin();
     std::vector<bool> already_have(tx_blobs.size(), false);
@@ -915,7 +929,14 @@ namespace cryptonote
     }
     waiter.wait(&tpool);
 
-    tmp_dbg_func("Xpoint 2 handle_incoming_txs", results[0].tx);
+    for (size_t i = 0; i < tx_blobs.size(); ++i)
+    {
+      if(tx_blobs[i].empty()) continue;
+      transaction& tx = results[i].tx;
+      LOG_PRINT_L0("Xpoint 2 dump tx[" << i <<"]: " << cryptonote::obj_to_json_str(tx));
+//        tmp_dbg_func("Xpoint 1 handle_incoming_txs", tx);
+    }
+//    tmp_dbg_func("Xpoint 2 handle_incoming_txs", results[0].tx);
 
     std::vector<tx_verification_batch_info> tx_info;
     tx_info.reserve(tx_blobs.size());

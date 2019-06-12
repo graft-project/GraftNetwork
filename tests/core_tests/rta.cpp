@@ -264,7 +264,7 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
     CHECK_AND_ASSERT_MES(ok, false, " rct::verRctNonSemanticsSimple failed");
 
 //    MCINFO("tx.rct_signatures", "tx.rct_signatures: " << ENDL << obj_to_json_str(tx.rct_signatures) << ENDL);
-    MCINFO("tx.rct_signatures", "tx: " << ENDL << obj_to_json_str(tx) << ENDL);
+    MCINFO("tx.rct_signatures", "tx: " << ENDL << cryptonote::obj_to_json_str(tx) << ENDL);
 
     auto func = [tx]()
     {
@@ -300,6 +300,8 @@ bool gen_rta::generate(std::vector<test_event_entry>& events)
     DO_CALLBACK(events, "call func");
     events.push_back(tx);
     DO_CALLBACK(events, "call func");
+
+    return true;
 
     //// create a block with our transaction
     std::vector<crypto::hash> tx_hashes;

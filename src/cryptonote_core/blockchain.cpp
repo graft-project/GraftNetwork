@@ -2725,7 +2725,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
     if (tx.version == 1)
     {
-      if (threads > 1)
+      if (false) //(threads > 1)
       {
         // ND: Speedup
         // 1. Thread ring signature verification if possible.
@@ -2752,7 +2752,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
     sig_index++;
   }
-  if (tx.version == 1 && threads > 1)
+  if (false) // (tx.version == 1 && threads > 1)
     waiter.wait(&tpool);
 
   if (tx.version == 1)

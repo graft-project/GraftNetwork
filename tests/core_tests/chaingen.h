@@ -357,6 +357,23 @@ public:
 
     cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
     size_t pool_size = m_c.get_pool_transactions_count();
+    {
+      tmp_dbg_func("point xx 0", tx);
+      cryptonote::transaction tx_copy = tx;
+      tx_copy.invalidate_hashes();
+      tmp_dbg_func("point xx 01", tx_copy);
+      auto blob = cryptonote::t_serializable_object_to_blob(tx);
+      cryptonote::transaction tx1;
+      bool ok = cryptonote::parse_and_validate_tx_from_blob(blob, tx1);
+      tx1.invalidate_hashes();
+      assert(ok);
+      MCINFO("look_and_compare", " 1 tx: " << ENDL << cryptonote::obj_to_json_str(tx_copy) << ENDL);
+      MCINFO("look_and_compare", " 2 tx1: " << ENDL << cryptonote::obj_to_json_str(tx1) << ENDL);
+//      MCINFO("look_and_compare", " 1 hex tx: " << ENDL << epee::string_tools::pod_to_hex(tx) << ENDL);
+//      MCINFO("look_and_compare", " 2 hex tx1: " << ENDL << epee::string_tools::pod_to_hex(tx1) << ENDL);
+      tmp_dbg_func("point xx 1", tx);
+//      tmp_dbg_func("point xx 2", tx1);
+    }
     tmp_dbg_func("point 1", tx);
     m_c.handle_incoming_tx(t_serializable_object_to_blob(tx), tvc, m_txs_keeped_by_block, false, false);
 //    tmp_dbg_func("point 2", tx);
