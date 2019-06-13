@@ -319,29 +319,30 @@ public:
                             , const uint64_t& coins_generated
                             , const std::vector<std::pair<transaction, blobdata>>& txs
                             ) override;
-  virtual void update_block_checkpoint(checkpoint_t const &checkpoint) override;
-  virtual bool get_block_checkpoint   (uint64_t height, checkpoint_t &checkpoint) const override;
-  virtual bool get_top_checkpoint     (checkpoint_t &checkpoint) const override;
-  virtual std::vector<checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = 0) const override;
+  void update_block_checkpoint(checkpoint_t const &checkpoint) override;
+  void remove_block_checkpoint(uint64_t height) override;
+  bool get_block_checkpoint   (uint64_t height, checkpoint_t &checkpoint) const override;
+  bool get_top_checkpoint     (checkpoint_t &checkpoint) const override;
+  std::vector<checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = 0) const override;
 
-  virtual void set_batch_transactions(bool batch_transactions);
-  virtual bool batch_start(uint64_t batch_num_blocks=0, uint64_t batch_bytes=0);
-  virtual void batch_commit();
-  virtual void batch_stop();
-  virtual void batch_abort();
+  void set_batch_transactions(bool batch_transactions) override;
+  bool batch_start(uint64_t batch_num_blocks=0, uint64_t batch_bytes=0) override;
+  void batch_commit();
+  void batch_stop() override;
+  void batch_abort();
 
-  virtual void block_wtxn_start();
-  virtual void block_wtxn_stop();
-  virtual void block_wtxn_abort();
-  virtual bool block_rtxn_start() const;
-  virtual void block_rtxn_stop() const;
-  virtual void block_rtxn_abort() const;
+  void block_wtxn_start() override;
+  void block_wtxn_stop() override;
+  void block_wtxn_abort() override;
+  bool block_rtxn_start() const override;
+  void block_rtxn_stop() const override;
+  void block_rtxn_abort() const override;
 
   bool block_rtxn_start(MDB_txn **mtxn, mdb_txn_cursors **mcur) const;
 
-  virtual void pop_block(block& blk, std::vector<transaction>& txs);
+  void pop_block(block& blk, std::vector<transaction>& txs) override;
 
-  virtual bool can_thread_bulk_indices() const { return true; }
+  bool can_thread_bulk_indices() const override { return true; }
 
   /**
    * @brief return a histogram of outputs on the blockchain
@@ -369,7 +370,7 @@ private:
   void check_and_resize_for_batch(uint64_t batch_num_blocks, uint64_t batch_bytes);
   uint64_t get_estimated_batch_size(uint64_t batch_num_blocks, uint64_t batch_bytes) const;
 
-  virtual void add_block( const block& blk
+  void add_block( const block& blk
                 , size_t block_weight
                 , uint64_t long_term_block_weight
                 , const difficulty_type& cumulative_difficulty
@@ -378,20 +379,20 @@ private:
                 , const crypto::hash& block_hash
                 );
 
-  virtual void remove_block();
+  void remove_block() override;
 
-  virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash);
+  uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash) override;
 
-  virtual void remove_transaction_data(const crypto::hash& tx_hash, const transaction& tx);
+  void remove_transaction_data(const crypto::hash& tx_hash, const transaction& tx) override;
 
-  virtual uint64_t add_output(const crypto::hash& tx_hash,
+  uint64_t add_output(const crypto::hash& tx_hash,
       const tx_out& tx_output,
       const uint64_t& local_index,
       const uint64_t unlock_time,
       const rct::key *commitment
       );
 
-  virtual void add_tx_amount_output_indices(const uint64_t tx_id,
+  void add_tx_amount_output_indices(const uint64_t tx_id,
       const std::vector<uint64_t>& amount_output_indices
       );
 
@@ -399,27 +400,27 @@ private:
 
   void remove_output(const uint64_t amount, const uint64_t& out_index);
 
-  virtual void prune_outputs(uint64_t amount);
+  void prune_outputs(uint64_t amount) override;
 
-  virtual void add_spent_key(const crypto::key_image& k_image);
+  void add_spent_key(const crypto::key_image& k_image) override;
 
-  virtual void remove_spent_key(const crypto::key_image& k_image);
+  void remove_spent_key(const crypto::key_image& k_image) override;
 
   uint64_t num_outputs() const;
 
   // Hard fork
-  virtual void set_hard_fork_version(uint64_t height, uint8_t version);
-  virtual uint8_t get_hard_fork_version(uint64_t height) const;
-  virtual void check_hard_fork_info();
-  virtual void drop_hard_fork_info();
+  void set_hard_fork_version(uint64_t height, uint8_t version) override;
+  uint8_t get_hard_fork_version(uint64_t height) const override;
+  void check_hard_fork_info() override;
+  void drop_hard_fork_info() override;
 
   inline void check_open() const;
 
   bool prune_worker(int mode, uint32_t pruning_seed);
 
-  virtual bool is_read_only() const;
+  bool is_read_only() const override;
 
-  virtual uint64_t get_database_size() const;
+  uint64_t get_database_size() const override;
 
   std::vector<uint64_t> get_block_info_64bit_fields(uint64_t start_height, size_t count, off_t offset) const;
 
@@ -427,7 +428,7 @@ private:
   void add_max_block_size(uint64_t sz);
 
   // fix up anything that may be wrong due to past bugs
-  virtual void fixup();
+  virtual void fixup(fixup_context const context);
 
   // migrate from older DB version to current
   void migrate(const uint32_t oldversion);

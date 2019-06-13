@@ -36,6 +36,7 @@
 #include <cryptonote_basic/cryptonote_basic.h>
 #include <cryptonote_core/blockchain_hooks.h>
 #include <boost/serialization/serialization.hpp>
+#include "cryptonote_basic/cryptonote_basic_impl.h"
 
 #define ADD_CHECKPOINT(h, hash)  CHECK_AND_ASSERT(add_checkpoint(h,  hash), false);
 #define JSON_HASH_FILE_NAME "checkpoints.json"
@@ -140,7 +141,14 @@ public:
   
   bool update_checkpoint(checkpoint_t const &checkpoint);
   
-  /**
+    /*
+       @brief Remove checkpoints that should not be stored persistently, i.e.
+       any checkpoint whose height is not divisible by
+       service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL
+     */
+    void prune_checkpoints(uint64_t height) const;
+
+    /**
      * @brief checks if there is a checkpoint in the future
      *
      * This function checks if the height passed is lower than the highest
