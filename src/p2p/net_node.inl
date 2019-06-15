@@ -1179,9 +1179,7 @@ namespace nodetool
 
       {
           MDEBUG("P2P Request: handle_broadcast: lock");
-          boost::unique_lock<boost::recursive_mutex> cache_guard(m_request_cache_lock, boost::defer_lock),
-              sn_guard(m_supernode_lock, boost::defer_lock);
-          boost::lock(cache_guard, sn_guard);
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
           MDEBUG("P2P Request: handle_broadcast: unlock");
           MDEBUG("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
                        << ", our address(es): " << join_supernodes_addresses(", "));
@@ -1192,9 +1190,129 @@ namespace nodetool
               int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
 
-              post_request_to_supernodes<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", arg, arg.callback_uri);
+              //prepare sorted sns
+              std::vector<std::string> local_sns;
+              std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); }); //   std::back_inserter(local_sns));
 
-              if (arg.hop > 0)
+              std::vector<std::string> redirect_sns;
+              std::vector<std::string> to_sns;
+              {//prepare redirect_supernode_ids
+                  redirect_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
+                  to_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
+                  for(auto it = m_redirect_supernode_ids.begin(); it != m_redirect_supernode_ids.end();)
+                  {
+                      redirect_records_t& recs = it->second;
+                      auto now = Clock::now();
+                      //erase dead records
+                      recs.erase(std::remove_if(recs.begin(), recs.end(), [now](redirect_record_t& v)->bool{ return v.record_death < now; } ), recs.end());
+                      //erase empty redirector
+                      if(recs.empty())
+                      {
+                          it = m_redirect_supernode_ids.erase(it);
+                          continue;
+                      }
+                      redirect_sns.emplace_back(it->first);
+                      to_sns.emplace_back(recs[0].it_local_sn->first); //choose only the first one
+                      ++it;
+                  }
+              }
+
+              std::vector<std::string> my_addresses, known_addresses, unknown_addresses;
+              if(!arg.receiver_addresses.empty())
+              {
+                  //prepare
+                  std::vector<std::string> addresses;
+                  std::copy(arg.receiver_addresses.begin(), arg.receiver_addresses.end(), std::back_inserter(addresses));
+                  std::sort(addresses.begin(), addresses.end());
+
+                  //find my_addresses = (addresses) && (local_sns)
+                  std::set_intersection(addresses.begin(), addresses.end(),
+                                        local_sns.begin(), local_sns.end(),
+                                        std::back_inserter(my_addresses));
+                  {//(addresses) -= (my_addresses)
+                      std::vector<std::string> diff; diff.reserve(addresses.size());
+                      std::set_difference(addresses.begin(), addresses.end(),
+                                          my_addresses.begin(), my_addresses.end(),
+                                          std::back_inserter(diff));
+                      addresses.swap(diff);
+                  }
+
+                  //find known_addresses redirected supernode ids
+                  std::set_intersection(addresses.begin(), addresses.end(),
+                                        redirect_sns.begin(), redirect_sns.end(),
+                                        std::back_inserter(known_addresses));
+                  //find unknown_addresses
+                  std::set_difference(addresses.begin(), addresses.end(),
+                                      known_addresses.begin(), known_addresses.end(),
+                                      std::back_inserter(unknown_addresses));
+
+                  {//MDEBUG
+                      std::ostringstream oss;
+                      oss << "addresses\n";
+                      for(auto& it : addresses) { oss << it << "\n"; }
+                      oss << "known_addresses\n";
+                      for(auto& it : known_addresses) { oss << it << "\n"; }
+                      oss << "unknown_addresses\n";
+                      for(auto& it : unknown_addresses) { oss << it << "\n"; }
+                      MDEBUG("==> broadcast\n") << oss.str();
+                  }
+              }
+              else
+              {
+                  MDEBUG("==> empty redirect found");
+                  my_addresses = local_sns;
+              }
+
+              if(!my_addresses.empty())
+              {
+                  MDEBUG("handle_broadcast : ") << "arg { receiver_addresses : '" << join(arg.receiver_addresses) << "'\n arg.callback_uri : '" << arg.callback_uri << "'}";
+                  MDEBUG("my_addresses ") << join(my_addresses);
+#ifdef UDHT_INFO
+                  arg.hops = arg.hop;
+#endif
+                  for(const auto& id : my_addresses)
+                  {
+                      post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>( m_local_sns[id], "broadcast_to_me", arg, arg.callback_uri);
+                  }
+              }
+
+              if(!known_addresses.empty())
+              {//redirect to known_addresses
+                  cryptonote::COMMAND_RPC_REDIRECT_BROADCAST::request redirect_req;
+#ifdef UDHT_INFO
+                  arg.hops = arg.hop;
+#endif
+                  redirect_req.request = arg;
+                  for(auto& id : known_addresses)
+                  {
+                    auto it = m_redirect_supernode_ids.find(id);
+                    assert(it != m_redirect_supernode_ids.end());
+                    assert(!it->second.empty());
+                    redirect_record_t& rec = it->second[0];
+                    local_sn_t& sn = rec.it_local_sn->second;
+                    std::string callback_url = sn.redirect_uri;
+                    MDEBUG("==> redirect broadcast for \n") << id << "\n url =" << callback_url;
+                    redirect_req.receiver_id = id;
+                    post_request_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "redirect_to_other_supenode", redirect_req, callback_url);
+                  }
+              }
+
+              bool forward_broadcast = true;
+              //modify broadcast addresses
+              if(!arg.receiver_addresses.empty())
+              {
+                  if(unknown_addresses.empty())
+                  {
+                      forward_broadcast = false;
+                  }
+                  else
+                  {
+                      arg.receiver_addresses.clear();
+                      std::copy(unknown_addresses.begin(), unknown_addresses.end(), std::back_inserter(arg.receiver_addresses));
+                  }
+              }
+
+              if (forward_broadcast && arg.hop > 0)
               {
                   MDEBUG("P2P Request: handle_broadcast: notify broadcast from " << arg.sender_address
                                << " to peers. Hop level: " << arg.hop);
@@ -1208,8 +1326,15 @@ namespace nodetool
               }
               else
               {
-                  MDEBUG("P2P Request: handle_broadcast: hop counter ended for broadcast from "
-                               << arg.sender_address);
+                  if(!forward_broadcast)
+                  {
+                      MDEBUG("P2P Request: handle_broadcast: all recipients found for broadcast");
+                  }
+                  else
+                  {
+                      MDEBUG("P2P Request: handle_broadcast: hop counter ended for broadcast from "
+                                   << arg.sender_address);
+                  }
               }
           }
           MDEBUG("P2P Request: handle_broadcast: clean request cache");
@@ -2560,7 +2685,7 @@ namespace nodetool
 
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  void node_server<t_payload_net_handler>::do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req)
+  void node_server<t_payload_net_handler>::do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req, uint64_t hop)
   {
       MDEBUG("Incoming broadcast request");
 
@@ -2590,11 +2715,9 @@ namespace nodetool
 #endif
 
       COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
-      p2p_req.sender_address = req.sender_address;
-      p2p_req.callback_uri = req.callback_uri;
-      p2p_req.data = req.data;
-      p2p_req.wait_answer = req.wait_answer;
-      p2p_req.hop = HOP_RETRIES_MULTIPLIER * get_max_hop(get_routes());
+      //copy all cryptonote::COMMAND_RPC_BROADCAST::request members
+      static_cast<cryptonote::COMMAND_RPC_BROADCAST::request&>(p2p_req) = req;
+      p2p_req.hop = (hop)? hop : -1;
       p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
 
       {

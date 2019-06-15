@@ -61,6 +61,26 @@ DISABLE_VS_WARNINGS(4355)
 namespace nodetool
 {
   using Uuid = boost::uuids::uuid;
+  using Clock = std::chrono::steady_clock;
+  using sn_id_t = std::string;
+  using redirect_id_t = sn_id_t;
+
+  struct local_sn_t
+  {
+    std::chrono::steady_clock::time_point sn_death; //death time of this struct
+    std::string url; //base URL for forwarding requests to supernode
+    std::string redirect_uri; //special uri for UDHT protocol redirection mechanism
+    uint32_t redirect_timeout_ms;
+    epee::net_utils::http::http_simple_client client;
+  };
+
+  struct redirect_record_t
+  {
+    typename std::map<sn_id_t, local_sn_t>::iterator it_local_sn;
+    Clock::time_point record_death; //death time of this record
+  };
+
+  using redirect_records_t = std::vector<redirect_record_t>;
 
   template<class base_type>
   struct p2p_connection_context_t: base_type //t_payload_net_handler::connection_context //public net_utils::connection_context_base
@@ -169,7 +189,7 @@ namespace nodetool
      * \brief do_broadcast - posts broadcast message to p2p network
      * \param req
      */
-    void do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req);
+    void do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req, uint64_t hop = 0);
     /*!
      * \brief do_multicast - posts multicast message to p2p network
      * \param req
@@ -224,6 +244,33 @@ namespace nodetool
 
     // sometimes supernode gets very busy so it doesn't respond within 1 second, increasing timeout to 3s
     static constexpr size_t SUPERNODE_HTTP_TIMEOUT_MILLIS = 3 * 1000;
+    template<class request_struct>
+    int post_request_to_supernode(local_sn_t &local_sn, const std::string &method, const typename request_struct::request &body,
+                                  const std::string &endpoint = std::string())
+    {
+        boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
+        epee::json_rpc::request<typename request_struct::request>& req = static_cast<epee::json_rpc::request<typename request_struct::request> &>(init_req);
+        req.jsonrpc = "2.0";
+        req.id = 0;
+        req.method = method;
+        req.params = body;
+
+        std::string uri = "/" + method;
+        if (!endpoint.empty())
+        {
+            uri = endpoint;
+        }
+        typename request_struct::response resp = AUTO_VAL_INIT(resp);
+        bool r = epee::net_utils::invoke_http_json(local_sn.url + uri,
+                                                   req, resp, local_sn.client,
+                                                   std::chrono::milliseconds(size_t(SUPERNODE_HTTP_TIMEOUT_MILLIS)), "POST");
+        if (!r || resp.status == 0)
+        {
+            return 0;
+        }
+        return 1;
+    }
+
     template<class request_struct>
     int post_request_to_supernode(local_supernode &supernode, const std::string &method, const typename request_struct::request &body,
                                   const std::string &endpoint = std::string())
@@ -442,6 +489,18 @@ namespace nodetool
         return s.str();
     }
 
+    template<typename C>
+    std::string join(const C& c, const std::string &joiner = " ") {
+        std::ostringstream s;
+        bool first = true;
+        for (const auto& addr : c) {
+            if (first) first = false;
+            else s << joiner;
+            s << addr;
+        }
+        return s.str();
+    }
+
     bool remove_supernode(const std::string &addr) {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
         return m_supernodes.erase(addr);
@@ -464,6 +523,81 @@ namespace nodetool
     uint64_t get_multicast_bytes_in() const { return m_multicast_bytes_in; }
     uint64_t get_multicast_bytes_out() const { return m_multicast_bytes_out; }
 
+    //returns empty if sn is not found or dead
+    sn_id_t check_supernode_id(const sn_id_t& local_sn)
+    {
+      if(local_sn.empty()) return local_sn;
+      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+      auto it = m_local_sns.find(local_sn);
+      if(it == m_local_sns.end()) return sn_id_t();
+      local_sn_t& l_sn = it->second;
+      if(l_sn.sn_death < Clock::now())
+      {
+        //erase all l_sn references from m_redirect_supernode_ids
+        for(auto rit = m_redirect_supernode_ids.begin(), erit = m_redirect_supernode_ids.end(); rit != erit;)
+        {
+          redirect_records_t& recs = rit->second;
+          assert(!recs.empty());
+          recs.erase(std::remove_if(recs.begin(), recs.end(), [it](redirect_record_t& v)->bool{ return v.it_local_sn == it; } ), recs.end());
+          if(recs.empty())
+          {
+            rit = m_redirect_supernode_ids.erase(rit);
+          }
+          else ++rit;
+        }
+        //erase l_sn
+        m_local_sns.erase(it);
+        return sn_id_t();
+      }
+      return local_sn;
+    }
+
+    void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req)
+    {
+      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+
+      local_sn_t& sn = m_local_sns[req.supernode_id];
+      sn.url = req.supernode_url;
+      sn.redirect_uri = req.redirect_uri;
+      sn.redirect_timeout_ms = req.redirect_timeout_ms;
+      sn.sn_death = get_death_time(req.supernode_id);
+
+      {//set sn.client
+        epee::net_utils::http::url_content parsed{};
+        bool ret = epee::net_utils::parse_url(req.supernode_url, parsed);
+        if (sn.client.is_connected()) sn.client.disconnect();
+        sn.client.set_server(parsed.host, std::to_string(parsed.port), {});
+      }
+    }
+
+    void redirect_id_add(const std::string& id, const std::string& my_id)
+    {
+        boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+        auto it = m_local_sns.find(my_id);
+        if(it == m_local_sns.end()) return;
+        auto death_time = get_death_time(my_id);
+        redirect_records_t& recs = m_redirect_supernode_ids[id];
+        auto it2 = std::find_if(recs.begin(), recs.end(), [it](const redirect_record_t& r)->bool { return r.it_local_sn == it; });
+        if(it2 == recs.end())
+        {
+          recs.emplace_back(redirect_record_t{it, death_time});
+
+        }
+        else
+        {
+          assert( it2->it_local_sn == it );
+          it2->record_death = death_time;
+        }
+    }
+
+    Clock::time_point get_death_time(const sn_id_t& local_sn)
+    {
+      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+      auto it = m_local_sns.find(local_sn);
+      assert(it != m_local_sns.end());
+      return Clock::now() + std::chrono::milliseconds(it->second.redirect_timeout_ms);
+    }
+
   private:
     void handle_stakes_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes);
     void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
@@ -476,6 +610,10 @@ namespace nodetool
     boost::recursive_mutex m_supernode_lock;
     boost::recursive_mutex m_request_cache_lock;
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
+
+    std::map<sn_id_t, local_sn_t> m_local_sns;
+    std::map<redirect_id_t, redirect_records_t> m_redirect_supernode_ids; //recipients ids to redirect to the supernode
+    boost::recursive_mutex m_supernodes_lock;
 
     std::string m_config_folder;
 

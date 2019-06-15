@@ -2238,7 +2238,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp, bool wide)
   {
       LOG_PRINT_L0("RPC Request: on_broadcast: start");
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
@@ -2251,9 +2251,62 @@ namespace cryptonote
           return false;
       }
 
-      m_p2p.do_broadcast(req);
+      {//MDEBUG
+          std::ostringstream oss;
+          oss << "{ receiver_addresses : '";
+          for(auto& it : req.receiver_addresses) { oss << it << "; "; }
+          oss << "'\n callback_uri : '" << req.callback_uri << "'}";
+          MDEBUG("core_rpc_server::on_broadcast : ") << oss.str();
+      }
+
+      m_p2p.do_broadcast(req, (wide)? 0 : m_broadcast_hops);
+
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_broadcast: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_wide_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  {
+      return on_broadcast(req, res, error_resp, true);
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_register_supernode(const COMMAND_RPC_REGISTER_SUPERNODE::request& req, COMMAND_RPC_REGISTER_SUPERNODE::response& res, epee::json_rpc::error& error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_register_supernode: start");
+      m_broadcast_hops = req.broadcast_hops;
+      m_p2p.register_supernode(req);
+
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_register_supernode: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_redirect_supernode_id(const COMMAND_RPC_REDIRECT_SUPERNODE_ID::request& req, COMMAND_RPC_REDIRECT_SUPERNODE_ID::response& res, epee::json_rpc::error& error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_redirect_supernode_id: start");
+      // validate input parameters
+      bool id_ok = !req.id.empty();
+      if(id_ok)
+      {
+        crypto::public_key id;
+        id_ok = id_ok && epee::string_tools::hex_to_pod(req.id, id);
+        id_ok = id_ok && crypto::check_key(id);
+      }
+      if (!id_ok)
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+        error_resp.message = "Invalid supernode ID parameter of on_redirect_supernode_id";
+        return false;
+      }
+
+      m_p2p.redirect_id_add(req.id, req.my_id);
+
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_redirect_supernode_id: end");
       return true;
   }
 
