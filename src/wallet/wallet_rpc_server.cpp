@@ -1,21 +1,21 @@
 // Copyright (c) 2014-2018, The Monero Project
-// 
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -25,7 +25,7 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
+//
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 #include <boost/format.hpp>
 #include <boost/asio/ip/address.hpp>
@@ -54,6 +54,7 @@ using namespace epee;
 #include "daemonizer/daemonizer.h"
 #include "wallet/wallet_errors.h"
 #include "utils/cryptmsg.h"
+#include "graft_rta_config.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.rpc"
@@ -832,6 +833,74 @@ namespace tools
     if (!validate_transfer(req.destinations, req.payment_id, dsts, extra, true, er))
     {
       return false;
+    }
+
+    if (req.stake_transfer) {
+      crypto::signature supernode_signature;
+      if (!epee::string_tools::hex_to_pod(req.supernode_signature, supernode_signature))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_WRONG_SIGNATURE;
+        er.message = "failed to parse supernode signature";
+        return false;
+      }
+
+      crypto::public_key W;
+      if (!epee::string_tools::hex_to_pod(req.supernode_public_id, W) || !check_key(W))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_WRONG_SUPERNODE_KEY;
+        er.message = "invalid supernode public identifier";
+        return false;
+      }
+
+      const cryptonote::account_public_address& supernode_public_address = dsts.front().addr;
+      std::string supernode_public_address_str = cryptonote::get_account_address_as_str(m_wallet->nettype(), dsts.front().is_subaddress, supernode_public_address);
+      std::string data = supernode_public_address_str + ":" + req.supernode_public_id;
+      crypto::hash hash;
+      crypto::cn_fast_hash(data.data(), data.size(), hash);
+
+      if (!crypto::check_signature(hash, W, supernode_signature))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_WRONG_SIGNATURE;
+        er.message = "invalid supernode signature";
+        return false;
+      }
+
+      auto current_height = m_wallet->get_blockchain_current_height();
+      if (req.unlock_time < current_height + config::graft::STAKE_MIN_UNLOCK_TIME_FOR_WALLET)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "unlock_time is too low";
+        return false;
+      }
+
+      if (req.unlock_time > current_height + config::graft::STAKE_MAX_UNLOCK_TIME)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "unlock_time is too high";
+        return false;
+      }
+
+      if (dsts.size() != 1)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "stake transfer must go to exactly one recipient";
+        return false;
+      }
+
+      uint64_t amount = dsts.front().amount;
+      if (amount < config::graft::TIER1_STAKE_AMOUNT && !req.allow_low_stake)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "staked amount is too low";
+        return false;
+      }
+
+      if (!add_graft_stake_tx_extra_to_extra(extra, req.supernode_public_id, supernode_public_address, supernode_signature))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "failed to add stake transaction extra fields";
+        return false;
+      }
     }
 
     try
@@ -2725,7 +2794,7 @@ namespace tools
       return false;
     }
 
-    cryptonote::COMMAND_RPC_START_MINING::request daemon_req = AUTO_VAL_INIT(daemon_req); 
+    cryptonote::COMMAND_RPC_START_MINING::request daemon_req = AUTO_VAL_INIT(daemon_req);
     daemon_req.miner_address = m_wallet->get_account().get_public_address_str(m_wallet->nettype());
     daemon_req.threads_count        = req.threads_count;
     daemon_req.do_background_mining = req.do_background_mining;
