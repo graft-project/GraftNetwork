@@ -225,9 +225,27 @@ bool construct_miner_tx_manually(size_t height, uint64_t already_generated_coins
 bool construct_tx_to_key(const std::vector<test_event_entry>& events, cryptonote::transaction& tx,
                          const cryptonote::block& blk_head, const cryptonote::account_base& from, const cryptonote::account_base& to,
                          uint64_t amount, uint64_t fee, size_t nmix);
+
+bool construct_stake_tx_to_key(const std::vector<test_event_entry>& events, cryptonote::transaction& tx,
+                         const cryptonote::block& blk_head, const cryptonote::account_base& from, const cryptonote::account_base& to,
+                         uint64_t amount, uint64_t fee, size_t nmix,
+                         const crypto::public_key &supernode_id,
+                         const crypto::signature &supernode_sign,
+                         uint64_t unlock_height);
+
+
+
 cryptonote::transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const cryptonote::block& blk_head,
                                             const cryptonote::account_base& acc_from, const cryptonote::account_base& acc_to,
                                             uint64_t amount, uint64_t fee);
+
+
+cryptonote::transaction construct_stake_tx_with_fee(std::vector<test_event_entry>& events, const cryptonote::block& blk_head,
+                                            const cryptonote::account_base& acc_from, const cryptonote::account_base& acc_to,
+                                            uint64_t amount, uint64_t fee,
+                                            const crypto::public_key &supernode_id,
+                                            const crypto::signature &supernode_sign,
+                                            uint64_t unlock_height);
 
 void get_confirmed_txs(const std::vector<cryptonote::block>& blockchain, const map_hash2tx_t& mtx, map_hash2tx_t& confirmed_txs);
 bool find_block_chain(const std::vector<test_event_entry>& events, std::vector<cryptonote::block>& blockchain, map_hash2tx_t& mtx, const crypto::hash& head);
