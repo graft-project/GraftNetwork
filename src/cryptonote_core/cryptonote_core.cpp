@@ -1370,6 +1370,11 @@ namespace cryptonote
     uint64_t depth = m_blockchain_storage.get_current_blockchain_height() - last_received_block_height;
     m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, depth);
   }
+
+  StakeTransactionProcessor *core::get_stake_tx_processor()
+  {
+    return &m_graft_stake_transaction_processor;
+  }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks)
   {

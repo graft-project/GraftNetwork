@@ -801,6 +801,12 @@ namespace cryptonote
       */
      void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height);
 
+     /**
+      * @brief get_stake_tx_processor - returns stake tx processor
+      * @return pointer to StakeTransactionProcerssor
+      */
+     StakeTransactionProcessor * get_stake_tx_processor();
+
    private:
 
      /**
