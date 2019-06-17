@@ -44,10 +44,17 @@ public:
   /// Force invoke update handler for blockchain based list
   void invoke_update_blockchain_based_list_handler(bool force = true, size_t depth = 1);
 
-  /// Turns on/off processing
-  void set_enabled(bool arg);
-
+  // checks if stake tx procesing enabled
   bool is_enabled() const;
+
+  /// activate stake processing from specific height
+  void set_active_from_height(uint64_t height) { m_active_height = height; }
+
+  /// return height stake processing active from
+  uint64_t active_from_height() const { return m_active_height; }
+
+  StakeTransactionStorage * get_storage() const { return m_storage.get(); }
+  BlockchainBasedList * get_blockchain_based_list() const { return m_blockchain_based_list.get(); }
 
   /// Check that transaction with tx_hash does not exist yet. Those to be disqualified, and signers are in corresponding sets.
   bool check_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash);
@@ -69,12 +76,14 @@ private:
   Blockchain& m_blockchain;
   std::unique_ptr<StakeTransactionStorage> m_storage;
   std::unique_ptr<BlockchainBasedList> m_blockchain_based_list;
+  // TODO: move lock to storage?
   mutable epee::critical_section m_storage_lock;
   supernode_stakes_update_handler m_on_stakes_update;
   blockchain_based_list_update_handler m_on_blockchain_based_list_update;
   bool m_stakes_need_update;
   bool m_blockchain_based_list_need_update;
   bool m_enabled {true};
+  uint64_t m_active_height {1};
 };
 
 }
