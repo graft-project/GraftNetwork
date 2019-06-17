@@ -32,6 +32,36 @@
 #pragma once 
 #include "chaingen.h"
 #include "misc_log_ex.h"
+#include <vector>
+
+struct Supernode {
+  struct Keypair {
+    crypto::public_key pkey;
+    crypto::secret_key skey;
+  };
+  cryptonote::account_base account;
+  Keypair keys;
+  Supernode()
+  {
+    account.generate();
+    crypto::generate_keys(keys.pkey, keys.skey);
+  }
+  crypto::signature signature()
+  {
+    std::string address = cryptonote::get_account_address_as_str(
+          cryptonote::MAINNET, false, account.get_keys().m_account_address);
+    std::string msg = address + ":" + epee::string_tools::pod_to_hex(keys.pkey);
+    crypto::signature result;
+    sign_message(msg, result);
+    return result;
+  }
+  void sign_message(const std::string msg, crypto::signature &signature)
+  {
+    crypto::hash hash;
+    crypto::cn_fast_hash(msg.data(), msg.size(), hash);
+    crypto::generate_signature(hash, keys.pkey, keys.skey, signature);
+  }
+};
 
 struct gen_rta_tests : public test_chain_unit_base
 {
@@ -42,12 +72,10 @@ struct gen_rta_tests : public test_chain_unit_base
 
   // bool check_block_verification_context(const cryptonote::block_verification_context& bvc, size_t event_idx, const cryptonote::block& blk);
 
-  bool check_supernode_stake1(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
-
+  bool check1(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
+  bool check_stake_registered(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
+  bool check_stake_expired(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
 private:
-  cryptonote::account_base m_miner;
-  cryptonote::account_base m_supernode1;
-
 };
 
 // this is how to define hardforks table for the cryptonote::core
