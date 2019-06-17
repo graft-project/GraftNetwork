@@ -136,11 +136,7 @@ void StakeTransactionProcessor::init_storages_impl()
   if (m_storage || m_blockchain_based_list)
     throw std::runtime_error("StakeTransactionProcessor storages have been already initialized");
 
-  uint64_t first_block_number = m_enabled ? m_blockchain.get_earliest_ideal_height_for_version(config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
-                                          : std::numeric_limits<uint64_t>().max();
-
-  if (first_block_number)
-    first_block_number--;
+  uint64_t first_block_number = m_active_height;
 
   MDEBUG("Initialize stake processing storages. First block height is " << first_block_number);
 
@@ -153,10 +149,9 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
   if (block_index <= m_storage->get_last_processed_block_index())
     return;
 
-  if (m_blockchain.get_hard_fork_version(block_index) >= config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
+  if (block_index >= m_active_height)
   {
-      //analyze block transactions and add new stake transactions if exist
-
+    //analyze block transactions and add new stake transactions if exist
     stake_transaction stake_tx;
 
     std::vector<transaction> txs;
@@ -295,7 +290,7 @@ void StakeTransactionProcessor::synchronize()
 
   uint64_t height = m_blockchain.get_current_blockchain_height();
 
-  if (!height || m_blockchain.get_hard_fork_version(height - 1) < config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
+  if (!height || height < m_active_height)
     return;
 
   if (!m_storage || !m_blockchain_based_list)
@@ -492,12 +487,7 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler(bool
   invoke_update_blockchain_based_list_handler_impl(depth);
 }
 
-void StakeTransactionProcessor::set_enabled(bool arg)
-{
-  m_enabled = arg;
-}
-
 bool StakeTransactionProcessor::is_enabled() const
 {
-  return m_enabled;
+  return m_active_height < CRYPTONOTE_MAX_BLOCK_NUMBER;
 }

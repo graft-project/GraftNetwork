@@ -56,6 +56,7 @@ using namespace epee;
 #include "ringct/rctSigs.h"
 #include "common/notify.h"
 #include "version.h"
+#include "graft_rta_config.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "cn"
@@ -342,9 +343,21 @@ namespace cryptonote
 
     if (get_arg(vm, arg_disable_stake_tx_processing)) {
       MWARNING("stake transaction processing disabled");
-      m_graft_stake_transaction_processor.set_enabled(false);
+      m_graft_stake_transaction_processor.set_active_from_height(CRYPTONOTE_MAX_BLOCK_NUMBER);
+    } else {
+      const auto & hardforks = m_blockchain_storage.get_hard_fork_heights(m_nettype);
+      uint64_t stakes_active_height = 1;
+      for (const auto & hf: hardforks) {
+        if (hf.version == config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION) {
+          stakes_active_height = hf.height;
+          break;
+        }
+      }
+      if (stakes_active_height == 1) {
+        MWARNING("Stake transaction processor: activation height not defined for nettype: " << m_nettype);
+      }
+      m_graft_stake_transaction_processor.set_active_from_height(stakes_active_height);
     }
-
     return true;
   }
   //-----------------------------------------------------------------------------------------------
