@@ -2202,23 +2202,10 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
-  {
-      LOG_PRINT_L0("RPC Request: on_supernode_announce: start");
-      // send p2p announce
-      m_p2p.add_supernode(req.supernode_public_id, req.network_address);
-      m_p2p.do_supernode_announce(req);
-      res.status = 0;
-      LOG_PRINT_L0("RPC Request: on_supernode_announce: end");
-      return true;
-  }
-
-  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: start");
       // send p2p stakes
-      m_p2p.add_supernode(req.supernode_public_id, req.network_address);
       m_p2p.send_stakes_to_supernode();
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: end");
@@ -2230,7 +2217,6 @@ namespace cryptonote
   {
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: start");
       // send p2p stake txs
-      m_p2p.add_supernode(req.supernode_public_id, req.network_address);
       m_p2p.send_blockchain_based_list_to_supernode(req.last_received_block_height);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: end");
@@ -2327,28 +2313,11 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp)
-  {
-      LOG_PRINT_L0("RPC Request: on_get_tunnels: start");
-      res.supernodes_addresses = m_p2p.get_supernodes_addresses();
-      res.tunnels = m_p2p.get_tunnels();
-      // Temporary backwards compatibility (remove me along with the supernode_address member): store the first SN
-      if (res.supernodes_addresses.size() > 0)
-          res.supernode_address = res.supernodes_addresses[0];
-      LOG_PRINT_L0("RPC Request: on_get_tunnels: end");
-      return true;
-  }
-
-  //------------------------------------------------------------------------------------------------------------------------------
 
   bool core_rpc_server::on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp)
   {
-      res.announce_bytes_in = m_p2p.get_announce_bytes_in();
-      res.announce_bytes_out = m_p2p.get_announce_bytes_out();
       res.broadcast_bytes_in = m_p2p.get_broadcast_bytes_in();
       res.broadcast_bytes_out = m_p2p.get_broadcast_bytes_out();
-      res.multicast_bytes_in = m_p2p.get_multicast_bytes_in();
-      res.multicast_bytes_out = m_p2p.get_multicast_bytes_out();
       return true;
   }
 
