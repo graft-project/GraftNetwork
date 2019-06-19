@@ -68,7 +68,7 @@ namespace nodetool
   struct local_sn_t
   {
     std::chrono::steady_clock::time_point sn_death; //death time of this struct
-    std::string url; //base URL for forwarding requests to supernode
+    std::string uri; //base URI (here it is URL without host and port) for forwarding requests to supernode
     std::string redirect_uri; //special uri for UDHT protocol redirection mechanism
     uint32_t redirect_timeout_ms;
     epee::net_utils::http::http_simple_client client;
@@ -247,7 +247,7 @@ namespace nodetool
             uri = endpoint;
         }
         typename request_struct::response resp = AUTO_VAL_INIT(resp);
-        bool r = epee::net_utils::invoke_http_json(local_sn.url + uri,
+        bool r = epee::net_utils::invoke_http_json(local_sn.uri + uri,
                                                    req, resp, local_sn.client,
                                                    std::chrono::milliseconds(size_t(SUPERNODE_HTTP_TIMEOUT_MILLIS)), "POST");
         if (!r || resp.status == 0)
@@ -284,14 +284,38 @@ namespace nodetool
         return 1;
     }
 
-    template<class request_struct>
+    template<typename request_struct>
     int post_request_to_supernodes(const std::string &method, const typename request_struct::request &body,
                                    const std::string &endpoint = std::string())
     {
-        int ret = 0;
-        for (auto &supernode : m_supernodes)
-            ret += post_request_to_supernode<request_struct>(supernode.second, method, body, endpoint);
-        return ret;
+      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+      int ret = 0;
+      for(auto& sn : m_local_sns)
+        ret += post_request_to_supernode<request_struct>(sn.second, method, body, endpoint);
+      return ret;
+    }
+
+    template<typename request_struct>
+    int post_request_to_supernode_receivers(const std::string &method, const typename request_struct::request &body,
+                                   const std::string &endpoint = std::string())
+    {
+      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+      int ret = 0;
+      if(body.receiver_addresses.empty())
+      {
+        for(auto& sn : m_local_sns)
+          ret += post_request_to_supernode<request_struct>(sn.second, method, body, endpoint);
+      }
+      else
+      {
+        for(auto& id : body.receiver_addresses)
+        {
+          auto it = m_local_sns.find(id);
+          if(it == m_local_sns.end()) continue;
+          ret += post_request_to_supernode<request_struct>(it->second, method, body, endpoint);
+        }
+      }
+      return ret;
     }
 
     void remove_old_request_cache();
@@ -538,17 +562,19 @@ namespace nodetool
 
     void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req)
     {
+      if(req.supernode_id.empty()) return;
+
       boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
 
       local_sn_t& sn = m_local_sns[req.supernode_id];
-      sn.url = req.supernode_url;
       sn.redirect_uri = req.redirect_uri;
       sn.redirect_timeout_ms = req.redirect_timeout_ms;
       sn.sn_death = get_death_time(req.supernode_id);
 
-      {//set sn.client
+      {//set sn.client & sn.uri
         epee::net_utils::http::url_content parsed{};
         bool ret = epee::net_utils::parse_url(req.supernode_url, parsed);
+        sn.uri = std::move(parsed.uri);
         if (sn.client.is_connected()) sn.client.disconnect();
         sn.client.set_server(parsed.host, std::to_string(parsed.port), {});
       }
@@ -565,7 +591,6 @@ namespace nodetool
         if(it2 == recs.end())
         {
           recs.emplace_back(redirect_record_t{it, death_time});
-
         }
         else
         {

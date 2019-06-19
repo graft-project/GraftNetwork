@@ -208,6 +208,7 @@ namespace nodetool
           std::string message_id;
 
           BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(receiver_addresses)
             KV_SERIALIZE(sender_address)
             KV_SERIALIZE(callback_uri)
             KV_SERIALIZE(data)
@@ -216,8 +217,6 @@ namespace nodetool
             KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
       };
-
-      struct response : public cryptonote::COMMAND_RPC_BROADCAST::response { };
   };
 
   /************************************************************************/

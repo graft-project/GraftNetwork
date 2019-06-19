@@ -2416,6 +2416,7 @@ namespace cryptonote
       std::string my_id;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(id)
+        KV_SERIALIZE(my_id)
       END_KV_SERIALIZE_MAP()
     };
 

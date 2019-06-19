@@ -1116,9 +1116,16 @@ namespace nodetool
       {
           MDEBUG("P2P Request: handle_broadcast: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+          std::string our_addrs;
+          {
+              //prepare sorted sns
+              std::vector<std::string> local_sns;
+              std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); });
+              our_addrs = join(local_sns, ", ");
+          }
           MDEBUG("P2P Request: handle_broadcast: unlock");
           MDEBUG("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
-                       << ", our address(es): " << join_supernodes_addresses(", "));
+                       << ", our address(es): " << our_addrs);
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
               MDEBUG("P2P Request: handle_broadcast: post to supernodes");
@@ -1128,7 +1135,7 @@ namespace nodetool
 
               //prepare sorted sns
               std::vector<std::string> local_sns;
-              std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); }); //   std::back_inserter(local_sns));
+              std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); });
 
               std::vector<std::string> redirect_sns;
               std::vector<std::string> to_sns;
@@ -2488,10 +2495,7 @@ namespace nodetool
 
       MDEBUG("P2P Request: do_broadcast: broadcast to me");
       {
-          LOG_PRINT_L3("P2P Request: do_broadcast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          LOG_PRINT_L3("P2P Request: do_broadcast: unlock");
-          post_request_to_supernodes<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
+          post_request_to_supernode_receivers<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
       }
 
 #ifdef LOCK_RTA_SENDING
@@ -2932,9 +2936,9 @@ namespace nodetool
   {
     static std::string supernode_endpoint("send_supernode_stakes");
 
-    boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+    boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
 
-    if (m_supernodes.empty())
+    if (m_local_sns.empty())
       return;
 
     MDEBUG("handle_stakes_update to supernode for block #" << block_height);
@@ -2973,9 +2977,9 @@ namespace nodetool
   {
     static std::string supernode_endpoint("blockchain_based_list");
 
-    boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+    boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
 
-    if (m_supernodes.empty())
+    if (m_local_sns.empty())
       return;
 
     MDEBUG("handle_blockchain_based_list_update to supernode for block #" << block_height);

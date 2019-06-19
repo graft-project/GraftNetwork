@@ -2299,7 +2299,23 @@ namespace cryptonote
       if (!id_ok)
       {
         error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-        error_resp.message = "Invalid supernode ID parameter of on_redirect_supernode_id";
+        std::ostringstream oss; oss << "Invalid supernode ID parameter '" << req.id << "' of on_redirect_supernode_id";
+        error_resp.message = oss.str();
+        return false;
+      }
+
+      bool my_id_ok = !req.my_id.empty();
+      if(my_id_ok)
+      {
+        crypto::public_key my_id;
+        my_id_ok = my_id_ok && epee::string_tools::hex_to_pod(req.my_id, my_id);
+        my_id_ok = my_id_ok && crypto::check_key(my_id);
+      }
+      if (!my_id_ok)
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+        std::ostringstream oss; oss << "Invalid local supernode ID parameter '" << req.my_id << "' of on_redirect_supernode_id";
+        error_resp.message = oss.str();
         return false;
       }
 
