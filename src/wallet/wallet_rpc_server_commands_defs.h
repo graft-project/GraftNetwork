@@ -482,6 +482,11 @@ namespace wallet_rpc
       bool get_tx_hex;
       bool get_tx_metadata;
 
+      bool stake_transfer;
+      std::string supernode_public_id;
+      std::string supernode_signature;
+      bool allow_low_stake;
+
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(destinations)
         KV_SERIALIZE(account_index)
@@ -495,6 +500,10 @@ namespace wallet_rpc
         KV_SERIALIZE_OPT(do_not_relay, false)
         KV_SERIALIZE_OPT(get_tx_hex, false)
         KV_SERIALIZE_OPT(get_tx_metadata, false)
+        KV_SERIALIZE_OPT(stake_transfer, false)
+        KV_SERIALIZE(supernode_public_id)
+        KV_SERIALIZE(supernode_signature)
+        KV_SERIALIZE_OPT(allow_low_stake, false)
       END_KV_SERIALIZE_MAP()
     };
 
