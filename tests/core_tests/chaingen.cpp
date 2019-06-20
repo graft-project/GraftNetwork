@@ -570,7 +570,7 @@ bool construct_tx_to_key(const std::vector<test_event_entry>& events, cryptonote
 
 bool construct_stake_tx_to_key(const std::vector<test_event_entry> &events, transaction &tx, const block &blk_head, const account_base &from, const account_base &to,
                                uint64_t amount, uint64_t fee, size_t nmix,
-                               const public_key &supernode_id, const signature &supernode_sign, uint64_t unlock_height)
+                               const public_key &supernode_id, const signature &supernode_sign, uint64_t unlock_time)
 {
   vector<tx_source_entry> sources;
   vector<tx_destination_entry> destinations;
@@ -578,7 +578,7 @@ bool construct_stake_tx_to_key(const std::vector<test_event_entry> &events, tran
   std::vector<uint8_t> extra;
   add_graft_stake_tx_extra_to_extra(extra,  epee::string_tools::pod_to_hex(supernode_id),
                                     to.get_keys().m_account_address, supernode_sign);
-  return construct_tx(from.get_keys(), sources, destinations, from.get_keys().m_account_address, extra, tx, unlock_height);
+  return construct_tx(from.get_keys(), sources, destinations, from.get_keys().m_account_address, extra, tx, unlock_time);
 }
 
 
@@ -593,10 +593,10 @@ transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const b
 
 transaction construct_stake_tx_with_fee(std::vector<test_event_entry>& events, const block& blk_head,
                                   const account_base& acc_from, const account_base& acc_to, uint64_t amount, uint64_t fee,
-                                  const public_key &supernode_id, const signature &supernode_sign, uint64_t unlock_height)
+                                  const public_key &supernode_id, const signature &supernode_sign, uint64_t unlock_time)
 {
   transaction tx;
-  construct_stake_tx_to_key(events, tx, blk_head, acc_from, acc_to, amount, fee, 0, supernode_id, supernode_sign, unlock_height);
+  construct_stake_tx_to_key(events, tx, blk_head, acc_from, acc_to, amount, fee, 0, supernode_id, supernode_sign, unlock_time);
   events.push_back(tx);
   return tx;
 }

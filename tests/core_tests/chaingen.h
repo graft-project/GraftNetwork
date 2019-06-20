@@ -231,7 +231,7 @@ bool construct_stake_tx_to_key(const std::vector<test_event_entry>& events, cryp
                          uint64_t amount, uint64_t fee, size_t nmix,
                          const crypto::public_key &supernode_id,
                          const crypto::signature &supernode_sign,
-                         uint64_t unlock_height);
+                         uint64_t unlock_time);
 
 
 
@@ -245,7 +245,7 @@ cryptonote::transaction construct_stake_tx_with_fee(std::vector<test_event_entry
                                             uint64_t amount, uint64_t fee,
                                             const crypto::public_key &supernode_id,
                                             const crypto::signature &supernode_sign,
-                                            uint64_t unlock_height);
+                                            uint64_t unlock_time);
 
 void get_confirmed_txs(const std::vector<cryptonote::block>& blockchain, const map_hash2tx_t& mtx, map_hash2tx_t& confirmed_txs);
 bool find_block_chain(const std::vector<test_event_entry>& events, std::vector<cryptonote::block>& blockchain, map_hash2tx_t& mtx, const crypto::hash& head);
