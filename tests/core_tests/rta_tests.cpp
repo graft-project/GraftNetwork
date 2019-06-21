@@ -84,7 +84,7 @@ gen_rta_tests::gen_rta_tests()
 {
   // validation calls own constructor so we can't use members here
   if (g_supernode_list.size() == 0) {
-    static const size_t LIST_SIZE = 1;
+    static const size_t LIST_SIZE = 2;
     for (size_t i = 0; i < LIST_SIZE; ++i) {
       g_supernode_list.push_back(Supernode());
     }
@@ -139,19 +139,27 @@ bool gen_rta_tests::generate(std::vector<test_event_entry>& events) const
   const size_t STAKE_PERIOD = 100;
   // deposit stakes
   cryptonote::block prev_block;
+  std::list<cryptonote::transaction> stake_txes;
   for (Supernode & sn : g_supernode_list) {
     // create stake transaction
     transaction tx(construct_stake_tx_with_fee(events, blk_4, miner0, sn.account, MK_COINS(50000), TESTS_DEFAULT_FEE,
                                                sn.keys.pkey, sn.signature(), 64 + STAKE_PERIOD));
-    MAKE_NEXT_BLOCK_TX1(events, blk_5, blk_4, miner0, tx); // height = 64
-    REWIND_BLOCKS_N(events, blk_6, blk_5, miner0, config::graft::STAKE_VALIDATION_PERIOD); // height = 70;
-    prev_block = blk_6;
+    stake_txes.push_back(tx);
+//    MAKE_NEXT_BLOCK_TX1(events, blk_5, blk_4, miner0, tx); // height = 64
+//    REWIND_BLOCKS_N(events, blk_6, blk_5, miner0, config::graft::STAKE_VALIDATION_PERIOD); // height = 70;
+//    prev_block = blk_6;
   }
+  MAKE_NEXT_BLOCK_TX_LIST(events, blk_5, blk_4, miner0, stake_txes);
+
+  MDEBUG("stake tx list constructed");
+
+
+  REWIND_BLOCKS_N(events, blk_6, blk_5, miner0, config::graft::STAKE_VALIDATION_PERIOD); // height = 70;
   // schedule a 'check_stake_registered' check (checking if stake is registered)
   DO_CALLBACK(events, "check_stake_registered");
 
   // rewind for 'STAKE_PERIOD' blocks
-  REWIND_BLOCKS_N(events, bkl_7, prev_block, miner0, STAKE_PERIOD /* + config::graft::TRUSTED_RESTAKING_PERIOD*/); // TODO: check why TRUSTED_RESTAKING_PERIOD is not applied
+  REWIND_BLOCKS_N(events, bkl_7, blk_6, miner0, STAKE_PERIOD /* + config::graft::TRUSTED_RESTAKING_PERIOD*/); // TODO: check why TRUSTED_RESTAKING_PERIOD is not applied
 
   // schedule a 'check_stake_expired' check (checking if stake is expired)
   DO_CALLBACK(events, "check_stake_expired");
@@ -226,7 +234,7 @@ bool gen_rta_tests::check_stake_registered(core &c, size_t ev_index, const std::
       stake_amount += sn.amount;
     }
   }
-  CHECK_EQ(stake_amount, MK_COINS(50000));
+  CHECK_EQ(stake_amount, MK_COINS(50000) * g_supernode_list.size());
 
   MDEBUG("stake_tx_storage->get_tx_count: " << stp->get_storage()->get_tx_count());
   MDEBUG("stake_tx_storage->get_last_processed_block_index: " << stp->get_storage()->get_last_processed_block_index());
