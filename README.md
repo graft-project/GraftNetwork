@@ -83,7 +83,7 @@ Dates are provided in the format YYYY-MM-DD.
 | 2019-03-07        | v12               | 1.6.0                | 1.6.0                    | Own PoW algorithm - CryptoNight V8 ReverseWaltz - tweaked from CryptoNight Monero v8 (CN v2)  |
 | 2019-03-20        | v13               | 1.7.7                | 1.7.7                    | RTA Mining  |
 | 2019-06-06        | v14               | 1.8.1                | 1.8.1                    | Merge with monero 13: bulletproofs enabled, fixed ring size 11 |
-| 2019-06-07        | v15               | 1.8.1                | 1.8.2                    | bulletproofs required
+| 2019-06-07        | v15               | 1.8.1                | 1.8.3                    | bulletproofs required
 
 
 ## Installing Graft Network from a package
