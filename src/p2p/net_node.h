@@ -165,6 +165,16 @@ namespace nodetool
      * \param req
      */
     void do_supernode_announce(const cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req);
+
+
+    void do_send_rta_message(const cryptonote::COMMAND_RPC_BROADCAST::request &req);
+
+
+
+    std::vector<cryptonote::route_data> get_tunnels() const;
+
+  private:
+    // TODO: merge 'do_broadcast', 'do_multicast', 'do_unicast' into one
     /*!
      * \brief do_broadcast - posts broadcast message to p2p network
      * \param req
@@ -174,16 +184,14 @@ namespace nodetool
      * \brief do_multicast - posts multicast message to p2p network
      * \param req
      */
-    void do_multicast(const cryptonote::COMMAND_RPC_MULTICAST::request &req);
+    void do_multicast(const cryptonote::COMMAND_RPC_BROADCAST::request &req);
     /*!
      * \brief do_unicast - posts unicast message to p2p network
      * \param req
      */
-    void do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req);
+    void do_unicast(const cryptonote::COMMAND_RPC_BROADCAST::request &req);
 
-    std::vector<cryptonote::route_data> get_tunnels() const;
 
-  private:
     const std::vector<std::string> m_seed_nodes_list =
     {
     };
@@ -198,10 +206,7 @@ namespace nodetool
 
     BEGIN_INVOKE_MAP2(node_server)
       HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
-      HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_broadcast)
-      HANDLE_NOTIFY_T2(COMMAND_MULTICAST, &node_server::handle_multicast)
-      HANDLE_NOTIFY_T2(COMMAND_UNICAST, &node_server::handle_unicast)
-
+      HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_rta_msg); // dispatch command and send it to appropriate handler;
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
       HANDLE_INVOKE_T2(COMMAND_PING, &node_server::handle_ping)
@@ -265,9 +270,12 @@ namespace nodetool
 
     //----------------- commands handlers ----------------------------------------------
     int handle_supernode_announce(int command, typename COMMAND_SUPERNODE_ANNOUNCE::request& arg, p2p_connection_context& context);
+
+    int handle_rta_msg(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context); // extra level of dispach
     int handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
-    int handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context);
-    int handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context);
+    int handle_multicast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
+    int handle_unicast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
+
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);

@@ -2244,25 +2244,7 @@ namespace cryptonote
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
       std::string sender_address = req.sender_address;
       crypto::public_key dummy_key;
-      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
-      {
-          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-          error_resp.message = "Failed to parse sender id";
-          return false;
-      }
 
-      m_p2p.do_broadcast(req);
-      res.status = 0;
-      LOG_PRINT_L0("RPC Request: on_broadcast: end");
-      return true;
-  }
-
-  //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, json_rpc::error &error_resp)
-  {
-      LOG_PRINT_L0("RPC Request: on_multicast: start");
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      crypto::public_key dummy_key;
       for (auto addr : req.receiver_addresses)
       {
           if (addr.empty() || !epee::string_tools::hex_to_pod(addr, dummy_key))
@@ -2273,7 +2255,6 @@ namespace cryptonote
           }
       }
 
-      std::string sender_address = req.sender_address;
       if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
       {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
@@ -2281,19 +2262,49 @@ namespace cryptonote
           return false;
       }
 
-      m_p2p.do_multicast(req);
+      m_p2p.do_send_rta_message(req);
+      res.status = 0;
+      LOG_PRINT_L0("RPC Request: on_broadcast: end");
+      return true;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_multicast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_multicast: start");
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+      crypto::public_key dummy_key;
+      for (const auto &addr : req.receiver_addresses)
+      {
+          if (addr.empty() || !epee::string_tools::hex_to_pod(addr, dummy_key))
+          {
+              error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+              error_resp.message = "Failed to parse receiver id";
+              return false;
+          }
+      }
+
+      const std::string &sender_address = req.sender_address;
+      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
+      {
+          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
+          error_resp.message = "Failed to parse sender id";
+          return false;
+      }
+
+      m_p2p.do_send_rta_message(req);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_multicast: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_unicast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
   {
       LOG_PRINT_L0("RPC Request: on_unicast: start");
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
 
-      std::string receiver_address = req.receiver_address;
+      const std::string &receiver_address = req.receiver_addresses.front();
       crypto::public_key dummy_key;
       if (receiver_address.empty() || !epee::string_tools::hex_to_pod(receiver_address, dummy_key))
       {
@@ -2302,7 +2313,7 @@ namespace cryptonote
           return false;
       }
 
-      std::string sender_address = req.sender_address;
+      const std::string &sender_address = req.sender_address;
       if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
       {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
@@ -2310,7 +2321,7 @@ namespace cryptonote
           return false;
       }
 
-      m_p2p.do_unicast(req);
+      m_p2p.do_send_rta_message(req);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_unicast: end");
       return true;
