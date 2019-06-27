@@ -42,7 +42,7 @@
 #include "tx_pool.h"
 #include "blockchain.h"
 #include "stake_transaction_processor.h"
-#include "cryptonote_basic/miner.h"
+#include "cryptonote_core/miner.h"
 #include "cryptonote_basic/connection_context.h"
 #include "cryptonote_basic/cryptonote_stat_info.h"
 #include "checkpoint_vote_handler.h"

@@ -37,7 +37,8 @@ set(cryptonote_core_sources
   tx_sanity_check.cpp
   rta_tx.cpp
   checkpoint_vote_handler.cpp
-  rta_voting.cpp)
+  rta_voting.cpp
+  miner.cpp)
 
 set(cryptonote_core_headers)
 
