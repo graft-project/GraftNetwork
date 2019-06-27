@@ -2381,19 +2381,22 @@ namespace cryptonote
     };
   };
 
+  // TODO: consider to rename as e.g. COMMAND_RTA_MSG
   struct COMMAND_RPC_BROADCAST
   {
     struct request
     {
+      std::list<std::string> receiver_addresses; // in case empty - do a broadcast
       std::string sender_address;
       std::string callback_uri;
       std::string data;
-      bool wait_answer;
+      std::string signature;
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(receiver_addresses)
         KV_SERIALIZE(sender_address)
         KV_SERIALIZE(callback_uri)
         KV_SERIALIZE(data)
-        KV_SERIALIZE(wait_answer)
+        KV_SERIALIZE(signature)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -2414,13 +2417,13 @@ namespace cryptonote
       std::string sender_address;
       std::string callback_uri;
       std::string data;
-      bool wait_answer;
+      std::string signature;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(receiver_addresses)
         KV_SERIALIZE(sender_address)
         KV_SERIALIZE(callback_uri)
         KV_SERIALIZE(data)
-        KV_SERIALIZE(wait_answer)
+        KV_SERIALIZE(signature)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -2441,13 +2444,13 @@ namespace cryptonote
       std::string sender_address;
       std::string callback_uri;
       std::string data;
-      bool wait_answer;
+      std::string signature;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(receiver_address)
         KV_SERIALIZE(sender_address)
         KV_SERIALIZE(callback_uri)
         KV_SERIALIZE(data)
-        KV_SERIALIZE(wait_answer)
+        KV_SERIALIZE(signature)
       END_KV_SERIALIZE_MAP()
     };
 

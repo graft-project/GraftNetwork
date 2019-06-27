@@ -206,12 +206,12 @@ namespace nodetool
       {
           uint64_t hop;
           std::string message_id;
-
           BEGIN_KV_SERIALIZE_MAP()
+            KV_SERIALIZE(receiver_addresses)
             KV_SERIALIZE(sender_address)
             KV_SERIALIZE(callback_uri)
             KV_SERIALIZE(data)
-            KV_SERIALIZE(wait_answer)
+            KV_SERIALIZE(signature)
             KV_SERIALIZE(hop)
             KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
@@ -234,7 +234,7 @@ namespace nodetool
             KV_SERIALIZE(sender_address)
             KV_SERIALIZE(callback_uri)
             KV_SERIALIZE(data)
-            KV_SERIALIZE(wait_answer)
+            KV_SERIALIZE(signature)
             KV_SERIALIZE(hop)
             KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
@@ -257,7 +257,7 @@ namespace nodetool
             KV_SERIALIZE(sender_address)
             KV_SERIALIZE(callback_uri)
             KV_SERIALIZE(data)
-            KV_SERIALIZE(wait_answer)
+            KV_SERIALIZE(signature)
             KV_SERIALIZE(hop)
             KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
