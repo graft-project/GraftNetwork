@@ -2762,7 +2762,7 @@ namespace nodetool
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
       // stat counter updated in multicast_send
-      multicast_send(COMMAND_MULTICAST::ID, blob, p2p_req.receiver_addresses);
+      multicast_send(COMMAND_BROADCAST::ID, blob, p2p_req.receiver_addresses);
       MDEBUG("P2P Request: do_multicast: End");
   }
 
@@ -2829,7 +2829,7 @@ namespace nodetool
       MDEBUG("P2P Request: do_unicast: unicast send");
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
-      multicast_send(COMMAND_UNICAST::ID, blob, addresses);
+      multicast_send(COMMAND_BROADCAST::ID, blob, addresses);
       MDEBUG("P2P Request: do_unicast: End");
   }
 
