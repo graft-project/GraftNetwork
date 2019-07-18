@@ -9073,6 +9073,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
 {
 
     std::vector<wallet2::pending_tx> result;
+    static const size_t FAKE_OUTS_COUNT = 10;
     // check amount
     THROW_WALLET_EXCEPTION_IF((amount == 0), tools::error::zero_destination);
     // check fee percentage
@@ -9108,7 +9109,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
     }
     bool allow_zero_fee = true;
 
-    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, subaddr_account, subaddr_indices, allow_zero_fee);
+    return create_transactions_2(tx_dsts, FAKE_OUTS_COUNT, unlock_time, priority, extra, subaddr_account, subaddr_indices, allow_zero_fee);
 }
 
 std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
