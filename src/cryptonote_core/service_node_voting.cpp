@@ -208,7 +208,7 @@ namespace service_nodes
       {
         if (validator_index_tracker >= vote.validator_index)
         {
-            vvc.m_votes_not_sorted = true;
+          vvc.m_votes_not_sorted = true;
           LOG_PRINT_L1("Vote validator index is not stored in ascending order, prev validator index: "
                        << validator_index_tracker << ", curr index: " << vote.validator_index);
           return bad_tx(tvc);

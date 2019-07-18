@@ -720,6 +720,7 @@ namespace cryptonote
       m_blockchain_storage.hook_blockchain_detached(m_service_node_list);
       m_blockchain_storage.hook_init(m_service_node_list);
       m_blockchain_storage.hook_validate_miner_tx(m_service_node_list);
+      m_blockchain_storage.hook_alt_block_added(m_service_node_list);
 
       // NOTE: There is an implicit dependency on service node lists being hooked first!
       m_blockchain_storage.hook_init(m_quorum_cop);
@@ -2201,9 +2202,9 @@ namespace cryptonote
     return si.available;
   }
   //-----------------------------------------------------------------------------------------------
-  std::shared_ptr<const service_nodes::testing_quorum> core::get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old) const
+  std::shared_ptr<const service_nodes::testing_quorum> core::get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const service_nodes::testing_quorum>> *alt_states) const
   {
-    return m_service_node_list.get_testing_quorum(type, height, include_old);
+    return m_service_node_list.get_testing_quorum(type, height, include_old, alt_states);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::is_service_node(const crypto::public_key& pubkey, bool require_active) const

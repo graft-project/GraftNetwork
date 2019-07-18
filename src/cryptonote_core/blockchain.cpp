@@ -1956,6 +1956,17 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
     }
     else
     {
+      std::vector<transaction>  txs;
+      std::vector<crypto::hash> missed;
+      if (!get_transactions(b.tx_hashes, txs, missed))
+      {
+        bvc.m_verifivation_failed = true;
+        return false;
+      }
+
+      for (AltBlockAddedHook *hook : m_alt_block_added_hooks)
+        hook->alt_block_added(b, txs);
+
       MGINFO_BLUE("----- BLOCK ADDED AS ALTERNATIVE ON HEIGHT " << bei.height << std::endl << "id:\t" << id << std::endl << "PoW:\t" << proof_of_work << std::endl << "difficulty:\t" << current_diff);
       return true;
     }

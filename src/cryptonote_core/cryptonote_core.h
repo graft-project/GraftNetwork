@@ -783,7 +783,7 @@ namespace cryptonote
       * @param include_old whether to look in the old quorum states (does nothing unless running with --store-full-quorum-history)
       * @return Null shared ptr if quorum has not been determined yet or is not defined for height
       */
-     std::shared_ptr<const service_nodes::testing_quorum> get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old = false) const;
+     std::shared_ptr<const service_nodes::testing_quorum> get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old = false, std::vector<std::shared_ptr<const service_nodes::testing_quorum>> *alt_states = nullptr) const;
 
      /**
       * @brief Get a non owning reference to the list of blacklisted key images
