@@ -729,7 +729,7 @@ namespace cryptonote
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
     // don't allow rta tx until hf 13
     const size_t max_tx_version = version == 1 ? 1 : version < 13 ? 2 : CURRENT_TRANSACTION_VERSION;
-    if (tx.version == 0 || (tx.version != 123 && tx.version > max_tx_version))
+    if (tx.version == 0 || (tx.version != 123 && tx.version != 124 && tx.version > max_tx_version))
     {
       // v3 is the latest one we know
       tvc.m_verifivation_failed = true;
@@ -794,7 +794,7 @@ namespace cryptonote
         continue;
       }
 
-      if (tx_info[n].tx->version < 2)
+      if (tx_info[n].tx->version < 2 || tx_info[n].tx->version == 123 || tx_info[n].tx->version == 124)
         continue;
       const rct::rctSig &rv = tx_info[n].tx->rct_signatures;
       switch (rv.type) {
