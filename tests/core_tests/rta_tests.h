@@ -91,12 +91,12 @@ private:
 };
 
 ///////////////////////////////////////////
-/// gen_rta_tests
+/// gen_rta_test
 ///
 
-struct gen_rta_tests : public test_chain_unit_base
+struct gen_rta_test : public test_chain_unit_base
 {
-  gen_rta_tests();
+  gen_rta_test();
 
   // test generator method: here we define the test sequence
   bool generate(std::vector<test_event_entry>& events) const;
@@ -111,7 +111,7 @@ private:
 
 // this is how to define hardforks table for the cryptonote::core
 //template<>
-//struct get_test_options<gen_rta_tests> {
+//struct get_test_options<gen_rta_test> {
 //  // first element is hf number, second is the height for this hf; last element in array should be {0,0}
 //  const std::pair<uint8_t, uint64_t> hard_forks[2] = {std::make_pair(1, 0), std::make_pair(0, 0)};
 //  //const std::pair<uint8_t, uint64_t> hard_forks[3] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(0, 0)};

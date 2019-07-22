@@ -564,16 +564,16 @@ void gen_rta_disqualification_test::check_bbl_cnt(const std::string& context, st
 }
 
 ///////////////////////////////////////////
-/// gen_rta_tests
+/// gen_rta_test
 ///
 
-gen_rta_tests::gen_rta_tests()
+gen_rta_test::gen_rta_test()
 {
-  REGISTER_CALLBACK_METHOD(gen_rta_tests, check_stake_registered);
-  REGISTER_CALLBACK_METHOD(gen_rta_tests, check_stake_expired);
+  REGISTER_CALLBACK_METHOD(gen_rta_test, check_stake_registered);
+  REGISTER_CALLBACK_METHOD(gen_rta_test, check_stake_expired);
 }
 
-bool gen_rta_tests::generate(std::vector<test_event_entry>& events) const
+bool gen_rta_test::generate(std::vector<test_event_entry>& events) const
 {
   {//init g_supernode_list
     g_supernode_list.clear();
@@ -655,9 +655,9 @@ bool gen_rta_tests::generate(std::vector<test_event_entry>& events) const
 }
 
 // Not used, just to show how to get balances
-bool gen_rta_tests::check1(core &c, size_t ev_index, const std::vector<test_event_entry> &events)
+bool gen_rta_test::check1(core &c, size_t ev_index, const std::vector<test_event_entry> &events)
 {
-  DEFINE_TESTS_ERROR_CONTEXT("gen_rta_tests::check1");
+  DEFINE_TESTS_ERROR_CONTEXT("gen_rta_test::check1");
   cryptonote::account_base miner0 = boost::get<account_base>(events[1]);
   cryptonote::account_base alice0 = boost::get<account_base>(events[2]);
   std::vector<cryptonote::block> chain;
@@ -678,9 +678,9 @@ bool gen_rta_tests::check1(core &c, size_t ev_index, const std::vector<test_even
 }
 
 
-bool gen_rta_tests::check_stake_registered(core &c, size_t ev_index, const std::vector<test_event_entry> &events)
+bool gen_rta_test::check_stake_registered(core &c, size_t ev_index, const std::vector<test_event_entry> &events)
 {
-  DEFINE_TESTS_ERROR_CONTEXT("gen_rta_tests::check_stake_registered");
+  DEFINE_TESTS_ERROR_CONTEXT("gen_rta_test::check_stake_registered");
   cryptonote::account_base miner0 = boost::get<account_base>(events[1]);
   cryptonote::account_base alice0 = boost::get<account_base>(events[2]);
   std::vector<cryptonote::block> chain;
@@ -729,9 +729,9 @@ bool gen_rta_tests::check_stake_registered(core &c, size_t ev_index, const std::
   return true;
 }
 
-bool gen_rta_tests::check_stake_expired(core &c, size_t ev_index, const std::vector<test_event_entry> &events)
+bool gen_rta_test::check_stake_expired(core &c, size_t ev_index, const std::vector<test_event_entry> &events)
 {
-  DEFINE_TESTS_ERROR_CONTEXT("gen_rta_tests::check_stake_expired");
+  DEFINE_TESTS_ERROR_CONTEXT("gen_rta_test::check_stake_expired");
   cryptonote::account_base miner0 = boost::get<account_base>(events[1]);
   cryptonote::account_base alice0 = boost::get<account_base>(events[2]);
   std::vector<cryptonote::block> chain;

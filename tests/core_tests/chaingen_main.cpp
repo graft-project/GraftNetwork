@@ -99,7 +99,7 @@ int main(int argc, char* argv[])
   }
   else if (command_line::get_arg(vm, arg_generate_and_play_rta_tests_only))
   {
-    GENERATE_AND_PLAY(gen_rta_tests);
+    GENERATE_AND_PLAY(gen_rta_test);
     GENERATE_AND_PLAY(gen_rta_disqualification_test);
   }
   else if (command_line::get_arg(vm, arg_generate_and_play_test_data))
@@ -258,7 +258,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bp_tx_invalid_borromean_type);
 
     // RTA tests
-    GENERATE_AND_PLAY(gen_rta_tests);
+    GENERATE_AND_PLAY(gen_rta_test);
     GENERATE_AND_PLAY(gen_rta_disqualification_test);
 
 
