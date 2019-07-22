@@ -471,7 +471,7 @@ namespace cryptonote
       MDEBUG("Null secret key, skipping signatures");
     }
 
-    if (tx.version == 1)
+    if (tx.version == 1 || tx.version == 123 || tx.version == 124)
     {
       //generate ring signatures
       crypto::hash tx_prefix_hash;

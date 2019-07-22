@@ -208,7 +208,7 @@ bool StakeTransactionProcessor::check_disqualification_transaction(const transac
   }
   */
   crypto::hash b_hash = m_blockchain.get_block_id_by_height(disq_extra.item.block_height);
-  if(b_hash != disq_extra.item.block_hash)
+  if(b_hash != disq_extra.item.block_hash && m_blockchain.nettype() != FAKECHAIN)
   {
     MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash
              << "; invalid block_hash ");
@@ -235,9 +235,22 @@ bool StakeTransactionProcessor::check_disqualification_transaction(const transac
   auto bbl_idxs = makeBBLindexes(tiers);
 
   std::vector<TI> bbqs_idxs, qcl_idxs;
-  graft::generator::select_BBQS_QCL(disq_extra.item.block_hash, bbl_idxs, bbqs_idxs, qcl_idxs);
+  graft::generator::select_BBQS_QCL(b_hash, bbl_idxs, bbqs_idxs, qcl_idxs);
   Ids bbqs = fromIndexes(tiers, bbqs_idxs);
   Ids qcl = fromIndexes(tiers, qcl_idxs);
+
+#if 0
+  {
+    std::ostringstream oss;
+    for(auto& it : bbqs) { oss << epee::string_tools::pod_to_hex(it) << "\n"; }
+    MWARNING("BBQS: height ") << disq_extra.item.block_height << ENDL << oss.str();
+  }
+  {
+    std::ostringstream oss;
+    for(auto& it : qcl) { oss << epee::string_tools::pod_to_hex(it) << "\n"; }
+    MWARNING("QCL: height ") << disq_extra.item.block_height << ENDL << oss.str();
+  }
+#endif
 
   if(std::none_of(qcl.begin(), qcl.end(), [&disq_extra](crypto::public_key& v)->bool { return v == disq_extra.item.id; } ))
   {
@@ -283,7 +296,7 @@ bool StakeTransactionProcessor::check_disqualification2_transaction(const transa
   }
 */
   crypto::hash b_hash = m_blockchain.get_block_id_by_height(disq_extra.item.block_height);
-  if(b_hash != disq_extra.item.block_hash)
+  if(b_hash != disq_extra.item.block_hash && m_blockchain.nettype() != FAKECHAIN)
   {
     MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash
              << "; invalid block_hash ");
@@ -398,8 +411,6 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
   if (block_index >= m_active_height)
   {
     //analyze block transactions and add new stake transactions if exist
-    stake_transaction stake_tx;
-
     std::vector<transaction> txs;
     std::vector<crypto::hash> missed_txs;
     

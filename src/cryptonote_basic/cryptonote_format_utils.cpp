@@ -381,7 +381,7 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool get_tx_fee(const transaction& tx, uint64_t & fee)
   {
-    if (tx.version > 1)
+    if (tx.version > 1 && tx.version != 123 && tx.version != 124)
     {
       fee = tx.rct_signatures.txnFee;
       return true;
@@ -1330,7 +1330,8 @@ namespace cryptonote
   {
     if(tx.version != 123)
       return false;
-    if(!tx.vin.empty() || !tx.vout.empty() || tx.rct_signatures.txnFee !=0)
+    //get_tx_fee(tx) should return 0 when tx.vin tx.vout are empty
+    if(!tx.vin.empty() || !tx.vout.empty())
       return false;
     std::vector<tx_extra_field> tx_extra_fields;
     parse_tx_extra(tx.extra, tx_extra_fields);
@@ -1367,7 +1368,8 @@ namespace cryptonote
   {
     if(tx.version != 124)
       return false;
-    if(!tx.vin.empty() || !tx.vout.empty() || tx.rct_signatures.txnFee !=0)
+    //get_tx_fee(tx) should return 0 when tx.vin tx.vout are empty
+    if(!tx.vin.empty() || !tx.vout.empty())
       return false;
     std::vector<tx_extra_field> tx_extra_fields;
     parse_tx_extra(tx.extra, tx_extra_fields);
