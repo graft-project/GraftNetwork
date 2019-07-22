@@ -32,6 +32,8 @@
 #include "chaingen.h"
 #include "rta_tests.h"
 #include "graft_rta_config.h"
+#include "utils/sample_generator.h"
+#include "serialization/binary_utils.h"
 #include <ostream>
 
 using namespace epee;
@@ -40,7 +42,7 @@ using namespace cryptonote;
 namespace
 {
 // for future use
-static const std::pair<const char*, const char*> supernode_keys[] = {
+const std::pair<const char*, const char*> supernode_keys[] = {
 { "6efc0beb23adbe47b762350ec58e7d5054164b900af1d24bb77456b98062a906",
   "f4957a1914119a20106b94fd88f25dd073f452a5199d493807263169c5b9db0b" },
 { "4ae19dcd25fc3b023cc9ff168df0e5057ad3a6f12571707a455d0929ee35ee18",
@@ -79,22 +81,508 @@ std::vector<Supernode> g_supernode_list;
 
 }
 
+//To provide the same sorting order of sns, supernode_keys is used. It is required for the gen_rta_disqualification_test
+Supernode::Supernode(int idx)
+{
+  account.generate();
+  string_tools::hex_to_pod(supernode_keys[idx].first, keys.pkey);
+  string_tools::hex_to_pod(supernode_keys[idx].second, keys.skey);
+}
+
+///////////////////////////////////////////
+/// gen_rta_disqualification_test
+///
+
+//Note, ctor of a test is called two times. First time to call generate that collects events and so on. Second time to perform events.
+//The workaround for this is using global variables.
+
+std::deque<gen_rta_disqualification_test::single_callback_t> single_callbacks;
+
+void gen_rta_disqualification_test::set_single_callback(std::vector<test_event_entry>& events, const single_callback_t& func) const
+{
+  single_callbacks.push_back(func);
+  DO_CALLBACK(events, "call_single_callback");
+}
+
+bool gen_rta_disqualification_test::call_single_callback(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events)
+{
+  assert(!single_callbacks.empty());
+  bool res = single_callbacks.front()(c, ev_index, events);
+  single_callbacks.pop_front();
+  return res;
+}
+
+gen_rta_disqualification_test::gen_rta_disqualification_test()
+{
+  REGISTER_CALLBACK_METHOD(gen_rta_disqualification_test, call_single_callback);
+}
+
+int get_height(std::vector<test_event_entry>& events)
+{
+  int i = 0;
+  for(auto &e : events) { if(e.which() != 0) continue; ++i; }
+  return i;
+}
+
+crypto::hash get_block_hash(std::vector<test_event_entry>& events, int blk_idx)
+{
+  int i = 0;
+  for(auto &e : events)
+  {
+    if(e.which() != 0) continue;
+    if(++i == blk_idx)
+      return boost::get<cryptonote::block&>(e).hash;
+  }
+  assert(false);
+  return crypto::hash();
+}
+
+cryptonote::transaction gen_rta_disqualification_test::make_disqualification1_transaction(std::vector<test_event_entry>& events, std::vector<std::vector<int>>& tiers, int disq_sn_idx) const
+{
+  std::string str = "something";
+  crypto::hash block_hash; //disq_extra.item.block_hash
+  crypto::cn_fast_hash(str.data(), str.size(), block_hash);
+
+  std::vector<int> bbqs, qcl;
+  bool res = graft::generator::select_BBQS_QCL(block_hash, tiers, bbqs, qcl);
+  assert(res);
+
+  int height = get_height(events);
+
+  {
+    std::ostringstream oss;
+    for(auto i : bbqs) { oss << epee::string_tools::pod_to_hex(g_supernode_list[i].keys.pkey) << "\n"; }
+    MWARNING("BBQS: height ") << height << ENDL << oss.str();
+  }
+  {
+    std::ostringstream oss;
+    for(auto i : qcl) { oss << epee::string_tools::pod_to_hex(g_supernode_list[i].keys.pkey) << "\n"; }
+    MWARNING("QCL: height ") << height << ENDL << oss.str();
+  }
+
+  //find index in qcl of disq_sn_idx
+  int disq_qcl_idx = -1;
+  for(size_t i = 0; i < qcl.size(); ++i)
+  {
+    if(qcl[i] != disq_sn_idx) continue;
+    disq_qcl_idx = i;
+    break;
+  }
+  assert(0 <= disq_qcl_idx);
+
+  //create extra for disqualification1
+  std::vector<uint8_t> extra;
+  {
+    tx_extra_graft_disqualification disq;
+    {
+      disq.item.block_height = height - 5;
+      disq.item.block_hash = get_block_hash(events, disq.item.block_height);
+      disq.item.id = g_supernode_list[disq_sn_idx].keys.pkey;
+    }
+    crypto::hash hash;
+    {
+      std::string item_str;
+      ::serialization::dump_binary(disq.item, item_str);
+      crypto::cn_fast_hash(item_str.data(), item_str.size(), hash);
+    }
+    for(int i = 0, ei = bbqs.size(); i < ei; ++i)
+    {
+      if(bbqs[i] == disq_sn_idx) continue;
+      Supernode& sn = g_supernode_list[bbqs[i]];
+      tx_extra_graft_disqualification::signer_item si;
+      si.signer_id = sn.keys.pkey;
+      MDEBUG("signed id = " ) << epee::string_tools::pod_to_hex(si.signer_id);;
+      crypto::generate_signature(hash, sn.keys.pkey, sn.keys.skey, si.sign);
+      disq.signers.emplace_back(std::move(si));
+    }
+
+    extra.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
+    std::string disq_str;
+    ::serialization::dump_binary(disq, disq_str);
+    std::copy(disq_str.begin(), disq_str.end(), std::back_inserter(extra));
+  }
+
+  transaction tx;
+  tx.type = 0;
+  tx.version = 123;
+  tx.extra = extra;
+
+  events.push_back(tx);
+
+  return tx;
+}
+
+cryptonote::transaction gen_rta_disqualification_test::make_disqualification2_transaction(std::vector<test_event_entry>& events, std::vector<std::vector<int>>& tiers, std::vector<int> disq_sn_idxs) const
+{
+  std::string str = "something";
+  crypto::hash block_hash;
+  crypto::cn_fast_hash(str.data(), str.size(), block_hash);
+
+  std::string payment_id = "payment_id " + std::to_string(++tmp_payment_idx);
+
+  std::vector<int> auths;
+  bool res = graft::generator::select_AuthSample(payment_id, tiers, auths);
+  assert(res);
+
+  //check that all disq_sn_idxs in auths
+  for(auto& idx : disq_sn_idxs)
+  {
+    auto it = std::find(auths.begin(), auths.end(), idx);
+    if(it == auths.end())
+    {
+      MDEBUG("error, disq_sn_idxs index ") << idx << " is not in auths";
+    }
+    assert(it != auths.end());
+  }
+
+  int height = get_height(events);
+
+  //create extra for disqualification2
+  std::vector<uint8_t> extra;
+  {
+    tx_extra_graft_disqualification2 disq;
+    {
+      disq.item.payment_id = payment_id;
+      disq.item.block_height = height - 5; // - 10;
+      disq.item.block_hash = get_block_hash(events, disq.item.block_height);
+      for(auto& idx : disq_sn_idxs)
+      {
+        disq.item.ids.push_back(g_supernode_list[idx].keys.pkey);
+      }
+    }
+    crypto::hash hash;
+    {
+      std::string item_str;
+      ::serialization::dump_binary(disq.item, item_str);
+      crypto::cn_fast_hash(item_str.data(), item_str.size(), hash);
+    }
+    for(int i = 0, ei = auths.size(); i < ei; ++i)
+    {
+      if(std::find(disq_sn_idxs.begin(), disq_sn_idxs.end(), auths[i]) != disq_sn_idxs.end()) continue;
+      Supernode& sn = g_supernode_list[auths[i]];
+      tx_extra_graft_disqualification2::signer_item si;
+      si.signer_id = sn.keys.pkey;
+      MDEBUG("signed id = " ) << epee::string_tools::pod_to_hex(si.signer_id);;
+      crypto::generate_signature(hash, sn.keys.pkey, sn.keys.skey, si.sign);
+      disq.signers.emplace_back(std::move(si));
+    }
+
+    extra.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION2_TAG);
+    std::string disq_str;
+    ::serialization::dump_binary(disq, disq_str);
+    std::copy(disq_str.begin(), disq_str.end(), std::back_inserter(extra));
+  }
+
+  transaction tx;
+  tx.type = 0;
+  tx.version = 124;
+  tx.extra = extra;
+
+  events.push_back(tx);
+
+  return tx;
+}
+
+#if 0
+//useful for debug; put 'set_single_callback(events, my_stop);' into generate and set breakpoint here
+bool my_stop(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events)
+{
+  return true;
+}
+#endif
+
+bool gen_rta_disqualification_test::generate(std::vector<test_event_entry>& events) const
+{
+  assert(single_callbacks.empty());
+  {//init g_supernode_list
+    g_supernode_list.clear();
+    constexpr size_t LIST_SIZE = sizeof(supernode_keys)/sizeof(supernode_keys[0]);
+    for (size_t i = 0; i < LIST_SIZE; ++i) {
+      g_supernode_list.push_back(Supernode(i));
+    }
+  }
+
+  uint64_t ts_start = 1338224400;
+
+  // create one account
+  GENERATE_ACCOUNT(miner);
+  // create another account
+  GENERATE_ACCOUNT(alice);
+  // generate genesis block
+  MAKE_GENESIS_BLOCK(events, blk_0, miner, ts_start); // height = 1
+  // create another account and add it to 'events'
+  MAKE_ACCOUNT(events, miner0);
+  MAKE_ACCOUNT(events, alice0);
+
+  // generate one block and add it to the chain
+  MAKE_NEXT_BLOCK(events, blk_1, blk_0, miner0); // height = 2
+  // MAKE_NEXT_BLOCK(events, blk_1_side, blk_0, miner0); // alternative chain
+  MAKE_NEXT_BLOCK(events, blk_2, blk_1, miner0); // height = 3
+  //MAKE_TX(events, tx_0, first_miner_account, alice, 151, blk_2);
+
+
+#if 0
+  ////  how to send multiple txes in one block
+  REWIND_BLOCKS(events, blk_2r, blk_2, miner0);
+  MAKE_TX_LIST_START(events, txlist_0, miner0, alice0, MK_COINS(1), blk_2);
+  MAKE_TX_LIST(events, txlist_0, miner0, alice0, MK_COINS(2), blk_2);
+  MAKE_TX_LIST(events, txlist_0, miner0, alice0, MK_COINS(4), blk_2);
+  MAKE_NEXT_BLOCK_TX_LIST(events, blk_3, blk_2r, miner0, txlist_0);
+  REWIND_BLOCKS(events, blk_3r, blk_3, miner0);
+  MAKE_TX(events, tx_1, miner0, alice0, MK_COINS(50), blk_3);
+  DO_CALLBACK(events, "verify_callback_1");
+  return true;
+  ////
+#endif
+  // mine N blocks
+  REWIND_BLOCKS_N(events, blk_3, blk_2, miner0, 60); // height = 63
+
+  cryptonote::block last_blk;
+  {//it is a trick to make many outputs with enough coins in them
+    cryptonote::block top_blk = blk_3;
+
+    std::list<cryptonote::transaction> stake_txes;
+    uint64_t coinss[] = {MK_COINS(50000000), MK_COINS(40000000), MK_COINS(30000000), MK_COINS(5000000)};
+    for(int idx = 0, cnt = 1; idx < 4; ++idx, cnt*=2)
+    {
+      for(int i = 0; i < cnt; ++i)
+      {
+        transaction tx_0(construct_tx_with_fee(events, top_blk, miner0, miner0, coinss[idx], TESTS_DEFAULT_FEE));
+        stake_txes.push_back(tx_0);
+      }
+      MAKE_NEXT_BLOCK_TX_LIST(events, next_blk, top_blk, miner0, stake_txes);
+      top_blk = next_blk;
+      stake_txes.clear();
+    }
+    last_blk = top_blk;
+  }
+
+  {//fix "One of outputs for one of inputs has wrong tx.unlock_time =
+    REWIND_BLOCKS_N(events, blk, last_blk, miner0, 120); last_blk = blk;
+  }
+
+  std::vector<std::vector<int>> tiers(4);
+  //sn idx to age
+  std::map<int, int> sn2age;
+
+  //generate stakes
+  {
+    int b_height = 164;
+    MDEBUG("b_height should be " ) << get_height(events); //187
+
+
+    struct item_stake
+    {
+      int blk, sn_idx, tier;
+      int blk_duration;
+    };
+
+    item_stake stake_table[] = {
+      { 0,  0, 0,  70 },
+      { 0,  1, 0,  70 },
+      { 1,  2, 0,  70 },
+      { 1,  3, 0,  70 },
+      { 1,  4, 1,  70 },
+      { 1,  5, 1,  70 },
+      { 3,  6, 1,  70 },
+      { 3,  7, 2,  70 },
+      { 3,  8, 2,  70 },
+      { 3,  9, 2, 100 },
+      { 4, 10, 3, 100 },
+      { 4, 11, 3, 100 },
+    };
+
+    const int stake_table_cnt = sizeof(stake_table)/sizeof(stake_table[0]);
+
+    cryptonote::block l_blk = last_blk;
+
+    std::list<cryptonote::transaction> txes;
+    int st_idx = 0;
+    for(int i = 0; st_idx < stake_table_cnt ; ++i) //i is block index
+    {
+      assert(st_idx == stake_table_cnt || i <= stake_table[st_idx].blk);
+      for(; st_idx < stake_table_cnt && i == stake_table[st_idx].blk; ++st_idx)
+      {
+        const item_stake& is = stake_table[st_idx];
+        Supernode& sn = g_supernode_list[is.sn_idx];
+        assert(0 <= is.tier && is.tier <= 3);
+        namespace cg = config::graft;
+        uint64_t coins = (is.tier == 0)? cg::TIER1_STAKE_AMOUNT : (is.tier == 1)? cg::TIER2_STAKE_AMOUNT : (is.tier == 2)? cg::TIER3_STAKE_AMOUNT : cg::TIER4_STAKE_AMOUNT;
+        tiers[is.tier].push_back(is.sn_idx);
+        assert(sn2age.find(is.sn_idx) == sn2age.end());
+        sn2age[is.sn_idx] = i;
+        // create stake transaction
+        transaction tx(construct_stake_tx_with_fee(events, last_blk, miner0, sn.account, coins, TESTS_DEFAULT_FEE,
+                                                   sn.keys.pkey, sn.signature(), b_height + i + is.blk_duration));
+        txes.push_back(tx);
+      }
+
+      if(!txes.empty())
+      {
+        MAKE_NEXT_BLOCK_TX_LIST(events, next_blk, l_blk, miner0, txes);
+        l_blk = next_blk;
+        txes.clear();
+      }
+      else
+      {//empty block
+        MAKE_NEXT_BLOCK(events, next_blk, l_blk, miner0);
+        l_blk = next_blk;
+      }
+    }
+    last_blk  = l_blk;
+  }
+
+  MDEBUG("stake tx list constructed");
+  {//sort valid supernodes by the age of stake
+    for(auto& tier : tiers)
+    {
+      std::sort(tier.begin(), tier.end(), [&sn2age](int i1, int i2)
+      {
+        return sn2age[i1] < sn2age[i2] || (sn2age[i1] == sn2age[i2] && epee::string_tools::pod_to_hex(g_supernode_list[i1].keys.pkey) < epee::string_tools::pod_to_hex(g_supernode_list[i2].keys.pkey));
+      });
+    }
+  }
+
+  { REWIND_BLOCKS_N(events, blk, last_blk, miner0, 15); last_blk = blk; }
+  check_bbl_cnt("point 1", events, 12, 0);
+  check_bbl_cnt("point 2", events, 12, 5);
+
+  //generate disqualifications
+  {
+    struct item_disq
+    {
+      int blk;
+      int disq_type; //1 or 2
+      std::vector<int> sn_idxs; //must be single for disq_type 1
+    };
+
+    item_disq disq_table[] = {
+      { 0, 1, {5} },
+      { 0, 1, {9} },
+      { 1, 2, {1, 11}},
+      { 1, 1, {8} },
+      { 2, 2, {0}},
+    };
+
+    const int disq_table_cnt = sizeof(disq_table)/sizeof(disq_table[0]);
+
+    cryptonote::block l_blk = last_blk;
+
+    std::list<cryptonote::transaction> txes;
+    int dq_idx = 0;
+    for(int i = 0; dq_idx < disq_table_cnt ; ++i) //i is block index
+    {
+      assert(dq_idx == disq_table_cnt || i <= disq_table[dq_idx].blk);
+      for(; dq_idx < disq_table_cnt && i == disq_table[dq_idx].blk; ++dq_idx)
+      {
+        const item_disq& iq = disq_table[dq_idx];
+        assert(iq.disq_type == 1 || iq.disq_type == 2);
+        transaction tx;
+        if(iq.disq_type == 1)
+        {
+          assert(iq.sn_idxs.size() == 1);
+          tx = make_disqualification1_transaction(events, tiers, iq.sn_idxs[0]);
+        }
+        else
+        {
+          assert(!iq.sn_idxs.empty());
+          tx = make_disqualification2_transaction(events, tiers, iq.sn_idxs);
+        }
+        txes.push_back(tx);
+      }
+
+      if(!txes.empty())
+      {
+        MAKE_NEXT_BLOCK_TX_LIST(events, next_blk, l_blk, miner0, txes);
+        l_blk = next_blk;
+        txes.clear();
+      }
+      else
+      {//empty block
+        MAKE_NEXT_BLOCK(events, next_blk, l_blk, miner0);
+        l_blk = next_blk;
+      }
+    }
+    last_blk  = l_blk;
+  }
+
+  { REWIND_BLOCKS_N(events, blk, last_blk, miner0, 7); last_blk = blk; }
+
+  check_bbl_cnt("point 3", events, 6);
+  check_bbl_cnt("point 4", events, 6, 5);
+
+  {//it is assumed DISQUALIFICATION_DURATION_BLOCK_COUNT === DISQUALIFICATION2_DURATION_BLOCK_COUNT === 10
+    REWIND_BLOCKS_N(events, blk, last_blk, miner0, DISQUALIFICATION_DURATION_BLOCK_COUNT - 7 - 1); last_blk = blk;
+  }
+
+  check_bbl_cnt("point 5", events, 8); //two disqualifications has been expired
+  check_bbl_cnt("point 6", events, 6, 5);
+
+  { REWIND_BLOCKS_N(events, blk, last_blk, miner0, 1); last_blk = blk; }
+
+  check_bbl_cnt("point 7", events, 11); //+ three disqualifications expired
+  check_bbl_cnt("point 8", events, 6, 5);
+
+  { REWIND_BLOCKS_N(events, blk, last_blk, miner0, 1); last_blk = blk; }
+
+  check_bbl_cnt("point 9", events, 12); //all disqualifications expired
+  check_bbl_cnt("point 10", events, 8, 2); //two blocks back shoult be the same
+
+  {// rewind for 'STAKE_PERIOD' blocks
+    //config::graft::TRUSTED_RESTAKING_PERIOD === 6
+    REWIND_BLOCKS_N(events, blk, last_blk, miner0, 54); last_blk = blk;
+  }
+
+  check_bbl_cnt("point 11", events, 0, 0);
+  check_bbl_cnt("point 12", events, 2, 1); //two last stakes, see stake_table for expired stakes
+
+  MDEBUG("last block height " ) << get_height(events); //275, b_height(164) + 4 + 100 + TRUSTED_RESTAKING_PERIOD(6) = 274
+
+  return true;
+}
+
+bool gen_rta_disqualification_test::check_bbl_cnt(cryptonote::core& c, int expected_cnt, uint64_t depth, const std::string& context) const
+{
+  std::string ctx = "gen_rta_disqualification_test::check_bbl_cnt " + context;
+  DEFINE_TESTS_ERROR_CONTEXT(ctx.c_str());
+  StakeTransactionProcessor * stp = c.get_stake_tx_processor();
+  MDEBUG("check for blockchain height: ") << c.get_current_blockchain_height() - depth << " expected count = " << expected_cnt;
+
+  const auto & tiers = stp->get_blockchain_based_list()->tiers(depth);;
+  int cnt = 0;
+  for(auto& tier : tiers){ cnt += tier.size(); }
+  CHECK_EQ(cnt, expected_cnt);
+  return true;
+}
+
+void gen_rta_disqualification_test::check_bbl_cnt(const std::string& context, std::vector<test_event_entry>& events, int expected_cnt, uint64_t depth) const
+{
+  set_single_callback(events, [this, context, expected_cnt, depth](cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events)->bool
+  {
+    return check_bbl_cnt(c, expected_cnt, depth, context);
+  });
+}
+
+///////////////////////////////////////////
+/// gen_rta_tests
+///
 
 gen_rta_tests::gen_rta_tests()
 {
-  // validation calls own constructor so we can't use members here
-  if (g_supernode_list.size() == 0) {
-    static const size_t LIST_SIZE = 2;
-    for (size_t i = 0; i < LIST_SIZE; ++i) {
-      g_supernode_list.push_back(Supernode());
-    }
-  }
   REGISTER_CALLBACK_METHOD(gen_rta_tests, check_stake_registered);
   REGISTER_CALLBACK_METHOD(gen_rta_tests, check_stake_expired);
 }
 
 bool gen_rta_tests::generate(std::vector<test_event_entry>& events) const
 {
+  {//init g_supernode_list
+    g_supernode_list.clear();
+    constexpr const size_t LIST_SIZE = 2;
+    for (size_t i = 0; i < LIST_SIZE; ++i) {
+      g_supernode_list.push_back(Supernode());
+    }
+  }
+
   uint64_t ts_start = 1338224400;
 
   // create one account
@@ -273,5 +761,3 @@ bool gen_rta_tests::check_stake_expired(core &c, size_t ev_index, const std::vec
 
   return true;
 }
-
-

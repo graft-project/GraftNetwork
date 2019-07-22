@@ -46,6 +46,7 @@ struct Supernode {
     account.generate();
     crypto::generate_keys(keys.pkey, keys.skey);
   }
+  Supernode(int idx);
   crypto::signature signature()
   {
     std::string address = cryptonote::get_account_address_as_str(
@@ -55,13 +56,43 @@ struct Supernode {
     sign_message(msg, result);
     return result;
   }
-  void sign_message(const std::string msg, crypto::signature &signature)
+  void sign_message(const std::string& msg, crypto::signature &signature)
   {
     crypto::hash hash;
     crypto::cn_fast_hash(msg.data(), msg.size(), hash);
     crypto::generate_signature(hash, keys.pkey, keys.skey, signature);
   }
 };
+
+///////////////////////////////////////////
+/// gen_rta_disqualification_test
+///
+
+struct gen_rta_disqualification_test : public test_chain_unit_base
+{
+  using single_callback_t = std::function<bool(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events)>;
+
+  gen_rta_disqualification_test();
+
+  // test generator method: here we define the test sequence
+  bool generate(std::vector<test_event_entry>& events) const;
+
+private:
+  void set_single_callback(std::vector<test_event_entry>& events, const single_callback_t& func) const;
+  bool call_single_callback(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
+
+  cryptonote::transaction make_disqualification1_transaction(std::vector<test_event_entry>& events, std::vector<std::vector<int>>& tiers, int disq_sn_idx) const;
+  cryptonote::transaction make_disqualification2_transaction(std::vector<test_event_entry>& events, std::vector<std::vector<int>>& tiers, std::vector<int> disq_sn_idxs) const;
+
+  bool check_bbl_cnt(cryptonote::core& c, int expected_cnt, uint64_t depth, const std::string& context) const;
+  void check_bbl_cnt(const std::string& context, std::vector<test_event_entry>& events, int expected_cnt, uint64_t depth = 0) const;
+
+  mutable int tmp_payment_idx = 0;
+};
+
+///////////////////////////////////////////
+/// gen_rta_tests
+///
 
 struct gen_rta_tests : public test_chain_unit_base
 {
