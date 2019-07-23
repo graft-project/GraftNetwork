@@ -564,15 +564,15 @@ void StakeTransactionProcessor::synchronize()
   std::unique_lock<Blockchain> blockchain_lock{m_blockchain, std::defer_lock};
   std::lock(storage_lock, blockchain_lock);
 
-  uint64_t height = m_blockchain.get_current_blockchain_height();
-
-  if (!height || height < m_active_height)
-    return;
-
   if (!m_storage || !m_blockchain_based_list)
   {
     init_storages_impl();
   }
+
+  uint64_t height = m_blockchain.get_current_blockchain_height();
+
+  if (!height || height < m_active_height)
+    return;
 
     //unroll already processed blocks for alternative chains
   
