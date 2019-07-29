@@ -75,6 +75,7 @@ target_link_libraries(core_tests
     version
     epee
     device
+    rpc
     ${CMAKE_THREAD_LIBS_INIT}
     ${EXTRA_LIBRARIES})
 enable_stack_trace(core_tests)

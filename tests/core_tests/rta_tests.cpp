@@ -29,6 +29,7 @@
 // 
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+#include "rpc/core_rpc_server.h"
 #include "chaingen.h"
 #include "rta_tests.h"
 #include "graft_rta_config.h"
@@ -79,7 +80,9 @@ const std::pair<const char*, const char*> supernode_keys[] = {
 
 std::vector<Supernode> g_supernode_list;
 
-}
+} //namespace
+
+bool check_disquals(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
 
 //To provide the same sorting order of sns, supernode_keys is used. It is required for the gen_rta_disqualification_test
 Supernode::Supernode(int idx)
@@ -511,9 +514,13 @@ bool gen_rta_disqualification_test::generate(std::vector<test_event_entry>& even
   check_bbl_cnt("point 3", events, 6);
   check_bbl_cnt("point 4", events, 6, 5);
 
+  set_single_callback(events, check_disquals);
+
   {//it is assumed DISQUALIFICATION_DURATION_BLOCK_COUNT === DISQUALIFICATION2_DURATION_BLOCK_COUNT === 10
     REWIND_BLOCKS_N(events, blk, last_blk, miner0, DISQUALIFICATION_DURATION_BLOCK_COUNT - 7 - 1); last_blk = blk;
   }
+
+//  set_single_callback(events, my_stop);
 
   check_bbl_cnt("point 5", events, 8); //two disqualifications has been expired
   check_bbl_cnt("point 6", events, 6, 5);
@@ -554,6 +561,80 @@ bool gen_rta_disqualification_test::check_bbl_cnt(cryptonote::core& c, int expec
   CHECK_EQ(cnt, expected_cnt);
   return true;
 }
+
+bool check_disquals(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events)
+{
+  DEFINE_TESTS_ERROR_CONTEXT("check_disquals");
+  nodetool::node_server<cryptonote::t_cryptonote_protocol_handler<cryptonote::core> > *p2p = nullptr;
+  cryptonote::core_rpc_server crs(c, *p2p);
+
+  {
+    COMMAND_RPC_BBL_TIERS::request req;
+    req.height = 0;
+    COMMAND_RPC_BBL_TIERS::response res;
+    epee::json_rpc::error error_resp;
+    bool ok = crs.on_get_bbl_tiers(req, res, error_resp);
+    assert(ok);
+
+    CHECK_EQ(res.tiers.empty(), false);
+
+    MDEBUG("on_get_bbl_tiers:") << ENDL << epee::serialization::store_t_to_json(res);
+  }
+  std::string disqTxHash;
+  std::string disqTxHash2;
+  {
+    COMMAND_RPC_DISQUALIFICATIONS::request req;
+    req.height = 0;
+    COMMAND_RPC_DISQUALIFICATIONS::response res;
+    epee::json_rpc::error error_resp;
+    bool ok = crs.on_get_disqualifications(req, res, error_resp);
+    assert(ok);
+
+    CHECK_EQ(res.infos.empty(), false);
+
+    for(auto& info : res.infos)
+    {
+      if(info.type == 1)
+      {
+        if(disqTxHash.empty()) disqTxHash = info.disqTxHash;
+      }
+      else
+      {
+        assert(info.type == 2);
+        if(disqTxHash2.empty()) disqTxHash2 = info.disqTxHash;
+      }
+    }
+
+    MDEBUG("on_get_disqualifications:") << ENDL << epee::serialization::store_t_to_json(res);
+  }
+  {
+    COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH::request req;
+    req.disqTxHash = disqTxHash;
+    COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH::response res;
+    epee::json_rpc::error error_resp;
+    bool ok = crs.get_disqualifications_by_hash(req, res, error_resp);
+    assert(ok);
+
+    CHECK_EQ(res.infos.empty(), false);
+
+    MDEBUG("get_disqualifications_by_hash type1:") << ENDL << epee::serialization::store_t_to_json(res);
+  }
+  {
+    COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH::request req;
+    req.disqTxHash = disqTxHash2;
+    COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH::response res;
+    epee::json_rpc::error error_resp;
+    bool ok = crs.get_disqualifications_by_hash(req, res, error_resp);
+    assert(ok);
+
+    CHECK_EQ(res.infos.empty(), false);
+
+    MDEBUG("get_disqualifications_by_hash type2:") << ENDL << epee::serialization::store_t_to_json(res);
+  }
+
+  return true;
+}
+
 
 void gen_rta_disqualification_test::check_bbl_cnt(const std::string& context, std::vector<test_event_entry>& events, int expected_cnt, uint64_t depth) const
 {

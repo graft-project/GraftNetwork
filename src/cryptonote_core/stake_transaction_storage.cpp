@@ -91,6 +91,7 @@ StakeTransactionStorage::disqualification2_array StakeTransactionStorage::disqua
     for(const auto& id : extra_d2.item.ids)
     {
       disqualification2 d2;
+      d2.tx_hash = item_store.tx_hash;
       d2.block_index = item_store.block_index;
       d2.id_str = epee::string_tools::pod_to_hex(id);
       disqs.emplace_back( std::move(d2) );

@@ -164,6 +164,11 @@ namespace cryptonote
         MAP_JON_RPC_WE("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES)
         MAP_JON_RPC_WE("send_supernode_blockchain_based_list", on_supernode_blockchain_based_list,  COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST)
         MAP_JON_RPC_WE("get_stats", on_get_rta_stats,  COMMAND_RPC_RTA_STATS)
+
+        MAP_JON_RPC_WE("get_bbl_tiers", on_get_bbl_tiers,  COMMAND_RPC_BBL_TIERS)
+        MAP_JON_RPC_WE("get_disqualifications", on_get_disqualifications,  COMMAND_RPC_DISQUALIFICATIONS)
+        MAP_JON_RPC_WE("get_disqualifications_by_hash", get_disqualifications_by_hash,  COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH)
+        MAP_JON_RPC_WE("get_disqualifications_by_rta_hash", get_disqualifications_by_rta_hash,  COMMAND_RPC_DISQUALIFICATIONS_BY_RTA_TX_HASH)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -238,7 +243,15 @@ namespace cryptonote
     bool on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, epee::json_rpc::error &error_resp);
     bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp);
 
+    bool on_get_bbl_tiers(const COMMAND_RPC_BBL_TIERS::request &req, COMMAND_RPC_BBL_TIERS::response &res, epee::json_rpc::error &error_resp);
+    bool on_get_disqualifications(const COMMAND_RPC_DISQUALIFICATIONS::request &req, COMMAND_RPC_DISQUALIFICATIONS::response &res, epee::json_rpc::error &error_resp);
+    bool get_disqualifications_by_hash(const COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH::request &req, COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH::response &res, epee::json_rpc::error &error_resp);
+    bool get_disqualifications_by_rta_hash(const COMMAND_RPC_DISQUALIFICATIONS_BY_RTA_TX_HASH::request &req, COMMAND_RPC_DISQUALIFICATIONS_BY_RTA_TX_HASH::response &res, epee::json_rpc::error &error_resp);
+
 private:
+    COMMAND_RPC_DISQUALIFICATIONS::info fill_info(const disqualification& disq);
+    COMMAND_RPC_DISQUALIFICATIONS::info fill_info(const disqualification2& disq);
+
     bool check_core_busy();
     bool check_core_ready();
     
