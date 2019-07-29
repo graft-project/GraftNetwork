@@ -363,6 +363,8 @@ void StakeTransactionProcessor::process_disqualification_transaction(const trans
   }
 
   disqualification disq;
+  disq.tx_hash = get_transaction_hash(tx); //tx_hash here really is tx_prefix_hash
+
   serialization::dump_binary(disq_extra, disq.blob);
   disq.block_index = block_index;
   disq.id = disq_extra.item.id;
@@ -385,6 +387,7 @@ void StakeTransactionProcessor::process_disqualification2_transaction(const tran
   }
 
   disqualification2_storage_item disq;
+  disq.tx_hash = get_transaction_hash(tx); //tx_hash here really is tx_prefix_hash
   serialization::dump_binary(disq_extra, disq.blob);
   disq.block_index = block_index;
 
@@ -433,6 +436,7 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
     for (const transaction& tx : txs)
     {
+      //it should be named as tx_prefix_hash
       const crypto::hash tx_hash = get_transaction_prefix_hash(tx);
 
       try

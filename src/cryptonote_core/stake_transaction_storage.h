@@ -55,13 +55,15 @@ constexpr size_t DISQUALIFICATION2_DURATION_BLOCK_COUNT = 10;
 
 struct disqualification
 {
-  std::string blob; //tx_extra_graft_disqualification
+  crypto::hash tx_hash;
+  std::string blob; //tx_extra_graft_disqualification; may be it is redundant, because we have tx_hash and can get the blob from extra
   crypto::public_key id;
   uint64_t block_index; //block_index where transaction is stored, not that from the blob. disqualifications should be applied from next block
   //uint64_t unlock_time == block_height + DISQUALIFICATION_DURATION_BLOCK_COUNT
   std::string id_str;
 
   BEGIN_SERIALIZE_OBJECT()
+    FIELD(tx_hash)
     FIELD(blob)
     FIELD(id)
     FIELD(block_index)
@@ -85,9 +87,11 @@ struct disqualification
 
 struct disqualification2_storage_item
 {
-  std::string blob; //tx_extra_graft_disqualification2
+  crypto::hash tx_hash;
+  std::string blob; //tx_extra_graft_disqualification2; maybe it is redundant, because we have tx_hash and we can get the blob from extra
   uint64_t block_index; //block_index where transaction is stored, not that from the blob. disqualifications should be applied from next block
   BEGIN_SERIALIZE_OBJECT()
+    FIELD(tx_hash)
     FIELD(blob)
     FIELD(block_index)
   END_SERIALIZE()
@@ -95,6 +99,7 @@ struct disqualification2_storage_item
 
 struct disqualification2
 {
+  crypto::hash tx_hash; //the same as in disqualification2_storage_item
   std::string id_str;
   uint64_t block_index; //block_index where transaction is stored, not that from the blob. disqualifications should be applied from next block
   //uint64_t unlock_time == block_height + DISQUALIFICATION2_DURATION_BLOCK_COUNT
@@ -169,6 +174,9 @@ public:
 
   /// Is the list requires store
   bool need_store() const { return m_need_store; }
+
+  const disqualification_array& get_disqualifications() const { return m_disqualifications; }
+  const disqualification2_array& get_disqualifications2() const { return m_disqualifications2; }
 
 private:
   /// Load storage from file

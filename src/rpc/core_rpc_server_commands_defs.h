@@ -2543,6 +2543,124 @@ namespace cryptonote
     };
   };
 
+  struct COMMAND_RPC_BBL_TIERS
+  {
+    struct tier
+    {
+      std::vector<std::string> ids;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(ids)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      int64_t height; // if negative, it is depth
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(height)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<tier> tiers;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(tiers)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_DISQUALIFICATIONS
+  {
+    struct request
+    {
+      int64_t height; //positive values > 1 mean height; negative or 0, mean depth (blocks back from current block); special value 1 means all
+      std::vector<std::string> ids;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(ids)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct info_type1
+    {
+      std::vector<std::string> bbqs_signers;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(bbqs_signers)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct info_type2
+    {
+      std::string payment_id;
+      std::vector<std::string> rta_signers;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(payment_id)
+        KV_SERIALIZE(rta_signers)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct info
+    {
+      std::string id;
+      uint64_t start_block;
+      uint64_t end_block;
+      std::string disqTxHash;
+      int type; //1 or 2
+      //union //the union here would require complex dtor and placement new
+      struct
+      {
+        info_type1 type1;
+        info_type2 type2;
+      } info;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(id)
+        KV_SERIALIZE(start_block)
+        KV_SERIALIZE(end_block)
+        KV_SERIALIZE(disqTxHash)
+        KV_SERIALIZE(type)
+        if(this_ref.type == 1)
+        {
+          KV_SERIALIZE_N(info.type1, "type1")
+        }
+        else
+        {
+          KV_SERIALIZE_N(info.type2, "type2")
+        }
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<info> infos;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(infos)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH : public COMMAND_RPC_DISQUALIFICATIONS
+  {
+    struct request
+    {
+      std::string disqTxHash;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(disqTxHash)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  struct COMMAND_RPC_DISQUALIFICATIONS_BY_RTA_TX_HASH : public COMMAND_RPC_DISQUALIFICATIONS
+  {
+    struct request
+    {
+      std::string rtaTxHash;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(rtaTxHash)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
   struct COMMAND_RPC_GET_OUTPUT_DISTRIBUTION
   {
     struct request
