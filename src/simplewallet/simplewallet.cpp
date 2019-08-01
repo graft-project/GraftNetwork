@@ -5017,9 +5017,16 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
       return true;
     }
 
-    if (locked_blocks > config::graft::STAKE_MAX_UNLOCK_TIME)
+    // allow 32 days stake period from HF16
+    uint64_t hf16_height = 0;
+    m_wallet->get_hard_fork_info(16, hf16_height);
+
+    const auto CURRENT_STAKE_MAX_UNLOCK_TIME = m_wallet->get_blockchain_current_height() < hf16_height ? config::graft::STAKE_MAX_UNLOCK_TIME_V15
+                                                                                                     : config::graft::STAKE_MAX_UNLOCK_TIME;
+
+    if (locked_blocks > CURRENT_STAKE_MAX_UNLOCK_TIME)
     {
-      fail_msg_writer() << tr("locked blocks number ") << locked_blocks << tr(" is greater than maximum allowed ") << config::graft::STAKE_MAX_UNLOCK_TIME;
+      fail_msg_writer() << tr("locked blocks number ") << locked_blocks << tr(" is greater than maximum allowed ") << CURRENT_STAKE_MAX_UNLOCK_TIME;
       return true;
     }
 

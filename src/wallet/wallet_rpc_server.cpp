@@ -135,8 +135,14 @@ namespace
         er.message = "unlock_time is too low";
         return false;
       }
+      // allow 32 days stake period from HF16
+      uint64_t hf16_height = 0;
+      wallet->get_hard_fork_info(16, hf16_height);
 
-      if (req.unlock_time > current_height + config::graft::STAKE_MAX_UNLOCK_TIME)
+      const auto CURRENT_STAKE_MAX_UNLOCK_TIME = wallet->get_blockchain_current_height() < hf16_height ? config::graft::STAKE_MAX_UNLOCK_TIME_V15
+                                                                                                       : config::graft::STAKE_MAX_UNLOCK_TIME;
+
+      if (req.unlock_time > current_height + CURRENT_STAKE_MAX_UNLOCK_TIME)
       {
         er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
         er.message = "unlock_time is too high";

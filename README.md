@@ -84,6 +84,8 @@ Dates are provided in the format YYYY-MM-DD.
 | 2019-03-20        | v13               | 1.7.7                | 1.7.7                    | RTA Mining  |
 | 2019-06-06        | v14               | 1.8.1                | 1.8.1                    | Merge with monero 13: bulletproofs enabled, fixed ring size 11 |
 | 2019-06-07        | v15               | 1.8.1                | 1.8.4                    | bulletproofs required
+| 2019-08-08        | v16               | 1.9.0                | 1.9.0                    | maximum stake period is 32 days |
+
 
 
 ## Installing Graft Network from a package
