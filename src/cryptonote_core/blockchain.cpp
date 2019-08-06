@@ -127,6 +127,8 @@ static const struct {
   { 14, 364590, 0, 1559833200 },
   // hf 15 disable non-bulletproof, ~2019-06-07T15:00:00+00
   { 15, 365310, 0, 1559919600 },
+  // hf 15 increase stake period to 32 days, 2019-08-12@15:00:00+00
+  { 16, 412780, 0, 1565622000 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -169,6 +171,8 @@ static const struct {
   { 14, 336400, 0, 1558504800 },
   // hf 15 disable non-bulletproof
   { 15, 343750, 0, 1559401200 },
+  // hf 16 increase stake period to 32 days, 2019-08-05T@09:00:00+00
+  { 16, 381520, 0, 1564995600 }
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;

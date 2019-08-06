@@ -214,11 +214,12 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
             << " because unlock time " << unlock_time << " is less than minimum allowed " << config::graft::STAKE_MIN_UNLOCK_TIME);
           continue;
         }
-
-        if (unlock_time > config::graft::STAKE_MAX_UNLOCK_TIME)
+        const auto CURRENT_STAKE_MAX_UNLOCK_TIME = m_blockchain.get_current_hard_fork_version() < 16 ? config::graft::STAKE_MAX_UNLOCK_TIME_V15
+                                                                                                     : config::graft::STAKE_MAX_UNLOCK_TIME;
+        if (unlock_time > CURRENT_STAKE_MAX_UNLOCK_TIME)
         {
           MWARNING("Ignore stake transaction at block #" << block_index << ", tx_hash=" << tx_hash << ", supernode_public_id '" << stake_tx.supernode_public_id << "'"
-            << " because unlock time " << unlock_time << " is greater than maximum allowed " << config::graft::STAKE_MAX_UNLOCK_TIME);
+            << " because unlock time " << unlock_time << " is greater than maximum allowed " << CURRENT_STAKE_MAX_UNLOCK_TIME);
           continue;
         }
 
