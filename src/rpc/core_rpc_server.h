@@ -157,8 +157,8 @@ namespace cryptonote
       BEGIN_JSON_RPC_MAP("/json_rpc/rta")
         MAP_JON_RPC_WE_IF("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE, !m_restricted)
         MAP_JON_RPC_WE_IF("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST, !m_restricted)
-        MAP_JON_RPC_WE_IF("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST, !m_restricted)
-        MAP_JON_RPC_WE_IF("unicast",                on_unicast,                    COMMAND_RPC_UNICAST, !m_restricted)
+        // MAP_JON_RPC_WE_IF("multicast",              on_multicast,                  COMMAND_RPC_BROADCAST, !m_restricted)
+        // MAP_JON_RPC_WE_IF("unicast",                on_unicast,                    COMMAND_RPC_BROADCAST, !m_restricted)
 
         MAP_JON_RPC_WE_IF("get_tunnels",              on_get_tunnels,              COMMAND_RPC_TUNNEL_DATA, !m_restricted)
         MAP_JON_RPC_WE_IF("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES, !m_restricted)
@@ -232,8 +232,8 @@ namespace cryptonote
     bool on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request& req, COMMAND_RPC_SUPERNODE_GET_STAKES::response& res, epee::json_rpc::error& error_resp);
     bool on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request& req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response& res, epee::json_rpc::error& error_resp);
     bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);
+    bool on_multicast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
+    bool on_unicast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
 
     bool on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, epee::json_rpc::error &error_resp);
     bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp);

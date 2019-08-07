@@ -48,7 +48,7 @@ namespace Utils {
 bool lookup_account_outputs_ringct(const cryptonote::account_keys &acc, const cryptonote::transaction &tx,
                                    std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered, hw::device &hwdev);
 bool get_tx_amount(const cryptonote::account_public_address &address, const crypto::secret_key &key, const cryptonote::transaction &tx,
-                                   std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered, hw::device &hwdev);
+                                   std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered);
 
 } // namespace
 
