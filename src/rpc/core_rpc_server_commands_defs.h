@@ -2354,21 +2354,21 @@ namespace cryptonote
     };
   };
 
-  struct COMMAND_RPC_SUPERNODE_ANNOUNCE
+  struct COMMAND_RPC_REGISTER_SUPERNODE
   {
     struct request
     {
-
-      std::string supernode_public_id;
-      uint64_t height;
-      std::string signature;
-      std::string network_address;
-
+      uint32_t broadcast_hops;
+      uint32_t redirect_timeout_ms;
+      std::string supernode_id; //supernode public identification key
+      std::string supernode_url; //base URL for forwarding requests to supernode
+      std::string redirect_uri; //special uri for UDHT protocol redirection mechanism
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(supernode_public_id)
-        KV_SERIALIZE(height)
-        KV_SERIALIZE(signature)
-        KV_SERIALIZE(network_address)
+        KV_SERIALIZE(broadcast_hops)
+        KV_SERIALIZE(redirect_timeout_ms)
+        KV_SERIALIZE(supernode_id)
+        KV_SERIALIZE(supernode_url)
+        KV_SERIALIZE(redirect_uri)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -2381,47 +2381,47 @@ namespace cryptonote
     };
   };
 
-  // TODO: consider to rename as e.g. COMMAND_RTA_MSG
+
+  struct COMMAND_RPC_REDIRECT_SUPERNODE_ID
+  {
+    struct request
+    {
+      std::string id;
+      std::string my_id;
+      BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(id)
+      KV_SERIALIZE(my_id)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      int64_t status;
+      BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
   struct COMMAND_RPC_BROADCAST
-  {
-    struct request
-    {
-      std::list<std::string> receiver_addresses; // in case empty - do a broadcast
-      std::string sender_address;
-      std::string callback_uri;
-      std::string data;
-      std::string signature;
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(receiver_addresses)
-        KV_SERIALIZE(sender_address)
-        KV_SERIALIZE(callback_uri)
-        KV_SERIALIZE(data)
-        KV_SERIALIZE(signature)
-      END_KV_SERIALIZE_MAP()
-    };
-
-    struct response
-    {
-      int64_t status;
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(status)
-      END_KV_SERIALIZE_MAP()
-    };
-  };
-
-  struct COMMAND_RPC_MULTICAST
   {
     struct request
     {
       std::list<std::string> receiver_addresses;
       std::string sender_address;
       std::string callback_uri;
+#ifdef UDHT_INFO
+      uint64_t hops;
+#endif
       std::string data;
       std::string signature;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(receiver_addresses)
         KV_SERIALIZE(sender_address)
         KV_SERIALIZE(callback_uri)
+#ifdef UDHT_INFO
+        KV_SERIALIZE(hops)
+#endif
         KV_SERIALIZE(data)
         KV_SERIALIZE(signature)
       END_KV_SERIALIZE_MAP()
@@ -2436,21 +2436,15 @@ namespace cryptonote
     };
   };
 
-  struct COMMAND_RPC_UNICAST
+  struct COMMAND_RPC_REDIRECT_BROADCAST
   {
     struct request
     {
-      std::string receiver_address;
-      std::string sender_address;
-      std::string callback_uri;
-      std::string data;
-      std::string signature;
+      std::string receiver_id;
+      COMMAND_RPC_BROADCAST::request request;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(receiver_address)
-        KV_SERIALIZE(sender_address)
-        KV_SERIALIZE(callback_uri)
-        KV_SERIALIZE(data)
-        KV_SERIALIZE(signature)
+        KV_SERIALIZE(receiver_id)
+        KV_SERIALIZE(request)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -2494,27 +2488,6 @@ namespace cryptonote
     END_KV_SERIALIZE_MAP()
   };
 
-  struct COMMAND_RPC_TUNNEL_DATA
-  {
-    struct request
-    {
-      BEGIN_KV_SERIALIZE_MAP()
-      END_KV_SERIALIZE_MAP()
-    };
-
-    struct response
-    {
-      std::string supernode_address;
-      std::vector<route_data> tunnels;
-      std::vector<std::string> supernodes_addresses;
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(supernode_address)
-        KV_SERIALIZE(tunnels)
-        KV_SERIALIZE(supernodes_addresses)
-      END_KV_SERIALIZE_MAP()
-    };
-  };
-
   struct COMMAND_RPC_RTA_STATS
   {
     struct request
@@ -2525,19 +2498,11 @@ namespace cryptonote
 
     struct response
     {
-      uint64_t announce_bytes_in;
-      uint64_t announce_bytes_out;
       uint64_t broadcast_bytes_in;
       uint64_t broadcast_bytes_out;
-      uint64_t multicast_bytes_in;
-      uint64_t multicast_bytes_out;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(announce_bytes_in)
-        KV_SERIALIZE(announce_bytes_out)
         KV_SERIALIZE(broadcast_bytes_in)
         KV_SERIALIZE(broadcast_bytes_out)
-        KV_SERIALIZE(multicast_bytes_in)
-        KV_SERIALIZE(multicast_bytes_out)
       END_KV_SERIALIZE_MAP()
     };
   };

@@ -241,6 +241,13 @@ if(ENABLE_SYSLOG)
     add_definitions(-DELPP_SYSLOG)
 endif()
 
+if(NOT DEFINED UDHT_INFO)
+    option(UDHT_INFO "Include UDHT debug information." OFF)
+endif()
+if(UDHT_INFO)
+    add_definitions(-DUDHT_INFO)
+endif()
+
 # set this to 0 if per-block checkpoint needs to be disabled
 set(PER_BLOCK_CHECKPOINT 1)
 

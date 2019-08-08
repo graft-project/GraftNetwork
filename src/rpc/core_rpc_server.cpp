@@ -2202,23 +2202,10 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
-  {
-      LOG_PRINT_L0("RPC Request: on_supernode_announce: start");
-      // send p2p announce
-      m_p2p.add_supernode(req.supernode_public_id, req.network_address);
-      m_p2p.do_supernode_announce(req);
-      res.status = 0;
-      LOG_PRINT_L0("RPC Request: on_supernode_announce: end");
-      return true;
-  }
-
-  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: start");
       // send p2p stakes
-      m_p2p.add_supernode(req.supernode_public_id, req.network_address);
       m_p2p.send_stakes_to_supernode();
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: end");
@@ -2230,7 +2217,6 @@ namespace cryptonote
   {
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: start");
       // send p2p stake txs
-      m_p2p.add_supernode(req.supernode_public_id, req.network_address);
       m_p2p.send_blockchain_based_list_to_supernode(req.last_received_block_height);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: end");
@@ -2238,7 +2224,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp, bool wide)
   {
       LOG_PRINT_L0("RPC Request: on_broadcast: start");
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
@@ -2262,94 +2248,89 @@ namespace cryptonote
           return false;
       }
 
-      m_p2p.do_send_rta_message(req);
+      // m_p2p.do_send_rta_message(req);
+
+
+      {//MDEBUG
+          std::ostringstream oss;
+          oss << "{ receiver_addresses : '";
+          for(auto& it : req.receiver_addresses) { oss << it << "; "; }
+          oss << "'\n callback_uri : '" << req.callback_uri << "'}";
+          MDEBUG("core_rpc_server::on_broadcast : ") << oss.str();
+      }
+
+      m_p2p.do_broadcast(req, (wide)? 0 : m_broadcast_hops);
+
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_broadcast: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_multicast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_wide_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
   {
-      LOG_PRINT_L0("RPC Request: on_multicast: start");
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-      crypto::public_key dummy_key;
-      for (const auto &addr : req.receiver_addresses)
-      {
-          if (addr.empty() || !epee::string_tools::hex_to_pod(addr, dummy_key))
-          {
-              error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-              error_resp.message = "Failed to parse receiver id";
-              return false;
-          }
-      }
 
-      const std::string &sender_address = req.sender_address;
-      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
-      {
-          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-          error_resp.message = "Failed to parse sender id";
-          return false;
-      }
+      return on_broadcast(req, res, error_resp, true);
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_register_supernode(const COMMAND_RPC_REGISTER_SUPERNODE::request& req, COMMAND_RPC_REGISTER_SUPERNODE::response& res, epee::json_rpc::error& error_resp)
+  {
+      LOG_PRINT_L0("RPC Request: on_register_supernode: start");
+      m_broadcast_hops = req.broadcast_hops;
+      m_p2p.register_supernode(req);
 
-      m_p2p.do_send_rta_message(req);
       res.status = 0;
-      LOG_PRINT_L0("RPC Request: on_multicast: end");
+      LOG_PRINT_L0("RPC Request: on_register_supernode: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_unicast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_redirect_supernode_id(const COMMAND_RPC_REDIRECT_SUPERNODE_ID::request& req, COMMAND_RPC_REDIRECT_SUPERNODE_ID::response& res, epee::json_rpc::error& error_resp)
   {
-      LOG_PRINT_L0("RPC Request: on_unicast: start");
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-
-      const std::string &receiver_address = req.receiver_addresses.front();
-      crypto::public_key dummy_key;
-      if (receiver_address.empty() || !epee::string_tools::hex_to_pod(receiver_address, dummy_key))
+      LOG_PRINT_L0("RPC Request: on_redirect_supernode_id: start");
+      // validate input parameters
+      bool id_ok = !req.id.empty();
+      if(id_ok)
       {
-          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-          error_resp.message = "Failed to parse receiver id";
-          return false;
+        crypto::public_key id;
+        id_ok = id_ok && epee::string_tools::hex_to_pod(req.id, id);
+        id_ok = id_ok && crypto::check_key(id);
+      }
+      if (!id_ok)
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+        std::ostringstream oss; oss << "Invalid supernode ID parameter '" << req.id << "' of on_redirect_supernode_id";
+        error_resp.message = oss.str();
+        return false;
       }
 
-      const std::string &sender_address = req.sender_address;
-      if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
+      bool my_id_ok = !req.my_id.empty();
+      if(my_id_ok)
       {
-          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_WALLET_ADDRESS;
-          error_resp.message = "Failed to parse sender id";
-          return false;
+        crypto::public_key my_id;
+        my_id_ok = my_id_ok && epee::string_tools::hex_to_pod(req.my_id, my_id);
+        my_id_ok = my_id_ok && crypto::check_key(my_id);
+      }
+      if (!my_id_ok)
+      {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+        std::ostringstream oss; oss << "Invalid local supernode ID parameter '" << req.my_id << "' of on_redirect_supernode_id";
+        error_resp.message = oss.str();
+        return false;
       }
 
-      m_p2p.do_send_rta_message(req);
+      m_p2p.redirect_id_add(req.id, req.my_id);
+
       res.status = 0;
-      LOG_PRINT_L0("RPC Request: on_unicast: end");
+      LOG_PRINT_L0("RPC Request: on_redirect_supernode_id: end");
       return true;
   }
-
-  //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp)
-  {
-      LOG_PRINT_L0("RPC Request: on_get_tunnels: start");
-      res.supernodes_addresses = m_p2p.get_supernodes_addresses();
-      res.tunnels = m_p2p.get_tunnels();
-      // Temporary backwards compatibility (remove me along with the supernode_address member): store the first SN
-      if (res.supernodes_addresses.size() > 0)
-          res.supernode_address = res.supernodes_addresses[0];
-      LOG_PRINT_L0("RPC Request: on_get_tunnels: end");
-      return true;
-  }
-
   //------------------------------------------------------------------------------------------------------------------------------
 
   bool core_rpc_server::on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp)
   {
-      res.announce_bytes_in = m_p2p.get_announce_bytes_in();
-      res.announce_bytes_out = m_p2p.get_announce_bytes_out();
       res.broadcast_bytes_in = m_p2p.get_broadcast_bytes_in();
       res.broadcast_bytes_out = m_p2p.get_broadcast_bytes_out();
-      res.multicast_bytes_in = m_p2p.get_multicast_bytes_in();
-      res.multicast_bytes_out = m_p2p.get_multicast_bytes_out();
       return true;
   }
 
