@@ -324,12 +324,13 @@ public:
   bool get_block_checkpoint   (uint64_t height, checkpoint_t &checkpoint) const override;
   bool get_top_checkpoint     (checkpoint_t &checkpoint) const override;
   std::vector<checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = 0) const override;
+  bool get_immutable_checkpoint(checkpoint_t *checkpoint) const override;
 
   void set_batch_transactions(bool batch_transactions) override;
   bool batch_start(uint64_t batch_num_blocks=0, uint64_t batch_bytes=0) override;
   void batch_commit();
   void batch_stop() override;
-  void batch_abort();
+  void batch_abort() override;
 
   void block_wtxn_start() override;
   void block_wtxn_stop() override;
@@ -377,7 +378,7 @@ private:
                 , const uint64_t& coins_generated
                 , uint64_t num_rct_outs
                 , const crypto::hash& block_hash
-                );
+                ) override;
 
   void remove_block() override;
 

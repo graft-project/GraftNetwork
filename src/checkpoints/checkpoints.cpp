@@ -38,13 +38,8 @@
 #include <vector>
 #include "syncobj.h"
 #include "blockchain_db/blockchain_db.h"
-<<<<<<< HEAD
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "utils/utils.h"
-||||||| parent of 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-=======
-#include "cryptonote_basic/cryptonote_format_utils.h"
->>>>>>> 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
 
 using namespace epee;
 
@@ -59,7 +54,6 @@ namespace cryptonote
     if (result) MINFO   ("CHECKPOINT PASSED FOR HEIGHT " << height << " " << block_hash);
     else        MWARNING("CHECKPOINT FAILED FOR HEIGHT " << height << ". EXPECTED HASH " << block_hash << "GIVEN HASH: " << hash);
     return result;
-<<<<<<< HEAD
  }
  
  height_to_hash const HARDCODED_MAINNET_CHECKPOINTS[] =
@@ -157,308 +151,6 @@ namespace cryptonote
      
      return r;
  }
-||||||| parent of 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-  }
-
-  bool load_checkpoints_from_json(const std::string &json_hashfile_fullpath, std::vector<height_to_hash> &checkpoint_hashes)
-  {
-    boost::system::error_code errcode;
-    if (! (boost::filesystem::exists(json_hashfile_fullpath, errcode)))
-    {
-      LOG_PRINT_L1("Blockchain checkpoints file not found");
-      return true;
-    }
-
-    height_to_hash_json hashes;
-    if (!epee::serialization::load_t_from_json_file(hashes, json_hashfile_fullpath))
-    {
-      MERROR("Error loading checkpoints from " << json_hashfile_fullpath);
-      return false;
-    }
-
-    checkpoint_hashes = std::move(hashes.hashlines);
-    return true;
-  }
-
-  static bool get_checkpoint_from_db_safe(BlockchainDB const *db, uint64_t height, checkpoint_t &checkpoint)
-  {
-    try
-    {
-      return db->get_block_checkpoint(height, checkpoint);
-    }
-    catch (const std::exception &e)
-    {
-      MERROR("Get block checkpoint from DB failed at height: " << height << ", what = " << e.what());
-      return false;
-    }
-  }
-
-  static bool update_checkpoint_in_db_safe(BlockchainDB *db, checkpoint_t &checkpoint)
-  {
-    try
-    {
-      db->update_block_checkpoint(checkpoint);
-    }
-    catch (const std::exception& e)
-    {
-      MERROR("Failed to add checkpoint with hash: " << checkpoint.block_hash << " at height: " << checkpoint.height << ", what = " << e.what());
-      return false;
-    }
-
-    return true;
-  }
-
-=======
-  }
-
-  bool load_checkpoints_from_json(const std::string &json_hashfile_fullpath, std::vector<height_to_hash> &checkpoint_hashes)
-  {
-    boost::system::error_code errcode;
-    if (! (boost::filesystem::exists(json_hashfile_fullpath, errcode)))
-    {
-      LOG_PRINT_L1("Blockchain checkpoints file not found");
-      return true;
-    }
-
-    height_to_hash_json hashes;
-    if (!epee::serialization::load_t_from_json_file(hashes, json_hashfile_fullpath))
-    {
-      MERROR("Error loading checkpoints from " << json_hashfile_fullpath);
-      return false;
-    }
-
-    checkpoint_hashes = std::move(hashes.hashlines);
-    return true;
-  }
-
-  static bool get_checkpoint_from_db_safe(BlockchainDB *db, uint64_t height, checkpoint_t &checkpoint)
-  {
-    try
-    {
-      auto guard = db_rtxn_guard(db);
-      return db->get_block_checkpoint(height, checkpoint);
-    }
-    catch (const std::exception &e)
-    {
-      MERROR("Get block checkpoint from DB failed at height: " << height << ", what = " << e.what());
-      return false;
-    }
-  }
-
-  static bool update_checkpoint_in_db_safe(BlockchainDB *db, checkpoint_t const &checkpoint)
-  {
-    try
-    {
-      auto guard = db_wtxn_guard(db);
-      db->update_block_checkpoint(checkpoint);
-    }
-    catch (const std::exception& e)
-    {
-      MERROR("Failed to add checkpoint with hash: " << checkpoint.block_hash << " at height: " << checkpoint.height << ", what = " << e.what());
-      return false;
-    }
-
-    return true;
-  }
->>>>>>> 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-  //---------------------------------------------------------------------------
-  void checkpoints::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
-  {
-    uint64_t const height = get_block_height(block);
-    if (height < service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL ||
-        block.major_version < network_version_12_checkpointing)
-      return;
-
-    uint64_t const end_cull_height = height - service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL;
-    uint64_t start_cull_height     = (end_cull_height < service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL)
-                                     ? 0
-                                     : end_cull_height - service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL;
-    start_cull_height += (start_cull_height % service_nodes::CHECKPOINT_INTERVAL);
-    m_last_cull_height = std::max(m_last_cull_height, start_cull_height);
-
-    auto guard = db_wtxn_guard(m_db);
-    for (; m_last_cull_height < end_cull_height; m_last_cull_height += service_nodes::CHECKPOINT_INTERVAL)
-    {
-<<<<<<< HEAD
-      if (m_last_cull_height % service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL == 0)
-        continue;
-
-      try
-      {
-        m_db->remove_block_checkpoint(m_last_cull_height);
-      }
-      catch (const std::exception &e)
-      {
-        MERROR("Pruning block checkpoint on block added failed non-trivially at height: " << m_last_cull_height << ", what = " << e.what());
-      }
-    }
-  }
-  //---------------------------------------------------------------------------
-  void checkpoints::blockchain_detached(uint64_t height)
-  {
-    m_last_cull_height = std::min(m_last_cull_height, height);
-
-    checkpoint_t top_checkpoint;
-    auto guard = db_wtxn_guard(m_db);
-    if (m_db->get_top_checkpoint(top_checkpoint))
-||||||| parent of 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-      crypto::hash const &curr_hash = checkpoint.block_hash;
-      CHECK_AND_ASSERT_MES(h == curr_hash, false, "Checkpoint at given height already exists, and hash for new checkpoint was different!");
-    }
-    else
-    {
-      checkpoint.height       = height;
-      checkpoint.type         = checkpoint_type::hardcoded;
-      checkpoint.block_hash   = h;
-      r = update_checkpoint_in_db_safe(m_db, checkpoint);
-    }
-
-    return r;
-  }
-  //---------------------------------------------------------------------------
-  static bool add_vote_if_unique(checkpoint_t &checkpoint, service_nodes::checkpoint_vote const &vote)
-  {
-    CHECK_AND_ASSERT_MES(checkpoint.block_hash == vote.block_hash,
-                         false,
-                         "Developer error: Add vote if unique should only be called when the vote hash and checkpoint hash match");
-
-    // TODO(doyle): Factor this out, a similar function exists in service node deregister
-    CHECK_AND_ASSERT_MES(vote.voters_quorum_index < service_nodes::QUORUM_SIZE,
-                         false,
-                         "Vote is indexing out of bounds");
-
-    const auto signature_it = std::find_if(checkpoint.signatures.begin(), checkpoint.signatures.end(), [&vote](service_nodes::voter_to_signature const &check) {
-      return vote.voters_quorum_index == check.quorum_index;
-    });
-
-    if (signature_it == checkpoint.signatures.end())
-    {
-      service_nodes::voter_to_signature new_voter_to_signature = {};
-      new_voter_to_signature.quorum_index                      = vote.voters_quorum_index;
-      new_voter_to_signature.signature                         = vote.signature;
-      checkpoint.signatures.push_back(new_voter_to_signature);
-      return true;
-    }
-
-    return false;
-  }
-  //---------------------------------------------------------------------------
-  bool checkpoints::add_checkpoint_vote(service_nodes::checkpoint_vote const &vote)
-  {
-   // TODO(doyle): Always accept votes. Later on, we should only accept votes up
-   // to a certain point, so that eventually once a certain number of blocks
-   // have transpired, we can go through all our "seen" votes and deregister
-   // anyone who has not participated in voting by that point.
-
-#if 0
-    uint64_t newest_checkpoint_height = get_max_height();
-    if (vote.block_height < newest_checkpoint_height)
-      return true;
-#endif
-
-    // TODO(doyle): Double work. Factor into a generic vote checker as we already have one in service node deregister
-    std::array<int, service_nodes::QUORUM_SIZE> unique_vote_set = {};
-    std::vector<checkpoint_t> &candidate_checkpoints            = m_staging_points[vote.block_height];
-    std::vector<checkpoint_t>::iterator curr_checkpoint         = candidate_checkpoints.end();
-    for (auto it = candidate_checkpoints.begin(); it != candidate_checkpoints.end(); it++)
-=======
-      crypto::hash const &curr_hash = checkpoint.block_hash;
-      CHECK_AND_ASSERT_MES(h == curr_hash, false, "Checkpoint at given height already exists, and hash for new checkpoint was different!");
-    }
-    else
-    {
-      checkpoint.type       = checkpoint_type::hardcoded;
-      checkpoint.height     = height;
-      checkpoint.block_hash = h;
-      r                     = update_checkpoint(checkpoint);
-    }
-
-    return r;
-  }
-  //---------------------------------------------------------------------------
-  bool checkpoints::update_checkpoint(checkpoint_t const &checkpoint)
-  {
-    // TODO(doyle): Verify signatures and hash check out
-    std::array<size_t, service_nodes::CHECKPOINT_QUORUM_SIZE> unique_vote_set = {};
-    if (checkpoint.type == checkpoint_type::service_node)
->>>>>>> 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-    {
-<<<<<<< HEAD
-      uint64_t start_height = top_checkpoint.height;
-      for (size_t delete_height = start_height;
-           delete_height > height;
-           delete_height -= service_nodes::CHECKPOINT_INTERVAL)
-||||||| parent of 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-      checkpoint_t const &checkpoint = *it;
-      if (checkpoint.block_hash == vote.block_hash)
-        curr_checkpoint = it;
-
-      for (service_nodes::voter_to_signature const &vote_to_sig : checkpoint.signatures)
-=======
-      CHECK_AND_ASSERT_MES(checkpoint.signatures.size() >= service_nodes::CHECKPOINT_MIN_VOTES, false, "Checkpoint has insufficient signatures to be considered");
-      for (service_nodes::voter_to_signature const &vote_to_sig : checkpoint.signatures)
->>>>>>> 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-      {
-<<<<<<< HEAD
-        if (delete_height % service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL == 0)
-          continue;
-
-        try
-        {
-          m_db->remove_block_checkpoint(delete_height);
-        }
-        catch (const std::exception &e)
-        {
-          MERROR("Remove block checkpoint on detach failed non-trivially at height: " << delete_height << ", what = " << e.what());
-        }
-||||||| parent of 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-        if (vote_to_sig.quorum_index > unique_vote_set.size())
-          return false;
-
-        if (++unique_vote_set[vote_to_sig.quorum_index] > 1)
-        {
-          // NOTE: Voter is trying to vote twice
-          return false;
-        }
-=======
-        ++unique_vote_set[vote_to_sig.voter_index];
-        CHECK_AND_ASSERT_MES(vote_to_sig.voter_index < service_nodes::CHECKPOINT_QUORUM_SIZE, false, "Vote is indexing out of bounds");
-        CHECK_AND_ASSERT_MES(unique_vote_set[vote_to_sig.voter_index] == 1, false, "Voter is trying to vote twice");
->>>>>>> 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-      }
-    }
-<<<<<<< HEAD
-||||||| parent of 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-
-    if (curr_checkpoint == candidate_checkpoints.end())
-    {
-      checkpoint_t new_checkpoint = {};
-      new_checkpoint.height       = vote.block_height;
-      new_checkpoint.type         = checkpoint_type::service_node;
-      new_checkpoint.block_hash   = vote.block_hash;
-      candidate_checkpoints.push_back(new_checkpoint);
-      curr_checkpoint = (candidate_checkpoints.end() - 1);
-    }
-
-    if (add_vote_if_unique(*curr_checkpoint, vote))
-    {
-      if (curr_checkpoint->signatures.size() > service_nodes::MIN_VOTES_TO_CHECKPOINT)
-      {
-        update_checkpoint_in_db_safe(m_db, *curr_checkpoint);
-      }
-    }
-
-    return true;
-=======
-    else
-    {
-      CHECK_AND_ASSERT_MES(checkpoint.signatures.size() == 0, false, "Non service-node checkpoints should have no signatures");
-    }
-
-    bool result = update_checkpoint_in_db_safe(m_db, checkpoint);
-    return result;
->>>>>>> 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-  }
   //---------------------------------------------------------------------------
   bool checkpoints::is_in_checkpoint_zone(uint64_t height) const
   {
@@ -489,30 +181,30 @@ namespace cryptonote
   //---------------------------------------------------------------------------
   bool checkpoints::is_alternative_block_allowed(uint64_t blockchain_height, uint64_t block_height, bool *rta_checkpoint)
   {
-     if (rta_checkpoint)
-       *rta_checkpoint = false;
- 
-     if (0 == block_height)
-       return false;
- 
-     {   
-       std::vector<checkpoint_t> const first_checkpoint = m_db->get_checkpoints_range(0, blockchain_height, 1); 
-       if (first_checkpoint.empty() || blockchain_height < first_checkpoint[0].height)
-         return true;
-     }   
- 
-     checkpoint_t immutable_checkpoint;
-     uint64_t immutable_height = 0;
-     if (m_db->get_immutable_checkpoint(&immutable_checkpoint, blockchain_height))
-     {   
-       immutable_height = immutable_checkpoint.height;
-       if (rta_checkpoint)
-         *rta_checkpoint = (immutable_checkpoint.type == checkpoint_type::supernode);
-     }   
- 
-     m_immutable_height = std::max(immutable_height, m_immutable_height);
-     bool result        = block_height > m_immutable_height;
-     return result;
+    if (rta_checkpoint)
+      *rta_checkpoint = false;
+
+    if (0 == block_height)
+      return false;
+
+    {
+      std::vector<checkpoint_t> const first_checkpoint = m_db->get_checkpoints_range(0, blockchain_height, 1);
+      if (first_checkpoint.empty() || blockchain_height < first_checkpoint[0].height)
+        return true;
+    }
+
+    checkpoint_t immutable_checkpoint;
+    uint64_t immutable_height = 0;
+    if (m_db->get_immutable_checkpoint(&immutable_checkpoint, blockchain_height))
+    {
+      immutable_height = immutable_checkpoint.height;
+      if (rta_checkpoint)
+        *rta_checkpoint = (immutable_checkpoint.type == checkpoint_type::supernode);
+    }
+
+    m_immutable_height = std::max(immutable_height, m_immutable_height);
+    bool result        = block_height > m_immutable_height;
+    return result;
   }
   //---------------------------------------------------------------------------
   uint64_t checkpoints::get_max_height() const
@@ -524,11 +216,10 @@ namespace cryptonote
 
     return result;
   }
-  //---------------------------------------------------------------------------
-  bool checkpoints::init(network_type nettype, struct BlockchainDB *db)
+
+  bool checkpoints::init(network_type nettype, BlockchainDB *db)
   {
-    *this = {};
-    m_db = db;
+  
     *this     = {};
     m_db      = db;
     m_nettype = nettype;
@@ -544,8 +235,8 @@ namespace cryptonote
         ADD_CHECKPOINT(checkpoint.height, checkpoint.hash);
       }
     }
-    return true;
-    
-  }
 
+    return true;
+  }
+ 
 }
