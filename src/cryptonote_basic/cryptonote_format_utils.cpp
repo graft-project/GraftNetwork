@@ -1,5 +1,6 @@
 // Copyright (c) 2019, The Graft Project
 // Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -39,7 +40,6 @@
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include "ringct/rctSigs.h"
-<<<<<<< HEAD
 #include "serialization/binary_utils.h" 
 #include "cryptonote_basic/verification_context.h"
 

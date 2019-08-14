@@ -59,7 +59,6 @@ namespace cryptonote
     {
       return false;
     }
-<<<<<<< HEAD
 
     virtual bool relay_checkpoint_votes(NOTIFY_NEW_CHECKPOINT_VOTE::request& arg, cryptonote_connection_context& exclude_context)
     {

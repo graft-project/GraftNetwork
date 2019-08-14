@@ -31,11 +31,14 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include <boost/algorithm/string.hpp>
+#include <boost/endian/conversion.hpp>
 
 #include "string_tools.h"
 using namespace epee;
 
 #include <unordered_set>
+#include <iomanip>
+
 #include "cryptonote_core.h"
 #include "common/util.h"
 #include "common/updates.h"
@@ -240,7 +243,7 @@ namespace cryptonote
       m_pprotocol = &m_protocol_stub;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::update_checkpoints()
+  bool core::update_checkpoints_from_json_file()
   {
     if (m_nettype != MAINNET) return true;
 
@@ -248,9 +251,9 @@ namespace cryptonote
 
     // load json checkpoints every 10min and verify them with respect to what blocks we already have
     bool res = true;
-    if (time(NULL) - m_last_dns_checkpoints_update >= 600)
+    if (time(NULL) - m_last_json_checkpoints_update >= 600)
     {
-      res = m_blockchain_storage.update_checkpoints(m_checkpoints_path);
+      res = m_blockchain_storage.update_checkpoints_from_json_file(m_checkpoints_path);
       m_last_json_checkpoints_update = time(NULL);
     }
 
@@ -1268,22 +1271,6 @@ namespace cryptonote
     m_mempool.set_relayed(txs);
   }
   //-----------------------------------------------------------------------------------------------
-<<<<<<< HEAD
-||||||| parent of 8af377d2b... Unify and move responsibility of voting to quorum_cop (#615)
-  bool core::relay_deregister_votes()
-  {
-    NOTIFY_NEW_DEREGISTER_VOTE::request req;
-    req.votes = m_deregister_vote_pool.get_relayable_votes();
-    if (!req.votes.empty())
-    {
-      cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
-      if (get_protocol()->relay_deregister_votes(req, fake_context))
-        m_deregister_vote_pool.set_relayed(req.votes);
-    }
-
-    return true;
-  }
-  //-----------------------------------------------------------------------------------------------
   bool core::relay_checkpoint_votes()
   {
     const time_t now = time(nullptr);
@@ -1294,6 +1281,8 @@ namespace cryptonote
     std::vector<service_nodes::checkpoint_vote *> relayed_votes;
     for (Blockchain::service_node_checkpoint_pool_entry &pool_entry: m_blockchain_storage.m_checkpoint_pool)
     {
+      
+      // TODO: graft  
       for (service_nodes::checkpoint_vote &vote : pool_entry.votes)
       {
         const time_t elapsed         = now - vote.time_last_sent_p2p;
@@ -1450,7 +1439,8 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::add_new_block(const block& b, block_verification_context& bvc)
   {
-    relay_service_node_votes(); // NOTE: nop if synchronising due to not accepting votes whilst syncing
+    // TODO: graft: relay checkpoint votes here?
+    // relay_service_node_votes(); // NOTE: nop if synchronising due to not accepting votes whilst syncing
     if (!m_blockchain_storage.add_new_block(b, bvc))
       return false;
 
@@ -1504,13 +1494,9 @@ namespace cryptonote
   }
 
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_incoming_block(const blobdata& block_blob, const block *b, block_verification_context& bvc, bool update_miner_blocktemplate)
+  bool core::handle_incoming_block(const blobdata& block_blob, const block *b, block_verification_context& bvc, checkpoint_t *checkpoint, bool update_miner_blocktemplate)
   {
     TRY_ENTRY();
-    // load json checkpoints every 10min/hour respectively,
-    // and verify them with respect to what blocks we already have
-    CHECK_AND_ASSERT_MES(update_checkpoints(), false, "One or more checkpoints loaded from json conflicted with existing checkpoints.");
-
     bvc = boost::value_initialized<block_verification_context>();
 
     if (!check_incoming_block_size(block_blob))
@@ -1522,9 +1508,7 @@ namespace cryptonote
     if (((size_t)-1) <= 0xffffffff && block_blob.size() >= 0x3fffffff)
       MWARNING("This block's size is " << block_blob.size() << ", closing on the 32 bit limit");
 
-    // load json & DNS checkpoints every 10min/hour respectively,
-    // and verify them with respect to what blocks we already have
-    CHECK_AND_ASSERT_MES(update_checkpoints(), false, "One or more checkpoints loaded from json or dns conflicted with existing checkpoints.");
+    CHECK_AND_ASSERT_MES(update_checkpoints_from_json_file(), false, "One or more checkpoints loaded from json conflicted with existing checkpoints.");
 
     block lb;
     if (!b)
@@ -1538,14 +1522,14 @@ namespace cryptonote
       }
       b = &lb;
     }
-    add_new_block(*b, bvc);
+    add_new_block(*b, bvc, checkpoint);
     if(update_miner_blocktemplate && bvc.m_added_to_main_chain)
-       update_miner_block_template();
+       m_miner.on_block_chain_update();
     return true;
 
     CATCH_ENTRY_L0("core::handle_incoming_block()", false);
   }
-  //-----------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------
   // Used by the RPC server to check the size of an incoming
   // block_blob
   bool core::check_incoming_block_size(const blobdata& block_blob) const
@@ -1667,7 +1651,7 @@ namespace cryptonote
     {
       std::string main_message;
       if (m_offline)
-        main_message = "The daemon is running offline and will not attempt to sync to the Monero network.";
+        main_message = "The daemon is running offline and will not attempt to sync to the Graft network.";
       else
         main_message = "The daemon will start synchronizing with the network. This may take a long time to complete.";
       MGINFO_YELLOW(ENDL << "**********************************************************************" << ENDL
