@@ -567,6 +567,21 @@ bool construct_tx_to_key(const std::vector<test_event_entry>& events, cryptonote
   return construct_tx(from.get_keys(), sources, destinations, from.get_keys().m_account_address, std::vector<uint8_t>(), tx, 0);
 }
 
+
+bool construct_stake_tx_to_key(const std::vector<test_event_entry> &events, transaction &tx, const block &blk_head, const account_base &from, const account_base &to,
+                               uint64_t amount, uint64_t fee, size_t nmix,
+                               const public_key &supernode_id, const signature &supernode_sign, uint64_t unlock_time)
+{
+  vector<tx_source_entry> sources;
+  vector<tx_destination_entry> destinations;
+  fill_tx_sources_and_destinations(events, blk_head, from, to, amount, fee, nmix, sources, destinations);
+  std::vector<uint8_t> extra;
+  add_graft_stake_tx_extra_to_extra(extra,  epee::string_tools::pod_to_hex(supernode_id),
+                                    to.get_keys().m_account_address, supernode_sign);
+  return construct_tx(from.get_keys(), sources, destinations, from.get_keys().m_account_address, extra, tx, unlock_time);
+}
+
+
 transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const block& blk_head,
                                   const account_base& acc_from, const account_base& acc_to, uint64_t amount, uint64_t fee)
 {
@@ -575,6 +590,17 @@ transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const b
   events.push_back(tx);
   return tx;
 }
+
+transaction construct_stake_tx_with_fee(std::vector<test_event_entry>& events, const block& blk_head,
+                                  const account_base& acc_from, const account_base& acc_to, uint64_t amount, uint64_t fee,
+                                  const public_key &supernode_id, const signature &supernode_sign, uint64_t unlock_time)
+{
+  transaction tx;
+  construct_stake_tx_to_key(events, tx, blk_head, acc_from, acc_to, amount, fee, 0, supernode_id, supernode_sign, unlock_time);
+  events.push_back(tx);
+  return tx;
+}
+
 
 uint64_t get_balance(const cryptonote::account_base& addr, const std::vector<cryptonote::block>& blockchain, const map_hash2tx_t& mtx) {
     uint64_t res = 0;

@@ -381,7 +381,7 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool get_tx_fee(const transaction& tx, uint64_t & fee)
   {
-    if (tx.version > 1)
+    if (tx.version > 1 && tx.version != 123 && tx.version != 124)
     {
       fee = tx.rct_signatures.txnFee;
       return true;
@@ -1158,64 +1158,64 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool add_graft_tx_extra_to_extra(transaction &tx, const supernode::GraftTxExtra &graft_extra)
   {
-      return add_graft_tx_extra_to_extra(tx.extra, graft_extra);
+    return add_graft_tx_extra_to_extra(tx.extra, graft_extra);
   }
   //---------------------------------------------------------------
   bool add_graft_tx_extra_to_extra(std::vector<uint8_t>& extra, const supernode::GraftTxExtra &graft_extra)
   {
-      std::string blob;
-      ::serialization::dump_binary(const_cast<supernode::GraftTxExtra&>(graft_extra), blob);
-      tx_extra_graft_extra container;
-      container.data = blob;
-      blob.clear();
-      ::serialization::dump_binary(container, blob);
-      extra.push_back(TX_EXTRA_GRAFT_EXTRA_TAG);
-      std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
-      return true;
+    std::string blob;
+    ::serialization::dump_binary(const_cast<supernode::GraftTxExtra&>(graft_extra), blob);
+    tx_extra_graft_extra container;
+    container.data = blob;
+    blob.clear();
+    ::serialization::dump_binary(container, blob);
+    extra.push_back(TX_EXTRA_GRAFT_EXTRA_TAG);
+    std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
+    return true;
   }
   //---------------------------------------------------------------
   bool get_graft_tx_extra_from_extra(const transaction &tx, supernode::GraftTxExtra &graft_tx_extra)
   {
-      std::vector<tx_extra_field> tx_extra_fields;
-      parse_tx_extra(tx.extra, tx_extra_fields);
-      tx_extra_graft_extra graft_extra;
-      if(!find_tx_extra_field_by_type(tx_extra_fields, graft_extra))
-        return false;
-      return ::serialization::parse_binary(graft_extra.data, graft_tx_extra);
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx.extra, tx_extra_fields);
+    tx_extra_graft_extra graft_extra;
+    if(!find_tx_extra_field_by_type(tx_extra_fields, graft_extra))
+      return false;
+    return ::serialization::parse_binary(graft_extra.data, graft_tx_extra);
   }
 
   namespace
   {
-      struct GraftStakeTxExtra
-      {
-          std::string supernode_public_id;
-          cryptonote::account_public_address supernode_public_address;
-          crypto::signature supernode_signature;
+    struct GraftStakeTxExtra
+    {
+      std::string supernode_public_id;
+      cryptonote::account_public_address supernode_public_address;
+      crypto::signature supernode_signature;
 
-          GraftStakeTxExtra() = default;
+      GraftStakeTxExtra() = default;
 
-          GraftStakeTxExtra(const std::string &supernode_public_id,
-            const cryptonote::account_public_address& supernode_public_address,
-            const crypto::signature &supernode_signature) :
-              supernode_public_id(supernode_public_id),
-              supernode_public_address(supernode_public_address),
-              supernode_signature(supernode_signature)
-          {}
+      GraftStakeTxExtra(const std::string &supernode_public_id,
+        const cryptonote::account_public_address& supernode_public_address,
+        const crypto::signature &supernode_signature) :
+          supernode_public_id(supernode_public_id),
+          supernode_public_address(supernode_public_address),
+          supernode_signature(supernode_signature)
+      {}
 
-          bool operator ==(const GraftStakeTxExtra &rhs) const {
-            return supernode_public_id == rhs.supernode_public_id &&
-              !memcmp(&supernode_public_address.m_view_public_key.data[0], &rhs.supernode_public_address.m_view_public_key.data[0],
-                sizeof(supernode_public_address.m_view_public_key.data)) &&
-              !memcmp(&supernode_signature.c.data[0], &rhs.supernode_signature.c.data[0], sizeof(supernode_signature.c.data)) &&
-              !memcmp(&supernode_signature.r.data[0], &rhs.supernode_signature.r.data[0], sizeof(supernode_signature.r.data));
-          }
+      bool operator ==(const GraftStakeTxExtra &rhs) const {
+        return supernode_public_id == rhs.supernode_public_id &&
+          !memcmp(&supernode_public_address.m_view_public_key.data[0], &rhs.supernode_public_address.m_view_public_key.data[0],
+            sizeof(supernode_public_address.m_view_public_key.data)) &&
+          !memcmp(&supernode_signature.c.data[0], &rhs.supernode_signature.c.data[0], sizeof(supernode_signature.c.data)) &&
+          !memcmp(&supernode_signature.r.data[0], &rhs.supernode_signature.r.data[0], sizeof(supernode_signature.r.data));
+      }
 
-          BEGIN_SERIALIZE_OBJECT()
-              FIELD(supernode_public_id)
-              FIELD(supernode_public_address)
-              FIELD(supernode_signature)
-          END_SERIALIZE()
-      };
+      BEGIN_SERIALIZE_OBJECT()
+        FIELD(supernode_public_id)
+        FIELD(supernode_public_address)
+        FIELD(supernode_signature)
+      END_SERIALIZE()
+    };
   }
 
   bool add_graft_stake_tx_extra_to_extra
@@ -1224,16 +1224,16 @@ namespace cryptonote
      const cryptonote::account_public_address &supernode_public_address,
      const crypto::signature &supernode_signature)
   {
-      GraftStakeTxExtra tx_extra(supernode_public_id, supernode_public_address, supernode_signature);
-      std::string blob;
-      ::serialization::dump_binary(tx_extra, blob);
-      tx_extra_graft_stake_tx container;
-      container.data = blob;
-      blob.clear();
-      ::serialization::dump_binary(container, blob);
-      extra.push_back(TX_EXTRA_GRAFT_STAKE_TX_TAG);
-      std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
-      return true;
+    GraftStakeTxExtra tx_extra(supernode_public_id, supernode_public_address, supernode_signature);
+    std::string blob;
+    ::serialization::dump_binary(tx_extra, blob);
+    tx_extra_graft_stake_tx container;
+    container.data = blob;
+    blob.clear();
+    ::serialization::dump_binary(container, blob);
+    extra.push_back(TX_EXTRA_GRAFT_STAKE_TX_TAG);
+    std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
+    return true;
   }
 
   bool add_graft_rta_header_to_extra(std::vector<uint8_t> &extra, const rta_header &rta_header)
@@ -1261,13 +1261,13 @@ namespace cryptonote
 
   bool add_graft_tx_secret_key_to_extra(std::vector<uint8_t> &extra, const crypto::secret_key& secret_key)
   {
-      tx_extra_graft_tx_secret_key container;
-      container.secret_key = secret_key;
-      std::string blob;
-      ::serialization::dump_binary(container, blob);
-      extra.push_back(TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG);
-      std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
-      return true;
+    tx_extra_graft_tx_secret_key container;
+    container.secret_key = secret_key;
+    std::string blob;
+    ::serialization::dump_binary(container, blob);
+    extra.push_back(TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG);
+    std::copy(blob.begin(), blob.end(), std::back_inserter(extra));
+    return true;
   }
 
   bool get_graft_stake_tx_extra_from_extra
@@ -1277,30 +1277,30 @@ namespace cryptonote
      crypto::signature &supernode_signature,
      crypto::secret_key &tx_secret_key)
   {
-      std::vector<tx_extra_field> tx_extra_fields;
-      parse_tx_extra(tx.extra, tx_extra_fields);
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx.extra, tx_extra_fields);
 
-      tx_extra_graft_stake_tx stake_tx_extra;
+    tx_extra_graft_stake_tx stake_tx_extra;
 
-      if(!find_tx_extra_field_by_type(tx_extra_fields, stake_tx_extra))
-          return false;
+    if(!find_tx_extra_field_by_type(tx_extra_fields, stake_tx_extra))
+      return false;
 
-      GraftStakeTxExtra stake_tx;
+    GraftStakeTxExtra stake_tx;
 
-      if (!::serialization::parse_binary(stake_tx_extra.data, stake_tx))
-          return false;
+    if (!::serialization::parse_binary(stake_tx_extra.data, stake_tx))
+      return false;
 
-      tx_extra_graft_tx_secret_key stake_tx_secret_key_extra;
+    tx_extra_graft_tx_secret_key stake_tx_secret_key_extra;
 
-      if(!find_tx_extra_field_by_type(tx_extra_fields, stake_tx_secret_key_extra))
-          return false;
+    if(!find_tx_extra_field_by_type(tx_extra_fields, stake_tx_secret_key_extra))
+      return false;
 
-      supernode_public_id = stake_tx.supernode_public_id;
-      supernode_public_address = stake_tx.supernode_public_address;
-      supernode_signature = stake_tx.supernode_signature;
-      tx_secret_key = stake_tx_secret_key_extra.secret_key;
+    supernode_public_id = stake_tx.supernode_public_id;
+    supernode_public_address = stake_tx.supernode_public_address;
+    supernode_signature = stake_tx.supernode_signature;
+    tx_secret_key = stake_tx_secret_key_extra.secret_key;
 
-      return true;
+    return true;
   }
 
   bool add_graft_rta_signatures_to_extra2(std::vector<uint8_t> &extra, const std::vector<rta_signature> &rta_signatures)
@@ -1325,4 +1325,81 @@ namespace cryptonote
       return false;
     return ::serialization::parse_binary(rta_signatures_data.data, rta_signatures);
   }
+
+  bool graft_get_disqualification(const transaction &tx, tx_extra_graft_disqualification& disq)
+  {
+    if(tx.version != 123)
+      return false;
+    //get_tx_fee(tx) should return 0 when tx.vin tx.vout are empty
+    if(!tx.vin.empty() || !tx.vout.empty())
+      return false;
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx.extra, tx_extra_fields);
+    return find_tx_extra_field_by_type(tx_extra_fields, disq);
+  }
+
+  bool graft_is_disqualification(const transaction &tx)
+  {
+    tx_extra_graft_disqualification disq;
+    return graft_get_disqualification(tx, disq);
+  }
+
+  bool graft_check_disqualification(const transaction &tx, tx_extra_graft_disqualification* pdisq)
+  {
+    tx_extra_graft_disqualification disq;
+    if(!graft_get_disqualification(tx, disq))
+      return false;
+    {//check signs
+      std::string item_str;
+      ::serialization::dump_binary(disq.item, item_str);
+      crypto::hash hash;
+      crypto::cn_fast_hash(item_str.data(), item_str.size(), hash);
+      for(auto& si : disq.signers)
+      {
+        if(!crypto::check_signature(hash, si.signer_id, si.sign))
+            return false;
+      }
+    }
+    if(pdisq) *pdisq = std::move(disq);
+    return true;
+  }
+
+  bool graft_get_disqualification2(const transaction &tx, tx_extra_graft_disqualification2& disq)
+  {
+    if(tx.version != 124)
+      return false;
+    //get_tx_fee(tx) should return 0 when tx.vin tx.vout are empty
+    if(!tx.vin.empty() || !tx.vout.empty())
+      return false;
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx.extra, tx_extra_fields);
+    return find_tx_extra_field_by_type(tx_extra_fields, disq);
+  }
+
+  bool graft_is_disqualification2(const transaction &tx)
+  {
+    tx_extra_graft_disqualification2 disq;
+    return graft_get_disqualification2(tx, disq);
+  }
+
+  bool graft_check_disqualification2(const transaction &tx, tx_extra_graft_disqualification2* pdisq)
+  {
+    tx_extra_graft_disqualification2 disq;
+    if(!graft_get_disqualification2(tx, disq))
+      return false;
+    {//check signs
+      std::string item_str;
+      ::serialization::dump_binary(disq.item, item_str);
+      crypto::hash hash;
+      crypto::cn_fast_hash(item_str.data(), item_str.size(), hash);
+      for(auto& si : disq.signers)
+      {
+        if(!crypto::check_signature(hash, si.signer_id, si.sign))
+          return false;
+      }
+    }
+    if(pdisq) *pdisq = std::move(disq);
+    return true;
+  }
+
 }
