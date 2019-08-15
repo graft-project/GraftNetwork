@@ -496,8 +496,8 @@ namespace nodetool
     }
 
   private:
-    void handle_stakes_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes);
-    void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
+    void handle_stakes_update(uint64_t block_height, const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes, const cryptonote::StakeTransactionProcessor::supernode_disqualification_array& disquals);
+    void handle_blockchain_based_list_update(uint64_t block_number, const crypto::hash& block_hash, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
 
   private:
     std::multimap<int, std::string> m_supernode_requests_timestamps;
