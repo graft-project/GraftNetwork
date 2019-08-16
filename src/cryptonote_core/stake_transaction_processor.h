@@ -14,6 +14,7 @@ class StakeTransactionProcessor
 {
 public:
   typedef StakeTransactionStorage::supernode_stake_array supernode_stake_array;
+  typedef StakeTransactionStorage::supernode_disqualification_array supernode_disqualification_array;
 
   StakeTransactionProcessor(Blockchain& blockchain);
 
@@ -26,7 +27,7 @@ public:
   /// Synchronize with blockchain
   void synchronize();
 
-  typedef std::function<void(uint64_t block_number, const supernode_stake_array&)> supernode_stakes_update_handler;
+  typedef std::function<void(uint64_t block_number, const supernode_stake_array&, const supernode_disqualification_array&)> supernode_stakes_update_handler;
 
   /// Update handler for new stakes
   void set_on_update_stakes_handler(const supernode_stakes_update_handler&);
@@ -35,7 +36,7 @@ public:
   void invoke_update_stakes_handler(bool force = true);
 
   typedef BlockchainBasedList::supernode_tier_array supernode_tier_array;
-  typedef std::function<void(uint64_t block_number, const supernode_tier_array&)> blockchain_based_list_update_handler;
+  typedef std::function<void(uint64_t block_number, const crypto::hash& block_hash, const supernode_tier_array&)> blockchain_based_list_update_handler;
 
   /// Update handler for new blockchain based list
   void set_on_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&);
@@ -46,8 +47,11 @@ public:
   /// Turns on/off processing
   void set_enabled(bool arg);
 
-
   bool is_enabled() const;
+
+  /// Check that transaction with tx_hash does not exist yet. Those to be disqualified, and signers are in corresponding sets.
+  bool check_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash);
+  bool check_disqualification2_transaction(const transaction& tx, const crypto::hash tx_hash);
 
 private:
   void init_storages_impl();
@@ -56,6 +60,9 @@ private:
   void invoke_update_blockchain_based_list_handler_impl(size_t depth);
   void process_block_stake_transaction(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
   void process_block_blockchain_based_list(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);
+
+  void process_disqualification_transaction(const transaction& tx, const crypto::hash tx_hash, uint64_t block_index, const crypto::hash& block_hash, StakeTransactionStorage::disqualification_array& disquals);
+  void process_disqualification2_transaction(const transaction& tx, const crypto::hash tx_hash, uint64_t block_index, const crypto::hash& block_hash, StakeTransactionStorage::disqualification2_storage_array& disquals2);
 
 private:
   std::string m_config_dir;
