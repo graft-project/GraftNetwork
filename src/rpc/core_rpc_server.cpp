@@ -2336,6 +2336,266 @@ namespace cryptonote
 
   //------------------------------------------------------------------------------------------------------------------------------
 
+  bool core_rpc_server::on_get_bbl_tiers(const COMMAND_RPC_BBL_TIERS::request &req, COMMAND_RPC_BBL_TIERS::response &res, epee::json_rpc::error &error_resp)
+  {
+    int64_t depth = (req.height <= 0)? -req.height : (m_core.get_current_blockchain_height() - req.height);
+    if(depth < 0) return false;
+    try
+    {
+      StakeTransactionProcessor* stp = m_core.get_stake_tx_processor();
+      if(!stp->get_blockchain_based_list()) stp->synchronize();
+      const auto& tiers = stp->get_blockchain_based_list()->tiers(depth);
+      res.tiers.reserve(tiers.size());
+      for(auto& tier : tiers)
+      {
+        COMMAND_RPC_BBL_TIERS::tier res_tier;
+        res_tier.ids.reserve(tier.size());
+        for(auto& sn : tier)
+        {
+          res_tier.ids.push_back(sn.supernode_public_id);
+        }
+        res.tiers.push_back(std::move(res_tier));
+      }
+      return true;
+    }
+    catch(...)
+    {
+      return false;
+    }
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+
+  COMMAND_RPC_DISQUALIFICATIONS::info core_rpc_server::fill_info(const disqualification& disq)
+  {
+    COMMAND_RPC_DISQUALIFICATIONS::info info;
+    info.id = disq.id_str;
+    info.start_block = disq.block_index;
+    info.end_block = disq.block_index + DISQUALIFICATION_DURATION_BLOCK_COUNT;
+    info.disqTxHash = epee::string_tools::pod_to_hex(disq.tx_hash);
+    info.type = 1;
+
+    {//find the transaction and get bbqs_signers from it
+      std::vector<crypto::hash> v{disq.tx_hash};
+      std::vector<transaction> txs;
+      std::vector<crypto::hash> missed_txs;
+      bool res = m_core.get_transactions(v, txs, missed_txs);
+      assert(res && txs.size() == 1 && missed_txs.empty());
+      transaction& tx = txs[0];
+
+      cryptonote::tx_extra_graft_disqualification disq;
+      bool res1 = graft_get_disqualification(tx, disq);
+      assert(res1);
+
+      //fill info.info.type1.bbqs_signers
+      for(const auto& s : disq.signers)
+      {
+        info.info.type1.bbqs_signers.push_back(epee::string_tools::pod_to_hex(s.signer_id));
+      }
+    }
+
+    return info;
+  }
+
+  COMMAND_RPC_DISQUALIFICATIONS::info core_rpc_server::fill_info(const disqualification2& disq)
+  {
+    COMMAND_RPC_DISQUALIFICATIONS::info info;
+    info.id = disq.id_str;
+    info.start_block = disq.block_index;
+    info.end_block = disq.block_index + DISQUALIFICATION_DURATION_BLOCK_COUNT;
+    info.disqTxHash = epee::string_tools::pod_to_hex(disq.tx_hash);
+    info.type = 2;
+
+    {//find the transaction and get payment_id & rta_signers and  from it
+      std::vector<crypto::hash> v{disq.tx_hash};
+      std::vector<transaction> txs;
+      std::vector<crypto::hash> missed_txs;
+      bool res = m_core.get_transactions(v, txs, missed_txs);
+      assert(res && txs.size() == 1 && missed_txs.empty());
+      transaction& tx = txs[0];
+
+      cryptonote::tx_extra_graft_disqualification2 disq;
+      bool res1 = graft_get_disqualification2(tx, disq);
+      assert(res1);
+
+      info.info.type2.payment_id = disq.item.payment_id;
+
+      //fill info.info.type1.bbqs_signers
+      for(const auto& s : disq.signers)
+      {
+        info.info.type2.rta_signers.push_back(epee::string_tools::pod_to_hex(s.signer_id));
+      }
+    }
+
+    return info;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+
+  bool core_rpc_server::on_get_disqualifications(const COMMAND_RPC_DISQUALIFICATIONS::request &req, COMMAND_RPC_DISQUALIFICATIONS::response &res, epee::json_rpc::error &error_resp)
+  {
+    bool all = (req.height == 1);
+    uint64_t height = (0 < req.height)? req.height : (m_core.get_current_blockchain_height() + req.height);
+
+    std::vector<std::string> ids = req.ids;
+    if(!ids.empty())
+    {
+      std::sort(ids.begin(), ids.end());
+    }
+
+    try
+    {
+      StakeTransactionProcessor* stp = m_core.get_stake_tx_processor();
+      if(!stp->get_blockchain_based_list()) stp->synchronize();
+
+      {//process disqualifications
+        const StakeTransactionStorage::disqualification_array& darr = stp->get_storage()->get_disqualifications();
+        auto it_ids = ids.begin(), eit_ids = ids.end();
+        for(auto it = darr.begin(), eit = darr.end(); it != eit; )
+        {
+          //find end of the same id
+          auto it1 = it; ++it1; while( it1 != eit && it1->id_str == it->id_str ) ++it1;
+
+          if(!ids.empty())
+          {//find id in ids
+            while(it_ids != eit_ids && *it_ids < it->id_str) ++it_ids;
+            if(*it_ids != it->id_str)
+            {//not found; skip the id
+              it = it1;
+              continue;
+            }
+          }
+          for(; it != it1; ++it)
+          {
+            const disqualification& disq = *it;
+            if(!all && !disq.is_active_for(height)) continue;
+            res.infos.push_back( fill_info( disq ) );
+          }
+        }
+
+      }
+      {//process disqualifications2
+        const StakeTransactionStorage::disqualification2_array& darr = stp->get_storage()->get_disqualifications2();
+        auto it_ids = ids.begin(), eit_ids = ids.end();
+        for(auto it = darr.begin(), eit = darr.end(); it != eit; )
+        {
+          //find end of the same id
+          auto it1 = it; ++it1; while( it1 != eit && it1->id_str == it->id_str ) ++it1;
+
+          if(!ids.empty())
+          {//find id in ids
+            while(it_ids != eit_ids && *it_ids < it->id_str) ++it_ids;
+            if(*it_ids != it->id_str)
+            {//not found; skip the id
+              it = it1;
+              continue;
+            }
+          }
+          for(; it != it1; ++it)
+          {
+            const disqualification2& disq = *it;
+            if(!all && !disq.is_active_for(height)) continue;
+            res.infos.push_back( fill_info( disq ) );
+          }
+        }
+
+      }
+      return true;
+    }
+    catch(...)
+    {
+      return false;
+    }
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+
+  bool core_rpc_server::get_disqualifications_by_hash(const COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH::request &req, COMMAND_RPC_DISQUALIFICATIONS_BY_TX_HASH::response &res, epee::json_rpc::error &error_resp)
+  {
+    crypto::hash tx_hash;
+    if(!epee::string_tools::hex_to_pod(req.disqTxHash, tx_hash)) return false;
+
+    try
+    {
+      StakeTransactionProcessor* stp = m_core.get_stake_tx_processor();
+      if(!stp->get_blockchain_based_list()) stp->synchronize();
+      {//process disqualifications
+        const StakeTransactionStorage::disqualification_array& darr = stp->get_storage()->get_disqualifications();
+        for(auto& disq : darr)
+        {
+          if(disq.tx_hash != tx_hash) continue;
+          res.infos.push_back( fill_info( disq ) );
+        }
+      }
+      {//process disqualifications2
+        const StakeTransactionStorage::disqualification2_array& darr = stp->get_storage()->get_disqualifications2();
+        for(auto& disq : darr)
+        {
+          if(disq.tx_hash != tx_hash) continue;
+          res.infos.push_back( fill_info( disq ) );
+        }
+      }
+
+      return true;
+    }
+    catch(...)
+    {
+      return false;
+    }
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+
+  bool core_rpc_server::get_disqualifications_by_rta_hash(const COMMAND_RPC_DISQUALIFICATIONS_BY_RTA_TX_HASH::request &req, COMMAND_RPC_DISQUALIFICATIONS_BY_RTA_TX_HASH::response &res, epee::json_rpc::error &error_resp)
+  {
+    std::string payment_id;
+    {//get payment_id by req.rtaTxHash
+      //find rta transaction by req.rtaTxHash
+      crypto::hash rta_tx_hash;
+      if(!epee::string_tools::hex_to_pod(req.rtaTxHash, rta_tx_hash)) return false;
+
+      std::vector<crypto::hash> v{rta_tx_hash};
+      std::vector<transaction> txs;
+      std::vector<crypto::hash> missed_txs;
+      bool res = m_core.get_transactions(v, txs, missed_txs);
+      assert(res && txs.size() == 1 && missed_txs.empty());
+      if(txs.empty()) return false;
+      transaction& rta_tx = txs[0];
+      assert(rta_tx.type == transaction::tx_type_rta);
+
+      //get payment_id from the transaction
+      rta_header header;
+      bool ok = get_graft_rta_header_from_extra(rta_tx, header);
+      assert(ok);
+      if(!ok) return false;
+
+      payment_id = header.payment_id;
+    }
+
+    try
+    {
+      StakeTransactionProcessor* stp = m_core.get_stake_tx_processor();
+      if(!stp->get_blockchain_based_list()) stp->synchronize();
+
+      {//process disqualifications2; find such with payment_id
+        const StakeTransactionStorage::disqualification2_array& darr = stp->get_storage()->get_disqualifications2();
+        for(auto& disq : darr)
+        {
+          COMMAND_RPC_DISQUALIFICATIONS::info info = fill_info(disq);
+          if(info.info.type2.payment_id != payment_id) continue;
+          res.infos.push_back( std::move(info) );
+        }
+      }
+
+      return true;
+    }
+    catch(...)
+    {
+      return false;
+    }
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
 
   const command_line::arg_descriptor<std::string, false, true, 2> core_rpc_server::arg_rpc_bind_port = {
       "rpc-bind-port"
