@@ -56,6 +56,7 @@ using namespace epee;
 #include "ringct/rctSigs.h"
 #include "common/notify.h"
 #include "version.h"
+#include "graft_rta_config.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "cn"
@@ -342,9 +343,21 @@ namespace cryptonote
 
     if (get_arg(vm, arg_disable_stake_tx_processing)) {
       MWARNING("stake transaction processing disabled");
-      m_graft_stake_transaction_processor.set_enabled(false);
+      m_graft_stake_transaction_processor.set_active_from_height(CRYPTONOTE_MAX_BLOCK_NUMBER);
+    } else {
+      const auto & hardforks = m_blockchain_storage.get_hard_fork_heights(m_nettype);
+      uint64_t stakes_active_height = 1;
+      for (const auto & hf: hardforks) {
+        if (hf.version == config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION) {
+          stakes_active_height = hf.height;
+          break;
+        }
+      }
+      if (stakes_active_height == 1) {
+        MWARNING("Stake transaction processor: activation height not defined for nettype: " << m_nettype);
+      }
+      m_graft_stake_transaction_processor.set_active_from_height(stakes_active_height);
     }
-
     return true;
   }
   //-----------------------------------------------------------------------------------------------
@@ -716,7 +729,7 @@ namespace cryptonote
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
     // don't allow rta tx until hf 13
     const size_t max_tx_version = version == 1 ? 1 : version < 13 ? 2 : CURRENT_TRANSACTION_VERSION;
-    if (tx.version == 0 || (tx.version != 123 && tx.version > max_tx_version))
+    if (tx.version == 0 || (tx.version != 123 && tx.version != 124 && tx.version > max_tx_version))
     {
       // v3 is the latest one we know
       tvc.m_verifivation_failed = true;
@@ -781,7 +794,7 @@ namespace cryptonote
         continue;
       }
 
-      if (tx_info[n].tx->version < 2)
+      if (tx_info[n].tx->version < 2 || tx_info[n].tx->version == 123 || tx_info[n].tx->version == 124)
         continue;
       const rct::rctSig &rv = tx_info[n].tx->rct_signatures;
       switch (rv.type) {
@@ -1369,6 +1382,11 @@ namespace cryptonote
   {
     uint64_t depth = m_blockchain_storage.get_current_blockchain_height() - last_received_block_height;
     m_graft_stake_transaction_processor.invoke_update_blockchain_based_list_handler(true, depth);
+  }
+
+  StakeTransactionProcessor *core::get_stake_tx_processor()
+  {
+    return &m_graft_stake_transaction_processor;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks)

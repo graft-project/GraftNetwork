@@ -82,7 +82,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
         if (stake->tier != i + 1)
           continue;
 
-        if (stake_txs_storage.is_disqualified(block_height, sn.supernode_public_id))
+        if (stake_txs_storage.is_disqualified(block_height-1, sn.supernode_public_id))
           continue;
 
         prev_supernodes.push_back(sn);
@@ -100,6 +100,9 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
       if (stake.tier != i + 1)
         continue;
 
+      if (stake_txs_storage.is_disqualified(block_height, stake.supernode_public_id))
+        continue;
+
       supernode sn;
 
       sn.supernode_public_id      = stake.supernode_public_id;
@@ -113,7 +116,8 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
       //sort valid supernodes by the age of stake
 
-    std::stable_sort(current_supernodes.begin(), current_supernodes.end(), [](const supernode& s1, const supernode& s2) {
+    //with such return stable_sort is not required
+    std::sort(current_supernodes.begin(), current_supernodes.end(), [](const supernode& s1, const supernode& s2) {
       return s1.block_height < s2.block_height || (s1.block_height == s2.block_height && s1.supernode_public_id < s2.supernode_public_id);
     });
 

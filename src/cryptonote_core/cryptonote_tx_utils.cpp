@@ -206,12 +206,13 @@ namespace cryptonote
   {
     hw::device &hwdev = sender_account_keys.get_device();
 
-    if (sources.empty())
+    if (sources.empty() && tx.version != 123 && tx.version != 124)
     {
       LOG_ERROR("Empty sources");
       return false;
     }
 
+    size_t tx_version = (tx.version != 123 && tx.version != 124)? 0 : tx.version;
     std::vector<rct::key> amount_keys;
     tx.set_null();
     amount_keys.clear();
@@ -220,7 +221,7 @@ namespace cryptonote
       msout->c.clear();
     }
 
-    tx.version = rct ? (tx_type == transaction::tx_type_rta? 3 : 2) : 1;
+    tx.version = tx_version? tx_version : rct ? (tx_type == transaction::tx_type_rta? 3 : 2) : 1;
     tx.type = tx_type;
     tx.unlock_time = unlock_time;
 
@@ -470,7 +471,7 @@ namespace cryptonote
       MDEBUG("Null secret key, skipping signatures");
     }
 
-    if (tx.version == 1)
+    if (tx.version == 1 || tx.version == 123 || tx.version == 124)
     {
       //generate ring signatures
       crypto::hash tx_prefix_hash;

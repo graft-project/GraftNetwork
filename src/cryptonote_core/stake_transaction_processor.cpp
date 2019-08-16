@@ -138,11 +138,7 @@ void StakeTransactionProcessor::init_storages_impl()
   if (m_storage || m_blockchain_based_list)
     throw std::runtime_error("StakeTransactionProcessor storages have been already initialized");
 
-  uint64_t first_block_number = m_enabled ? m_blockchain.get_earliest_ideal_height_for_version(config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
-                                          : std::numeric_limits<uint64_t>().max();
-
-  if (first_block_number)
-    first_block_number--;
+  uint64_t first_block_number = m_active_height;
 
   MDEBUG("Initialize stake processing storages. First block height is " << first_block_number);
 
@@ -212,7 +208,7 @@ bool StakeTransactionProcessor::check_disqualification_transaction(const transac
   }
   */
   crypto::hash b_hash = m_blockchain.get_block_id_by_height(disq_extra.item.block_height);
-  if(b_hash != disq_extra.item.block_hash)
+  if(b_hash != disq_extra.item.block_hash && m_blockchain.nettype() != FAKECHAIN)
   {
     MWARNING("Ignore invalid disqualification transaction, tx_hash=" << tx_hash
              << "; invalid block_hash ");
@@ -239,9 +235,22 @@ bool StakeTransactionProcessor::check_disqualification_transaction(const transac
   auto bbl_idxs = makeBBLindexes(tiers);
 
   std::vector<TI> bbqs_idxs, qcl_idxs;
-  graft::generator::select_BBQS_QCL(disq_extra.item.block_hash, bbl_idxs, bbqs_idxs, qcl_idxs);
+  graft::generator::select_BBQS_QCL(b_hash, bbl_idxs, bbqs_idxs, qcl_idxs);
   Ids bbqs = fromIndexes(tiers, bbqs_idxs);
   Ids qcl = fromIndexes(tiers, qcl_idxs);
+
+#if 0
+  {
+    std::ostringstream oss;
+    for(auto& it : bbqs) { oss << epee::string_tools::pod_to_hex(it) << "\n"; }
+    MWARNING("BBQS: height ") << disq_extra.item.block_height << ENDL << oss.str();
+  }
+  {
+    std::ostringstream oss;
+    for(auto& it : qcl) { oss << epee::string_tools::pod_to_hex(it) << "\n"; }
+    MWARNING("QCL: height ") << disq_extra.item.block_height << ENDL << oss.str();
+  }
+#endif
 
   if(std::none_of(qcl.begin(), qcl.end(), [&disq_extra](crypto::public_key& v)->bool { return v == disq_extra.item.id; } ))
   {
@@ -287,7 +296,7 @@ bool StakeTransactionProcessor::check_disqualification2_transaction(const transa
   }
 */
   crypto::hash b_hash = m_blockchain.get_block_id_by_height(disq_extra.item.block_height);
-  if(b_hash != disq_extra.item.block_hash)
+  if(b_hash != disq_extra.item.block_hash && m_blockchain.nettype() != FAKECHAIN)
   {
     MWARNING("Ignore invalid disqualification2 transaction, tx_hash=" << tx_hash
              << "; invalid block_hash ");
@@ -399,12 +408,9 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
   if (block_index <= m_storage->get_last_processed_block_index())
     return;
 
-  if (m_blockchain.get_hard_fork_version(block_index) >= config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
+  if (block_index >= m_active_height)
   {
-      //analyze block transactions and add new stake transactions if exist
-
-    stake_transaction stake_tx;
-
+    //analyze block transactions and add new stake transactions if exist
     std::vector<transaction> txs;
     std::vector<crypto::hash> missed_txs;
     
@@ -561,7 +567,7 @@ void StakeTransactionProcessor::synchronize()
 
   uint64_t height = m_blockchain.get_current_blockchain_height();
 
-  if (!height || m_blockchain.get_hard_fork_version(height - 1) < config::graft::STAKE_TRANSACTION_PROCESSING_DB_VERSION)
+  if (!height || height < m_active_height)
     return;
 
   if (!m_storage || !m_blockchain_based_list)
@@ -763,12 +769,7 @@ void StakeTransactionProcessor::invoke_update_blockchain_based_list_handler(bool
   invoke_update_blockchain_based_list_handler_impl(depth);
 }
 
-void StakeTransactionProcessor::set_enabled(bool arg)
-{
-  m_enabled = arg;
-}
-
 bool StakeTransactionProcessor::is_enabled() const
 {
-  return m_enabled;
+  return m_active_height < CRYPTONOTE_MAX_BLOCK_NUMBER;
 }

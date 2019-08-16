@@ -3522,13 +3522,15 @@ leave:
     t_dblspnd += dd;
     TIME_MEASURE_START(cc);
 
+    bool is_disqual = (tx.version == 123 || tx.version == 124);
+
 #if defined(PER_BLOCK_CHECKPOINT)
     if (!fast_check)
 #endif
     {
       // validate that transaction inputs and the keys spending them are correct.
       tx_verification_context tvc;
-      if(!check_tx_inputs(tx, tvc))
+      if(!is_disqual && !check_tx_inputs(tx, tvc))
       {
         MERROR_VER("Block with id: " << id  << " has at least one transaction (id: " << tx_id << ") with wrong inputs.");
 
