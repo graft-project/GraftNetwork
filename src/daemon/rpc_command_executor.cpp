@@ -1865,7 +1865,7 @@ bool t_rpc_command_executor::ban(const std::string &address, time_t seconds)
     // mlog_set_categories(""), so emit the block message using msg writer
     // instead of the logging system.
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-    tools::success_msg_writer() << "Host " << ip << " blocked.";
+    tools::success_msg_writer() << "Host " << address << " blocked.";
 #endif
 
     return true;
@@ -1902,7 +1902,7 @@ bool t_rpc_command_executor::unban(const std::string &address)
     }
 
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-    tools::success_msg_writer() << "Host " << ip << " unblocked.";
+    tools::success_msg_writer() << "Host " << address << " unblocked.";
 #endif
     return true;
 }
