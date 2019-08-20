@@ -354,6 +354,7 @@ bool gen_rta_disqualification_test::generate(std::vector<test_event_entry>& even
         stake_txes.push_back(tx_0);
       }
       MAKE_NEXT_BLOCK_TX_LIST(events, next_blk, top_blk, miner0, stake_txes);
+
       top_blk = next_blk;
       stake_txes.clear();
     }
@@ -652,6 +653,7 @@ gen_rta_test::gen_rta_test()
 {
   REGISTER_CALLBACK_METHOD(gen_rta_test, check_stake_registered);
   REGISTER_CALLBACK_METHOD(gen_rta_test, check_stake_expired);
+  REGISTER_CALLBACK_METHOD(gen_rta_test, check1);
 }
 
 bool gen_rta_test::generate(std::vector<test_event_entry>& events) const
@@ -697,13 +699,15 @@ bool gen_rta_test::generate(std::vector<test_event_entry>& events) const
   ////
 #endif
   // mine N blocks
-  REWIND_BLOCKS_N(events, blk_3, blk_2, miner0, 60); // height = 63
-  //cryptonote::block blk_3 = blk_2;
+  const size_t rewind_blocks = 120 * g_supernode_list.size();
+  REWIND_BLOCKS_N(events, blk_3, blk_2, miner0, rewind_blocks);
+
+  MDEBUG("rewind " << rewind_blocks << " blocks done, events size: " << events.size());
 
   // create transaction
-  transaction tx_0(construct_tx_with_fee(events, blk_3, miner0, alice0, MK_COINS(1000), TESTS_DEFAULT_FEE));
+  // transaction tx_0(construct_tx_with_fee(events, blk_3, miner0, alice0, MK_COINS(1000), TESTS_DEFAULT_FEE));
   // add it to the new block followed by 'blk_3', mined by 'miner0'
-  MAKE_NEXT_BLOCK_TX1(events, blk_4, blk_3, miner0, tx_0); // height = 64
+  // MAKE_NEXT_BLOCK_TX1(events, blk_4, blk_3, miner0, tx_0); // height = 64
 
   const size_t STAKE_PERIOD = 100;
   // deposit stakes
@@ -711,24 +715,20 @@ bool gen_rta_test::generate(std::vector<test_event_entry>& events) const
   std::list<cryptonote::transaction> stake_txes;
   for (Supernode & sn : g_supernode_list) {
     // create stake transaction
-    transaction tx(construct_stake_tx_with_fee(events, blk_4, miner0, sn.account, MK_COINS(50000), TESTS_DEFAULT_FEE,
-                                               sn.keys.pkey, sn.signature(), 64 + STAKE_PERIOD));
+    transaction tx(construct_stake_tx_with_fee(events, blk_3, miner0, sn.account, MK_COINS(50000), TESTS_DEFAULT_FEE,
+                                               sn.keys.pkey, sn.signature(), rewind_blocks + STAKE_PERIOD));
     stake_txes.push_back(tx);
-//    MAKE_NEXT_BLOCK_TX1(events, blk_5, blk_4, miner0, tx); // height = 64
-//    REWIND_BLOCKS_N(events, blk_6, blk_5, miner0, config::graft::STAKE_VALIDATION_PERIOD); // height = 70;
-//    prev_block = blk_6;
+
   }
-  MAKE_NEXT_BLOCK_TX_LIST(events, blk_5, blk_4, miner0, stake_txes);
 
-  MDEBUG("stake tx list constructed");
+  MAKE_NEXT_BLOCK_TX_LIST(events, blk_5, blk_3, miner0, stake_txes);
 
-
-  REWIND_BLOCKS_N(events, blk_6, blk_5, miner0, config::graft::STAKE_VALIDATION_PERIOD); // height = 70;
+  REWIND_BLOCKS_N(events, blk_6, blk_5, miner0, config::graft::STAKE_VALIDATION_PERIOD);
   // schedule a 'check_stake_registered' check (checking if stake is registered)
   DO_CALLBACK(events, "check_stake_registered");
 
   // rewind for 'STAKE_PERIOD' blocks
-  REWIND_BLOCKS_N(events, bkl_7, blk_6, miner0, STAKE_PERIOD /* + config::graft::TRUSTED_RESTAKING_PERIOD*/); // TODO: check why TRUSTED_RESTAKING_PERIOD is not applied
+  REWIND_BLOCKS_N(events, bkl_7, blk_6, miner0, STAKE_PERIOD /*+ config::graft::TRUSTED_RESTAKING_PERIOD*/); // TODO: check why TRUSTED_RESTAKING_PERIOD is not applied
 
   // schedule a 'check_stake_expired' check (checking if stake is expired)
   DO_CALLBACK(events, "check_stake_expired");
@@ -752,8 +752,8 @@ bool gen_rta_test::check1(core &c, size_t ev_index, const std::vector<test_event
   MDEBUG("chain height (core): " << c.get_current_blockchain_height());
   MDEBUG("events size: " << events.size());
   MDEBUG("ev_index: " << ev_index);
-  MDEBUG("miner BALANCE: " << print_money(get_balance(miner0, chain, mtx)));
-  MDEBUG("alice BALANCE: " << print_money(get_balance(alice0, chain, mtx)));
+  MDEBUG("miner0 BALANCE: " << print_money(get_balance(miner0, chain, mtx)));
+  MDEBUG("alice0 BALANCE: " << print_money(get_balance(alice0, chain, mtx)));
 
   return true;
 }
@@ -772,7 +772,7 @@ bool gen_rta_test::check_stake_registered(core &c, size_t ev_index, const std::v
   /*bool r = */find_block_chain(events, chain, mtx, get_block_hash(block_list.back()));
 
   for (const auto & tx : mtx) {
-    MDEBUG("tx: " << tx.first);
+    MDEBUG("tx: " << tx.first << ", unlock_time: " << tx.second->unlock_time);
     std::string supernode_public_id;
     cryptonote::account_public_address supernode_public_address;
     crypto::signature supernode_signature;
@@ -786,6 +786,7 @@ bool gen_rta_test::check_stake_registered(core &c, size_t ev_index, const std::v
       MDEBUG(" is stake tx for id: " << supernode_public_id);
     }
   }
+
 
   StakeTransactionProcessor * stp = c.get_stake_tx_processor();
   MDEBUG("blockchain height: " << c.get_current_blockchain_height());
@@ -820,7 +821,7 @@ bool gen_rta_test::check_stake_expired(core &c, size_t ev_index, const std::vect
   std::vector<block> block_list;
 
   // request count doesn't have to be exact value
-  bool r = c.get_blocks(0, 5 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, block_list);
+  bool r = c.get_blocks(0, std::numeric_limits<uint64_t>::max(), block_list);
 
   find_block_chain(events, chain, mtx, get_block_hash(block_list.back()));
 
