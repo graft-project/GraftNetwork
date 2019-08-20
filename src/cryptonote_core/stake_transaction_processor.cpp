@@ -436,8 +436,7 @@ void StakeTransactionProcessor::process_block_stake_transaction(uint64_t block_i
 
     for (const transaction& tx : txs)
     {
-      //it should be named as tx_prefix_hash
-      const crypto::hash tx_hash = get_transaction_prefix_hash(tx);
+      const crypto::hash tx_hash = get_transaction_hash(tx);
 
       try
       {
