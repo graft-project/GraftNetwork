@@ -84,8 +84,7 @@ namespace cryptonote
    * @return checkpoints data, empty span if there ain't any checkpoints for specific network type
    */
   typedef std::function<const epee::span<const unsigned char>(cryptonote::network_type network)> GetCheckpointsCallback;
-  
-  
+
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
@@ -1201,11 +1200,11 @@ namespace cryptonote
      * the blockchain is reverted to its previous state.
      *
      * @param alt_chain the chain to switch to
-     * @param discard_disconnected_chain whether or not to keep the old chain as an alternate
+     * @param keep_disconnected_chain whether or not to keep the old chain as an alternate
      *
      * @return false if the reorganization fails, otherwise true
      */
-    bool switch_to_alternative_blockchain(std::list<block_extended_info>& alt_chain, bool discard_disconnected_chain);
+    bool switch_to_alternative_blockchain(std::list<block_extended_info>& alt_chain, bool keep_disconnected_chain);
 
     /**
      * @brief removes the most recent block from the blockchain
@@ -1268,7 +1267,7 @@ namespace cryptonote
      *
      * @return true on success, false otherwise
      */
-    bool build_alt_chain(const crypto::hash &prev_id, std::list<block_extended_info>& alt_chain, std::vector<uint64_t> &timestamps, block_verification_context& bvc) const;
+    bool build_alt_chain(const crypto::hash &prev_id, std::list<block_extended_info>& alt_chain, std::vector<uint64_t> &timestamps, block_verification_context& bvc, int *num_checkpoints) const;
 
     /**
      * @brief gets the difficulty requirement for a new block on an alternate chain
