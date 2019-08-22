@@ -2965,13 +2965,27 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_storage_server_ping(const COMMAND_RPC_STORAGE_SERVER_PING::request&,
+  bool core_rpc_server::on_storage_server_ping(const COMMAND_RPC_STORAGE_SERVER_PING::request& req,
                                                COMMAND_RPC_STORAGE_SERVER_PING::response& res,
                                                epee::json_rpc::error&,
                                                const connection_context*)
   {
-    m_core.m_last_storage_server_ping = time(nullptr);
-    res.status = "OK";
+
+    const std::array<int, 3> cur_version = { req.version_major, req.version_minor, req.version_patch };
+
+    if (cur_version < service_nodes::MIN_STORAGE_SERVER_VERSION) {
+      std::stringstream status;
+      status << "Outdated Storage Server. ";
+      status << "Current: " << req.version_major << "." << req.version_minor << "." << req.version_patch << ". ";
+      status << "Required: " << service_nodes::MIN_STORAGE_SERVER_VERSION[0] << "."
+             << service_nodes::MIN_STORAGE_SERVER_VERSION[1] << "." << service_nodes::MIN_STORAGE_SERVER_VERSION[2];
+      res.status = status.str();
+      MERROR(status.str());
+    } else {
+      m_core.m_last_storage_server_ping = time(nullptr);
+      res.status = "OK";
+    }
+
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------

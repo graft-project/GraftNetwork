@@ -2981,7 +2981,13 @@ namespace cryptonote
   {
     struct request
     {
+      int version_major; // Storage Server Major version
+      int version_minor; // Storage Server Minor version
+      int version_patch; // Storage Server Patch version
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(version_major);
+        KV_SERIALIZE(version_minor);
+        KV_SERIALIZE(version_patch);
       END_KV_SERIALIZE_MAP()
     };
 
