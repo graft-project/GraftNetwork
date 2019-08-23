@@ -1863,7 +1863,6 @@ namespace nodetool
     return true;
   }
   //-----------------------------------------------------------------------------------
-#ifdef ALLOW_DEBUG_COMMANDS
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::check_trust(const proof_of_trust& tr, const epee::net_utils::zone zone_type)
   {
@@ -1946,7 +1945,6 @@ namespace nodetool
     rsp.my_id = m_network_zones.at(context.m_remote_address.get_zone()).m_config.m_peer_id;
     return 1;
   }
-#endif
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_get_support_flags(int command, COMMAND_REQUEST_SUPPORT_FLAGS::request& arg, COMMAND_REQUEST_SUPPORT_FLAGS::response& rsp, p2p_connection_context& context)

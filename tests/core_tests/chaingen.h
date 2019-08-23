@@ -61,6 +61,8 @@
 
 #define TESTS_DEFAULT_FEE ((uint64_t)200000000) // 2 * pow(10, 8)
 
+#define DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN  DIFFICULTY_TARGET_V2
+
 struct callback_entry
 {
   std::string callback_name;

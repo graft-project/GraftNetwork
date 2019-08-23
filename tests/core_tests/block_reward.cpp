@@ -32,6 +32,8 @@
 #include "block_reward.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
 
+#define EMISSION_SPEED_FACTOR_PER_MINUTE 20
+
 using namespace epee;
 using namespace cryptonote;
 

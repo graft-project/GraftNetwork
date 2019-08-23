@@ -40,9 +40,7 @@
 #include "string_tools.h"
 #include "time_helper.h"
 #include "cryptonote_config.h"
-#ifdef ALLOW_DEBUG_COMMANDS
 #include "crypto/crypto.h"
-#endif
 
 namespace nodetool
 {
@@ -342,10 +340,6 @@ namespace nodetool
   };
 
   
-#ifdef ALLOW_DEBUG_COMMANDS
-  //These commands are considered as insecure, and made in debug purposes for a limited lifetime. 
-  //Anyone who feel unsafe with this commands can disable the ALLOW_GET_STAT_COMMAND macro.
-
   struct proof_of_trust
   {
     peerid_type peer_id;
@@ -477,8 +471,6 @@ namespace nodetool
     };
     typedef epee::misc_utils::struct_init<response_t> response;
   };
-  
-#endif /* ALLOW_DEBUG_COMMANDS */
 
 
   inline crypto::hash get_proof_of_trust_hash(const nodetool::proof_of_trust& pot)

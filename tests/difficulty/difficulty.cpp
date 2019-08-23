@@ -43,6 +43,7 @@
 using namespace std;
 
 #define DEFAULT_TEST_DIFFICULTY_TARGET        120
+#define DIFFICULTY_LAG                        15
 
 int main(int argc, char *argv[]) {
     TRY_ENTRY();
