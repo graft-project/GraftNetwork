@@ -50,6 +50,10 @@
 
 #include "chaingen.h"
 #include "device/device.hpp"
+
+#define CURRENT_BLOCK_MAJOR_VERSION 7
+#define CURRENT_BLOCK_MINOR_VERSION 7
+
 using namespace std;
 
 using namespace epee;
