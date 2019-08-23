@@ -131,13 +131,6 @@ struct aesdata
 		mem.as_uqword(1) = v64x1;
 	}
 
-	inline aesdata& operator=(const aesdata& rhs) noexcept
-	{
-		v64x0 = rhs.v64x0;
-		v64x1 = rhs.v64x1;
-		return *this;
-	}
-
 	inline aesdata& operator^=(const aesdata& rhs) noexcept
 	{
 		v64x0 ^= rhs.v64x0;

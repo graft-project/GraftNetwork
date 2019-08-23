@@ -545,6 +545,7 @@ struct output_index {
     return ss.str();
   }
 
+  output_index(const output_index &) = default;
   output_index& operator=(const output_index& other)
   {
     new(this) output_index(other);
