@@ -158,20 +158,6 @@ private:
     wallet2 * wallet;
   };
 
-  struct tx_dust_policy
-  {
-    uint64_t dust_threshold;
-    bool add_to_fee;
-    cryptonote::account_public_address addr_for_dust;
-
-    tx_dust_policy(uint64_t a_dust_threshold = 0, bool an_add_to_fee = true, cryptonote::account_public_address an_addr_for_dust = cryptonote::account_public_address())
-      : dust_threshold(a_dust_threshold)
-      , add_to_fee(an_add_to_fee)
-      , addr_for_dust(an_addr_for_dust)
-    {
-    }
-  };
-
   enum struct pay_type
   {
     unspecified, // For serialized data before this was introduced in hardfork 10
@@ -860,10 +846,6 @@ private:
     // all locked & unlocked balances of all subaddress accounts
     uint64_t balance_all() const;
     uint64_t unlocked_balance_all(uint64_t *blocks_to_unlock = NULL) const;
-    template<typename T>
-    void transfer_selected(const std::vector<cryptonote::tx_destination_entry>& dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
-      std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
-      uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx);
     void transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
       uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, const rct::RCTConfig &rct_config, bool is_staking_tx = false);
@@ -1500,7 +1482,7 @@ private:
     void set_unspent(size_t idx);
     void get_outs(std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool has_rct);
     bool tx_add_fake_output(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, uint64_t global_index, const crypto::public_key& tx_public_key, const rct::key& mask, uint64_t real_index, bool unlocked) const;
-    bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
+    bool should_pick_a_second_output(size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
     void scan_output(const cryptonote::transaction &tx, bool miner_tx, const crypto::public_key &tx_pub_key, size_t vout_index, tx_scan_info_t &tx_scan_info, std::vector<tx_money_got_in_out> &tx_money_got_in_outs, std::vector<size_t> &outs, bool pool);
     void trim_hashchain();
