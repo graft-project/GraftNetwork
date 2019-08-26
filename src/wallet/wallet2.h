@@ -1247,7 +1247,7 @@ private:
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees);
 
     uint64_t get_fee_multiplier(uint32_t priority, int fee_algorithm = -1) const;
-    uint64_t get_base_fee() const;
+    cryptonote::byte_and_output_fees get_base_fees() const;
     uint64_t get_fee_quantization_mask() const;
     uint64_t adjust_mixin(uint64_t mixin) const;
     uint32_t adjust_priority(uint32_t priority);
@@ -1475,7 +1475,7 @@ private:
     void parse_block_round(const cryptonote::blobdata &blob, cryptonote::block &bl, crypto::hash &bl_id, bool &error) const;
     uint64_t get_upper_transaction_weight_limit() const;
     std::vector<uint64_t> get_unspent_amounts_vector() const;
-    uint64_t get_dynamic_base_fee_estimate() const;
+    cryptonote::byte_and_output_fees get_dynamic_base_fee_estimate() const;
     float get_output_relatedness(const transfer_details &td0, const transfer_details &td1) const;
     std::vector<size_t> pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices) const;
     void set_spent(size_t idx, uint64_t height);

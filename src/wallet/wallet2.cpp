@@ -272,15 +272,9 @@ void do_prepare_file_names(const std::string& file_path, std::string& keys_file,
   mms_file = file_path + ".mms";
 }
 
-uint64_t calculate_fee(uint64_t fee_per_kb, size_t bytes, uint64_t fee_multiplier)
+uint64_t calculate_fee_from_weight(byte_and_output_fees base_fees, uint64_t weight, uint64_t outputs, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
 {
-  uint64_t kB = (bytes + 1023) / 1024;
-  return kB * fee_per_kb * fee_multiplier;
-}
-
-uint64_t calculate_fee_from_weight(uint64_t base_fee, uint64_t weight, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
-{
-  uint64_t fee = weight * base_fee * fee_multiplier;
+  uint64_t fee = (weight * base_fees.first + outputs * base_fees.second) * fee_multiplier;
   fee = (fee + fee_quantization_mask - 1) / fee_quantization_mask * fee_quantization_mask;
   return fee;
 }
@@ -803,14 +797,9 @@ size_t estimate_rct_tx_size(int n_inputs, int mixin, int n_outputs, size_t extra
   return size;
 }
 
-size_t estimate_tx_size(int n_inputs, int mixin, int n_outputs, size_t extra_size)
-{
-  return estimate_rct_tx_size(n_inputs, mixin, n_outputs, extra_size);
-}
-
 uint64_t estimate_tx_weight(int n_inputs, int mixin, int n_outputs, size_t extra_size)
 {
-  size_t size = estimate_tx_size(n_inputs, mixin, n_outputs, extra_size);
+  size_t size = estimate_rct_tx_size(n_inputs, mixin, n_outputs, extra_size);
   if (n_outputs > 2)
   {
     const uint64_t bp_base = 368;
@@ -826,15 +815,15 @@ uint64_t estimate_tx_weight(int n_inputs, int mixin, int n_outputs, size_t extra
   return size;
 }
 
-uint64_t estimate_fee(int n_inputs, int mixin, int n_outputs, size_t extra_size, uint64_t base_fee, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
+uint64_t estimate_fee(int n_inputs, int mixin, int n_outputs, size_t extra_size, byte_and_output_fees base_fees, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
 {
   const size_t estimated_tx_weight = estimate_tx_weight(n_inputs, mixin, n_outputs, extra_size);
-  return calculate_fee_from_weight(base_fee, estimated_tx_weight, fee_multiplier, fee_quantization_mask);
+  return calculate_fee_from_weight(base_fees, estimated_tx_weight, n_outputs, fee_multiplier, fee_quantization_mask);
 }
 
-uint64_t calculate_fee(const cryptonote::transaction &tx, size_t blob_size, uint64_t base_fee, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
+uint64_t calculate_fee(const cryptonote::transaction &tx, size_t blob_size, byte_and_output_fees base_fees, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
 {
-  return calculate_fee_from_weight(base_fee, cryptonote::get_transaction_weight(tx, blob_size), fee_multiplier, fee_quantization_mask);
+  return calculate_fee_from_weight(base_fees, cryptonote::get_transaction_weight(tx, blob_size), tx.vout.size(), fee_multiplier, fee_quantization_mask);
 }
 
 bool get_short_payment_id(crypto::hash8 &payment_id8, const tools::wallet2::pending_tx &ptx, hw::device &hwdev)
@@ -7023,6 +7012,7 @@ uint64_t wallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm) const
   {
     { {1, 4, 20, 166} },
     { {1, 5, 25, 1000} },
+    { {1, 5, 25, 125} },
   };
 
   if (fee_algorithm == -1)
@@ -7050,22 +7040,26 @@ uint64_t wallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm) const
   return 1;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::get_dynamic_base_fee_estimate() const
+byte_and_output_fees wallet2::get_dynamic_base_fee_estimate() const
 {
-  uint64_t fee;
-  boost::optional<std::string> result = m_node_rpc_proxy.get_dynamic_base_fee_estimate(FEE_ESTIMATE_GRACE_BLOCKS, fee);
+  byte_and_output_fees fees;
+  boost::optional<std::string> result = m_node_rpc_proxy.get_dynamic_base_fee_estimate(FEE_ESTIMATE_GRACE_BLOCKS, fees);
   if (!result)
-    return fee;
-  const uint64_t base_fee =
-      use_fork_rules(HF_VERSION_INCREASE_FEE) ? FEE_PER_BYTE_V12 : FEE_PER_BYTE;
-  LOG_PRINT_L1("Failed to query base fee, using " << print_money(base_fee));
-  return base_fee;
+    return fees;
+
+  if (use_fork_rules(HF_VERSION_PER_OUTPUT_FEE))
+    fees = {FEE_PER_BYTE, FEE_PER_OUTPUT}; // v13 switches back from v12 per-byte fees, add per-output
+  else
+    fees = {FEE_PER_BYTE_V12, 0};
+
+  LOG_PRINT_L1("Failed to query base fee, using " << print_money(fees.first) << "/byte + " << print_money(fees.second) << "/output");
+  return fees;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::get_base_fee() const
+byte_and_output_fees wallet2::get_base_fees() const
 {
   if(m_light_wallet)
-    return m_light_wallet_per_kb_fee / 1024;
+    return {m_light_wallet_per_kb_fee / 1024, FEE_PER_OUTPUT};
 
   return get_dynamic_base_fee_estimate();
 }
@@ -7086,8 +7080,10 @@ uint64_t wallet2::get_fee_quantization_mask() const
 //----------------------------------------------------------------------------------------------------
 int wallet2::get_fee_algorithm() const
 {
-  // changed at v10
-  return 1;
+  // changes at v13
+  if (use_fork_rules(HF_VERSION_PER_OUTPUT_FEE, 0))
+    return 2;
+  return 1; // last changed at v10
 }
 //------------------------------------------------------------------------------------------------------------------------------
 uint64_t wallet2::adjust_mixin(uint64_t mixin) const
@@ -7106,9 +7102,13 @@ uint32_t wallet2::adjust_priority(uint32_t priority)
     try
     {
       // check if there's a backlog in the tx pool
-      const uint64_t base_fee = get_base_fee();
+      const uint64_t base_fee = get_base_fees().first;
       const uint64_t fee_multiplier = get_fee_multiplier(1);
       const double fee_level = fee_multiplier * base_fee;
+      // NOTE (Loki): We don't include the per-output fee here because we typically don't actually
+      // know how many outputs we will need yet, but it's okay: fee_level being too low will just
+      // make us a little over-cautious about using low-priority but will still work fine when the
+      // pool is empty.
       const std::vector<std::pair<uint64_t, uint64_t>> blocks = estimate_backlog({std::make_pair(fee_level, fee_level)});
       if (blocks.size() != 1)
       {
@@ -9738,7 +9738,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   uint64_t upper_transaction_weight_limit = get_upper_transaction_weight_limit();
   const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 2 };
 
-  const uint64_t base_fee  = get_base_fee();
+  const auto base_fee  = get_base_fees();
   const uint64_t fee_multiplier = get_fee_multiplier(priority, get_fee_algorithm());
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
 
@@ -9771,7 +9771,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   // early out if we know we can't make it anyway
   // we could also check for being within FEE_PER_KB, but if the fee calculation
   // ever changes, this might be missed, so let this go through
-  uint64_t min_fee = (fee_multiplier * base_fee * estimate_tx_size(1, fake_outs_count, 2, extra.size()));
+  constexpr uint64_t num_outputs = 2;
+  uint64_t min_fee = fee_multiplier * (
+      base_fee.first * estimate_rct_tx_size(1, fake_outs_count, num_outputs, extra.size()) +
+      base_fee.second * num_outputs
+  );
 
   uint64_t balance_subtotal = 0;
   uint64_t unlocked_balance_subtotal = 0;
@@ -9794,7 +9798,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   const size_t tx_weight_two_rings = estimate_tx_weight(2, fake_outs_count, 2, 0);
   THROW_WALLET_EXCEPTION_IF(tx_weight_one_ring > tx_weight_two_rings, error::wallet_internal_error, "Estimated tx weight with 1 input is larger than with 2 inputs!");
   const size_t tx_weight_per_ring = tx_weight_two_rings - tx_weight_one_ring;
-  const uint64_t fractional_threshold = fee_multiplier * base_fee * tx_weight_per_ring;
+  const uint64_t fractional_threshold = fee_multiplier * base_fee.first * tx_weight_per_ring;
 
   // gather all dust and non-dust outputs belonging to specified subaddresses
   size_t num_nondust_outputs = 0;
@@ -10360,7 +10364,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
   std::vector<std::vector<get_outs_entry>> outs;
 
   const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 2 };
-  const uint64_t base_fee  = get_base_fee();
+  const auto base_fee = get_base_fees();
   const uint64_t fee_multiplier = get_fee_multiplier(priority, get_fee_algorithm());
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
 
@@ -10387,7 +10391,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
     uint64_t fee_dust_threshold;
     {
       const uint64_t estimated_tx_weight_with_one_extra_output = estimate_tx_weight(tx.selected_transfers.size() + 1, fake_outs_count, tx.dsts.size()+1, extra.size());
-      fee_dust_threshold = calculate_fee_from_weight(base_fee, estimated_tx_weight_with_one_extra_output, fee_multiplier, fee_quantization_mask);
+      fee_dust_threshold = calculate_fee_from_weight(base_fee, estimated_tx_weight_with_one_extra_output, outputs, fee_multiplier, fee_quantization_mask);
     }
 
     size_t idx =
@@ -10746,7 +10750,7 @@ std::vector<size_t> wallet2::select_available_mixable_outputs()
 //----------------------------------------------------------------------------------------------------
 std::vector<wallet2::pending_tx> wallet2::create_unmixable_sweep_transactions()
 {
-  const uint64_t base_fee  = get_base_fee();
+  const auto base_fee  = get_base_fees();
 
   // may throw
   std::vector<size_t> unmixable_outputs = select_available_unmixable_outputs();
@@ -10761,7 +10765,7 @@ std::vector<wallet2::pending_tx> wallet2::create_unmixable_sweep_transactions()
   std::vector<size_t> unmixable_transfer_outputs, unmixable_dust_outputs;
   for (auto n: unmixable_outputs)
   {
-    if (m_transfers[n].amount() < base_fee)
+    if (m_transfers[n].amount() < base_fee.first)
       unmixable_dust_outputs.push_back(n);
     else
       unmixable_transfer_outputs.push_back(n);

@@ -1287,6 +1287,9 @@ bool t_rpc_command_executor::print_transaction_pool_long() {
                           << "blob_size: " << tx_info.blob_size << std::endl
                           << "weight: " << tx_info.weight << std::endl
                           << "fee: " << cryptonote::print_money(tx_info.fee) << std::endl
+                          /// NB(Loki): in v13 we have min_fee = per_out*outs + per_byte*bytes, only the total fee/byte matters for
+                          /// the purpose of building a block template from the pool, so we still print the overall fee / byte here.
+                          /// (we can't back out the individual per_out and per_byte that got used anyway).
                           << "fee/byte: " << cryptonote::print_money(tx_info.fee / (double)tx_info.weight) << std::endl
                           << "receive_time: " << tx_info.receive_time << " (" << get_human_time_ago(tx_info.receive_time, now) << ")" << std::endl
                           << "relayed: " << [&](const cryptonote::tx_info &tx_info)->std::string { if (!tx_info.relayed) return "no"; return boost::lexical_cast<std::string>(tx_info.last_relayed_time) + " (" + get_human_time_ago(tx_info.last_relayed_time, now) + ")"; } (tx_info) << std::endl
@@ -2160,7 +2163,8 @@ bool t_rpc_command_executor::print_blockchain_dynamic_stats(uint64_t nblocks)
   }
 
   tools::msg_writer() << "Height: " << ires.height << ", diff " << ires.difficulty << ", cum. diff " << ires.cumulative_difficulty
-      << ", target " << ires.target << " sec" << ", dyn fee " << cryptonote::print_money(feres.fee) << "/" << (hfres.enabled ? "byte" : "kB");
+      << ", target " << ires.target << " sec" << ", dyn fee " << cryptonote::print_money(feres.fee_per_byte) << "/" << (hfres.enabled ? "byte" : "kB")
+      << " + " << cryptonote::print_money(feres.fee_per_output) << "/out";
 
   if (nblocks > 0)
   {

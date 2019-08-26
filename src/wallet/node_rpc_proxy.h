@@ -51,7 +51,7 @@ public:
   boost::optional<std::string> get_target_height(uint64_t &height) const;
   boost::optional<std::string> get_block_weight_limit(uint64_t &block_weight_limit) const;
   boost::optional<std::string> get_earliest_height(uint8_t version, uint64_t &earliest_height) const;
-  boost::optional<std::string> get_dynamic_base_fee_estimate(uint64_t grace_blocks, uint64_t &fee) const;
+  boost::optional<std::string> get_dynamic_base_fee_estimate(uint64_t grace_blocks, cryptonote::byte_and_output_fees &fees) const;
   boost::optional<std::string> get_fee_quantization_mask(uint64_t &fee_quantization_mask) const;
   boost::optional<uint8_t>     get_hardfork_version() const;
 
@@ -81,10 +81,11 @@ private:
 
   mutable uint64_t m_height;
   mutable uint64_t m_earliest_height[256];
-  mutable uint64_t m_dynamic_base_fee_estimate;
+  mutable cryptonote::byte_and_output_fees m_dynamic_base_fee_estimate;
   mutable uint64_t m_dynamic_base_fee_estimate_cached_height;
   mutable uint64_t m_dynamic_base_fee_estimate_grace_blocks;
   mutable uint64_t m_fee_quantization_mask;
+  boost::optional<std::string> refresh_dynamic_base_fee_cache(uint64_t grace_blocks) const;
   mutable uint32_t m_rpc_version;
   mutable uint64_t m_target_height;
   mutable uint64_t m_block_weight_limit;
