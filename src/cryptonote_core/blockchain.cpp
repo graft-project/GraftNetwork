@@ -3353,12 +3353,13 @@ uint64_t Blockchain::get_fee_quantization_mask()
 }
 
 //------------------------------------------------------------------
-uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version)
+byte_and_output_fees Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version)
 {
   const uint64_t min_block_weight = get_min_block_weight(version);
   if (median_block_weight < min_block_weight)
     median_block_weight = min_block_weight;
-  uint64_t hi, lo;
+  byte_and_output_fees fees{0, 0};
+  uint64_t hi, &lo = fees.first;
 
   if (version >= HF_VERSION_PER_BYTE_FEE)
   {
@@ -3370,16 +3371,23 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
     // As of writing we are past block 300000 with base block reward of ~32.04; and so the fee is below 214
     // (hence the use of 215 in cryptonote_config.h).
     //
-    // Starting in v12 we increase the reference transaction fee by 80 (to 240000), and so the
+    // In v12 we increase the reference transaction fee by 80 (to 240000), and so the
     // FEE_PER_BYTE fallback also goes up (to a conservative estimate of 17200).
     //
-    const uint64_t reference_fee = version >= HF_VERSION_INCREASE_FEE ? DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT_V12 : DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT;
+    // This calculation was painful for large txes (in particular sweeps and SN stakes), which
+    // wasn't intended, so in v13 we reduce the reference tx fee back to what it was before and
+    // introduce a per-output fee instead.  (This is why this is an hard == instead of a >=).
+    const uint64_t reference_fee = version == HF_VERSION_INCREASE_FEE ? DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT_V12 : DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT;
     lo = mul128(block_reward, reference_fee, &hi);
     div128_32(hi, lo, min_block_weight, &hi, &lo);
     div128_32(hi, lo, median_block_weight, &hi, &lo);
     assert(hi == 0);
     lo /= 5;
-    return lo;
+
+    if (version >= HF_VERSION_PER_OUTPUT_FEE)
+      fees.second = FEE_PER_OUTPUT;
+
+    return fees;
   }
 
   constexpr uint64_t fee_base = DYNAMIC_FEE_PER_KB_BASE_FEE_V5;
@@ -3399,11 +3407,12 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
   uint64_t qlo = (lo + mask - 1) / mask * mask;
   MDEBUG("lo " << print_money(lo) << ", qlo " << print_money(qlo) << ", mask " << mask);
 
-  return qlo;
+  fees.first = qlo;
+  return fees;
 }
 
 //------------------------------------------------------------------
-bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
+bool Blockchain::check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee) const
 {
   const uint8_t version = get_current_hard_fork_version();
   const uint64_t blockchain_height = m_db->height();
@@ -3418,21 +3427,22 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   if (version >= HF_VERSION_PER_BYTE_FEE)
   {
     const bool use_long_term_median_in_fee = version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT;
-    uint64_t fee_per_byte = get_dynamic_base_fee(base_reward, use_long_term_median_in_fee ? m_long_term_effective_median_block_weight : median, version);
-    MDEBUG("Using " << print_money(fee_per_byte) << "/byte fee");
-    needed_fee = tx_weight * fee_per_byte;
+    auto fees = get_dynamic_base_fee(base_reward, use_long_term_median_in_fee ? m_long_term_effective_median_block_weight : median, version);
+    MDEBUG("Using " << print_money(fees.first) << "/byte + " << print_money(fees.second) << "/out fee");
+    needed_fee = tx_weight * fees.first + tx_outs * fees.second;
     // quantize fee up to 8 decimals
     const uint64_t mask = get_fee_quantization_mask();
     needed_fee = (needed_fee + mask - 1) / mask * mask;
   }
   else
   {
-    const uint64_t fee_per_kb = get_dynamic_base_fee(base_reward, median, version);
-    MDEBUG("Using " << print_money(fee_per_kb) << "/kB fee");
+    auto fees = get_dynamic_base_fee(base_reward, median, version);
+    assert(fees.second == 0);
+    MDEBUG("Using " << print_money(fees.first) << "/kB fee");
 
     needed_fee = tx_weight / 1024;
     needed_fee += (tx_weight % 1024) ? 1 : 0;
-    needed_fee *= fee_per_kb;
+    needed_fee *= fees.first;
   }
 
   if (fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
@@ -3444,7 +3454,7 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
 }
 
 //------------------------------------------------------------------
-uint64_t Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_blocks) const
+byte_and_output_fees Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_blocks) const
 {
   const uint8_t version = get_current_hard_fork_version();
   const uint64_t db_height = m_db->height();
@@ -3472,9 +3482,10 @@ uint64_t Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_blocks) const
   }
 
   const bool use_long_term_median_in_fee = version >= HF_VERSION_LONG_TERM_BLOCK_WEIGHT;
-  uint64_t fee = get_dynamic_base_fee(base_reward, use_long_term_median_in_fee ? m_long_term_effective_median_block_weight : median, version);
+  auto fee = get_dynamic_base_fee(base_reward, use_long_term_median_in_fee ? m_long_term_effective_median_block_weight : median, version);
   const bool per_byte = version < HF_VERSION_PER_BYTE_FEE;
-  MDEBUG("Estimating " << grace_blocks << "-block fee at " << print_money(fee) << "/" << (per_byte ? "byte" : "kB"));
+  MDEBUG("Estimating " << grace_blocks << "-block fee at " << print_money(fee.first) << "/" << (per_byte ? "byte" : "kB") <<
+      " + " << print_money(fee.second) << "/out");
   return fee;
 }
 

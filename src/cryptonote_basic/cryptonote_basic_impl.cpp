@@ -98,7 +98,7 @@ namespace cryptonote {
       base_reward = 0;
     }
 
-    if (version >= 8)
+    if (version >= network_version_8)
       base_reward = 28000000000.0 + 100000000000.0 / loki::exp2(height / (720.0 * 90.0)); // halve every 90 days.
 
     uint64_t full_reward_zone = get_min_block_weight(version);

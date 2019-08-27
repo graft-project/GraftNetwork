@@ -575,48 +575,51 @@ namespace cryptonote
     static uint64_t get_fee_quantization_mask();
 
     /**
-     * @brief get dynamic per kB or byte fee for a given block weight
+     * @brief get dynamic per-kB or -byte fee and the per-output fee for a given
+     * block weight and hard fork version.
      *
-     * The dynamic fee is based on the block weight in a past window, and
-     * the current block reward. It is expressed by kB before v8, and
-     * per byte from v8.
+     * The dynamic per-byte fee is based on the block weight in a past window,
+     * and the current block reward. It is expressed as a per-kiB value before
+     * v8, and per byte from v8.
+     *
+     * The per-output fee is a fixed amount per output created in the
+     * transaction beginning in Loki hard fork 13 and will be 0 before v13.
      *
      * @param block_reward the current block reward
      * @param median_block_weight the median block weight in the past window
      * @param version hard fork version for rules and constants to use
      *
-     * @return the fee
+     * @return pair of {per-size, per-output} fees
      */
-    static uint64_t get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version);
+    static byte_and_output_fees get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version);
 
     /**
      * @brief get dynamic per kB or byte fee estimate for the next few blocks
      *
-     * The dynamic fee is based on the block weight in a past window, and
-     * the current block reward. It is expressed by kB before v8, and
-     * per byte from v8.
-     * This function calculates an estimate for a dynamic fee which will be
-     * valid for the next grace_blocks
+     * Returns an estimate of the get_dynamic_base_fee() value that will be
+     * valid for the next `grace_blocks` blocks.
      *
      * @param grace_blocks number of blocks we want the fee to be valid for
      *
-     * @return the fee estimate
+     * @return the {per-size, per-output} fee estimate
      */
-    uint64_t get_dynamic_base_fee_estimate(uint64_t grace_blocks) const;
+    byte_and_output_fees get_dynamic_base_fee_estimate(uint64_t grace_blocks) const;
 
     /**
      * @brief validate a transaction's fee
      *
      * This function validates the fee is enough for the transaction.
      * This is based on the weight of the transaction, and, after a
-     * height threshold, on the average weight of transaction in a past window
+     * height threshold, on the average weight of transaction in a past window.
+     * From Loki v13 the amount must also include a per-output-created fee.
      *
      * @param tx_weight the transaction weight
+     * @param tx_outs the number of outputs created in the transaction
      * @param fee the fee
      *
      * @return true if the fee is enough, false otherwise
      */
-    bool check_fee(size_t tx_weight, uint64_t fee) const;
+    bool check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee) const;
 
     /**
      * @brief check that a transaction's outputs conform to current standards
