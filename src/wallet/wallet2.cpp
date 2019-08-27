@@ -7043,8 +7043,8 @@ uint64_t wallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm) const
 byte_and_output_fees wallet2::get_dynamic_base_fee_estimate() const
 {
   byte_and_output_fees fees;
-  boost::optional<std::string> result = m_node_rpc_proxy.get_dynamic_base_fee_estimate(FEE_ESTIMATE_GRACE_BLOCKS, fees);
-  if (!result)
+  boost::optional<std::string> failure = m_node_rpc_proxy.get_dynamic_base_fee_estimate(FEE_ESTIMATE_GRACE_BLOCKS, fees);
+  if (!failure)
     return fees;
 
   if (use_fork_rules(HF_VERSION_PER_OUTPUT_FEE))
