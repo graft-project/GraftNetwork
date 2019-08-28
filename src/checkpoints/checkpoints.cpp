@@ -167,12 +167,12 @@ namespace cryptonote
     return result;
   }
   //---------------------------------------------------------------------------
-  void checkpoints::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
+  bool checkpoints::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, checkpoint_t const *checkpoint)
   {
     uint64_t const height = get_block_height(block);
     if (height < service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL ||
         block.major_version < network_version_12_checkpointing)
-      return;
+      return true;
 
     if (m_nettype == MAINNET && height == HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT)
     {
@@ -199,6 +199,9 @@ namespace cryptonote
         }
       }
     }
+
+    if (checkpoint)
+        update_checkpoint(*checkpoint);
 
     uint64_t end_cull_height = 0;
     {
@@ -229,6 +232,8 @@ namespace cryptonote
         MERROR("Pruning block checkpoint on block added failed non-trivially at height: " << m_last_cull_height << ", what = " << e.what());
       }
     }
+
+    return true;
   }
   //---------------------------------------------------------------------------
   void checkpoints::blockchain_detached(uint64_t height)

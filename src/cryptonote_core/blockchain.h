@@ -1224,7 +1224,7 @@ namespace cryptonote
      *
      * @return true if the block was added successfully, otherwise false
      */
-    bool handle_block_to_main_chain(const block& bl, const crypto::hash& id, block_verification_context& bvc);
+    bool handle_block_to_main_chain(const block& bl, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint);
 
     /**
      * @brief validate and add a new block to an alternate blockchain
@@ -1239,7 +1239,7 @@ namespace cryptonote
      *
      * @return true if the block was added successfully, otherwise false
      */
-    bool handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc, bool has_checkpoint);
+    bool handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint);
 
     /**
      * @brief builds a list of blocks connecting a block to the main chain

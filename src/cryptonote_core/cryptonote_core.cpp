@@ -713,9 +713,9 @@ namespace cryptonote
     // Service Nodes
     {
       m_service_node_list.set_db_pointer(initialized_db);
-
       m_service_node_list.set_quorum_history_storage(command_line::get_arg(vm, arg_store_quorum_history));
 
+      // NOTE: Implicit dependency. Service node list needs to be hooked before checkpoints.
       m_blockchain_storage.hook_block_added(m_service_node_list);
       m_blockchain_storage.hook_blockchain_detached(m_service_node_list);
       m_blockchain_storage.hook_init(m_service_node_list);
@@ -1662,25 +1662,7 @@ namespace cryptonote
     // quorums are implemented and merged
     if (checkpoint)
     {
-      if (b->major_version >= network_version_13)
-      {
-        if (checkpoint->signatures.size() > 1)
-        {
-          for (size_t i = 0; i < (checkpoint->signatures.size() - 1); i++)
-          {
-            auto curr = checkpoint->signatures[i].voter_index;
-            auto next = checkpoint->signatures[i + 1].voter_index;
-
-            if (curr >= next)
-            {
-              LOG_PRINT_L1("Voters in checkpoints are not given in ascending order, block failed");
-              bvc.m_verifivation_failed = true;
-              return false;
-            }
-          }
-        }
-      }
-      else
+      if (b->major_version < network_version_13)
       {
         std::sort(checkpoint->signatures.begin(),
                   checkpoint->signatures.end(),

@@ -117,7 +117,7 @@ namespace cryptonote
       public cryptonote::BlockchainDetachedHook
   {
   public:
-    void block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs) override;
+    bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, checkpoint_t const *checkpoint) override;
     void blockchain_detached(uint64_t height) override;
 
     bool get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const;

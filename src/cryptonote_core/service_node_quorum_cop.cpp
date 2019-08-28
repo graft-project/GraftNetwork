@@ -399,7 +399,7 @@ namespace service_nodes
     }
   }
 
-  void quorum_cop::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
+  bool quorum_cop::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const * /*checkpoint*/)
   {
     process_quorums(block);
 
@@ -412,6 +412,7 @@ namespace service_nodes
 
     m_vote_pool.remove_expired_votes(height);
     m_vote_pool.remove_used_votes(txs, block.major_version);
+    return true;
   }
 
   bool quorum_cop::handle_vote(quorum_vote_t const &vote, cryptonote::vote_verification_context &vvc)
@@ -438,7 +439,7 @@ namespace service_nodes
       return false;
     }
 
-    if (!verify_vote_against_quorum(vote, vvc, *quorum))
+    if (!verify_vote_signature(vote, vvc, *quorum))
       return false;
 
     std::vector<pool_vote_entry> votes = m_vote_pool.add_pool_vote_if_unique(vote, vvc);
