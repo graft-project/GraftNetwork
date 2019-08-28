@@ -695,7 +695,7 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-    bool core::deinit()
+  bool core::deinit()
   {
     m_miner.stop();
     m_mempool.deinit();
@@ -1522,6 +1522,40 @@ namespace cryptonote
       }
       b = &lb;
     }
+    // TODO(loki): This check should be redundant and included in
+    // verify_checkpoints once we enable it. It is not enabled until alternate
+    // quorums are implemented and merged
+    if (checkpoint)
+    {
+      if (b->major_version >= network_version_18_checkpointing)
+      {
+        if (checkpoint->signatures.size() > 1)
+        {
+          for (size_t i = 0; i < (checkpoint->signatures.size() - 1); i++)
+          {
+            auto curr = checkpoint->signatures[i].key_index;
+            auto next = checkpoint->signatures[i + 1].key_index;
+
+            if (curr >= next)
+            {
+              LOG_PRINT_L1("Voters in checkpoints are not given in ascending order, block failed");
+              bvc.m_verifivation_failed = true;
+              return false;
+            }
+          }
+        }
+      }
+
+      else
+      {
+        std::sort(checkpoint->signatures.begin(),
+                  checkpoint->signatures.end(),
+                  []( const rta_signature &lhs, const rta_signature &rhs) {
+                    return lhs.key_index < rhs.key_index;
+                  });
+      }
+      
+    }
     add_new_block(*b, bvc, checkpoint);
     if(update_miner_blocktemplate && bvc.m_added_to_main_chain)
        m_miner.on_block_chain_update();
@@ -1529,7 +1563,7 @@ namespace cryptonote
 
     CATCH_ENTRY_L0("core::handle_incoming_block()", false);
   }
-    //-----------------------------------------------------------------------------------------------
+  //-----------------------------------------------------------------------------------------------
   // Used by the RPC server to check the size of an incoming
   // block_blob
   bool core::check_incoming_block_size(const blobdata& block_blob) const
@@ -1966,76 +2000,36 @@ namespace cryptonote
     boost::filesystem::space_info si = boost::filesystem::space(path);
     return si.available;
   }
+#if 0  
   //-----------------------------------------------------------------------------------------------
-  //-----------------------------------------------------------------------------------------------
-  bool core::add_checkpoint_vote(const service_nodes::checkpoint_vote& vote, vote_verification_context &vvc)
+  std::shared_ptr<const service_nodes::testing_quorum> core::get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const service_nodes::testing_quorum>> *alt_states) const
   {
-    // TODO(doyle): Not in this function but, need to add code for culling old
-    // checkpoints from the "staging" checkpoint pool.
-
-    // TODO(doyle): This is repeated logic for deregister votes and
-    // checkpointing votes, it is worth considering merging the two into
-    // a generic voting structure
-
-    // Check Vote Age
-    {
-      uint64_t const latest_height = std::max(get_current_blockchain_height(), get_target_blockchain_height());
-      if (vote.block_height >= latest_height)
-        return false;
-
-      uint64_t vote_age = latest_height - vote.block_height;
-      if (vote_age > ((service_nodes::CHECKPOINT_INTERVAL * 3) - 1))
-        return false;
-    }
-
-    // Validate Vote
-    {
-      const std::shared_ptr<const service_nodes::quorum_uptime_proof> state = get_uptime_quorum(vote.block_height);
-      if (!state)
-      {
-        // TODO(loki): Fatal error
-        LOG_ERROR("Quorum state for height: " << vote.block_height << " was not cached in daemon!");
-        return false;
-      }
-
-      if (vote.voters_quorum_index >= state->quorum_nodes.size())
-      {
-        LOG_PRINT_L1("TODO(doyle): CHECKPOINTING(doyle): Writeme");
-        return false;
-      }
-
-      // NOTE(loki): We don't validate that the hash belongs to a valid block
-      // just yet, just that the signature is valid.
-      crypto::public_key const &voters_pub_key = state->quorum_nodes[vote.voters_quorum_index];
-      if (!crypto::check_signature(vote.block_hash, voters_pub_key, vote.signature))
-      {
-        LOG_PRINT_L1("TODO(doyle): CHECKPOINTING(doyle): Writeme");
-        return false;
-      }
-    }
-
-    // TODO(doyle): CHECKPOINTING(doyle): We need to check the hash they're voting on matches across votes
-    // Get Matching Checkpoint
-    std::vector<Blockchain::service_node_checkpoint_pool_entry> &checkpoint_pool = m_blockchain_storage.m_checkpoint_pool;
-    auto it = std::find_if(checkpoint_pool.begin(), checkpoint_pool.end(), [&vote](Blockchain::service_node_checkpoint_pool_entry const &checkpoint) {
-        return (checkpoint.height == vote.block_height);
-    });
-
-    if (it == checkpoint_pool.end())
-    {
-      Blockchain::service_node_checkpoint_pool_entry pool_entry = {};
-      pool_entry.height                                         = vote.block_height;
-      checkpoint_pool.push_back(pool_entry);
-      it = (checkpoint_pool.end() - 1);
-    }
-
-    // Add Vote if Unique to Checkpoint
-    Blockchain::service_node_checkpoint_pool_entry &pool_entry = (*it);
-    auto vote_it = std::find_if(pool_entry.votes.begin(), pool_entry.votes.end(), [&vote](service_nodes::checkpoint_vote const &preexisting_vote) {
-        return (preexisting_vote.voters_quorum_index == vote.voters_quorum_index);
-    });
-
-    if (vote_it == pool_entry.votes.end())
+    return m_service_node_list.get_testing_quorum(type, height, include_old, alt_states);
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::is_service_node(const crypto::public_key& pubkey, bool require_active) const
+  {
+    return m_service_node_list.is_service_node(pubkey, require_active);
+  }
+  //-----------------------------------------------------------------------------------------------
+  const std::vector<service_nodes::key_image_blacklist_entry> &core::get_service_node_blacklisted_key_images() const
+  {
+    return m_service_node_list.get_blacklisted_key_images();
+  }
+  //-----------------------------------------------------------------------------------------------
+  std::vector<service_nodes::service_node_pubkey_info> core::get_service_node_list_state(const std::vector<crypto::public_key> &service_node_pubkeys) const
+  {
+    return m_service_node_list.get_service_node_list_state(service_node_pubkeys);
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::add_service_node_vote(const service_nodes::quorum_vote_t& vote, vote_verification_context &vvc)
+  {
+    return m_quorum_cop.handle_vote(vote, vvc);
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::get_service_node_keys(crypto::public_key &pub_key, crypto::secret_key &sec_key) const
+  {
+    if (m_service_node)
     {
       m_blockchain_storage.add_checkpoint_vote(vote);
       pool_entry.votes.push_back(vote);
@@ -2043,6 +2037,7 @@ namespace cryptonote
 
     return true;
   }
+#endif
   uint32_t core::get_blockchain_pruning_seed() const
   {
     return get_blockchain_storage().get_blockchain_pruning_seed();

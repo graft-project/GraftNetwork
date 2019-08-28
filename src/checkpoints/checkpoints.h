@@ -120,14 +120,14 @@ bool         load_checkpoints_from_json     (const std::string &json_hashfile_fu
    */
 class checkpoints
     : public cryptonote::BlockAddedHook,
-    public cryptonote::BlockchainDetachedHook
-{
-public:
-  bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, checkpoint_t const *checkpoint) override;
-  void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
-  
-  bool get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const;
-  /**
+      public cryptonote::BlockchainDetachedHook
+  {
+  public:
+    bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, checkpoint_t const *checkpoint) override;
+    void blockchain_detached(uint64_t height) override;
+
+    bool get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const;
+    /**
      * @brief adds a checkpoint to the container
      *
      * @param height the height of the block the checkpoint is for
@@ -137,16 +137,9 @@ public:
      *         AND the existing checkpoint hash does not match the new one,
      *         otherwise returns true
      */
-  bool add_checkpoint(uint64_t height, const std::string& hash_str);
-  
-  bool update_checkpoint(checkpoint_t const &checkpoint);
-  
-    /*
-       @brief Remove checkpoints that should not be stored persistently, i.e.
-       any checkpoint whose height is not divisible by
-       service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL
-     */
-    void prune_checkpoints(uint64_t height) const;
+    bool add_checkpoint(uint64_t height, const std::string& hash_str);
+
+    bool update_checkpoint(checkpoint_t const &checkpoint);
 
     /**
      * @brief checks if there is a checkpoint in the future
@@ -159,9 +152,9 @@ public:
      * @return false if no checkpoints, otherwise returns whether or not
      *         the height passed is lower than the highest checkpoint.
      */
-  bool is_in_checkpoint_zone(uint64_t height) const;
-  
-  /**
+    bool is_in_checkpoint_zone(uint64_t height) const;
+
+    /**
      * @brief checks if the given height and hash agree with the checkpoints
      *
      * This function checks if the given height and hash exist in the
@@ -170,31 +163,15 @@ public:
      *
      * @param height the height to be checked
      * @param h the hash to be checked
-     * @param is_a_checkpoint return-by-reference if there is a checkpoint at the given height
+     * @param blockchain the blockchain to query ancestor blocks from the current height
+     * @param is_a_checkpoint optional return-by-pointer if there is a checkpoint at the given height
      *
      * @return true if there is no checkpoint at the given height,
      *         true if the passed parameters match the stored checkpoint,
      *         false otherwise
      */
-  bool check_block(uint64_t height, const crypto::hash& h, bool *is_a_checkpoint = nullptr, bool *rta_checkpoint = nullptr) const;
-  
-  /**
-     * @brief checks if alternate chain blocks should be kept for a given height and updates
-     * m_immutable_height based on the available checkpoints
-     *
-     * this basically says if the blockchain is smaller than the first
-     * checkpoint then alternate blocks are allowed.  Alternatively, if the
-     * last checkpoint *before* the end of the current chain is also before
-     * the block to be added, then this is fine.
-     *
-     * @param blockchain_height the current blockchain height
-     * @param block_height the height of the block to be added as alternate
-     *
-     * @return true if alternate blocks are allowed given the parameters,
-     *         otherwise false
-     */
-  bool is_alternative_block_allowed(uint64_t blockchain_height, uint64_t block_height, bool *rta_checkpoint = nullptr);
-  
+    bool check_block(uint64_t height, const crypto::hash& h, bool *is_a_checkpoint = nullptr, bool *rejected_by_service_node = nullptr) const;
+ 
   /**
      * @brief gets the highest checkpoint height
      *
@@ -202,24 +179,7 @@ public:
      */
   uint64_t get_max_height() const;
   
-  /**
-     * @brief gets the checkpoints container
-     *
-     * @return a const reference to the checkpoints container
-     */
-  // TODO: deteted from loki const std::map<uint64_t, crypto::hash>& get_points() const;
   
-  /**
-     * @brief checks if our checkpoints container conflicts with another
-     *
-     * A conflict refers to a case where both checkpoint sets have a checkpoint
-     * for a specific height but their hashes for that height do not match.
-     *
-     * @param other the other checkpoints instance to check against
-     *
-     * @return false if any conflict is found, otherwise true
-     */
-  // TODO: deleted bool check_for_conflicts(const checkpoints& other) const;
   
      /**
      * @brief loads the default main chain checkpoints
@@ -227,13 +187,13 @@ public:
      *
      * @return true unless adding a checkpoint fails
      */
-  bool init(network_type nettype, class BlockchainDB *db);
-  
-private:
-  network_type m_nettype = UNDEFINED;
-  uint64_t m_last_cull_height = 0;
-  uint64_t m_immutable_height = 0;
-  BlockchainDB *m_db;
-};
+    bool init(network_type nettype, class BlockchainDB *db);
+
+  private:
+    network_type m_nettype = UNDEFINED;
+    uint64_t m_last_cull_height = 0;
+    uint64_t m_oldest_allowable_alternative_block = 0;
+    BlockchainDB *m_db;
+  };
 
 }

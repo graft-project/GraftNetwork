@@ -48,8 +48,8 @@ using namespace epee;
 
 namespace cryptonote
 {
- bool checkpoint_t::check(crypto::hash const &hash) const
- {
+  bool checkpoint_t::check(crypto::hash const &hash) const
+  {
     bool result = block_hash == hash;
     if (result) MINFO   ("CHECKPOINT PASSED FOR HEIGHT " << height << " " << block_hash);
     else        MWARNING("CHECKPOINT FAILED FOR HEIGHT " << height << ". EXPECTED HASH " << block_hash << "GIVEN HASH: " << hash);
