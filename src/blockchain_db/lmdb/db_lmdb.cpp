@@ -1,4 +1,5 @@
 // Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification, are
@@ -3926,6 +3927,29 @@ void BlockchainLMDB::remove_block_checkpoint(uint64_t height)
   }
 }
 
+static checkpoint_t convert_mdb_val_to_checkpoint(MDB_val const value)
+{
+  checkpoint_t result = {};
+  auto const *header  = static_cast<blk_checkpoint_header const *>(value.mv_data);
+  auto const *signatures =
+      reinterpret_cast<service_nodes::voter_to_signature *>(static_cast<uint8_t *>(value.mv_data) + sizeof(*header));
+
+  boost::endian::little_to_native_inplace(header->height);
+  boost::endian::little_to_native_inplace(header->num_signatures);
+
+  result.height     = header->height;
+  result.type       = (header->num_signatures > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
+  result.block_hash = header->block_hash;
+  result.signatures.reserve(header->num_signatures);
+  for (size_t i = 0; i < header->num_signatures; ++i)
+  {
+    service_nodes::voter_to_signature const *signature = signatures + i;
+    result.signatures.push_back(*signature);
+  }
+
+  return result;
+}
+
 bool BlockchainLMDB::get_block_checkpoint_internal(uint64_t height, checkpoint_t &checkpoint, MDB_cursor_op op) const
 {
   TXN_PREFIX_RDONLY();
@@ -3935,21 +3959,7 @@ bool BlockchainLMDB::get_block_checkpoint_internal(uint64_t height, checkpoint_t
   MDB_val value = {};
   int ret = mdb_cursor_get(m_cur_block_checkpoints, &key, &value, op);
   if (ret == MDB_SUCCESS)
-  {
-    auto const *header     = static_cast<blk_checkpoint_header const *>(value.mv_data);
-    auto const *signatures = reinterpret_cast<service_nodes::voter_to_signature *>(static_cast<uint8_t *>(value.mv_data) + sizeof(*header));
-
-    checkpoint            = {};
-    checkpoint.height     = header->height;
-    checkpoint.type       = (header->num_signatures > 0 ) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
-    checkpoint.block_hash = header->block_hash;
-    checkpoint.signatures.reserve(header->num_signatures);
-    for (size_t i = 0; i < header->num_signatures; ++i)
-    {
-      service_nodes::voter_to_signature const *signature = signatures + i;
-      checkpoint.signatures.push_back(*signature);
-    }
-  }
+    checkpoint = convert_mdb_val_to_checkpoint(value);
 
   TXN_POSTFIX_RDONLY();
   if (ret != MDB_SUCCESS && ret != MDB_NOTFOUND)
@@ -3977,127 +3987,131 @@ bool BlockchainLMDB::get_top_checkpoint(checkpoint_t &checkpoint) const
 
 std::vector<checkpoint_t> BlockchainLMDB::get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints) const
 {
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  check_open();
   std::vector<checkpoint_t> result;
+  checkpoint_t top_checkpoint    = {};
+  checkpoint_t bottom_checkpoint = {};
+  if (!get_top_checkpoint(top_checkpoint)) return result;
+  if (!get_block_checkpoint_internal(0, bottom_checkpoint, MDB_FIRST)) return result;
 
-  checkpoint_t top_checkpoint = {};
-  if (get_top_checkpoint(top_checkpoint))
+  start = loki::clamp_u64(start, bottom_checkpoint.height, top_checkpoint.height);
+  end   = loki::clamp_u64(end, bottom_checkpoint.height, top_checkpoint.height);
+  if (start > end)
   {
-    if (top_checkpoint.height < std::min(start, end))
-      return result;
+    if (start < bottom_checkpoint.height) return result;
   }
-
-  if (num_desired_checkpoints == 0)
-    num_desired_checkpoints = std::numeric_limits<decltype(num_desired_checkpoints)>::max();
   else
-    result.reserve(num_desired_checkpoints);
-
-  for (uint64_t height = start;
-       height != end && result.size() < num_desired_checkpoints;
-       )
   {
-    checkpoint_t checkpoint;
-    if (get_block_checkpoint(height, checkpoint))
-      result.push_back(checkpoint);
-
-    if (end >= start) height++;
-    else height--;
+    if (start > top_checkpoint.height) return result;
   }
-
-  if (result.size() < num_desired_checkpoints)
-  {
-    // NOTE: Inclusive of end height
-    checkpoint_t checkpoint;
-    if (get_block_checkpoint(end, checkpoint))
-      result.push_back(checkpoint);
-  }
-
-
-  return result;
-}
-
-
-std::vector<checkpoint_t> BlockchainLMDB::get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints) const
-{
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  check_open();
-  std::vector<checkpoint_t> result;
-
-  checkpoint_t top_checkpoint = {};
-  if (!get_top_checkpoint(top_checkpoint))
-    return result;
-
-  if (top_checkpoint.height < std::min(start, end))
-    return result;
-
-  if (end > start)
-    end = std::min(top_checkpoint.height, end);
 
   if (num_desired_checkpoints == BlockchainDB::GET_ALL_CHECKPOINTS)
     num_desired_checkpoints = std::numeric_limits<decltype(num_desired_checkpoints)>::max();
   else
     result.reserve(num_desired_checkpoints);
 
+  // NOTE: Get the first checkpoint and then use LMDB's cursor as an iterator to
+  // find subsequent checkpoints so we don't waste time querying every-single-height
+  checkpoint_t first_checkpoint = {};
+  bool found_a_checkpoint       = false;
   for (uint64_t height = start;
        height != end && result.size() < num_desired_checkpoints;
        )
   {
-    checkpoint_t checkpoint;
-    if (get_block_checkpoint(height, checkpoint))
-      result.push_back(checkpoint);
+    if (get_block_checkpoint(height, first_checkpoint))
+    {
+      result.push_back(first_checkpoint);
+      found_a_checkpoint = true;
+      break;
+    }
 
     if (end >= start) height++;
     else height--;
   }
 
-  if (result.size() < num_desired_checkpoints)
+  // Get inclusive of end if we couldn't find a checkpoint in all the other heights leading up to the end height
+  if (!found_a_checkpoint && result.size() < num_desired_checkpoints && get_block_checkpoint(end, first_checkpoint))
   {
-    // NOTE: Inclusive of end height
-    checkpoint_t checkpoint;
-    if (get_block_checkpoint(end, checkpoint))
-      result.push_back(checkpoint);
+    result.push_back(first_checkpoint);
+    found_a_checkpoint = true;
   }
 
+  if (found_a_checkpoint && result.size() < num_desired_checkpoints)
+  {
+    check_open();
+    TXN_PREFIX_RDONLY();
+    RCURSOR(block_checkpoints);
+
+    MDB_val_set(key, first_checkpoint.height);
+    int ret = mdb_cursor_get(m_cur_block_checkpoints, &key, nullptr, MDB_SET_KEY);
+    if (ret != MDB_SUCCESS)
+      throw0(DB_ERROR(lmdb_error("Unexpected failure to get checkpoint we just queried: ", ret).c_str()));
+
+    uint64_t min = start;
+    uint64_t max = end;
+    if (min > max) std::swap(min, max);
+    MDB_cursor_op const op = (end >= start) ? MDB_NEXT : MDB_PREV;
+
+    for (; result.size() < num_desired_checkpoints;)
+    {
+      MDB_val value = {};
+      ret           = mdb_cursor_get(m_cur_block_checkpoints, nullptr, &value, op);
+
+      if (ret == MDB_NOTFOUND) break;
+      if (ret != MDB_SUCCESS)
+        throw0(DB_ERROR(lmdb_error("Failed to query block checkpoint range: ", ret).c_str()));
+
+      auto const *header = static_cast<blk_checkpoint_header const *>(value.mv_data);
+      if (header->height >= min && header->height <= max)
+      {
+        checkpoint_t checkpoint = convert_mdb_val_to_checkpoint(value);
+        result.push_back(checkpoint);
+      }
+    }
+
+    TXN_POSTFIX_RDONLY();
+  }
 
   return result;
 }
 
-bool BlockchainLMDB::get_immutable_checkpoint(checkpoint_t *immutable_checkpoint) const
+void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)
 {
-  size_t constexpr NUM_CHECKPOINTS = service_nodes::CHECKPOINT_NUM_CHECKPOINTS_FOR_CHAIN_FINALITY;
-  static_assert(NUM_CHECKPOINTS == 2,
-                "Expect checkpoint finality to be 2, otherwise the immutable logic needs to check for any hardcoded "
-                "checkpoints inbetween");
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
 
-  std::vector<checkpoint_t> checkpoints = get_checkpoints_range(height(), 0, NUM_CHECKPOINTS);
+  block_wtxn_start();
 
-  if (checkpoints.empty())
-    return false;
-
-  checkpoint_t *checkpoint_ptr = nullptr;
-  if (checkpoints[0].type != checkpoint_type::service_node) // checkpoint[0] is the first closest checkpoint that is <= my height
+  try
   {
-    checkpoint_ptr = &checkpoints[0]; // Must be hard-coded then, always immutable
+    BlockchainDB::pop_block(blk, txs);
+    block_wtxn_stop();
   }
-  else if (checkpoints.size() == 1)
+  catch (...)
   {
-    // NOTE: The first checkpoint is a service node checkpoint. Go back
-    // 1 checkpoint, which will either be another service node checkpoint or
-    // a predefined one.
-    checkpoint_ptr = &checkpoints[1];
+    block_wtxn_abort();
+    throw;
   }
-  else
-  {
-    return false; // NOTE: Only one service node checkpoint recorded, we can override this checkpoint.
-  }
-
-  if (immutable_checkpoint)
-    *immutable_checkpoint = std::move(*checkpoint_ptr);
-
-  return true;
 }
 
+void BlockchainLMDB::get_output_tx_and_index_from_global(const std::vector<uint64_t> &global_indices,
+    std::vector<tx_out_index> &tx_out_indices) const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+  tx_out_indices.clear();
+  tx_out_indices.reserve(global_indices.size());
+
+  TXN_PREFIX_RDONLY();
+  RCURSOR(output_txs);
+
+  for (const uint64_t &output_id : global_indices)
+  {
+    MDB_val_set(v, output_id);
+
+    auto get_result = mdb_cursor_get(m_cur_output_txs, (MDB_val *)&zerokval, &v, MDB_GET_BOTH);
+    if (get_result == MDB_NOTFOUND)
+      throw1(OUTPUT_DNE("output with given index not in db"));
+    else if (get_result)
 void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);

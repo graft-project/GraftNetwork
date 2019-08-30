@@ -64,16 +64,21 @@ public:
   virtual bool batch_start(uint64_t batch_num_blocks, uint64_t batch_bytes) override { return true; }
   virtual void batch_stop() override {}
   virtual void set_batch_transactions(bool) override {}
-  virtual void block_txn_start(bool readonly=false) override {}
-  virtual void block_txn_stop() override {}
-  virtual void block_txn_abort() override {}
+
+  virtual void block_wtxn_start() {}
+  virtual void block_wtxn_stop() {}
+  virtual void block_wtxn_abort() {}
+  virtual bool block_rtxn_start() const { return true; }
+  virtual void block_rtxn_stop() const {}
+  virtual void block_rtxn_abort() const {}
+
   virtual bool block_exists(const crypto::hash& h, uint64_t *height) const override { return false; }
   virtual void update_block_checkpoint(cryptonote::checkpoint_t const &checkpoint) override {}
   virtual bool get_block_checkpoint   (uint64_t height, cryptonote::checkpoint_t &checkpoint) const override { return false; }
   virtual bool get_top_checkpoint     (cryptonote::checkpoint_t &checkpoint) const override { return false; }
   virtual std::vector<cryptonote::checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints) const override { return {};}
   virtual void remove_block_checkpoint(uint64_t height) override { }
-  bool get_immutable_checkpoint(cryptonote::checkpoint_t *checkpoint) const { return false; }
+  std::vector<checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = GET_ALL_CHECKPOINTS) const override { return {}; }
   virtual cryptonote::blobdata get_block_blob(const crypto::hash& h) const override { return cryptonote::blobdata(); }
   virtual uint64_t get_block_height(const crypto::hash& h) const override { return 0; }
   virtual cryptonote::block_header get_block_header(const crypto::hash& h) const override { return cryptonote::block_header(); }
@@ -147,8 +152,6 @@ public:
 
   virtual bool get_output_blacklist   (std::vector<uint64_t> &blacklist)       const override { return false; }
   virtual void add_output_blacklist   (std::vector<uint64_t> const &blacklist)       override { }
-  virtual void set_service_node_data  (const std::string& data)                      override { }
-  virtual bool get_service_node_data  (std::string& data)                            override { return false; }
   virtual void clear_service_node_data()                                             override { }
 
   virtual cryptonote::transaction get_pruned_tx(const crypto::hash& h) const override { return {}; };

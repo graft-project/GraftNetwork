@@ -45,20 +45,22 @@ namespace loki
 double      round           (double);
 double      exp2            (double);
 std::string hex64_to_base32z(std::string const& src);
+uint64_t    clamp_u64       (uint64_t min, uint64_t val, uint64_t max);
+
+template <typename lambda_t>
+struct defer
+{
+  lambda_t lambda;
+  defer(lambda_t lambda) : lambda(lambda) {}
+  ~defer() { lambda(); }
+};
+
+
+
 template <typename T, size_t N>
 constexpr size_t array_count(T (&)[N]) { return N; }
+
+
 }; // namespace Loki
-
-
-
-
-
-
-
-
-
-
-
-
 
 #endif
