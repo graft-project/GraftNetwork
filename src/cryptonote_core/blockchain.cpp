@@ -1615,10 +1615,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
    */
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
-  loki_miner_tx_context miner_tx_context(m_nettype,
-                                         m_service_node_list.select_winner(),
-                                         m_service_node_list.get_winner_addresses_and_portions());
-
+  loki_miner_tx_context miner_tx_context(m_nettype, m_service_node_list.get_block_winner());
   if (!calc_batched_governance_reward(height, miner_tx_context.batched_governance))
   {
     LOG_ERROR("Failed to calculate batched governance reward");

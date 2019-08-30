@@ -1568,51 +1568,48 @@ namespace service_nodes
     return expired_nodes;
   }
 
-  std::vector<std::pair<cryptonote::account_public_address, uint64_t>> service_node_list::get_winner_addresses_and_portions() const
+  block_winner service_node_list::state_t::get_block_winner() const
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
-    crypto::public_key key = select_winner();
-    if (key == crypto::null_pkey)
-      return { std::make_pair(null_address, STAKING_PORTIONS) };
+    block_winner result           = {};
+    service_node_info const *info = nullptr;
+    {
+      auto oldest_waiting = std::make_tuple(std::numeric_limits<uint64_t>::max(), std::numeric_limits<uint32_t>::max(), crypto::null_pkey);
+      for (const auto &info_it : service_nodes_infos)
+      {
+        const auto &sninfo = *info_it.second;
+        if (sninfo.is_active())
+        {
+          auto waiting_since = std::make_tuple(sninfo.last_reward_block_height, sninfo.last_reward_transaction_index, info_it.first);
+          if (waiting_since < oldest_waiting)
+          {
+            oldest_waiting = waiting_since;
+            info           = &sninfo;
+          }
+        }
+      }
+      result.key = std::get<2>(oldest_waiting);
+    }
 
-    std::vector<std::pair<cryptonote::account_public_address, uint64_t>> winners;
-
-    const service_node_info& info = *m_state.service_nodes_infos.at(key);
-
-    const uint64_t remaining_portions = STAKING_PORTIONS - info.portions_for_operator;
+    if (result.key == crypto::null_pkey)
+    {
+      result = service_nodes::null_block_winner;
+      return result;
+    }
 
     // Add contributors and their portions to winners.
-    for (const auto& contributor : info.contributors)
+    result.payouts.reserve(info->contributors.size());
+    const uint64_t remaining_portions = STAKING_PORTIONS - info->portions_for_operator;
+    for (const auto& contributor : info->contributors)
     {
       uint64_t hi, lo, resulthi, resultlo;
       lo = mul128(contributor.amount, remaining_portions, &hi);
-      div128_64(hi, lo, info.staking_requirement, &resulthi, &resultlo);
+      div128_64(hi, lo, info->staking_requirement, &resulthi, &resultlo);
 
-      if (contributor.address == info.operator_address)
-        resultlo += info.portions_for_operator;
-
-      winners.emplace_back(contributor.address, resultlo);
+      if (contributor.address == info->operator_address)
+        resultlo += info->portions_for_operator;
+      result.payouts.push_back({contributor.address, resultlo});
     }
-    return winners;
-  }
-
-  crypto::public_key service_node_list::select_winner() const
-  {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
-    auto oldest_waiting = std::make_tuple(std::numeric_limits<uint64_t>::max(), std::numeric_limits<uint32_t>::max(), crypto::null_pkey);
-    for (const auto& info : m_state.service_nodes_infos)
-    {
-      const auto &sninfo = *info.second;
-      if (sninfo.is_active())
-      {
-        auto waiting_since = std::make_tuple(sninfo.last_reward_block_height, sninfo.last_reward_transaction_index, info.first);
-        if (waiting_since < oldest_waiting)
-        {
-          oldest_waiting = waiting_since;
-        }
-      }
-    }
-    return std::get<2>(oldest_waiting);
+    return result;
   }
 
   bool service_node_list::validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hf_version, cryptonote::block_reward_parts const &reward_parts) const
@@ -1628,23 +1625,25 @@ namespace service_nodes
     uint64_t base_reward = reward_parts.original_base_reward;
     uint64_t total_service_node_reward = cryptonote::service_node_reward_formula(base_reward, hf_version);
 
-    crypto::public_key winner = select_winner();
-
+    block_winner winner                    = m_state.get_block_winner();
     crypto::public_key check_winner_pubkey = cryptonote::get_service_node_winner_from_tx_extra(miner_tx.extra);
-    if (check_winner_pubkey != winner) {
-      MERROR("Service node reward winner is incorrect! Expected " << winner << ", block has " << check_winner_pubkey);
+    if (winner.key != check_winner_pubkey)
+    {
+      MERROR("Service node reward winner is incorrect! Expected " << winner.key << ", block has " << check_winner_pubkey);
       return false;
     }
 
-    const std::vector<std::pair<cryptonote::account_public_address, uint64_t>> addresses_and_portions = get_winner_addresses_and_portions();
-    
-    if (miner_tx.vout.size() - 1 < addresses_and_portions.size())
-      return false;
-
-    for (size_t i = 0; i < addresses_and_portions.size(); i++)
+    if ((miner_tx.vout.size() - 1) < winner.payouts.size())
     {
-      size_t vout_index = i + 1;
-      uint64_t reward = cryptonote::get_portion_of_reward(addresses_and_portions[i].second, total_service_node_reward);
+      MERROR("Service node reward specifies more winners than available outputs: " << (miner_tx.vout.size() - 1) << ", winners: " << winner.payouts.size());
+      return false;
+    }
+
+    for (size_t i = 0; i < winner.payouts.size(); i++)
+    {
+      size_t vout_index          = i + 1;
+      payout_entry const &payout = winner.payouts[i];
+      uint64_t reward            = cryptonote::get_portion_of_reward(payout.portions, total_service_node_reward);
 
       if (miner_tx.vout[vout_index].amount != reward)
       {
@@ -1658,14 +1657,14 @@ namespace service_nodes
         return false;
       }
 
-      crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);;
+      crypto::key_derivation derivation     = AUTO_VAL_INIT(derivation);
       crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
-      cryptonote::keypair gov_key = cryptonote::get_deterministic_keypair_from_height(height);
+      cryptonote::keypair gov_key           = cryptonote::get_deterministic_keypair_from_height(height);
 
-      bool r = crypto::generate_key_derivation(addresses_and_portions[i].first.m_view_public_key, gov_key.sec, derivation);
-      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << addresses_and_portions[i].first.m_view_public_key << ", " << gov_key.sec << ")");
-      r = crypto::derive_public_key(derivation, vout_index, addresses_and_portions[i].first.m_spend_public_key, out_eph_public_key);
-      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << vout_index << ", "<< addresses_and_portions[i].first.m_spend_public_key << ")");
+      bool r = crypto::generate_key_derivation(payout.address.m_view_public_key, gov_key.sec, derivation);
+      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << payout.address.m_view_public_key << ", " << gov_key.sec << ")");
+      r = crypto::derive_public_key(derivation, vout_index, payout.address.m_spend_public_key, out_eph_public_key);
+      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << vout_index << ", "<< payout.address.m_spend_public_key << ")");
 
       if (boost::get<cryptonote::txout_to_key>(miner_tx.vout[vout_index].target).key != out_eph_public_key)
       {

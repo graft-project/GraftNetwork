@@ -208,6 +208,17 @@ namespace service_nodes
     END_SERIALIZE()
   };
 
+  struct payout_entry
+  {
+    cryptonote::account_public_address address;
+    uint64_t portions;
+  };
+
+  struct block_winner
+  {
+    crypto::public_key key;
+    std::vector<payout_entry> payouts;
+  };
 
   template<typename RandomIt>
   void loki_shuffle(RandomIt begin, RandomIt end, uint64_t seed)
@@ -238,8 +249,7 @@ namespace service_nodes
     void init() override;
     bool validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hard_fork_version, cryptonote::block_reward_parts const &base_reward) const override;
     bool alt_block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint) override;
-    std::vector<std::pair<cryptonote::account_public_address, uint64_t>> get_winner_addresses_and_portions() const;
-    crypto::public_key select_winner() const;
+    block_winner get_block_winner() const { std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex); return m_state.get_block_winner(); }
 
     bool is_service_node(const crypto::public_key& pubkey, bool require_active = true) const;
     bool is_key_image_locked(crypto::key_image const &check_image, uint64_t *unlock_height = nullptr, service_node_info::contribution_t *the_locked_contribution = nullptr) const;
@@ -354,6 +364,7 @@ namespace service_nodes
       // Returns true if a service node changed state (deregistered, decommissioned, or recommissioned)
       bool process_state_change_tx(std::set<state_t> const &state_history, std::unordered_map<crypto::hash, state_t> const &alt_states, cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, crypto::public_key const *my_pubkey);
       bool process_key_image_unlock_tx(cryptonote::network_type nettype, uint64_t block_height, const cryptonote::transaction &tx);
+      block_winner get_block_winner() const;
     };
 
   private:
@@ -416,7 +427,6 @@ namespace service_nodes
       bool make_friendly,
       boost::optional<std::string&> err_msg);
 
-  const static cryptonote::account_public_address null_address{ crypto::null_pkey, crypto::null_pkey };
-  const static std::vector<std::pair<cryptonote::account_public_address, uint64_t>> null_winner =
-    {std::pair<cryptonote::account_public_address, uint64_t>({null_address, STAKING_PORTIONS})};
+  const static cryptonote::account_public_address null_address{crypto::null_pkey, crypto::null_pkey};
+  const static std::vector<payout_entry> null_winner = {{null_address, STAKING_PORTIONS}};
 }
