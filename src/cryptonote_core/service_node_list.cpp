@@ -1182,14 +1182,7 @@ namespace service_nodes
     quorum_manager result = {};
     crypto::hash block_hash;
 
-    // NOTE: The quorum for a particular height is derived from the service node
-    // list state that's been updated from the next block. This is an
-    // unfortunate design decision, that we locked ourselves into from the start.
-
-    // The alternative is to subtract a 1 from the height in get_testing_quorum.
     uint64_t const height = cryptonote::get_block_height(block);
-    assert(state.height == height + 1);
-
     int const hf_version  = block.major_version;
     if (!cryptonote::get_block_hash(block, block_hash))
     {
@@ -1279,12 +1272,12 @@ namespace service_nodes
                                                      const std::vector<cryptonote::transaction> &txs,
                                                      crypto::public_key const *my_pubkey)
   {
+    ++height;
     bool need_swarm_update = false;
     uint64_t block_height  = cryptonote::get_block_height(block);
     assert(height == block_height);
-    quorums         = {};
-    block_hash      = cryptonote::get_block_hash(block);
-    ++height;
+    quorums    = {};
+    block_hash = cryptonote::get_block_hash(block);
 
     //
     // Remove expired blacklisted key images
@@ -1383,6 +1376,8 @@ namespace service_nodes
         }
       }
     }
+
+    quorums = generate_quorums(nettype, *this, block);
   }
 
   void service_node_list::process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
@@ -1445,24 +1440,17 @@ namespace service_nodes
     cryptonote::network_type nettype = m_blockchain.nettype();
     m_state_history.insert(m_state_history.end(), m_state);
     m_state.update_from_block(*m_db, nettype, m_state_history, m_alt_state, block, txs, m_service_node_pubkey);
-
-    // NOTE: m_state_history can be empty if you pop-blocks back and need to
-    // pull a state from archival states, meaning m_state_history is empty.
-    if (m_state_history.size())
-      m_state_history.rbegin()->quorums = generate_quorums(nettype, m_state, block);
   }
 
   void service_node_list::blockchain_detached(uint64_t height)
   {
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
 
-    if (m_state.height == height)
-      return;
-
-    bool reinitialise  = false;
-    bool using_archive = false;
+    uint64_t revert_to_height = height - 1;
+    bool reinitialise         = false;
+    bool using_archive        = false;
     {
-      auto it = m_state_history.find(height); // Try finding detached height directly
+      auto it = m_state_history.find(revert_to_height); // Try finding detached height directly
       reinitialise = (it == m_state_history.end() || it->only_loaded_quorums);
       if (!reinitialise)
         m_state_history.erase(std::next(it), m_state_history.end());
@@ -1471,7 +1459,7 @@ namespace service_nodes
     // TODO(loki): We should loop through the prev 10k heights for robustness, but avoid for v4.0.5. Already enough changes going in
     if (reinitialise) // Try finding the next closest old state at 10k intervals
     {
-      uint64_t prev_interval = height - (height % STORE_LONG_TERM_STATE_INTERVAL);
+      uint64_t prev_interval = revert_to_height - (revert_to_height % STORE_LONG_TERM_STATE_INTERVAL);
       auto it                = m_state_archive.find(prev_interval);
       reinitialise           = (it == m_state_archive.end() || it->only_loaded_quorums);
       if (!reinitialise)
@@ -1495,7 +1483,7 @@ namespace service_nodes
     m_state = std::move(*it);
     history.erase(it);
 
-    if (m_state.height != height)
+    if (m_state.height != revert_to_height)
       rescan_starting_from_curr_state(false /*store_to_disk*/);
     store();
   }
@@ -1512,14 +1500,14 @@ namespace service_nodes
     // But there's something subtly off when using registration height causing syncing problems.
     if (hf_version == cryptonote::network_version_9_service_nodes)
     {
-      if (block_height < lock_blocks)
+      if (block_height <= lock_blocks)
         return expired_nodes;
 
       const uint64_t expired_nodes_block_height = block_height - lock_blocks;
       cryptonote::block block                   = {};
       try
       {
-        cryptonote::block const &block = db.get_block_from_height(expired_nodes_block_height);
+        block = db.get_block_from_height(expired_nodes_block_height);
       }
       catch (std::exception const &e)
       {
@@ -1527,7 +1515,9 @@ namespace service_nodes
         return expired_nodes;
       }
 
-      assert(db.get_hard_fork_version(expired_nodes_block_height) == cryptonote::network_version_9_service_nodes);
+      if (block.major_version < cryptonote::network_version_9_service_nodes)
+        return expired_nodes;
+
       for (crypto::hash const &hash : block.tx_hashes)
       {
         cryptonote::transaction tx;
@@ -1693,14 +1683,10 @@ namespace service_nodes
     auto it = m_alt_state.find(block_hash);
     if (it != m_alt_state.end()) return true; // NOTE: Already processed alt-state for this block
 
-    // NOTE: Check if alt block forks off current state
-    if ((block_height == m_state.height) && (block.prev_id == m_state.block_hash))
-      starting_state = &m_state;
-
     // NOTE: Check if alt block forks off some historical state on the canonical chain
     if (!starting_state)
     {
-      auto it = m_state_history.find(block_height);
+      auto it = m_state_history.find(block_height - 1);
       if (it != m_state_history.end())
         if (block.prev_id == it->block_hash) starting_state = &(*it);
     }
@@ -2173,7 +2159,7 @@ namespace service_nodes
       uint8_t voting;
       m_blockchain.get_hard_fork_voting_info(9, window, votes, threshold, hardfork_9_from_height, voting);
     }
-    m_state.height = hardfork_9_from_height;
+    m_state.height = hardfork_9_from_height - 1;
   }
 
   size_t service_node_info::total_num_locked_contributions() const
