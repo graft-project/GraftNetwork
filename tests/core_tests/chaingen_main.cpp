@@ -120,12 +120,17 @@ int main(int argc, char* argv[])
       GENERATE_AND_PLAY(test_prefer_deregisters);
       GENERATE_AND_PLAY(test_zero_fee_deregister);
       GENERATE_AND_PLAY(test_deregister_safety_buffer);
-      GENERATE_AND_PLAY(test_deregisters_on_split);
       GENERATE_AND_PLAY(deregister_too_old);
       GENERATE_AND_PLAY(sn_test_rollback);
       GENERATE_AND_PLAY(test_swarms_basic);
+      GENERATE_AND_PLAY(gen_service_node_alt_quorum);
+      GENERATE_AND_PLAY(gen_service_node_checkpoint_from_votes);
+      GENERATE_AND_PLAY(gen_service_node_checkpoints_check_reorg_windows);
+      GENERATE_AND_PLAY(gen_alt_chain_more_service_node_checkpoints_less_pow_overtakes);
+      GENERATE_AND_PLAY(gen_alt_chain_with_increasing_service_node_checkpoints);
+      GENERATE_AND_PLAY(gen_alt_chain_receive_checkpoint_votes_should_reorg_back);
 #else
-      GENERATE_AND_PLAY(gen_simple_chain_split_1);
+      GENERATE_AND_PLAY(gen_alt_chain_receive_checkpoint_votes_should_reorg_back);
 #endif
     }
 

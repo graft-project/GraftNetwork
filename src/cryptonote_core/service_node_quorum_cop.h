@@ -63,6 +63,15 @@ namespace service_nodes
     // TODO(doyle): Validators aren't used, but I kept this as a testing_quorum
     // to avoid drastic changes for now to a lot of the service node API
     std::shared_ptr<const testing_quorum> checkpointing;
+
+    std::shared_ptr<const testing_quorum> get(quorum_type type) const
+    {
+      if (type == quorum_type::obligations) return obligations;
+      else if (type == quorum_type::checkpointing) return checkpointing;
+      MERROR("Developer error: Unhandled quorum enum with value: " << (size_t)type);
+      assert(!"Developer error: Unhandled quorum enum with value: ");
+      return nullptr;
+    }
   };
 
   struct service_node_test_results {

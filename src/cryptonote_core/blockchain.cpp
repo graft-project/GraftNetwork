@@ -4327,10 +4327,10 @@ bool Blockchain::update_checkpoint(cryptonote::checkpoint_t const &checkpoint)
     }
     else
     {
-      // roll back to a couple of blocks before the checkpoint
-      LOG_ERROR("Local blockchain failed to pass a checkpoint in: " << __func__ << ", rolling back!");
-      std::list<block> empty;
-      rollback_blockchain_switching(empty, checkpoint.height - 2);
+      uint64_t blocks_to_pop        = m_db->height() - checkpoint.height + 2;
+      crypto::hash const reorg_hash = m_db->get_block_hash_from_height(checkpoint.height - 2);
+      MGINFO_GREEN("###### CHECKPOINTING REORGANIZE from height: " << m_db->height() << " to before checkpoint height: " << (checkpoint.height - 2) << " id: " << reorg_hash);
+      pop_blocks(blocks_to_pop);
     }
   }
 

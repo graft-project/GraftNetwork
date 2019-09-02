@@ -190,18 +190,6 @@ namespace service_nodes
     return sort_and_filter(service_nodes_infos, [](const service_node_info &info) { return info.is_decommissioned() && info.is_fully_funded(); }, /*reserve=*/ false);
   }
 
-  static std::shared_ptr<const testing_quorum> get_quorum_from_manager(quorum_manager const &manager, quorum_type type)
-  {
-    if (type == quorum_type::obligations)
-      return manager.obligations;
-    else if (type == quorum_type::checkpointing)
-      return manager.checkpointing;
-
-    MERROR("Developer error: Unhandled quorum enum with value: " << (size_t)type);
-    assert(!"Developer error: Unhandled quorum enum");
-    return nullptr;
-  }
-  
   std::shared_ptr<const testing_quorum> service_node_list::get_testing_quorum(quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const testing_quorum>> *alt_quorums) const
   {
     if (type == quorum_type::checkpointing) {
@@ -249,13 +237,13 @@ namespace service_nodes
         state_t const &alt_state = hash_to_state.second;
         if (alt_state.height == height)
         {
-          std::shared_ptr<const testing_quorum> alt_result = get_quorum_from_manager(alt_state.quorums, type);
+          std::shared_ptr<const testing_quorum> alt_result = alt_state.quorums.get(type);
           if (alt_result) alt_quorums->push_back(alt_result);
         }
       }
     }
 
-    std::shared_ptr<const testing_quorum> result = get_quorum_from_manager(*quorums, type);
+    std::shared_ptr<const testing_quorum> result = quorums->get(type);
     return result;
   }
 

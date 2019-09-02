@@ -39,6 +39,8 @@
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "string_tools.h"
 
+#include <boost/serialization/base_object.hpp>
+
 #define ADD_CHECKPOINT(h, hash)  CHECK_AND_ASSERT(add_checkpoint(h,  hash), false);
 #define JSON_HASH_FILE_NAME "checkpoints.json"
 
@@ -80,6 +82,12 @@ namespace cryptonote
       FIELD(signatures)
       FIELD(prev_height)
     END_SERIALIZE()
+
+   // TODO(loki): idk exactly if I want to implement this, but need for core tests to compile. Not sure I care about serializing for core tests at all.
+   private:
+    friend class boost::serialization::access;
+    template <class Archive>
+    void serialize(Archive &ar, const unsigned int /*version*/) { }
   };
 
   struct height_to_hash

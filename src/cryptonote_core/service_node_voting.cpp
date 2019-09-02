@@ -317,6 +317,35 @@ namespace service_nodes
     return result;
   }
 
+  quorum_vote_t make_checkpointing_vote(crypto::hash const &block_hash, uint64_t block_height, uint16_t index_in_quorum, crypto::public_key const &pub_key, crypto::secret_key const &sec_key)
+  {
+    quorum_vote_t result         = {};
+    result.type                  = quorum_type::checkpointing;
+    result.checkpoint.block_hash = block_hash;
+    result.block_height          = block_height;
+    result.group                 = quorum_group::worker;
+    result.index_in_group        = index_in_quorum;
+    result.signature             = make_signature_from_vote(result, pub_key, sec_key);
+    return result;
+  }
+
+  cryptonote::checkpoint_t make_empty_service_node_checkpoint(crypto::hash const &block_hash, uint64_t height)
+  {
+    cryptonote::checkpoint_t result = {};
+    result.type                     = cryptonote::checkpoint_type::service_node;
+    result.height                   = height;
+    result.block_hash               = block_hash;
+    return result;
+  }
+
+  voter_to_signature vote_to_voter_to_signature(quorum_vote_t const &vote)
+  {
+    voter_to_signature result = {};
+    result.voter_index        = vote.index_in_group;
+    result.signature          = vote.signature;
+    return result;
+  }
+
   bool verify_vote_age(const quorum_vote_t& vote, uint64_t latest_height, cryptonote::vote_verification_context &vvc)
   {
     bool result           = true;
