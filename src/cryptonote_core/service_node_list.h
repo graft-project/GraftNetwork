@@ -66,8 +66,8 @@ namespace service_nodes
   {
     enum version
     {
-      version_0_checkpointing, // versioning reset in 4.0.0 (data structure storage changed)
-      version_1_add_registration_hf_version, // versioning reset in 4.0.0 (data structure storage changed)
+      version_0_checkpointing,               // versioning reset in 4.0.0 (data structure storage changed)
+      version_1_add_registration_hf_version,
     };
 
     struct contribution_t

@@ -62,17 +62,19 @@ namespace service_nodes
     uint64_t result =
         (block_height < DEFAULT_SHORT_TERM_STATE_HISTORY) ? 0 : block_height - DEFAULT_SHORT_TERM_STATE_HISTORY;
 
-    uint64_t latest_height = db->height() - 1;
-    cryptonote::checkpoint_t checkpoint;
-    if (db->get_immutable_checkpoint(&checkpoint, latest_height))
-      result = std::min(result, checkpoint.height - 1);
-
+    if (hf_version >= cryptonote::network_version_12_checkpointing)
+    {
+      uint64_t latest_height = db->height() - 1;
+      cryptonote::checkpoint_t checkpoint;
+      if (db->get_immutable_checkpoint(&checkpoint, latest_height))
+        result = std::min(result, checkpoint.height - 1);
+    }
     return result;
   }
 
   static int get_min_service_node_info_version_for_hf(uint8_t hf_version)
   {
-    return service_node_info::version_1_add_registration_hf_version; // Versioning reset with the full SN rescan in 4.0.0
+    return service_node_info::version_1_add_registration_hf_version;
   }
 
   service_node_list::service_node_list(cryptonote::Blockchain &blockchain)
@@ -90,7 +92,8 @@ namespace service_nodes
       return;
 
     auto scan_start         = std::chrono::high_resolution_clock::now();
-    uint64_t current_height = m_blockchain.get_current_blockchain_height();
+    uint64_t chain_height   = m_blockchain.get_current_blockchain_height();
+    uint64_t current_height = chain_height - 1;
     if (m_state.height == current_height)
       return;
 
@@ -111,7 +114,7 @@ namespace service_nodes
       }
 
       blocks.clear();
-      if (!m_blockchain.get_blocks(m_state.height, 1000, blocks))
+      if (!m_blockchain.get_blocks(m_state.height + 1, 1000, blocks))
       {
         MERROR("Unable to initialize service nodes list");
         return;
@@ -1165,18 +1168,10 @@ namespace service_nodes
     return result;
   }
 
-  static quorum_manager generate_quorums(cryptonote::network_type nettype, service_node_list::state_t const &state, cryptonote::block const &block)
+  static quorum_manager generate_quorums(cryptonote::network_type nettype, uint8_t hf_version, service_node_list::state_t const &state)
   {
     quorum_manager result = {};
-    crypto::hash block_hash;
-
-    uint64_t const height = cryptonote::get_block_height(block);
-    int const hf_version  = block.major_version;
-    if (!cryptonote::get_block_hash(block, block_hash))
-    {
-      MERROR("Block height: " << height << " returned null hash");
-      return result;
-    }
+    assert(state.block_hash != crypto::null_hash);
 
     // The two quorums here have different selection criteria: the entire checkpoint quorum and the
     // state change *validators* want only active service nodes, but the state change *workers*
@@ -1199,7 +1194,7 @@ namespace service_nodes
       {
         size_t total_nodes         = active_snode_list.size() + decomm_snode_list.size();
         num_validators             = std::min(active_snode_list.size(), STATE_CHANGE_QUORUM_SIZE);
-        pub_keys_indexes           = generate_shuffled_service_node_index_list(total_nodes, block_hash, type, num_validators, active_snode_list.size());
+        pub_keys_indexes           = generate_shuffled_service_node_index_list(total_nodes, state.block_hash, type, num_validators, active_snode_list.size());
         result.obligations         = quorum;
         size_t num_remaining_nodes = total_nodes - num_validators;
         num_workers                = std::min(num_remaining_nodes, std::max(STATE_CHANGE_MIN_NODES_TO_TEST, num_remaining_nodes/STATE_CHANGE_NTH_OF_THE_NETWORK_TO_TEST));
@@ -1211,16 +1206,16 @@ namespace service_nodes
         // REORG_SAFETY_BUFFER_BLOCKS_POST_HF12`, where H is divisible by CHECKPOINT_INTERVAL, but
         // REORG_SAFETY_BUFFER_BLOCKS_POST_HF12 is not (it equals 11).  Hence the addition here to
         // "undo" the lag before checking to see if we're on an interval multiple:
-        if ((height + REORG_SAFETY_BUFFER_BLOCKS_POST_HF12) % CHECKPOINT_INTERVAL != 0)
+        if ((state.height + REORG_SAFETY_BUFFER_BLOCKS_POST_HF12) % CHECKPOINT_INTERVAL != 0)
           continue; // Not on an interval multiple: no checkpointing quorum is defined.
 
         size_t total_nodes = active_snode_list.size();
 
         // TODO(loki): Soft fork, remove when testnet gets reset
-        if (nettype == cryptonote::TESTNET && height < 85357)
+        if (nettype == cryptonote::TESTNET && state.height < 85357)
           total_nodes = active_snode_list.size() + decomm_snode_list.size();
 
-        pub_keys_indexes     = generate_shuffled_service_node_index_list(total_nodes, block_hash, type);
+        pub_keys_indexes     = generate_shuffled_service_node_index_list(total_nodes, state.block_hash, type);
         result.checkpointing = quorum;
         num_workers          = std::min(pub_keys_indexes.size(), CHECKPOINT_QUORUM_SIZE);
       }
@@ -1264,18 +1259,22 @@ namespace service_nodes
     bool need_swarm_update = false;
     uint64_t block_height  = cryptonote::get_block_height(block);
     assert(height == block_height);
-    quorums    = {};
-    block_hash = cryptonote::get_block_hash(block);
+    quorums                  = {};
+    block_hash               = cryptonote::get_block_hash(block);
+    uint8_t const hf_version = block.major_version;
 
     //
     // Remove expired blacklisted key images
     //
-    for (auto entry = key_image_blacklist.begin(); entry != key_image_blacklist.end();)
+    if (hf_version > cryptonote::network_version_11_infinite_staking)
     {
-      if (block_height >= entry->unlock_height)
-        entry = key_image_blacklist.erase(entry);
-      else
-        entry++;
+      for (auto entry = key_image_blacklist.begin(); entry != key_image_blacklist.end();)
+      {
+        if (block_height >= entry->unlock_height)
+          entry = key_image_blacklist.erase(entry);
+        else
+          entry++;
+      }
     }
 
     //
@@ -1318,7 +1317,6 @@ namespace service_nodes
     //
     // Process TXs in the Block
     //
-    uint8_t const hf_version               = block.major_version;
     for (uint32_t index = 0; index < txs.size(); ++index)
     {
       const cryptonote::transaction& tx = txs[index];
@@ -1365,7 +1363,7 @@ namespace service_nodes
       }
     }
 
-    quorums = generate_quorums(nettype, *this, block);
+    quorums = generate_quorums(nettype, hf_version, *this);
   }
 
   void service_node_list::process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
@@ -1412,6 +1410,7 @@ namespace service_nodes
     //
     // Cull alt state history
     //
+    if (hf_version >= cryptonote::network_version_12_checkpointing)
     {
       cryptonote::checkpoint_t immutable_checkpoint;
       if (m_db->get_immutable_checkpoint(&immutable_checkpoint, block_height))
@@ -2020,6 +2019,9 @@ namespace service_nodes
   , only_loaded_quorums{state.only_stored_quorums}
   , block_hash{state.block_hash}
   {
+    if (state.version == state_serialized::version_t::version_0)
+      block_hash = blockchain.get_block_id_by_height(height);
+
     for (auto &pubkey_info : state.infos)
     {
       if (pubkey_info.info->version == service_node_info::version_0_checkpointing)
@@ -2056,8 +2058,62 @@ namespace service_nodes
       data_for_serialization data_in = {};
       if (::serialization::serialize(ba, data_in) && data_in.states.size())
       {
-        for (state_serialized &entry : data_in.states)
-          m_state_archive.emplace_hint(m_state_archive.end(), m_blockchain, std::move(entry));
+        // NOTE: Previously the quorum for the next state is derived from the
+        // state that's been updated from the next block. This is fixed in
+        // version_1.
+
+        // So, copy the quorum from (state.height-1) to (state.height), all
+        // states need to have their (height-1) which means we're missing the
+        // 10k-th interval and need to generate it based on the last state.
+
+        if (data_in.states[0].version == state_serialized::version_t::version_0)
+        {
+          size_t const last_index = data_in.states.size() - 1;
+          if ((data_in.states.back().height % STORE_LONG_TERM_STATE_INTERVAL) != 0)
+          {
+            LOG_PRINT_L0("Last serialised quorum height: " << data_in.states.back().height
+                                                           << " in archive is unexpectedly not a multiple of: "
+                                                           << STORE_LONG_TERM_STATE_INTERVAL << ", regenerating state");
+            return false;
+          }
+
+          for (size_t i = data_in.states.size() - 1; i >= 1; i--)
+          {
+            state_serialized &serialized_entry      = data_in.states[i];
+            state_serialized &prev_serialized_entry = data_in.states[i - 1];
+
+            if ((prev_serialized_entry.height % STORE_LONG_TERM_STATE_INTERVAL) == 0)
+            {
+              // NOTE: drop this entry, we have insufficient data to derive
+              // sadly, do this as a one off and if we ever need this data we
+              // need to do a full rescan.
+              continue;
+            }
+
+            state_t entry(m_blockchain, std::move(serialized_entry));
+            entry.height--;
+            entry.quorums = quorum_for_serialization_to_quorum_manager(prev_serialized_entry.quorums);
+
+            if ((serialized_entry.height % STORE_LONG_TERM_STATE_INTERVAL) == 0)
+            {
+              state_t long_term_state                  = entry;
+              cryptonote::block const &block           = m_db->get_block_from_height(long_term_state.height + 1);
+              std::vector<cryptonote::transaction> txs = m_db->get_tx_list(block.tx_hashes);
+              long_term_state.update_from_block(*m_db, m_blockchain.nettype(), {} /*state_history*/, {} /*alt_states*/, block, txs, nullptr /*my_pubkey*/);
+
+              entry.service_nodes_infos                = {};
+              entry.key_image_blacklist                = {};
+              entry.only_loaded_quorums                = true;
+              m_state_archive.emplace_hint(m_state_archive.begin(), std::move(long_term_state));
+            }
+            m_state_archive.emplace_hint(m_state_archive.begin(), std::move(entry));
+          }
+        }
+        else
+        {
+          for (state_serialized &entry : data_in.states)
+            m_state_archive.emplace_hint(m_state_archive.end(), m_blockchain, std::move(entry));
+        }
       }
     }
 
@@ -2101,23 +2157,39 @@ namespace service_nodes
 
     {
       assert(data_in.states.size() > 0);
-      size_t const last_index  = data_in.states.size() - 1;
-      for (size_t i = 0; i < last_index; i++)
-      {
-        state_serialized &entry = data_in.states[i];
-        if (entry.block_hash == crypto::null_hash) entry.block_hash = m_blockchain.get_block_id_by_height(entry.height);
-        m_state_history.emplace_hint(m_state_history.end(), m_blockchain, std::move(entry));
-      }
-
+      size_t const last_index = data_in.states.size() - 1;
       if (data_in.states[last_index].only_stored_quorums)
       {
         LOG_PRINT_L0("Unexpected last serialized state only has quorums loaded");
         return false;
       }
 
-      state_serialized &last_entry = data_in.states[last_index];
-      if (last_entry.block_hash == crypto::null_hash) last_entry.block_hash = m_blockchain.get_block_id_by_height(last_entry.height);
-      m_state = state_t(m_blockchain, std::move(last_entry));
+      if (data_in.states[0].version == state_serialized::version_t::version_0)
+      {
+        for (size_t i = last_index; i >= 1; i--)
+        {
+          state_serialized &serialized_entry      = data_in.states[i];
+          state_serialized &prev_serialized_entry = data_in.states[i - 1];
+          state_t entry(m_blockchain, std::move(serialized_entry));
+          entry.quorums = quorum_for_serialization_to_quorum_manager(prev_serialized_entry.quorums);
+          entry.height--;
+          if (i == last_index) m_state = std::move(entry);
+          else                 m_state_archive.emplace_hint(m_state_archive.end(), std::move(entry));
+        }
+      }
+      else
+      {
+        size_t const last_index  = data_in.states.size() - 1;
+        for (size_t i = 0; i < last_index; i++)
+        {
+          state_serialized &entry = data_in.states[i];
+          if (entry.block_hash == crypto::null_hash) entry.block_hash = m_blockchain.get_block_id_by_height(entry.height);
+          m_state_history.emplace_hint(m_state_history.end(), m_blockchain, std::move(entry));
+        }
+
+        state_serialized &last_entry = data_in.states[last_index];
+        m_state = state_t(m_blockchain, std::move(last_entry));
+      }
     }
 
     MGINFO("Service node data loaded successfully, height: " << m_state.height);
