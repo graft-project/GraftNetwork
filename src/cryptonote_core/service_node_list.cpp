@@ -72,7 +72,7 @@ namespace service_nodes
 
   static int get_min_service_node_info_version_for_hf(uint8_t hf_version)
   {
-    return service_node_info::version_0_checkpointing; // Versioning reset with the full SN rescan in 4.0.0
+    return service_node_info::version_1_add_registration_hf_version; // Versioning reset with the full SN rescan in 4.0.0
   }
 
   service_node_list::service_node_list(cryptonote::Blockchain &blockchain)
@@ -523,9 +523,10 @@ namespace service_nodes
           {
             for (const auto &contribution : contributor.locked_contributions)
             {
-              key_image_blacklist.emplace_back(get_min_service_node_info_version_for_hf(hf_version),
-                                               contribution.key_image,
-                                               block_height + staking_num_lock_blocks(nettype));
+              key_image_blacklist.emplace_back(); // NOTE: Use default value for version in key_image_blacklist_entry
+              key_image_blacklist_entry &entry = key_image_blacklist.back();
+              entry.key_image                  = contribution.key_image;
+              entry.unlock_height              = block_height + staking_num_lock_blocks(nettype);
             }
           }
         }
@@ -869,21 +870,22 @@ namespace service_nodes
 
     key = service_node_key;
 
-    info.operator_address = service_node_addresses[0];
-    info.portions_for_operator = portions_for_operator;
-    info.registration_height = block_height;
-    info.last_reward_block_height = block_height;
+    info.operator_address              = service_node_addresses[0];
+    info.portions_for_operator         = portions_for_operator;
+    info.registration_height           = block_height;
+    info.registration_hf_version       = hf_version;
+    info.last_reward_block_height      = block_height;
     info.last_reward_transaction_index = index;
-    info.active_since_height = 0;
-    info.last_decommission_height = 0;
-    info.decommission_count = 0;
-    info.total_contributed = 0;
-    info.total_reserved = 0;
-    info.swarm_id = UNASSIGNED_SWARM_ID;
-    info.proof->public_ip = 0;
-    info.proof->storage_port = 0;
-    info.last_ip_change_height = block_height;
-    info.version = get_min_service_node_info_version_for_hf(hf_version);
+    info.active_since_height           = 0;
+    info.last_decommission_height      = 0;
+    info.decommission_count            = 0;
+    info.total_contributed             = 0;
+    info.total_reserved                = 0;
+    info.swarm_id                      = UNASSIGNED_SWARM_ID;
+    info.proof->public_ip              = 0;
+    info.proof->storage_port           = 0;
+    info.last_ip_change_height         = block_height;
+    info.version                       = get_min_service_node_info_version_for_hf(hf_version);
 
     info.contributors.clear();
 
@@ -903,7 +905,6 @@ namespace service_nodes
 
       info.contributors.emplace_back();
       auto &contributor = info.contributors.back();
-      contributor.version                          = get_min_service_node_info_version_for_hf(hf_version);
       contributor.reserved                         = resultlo;
       contributor.address                          = service_node_addresses[i];
       info.total_reserved += resultlo;
@@ -1056,8 +1057,7 @@ namespace service_nodes
       //
       // Successfully Validated
       //
-      contrib_iter = info.contributors.emplace(contributors.end());
-      contrib_iter->version = get_min_service_node_info_version_for_hf(hf_version);
+      contrib_iter          = info.contributors.emplace(contributors.end());
       contrib_iter->address = parsed_contribution.address;
     }
 
@@ -1271,7 +1271,8 @@ namespace service_nodes
     return result;
   }
 
-  void service_node_list::state_t::update_from_block(cryptonote::Blockchain const &blockchain,
+  void service_node_list::state_t::update_from_block(cryptonote::BlockchainDB const &db,
+                                                     cryptonote::network_type nettype,
                                                      std::set<state_t> const &state_history,
                                                      std::unordered_map<crypto::hash, state_t> const &alt_states,
                                                      const cryptonote::block &block,
@@ -1299,7 +1300,7 @@ namespace service_nodes
     //
     // Expire Nodes
     //
-    for (const crypto::public_key& pubkey : get_expired_nodes(blockchain, block_height))
+    for (const crypto::public_key& pubkey : get_expired_nodes(db, nettype, block.major_version, block_height))
     {
       auto i = service_nodes_infos.find(pubkey);
       if (i != service_nodes_infos.end())
@@ -1336,7 +1337,6 @@ namespace service_nodes
     //
     // Process TXs in the Block
     //
-    cryptonote::network_type const nettype = blockchain.nettype();
     uint8_t const hf_version               = block.major_version;
     for (uint32_t index = 0; index < txs.size(); ++index)
     {
@@ -1442,13 +1442,14 @@ namespace service_nodes
       }
     }
 
+    cryptonote::network_type nettype = m_blockchain.nettype();
     m_state_history.insert(m_state_history.end(), m_state);
-    m_state.update_from_block(m_blockchain, m_state_history, m_alt_state, block, txs, m_service_node_pubkey);
+    m_state.update_from_block(*m_db, nettype, m_state_history, m_alt_state, block, txs, m_service_node_pubkey);
 
     // NOTE: m_state_history can be empty if you pop-blocks back and need to
     // pull a state from archival states, meaning m_state_history is empty.
     if (m_state_history.size())
-      m_state_history.rbegin()->quorums = generate_quorums(m_blockchain.nettype(), m_state, block);
+      m_state_history.rbegin()->quorums = generate_quorums(nettype, m_state, block);
   }
 
   void service_node_list::blockchain_detached(uint64_t height)
@@ -1499,55 +1500,59 @@ namespace service_nodes
     store();
   }
 
-  std::vector<crypto::public_key> service_node_list::state_t::get_expired_nodes(cryptonote::Blockchain const &blockchain, uint64_t block_height) const
+  std::vector<crypto::public_key> service_node_list::state_t::get_expired_nodes(cryptonote::BlockchainDB const &db,
+                                                                               cryptonote::network_type nettype,
+                                                                               uint8_t hf_version,
+                                                                               uint64_t block_height) const
   {
     std::vector<crypto::public_key> expired_nodes;
-    uint64_t const lock_blocks = staking_num_lock_blocks(blockchain.nettype());
+    uint64_t const lock_blocks = staking_num_lock_blocks(nettype);
 
     // TODO(loki): This should really use the registration height instead of getting the block and expiring nodes.
     // But there's something subtly off when using registration height causing syncing problems.
-    if (blockchain.get_hard_fork_version(block_height) == cryptonote::network_version_9_service_nodes)
+    if (hf_version == cryptonote::network_version_9_service_nodes)
     {
       if (block_height < lock_blocks)
         return expired_nodes;
 
       const uint64_t expired_nodes_block_height = block_height - lock_blocks;
-      std::vector<std::pair<cryptonote::blobdata, cryptonote::block>> blocks;
-      if (!blockchain.get_blocks(expired_nodes_block_height, 1, blocks))
+      cryptonote::block block                   = {};
+      try
       {
-        LOG_ERROR("Unable to get historical blocks");
+        cryptonote::block const &block = db.get_block_from_height(expired_nodes_block_height);
+      }
+      catch (std::exception const &e)
+      {
+        LOG_ERROR("Failed to get historical block to find expired nodes in v9: " << e.what());
         return expired_nodes;
       }
 
-      const cryptonote::block& block = blocks.begin()->second;
-      std::vector<cryptonote::transaction> txs;
-      std::vector<crypto::hash> missed_txs;
-      if (!blockchain.get_transactions(block.tx_hashes, txs, missed_txs))
+      assert(db.get_hard_fork_version(expired_nodes_block_height) == cryptonote::network_version_9_service_nodes);
+      for (crypto::hash const &hash : block.tx_hashes)
       {
-        LOG_ERROR("Unable to get transactions for block " << block.hash);
-        return expired_nodes;
-      }
+        cryptonote::transaction tx;
+        if (!db.get_tx(hash, tx))
+        {
+          LOG_ERROR("Failed to get historical tx to find expired service nodes in v9");
+          continue;
+        }
 
-      uint32_t index = 0;
-      for (const cryptonote::transaction& tx : txs)
-      {
+        uint32_t index = 0;
         crypto::public_key key;
         service_node_info info = {};
-        if (is_registration_tx(blockchain.nettype(), blockchain.get_hard_fork_version(expired_nodes_block_height), tx, block.timestamp, expired_nodes_block_height, index, key, info))
-        {
+        if (is_registration_tx(nettype, cryptonote::network_version_9_service_nodes, tx, block.timestamp, expired_nodes_block_height, index, key, info))
           expired_nodes.push_back(key);
-        }
         index++;
       }
+
     }
     else
     {
-      const uint64_t hf11_height = blockchain.get_earliest_ideal_height_for_version(cryptonote::network_version_11_infinite_staking);
       for (auto it = service_nodes_infos.begin(); it != service_nodes_infos.end(); it++)
       {
         crypto::public_key const &snode_key = it->first;
         const service_node_info &info       = *it->second;
-        if (info.registration_height >= hf11_height)
+        if (info.registration_hf_version >= cryptonote::network_version_11_infinite_staking)
         {
           if (info.requested_unlock_height != KEY_IMAGE_AWAITING_UNLOCK_HEIGHT && block_height > info.requested_unlock_height)
             expired_nodes.push_back(snode_key);
@@ -1721,7 +1726,7 @@ namespace service_nodes
     }
 
     state_t alt_state = *starting_state;
-    alt_state.update_from_block(m_blockchain, m_state_history, m_alt_state, block, txs, m_service_node_pubkey);
+    alt_state.update_from_block(*m_db, m_blockchain.nettype(), m_state_history, m_alt_state, block, txs, m_service_node_pubkey);
     m_alt_state[block_hash] = std::move(alt_state);
 
     if (checkpoint)
@@ -2035,15 +2040,21 @@ namespace service_nodes
     return result;
   }
 
-  service_node_list::state_t::state_t(state_serialized &&state)
+  service_node_list::state_t::state_t(cryptonote::Blockchain const &blockchain, state_serialized &&state)
   : height{state.height}
   , key_image_blacklist{std::move(state.key_image_blacklist)}
   , only_loaded_quorums{state.only_stored_quorums}
   , block_hash{state.block_hash}
   {
     for (auto &pubkey_info : state.infos)
+    {
+      if (pubkey_info.info->version == service_node_info::version_0_checkpointing)
+      {
+        const_cast<service_node_info &>(*pubkey_info.info).version = service_node_info::version_1_add_registration_hf_version;
+        const_cast<service_node_info &>(*pubkey_info.info).registration_hf_version = blockchain.get_hard_fork_version(pubkey_info.info->registration_height);
+      }
       service_nodes_infos.emplace(std::move(pubkey_info.pubkey), std::move(pubkey_info.info));
-    
+    }
     quorums = quorum_for_serialization_to_quorum_manager(state.quorums);
   }
 
@@ -2072,7 +2083,7 @@ namespace service_nodes
       if (::serialization::serialize(ba, data_in) && data_in.states.size())
       {
         for (state_serialized &entry : data_in.states)
-          m_state_archive.emplace_hint(m_state_archive.end(), std::move(entry));
+          m_state_archive.emplace_hint(m_state_archive.end(), m_blockchain, std::move(entry));
       }
     }
 
@@ -2121,7 +2132,7 @@ namespace service_nodes
       {
         state_serialized &entry = data_in.states[i];
         if (entry.block_hash == crypto::null_hash) entry.block_hash = m_blockchain.get_block_id_by_height(entry.height);
-        m_state_history.emplace_hint(m_state_history.end(), std::move(entry));
+        m_state_history.emplace_hint(m_state_history.end(), m_blockchain, std::move(entry));
       }
 
       if (data_in.states[last_index].only_stored_quorums)
@@ -2132,7 +2143,7 @@ namespace service_nodes
 
       state_serialized &last_entry = data_in.states[last_index];
       if (last_entry.block_hash == crypto::null_hash) last_entry.block_hash = m_blockchain.get_block_id_by_height(last_entry.height);
-      m_state = std::move(last_entry);
+      m_state = state_t(m_blockchain, std::move(last_entry));
     }
 
     MGINFO("Service node data loaded successfully, height: " << m_state.height);

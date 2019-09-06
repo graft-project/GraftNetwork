@@ -67,11 +67,12 @@ namespace service_nodes
     enum version
     {
       version_0_checkpointing, // versioning reset in 4.0.0 (data structure storage changed)
+      version_1_add_registration_hf_version, // versioning reset in 4.0.0 (data structure storage changed)
     };
 
     struct contribution_t
     {
-      uint8_t            version{version_0_checkpointing};
+      uint8_t            version{0};
       crypto::public_key key_image_pub_key;
       crypto::key_image  key_image;
       uint64_t           amount;
@@ -113,7 +114,6 @@ namespace service_nodes
       END_SERIALIZE()
     };
 
-    uint8_t                            version;
     uint64_t                           registration_height;
     uint64_t                           requested_unlock_height;
     // block_height and transaction_index are to record when the service node last received a reward.
@@ -130,6 +130,8 @@ namespace service_nodes
     swarm_id_t                         swarm_id;
     cryptonote::account_public_address operator_address;
     uint64_t                           last_ip_change_height; // The height of the last quorum penalty for changing IPs
+    uint8_t                            version = version_1_add_registration_hf_version;
+    uint8_t                            registration_hf_version;
 
     // The data in `proof_info` are shared across states because we don't want to roll them back in
     // the event of a reorg: we always want them to contain the latest received info.  They are also
@@ -166,6 +168,8 @@ namespace service_nodes
       VARINT_FIELD_N("public_ip", proof->public_ip)
       VARINT_FIELD_N("storage_port", proof->storage_port)
       VARINT_FIELD(last_ip_change_height)
+      if (version >= version_1_add_registration_hf_version)
+       VARINT_FIELD(registration_hf_version);
     END_SERIALIZE()
   };
 
@@ -349,13 +353,13 @@ namespace service_nodes
 
       state_t() = default;
       state_t(block_height height) : height{height} {}
-      state_t(state_serialized &&state);
+      state_t(cryptonote::Blockchain const &blockchain, state_serialized &&state);
 
       constexpr bool operator<(const state_t &other) const { return this->height < other.height; }
       std::vector<pubkey_and_sninfo>  active_service_nodes_infos() const; // return: Filtered pubkey-sorted vector of service nodes that are active (fully funded and *not* decommissioned).
       std::vector<pubkey_and_sninfo>  decommissioned_service_nodes_infos() const; // return: All nodes that are fully funded *and* decommissioned.
-      std::vector<crypto::public_key> get_expired_nodes(cryptonote::Blockchain const &blockchain, uint64_t block_height) const;
-      void                            update_from_block(cryptonote::Blockchain const &blockchain, std::set<state_t> const &state_history, std::unordered_map<crypto::hash, state_t> const &alt_states, const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, crypto::public_key const *my_pubkey);
+      std::vector<crypto::public_key> get_expired_nodes(cryptonote::BlockchainDB const &db, cryptonote::network_type nettype, uint8_t hf_version, uint64_t block_height) const;
+      void                            update_from_block(cryptonote::BlockchainDB const &db, cryptonote::network_type nettype, std::set<state_t> const &state_history, std::unordered_map<crypto::hash, state_t> const &alt_states, const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, crypto::public_key const *my_pubkey);
 
       // Returns true if there was a registration:
       bool process_registration_tx(cryptonote::network_type nettype, cryptonote::block const &block, const cryptonote::transaction& tx, uint32_t index, crypto::public_key const *my_pubkey);
@@ -429,4 +433,5 @@ namespace service_nodes
 
   const static cryptonote::account_public_address null_address{crypto::null_pkey, crypto::null_pkey};
   const static std::vector<payout_entry> null_winner = {{null_address, STAKING_PORTIONS}};
+  const static block_winner null_block_winner        = {crypto::null_pkey, {null_winner}};
 }
