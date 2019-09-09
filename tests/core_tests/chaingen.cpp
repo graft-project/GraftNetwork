@@ -344,7 +344,7 @@ cryptonote::checkpoint_t loki_chain_generator::create_service_node_checkpoint(ui
     crypto::secret_key const &sec_key = service_node_keys_[pub_key];
 
     service_nodes::quorum_vote_t vote = service_nodes::make_checkpointing_vote(result.block_hash, block_height, i, pub_key, sec_key);
-    result.signatures.push_back(service_nodes::vote_to_voter_to_signature(vote));
+    result.signatures.push_back(service_nodes::voter_to_signature(vote));
   }
 
   return result;

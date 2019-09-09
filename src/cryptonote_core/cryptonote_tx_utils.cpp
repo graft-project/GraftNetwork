@@ -223,12 +223,6 @@ namespace cryptonote
     return reward;
   }
 
-  loki_miner_tx_context::loki_miner_tx_context(network_type type, service_nodes::block_winner block_winner)
-  : nettype(type)
-  , block_winner(block_winner)
-  {
-  }
-
   bool construct_miner_tx(
       size_t height,
       size_t median_weight,

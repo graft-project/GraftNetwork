@@ -1266,7 +1266,7 @@ namespace service_nodes
     //
     // Remove expired blacklisted key images
     //
-    if (hf_version > cryptonote::network_version_11_infinite_staking)
+    if (hf_version >= cryptonote::network_version_11_infinite_staking)
     {
       for (auto entry = key_image_blacklist.begin(); entry != key_image_blacklist.end();)
       {

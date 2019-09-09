@@ -338,14 +338,6 @@ namespace service_nodes
     return result;
   }
 
-  voter_to_signature vote_to_voter_to_signature(quorum_vote_t const &vote)
-  {
-    voter_to_signature result = {};
-    result.voter_index        = vote.index_in_group;
-    result.signature          = vote.signature;
-    return result;
-  }
-
   bool verify_vote_age(const quorum_vote_t& vote, uint64_t latest_height, cryptonote::vote_verification_context &vvc)
   {
     bool result           = true;

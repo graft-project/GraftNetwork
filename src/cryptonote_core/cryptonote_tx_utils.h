@@ -52,7 +52,7 @@ namespace cryptonote
 
   struct loki_miner_tx_context // NOTE(loki): All the custom fields required by Loki to use construct_miner_tx
   {
-    loki_miner_tx_context(network_type type = MAINNET, service_nodes::block_winner block_winner = service_nodes::null_block_winner);
+    loki_miner_tx_context(network_type type = MAINNET, service_nodes::block_winner const &block_winner = service_nodes::null_block_winner) : nettype(type), block_winner(std::move(block_winner)) { }
     network_type                nettype;
     service_nodes::block_winner block_winner;
     uint64_t                    batched_governance = 0; // NOTE: 0 until hardfork v10, then use blockchain::calc_batched_governance_reward

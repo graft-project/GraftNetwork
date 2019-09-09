@@ -548,7 +548,7 @@ namespace service_nodes
                     pool_vote.vote.index_in_group != it->voter_index)
                 {
                   update_checkpoint = true;
-                  checkpoint.signatures.insert(it, vote_to_voter_to_signature(pool_vote.vote));
+                  checkpoint.signatures.insert(it, voter_to_signature(pool_vote.vote));
                 }
               }
             }
@@ -558,7 +558,7 @@ namespace service_nodes
             checkpoint = make_empty_service_node_checkpoint(vote.checkpoint.block_hash, vote.block_height);
             checkpoint.signatures.reserve(votes.size());
             for (pool_vote_entry const &pool_vote : votes)
-              checkpoint.signatures.push_back(vote_to_voter_to_signature(pool_vote.vote));
+              checkpoint.signatures.push_back(voter_to_signature(pool_vote.vote));
           }
 
           if (update_checkpoint)

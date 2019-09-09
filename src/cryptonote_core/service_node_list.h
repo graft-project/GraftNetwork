@@ -349,8 +349,6 @@ namespace service_nodes
       block_height                           height{0};
       mutable quorum_manager                 quorums;          // Mutable because we are allowed to (and need to) change it via std::set iterator
 
-      constexpr bool operator()(const state_t &lhs, const state_t &rhs) const { return lhs.height < rhs.height; }
-
       state_t() = default;
       state_t(block_height height) : height{height} {}
       state_t(cryptonote::Blockchain const &blockchain, state_serialized &&state);
