@@ -58,8 +58,13 @@
 using epee::string_tools::pod_to_hex;
 using namespace crypto;
 
-// Increase when the DB structure changes
-#define VERSION 4
+enum struct lmdb_version
+{
+    v4 = 4,
+    v5,     // alt_block_data_1_t => alt_block_data_t: Alt block data has boolean for if the block was checkpointed
+};
+
+constexpr lmdb_version VERSION = lmdb_version::v5; // Increase when the DB structure changes
 
 namespace
 {
@@ -1457,58 +1462,44 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
   LOG_PRINT_L2("Setting m_height to: " << db_stats.ms_entries);
   uint64_t m_height = db_stats.ms_entries;
 
-  bool compatible = true;
-
   MDB_val_str(k, "version");
   MDB_val v;
   auto get_result = mdb_get(txn, m_properties, &k, &v);
   if(get_result == MDB_SUCCESS)
   {
-    const uint32_t db_version = *(const uint32_t*)v.mv_data;
-    if (db_version > VERSION)
+    const uint32_t db_version = *(const uint32_t *)v.mv_data;
+    bool failed               = false;
+    if (db_version > static_cast<decltype(db_version)>(VERSION))
     {
       MWARNING("Existing lmdb database was made by a later version (" << db_version << "). We don't know how it will change yet.");
-      compatible = false;
+      MFATAL("Existing lmdb database is incompatible with this version.");
+      MFATAL("Please delete the existing database and resync.");
+      failed = true;
     }
-#if VERSION > 0
-    else if (db_version < VERSION)
+    else if (db_version < static_cast<decltype(db_version)>(VERSION))
     {
       if (mdb_flags & MDB_RDONLY)
       {
-        txn.abort();
-        mdb_env_close(m_env);
-        m_open = false;
         MFATAL("Existing lmdb database needs to be converted, which cannot be done on a read-only database.");
         MFATAL("Please run lokid once to convert the database.");
+        failed = true;
+      }
+      else
+      {
+        txn.commit();
+        m_open = true;
+        migrate(db_version);
         return;
       }
-      // Note that there was a schema change within version 0 as well.
-      // See commit e5d2680094ee15889934fe28901e4e133cda56f2 2015/07/10
-      // We don't handle the old format previous to that commit.
-      txn.commit();
-      m_open = true;
-      migrate(db_version);
+    }
+
+    if (failed)
+    {
+      txn.abort();
+      mdb_env_close(m_env);
+      m_open = false;
       return;
     }
-#endif
-  }
-  else
-  {
-    // if not found, and the DB is non-empty, this is probably
-    // an "old" version 0, which we don't handle. If the DB is
-    // empty it's fine.
-    if (VERSION > 0 && m_height > 0)
-      compatible = false;
-  }
-
-  if (!compatible)
-  {
-    txn.abort();
-    mdb_env_close(m_env);
-    m_open = false;
-    MFATAL("Existing lmdb database is incompatible with this version.");
-    MFATAL("Please delete the existing database and resync.");
-    return;
   }
 
   if (!(mdb_flags & MDB_RDONLY))
@@ -1517,7 +1508,7 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
     if (m_height == 0)
     {
       MDB_val_str(k, "version");
-      MDB_val_copy<uint32_t> v(VERSION);
+      MDB_val_copy<uint32_t> v(static_cast<uint32_t>(VERSION));
       auto put_result = mdb_put(txn, m_properties, &k, &v, 0);
       if (put_result != MDB_SUCCESS)
       {
@@ -1532,7 +1523,6 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
 
   // commit the transaction
   txn.commit();
-
   m_open = true;
   // from here, init should be finished
 }
@@ -1622,7 +1612,7 @@ void BlockchainLMDB::reset()
 
   // init with current version
   MDB_val_str(k, "version");
-  MDB_val_copy<uint32_t> v(VERSION);
+  MDB_val_copy<uint32_t> v(static_cast<uint32_t>(VERSION));
   if (auto result = mdb_put(txn, m_properties, &k, &v, 0))
     throw0(DB_ERROR(lmdb_error("Failed to write version to database: ", result).c_str()));
 
@@ -5739,6 +5729,74 @@ void BlockchainLMDB::migrate_3_4()
   txn.commit();
 }
 
+void BlockchainLMDB::migrate_4_5()
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  MGINFO_YELLOW("Migrating blockchain from DB version 4 to 5 - this may take a while:");
+
+  mdb_txn_safe txn(false);
+  {
+    int result = mdb_txn_begin(m_env, NULL, 0, txn);
+    if (result) throw0(DB_ERROR(lmdb_error("Failed to create a transaction for the db: ", result).c_str()));
+  }
+
+  if (auto res = mdb_dbi_open(txn, LMDB_ALT_BLOCKS, 0, &m_alt_blocks)) return;
+
+  MDB_cursor *cursor;
+  if (auto ret = mdb_cursor_open(txn, m_alt_blocks, &cursor))
+    throw0(DB_ERROR(lmdb_error("Failed to open a cursor for alt blocks: ", ret).c_str()));
+
+  struct entry_t
+  {
+    crypto::hash key;
+    alt_block_data_t data;
+    cryptonote::blobdata blob;
+  };
+
+  std::vector<entry_t> new_entries;
+  for (MDB_cursor_op op = MDB_FIRST;; op = MDB_NEXT)
+  {
+    MDB_val key, val;
+    int ret = mdb_cursor_get(cursor, &key, &val, op);
+    if (ret == MDB_NOTFOUND) break;
+    if (ret) throw0(DB_ERROR(lmdb_error("Failed to enumerate alt blocks: ", ret).c_str()));
+
+    entry_t entry = {};
+
+    if (val.mv_size < sizeof(alt_block_data_1_t)) throw0(DB_ERROR("Record size is less than expected"));
+    const auto *data = (const alt_block_data_1_t *)val.mv_data;
+    entry.blob.assign((const char *)(data + 1), val.mv_size - sizeof(*data));
+
+    entry.key                          = *(crypto::hash const *)key.mv_data;
+    entry.data.height                  = data->height;
+    entry.data.cumulative_weight       = data->cumulative_weight;
+    entry.data.cumulative_difficulty   = data->cumulative_difficulty;
+    entry.data.already_generated_coins = data->already_generated_coins;
+    new_entries.push_back(entry);
+  }
+
+  {
+    int ret = mdb_drop(txn, m_alt_blocks, 0 /*empty the db but don't delete handle*/);
+    if (ret && ret != MDB_NOTFOUND)
+        throw0(DB_ERROR(lmdb_error("Failed to drop m_alt_blocks: ", ret).c_str()));
+  }
+
+  for (entry_t const &entry : new_entries)
+  {
+    const size_t val_size = sizeof(entry.data) + entry.blob.size();
+    std::unique_ptr<char[]> val_buf(new char[val_size]);
+
+    memcpy(val_buf.get(), &entry.data, sizeof(entry.data));
+    memcpy(val_buf.get() + sizeof(entry.data), entry.blob.data(), entry.blob.size());
+
+    MDB_val_set(key, entry.key);
+    MDB_val val = {val_size, (void *)val_buf.get()};
+    int ret = mdb_cursor_put(cursor, &key, &val, 0);
+    if (ret) throw0(DB_ERROR(lmdb_error("Failed to re-update alt block data: ", ret).c_str()));
+  }
+  txn.commit();
+}
+
 void BlockchainLMDB::migrate(const uint32_t oldversion)
 {
   switch(oldversion) {
@@ -5750,6 +5808,8 @@ void BlockchainLMDB::migrate(const uint32_t oldversion)
     migrate_2_3(); /* FALLTHRU */
   case 3:
     migrate_3_4(); /* FALLTHRU */
+  case 4:
+    migrate_4_5(); /* FALLTHRU */
   default:
     break;
   }
