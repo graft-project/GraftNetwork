@@ -210,7 +210,16 @@ namespace cryptonote
     res.stagenet = nettype == STAGENET;
     res.nettype = nettype == MAINNET ? "mainnet" : nettype == TESTNET ? "testnet" : nettype == STAGENET ? "stagenet" : "fakechain";
 
-    res.cumulative_difficulty = m_core.get_blockchain_storage().get_db().get_block_cumulative_difficulty(res.height - 1);
+    try
+    {
+      res.cumulative_difficulty = m_core.get_blockchain_storage().get_db().get_block_cumulative_difficulty(res.height - 1);
+    }
+    catch(std::exception const &e)
+    {
+      res.status = "Error retrieving cumulative difficulty at height " + std::to_string(res.height - 1);
+      return true;
+    }
+
     res.block_size_limit = res.block_weight_limit = m_core.get_blockchain_storage().get_current_cumulative_block_weight_limit();
     res.block_size_median = res.block_weight_median = m_core.get_blockchain_storage().get_current_cumulative_block_weight_median();
     res.start_time = restricted ? 0 : (uint64_t)m_core.get_start_time();
@@ -2740,6 +2749,7 @@ namespace cryptonote
     entry.service_node_version          = {info.proof->version_major, info.proof->version_minor, info.proof->version_patch};
     entry.public_ip                     = string_tools::get_ip_string_from_int32(info.proof->public_ip);
     entry.storage_port                  = info.proof->storage_port;
+    entry.storage_server_reachable      = info.proof->storage_server_reachable;
 
     entry.contributors.reserve(info.contributors.size());
 
@@ -3142,6 +3152,35 @@ namespace cryptonote
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_report_peer_storage_server_status(const COMMAND_RPC_REPORT_PEER_SS_STATUS::request& req,
+                                                             COMMAND_RPC_REPORT_PEER_SS_STATUS::response& res,
+                                                             epee::json_rpc::error& error_resp,
+                                                             const connection_context* ctx)
+  {
+    crypto::public_key pubkey;
+    if (!string_tools::hex_to_pod(req.pubkey, pubkey)) {
+      MERROR("Could not parse public key: " << req.pubkey);
+      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+      error_resp.message = "Could not parse public key";
+      return false;
+    }
 
+    if (req.type == "reachability") {
+
+      if (!m_core.set_storage_server_peer_reachable(pubkey, req.passed)) {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+        error_resp.message = "Pubkey not found";
+        return false;
+      }
+    } else {
+      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+      error_resp.message = "Unknown status type";
+      return false;
+    }
+
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
 
 }  // namespace cryptonote

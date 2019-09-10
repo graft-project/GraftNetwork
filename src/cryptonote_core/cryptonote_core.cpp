@@ -1583,17 +1583,6 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::add_new_block(const block& b, block_verification_context& bvc, checkpoint_t const *checkpoint)
   {
-    // TODO(loki): Temporary soft-fork code can be removed
-    uint64_t latest_height = std::max(get_current_blockchain_height(), get_target_blockchain_height());
-    if (get_nettype() == cryptonote::MAINNET &&
-        latest_height >= HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT &&
-        get_block_height(b) < HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT)
-    {
-      // NOTE: After the soft fork, ignore all checkpoints from before the fork so we
-      // only create and enforce checkpoints from after the soft-fork.
-      checkpoint = nullptr;
-    }
-
     bool result = m_blockchain_storage.add_new_block(b, bvc, checkpoint);
     if (result)
     {
@@ -1657,19 +1646,14 @@ namespace cryptonote
       b = &lb;
     }
 
-    // TODO(loki): This check should be redundant and included in
-    // verify_checkpoints once we enable it. It is not enabled until alternate
-    // quorums are implemented and merged
-    if (checkpoint)
+    // TODO(loki): Temporary to make hf12 checkpoints play nicely, but, hf12 checkpoints will be deleted on hf13
+    if (checkpoint && b->major_version < network_version_12_checkpointing)
     {
-      if (b->major_version < network_version_13)
-      {
-        std::sort(checkpoint->signatures.begin(),
-                  checkpoint->signatures.end(),
-                  [](service_nodes::voter_to_signature const &lhs, service_nodes::voter_to_signature const &rhs) {
-                    return lhs.voter_index < rhs.voter_index;
-                  });
-      }
+      std::sort(checkpoint->signatures.begin(),
+                checkpoint->signatures.end(),
+                [](service_nodes::voter_to_signature const &lhs, service_nodes::voter_to_signature const &rhs) {
+                  return lhs.voter_index < rhs.voter_index;
+                });
     }
 
     add_new_block(*b, bvc, checkpoint);
@@ -2150,6 +2134,11 @@ namespace cryptonote
     }
 
     return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::set_storage_server_peer_reachable(crypto::public_key const &pubkey, bool value)
+  {
+    return m_service_node_list.set_storage_server_peer_reachable(pubkey, value);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::update_blockchain_pruning()

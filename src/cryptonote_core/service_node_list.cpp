@@ -545,7 +545,7 @@ namespace service_nodes
         info.last_decommission_height = block_height;
         info.decommission_count++;
 
-        if (hf_version >= cryptonote::network_version_13) {
+        if (hf_version >= cryptonote::network_version_13_enforce_checkpoints) {
           // Assigning invalid swarm id effectively kicks the node off
           // its current swarm; it will be assigned a new swarm id when it
           // gets recommissioned. Prior to HF13 this step was incorrectly
@@ -1995,6 +1995,26 @@ namespace service_nodes
     info.vote_index             = (info.vote_index + 1) % info.votes.size();
   }
 
+  bool service_node_list::set_storage_server_peer_reachable(crypto::public_key const &pubkey, bool value)
+  {
+    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+
+    auto it = m_state.service_nodes_infos.find(pubkey);
+    if (it == m_state.service_nodes_infos.end()) {
+      LOG_PRINT_L2("No Service Node is known by this pubkey: " << pubkey);
+      return false;
+    } else {
+
+      proof_info &info = *it->second->proof;
+      if (info.storage_server_reachable != value) {
+        info.storage_server_reachable = value;
+        LOG_PRINT_L2("Setting reachability status for node " << pubkey << " as: " << (value ? "true" : "false"));
+      }
+
+      return true;
+    }
+  }
+
   static quorum_manager quorum_for_serialization_to_quorum_manager(service_node_list::quorum_for_serialization const &source)
   {
     quorum_manager result = {};
@@ -2482,7 +2502,7 @@ namespace service_nodes
 
   bool service_node_info::can_transition_to_state(uint8_t hf_version, uint64_t height, new_state proposed_state) const
   {
-    if (hf_version >= cryptonote::network_version_13 && !can_be_voted_on(height))
+    if (hf_version >= cryptonote::network_version_13_enforce_checkpoints && !can_be_voted_on(height))
       return false;
 
     if (proposed_state == new_state::deregister)

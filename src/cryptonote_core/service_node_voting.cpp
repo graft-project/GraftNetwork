@@ -204,7 +204,7 @@ namespace service_nodes
     uint64_t validator_index_tracker                                       = -1;
     for (const auto &vote : state_change.votes)
     {
-      if (hf_version >= cryptonote::network_version_13) // NOTE: After HF13, votes must be stored in ascending order
+      if (hf_version >= cryptonote::network_version_13_enforce_checkpoints) // NOTE: After HF13, votes must be stored in ascending order
       {
         if (validator_index_tracker >= vote.validator_index)
         {
@@ -264,7 +264,7 @@ namespace service_nodes
       for (size_t i = 0; i < checkpoint.signatures.size(); i++)
       {
         service_nodes::voter_to_signature const &voter_to_signature = checkpoint.signatures[i];
-        if (hf_version >= cryptonote::network_version_13 && i < (checkpoint.signatures.size() - 1))
+        if (hf_version >= cryptonote::network_version_13_enforce_checkpoints && i < (checkpoint.signatures.size() - 1))
         {
           auto curr = checkpoint.signatures[i].voter_index;
           auto next = checkpoint.signatures[i + 1].voter_index;

@@ -439,17 +439,11 @@ private:
   // migrate from older DB version to current
   void migrate(const uint32_t oldversion);
 
-  // migrate from DB version 0 to 1
   void migrate_0_1();
-
-  // migrate from DB version 1 to 2
   void migrate_1_2();
-
-  // migrate from DB version 2 to 3
   void migrate_2_3();
-
-  // migrate from DB version 3 to 4
   void migrate_3_4();
+  void migrate_4_5();
 
   void cleanup_batch();
 

@@ -130,12 +130,21 @@ struct tx_data_t
 };
 #pragma pack(pop)
 
+struct alt_block_data_1_t
+{
+  uint64_t height;
+  uint64_t cumulative_weight;
+  uint64_t cumulative_difficulty;
+  uint64_t already_generated_coins;
+};
+
 struct alt_block_data_t
 {
   uint64_t height;
   uint64_t cumulative_weight;
   uint64_t cumulative_difficulty;
   uint64_t already_generated_coins;
+  uint8_t  checkpointed;
 };
 
 /**

@@ -58,7 +58,7 @@ namespace service_nodes
 
   // Perform service node tests -- this returns true is the server node is in a good state, that is,
   // has submitted uptime proofs, participated in required quorums, etc.
-  service_node_test_results quorum_cop::check_service_node(const crypto::public_key &pubkey, const service_node_info &info) const
+  service_node_test_results quorum_cop::check_service_node(uint8_t hf_version, const crypto::public_key &pubkey, const service_node_info &info) const
   {
     service_node_test_results result; // Defaults to true for individual tests
     uint64_t now                          = time(nullptr);
@@ -80,6 +80,13 @@ namespace service_nodes
                            << UPTIME_PROOF_MAX_TIME_IN_SECONDS << "s. Time since last uptime proof was: "
                            << tools::get_human_readable_timespan(std::chrono::seconds(time_since_last_uptime_proof)));
       result.uptime_proved = false;
+    }
+
+    if (!info.proof->storage_server_reachable)
+    {
+      LOG_PRINT_L1("Service Node storage server is not reachable for node: " << pubkey);
+      if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
+          result.storage_server_reachable = false;
     }
 
     // IP change checks
@@ -109,7 +116,8 @@ namespace service_nodes
                                       << CHECKPOINT_MAX_MISSABLE_VOTES << " checkpoint votes from: "
                                       << CHECKPOINT_MIN_QUORUMS_NODE_MUST_VOTE_IN_BEFORE_DEREGISTER_CHECK
                                       << " quorums that they were required to participate in.");
-        result.voted_in_checkpoints = false;
+        if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
+          result.voted_in_checkpoints = false;
       }
     }
 
@@ -214,11 +222,12 @@ namespace service_nodes
           m_obligations_height = std::max(m_obligations_height, start_voting_from_height);
           for (; m_obligations_height < (height - REORG_SAFETY_BUFFER_BLOCKS); m_obligations_height++)
           {
-            if (m_core.get_hard_fork_version(m_obligations_height) < cryptonote::network_version_9_service_nodes) continue;
+            uint8_t obligations_height_hf_version = m_core.get_hard_fork_version(m_obligations_height);
+            if (obligations_height_hf_version < cryptonote::network_version_9_service_nodes) continue;
 
             // NOTE: Update the number of expected checkpoint votes at the (obligation) height so we can check that
             // service nodes have fulfilled their checkpointing work
-            if (m_core.get_hard_fork_version(m_obligations_height) >= cryptonote::network_version_12_checkpointing)
+            if (obligations_height_hf_version >= cryptonote::network_version_12_checkpointing)
             {
               if (std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(quorum_type::checkpointing, m_obligations_height))
               {
@@ -266,21 +275,8 @@ namespace service_nodes
               if (!info.can_be_voted_on(m_obligations_height))
                 continue;
 
-              auto test_results = check_service_node(node_key, info);
+              auto test_results = check_service_node(obligations_height_hf_version, node_key, info);
               bool passed       = test_results.passed();
-
-              if (test_results.uptime_proved &&
-                  !test_results.voted_in_checkpoints &&
-                  m_core.get_nettype() == cryptonote::MAINNET &&
-                  m_obligations_height < HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT)
-              {
-                LOG_PRINT_L1("HF12 Checkpointing Pre-Soft Fork: Service node: "
-                             << node_key
-                             << " failed to participate in checkpointing quorum at height: " << m_obligations_height
-                             << ", it would have entered the "
-                                "decommission phase");
-                passed = true;
-              }
 
               new_state vote_for_state;
               if (passed) {
@@ -387,14 +383,7 @@ namespace service_nodes
   bool quorum_cop::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const * /*checkpoint*/)
   {
     process_quorums(block);
-
     uint64_t const height = cryptonote::get_block_height(block) + 1; // chain height = new top block height + 1
-
-    // TODO(loki): Implicit knowledge of how remove_expired_votes subtracts VOTE_LIFETIME, but this is temporary code
-    // that will be removed post soft-fork.
-    if (m_core.get_nettype() == cryptonote::MAINNET && (height - 1) == HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT)
-      m_vote_pool.remove_expired_votes(height + VOTE_LIFETIME - 1);
-
     m_vote_pool.remove_expired_votes(height);
     m_vote_pool.remove_used_votes(txs, block.major_version);
     return true;
@@ -404,15 +393,6 @@ namespace service_nodes
   {
     vvc                  = {};
     uint64_t curr_height = m_core.get_blockchain_storage().get_current_blockchain_height();
-    if (m_core.get_nettype() == cryptonote::MAINNET &&
-        curr_height >= HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT &&
-        vote.block_height < HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT)
-    {
-      // NOTE: After the soft fork, ignore all votes from before the fork so we
-      // only create and enforce checkpoints from after the soft-fork.
-      return true;
-    }
-
     uint64_t const latest_height = std::max(m_core.get_current_blockchain_height(), m_core.get_target_blockchain_height());
     if (!verify_vote_age(vote, latest_height, vvc))
       return false;
