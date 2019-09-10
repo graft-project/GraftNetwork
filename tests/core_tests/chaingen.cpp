@@ -190,8 +190,14 @@ cryptonote::block linear_chain_generator::create_block_on_fork(const cryptonote:
   } else {
     sn_list_.expire_old(height - 1);
   }
+}
 
-  return blk;
+void loki_chain_generator::add_n_blocks(int n)
+{
+  for (auto i = 0; i < n; ++i) {
+    add_block();
+  }
+}
 }
 
 QuorumState linear_chain_generator::get_quorum_idxs(const cryptonote::block& block) const
