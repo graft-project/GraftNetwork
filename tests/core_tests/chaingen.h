@@ -1303,6 +1303,7 @@ struct loki_blockchain_entry
   uint64_t                                   block_weight;
   uint64_t                                   already_generated_coins;
   service_nodes::service_node_list::state_t  service_node_state;
+  bool                                       checkpointed;
   cryptonote::checkpoint_t                   checkpoint;
 };
 

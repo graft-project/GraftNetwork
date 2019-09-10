@@ -954,11 +954,44 @@ bool gen_alt_chain_with_increasing_service_node_checkpoints::generate(std::vecto
   crypto::hash const fork_top_hash = cryptonote::get_block_hash(fork.top().block);
   loki_register_callback(events, "check_switched_to_alt_chain", [&events, fork_top_hash](cryptonote::core &c, size_t ev_index)
   {
-    DEFINE_TESTS_ERROR_CONTEXT("gen_alt_chain_with_equal_service_node_checkpoints::check_switched_to_alt_chain");
+    DEFINE_TESTS_ERROR_CONTEXT("check_switched_to_alt_chain");
     uint64_t top_height;
     crypto::hash top_hash;
     c.get_blockchain_top(top_height, top_hash);
     CHECK_EQ(fork_top_hash, top_hash);
+    return true;
+  });
+
+  loki_register_callback(events, "check_main_chain_received_checkpoints_from_alt_chain", [&events, fork_first_checkpoint, fork_second_checkpoint](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("check_main_chain_received_checkpoints_from_alt_chain");
+
+    cryptonote::BlockchainDB const &db = c.get_blockchain_storage().get_db();
+    cryptonote::checkpoint_t first_checkpoint;
+    cryptonote::checkpoint_t second_checkpoint;
+    bool has_first_checkpoint  = db.get_block_checkpoint(fork_first_checkpoint.height, first_checkpoint);
+    bool has_second_checkpoint = db.get_block_checkpoint(fork_second_checkpoint.height, second_checkpoint);
+
+    CHECK_TEST_CONDITION(has_first_checkpoint);
+    CHECK_EQ(first_checkpoint.block_hash, fork_first_checkpoint.block_hash);
+    CHECK_TEST_CONDITION(first_checkpoint.type == fork_first_checkpoint.type);
+    CHECK_EQ(first_checkpoint.signatures.size(), fork_first_checkpoint.signatures.size());
+    for (size_t i = 0; i < first_checkpoint.signatures.size(); i++)
+    {
+      CHECK_EQ(first_checkpoint.signatures[i].voter_index, fork_first_checkpoint.signatures[i].voter_index);
+      CHECK_EQ(first_checkpoint.signatures[i].signature, fork_first_checkpoint.signatures[i].signature);
+    }
+
+    CHECK_TEST_CONDITION(has_second_checkpoint);
+    CHECK_EQ(second_checkpoint.block_hash, fork_second_checkpoint.block_hash);
+    CHECK_TEST_CONDITION(second_checkpoint.type == fork_second_checkpoint.type);
+    CHECK_EQ(second_checkpoint.signatures.size(), fork_second_checkpoint.signatures.size());
+    for (size_t i = 0; i < second_checkpoint.signatures.size(); i++)
+    {
+      CHECK_EQ(second_checkpoint.signatures[i].voter_index, fork_second_checkpoint.signatures[i].voter_index);
+      CHECK_EQ(second_checkpoint.signatures[i].signature, fork_second_checkpoint.signatures[i].signature);
+    }
+
     return true;
   });
   return true;

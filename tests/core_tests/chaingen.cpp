@@ -149,7 +149,13 @@ loki_blockchain_entry loki_chain_generator::add_block(const std::vector<cryptono
     loki_block_with_checkpoint data = {};
     data.has_checkpoint             = checkpoint != nullptr;
     data.block                      = result.block;
-    if (data.has_checkpoint) data.checkpoint = *checkpoint;
+    if (data.has_checkpoint)
+    {
+      result.checkpointed = true;
+      result.checkpoint   = *checkpoint;
+      data.checkpoint     = *checkpoint;
+    }
+
     events_.push_back(loki_blockchain_addable<loki_block_with_checkpoint>(data, can_be_added_to_blockchain, fail_msg));
   }
 
@@ -192,6 +198,7 @@ void loki_chain_generator::add_blocks_until_next_checkpointable_height()
 void loki_chain_generator::add_service_node_checkpoint(uint64_t block_height, size_t num_votes)
 {
   loki_blockchain_entry &entry = blocks_[block_height];
+  entry.checkpointed           = true;
   entry.checkpoint             = create_service_node_checkpoint(block_height, num_votes);
   events_.push_back(entry.checkpoint);
 }
