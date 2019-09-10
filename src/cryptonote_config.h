@@ -149,6 +149,7 @@
 
 #define THREAD_STACK_SIZE                       5 * 1024 * 1024
 
+
 #define HF_VERSION_MONERO_13                    14
 #define HF_VERSION_MONERO_14                    17
 #define HF_VERSION_DYNAMIC_FEE                  4
@@ -158,6 +159,7 @@
 #define HF_VERSION_PER_BYTE_FEE                 HF_VERSION_MONERO_13
 #define HF_VERSION_SMALLER_BP                   HF_VERSION_MONERO_14
 #define HF_VERSION_LONG_TERM_BLOCK_WEIGHT       HF_VERSION_MONERO_14
+
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 

@@ -170,7 +170,7 @@ class checkpoints
      *         true if the passed parameters match the stored checkpoint,
      *         false otherwise
      */
-    bool check_block(uint64_t height, const crypto::hash& h, bool *is_a_checkpoint = nullptr, bool *rejected_by_service_node = nullptr) const;
+    bool check_block(uint64_t height, const crypto::hash& h, bool *is_a_checkpoint = nullptr, bool *rta_checkpoint = nullptr) const;
  
   /**
      * @brief gets the highest checkpoint height
@@ -192,7 +192,7 @@ class checkpoints
   private:
     network_type m_nettype = UNDEFINED;
     uint64_t m_last_cull_height = 0;
-    uint64_t m_oldest_allowable_alternative_block = 0;
+    uint64_t m_immutable_height = 0;
     BlockchainDB *m_db;
   };
 
