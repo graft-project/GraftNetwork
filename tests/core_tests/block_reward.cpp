@@ -282,37 +282,44 @@ gen_batched_governance_reward::gen_batched_governance_reward()
 }
 
 static uint64_t expected_total_governance_paid = 0;
+static uint64_t hf10_height = 0;
 bool gen_batched_governance_reward::generate(std::vector<test_event_entry>& events) const
 {
   const config_t &network = cryptonote::get_config(cryptonote::FAKECHAIN, network_version_10_bulletproofs);
 
   const get_test_options<gen_batched_governance_reward> test_options = {};
-  linear_chain_generator batched_governance_generator(events, test_options.hard_forks);
+  loki_chain_generator batched_governance_generator(events, test_options.hard_forks);
   {
-    batched_governance_generator.rewind_until_version(network_version_10_bulletproofs);
-
+    batched_governance_generator.add_blocks_until_version(network_version_10_bulletproofs);
+    hf10_height = batched_governance_generator.height();
     uint64_t blocks_to_gen = network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS - batched_governance_generator.height();
-    batched_governance_generator.rewind_blocks_n(blocks_to_gen);
+    batched_governance_generator.add_n_blocks(blocks_to_gen);
   }
+  assert(hf10_height != 0);
 
   {
     // NOTE(loki): Since hard fork 8 we have an emissions curve change, so if
     // you don't atleast progress and generate blocks from hf8 you will run into
     // problems
+    const std::vector<std::pair<uint8_t, uint64_t>> other_hard_forks = {
+        std::make_pair(cryptonote::network_version_7, 0),
+        std::make_pair(cryptonote::network_version_8, 1),
+        std::make_pair(cryptonote::network_version_9_service_nodes, hf10_height)};
+
     std::vector<test_event_entry> unused_events;
-    linear_chain_generator no_batched_governance_generator(unused_events, test_options.hard_forks);
-    no_batched_governance_generator.rewind_until_version(network_version_9_service_nodes);
+    loki_chain_generator no_batched_governance_generator(unused_events, other_hard_forks);
+    no_batched_governance_generator.add_blocks_until_version(network_version_9_service_nodes);
 
     while(no_batched_governance_generator.height() < batched_governance_generator.height())
-      no_batched_governance_generator.create_block();
+      no_batched_governance_generator.add_block();
 
     // NOTE(loki): Skip the last block as that is the batched payout height, we
     // don't include the governance reward of that height, that gets picked up
     // in the next batch.
-    const std::vector<cryptonote::block>& blockchain = no_batched_governance_generator.blocks();
-    for (size_t block_height = 1; block_height < blockchain.size() - 1; ++block_height)
+    const std::vector<loki_blockchain_entry>& blockchain = no_batched_governance_generator.blocks();
+    for (size_t block_height = hf10_height; block_height < blockchain.size() - 1; ++block_height)
     {
-      const cryptonote::block &block = blockchain[block_height];
+      const cryptonote::block &block = blockchain[block_height].block;
       expected_total_governance_paid += block.miner_tx.vout.back().amount;
     }
   }
@@ -331,7 +338,7 @@ bool gen_batched_governance_reward::check_batched_governance_amount_matches(cryp
     return false;
 
   uint64_t governance = 0;
-  for (size_t block_height = 1; block_height < blockchain.size(); ++block_height)
+  for (size_t block_height = hf10_height; block_height < blockchain.size(); ++block_height)
   {
     const cryptonote::block &block = blockchain[block_height];
     if (cryptonote::block_has_governance_output(cryptonote::FAKECHAIN, block))

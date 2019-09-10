@@ -1617,10 +1617,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
    */
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
-  loki_miner_tx_context miner_tx_context(m_nettype,
-                                         m_service_node_list.select_winner(),
-                                         m_service_node_list.get_winner_addresses_and_portions());
-
+  loki_miner_tx_context miner_tx_context(m_nettype, m_service_node_list.get_block_winner());
   if (!calc_batched_governance_reward(height, miner_tx_context.batched_governance))
   {
     LOG_ERROR("Failed to calculate batched governance reward");
@@ -1931,14 +1928,26 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
       }
     }
 
-    bool alt_chain_has_greater_pow       = bei.cumulative_difficulty > main_chain_cumulative_difficulty;
-    bool alt_chain_has_more_checkpoints  = false;
-    bool alt_chain_has_equal_checkpoints = false;
+    uint64_t last_block_height                  = alt_chain.back().height;
+    std::vector<checkpoint_t> const checkpoints = m_db->get_checkpoints_range(curr_blockchain_height, last_block_height, num_checkpoints_on_alt_chain + 1);
+    bool alt_chain_has_greater_pow              = bei.cumulative_difficulty > main_chain_cumulative_difficulty;
+    bool alt_chain_has_more_checkpoints         = (num_checkpoints_on_alt_chain > static_cast<int>(checkpoints.size()));
+    bool alt_chain_has_equal_checkpoints        = (num_checkpoints_on_alt_chain == static_cast<int>(checkpoints.size()));
+
     {
-      uint64_t last_block_height            = alt_chain.back().height;
-      std::vector<checkpoint_t> checkpoints = m_db->get_checkpoints_range(curr_blockchain_height, last_block_height, num_checkpoints_on_alt_chain + 1);
-      alt_chain_has_more_checkpoints        = (num_checkpoints_on_alt_chain > static_cast<int>(checkpoints.size()));
-      alt_chain_has_equal_checkpoints       = (num_checkpoints_on_alt_chain == static_cast<int>(checkpoints.size()));
+      std::vector<transaction> txs;
+      std::vector<crypto::hash> missed;
+      if (!get_transactions(b.tx_hashes, txs, missed))
+      {
+        bvc.m_verifivation_failed = true;
+        return false;
+      }
+
+      for (AltBlockAddedHook *hook : m_alt_block_added_hooks)
+      {
+        if (!hook->alt_block_added(b, txs, checkpoint))
+            return false;
+      }
     }
 
     if (b.major_version >= network_version_13_enforce_checkpoints)
@@ -2638,7 +2647,7 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, block_verification_
 {
     LOG_PRINT_L3("Blockchain::" << __func__);
     crypto::hash id = get_block_hash(bl);
-    return handle_block_to_main_chain(bl, id, bvc);
+    return handle_block_to_main_chain(bl, id, bvc, nullptr /*checkpoint*/);
 }
 //------------------------------------------------------------------
 size_t Blockchain::get_total_transactions() const
@@ -3688,7 +3697,7 @@ bool Blockchain::flush_txes_from_pool(const std::vector<crypto::hash> &txids)
 //      Needs to validate the block and acquire each transaction from the
 //      transaction mem_pool, then pass the block and transactions to
 //      m_db->add_block()
-bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash& id, block_verification_context& bvc)
+bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -4041,7 +4050,14 @@ leave:
     only_txs.push_back(tx_pair.first);
 
   for (BlockAddedHook* hook : m_block_added_hooks)
-    hook->block_added(bl, only_txs);
+  {
+    if (!hook->block_added(bl, only_txs, checkpoint))
+    {
+      MERROR("Block added hook signalled failure");
+      pop_block_from_blockchain();
+      return false;
+    }
+  }
 
   TIME_MEASURE_FINISH(addblock);
 
@@ -4249,8 +4265,11 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
 
   bool result = false;
   rtxn_guard.stop();
-  //check that block refers to chain tail
-  if(!(bl.prev_id == get_tail_id()))
+  if(bl.prev_id == get_tail_id()) //check that block refers to chain tail
+  {
+    result = handle_block_to_main_chain(bl, id, bvc, checkpoint);
+  }
+  else
   {
     //chain switching or wrong block
     bvc.m_added_to_main_chain = false;
@@ -4258,13 +4277,7 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
     m_blocks_txs_check.clear();
     //never relay alternative blocks
   }
-  else
-  {
-    result = handle_block_to_main_chain(bl, id, bvc);
-  }
 
-  if (result && checkpoint)
-    update_checkpoint(*checkpoint);
   return result;
 }
 //------------------------------------------------------------------
@@ -4347,10 +4360,10 @@ bool Blockchain::update_checkpoint(cryptonote::checkpoint_t const &checkpoint)
     uint8_t hf_version = get_current_hard_fork_version();
     if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
     {
-      // roll back to a couple of blocks before the checkpoint
-      LOG_ERROR("Local blockchain failed to pass a checkpoint in: " << __func__ << ", rolling back!");
-      std::list<block> empty;
-      rollback_blockchain_switching(empty, checkpoint.height - 2);
+      uint64_t blocks_to_pop        = m_db->height() - checkpoint.height + 2;
+      crypto::hash const reorg_hash = m_db->get_block_hash_from_height(checkpoint.height - 2);
+      MGINFO_GREEN("###### CHECKPOINTING REORGANIZE from height: " << m_db->height() << " to before checkpoint height: " << (checkpoint.height - 2) << " id: " << reorg_hash);
+      pop_blocks(blocks_to_pop);
     }
   }
 

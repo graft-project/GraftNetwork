@@ -325,8 +325,7 @@ namespace service_nodes
                 }
               }
 
-              quorum_vote_t vote = service_nodes::make_state_change_vote(
-                  m_obligations_height, static_cast<uint16_t>(index_in_group), node_index, vote_for_state, my_pubkey, my_seckey);
+              quorum_vote_t vote = service_nodes::make_state_change_vote(m_obligations_height, static_cast<uint16_t>(index_in_group), node_index, vote_for_state, my_pubkey, my_seckey);
               cryptonote::vote_verification_context vvc;
               if (!handle_vote(vote, vvc))
                 LOG_ERROR("Failed to add state change vote; reason: " << print_vote_verification_context(vvc, &vote));
@@ -369,22 +368,8 @@ namespace service_nodes
             //
             // NOTE: I am in the quorum, handle checkpointing
             //
-            quorum_vote_t vote         = {};
-            vote.type                  = quorum_type::checkpointing;
-            vote.checkpoint.block_hash = m_core.get_block_id_by_height(m_last_checkpointed_height);
-
-            if (vote.checkpoint.block_hash == crypto::null_hash)
-            {
-              // TODO(loki): Fatal error
-              LOG_ERROR("Could not get block hash for block on height: " << m_last_checkpointed_height);
-              continue;
-            }
-
-            vote.block_height   = m_last_checkpointed_height;
-            vote.group          = quorum_group::worker;
-            vote.index_in_group = static_cast<uint16_t>(index_in_group);
-            vote.signature      = make_signature_from_vote(vote, my_pubkey, my_seckey);
-
+            crypto::hash block_hash = m_core.get_block_id_by_height(m_last_checkpointed_height);
+            quorum_vote_t vote = make_checkpointing_vote(block_hash, m_last_checkpointed_height, static_cast<uint16_t>(index_in_group), my_pubkey, my_seckey);
             cryptonote::vote_verification_context vvc = {};
             if (!handle_vote(vote, vvc))
               LOG_ERROR("Failed to add checkpoint vote; reason: " << print_vote_verification_context(vvc, &vote));
@@ -395,12 +380,13 @@ namespace service_nodes
     }
   }
 
-  void quorum_cop::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
+  bool quorum_cop::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const * /*checkpoint*/)
   {
     process_quorums(block);
     uint64_t const height = cryptonote::get_block_height(block) + 1; // chain height = new top block height + 1
     m_vote_pool.remove_expired_votes(height);
     m_vote_pool.remove_used_votes(txs, block.major_version);
+    return true;
   }
 
   bool quorum_cop::handle_vote(quorum_vote_t const &vote, cryptonote::vote_verification_context &vvc)
@@ -418,7 +404,7 @@ namespace service_nodes
       return false;
     }
 
-    if (!verify_vote_against_quorum(vote, vvc, *quorum))
+    if (!verify_vote_signature(vote, vvc, *quorum))
       return false;
 
     std::vector<pool_vote_entry> votes = m_vote_pool.add_pool_vote_if_unique(vote, vvc);
@@ -541,30 +527,18 @@ namespace service_nodes
                 if (it == checkpoint.signatures.end() ||
                     pool_vote.vote.index_in_group != it->voter_index)
                 {
-                  update_checkpoint      = true;
-                  voter_to_signature vts = {};
-                  vts.voter_index        = pool_vote.vote.index_in_group;
-                  vts.signature          = pool_vote.vote.signature;
-                  checkpoint.signatures.insert(it, vts);
+                  update_checkpoint = true;
+                  checkpoint.signatures.insert(it, voter_to_signature(pool_vote.vote));
                 }
               }
             }
           }
           else
           {
-            checkpoint            = {};
-            checkpoint.type       = cryptonote::checkpoint_type::service_node;
-            checkpoint.height     = vote.block_height;
-            checkpoint.block_hash = vote.checkpoint.block_hash;
+            checkpoint = make_empty_service_node_checkpoint(vote.checkpoint.block_hash, vote.block_height);
             checkpoint.signatures.reserve(votes.size());
-
             for (pool_vote_entry const &pool_vote : votes)
-            {
-              voter_to_signature vts = {};
-              vts.voter_index        = pool_vote.vote.index_in_group;
-              vts.signature          = pool_vote.vote.signature;
-              checkpoint.signatures.push_back(vts);
-            }
+              checkpoint.signatures.push_back(voter_to_signature(pool_vote.vote));
           }
 
           if (update_checkpoint)

@@ -713,13 +713,14 @@ namespace cryptonote
     // Service Nodes
     {
       m_service_node_list.set_db_pointer(initialized_db);
-
       m_service_node_list.set_quorum_history_storage(command_line::get_arg(vm, arg_store_quorum_history));
 
+      // NOTE: Implicit dependency. Service node list needs to be hooked before checkpoints.
       m_blockchain_storage.hook_block_added(m_service_node_list);
       m_blockchain_storage.hook_blockchain_detached(m_service_node_list);
       m_blockchain_storage.hook_init(m_service_node_list);
       m_blockchain_storage.hook_validate_miner_tx(m_service_node_list);
+      m_blockchain_storage.hook_alt_block_added(m_service_node_list);
 
       // NOTE: There is an implicit dependency on service node lists being hooked first!
       m_blockchain_storage.hook_init(m_quorum_cop);
@@ -1645,37 +1646,14 @@ namespace cryptonote
       b = &lb;
     }
 
-    // TODO(loki): This check should be redundant and included in
-    // verify_checkpoints once we enable it. It is not enabled until alternate
-    // quorums are implemented and merged
-    if (checkpoint)
+    // TODO(loki): Temporary to make hf12 checkpoints play nicely, but, hf12 checkpoints will be deleted on hf13
+    if (checkpoint && b->major_version < network_version_12_checkpointing)
     {
-      if (b->major_version >= network_version_13_enforce_checkpoints)
-      {
-        if (checkpoint->signatures.size() > 1)
-        {
-          for (size_t i = 0; i < (checkpoint->signatures.size() - 1); i++)
-          {
-            auto curr = checkpoint->signatures[i].voter_index;
-            auto next = checkpoint->signatures[i + 1].voter_index;
-
-            if (curr >= next)
-            {
-              LOG_PRINT_L1("Voters in checkpoints are not given in ascending order, block failed");
-              bvc.m_verifivation_failed = true;
-              return false;
-            }
-          }
-        }
-      }
-      else
-      {
-        std::sort(checkpoint->signatures.begin(),
-                  checkpoint->signatures.end(),
-                  [](service_nodes::voter_to_signature const &lhs, service_nodes::voter_to_signature const &rhs) {
-                    return lhs.voter_index < rhs.voter_index;
-                  });
-      }
+      std::sort(checkpoint->signatures.begin(),
+                checkpoint->signatures.end(),
+                [](service_nodes::voter_to_signature const &lhs, service_nodes::voter_to_signature const &rhs) {
+                  return lhs.voter_index < rhs.voter_index;
+                });
     }
 
     add_new_block(*b, bvc, checkpoint);
@@ -2195,9 +2173,9 @@ namespace cryptonote
     return si.available;
   }
   //-----------------------------------------------------------------------------------------------
-  std::shared_ptr<const service_nodes::testing_quorum> core::get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old) const
+  std::shared_ptr<const service_nodes::testing_quorum> core::get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const service_nodes::testing_quorum>> *alt_states) const
   {
-    return m_service_node_list.get_testing_quorum(type, height, include_old);
+    return m_service_node_list.get_testing_quorum(type, height, include_old, alt_states);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::is_service_node(const crypto::public_key& pubkey, bool require_active) const
