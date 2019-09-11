@@ -2266,6 +2266,7 @@ struct blob_header
   blob_type type;
   uint32_t  size;
 };
+static_assert(sizeof(blob_header) == 8, "blob_header layout is unexpected, possible unaligned access on different architecture");
 
 static blob_header write_little_endian_blob_header(blob_type type, uint32_t size)
 {
