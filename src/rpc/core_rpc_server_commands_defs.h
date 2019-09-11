@@ -2339,11 +2339,15 @@ namespace cryptonote
 
     struct request
     {
-      uint64_t block_height;
+      uint64_t current_height; // current height for BBL
+      uint64_t start_height;   // lowest awailable height this node has BBL
+      uint64_t end_height;    // latest awailable height this node has BBL
       std::string block_hash;
       std::vector<tier> tiers;
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(block_height)
+        KV_SERIALIZE(current_height)
+        KV_SERIALIZE(start_height)
+        KV_SERIALIZE(end_height)
         KV_SERIALIZE(block_hash)
         KV_SERIALIZE(tiers)
       END_KV_SERIALIZE_MAP()

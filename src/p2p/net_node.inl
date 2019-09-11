@@ -55,6 +55,7 @@
 #include "storages/levin_abstract_invoke2.h"
 #include "cryptonote_core/cryptonote_core.h"
 #include "storages/http_abstract_invoke.h"
+#include "graft_rta_config.h"
 
 #include <miniupnp/miniupnpc/miniupnpc.h>
 #include <miniupnp/miniupnpc/upnpcommands.h>
@@ -2680,8 +2681,13 @@ namespace nodetool
 
     cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::request request;
 
-    request.block_height = block_height;
-    request.block_hash   = epee::string_tools::pod_to_hex(block_hash);
+    request.current_height = block_height;
+    request.end_height     = m_payload_handler.get_core().get_stake_tx_processor()->get_blockchain_based_list()->block_height();
+    request.start_height   = request.end_height -
+            std::min(m_payload_handler.get_core().get_stake_tx_processor()->get_blockchain_based_list()->history_depth(),
+                     ::config::graft::SUPERNODE_HISTORY_SIZE);
+
+    request.block_hash     = epee::string_tools::pod_to_hex(block_hash);
 
     for (size_t i=0; i<tiers.size(); i++)
     {

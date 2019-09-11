@@ -111,5 +111,7 @@ namespace tests
     typedef cryptonote::StakeTransactionProcessor::blockchain_based_list_update_handler blockchain_based_list_update_handler;
     void set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&) {}
     void invoke_update_blockchain_based_list_handler() {}
+    cryptonote::StakeTransactionProcessor * get_stake_tx_processor() { return nullptr; }
+
   };
 }
