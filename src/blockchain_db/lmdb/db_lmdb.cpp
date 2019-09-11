@@ -2255,7 +2255,70 @@ bool BlockchainLMDB::for_all_txpool_txes(std::function<bool(const crypto::hash&,
   return ret;
 }
 
-bool BlockchainLMDB::for_all_alt_blocks(std::function<bool(const crypto::hash&, const alt_block_data_t&, const cryptonote::blobdata*)> f, bool include_blob) const
+enum struct blob_type : uint8_t
+{
+  block,
+  checkpoint
+};
+
+struct blob_header
+{
+  blob_type type;
+  uint32_t  size;
+};
+
+static blob_header write_little_endian_blob_header(blob_type type, uint32_t size)
+{
+  blob_header result = {type, size};
+  boost::endian::native_to_little_inplace(result.size);
+  boost::endian::native_to_little_inplace(result.type);
+  return result;
+}
+
+static blob_header native_endian_blob_header(const blob_header *header)
+{
+  blob_header result = {header->type, header->size};
+  boost::endian::little_to_native_inplace(result.size);
+  boost::endian::little_to_native_inplace(result.type);
+  return result;
+}
+
+static bool read_alt_block_data_from_mdb_val(MDB_val const v, alt_block_data_t *data, cryptonote::blobdata *block, cryptonote::blobdata *checkpoint)
+{
+  size_t const conservative_min_size = sizeof(*data) + sizeof(blob_header);
+  if (v.mv_size < conservative_min_size)
+    return false;
+
+  const char *src      = static_cast<const char *>(v.mv_data);
+  const char *end      = static_cast<const char *>(src + v.mv_size);
+  const auto *alt_data = (const alt_block_data_t *)src;
+  if (data)
+    *data = *alt_data;
+
+  src = reinterpret_cast<const char *>(alt_data + 1);
+  while (src < end)
+  {
+    blob_header header = native_endian_blob_header(reinterpret_cast<const blob_header *>(src));
+    src += sizeof(header);
+    if (header.type == blob_type::block)
+    {
+      if (block)
+        block->assign((const char *)src, header.size);
+    }
+    else
+    {
+      assert(header.type == blob_type::checkpoint);
+      if (checkpoint)
+        checkpoint->assign((const char *)src, header.size);
+    }
+
+    src += header.size;
+  }
+
+  return true;
+}
+
+bool BlockchainLMDB::for_all_alt_blocks(std::function<bool(const crypto::hash&, const alt_block_data_t&, const cryptonote::blobdata*, const cryptonote::blobdata *)> f, bool include_blob) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -2277,18 +2340,18 @@ bool BlockchainLMDB::for_all_alt_blocks(std::function<bool(const crypto::hash&, 
     if (result)
       throw0(DB_ERROR(lmdb_error("Failed to enumerate alt blocks: ", result).c_str()));
     const crypto::hash &blkid = *(const crypto::hash*)k.mv_data;
-    if (v.mv_size < sizeof(alt_block_data_t))
-      throw0(DB_ERROR("alt_blocks record is too small"));
-    const alt_block_data_t *data = (const alt_block_data_t*)v.mv_data;
-    const cryptonote::blobdata *passed_bd = NULL;
-    cryptonote::blobdata bd;
-    if (include_blob)
-    {
-      bd.assign(reinterpret_cast<const char*>(v.mv_data) + sizeof(alt_block_data_t), v.mv_size - sizeof(alt_block_data_t));
-      passed_bd = &bd;
-    }
 
-    if (!f(blkid, *data, passed_bd)) {
+    cryptonote::blobdata block;
+    cryptonote::blobdata checkpoint;
+
+    alt_block_data_t data                = {};
+    cryptonote::blobdata *block_ptr      = (include_blob) ? &block : nullptr;
+    cryptonote::blobdata *checkpoint_ptr = (include_blob) ? &checkpoint : nullptr;
+    if (!read_alt_block_data_from_mdb_val(v, &data, block_ptr, checkpoint_ptr))
+      throw0(DB_ERROR("Record size is less than expected"));
+
+    if (!f(blkid, data, block_ptr, checkpoint_ptr))
+    {
       ret = false;
       break;
     }
@@ -4407,34 +4470,6 @@ uint8_t BlockchainLMDB::get_hard_fork_version(uint64_t height) const
   return ret;
 }
 
-enum struct blob_type : uint8_t
-{
-  block,
-  checkpoint
-};
-
-struct blob_header
-{
-  blob_type type;
-  uint32_t  size;
-};
-
-static blob_header write_little_endian_blob_header(blob_type type, uint32_t size)
-{
-  blob_header result = {type, size};
-  boost::endian::native_to_little_inplace(result.size);
-  boost::endian::native_to_little_inplace(result.type);
-  return result;
-}
-
-static blob_header native_endian_blob_header(const blob_header *header)
-{
-  blob_header result = {header->type, header->size};
-  boost::endian::little_to_native_inplace(result.size);
-  boost::endian::little_to_native_inplace(result.type);
-  return result;
-}
-
 void BlockchainLMDB::add_alt_block(const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata &block, cryptonote::blobdata const *checkpoint)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -4494,35 +4529,8 @@ bool BlockchainLMDB::get_alt_block(const crypto::hash &blkid, alt_block_data_t *
 
   if (result)
     throw0(DB_ERROR(lmdb_error("Error attempting to retrieve alternate block " + epee::string_tools::pod_to_hex(blkid) + " from the db: ", result).c_str()));
-  if (v.mv_size < sizeof(alt_block_data_t))
+  if (!read_alt_block_data_from_mdb_val(v, data, block, checkpoint))
     throw0(DB_ERROR("Record size is less than expected"));
-
-  const char *src      = static_cast<const char *>(v.mv_data);
-  const char *end      = static_cast<const char *>(src + v.mv_size);
-  const auto *alt_data = (const alt_block_data_t *)src;
-  if (data)
-    *data = *alt_data;
-
-  src = reinterpret_cast<const char *>(alt_data + 1);
-  while (src < end)
-  {
-    blob_header header = native_endian_blob_header(reinterpret_cast<const blob_header *>(src));
-    src += sizeof(header);
-    if (header.type == blob_type::block)
-    {
-      if (block)
-        block->assign((const char *)src, header.size);
-    }
-    else
-    {
-      assert(header.type == blob_type::checkpoint);
-      if (checkpoint)
-        checkpoint->assign((const char *)src, header.size);
-    }
-
-    src += header.size;
-  }
-
   TXN_POSTFIX_RDONLY();
   return true;
 }

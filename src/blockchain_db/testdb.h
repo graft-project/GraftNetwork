@@ -173,7 +173,7 @@ public:
   virtual void remove_alt_block(const crypto::hash &blkid) override {}
   virtual uint64_t get_alt_block_count() override { return 0; }
   virtual void drop_alt_blocks() override {}
-  virtual bool for_all_alt_blocks(std::function<bool(const crypto::hash &blkid, const alt_block_data_t &data, const cryptonote::blobdata *blob)> f, bool include_blob = false) const override { return true; }
+  virtual bool for_all_alt_blocks(std::function<bool(const crypto::hash &blkid, const alt_block_data_t &data, const cryptonote::blobdata *block_blob, const cryptonote::blobdata *checkpoint_blob)> f, bool include_blob = false) const override { return true; }
 };
 
 }

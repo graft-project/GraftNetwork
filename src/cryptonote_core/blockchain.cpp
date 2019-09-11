@@ -2152,14 +2152,14 @@ bool Blockchain::get_alternative_blocks(std::vector<block>& blocks) const
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
 
   blocks.reserve(m_db->get_alt_block_count());
-  m_db->for_all_alt_blocks([&blocks](const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata *blob) {
-    if (!blob)
+  m_db->for_all_alt_blocks([&blocks](const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata *block_blob, const cryptonote::blobdata *checkpoint_blob) {
+    if (!block_blob)
     {
       MERROR("No blob, but blobs were requested");
       return false;
     }
     cryptonote::block bl;
-    if (cryptonote::parse_and_validate_block_from_blob(*blob, bl))
+    if (cryptonote::parse_and_validate_block_from_blob(*block_blob, bl))
       blocks.push_back(std::move(bl));
     else
       MERROR("Failed to parse block from blob");
@@ -5126,20 +5126,24 @@ std::list<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> 
 
   blocks_ext_by_hash alt_blocks;
   alt_blocks.reserve(m_db->get_alt_block_count());
-  m_db->for_all_alt_blocks([&alt_blocks](const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata *blob) {
-    if (!blob)
+  m_db->for_all_alt_blocks([&alt_blocks](const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata *block_blob, const cryptonote::blobdata *checkpoint_blob) {
+    if (!block_blob)
     {
       MERROR("No blob, but blobs were requested");
       return false;
     }
-    cryptonote::block bl;
-    block_extended_info bei;
-    if (cryptonote::parse_and_validate_block_from_blob(*blob, bei.bl))
+
+    checkpoint_t checkpoint = {};
+    if (checkpoint_blob)
     {
-      bei.height = data.height;
-      bei.block_cumulative_weight = data.cumulative_weight;
-      bei.cumulative_difficulty = data.cumulative_difficulty;
-      bei.already_generated_coins = data.already_generated_coins;
+      if (!t_serializable_object_from_blob(checkpoint, *checkpoint_blob))
+        MERROR("Failed to parse checkpoint from blob");
+    }
+
+    cryptonote::block block;
+    if (cryptonote::parse_and_validate_block_from_blob(*block_blob, block))
+    {
+      block_extended_info bei(data, std::move(block), &checkpoint);
       alt_blocks.insert(std::make_pair(cryptonote::get_block_hash(bei.bl), std::move(bei)));
     }
     else

@@ -314,7 +314,7 @@ public:
   bool for_all_transactions(std::function<bool(const crypto::hash&, const cryptonote::transaction&)>, bool pruned) const override;
   bool for_all_outputs(std::function<bool(uint64_t amount, const crypto::hash &tx_hash, uint64_t height, size_t tx_idx)> f) const override;
   bool for_all_outputs(uint64_t amount, const std::function<bool(uint64_t height)> &f) const override;
-  bool for_all_alt_blocks(std::function<bool(const crypto::hash &blkid, const alt_block_data_t &data, const cryptonote::blobdata *blob)> f, bool include_blob = false) const override;
+  bool for_all_alt_blocks(std::function<bool(const crypto::hash &blkid, const alt_block_data_t &data, const cryptonote::blobdata *block_blob, const cryptonote::blobdata *checkpoint_blob)> f, bool include_blob = false) const override;
 
   uint64_t add_block( const std::pair<block, blobdata>& blk
                             , size_t block_weight
