@@ -50,6 +50,8 @@ using namespace epee;
 #include "p2p/net_node.h"
 #include "version.h"
 
+#include <thread> // std::thread
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "daemon.rpc"
 
@@ -2206,7 +2208,10 @@ namespace cryptonote
   {
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: start");
       // send p2p stakes
-      m_p2p.send_stakes_to_supernode();
+      std::thread([this]() {
+        m_p2p.send_stakes_to_supernode();
+      }).detach();
+
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: end");
       return true;
@@ -2217,7 +2222,11 @@ namespace cryptonote
   {
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: start");
       // send p2p stake txs
-      m_p2p.send_blockchain_based_list_to_supernode(req.last_received_block_height);
+      // TODO: some tasks queue here?
+      std::thread([this] (uint64_t height) {
+          m_p2p.send_blockchain_based_list_to_supernode(height);
+      }, req.last_received_block_height).detach();
+      // m_p2p.send_blockchain_based_list_to_supernode(req.last_received_block_height);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: end");
       return true;
