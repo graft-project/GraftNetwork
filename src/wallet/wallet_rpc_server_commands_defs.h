@@ -36,6 +36,7 @@
 #include "cryptonote_basic/subaddress_index.h"
 #include "crypto/hash.h"
 #include "wallet_rpc_server_error_codes.h"
+#include "wallet2.h"
 
 #include "common/loki.h"
 
@@ -1454,6 +1455,34 @@ namespace wallet_rpc
   // 
   struct transfer_entry
   {
+    transfer_entry() = default;
+    transfer_entry(const wallet2::transfer_view& transfer)
+      : txid(transfer.txid)
+      , payment_id(transfer.payment_id)
+      , height(transfer.height)
+      , timestamp(transfer.timestamp)
+      , amount(transfer.amount)
+      , fee(transfer.fee)
+      , note(transfer.note)
+      // destinations
+      , type(tools::pay_type_string(transfer.type))
+      , unlock_time(transfer.unlock_time)
+      , subaddr_index(transfer.subaddr_index)
+      , subaddr_indices(transfer.subaddr_indices)
+      , address(transfer.address)
+      , double_spend_seen(transfer.double_spend_seen)
+      , confirmations(transfer.confirmations)
+      , suggested_confirmations_threshold(transfer.suggested_confirmations_threshold)
+    {
+      if (transfer.block.type() == typeid(std::string))
+      {
+          type = boost::get<std::string>(transfer.block);
+      }
+      for (const auto& dest : transfer.destinations)
+      {
+        destinations.push_back({std::move(dest.amount), std::move(dest.address)});
+      }
+    }
     std::string txid;                                          // Transaction ID for this transfer.
     std::string payment_id;                                    // Payment ID for this transfer.
     uint64_t height;                                           // Height of the first block that confirmed this transfer (0 if not mined yet).
@@ -1660,6 +1689,23 @@ namespace wallet_rpc
         KV_SERIALIZE(pending);
         KV_SERIALIZE(failed);
         KV_SERIALIZE(pool);
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Returns a string with the transfers formatted as csv
+  struct COMMAND_RPC_GET_TRANSFERS_CSV
+  {
+    typedef epee::misc_utils::struct_init<COMMAND_RPC_GET_TRANSFERS::request_t> request;
+
+    struct response_t
+    {
+      std::string csv;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(csv);
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

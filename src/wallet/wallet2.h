@@ -465,6 +465,36 @@ private:
         FIELD(subaddr_indices)
       END_SERIALIZE()
     };
+    struct transfer_view
+    {
+      struct dest_output
+      {
+        std::string address;
+        uint64_t    amount;
+      };
+
+      uint64_t height;
+      uint64_t timestamp;
+      pay_type type;
+      boost::variant<uint64_t, std::string> block;          // string representation of height (+ "failed")
+      bool confirmed;
+      uint64_t amount;
+      crypto::hash hash;
+      std::string payment_id;
+      uint64_t fee;
+      uint64_t unlock_time;
+      std::vector<dest_output> destinations;
+      std::string note;
+      std::string lock_msg;
+      // ported from transfer_entry
+      cryptonote::subaddress_index subaddr_index;                // Major & minor index, account and subaddress index respectively.
+      std::vector<cryptonote::subaddress_index> subaddr_indices;
+      std::string txid;
+      std::string address;
+      bool double_spend_seen;                                    // True if the key image(s) for the transfer have been seen before.
+      uint64_t confirmations;                                    // Number of block mined since the block containing this transaction (or block height at which the transaction should be added to a block if not yet confirmed).
+      uint64_t suggested_confirmations_threshold;
+    };
 
     typedef std::vector<transfer_details> transfer_container;
     typedef std::unordered_multimap<crypto::hash, payment_details> payment_container;
@@ -889,7 +919,29 @@ private:
     std::vector<pending_tx> create_unmixable_sweep_transactions();
     void discard_unmixable_outputs();
     bool check_connection(uint32_t *version = NULL, bool *ssl = NULL, uint32_t timeout = 200000);
+    void fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const crypto::hash &payment_id, const wallet2::payment_details &pd) const;
+    void fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const tools::wallet2::confirmed_transfer_details &pd) const;
+    void fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const tools::wallet2::unconfirmed_transfer_details &pd) const;
+    void fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &payment_id, const tools::wallet2::pool_payment_details &pd) const;
     void get_transfers(wallet2::transfer_container& incoming_transfers) const;
+
+    struct get_transfers_args_t
+    {
+      bool in = true;
+      bool out = true;
+      bool pending = true;
+      bool failed = true;
+      bool pool = true;
+      bool coinbase = true;
+      bool filter_by_height = false;
+      uint64_t min_height = 0;
+      uint64_t max_height = CRYPTONOTE_MAX_BLOCK_NUMBER;
+      std::set<uint32_t> subaddr_indices;
+      uint32_t account_index;
+      bool all_accounts;
+    };
+    void get_transfers(get_transfers_args_t args, std::vector<transfer_view>& transfers);
+    std::string transfers_to_csv(const std::vector<transfer_view>& transfers, bool formatting = false) const;
     void get_payments(const crypto::hash& payment_id, std::list<wallet2::payment_details>& payments, uint64_t min_height = 0, const boost::optional<uint32_t>& subaddr_account = boost::none, const std::set<uint32_t>& subaddr_indices = {}) const;
     void get_payments(std::list<std::pair<crypto::hash,wallet2::payment_details>>& payments, uint64_t min_height, uint64_t max_height = (uint64_t)-1, const boost::optional<uint32_t>& subaddr_account = boost::none, const std::set<uint32_t>& subaddr_indices = {}) const;
     void get_payments_out(std::list<std::pair<crypto::hash,wallet2::confirmed_transfer_details>>& confirmed_payments,

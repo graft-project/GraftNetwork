@@ -5752,6 +5752,311 @@ void wallet2::get_transfers(wallet2::transfer_container& incoming_transfers) con
 {
   incoming_transfers = m_transfers;
 }
+//------------------------------------------------------------------------------------------------------------------------------
+static void set_confirmations(wallet2::transfer_view &entry, uint64_t blockchain_height, uint64_t block_reward)
+{
+  std::string block;
+  if (entry.block.type() == typeid(std::string))
+  {
+    block = boost::get<std::string>(entry.block);
+  }
+  if (entry.height >= blockchain_height || (entry.height == 0 && ((block != "pending") || (block != "pool"))))
+    entry.confirmations = 0;
+  else
+    entry.confirmations = blockchain_height - entry.height;
+
+  if (block_reward == 0)
+    entry.suggested_confirmations_threshold = 0;
+  else
+    entry.suggested_confirmations_threshold = (entry.amount + block_reward - 1) / block_reward;
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const crypto::hash &payment_id, const tools::wallet2::payment_details &pd) const
+{
+  entry.txid = string_tools::pod_to_hex(pd.m_tx_hash);
+  entry.hash = txid;
+  entry.payment_id = string_tools::pod_to_hex(payment_id);
+  if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
+    entry.payment_id = entry.payment_id.substr(0,16);
+  entry.height = pd.m_block_height;
+  entry.block = entry.height;
+  entry.timestamp = pd.m_timestamp;
+  entry.amount = pd.m_amount;
+  entry.unlock_time = pd.m_unlock_time;
+  entry.fee = pd.m_fee;
+  entry.note = get_tx_note(pd.m_tx_hash);
+  entry.type = pd.m_type;
+  entry.subaddr_index = pd.m_subaddr_index;
+  entry.subaddr_indices.push_back(pd.m_subaddr_index);
+  entry.address = get_subaddress_as_str(pd.m_subaddr_index);
+  entry.confirmed = true;
+  // TODO(sacha): is this just for in or also coinbase?
+  const bool unlocked = is_transfer_unlocked(entry.unlock_time, entry.height);
+  entry.lock_msg = unlocked ? "unlocked" : "locked";
+  set_confirmations(entry, get_blockchain_current_height(), get_last_block_reward());
+}
+//------------------------------------------------------------------------------------------------------------------------------
+void wallet2::fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const tools::wallet2::confirmed_transfer_details &pd) const
+{
+  entry.txid = string_tools::pod_to_hex(txid);
+  entry.hash = txid;
+  entry.payment_id = string_tools::pod_to_hex(pd.m_payment_id);
+  if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
+    entry.payment_id = entry.payment_id.substr(0,16);
+  entry.height = pd.m_block_height;
+  entry.block = entry.height;
+  entry.timestamp = pd.m_timestamp;
+  entry.unlock_time = pd.m_unlock_time;
+  entry.fee = pd.m_amount_in - pd.m_amount_out;
+  uint64_t change = pd.m_change == (uint64_t)-1 ? 0 : pd.m_change; // change may not be known
+  entry.amount = pd.m_amount_in - change - entry.fee;
+  entry.note = get_tx_note(txid);
+
+  for (const auto &d: pd.m_dests) {
+    entry.destinations.push_back(wallet2::transfer_view::dest_output());
+    wallet2::transfer_view::dest_output &td = entry.destinations.back();
+    td.amount = d.amount;
+    td.address = d.original.empty() ? get_account_address_as_str(nettype(), d.is_subaddress, d.addr) : d.original;
+  }
+
+  entry.type = pay_type::out;
+  entry.subaddr_index = { pd.m_subaddr_account, 0 };
+  for (uint32_t i: pd.m_subaddr_indices)
+    entry.subaddr_indices.push_back({pd.m_subaddr_account, i});
+  entry.address = get_subaddress_as_str({pd.m_subaddr_account, 0});
+  entry.confirmed = true;
+  set_confirmations(entry, get_blockchain_current_height(), get_last_block_reward());
+}
+//------------------------------------------------------------------------------------------------------------------------------
+void wallet2::fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const tools::wallet2::unconfirmed_transfer_details &pd) const
+{
+  bool is_failed = pd.m_state == tools::wallet2::unconfirmed_transfer_details::failed;
+  entry.txid = string_tools::pod_to_hex(txid);
+  entry.hash = txid;
+  entry.payment_id = string_tools::pod_to_hex(pd.m_payment_id);
+  entry.payment_id = string_tools::pod_to_hex(pd.m_payment_id);
+  if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
+    entry.payment_id = entry.payment_id.substr(0,16);
+  entry.height = 0;
+  entry.timestamp = pd.m_timestamp;
+  entry.fee = pd.m_amount_in - pd.m_amount_out;
+  entry.amount = pd.m_amount_in - pd.m_change - entry.fee;
+  entry.unlock_time = pd.m_tx.unlock_time;
+  entry.note = get_tx_note(txid);
+
+  for (const auto &d: pd.m_dests) {
+    entry.destinations.push_back(wallet2::transfer_view::dest_output());
+    wallet2::transfer_view::dest_output &td = entry.destinations.back();
+    td.amount = d.amount;
+    td.address = d.original.empty() ? get_account_address_as_str(nettype(), d.is_subaddress, d.addr) : d.original;
+  }
+
+  entry.type = pay_type::unspecified;
+  entry.block = is_failed ? "failed" : "pending";
+  entry.subaddr_index = { pd.m_subaddr_account, 0 };
+  for (uint32_t i: pd.m_subaddr_indices)
+    entry.subaddr_indices.push_back({pd.m_subaddr_account, i});
+  entry.address = get_subaddress_as_str({pd.m_subaddr_account, 0});
+  entry.confirmed = false;
+  set_confirmations(entry, get_blockchain_current_height(), get_last_block_reward());
+}
+//------------------------------------------------------------------------------------------------------------------------------
+void wallet2::fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &payment_id, const tools::wallet2::pool_payment_details &ppd) const
+{
+  const tools::wallet2::payment_details &pd = ppd.m_pd;
+  entry.txid = string_tools::pod_to_hex(pd.m_tx_hash);
+  entry.hash = pd.m_tx_hash;
+  entry.payment_id = string_tools::pod_to_hex(payment_id);
+  if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
+    entry.payment_id = entry.payment_id.substr(0,16);
+  entry.height = 0;
+  entry.timestamp = pd.m_timestamp;
+  entry.amount = pd.m_amount;
+  entry.unlock_time = pd.m_unlock_time;
+  entry.fee = pd.m_fee;
+  entry.note = get_tx_note(pd.m_tx_hash);
+  entry.double_spend_seen = ppd.m_double_spend_seen;
+  entry.type = pay_type::unspecified;
+  entry.block = "pool";
+  entry.subaddr_index = pd.m_subaddr_index;
+  entry.subaddr_indices.push_back(pd.m_subaddr_index);
+  entry.address = get_subaddress_as_str(pd.m_subaddr_index);
+  entry.confirmed = true;
+  set_confirmations(entry, get_blockchain_current_height(), get_last_block_reward());
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::get_transfers(get_transfers_args_t args, std::vector<transfer_view>& transfers)
+{
+  boost::optional<uint32_t> account_index = args.account_index;
+  if (args.all_accounts)
+  {
+    account_index = boost::none;
+    args.subaddr_indices.clear();
+  }
+  if (args.filter_by_height)
+  {
+    args.max_height = std::max<uint64_t>(args.max_height, args.min_height);
+    args.max_height = std::min<uint64_t>(args.max_height, CRYPTONOTE_MAX_BLOCK_NUMBER);
+  }
+
+  if (args.in)
+  {
+    std::list<std::pair<crypto::hash, tools::wallet2::payment_details>> payments;
+    get_payments(payments, args.min_height, args.max_height, account_index, args.subaddr_indices);
+    for (auto i = payments.cbegin(); i != payments.cend(); ++i) {
+      transfers.push_back(wallet2::transfer_view());
+      fill_transfer_view(transfers.back(), i->second.m_tx_hash, i->first, i->second);
+    }
+  }
+
+  if (args.out)
+  {
+    std::list<std::pair<crypto::hash, tools::wallet2::confirmed_transfer_details>> payments;
+    get_payments_out(payments, args.min_height, args.max_height, account_index, args.subaddr_indices);
+    for (std::list<std::pair<crypto::hash, tools::wallet2::confirmed_transfer_details>>::const_iterator i = payments.begin(); i != payments.end(); ++i) {
+      transfers.push_back(wallet2::transfer_view());
+      fill_transfer_view(transfers.back(), i->first, i->second);
+    }
+  }
+
+  if (args.pending || args.failed) {
+    std::list<std::pair<crypto::hash, tools::wallet2::unconfirmed_transfer_details>> upayments;
+    get_unconfirmed_payments_out(upayments, account_index, args.subaddr_indices);
+    for (std::list<std::pair<crypto::hash, tools::wallet2::unconfirmed_transfer_details>>::const_iterator i = upayments.begin(); i != upayments.end(); ++i) {
+      const wallet2::unconfirmed_transfer_details &pd = i->second;
+      bool is_failed = pd.m_state == tools::wallet2::unconfirmed_transfer_details::failed;
+      if (!((args.failed && is_failed) || (!is_failed && args.pending)))
+        continue;
+      transfers.push_back(wallet2::transfer_view());
+      fill_transfer_view(transfers.back(), i->first, i->second);
+    }
+  }
+
+  if (args.pool)
+  {
+    update_pool_state();
+
+    std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>> payments;
+    get_unconfirmed_payments(payments, account_index, args.subaddr_indices);
+    for (std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>>::const_iterator i = payments.begin(); i != payments.end(); ++i) {
+      transfers.push_back(wallet2::transfer_view());
+      fill_transfer_view(transfers.back(), i->first, i->second);
+    }
+  }
+
+  std::sort(transfers.begin(), transfers.end(), [](const wallet2::transfer_view& a, const wallet2::transfer_view& b) -> bool {
+    if (a.confirmed && !b.confirmed)
+      return true;
+    if (a.height != b.height)
+      return a.height < b.height;
+    if (a.timestamp != b.timestamp)
+      return a.timestamp < b.timestamp;
+    return a.hash < b.hash;
+  });
+}
+
+std::string wallet2::transfers_to_csv(const std::vector<wallet2::transfer_view>& transfers, bool formatting) const
+{
+  uint64_t running_balance = 0;
+  auto data_formatter = boost::format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'%s',%s");
+  auto title_formatter = boost::format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s");
+  if (formatting)
+  {
+    title_formatter = boost::format("%8.8s,%9.9s,%8.8s,%16.16s,%20.20s,%20.20s,%64.64s,%16.16s,%14.14s,%100.100s,%20.20s,%s,%s");
+    data_formatter = boost::format("%8.8s,%9.9s,%8.8s,%16.16s,%20.20s,%20.20s,%64.64s,%16.16s,%14.14s,%100.100s,%20.20s,\"%s\",%s");
+  }
+
+  auto new_line = [&](std::stringstream& output){
+    if (formatting)
+    {
+      output << std::endl;
+    } else
+    {
+      output << "\r\n";
+    }
+  };
+
+
+  std::stringstream output;
+  output << title_formatter
+    % tr("block")
+    % tr("type")
+    % tr("lock")
+    % tr("timestamp")
+    % tr("amount")
+    % tr("running balance")
+    % tr("hash")
+    % tr("payment ID")
+    % tr("fee")
+    % tr("destination")
+    % tr("amount")
+    % tr("index")
+    % tr("note");
+  new_line(output);
+
+  for (const auto& transfer : transfers)
+  {
+    switch (transfer.type)
+    {
+      case tools::pay_type::in:
+      case tools::pay_type::miner:
+      case tools::pay_type::service_node:
+      case tools::pay_type::governance:
+        running_balance += transfer.amount;
+        break;
+      case tools::pay_type::stake:
+        running_balance -= transfer.fee;
+        break;
+      case tools::pay_type::out:
+        running_balance -= transfer.amount + transfer.fee;
+        break;
+      default:
+        MERROR("Warning: Unhandled pay type, this is most likely a developer error, please report it to the Loki developers.");
+        break;
+    }
+
+    output << data_formatter
+      % transfer.block
+      % pay_type_string(transfer.type)
+      % transfer.lock_msg
+      % tools::get_human_readable_timestamp(transfer.timestamp)
+      % cryptonote::print_money(transfer.amount)
+      % cryptonote::print_money(running_balance)
+      % transfer.txid
+      % transfer.payment_id
+      % cryptonote::print_money(transfer.fee)
+      % (transfer.destinations.size() ? transfer.destinations.front().address : "-")
+      % (transfer.destinations.size() ? cryptonote::print_money(transfer.destinations.front().amount) : "")
+      % boost::algorithm::join(transfer.subaddr_indices | boost::adaptors::transformed([](const cryptonote::subaddress_index& index) { return std::to_string(index.minor); }), ", ")
+      % transfer.note;
+    new_line(output);
+
+    if (transfer.destinations.size() <= 1)
+      continue;
+
+    // print subsequent destination addresses and amounts
+    // (start at begin + 1 with std::next)
+    for (auto it = std::next(transfer.destinations.cbegin()); it != transfer.destinations.cend(); ++it)
+    {
+      output << data_formatter
+        % ""
+        % ""
+        % ""
+        % ""
+        % ""
+        % ""
+        % ""
+        % ""
+        % ""
+        % it->address
+        % cryptonote::print_money(it->amount)
+        % ""
+        % "";
+      new_line(output);
+    }
+  }
+  return output.str();
+}
 //----------------------------------------------------------------------------------------------------
 void wallet2::get_payments(const crypto::hash& payment_id, std::list<wallet2::payment_details>& payments, uint64_t min_height, const boost::optional<uint32_t>& subaddr_account, const std::set<uint32_t>& subaddr_indices) const
 {
