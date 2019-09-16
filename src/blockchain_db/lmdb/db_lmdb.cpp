@@ -1465,19 +1465,21 @@ void BlockchainLMDB::open(const std::string& filename, cryptonote::network_type 
 
   MDB_val_str(k, "version");
   MDB_val v;
+  using db_version_t = uint32_t;
   auto get_result = mdb_get(txn, m_properties, &k, &v);
   if(get_result == MDB_SUCCESS)
   {
-    const uint32_t db_version = *(const uint32_t *)v.mv_data;
-    bool failed               = false;
-    if (db_version > static_cast<decltype(db_version)>(VERSION))
+    db_version_t db_version;
+    std::memcpy(&db_version, v.mv_data, sizeof(db_version));
+    bool failed = false;
+    if (db_version > static_cast<db_version_t>(VERSION))
     {
       MWARNING("Existing lmdb database was made by a later version (" << db_version << "). We don't know how it will change yet.");
       MFATAL("Existing lmdb database is incompatible with this version.");
       MFATAL("Please delete the existing database and resync.");
       failed = true;
     }
-    else if (db_version < static_cast<decltype(db_version)>(VERSION))
+    else if (db_version < static_cast<db_version_t>(VERSION))
     {
       if (mdb_flags & MDB_RDONLY)
       {
@@ -1509,7 +1511,7 @@ void BlockchainLMDB::open(const std::string& filename, cryptonote::network_type 
     if (m_height == 0)
     {
       MDB_val_str(k, "version");
-      MDB_val_copy<uint32_t> v(static_cast<uint32_t>(VERSION));
+      MDB_val_copy<db_version_t> v(static_cast<db_version_t>(VERSION));
       auto put_result = mdb_put(txn, m_properties, &k, &v, 0);
       if (put_result != MDB_SUCCESS)
       {
