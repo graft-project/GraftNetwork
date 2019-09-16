@@ -73,9 +73,9 @@ namespace crypto {
 
   enum struct cn_slow_hash_type
   {
-      heavy_v1,
-      heavy_v2,
-      turtle_lite_v2,
+    heavy_v1,
+    heavy_v2,
+    turtle_lite_v2,
   };
 
   inline void cn_slow_hash(const void *data, std::size_t length, hash &hash, cn_slow_hash_type type) {
@@ -95,7 +95,6 @@ namespace crypto {
       case cn_slow_hash_type::turtle_lite_v2:
       default:
       {
-         const uint32_t CN_TURTLE_PAGE_SIZE = 262144;
          const uint32_t CN_TURTLE_SCRATCHPAD = 262144;
          const uint32_t CN_TURTLE_ITERATIONS = 131072;
          cn_turtle_hash(data,
@@ -104,7 +103,7 @@ namespace crypto {
              1, // light
              2, // variant
              0, // pre-hashed
-             CN_TURTLE_PAGE_SIZE, CN_TURTLE_SCRATCHPAD, CN_TURTLE_ITERATIONS);
+             CN_TURTLE_SCRATCHPAD, CN_TURTLE_ITERATIONS);
       }
       break;
     }
