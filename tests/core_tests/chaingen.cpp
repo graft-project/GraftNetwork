@@ -555,7 +555,7 @@ bool loki_chain_generator::create_loki_blockchain_entry(loki_blockchain_entry &e
   {
     crypto::hash tx_hash = get_transaction_hash(tx);
     assert(tx_table_.count(tx_hash) == 0);
-    tx_table_[get_transaction_hash(tx)] = tx;
+    tx_table_[tx_hash] = tx;
   }
 
   entry.service_node_state = prev.service_node_state;
