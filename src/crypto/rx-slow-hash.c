@@ -93,9 +93,9 @@ static inline int force_software_aes(void)
   return use;
 }
 
+#if defined(__x86_64__)
 static void cpuid(int CPUInfo[4], int InfoType)
 {
-#if defined(__x86_64__)
     __asm __volatile__
     (
     "cpuid":
@@ -105,8 +105,9 @@ static void cpuid(int CPUInfo[4], int InfoType)
         "=d" (CPUInfo[3]) :
             "a" (InfoType), "c" (0)
         );
-#endif
 }
+#endif
+
 static inline int check_aes_hw(void)
 {
 #if defined(__x86_64__)
