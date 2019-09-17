@@ -2392,36 +2392,17 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
   bool is_registered = entry.total_contributed >= entry.staking_requirement;
 
   buffer.reserve(buffer.size() + 2048);
+  std::ostringstream stream;
 
   // Print Funding Status
   {
-    buffer.append(indent1);
-    buffer.append("[");
-    buffer.append(std::to_string(entry_index));
-    buffer.append("] ");
-    buffer.append("Service Node: ");
-    buffer.append(entry.service_node_pubkey);
-    buffer.append(" v");
-    buffer.append(std::to_string(entry.version_major));
-    buffer.append(".");
-    buffer.append(std::to_string(entry.version_minor));
-    buffer.append(".");
-    buffer.append(std::to_string(entry.version_patch));
-    buffer.append("\n");
+    stream << indent1 << "[" << entry_index << "] " << "Service Node: " << entry.service_node_pubkey << " ";
+    stream << "v" << entry.version_major << "." << entry.version_minor << "." << entry.version_patch << "\n";
 
     if (detailed_view)
     {
-      buffer.append(indent2);
-      buffer.append("Total Contributed/Staking Requirement: ");
-      buffer.append(cryptonote::print_money(entry.total_contributed));
-      buffer.append("/");
-      buffer.append(cryptonote::print_money(entry.staking_requirement));
-      buffer.append("\n");
-
-      buffer.append(indent2);
-      buffer.append("Total Reserved: ");
-      buffer.append(cryptonote::print_money(entry.total_reserved));
-      buffer.append("\n");
+      stream << indent2 << "Total Contributed/Staking Requirement: " << cryptonote::print_money(entry.total_contributed) << "/" << cryptonote::print_money(entry.staking_requirement) << "\n";
+      stream << indent2 << "Total Reserved: " << cryptonote::print_money(entry.total_reserved) << "\n";
     }
   }
 
@@ -2443,156 +2424,102 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
         expiry_height = entry.registration_height + service_nodes::staking_num_lock_blocks(nettype);
     }
 
-    buffer.append(indent2);
-    buffer.append("Registration Hardfork Version | Register/Expiry Height: ");
-    buffer.append(std::to_string(entry.registration_hf_version));
-    buffer.append(" | ");
-    buffer.append(std::to_string(entry.registration_height));
-    buffer.append(" / ");
+    stream << indent2 << "Registration Hardfork Version | Register/Expiry Height: " << entry.registration_hf_version << " | " << entry.registration_height << " / ";
     if (expiry_height == service_nodes::KEY_IMAGE_AWAITING_UNLOCK_HEIGHT)
     {
-        buffer.append("Staking Infinitely (stake unlock not requested yet)\n");
+        stream << "Staking Infinitely (stake unlock not requested yet)\n";
     }
     else
     {
       uint64_t delta_height      = expiry_height - curr_height;
       uint64_t expiry_epoch_time = now + (delta_height * DIFFICULTY_TARGET_V2);
 
-      buffer.append(std::to_string(expiry_height));
-      buffer.append(" (in ");
-      buffer.append(std::to_string(delta_height));
-      buffer.append(") blocks\n");
-
-      buffer.append(indent2);
-      buffer.append("Expiry Date (Est. UTC): ");
-      buffer.append(get_date_time(expiry_epoch_time));
-      buffer.append(" (");
-      buffer.append(get_human_time_ago(expiry_epoch_time, now));
-      buffer.append(")\n");
+      stream << expiry_height << " (in " << delta_height << ") blocks\n";
+      stream << indent2 << "Expiry Date (Est. UTC): " << get_date_time(expiry_epoch_time) << " (" << get_human_time_ago(expiry_epoch_time, now) << ")\n";
     }
   }
 
   if (detailed_view && is_registered) // Print reward status
   {
-    buffer.append(indent2);
-    buffer.append("Last Reward At (Height/TX Index): ");
-    buffer.append(std::to_string(entry.last_reward_block_height));
-    buffer.append("/");
-    buffer.append(std::to_string(entry.last_reward_transaction_index));
-    buffer.append("\n");
+    stream << indent2 << "Last Reward At (Height/TX Index): " << entry.last_reward_block_height << "/" << entry.last_reward_transaction_index << "\n";
   }
 
   if (detailed_view) // Print operator information
   {
-    buffer.append(indent2);
-    buffer.append("Operator Cut (\% Of Reward): ");
-    buffer.append(to_string_rounded((entry.portions_for_operator / (double)STAKING_PORTIONS) * 100.0, 2));
-    buffer.append("%\n");
-
-    buffer.append(indent2);
-    buffer.append("Operator Address: ");
-    buffer.append(entry.operator_address);
-    buffer.append("\n");
+    stream << indent2 << "Operator Cut (\% Of Reward): " << to_string_rounded((entry.portions_for_operator / (double)STAKING_PORTIONS) * 100.0, 2) << "%\n";
+    stream << indent2 << "Operator Address: " << entry.operator_address << "\n";
   }
 
   if (is_registered) // Print service node tests
   {
     epee::console_colors uptime_proof_color = (entry.last_uptime_proof == 0) ? epee::console_color_red : epee::console_color_green;
 
-    buffer.append(indent2);
+    stream << indent2;
     if (entry.last_uptime_proof == 0)
     {
-      buffer.append("Last Uptime Proof Received: (Awaiting confirmation from network)");
+      stream << "Last Uptime Proof Received: (Awaiting confirmation from network)";
     }
     else
     {
-      buffer.append("Last Uptime Proof Received: ");
-      buffer.append(get_human_time_ago(entry.last_uptime_proof, time(nullptr)));
+      stream << "Last Uptime Proof Received: " << get_human_time_ago(entry.last_uptime_proof, time(nullptr));
     }
 
-    buffer.append("\n");
-    buffer.append(indent2);
-    buffer.append("IP Address & Port: ");
+    stream << "\n";
+    stream << indent2 << "IP Address & Port: ";
     if (entry.public_ip == "0.0.0.0")
-    {
-        buffer.append("(Awaiting confirmation from network)");
-    }
+      stream << "(Awaiting confirmation from network)";
     else
-    {
-      buffer.append(entry.public_ip);
-      buffer.append(":");
-      buffer.append(std::to_string(entry.storage_port));
-    }
-    buffer.append("\n");
+      stream << entry.public_ip << ":" << entry.storage_port;
 
-    buffer.append(indent2);
-    buffer.append("Storage Server Reachable: ");
-    buffer.append(entry.storage_server_reachable ? "Yes" : "No");
-
-    buffer.append(" (");
+    stream << "\n";
+    stream << indent2 << "Storage Server Reachable: " << (entry.storage_server_reachable ? "Yes" : "No") << " (";
     if (entry.storage_server_reachable_timestamp == 0)
-      buffer.append("Awaiting first test");
+      stream << "Awaiting first test";
     else
-      buffer.append(get_human_time_ago(entry.storage_server_reachable_timestamp, now));
-    buffer.append(")\n");
+      stream << get_human_time_ago(entry.storage_server_reachable_timestamp, now);
+    stream << ")\n";
 
-    buffer.append(indent2);
-    buffer.append("Checkpoint Participation [Height: Voted]: ");
+    stream << indent2 <<  "Checkpoint Participation [Height: Voted]: ";
     for (size_t i = 0; i < entry.votes.size(); i++)
     {
       service_nodes::checkpoint_vote_record const &record = entry.votes[i];
       if (record.height == service_nodes::INVALID_HEIGHT)
       {
-        buffer.append("[N/A: N/A]");
+        stream << "[N/A: N/A]";
       }
       else
       {
-        buffer.append("[");
-        buffer.append(std::to_string(record.height));
-        buffer.append(": ");
-        buffer.append(record.voted ? "Yes" : "No");
-        buffer.append("]");
+        stream << "[" << record.height << ": " << (record.voted ? "Yes" : "No") << "]";
       }
-      if (i < (entry.votes.size() - 1)) buffer.append(",");
-      buffer.append(" ");
+      if (i < (entry.votes.size() - 1)) stream << ",";
+      stream << " ";
     }
 
-    buffer.append("\n");
-    buffer.append(indent2);
+    stream << "\n";
+    stream << indent2;
     if (entry.active) {
-      buffer.append("Downtime Credits: " + std::to_string(entry.earned_downtime_blocks) + " blocks");
-      buffer.append(" (about " + to_string_rounded(entry.earned_downtime_blocks / (double) BLOCKS_EXPECTED_IN_HOURS(1), 2) + " hours)");
+      stream << "Downtime Credits: " << entry.earned_downtime_blocks << " blocks";
+      stream << " (about " << to_string_rounded(entry.earned_downtime_blocks / (double) BLOCKS_EXPECTED_IN_HOURS(1), 2)  << " hours)";
       if (entry.earned_downtime_blocks < service_nodes::DECOMMISSION_MINIMUM)
-        buffer.append(" (Note: " + std::to_string(service_nodes::DECOMMISSION_MINIMUM) + " blocks required to enable deregistration delay)");
+        stream << " (Note: " << service_nodes::DECOMMISSION_MINIMUM << " blocks required to enable deregistration delay)";
     } else {
-      buffer.append("Current Status: DECOMMISSIONED\n");
-      buffer.append(indent2);
-      buffer.append("Remaining Decommission Time Until DEREGISTRATION: " + std::to_string(entry.earned_downtime_blocks) + " blocks");
+      stream << "Current Status: DECOMMISSIONED\n";
+      stream << indent2 << "Remaining Decommission Time Until DEREGISTRATION: " << entry.earned_downtime_blocks << " blocks";
     }
   }
 
-  buffer.append("\n");
+  stream << "\n";
   if (detailed_view) // Print contributors
   {
     for (size_t j = 0; j < entry.contributors.size(); ++j)
     {
       const cryptonote::service_node_contributor &contributor = entry.contributors[j];
-
-      buffer.append(indent2);
-      buffer.append("[");
-      buffer.append(std::to_string(j));
-      buffer.append("] Contributor: ");
-      buffer.append(contributor.address);
-      buffer.append("\n");
-
-      buffer.append(indent3);
-      buffer.append("Amount / Reserved: ");
-      buffer.append(cryptonote::print_money(contributor.amount));
-      buffer.append("/");
-      buffer.append(cryptonote::print_money(contributor.reserved));
-      buffer.append("\n");
+      stream << indent2 << "[" << j << "] Contributor: " << contributor.address  << "\n";
+      stream << indent3 << "Amount / Reserved: " << cryptonote::print_money(contributor.amount) << "/" << cryptonote::print_money(contributor.reserved) << "\n";
     }
   }
+
+  buffer.append(stream.str());
 }
 
 bool t_rpc_command_executor::print_sn(const std::vector<std::string> &args)

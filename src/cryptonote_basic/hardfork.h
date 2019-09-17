@@ -47,6 +47,7 @@ namespace cryptonote
     };
 
     constexpr static uint8_t INVALID_HF_VERSION_FOR_HEIGHT = 255;
+    constexpr static uint64_t INVALID_HF_VERSION_HEIGHT    = static_cast<uint64_t>(-1);
     typedef enum {
       LikelyForked,
       UpdateNeeded,
@@ -66,6 +67,8 @@ namespace cryptonote
       constexpr Params const *end()   { return end_; };
     };
 
+    // NOTE: Returns INVALID_HF_VERSION_HEIGHT if version not specified for nettype
+    static uint64_t get_hardcoded_hard_fork_height(network_type nettype, cryptonote::network_version version);
     static ParamsIterator get_hardcoded_hard_forks(network_type nettype);
 
     /**

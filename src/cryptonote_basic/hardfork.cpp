@@ -93,6 +93,21 @@ static constexpr HardFork::Params stagenet_hard_forks[] =
   { network_version_12_checkpointing,    213125, 0, 1561608000 }, // 2019-06-28 14:00 AEDT
 };
 
+uint64_t HardFork::get_hardcoded_hard_fork_height(network_type nettype, cryptonote::network_version version)
+{
+  uint64_t result = INVALID_HF_VERSION_HEIGHT;
+  for (const auto &record : cryptonote::HardFork::get_hardcoded_hard_forks(nettype))
+  {
+    if (record.version >= version)
+    {
+      result = record.height;
+      break;
+    }
+  }
+
+  return result;
+}
+
 HardFork::ParamsIterator HardFork::get_hardcoded_hard_forks(network_type nettype)
 {
   if (nettype == MAINNET)       return {mainnet_hard_forks, std::end(mainnet_hard_forks)};
