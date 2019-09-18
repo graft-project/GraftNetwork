@@ -1413,7 +1413,7 @@ namespace cryptonote
     cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
     bool relayed = get_protocol()->relay_uptime_proof(req, fake_context, true /*force_relay*/);
     if (relayed)
-      MGINFO("Submitted uptime-proof for service node (yours): " << m_service_node_pubkey);
+      MGINFO("Submitted uptime-proof for Service Node (yours): " << m_service_node_pubkey);
 
     return true;
   }

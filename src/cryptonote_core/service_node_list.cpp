@@ -1962,7 +1962,11 @@ namespace service_nodes
       return false;
     }
 
-    LOG_PRINT_L2("Accepted uptime proof from " << proof.pubkey);
+    if (m_service_node_pubkey && (proof.pubkey == *m_service_node_pubkey))
+      MGINFO("Received uptime-proof confirmation back from network for Service Node (yours): " << proof.pubkey);
+    else
+      LOG_PRINT_L2("Accepted uptime proof from " << proof.pubkey);
+
     auto &iproof = *info.proof;
     iproof.update_timestamp(now);
     iproof.version_major = proof.snode_version_major;
