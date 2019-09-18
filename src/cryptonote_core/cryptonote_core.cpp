@@ -1418,9 +1418,9 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_uptime_proof(const NOTIFY_UPTIME_PROOF::request &proof)
+  bool core::handle_uptime_proof(const NOTIFY_UPTIME_PROOF::request &proof, bool *my_uptime_proof_confirmation)
   {
-    return m_service_node_list.handle_uptime_proof(proof);
+    return m_service_node_list.handle_uptime_proof(proof, my_uptime_proof_confirmation);
   }
   //-----------------------------------------------------------------------------------------------
   void core::on_transaction_relayed(const cryptonote::blobdata& tx_blob)

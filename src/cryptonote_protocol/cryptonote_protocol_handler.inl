@@ -727,10 +727,34 @@ namespace cryptonote
   int t_cryptonote_protocol_handler<t_core>::handle_uptime_proof(int command, NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& context)
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_UPTIME_PROOF");
-    if(context.m_state != cryptonote_connection_context::state_normal)
+    if(context.m_state <= cryptonote_connection_context::state_synchronizing)
       return 1;
-    if (m_core.handle_uptime_proof(arg))
-      relay_uptime_proof(arg, context, false /*force_relay*/);
+
+    // NOTE: Don't relay your own uptime proof, otherwise we have the following situation
+
+    // Node1 sends uptime ->
+    // Node2 receives uptime and relays it back to Node1 for acknowledgement ->
+    // Node1 receives it, handle_uptime_proof returns true to acknowledge, Node1 tries to resend to the same peers again
+
+    // Instead, if we receive our own uptime proof, then acknowledge but don't
+    // send on. If the we are missing an uptime proof it will have been
+    // submitted automatically by the daemon itself instead of
+    // using my own proof relayed by other nodes.
+
+    (void)context;
+    bool my_uptime_proof_confirmation = false;
+    if (m_core.handle_uptime_proof(arg, &my_uptime_proof_confirmation))
+    {
+      if (!my_uptime_proof_confirmation)
+      {
+        // NOTE: The default exclude context contains the peer who sent us this
+        // uptime proof, we want to ensure we relay it back so they know that the
+        // peer they relayed to received their uptime and confirm it, so send in an
+        // empty context so we don't omit the source peer from the relay back.
+        cryptonote_connection_context empty_context = {};
+        relay_uptime_proof(arg, empty_context, false /*force_relay*/);
+      }
+    }
     return 1;
   }
   //------------------------------------------------------------------------------------------------------------------------  
