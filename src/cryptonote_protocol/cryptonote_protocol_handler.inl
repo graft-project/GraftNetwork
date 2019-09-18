@@ -727,9 +727,6 @@ namespace cryptonote
   int t_cryptonote_protocol_handler<t_core>::handle_uptime_proof(int command, NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& context)
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_UPTIME_PROOF");
-    if(context.m_state <= cryptonote_connection_context::state_synchronizing)
-      return 1;
-
     // NOTE: Don't relay your own uptime proof, otherwise we have the following situation
 
     // Node1 sends uptime ->
@@ -743,7 +740,7 @@ namespace cryptonote
 
     (void)context;
     bool my_uptime_proof_confirmation = false;
-    if (m_core.handle_uptime_proof(arg, &my_uptime_proof_confirmation))
+    if (m_core.handle_uptime_proof(arg, my_uptime_proof_confirmation))
     {
       if (!my_uptime_proof_confirmation)
       {
@@ -752,7 +749,7 @@ namespace cryptonote
         // peer they relayed to received their uptime and confirm it, so send in an
         // empty context so we don't omit the source peer from the relay back.
         cryptonote_connection_context empty_context = {};
-        relay_uptime_proof(arg, empty_context, false /*force_relay*/);
+        relay_uptime_proof(arg, empty_context);
       }
     }
     return 1;
@@ -2231,11 +2228,8 @@ skip:
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
-  bool t_cryptonote_protocol_handler<t_core>::relay_uptime_proof(NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& exclude_context, bool force_relay)
+  bool t_cryptonote_protocol_handler<t_core>::relay_uptime_proof(NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& exclude_context)
   {
-    if (!is_synchronized() && !force_relay)
-      return false;
-
     bool result = relay_to_synchronized_peers<NOTIFY_UPTIME_PROOF>(arg, exclude_context);
     return result;
   }

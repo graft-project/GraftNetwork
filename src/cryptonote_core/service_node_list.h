@@ -281,7 +281,7 @@ namespace service_nodes
 
     /// Record public ip and storage port and add them to the service node list
     cryptonote::NOTIFY_UPTIME_PROOF::request generate_uptime_proof(crypto::public_key const &pubkey, crypto::secret_key const &key, uint32_t public_ip, uint16_t storage_port) const;
-    bool handle_uptime_proof        (cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool *my_uptime_proof_confirmation);
+    bool handle_uptime_proof        (cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool &my_uptime_proof_confirmation);
     void record_checkpoint_vote     (crypto::public_key const &pubkey, bool voted);
 
     bool set_storage_server_peer_reachable(crypto::public_key const &pubkey, bool value);

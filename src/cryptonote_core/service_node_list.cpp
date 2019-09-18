@@ -1893,7 +1893,7 @@ namespace service_nodes
     return result;
   }
 
-  bool service_node_list::handle_uptime_proof(cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool *my_uptime_proof_confirmation)
+  bool service_node_list::handle_uptime_proof(cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool &my_uptime_proof_confirmation)
   {
     uint8_t const hf_version = m_blockchain.get_current_hard_fork_version();
     uint64_t const now       = time(nullptr);
@@ -1964,12 +1964,12 @@ namespace service_nodes
 
     if (m_service_node_pubkey && (proof.pubkey == *m_service_node_pubkey))
     {
-      *my_uptime_proof_confirmation = true;
+      my_uptime_proof_confirmation = true;
       MGINFO("Received uptime-proof confirmation back from network for Service Node (yours): " << proof.pubkey);
     }
     else
     {
-      *my_uptime_proof_confirmation = false;
+      my_uptime_proof_confirmation = false;
       LOG_PRINT_L2("Accepted uptime proof from " << proof.pubkey);
     }
 
