@@ -374,8 +374,8 @@ namespace cryptonote
   bool get_loki_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, int hard_fork_version, block_reward_parts &result, const loki_block_reward_context &loki_context)
   {
     result = {};
-    uint64_t base_reward;
-    if (!get_base_block_reward(median_weight, current_block_weight, already_generated_coins, base_reward, hard_fork_version, loki_context.height))
+    uint64_t base_reward, base_reward_unpenalized;
+    if (!get_base_block_reward(median_weight, current_block_weight, already_generated_coins, base_reward, base_reward_unpenalized, hard_fork_version, loki_context.height))
     {
       MERROR("Failed to calculate base block reward");
       return false;
@@ -393,12 +393,21 @@ namespace cryptonote
       return true;
     }
 
-    //TODO: declining governance reward schedule
-    result.original_base_reward = base_reward;
-    result.service_node_total   = service_node_reward_formula(base_reward, hard_fork_version);
-    result.service_node_paid = calculate_sum_of_portions(loki_context.service_node_payouts, result.service_node_total);
+    // base_miner can be optionally reduced if the block producer chooses to take extra tx fees
+    // beyond the median block limit:
+    result.base_miner = base_reward;
+
+    // ... but that shouldn't affect SN or governance fees (since they receive none of the tx fees,
+    // they shouldn't pay any penalty for adding extra txes).  Before HF13 the service node and gov
+    // fees were accidentally calculated from the penalized amount instead of the pre-penalty
+    // base reward amount.
+    result.original_base_reward =
+        hard_fork_version >= network_version_13_enforce_checkpoints ? base_reward_unpenalized : base_reward;
 
     result.adjusted_base_reward = result.original_base_reward;
+    result.service_node_total   = service_node_reward_formula(result.original_base_reward, hard_fork_version);
+    result.service_node_paid = calculate_sum_of_portions(loki_context.service_node_payouts, result.service_node_total);
+
     if (hard_fork_version >= network_version_10_bulletproofs)
     {
       // NOTE: After hardfork 10, remove the governance component in the base
@@ -416,8 +425,13 @@ namespace cryptonote
       result.governance = governance_reward_formula(result.original_base_reward);
     }
 
-    result.base_miner     = result.adjusted_base_reward - (result.governance + result.service_node_paid);
+    uint64_t non_miner_amounts = result.governance + result.service_node_paid;
+
     result.base_miner_fee = loki_context.fee;
+    if (non_miner_amounts > result.base_miner)
+      result.base_miner = 0;
+    else
+      result.base_miner -= non_miner_amounts;
     return true;
   }
 

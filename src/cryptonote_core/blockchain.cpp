@@ -3428,8 +3428,8 @@ bool Blockchain::check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee) const
 
   uint64_t median = m_current_block_cumul_weight_limit / 2;
   uint64_t already_generated_coins = blockchain_height ? m_db->get_block_already_generated_coins(blockchain_height - 1) : 0;;
-  uint64_t base_reward = 0;
-  if (!get_base_block_reward(median, 1, already_generated_coins, base_reward, version, blockchain_height))
+  uint64_t base_reward, base_reward_unpenalized;
+  if (!get_base_block_reward(median, 1, already_generated_coins, base_reward, base_reward_unpenalized, version, blockchain_height))
     return false;
 
   uint64_t needed_fee;
@@ -3483,8 +3483,8 @@ byte_and_output_fees Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_bl
     median = min_block_weight;
 
   uint64_t already_generated_coins = db_height ? m_db->get_block_already_generated_coins(db_height - 1) : 0;
-  uint64_t base_reward;
-  if (!get_base_block_reward(median, 1, already_generated_coins, base_reward, version, m_db->height()))
+  uint64_t base_reward, base_reward_unpenalized;
+  if (!get_base_block_reward(median, 1, already_generated_coins, base_reward, base_reward_unpenalized, version, m_db->height()))
   {
     MERROR("Failed to determine block reward, using placeholder " << print_money(BLOCK_REWARD_OVERESTIMATE) << " as a high bound");
     base_reward = BLOCK_REWARD_OVERESTIMATE;
