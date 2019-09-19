@@ -79,6 +79,23 @@ namespace cryptonote {
     return CRYPTONOTE_MAX_TX_SIZE;
   }
   //-----------------------------------------------------------------------------------------------
+  uint64_t block_reward_unpenalized_formula_v7(uint64_t already_generated_coins, uint64_t height)
+  {
+    uint64_t emission_supply_component = (already_generated_coins * EMISSION_SUPPLY_MULTIPLIER) / EMISSION_SUPPLY_DIVISOR;
+    uint64_t result = (EMISSION_LINEAR_BASE - emission_supply_component) / EMISSION_DIVISOR;
+
+    // Check if we just overflowed
+    if (emission_supply_component > EMISSION_LINEAR_BASE)
+      result = 0;
+    return result;
+  }
+
+  uint64_t block_reward_unpenalized_formula_v8(uint64_t height)
+  {
+    uint64_t result = 28000000000.0 + 100000000000.0 / loki::exp2(height / (720.0 * 90.0)); // halve every 90 days.
+    return result;
+  }
+
   bool get_base_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint64_t &reward_unpenalized, uint8_t version, uint64_t height) {
 
     //premine reward
@@ -90,19 +107,9 @@ namespace cryptonote {
 
     static_assert(DIFFICULTY_TARGET_V2%60==0,"difficulty targets must be a multiple of 60");
 
-    uint64_t base_reward;
-    if (version >= network_version_8) {
-      base_reward = 28000000000.0 + 100000000000.0 / loki::exp2(height / (720.0 * 90.0)); // halve every 90 days.
-    } else {
-      uint64_t emission_supply_component = (already_generated_coins * EMISSION_SUPPLY_MULTIPLIER) / EMISSION_SUPPLY_DIVISOR;
-      base_reward = (EMISSION_LINEAR_BASE - emission_supply_component) / EMISSION_DIVISOR;
-
-      // Check if we just overflowed
-      if (emission_supply_component > EMISSION_LINEAR_BASE) {
-        base_reward = 0;
-      }
-    }
-
+    uint64_t base_reward = version >= network_version_8
+                               ? block_reward_unpenalized_formula_v8(height)
+                               : block_reward_unpenalized_formula_v7(already_generated_coins, height);
     uint64_t full_reward_zone = get_min_block_weight(version);
 
     //make it soft

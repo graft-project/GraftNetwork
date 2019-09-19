@@ -439,8 +439,8 @@ static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
 
     // This will work, until size of constructed block is less then CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE
     const int hard_fork_version = 7; // NOTE(loki): We know this test doesn't need the new block reward formula
-    uint64_t block_reward;
-    if (!get_base_block_reward(0, 0, already_generated_coins, block_reward, 1, 0)) {
+    uint64_t block_reward, block_reward_unpenalized;
+    if (!get_base_block_reward(0, 0, already_generated_coins, block_reward, block_reward_unpenalized, 1, 0)) {
         LOG_PRINT_L0("Block is too big");
         return false;
     }

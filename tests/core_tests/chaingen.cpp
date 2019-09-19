@@ -119,7 +119,7 @@ cryptonote::account_base loki_chain_generator::add_account()
   return account;
 }
 
-loki_blockchain_entry loki_chain_generator::add_block(const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint, bool can_be_added_to_blockchain, std::string const &fail_msg)
+loki_blockchain_entry &loki_chain_generator::add_block(const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint, bool can_be_added_to_blockchain, std::string const &fail_msg)
 {
   blocks_.push_back({});
   loki_blockchain_entry &result = blocks_.back(); // NOTE: important to use blocks_ storage as we take references to the contents in create_loki_blockchain_entry
@@ -216,14 +216,14 @@ void loki_chain_generator::add_tx(cryptonote::transaction const &tx, bool can_be
   events_.push_back(entry);
 }
 
-cryptonote::transaction loki_chain_generator::create_and_add_tx(const cryptonote::account_base &miner,
-                                                                const cryptonote::account_base &acc,
+cryptonote::transaction loki_chain_generator::create_and_add_tx(const cryptonote::account_base &src,
+                                                                const cryptonote::account_base &dest,
                                                                 uint64_t amount,
                                                                 uint64_t fee,
                                                                 bool kept_by_block)
 {
   cryptonote::transaction t;
-  loki_tx_builder(events_, t, blocks_.back().block, miner, acc, amount, hf_version_).with_fee(fee).build();
+  loki_tx_builder(events_, t, blocks_.back().block, src, dest, amount, hf_version_).with_fee(fee).build();
   add_tx(t, true /*can_be_added_to_blockchain*/, ""/*fail_msg*/, kept_by_block);
   return t;
 }
@@ -435,8 +435,8 @@ loki_blockchain_entry loki_chain_generator::create_genesis_block(const cryptonot
 
   fill_nonce(blk, TEST_DEFAULT_DIFFICULTY, height);
   result.block_weight = get_transaction_weight(blk.miner_tx);
-  uint64_t block_reward;
-  cryptonote::get_base_block_reward(0 /*median_weight*/, result.block_weight, 0 /*already_generated_coins*/, block_reward, hf_version_, height);
+  uint64_t block_reward, block_reward_unpenalized;
+  cryptonote::get_base_block_reward(0 /*median_weight*/, result.block_weight, 0 /*already_generated_coins*/, block_reward, block_reward_unpenalized, hf_version_, height);
   result.already_generated_coins = block_reward;
   return result;
 }
@@ -563,8 +563,8 @@ bool loki_chain_generator::create_loki_blockchain_entry(loki_blockchain_entry &e
   state_history_.emplace_hint(state_history_.end(), entry.service_node_state);
   entry.service_node_state.update_from_block(db_, cryptonote::FAKECHAIN, state_history_, {} /*alt_states*/, entry.block, entry.txs, nullptr);
 
-  uint64_t block_reward;
-  cryptonote::get_base_block_reward(epee::misc_utils::median(block_weights), entry.block_weight, prev.already_generated_coins, block_reward, hf_version, height);
+  uint64_t block_reward, block_reward_unpenalized;
+  cryptonote::get_base_block_reward(epee::misc_utils::median(block_weights), entry.block_weight, prev.already_generated_coins, block_reward, block_reward_unpenalized, hf_version, height);
   entry.already_generated_coins = block_reward + prev.already_generated_coins;
   return true;
 }
@@ -667,8 +667,8 @@ uint64_t test_generator::get_already_generated_coins(const cryptonote::block& bl
 void test_generator::add_block(const cryptonote::block& blk, size_t txs_weight, std::vector<uint64_t>& block_weights, uint64_t already_generated_coins)
 {
   const size_t block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
-  uint64_t block_reward;
-  cryptonote::get_base_block_reward(epee::misc_utils::median(block_weights), block_weight, already_generated_coins, block_reward, m_hf_version, 0);
+  uint64_t block_reward, block_reward_unpenalized;
+  cryptonote::get_base_block_reward(epee::misc_utils::median(block_weights), block_weight, already_generated_coins, block_reward, block_reward_unpenalized, m_hf_version, 0);
   m_blocks_info.insert({get_block_hash(blk), block_info(blk.prev_id, already_generated_coins + block_reward, block_weight, blk)});
 }
 

@@ -112,6 +112,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(loki_checkpointing_alt_chain_with_increasing_service_node_checkpoints);
     GENERATE_AND_PLAY(loki_checkpointing_service_node_checkpoint_from_votes);
     GENERATE_AND_PLAY(loki_checkpointing_service_node_checkpoints_check_reorg_windows);
+    GENERATE_AND_PLAY(loki_core_block_reward_unpenalized);
     GENERATE_AND_PLAY(loki_core_governance_batched_reward);
     GENERATE_AND_PLAY(loki_core_test_deregister_preferred);
     GENERATE_AND_PLAY(loki_core_test_deregister_safety_buffer);
