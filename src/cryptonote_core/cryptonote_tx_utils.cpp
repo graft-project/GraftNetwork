@@ -331,7 +331,7 @@ namespace cryptonote
     // Governance Distribution
     if (already_generated_coins != 0)
     {
-      if (reward_parts.governance == 0)
+      if (reward_parts.governance_paid == 0)
       {
         CHECK_AND_ASSERT_MES(hard_fork_version >= network_version_10_bulletproofs, false, "Governance reward can NOT be 0 before hardfork 10, hard_fork_version: " << hard_fork_version);
       }
@@ -351,14 +351,14 @@ namespace cryptonote
         tk.key = out_eph_public_key;
 
         tx_out out;
-        summary_amounts += out.amount = reward_parts.governance;
+        summary_amounts += out.amount = reward_parts.governance_paid;
         out.target = tk;
         tx.vout.push_back(out);
         tx.output_unlock_times.push_back(height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW);
       }
     }
 
-    uint64_t expected_amount = reward_parts.miner_reward() + reward_parts.governance + reward_parts.service_node_paid;
+    uint64_t expected_amount = reward_parts.miner_reward() + reward_parts.governance_paid + reward_parts.service_node_paid;
     CHECK_AND_ASSERT_MES(summary_amounts == expected_amount, false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal total block_reward = " << expected_amount);
 
     //lock
@@ -389,49 +389,34 @@ namespace cryptonote
 
     if (already_generated_coins == 0)
     {
-      result.original_base_reward = result.adjusted_base_reward = result.base_miner = base_reward;
+      result.original_base_reward = result.base_miner = base_reward;
       return true;
     }
 
-    // base_miner can be optionally reduced if the block producer chooses to take extra tx fees
-    // beyond the median block limit:
-    result.base_miner = base_reward;
-
-    // ... but that shouldn't affect SN or governance fees (since they receive none of the tx fees,
-    // they shouldn't pay any penalty for adding extra txes).  Before HF13 the service node and gov
-    // fees were accidentally calculated from the penalized amount instead of the pre-penalty
-    // base reward amount.
+    // We base governance fees and SN rewards based on the block reward formula.  (Prior to HF13,
+    // however, they were accidentally based on the block reward formula *after* subtracting a
+    // potential penalty if the miner includes txes beyond the median size limit).
     result.original_base_reward =
         hard_fork_version >= network_version_13_enforce_checkpoints ? base_reward_unpenalized : base_reward;
 
-    result.adjusted_base_reward = result.original_base_reward;
-    result.service_node_total   = service_node_reward_formula(result.original_base_reward, hard_fork_version);
-    result.service_node_paid = calculate_sum_of_portions(loki_context.service_node_payouts, result.service_node_total);
+    result.service_node_total = service_node_reward_formula(result.original_base_reward, hard_fork_version);
+    result.service_node_paid  = calculate_sum_of_portions(loki_context.service_node_payouts, result.service_node_total);
 
-    if (hard_fork_version >= network_version_10_bulletproofs)
-    {
-      // NOTE: After hardfork 10, remove the governance component in the base
-      // reward as they are not included and batched into a later block. If we
-      // calculated a (governance reward > 0), then this is the batched height,
-      // add it to the adjusted base reward afterwards
-      result.governance            = loki_context.batched_governance;
-      result.adjusted_base_reward -= governance_reward_formula(result.original_base_reward);
+    // There is a goverance fee due every block.  Beginning in hardfork 10 this is still subtracted
+    // from the block reward as if it was paid, but the actual payments get batched into rare, large
+    // accumulated payments.  (Before hardfork 10 they are included in every block, unbatched).
+    result.governance_due  = governance_reward_formula(result.original_base_reward);
+    result.governance_paid = hard_fork_version >= network_version_10_bulletproofs
+        ? loki_context.batched_governance
+        : result.governance_due;
 
-      if (result.governance > 0)
-        result.adjusted_base_reward += result.governance;
-    }
-    else
-    {
-      result.governance = governance_reward_formula(result.original_base_reward);
-    }
-
-    uint64_t non_miner_amounts = result.governance + result.service_node_paid;
-
+    // The base_miner amount is everything left in the base reward after subtracting off the service
+    // node and governance fee amounts (the due amount in the latter case).  (Any penalty for
+    // exceeding the block limit is already removed from base_reward, and so is paid by the miner).
+    uint64_t non_miner_amounts = result.governance_due + result.service_node_paid;
+    result.base_miner = base_reward > non_miner_amounts ? base_reward - non_miner_amounts : 0;
     result.base_miner_fee = loki_context.fee;
-    if (non_miner_amounts > result.base_miner)
-      result.base_miner = 0;
-    else
-      result.base_miner -= non_miner_amounts;
+
     return true;
   }
 

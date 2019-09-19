@@ -1249,15 +1249,15 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
 
   if (already_generated_coins != 0 && block_has_governance_output(nettype(), b))
   {
-    if (version >= network_version_10_bulletproofs && reward_parts.governance == 0)
+    if (version >= network_version_10_bulletproofs && reward_parts.governance_paid == 0)
     {
       MERROR("Governance reward should not be 0 after hardfork v10 if this height has a governance output because it is the batched payout height");
       return false;
     }
 
-    if (b.miner_tx.vout.back().amount != reward_parts.governance)
+    if (b.miner_tx.vout.back().amount != reward_parts.governance_paid)
     {
-      MERROR("Governance reward amount incorrect.  Should be: " << print_money(reward_parts.governance) << ", is: " << print_money(b.miner_tx.vout.back().amount));
+      MERROR("Governance reward amount incorrect.  Should be: " << print_money(reward_parts.governance_paid) << ", is: " << print_money(b.miner_tx.vout.back().amount));
       return false;
     }
 
@@ -1285,7 +1285,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     }
   }
 
-  base_reward = reward_parts.adjusted_base_reward;
+  base_reward = reward_parts.base_miner + reward_parts.governance_paid + reward_parts.service_node_paid;
   if(base_reward + fee < money_in_use)
   {
     MERROR_VER("coinbase transaction spend too much money (" << print_money(money_in_use) << "). Block reward is " << print_money(base_reward) << "(" << print_money(base_reward) << "+" << print_money(fee) << ")");
