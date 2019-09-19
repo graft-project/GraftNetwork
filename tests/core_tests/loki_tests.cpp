@@ -426,6 +426,46 @@ bool loki_checkpointing_service_node_checkpoints_check_reorg_windows::generate(s
   return true;
 }
 
+bool loki_core_block_reward_unpenalized::generate(std::vector<test_event_entry>& events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+  gen.add_blocks_until_version(hard_forks.back().first);
+
+  uint8_t newest_hf = hard_forks.back().first;
+  assert(newest_hf >= cryptonote::network_version_13_enforce_checkpoints);
+
+  gen.add_n_blocks(60);
+  gen.add_mined_money_unlock_blocks();
+
+  cryptonote::account_base dummy = gen.add_account();
+  int constexpr NUM_TXS          = 60;
+  std::vector<cryptonote::transaction> txs(NUM_TXS);
+  for (int i = 0; i < NUM_TXS; i++)
+    txs[i] = gen.create_and_add_tx(gen.first_miner_, dummy, MK_COINS(5));
+
+  gen.add_block(txs);
+  uint64_t unpenalized_block_reward     = cryptonote::block_reward_unpenalized_formula_v8(gen.height());
+  uint64_t expected_service_node_reward = cryptonote::service_node_reward_formula(unpenalized_block_reward, newest_hf);
+
+  loki_register_callback(events, "check_block_rewards", [&events, unpenalized_block_reward, expected_service_node_reward](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("check_block_rewards");
+    uint64_t top_height;
+    crypto::hash top_hash;
+    c.get_blockchain_top(top_height, top_hash);
+
+    bool orphan;
+    cryptonote::block top_block;
+    CHECK_TEST_CONDITION(c.get_block_by_hash(top_hash, top_block, &orphan));
+    CHECK_TEST_CONDITION(orphan == false);
+    CHECK_TEST_CONDITION_MSG(top_block.miner_tx.vout[0].amount < unpenalized_block_reward, "We should add enough transactions that the penalty is realised on the base block reward");
+    CHECK_EQ(top_block.miner_tx.vout[1].amount, expected_service_node_reward);
+    return true;
+  });
+  return true;
+}
+
 bool loki_core_governance_batched_reward::generate(std::vector<test_event_entry>& events)
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = generate_sequential_hard_fork_table();
