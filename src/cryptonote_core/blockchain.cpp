@@ -5055,7 +5055,7 @@ std::list<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> 
     }
 
     checkpoint_t checkpoint = {};
-    if (checkpoint_blob)
+    if (data.checkpointed && checkpoint_blob)
     {
       if (!t_serializable_object_from_blob(checkpoint, *checkpoint_blob))
         MERROR("Failed to parse checkpoint from blob");
@@ -5064,7 +5064,7 @@ std::list<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> 
     cryptonote::block block;
     if (cryptonote::parse_and_validate_block_from_blob(*block_blob, block))
     {
-      block_extended_info bei(data, std::move(block), &checkpoint);
+      block_extended_info bei(data, std::move(block), data.checkpointed ? &checkpoint : nullptr);
       alt_blocks.insert(std::make_pair(cryptonote::get_block_hash(bei.bl), std::move(bei)));
     }
     else
