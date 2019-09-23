@@ -1096,7 +1096,7 @@ namespace cryptonote
     std::unique_ptr<boost::asio::io_service::work> m_async_work_idle;
 
     // some invalid blocks
-    blocks_ext_by_hash m_invalid_blocks;     // crypto::hash -> block_extended_info
+    std::set<crypto::hash> m_invalid_blocks;
 
 
     checkpoints m_checkpoints;
@@ -1380,20 +1380,7 @@ namespace cryptonote
      *
      * @return false if the block cannot be stored for some reason, otherwise true
      */
-    bool add_block_as_invalid(const block& bl, const crypto::hash& h);
-
-    /**
-     * @brief stores an invalid block in a separate container
-     *
-     * Storing invalid blocks allows quick dismissal of the same block
-     * if it is seen again.
-     *
-     * @param bei the invalid block (see ::block_extended_info)
-     * @param h the block's hash
-     *
-     * @return false if the block cannot be stored for some reason, otherwise true
-     */
-    bool add_block_as_invalid(const block_extended_info& bei, const crypto::hash& h);
+    bool add_block_as_invalid(const cryptonote::block &block);
 
     /**
      * @brief checks a block's timestamp
