@@ -913,7 +913,8 @@ bool loki_service_nodes_checkpoint_quorum_size::generate(std::vector<test_event_
   {
     DEFINE_TESTS_ERROR_CONTEXT("check_checkpoint_quorum_should_be_empty");
     std::shared_ptr<const service_nodes::testing_quorum> quorum = c.get_testing_quorum(service_nodes::quorum_type::checkpointing, check_height_1);
-    CHECK_TEST_CONDITION(quorum == nullptr);
+    CHECK_TEST_CONDITION(quorum != nullptr);
+    CHECK_TEST_CONDITION(quorum->validators.size() == 0);
     return true;
   });
 

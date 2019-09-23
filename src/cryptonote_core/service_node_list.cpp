@@ -1231,15 +1231,18 @@ namespace service_nodes
 
         // TODO(loki): We can remove after switching to V13 since we delete all V12 and below checkpoints where we introduced this kind of quorum
         if (hf_version >= cryptonote::network_version_13_enforce_checkpoints && total_nodes < CHECKPOINT_QUORUM_SIZE)
-          continue;
-
-        pub_keys_indexes     = generate_shuffled_service_node_index_list(total_nodes, state.block_hash, type);
-        result.checkpointing = quorum;
-
-        if ((state.height + REORG_SAFETY_BUFFER_BLOCKS_POST_HF12) >= hf13_height)
-          num_validators = std::min(pub_keys_indexes.size(), CHECKPOINT_QUORUM_SIZE);
+        {
+          // NOTE: Although insufficient nodes, generate the empty quorum so we can distinguish between a height with
+          // insufficient service nodes for a quorum VS a height that shouldn't generate a quorum so that we can report
+          // an error to the user if they're missing a quorum
+        }
         else
-          num_workers = std::min(pub_keys_indexes.size(), CHECKPOINT_QUORUM_SIZE);
+        {
+          pub_keys_indexes = generate_shuffled_service_node_index_list(total_nodes, state.block_hash, type);
+          num_validators   = std::min(pub_keys_indexes.size(), CHECKPOINT_QUORUM_SIZE);
+        }
+
+        result.checkpointing = quorum;
       }
       else
       {
