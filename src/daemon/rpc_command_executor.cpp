@@ -636,6 +636,47 @@ bool t_rpc_command_executor::show_status() {
     }
   }
 
+  std::string my_sn_key;
+  int64_t my_decomm_remaining = 0;
+  uint64_t my_sn_last_uptime = 0;
+  bool my_sn_registered = false, my_sn_staked = false, my_sn_active = false;
+  {
+    cryptonote::COMMAND_RPC_GET_SERVICE_NODE_KEY::request req = {};
+    cryptonote::COMMAND_RPC_GET_SERVICE_NODE_KEY::response res = {};
+    epee::json_rpc::error error_resp;
+    std::string fail_message = "Unsuccessful";
+
+    // Allow to fail, and if it does just ignore it.
+    bool good = false;
+    if (m_is_rpc)
+      good = m_rpc_client->json_rpc_request(req, res, "get_service_node_key", fail_message.c_str());
+    else
+      good = m_rpc_server->on_get_service_node_key(req, res, error_resp) && res.status == CORE_RPC_STATUS_OK;
+
+    if (good)
+    {
+      my_sn_key = std::move(res.service_node_pubkey);
+      cryptonote::COMMAND_RPC_GET_SERVICE_NODES::request sn_req = {};
+      cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response sn_res = {};
+
+      sn_req.service_node_pubkeys.push_back(my_sn_key);
+      if (m_is_rpc)
+        good = m_rpc_client->json_rpc_request(sn_req, sn_res, "get_service_nodes", fail_message.c_str()) && sn_res.service_node_states.size() == 1;
+      else
+        good = m_rpc_server->on_get_service_nodes(sn_req, sn_res, error_resp) && sn_res.status == CORE_RPC_STATUS_OK && sn_res.service_node_states.size() == 1;
+
+      if (good)
+      {
+        auto &entry = sn_res.service_node_states.front();
+        my_sn_registered = true;
+        my_sn_staked = entry.total_contributed >= entry.staking_requirement;
+        my_sn_active = entry.active;
+        my_decomm_remaining = entry.earned_downtime_blocks;
+        my_sn_last_uptime = entry.last_uptime_proof;
+      }
+    }
+  }
+
   std::time_t uptime = std::time(nullptr) - ires.start_time;
   uint64_t net_height = ires.target_height > ires.height ? ires.target_height : ires.height;
   std::string bootstrap_msg;
@@ -680,6 +721,17 @@ bool t_rpc_command_executor::show_status() {
   }
 
   tools::success_msg_writer() << str.str();
+
+  if (!my_sn_key.empty()) {
+    str.str("");
+    if (!my_sn_registered)
+      str << "SN: " << my_sn_key << " -- not registered";
+    else
+      str << "SN: " << my_sn_key << " -- " << (!my_sn_staked ? "awaiting" : my_sn_active ? "active" : "DECOMMISSIONED (" + std::to_string(my_decomm_remaining) + " blocks credit)")
+        << ", last uptime: " << get_human_time_ago(my_sn_last_uptime, time(nullptr));
+    tools::success_msg_writer() << str.str();
+  }
+
   return true;
 }
 
