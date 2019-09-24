@@ -728,7 +728,7 @@ bool t_rpc_command_executor::show_status() {
       str << "SN: " << my_sn_key << " -- not registered";
     else
       str << "SN: " << my_sn_key << " -- " << (!my_sn_staked ? "awaiting" : my_sn_active ? "active" : "DECOMMISSIONED (" + std::to_string(my_decomm_remaining) + " blocks credit)")
-        << ", last uptime: " << get_human_time_ago(my_sn_last_uptime, time(nullptr));
+        << ", last uptime: " << (my_sn_last_uptime ? get_human_time_ago(my_sn_last_uptime, time(nullptr)) : "(never)");
     tools::success_msg_writer() << str.str();
   }
 
