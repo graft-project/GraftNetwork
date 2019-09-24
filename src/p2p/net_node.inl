@@ -483,9 +483,9 @@ namespace nodetool
     }
     if (nettype == cryptonote::TESTNET)
     {
-      full_addrs.insert("18.214.245.162:28880");
-      full_addrs.insert("52.204.250.197:28880");
-      full_addrs.insert("34.225.70.106:28880");
+      full_addrs.insert("212.71.237.82:28880");
+      full_addrs.insert("45.79.47.118:28880");
+      full_addrs.insert("139.162.61.111:28880");
     }
     else if (nettype == cryptonote::STAGENET)
     {
@@ -495,9 +495,9 @@ namespace nodetool
     }
     else
     {
-      full_addrs.insert("13.58.215.50:18980");
-      full_addrs.insert("13.59.105.220:18980");
-      full_addrs.insert("18.216.94.64:18980");
+      full_addrs.insert("109.74.204.179:18980");
+      full_addrs.insert("45.79.42.116:18980");
+      full_addrs.insert("45.118.134.99:18980");
     }
     return full_addrs;
   }
