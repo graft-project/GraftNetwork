@@ -1766,7 +1766,9 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
   bool service_node_checkpoint = false;
   if (!m_checkpoints.is_alternative_block_allowed(get_current_blockchain_height(), block_height, &service_node_checkpoint))
   {
-    if (!service_node_checkpoint || b.major_version >= cryptonote::network_version_13_enforce_checkpoints)
+    // NOTE: The only case where we want to override this is_alternative_block_allowed failing is when you are in the soft forking period
+    bool soft_fork_checkpoint = (b.major_version <= cryptonote::network_version_12_checkpointing && service_node_checkpoint);
+    if (!soft_fork_checkpoint)
     {
       MERROR_VER("Block with id: " << id << std::endl << " can't be accepted for alternative chain, block height: " << block_height << std::endl << " blockchain height: " << get_current_blockchain_height());
       bvc.m_verifivation_failed = true;
@@ -1892,7 +1894,7 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
     bool service_node_checkpoint = false;
     if (!checkpoint && !m_checkpoints.check_block(block_height, id, nullptr, &service_node_checkpoint))
     {
-      if (!service_node_checkpoint || b.major_version >= cryptonote::network_version_13_enforce_checkpoints)
+      if (!service_node_checkpoint)
       {
         LOG_ERROR("CHECKPOINT VALIDATION FAILED FOR ALT BLOCK");
         bvc.m_verifivation_failed = true;
@@ -4335,9 +4337,9 @@ bool Blockchain::update_checkpoint(cryptonote::checkpoint_t const &checkpoint)
     uint8_t hf_version = get_current_hard_fork_version();
     if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
     {
-      uint64_t blocks_to_pop        = m_db->height() - checkpoint.height + 2;
-      crypto::hash const reorg_hash = m_db->get_block_hash_from_height(checkpoint.height - 2);
-      MGINFO_GREEN("###### CHECKPOINTING REORGANIZE from height: " << m_db->height() << " to before checkpoint height: " << (checkpoint.height - 2) << " id: " << reorg_hash);
+      uint64_t blocks_to_pop        = m_db->height() - checkpoint.height;
+      crypto::hash const reorg_hash = m_db->get_block_hash_from_height(checkpoint.height - 1);
+      MGINFO_GREEN("###### CHECKPOINTING REORGANIZE from height: " << m_db->height() << " to before checkpoint height: " << (checkpoint.height - 1) << " id: " << reorg_hash);
       pop_blocks(blocks_to_pop);
     }
   }
