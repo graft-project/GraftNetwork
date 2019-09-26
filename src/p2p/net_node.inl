@@ -497,7 +497,7 @@ namespace nodetool
     {
       full_addrs.insert("109.74.204.179:18980");
       full_addrs.insert("45.79.42.116:18980");
-      full_addrs.insert("45.118.134.99:18980");
+      full_addrs.insert("207.148.153.14:18980");
     }
     return full_addrs;
   }
