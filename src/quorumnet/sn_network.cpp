@@ -250,14 +250,24 @@ std::atomic<int> next_id{1};
 std::mutex local_control_mutex;
 
 /// Accesses a thread-local command socket connected to the proxy's command socket used to issue
-/// commands in a thread-safe manner (without requiring a mutex).
+/// commands in a thread-safe manner.  A mutex is only required here the first time a thread
+/// accesses the control socket.
 zmq::socket_t &SNNetwork::get_control_socket() {
     // Maps the SNNetwork unique ID to a local thread command socket.
     static thread_local std::map<int, std::shared_ptr<zmq::socket_t>> control_sockets;
+    static thread_local std::pair<int, std::shared_ptr<zmq::socket_t>> last{-1, nullptr};
+
+    // Optimize by caching the last value; SNNetwork is often a singleton and in that case we're
+    // going to *always* hit this optimization.  Even if it isn't, we're probably likely to need the
+    // same control socket from the same thread multiple times sequentially so this may still help.
+    if (object_id == last.first)
+        return *last.second;
 
     auto it = control_sockets.find(object_id);
-    if (it != control_sockets.end())
-        return *it->second;
+    if (it != control_sockets.end()) {
+        last = *it;
+        return *last.second;
+    }
 
     std::lock_guard<std::mutex> lock{local_control_mutex};
     zmq::socket_t foo{context, zmq::socket_type::dealer};
@@ -266,7 +276,9 @@ zmq::socket_t &SNNetwork::get_control_socket() {
     control->connect(SN_ADDR_COMMAND);
     thread_control_sockets.push_back(control);
     control_sockets.emplace(object_id, control);
-    return *control;
+    last.first = object_id;
+    last.second = std::move(control);
+    return *last.second;
 }
 
 
