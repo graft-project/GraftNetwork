@@ -190,12 +190,10 @@ static const std::vector<crypto::public_key> &quorum_voter_list(quorum_type t, c
 static void relay_votes(void *obj, const std::vector<service_nodes::quorum_vote_t> &votes) {
     auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
 
-        MDEBUG("hi");
     auto my_keys_ptr = snw.core.get_service_node_keys();
     assert(my_keys_ptr);
     const auto &my_keys = *my_keys_ptr;
 
-        MDEBUG("hi");
     // Loop twice: the first time we build up the set of remotes we need for all votes; then we look
     // up their proofs -- which requires a potentially expensive lock -- to get the x25519 pubkey
     // and port from the proof; then we do the sending in the second loop.
@@ -210,18 +208,14 @@ static void relay_votes(void *obj, const std::vector<service_nodes::quorum_vote_
             continue;
         }
 
-        MDEBUG("hi");
         auto &quorum_voters = quorum_voter_list(v.type, *quorum);
-        MDEBUG("hi");
         if (quorum_voters.size() < service_nodes::min_votes_for_quorum_type(v.type)) {
             MWARNING("Invalid vote relay: " << v.type << " quorum @ height " << v.block_height <<
                     " does not have enough validators (" << quorum_voters.size() << ") to reach the minimum required votes ("
                     << service_nodes::min_votes_for_quorum_type(v.type) << ")");
         }
-        MDEBUG("hi");
 
         int my_pos = service_nodes::find_index_in_quorum_group(quorum_voters, my_keys);
-        MDEBUG("hi");
         if (my_pos < 0) {
             MWARNING("Invalid vote relay: vote to relay does not include this service node");
             MTRACE("me: " << my_keys.pub);
@@ -231,14 +225,11 @@ static void relay_votes(void *obj, const std::vector<service_nodes::quorum_vote_
                 MTRACE("worker: " << v);
             continue;
         }
-        MDEBUG("hi");
 
         for (int i : quorumnet::quorum_outgoing_conns(my_pos, quorum_voters.size()))
             need_remotes.insert(quorum_voters[i]);
 
-        MDEBUG("hi z");
         valid_votes.emplace_back(my_pos, &v, &quorum_voters);
-        MDEBUG("hi zz");
     }
 
     MDEBUG("Relaying " << valid_votes.size() << " votes");
