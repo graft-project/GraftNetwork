@@ -810,12 +810,13 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
                         // return route) because SN replies have stronger routing.
                         if (i <= 1) // listener or self: discard the return route
                             parts.pop_front();
-                        parts.emplace_front(pubkey.data(), pubkey.size());
 
-                        if (parts.size() < 2 || parts.size() > 3) {
-                            SN_LOG(warn, "Invalid incoming message; expected 1-2 parts, not " << (parts.size() - 1));
+                        if (parts.size() < 1 || parts.size() > 2) {
+                            SN_LOG(warn, "Invalid incoming message; expected 1-2 parts, not " << parts.size());
                             continue;
                         }
+
+                        parts.emplace_front(pubkey.data(), pubkey.size());
 
                         auto it = peers.find(pubkey);
                         if (it != peers.end())
@@ -825,12 +826,15 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
                         // No pubkey (i.e. not a SN quorum message); this can only happen on an
                         // incoming connection on listener, ...
                         assert(i == 0);
-                        // ... which means the first part is already the return route, so just leave
-                        // it there and prepend a blank frame to indicate a no-pubkey message.
+                        // ... which means the first part is already the return route zmq added, so
+                        // just leave it there and prepend a blank frame to indicate a no-pubkey
+                        // message.
                         parts.emplace_front();
 
-                        if (parts.size() < 3 || parts.size() > 4) {
-                            SN_LOG(warn, "Invalid incoming message: expected 1-2 parts, not " << (parts.size() - 2));
+                        auto incoming_parts = parts.size() - 2; // ZMQ router prepended one, we just prepended another.
+
+                        if (incoming_parts < 1 || incoming_parts > 2) {
+                            SN_LOG(warn, "Invalid incoming message: expected 1-2 parts, not " << incoming_parts);
                             continue;
                         }
                     }
