@@ -140,8 +140,7 @@ struct bt_serialize<T, std::enable_if_t<std::is_integral<T>::value>> {
     static_assert(sizeof(T) <= sizeof(uint64_t), "Serialization of integers larger than uint64_t is not supported");
     void operator()(std::ostream &os, const T &val) {
         // Cast 1-byte types to a larger type to avoid iostream interpreting them as single characters
-        using output_type = typename std::conditional<(sizeof(T) > 1), T,
-              typename std::conditional<std::is_signed<T>::value, int, unsigned>::type>::type;
+        using output_type = std::conditional_t<(sizeof(T) > 1), T, std::conditional_t<std::is_signed<T>::value, int, unsigned>>;
         os << 'i' << static_cast<output_type>(val) << 'e';
     }
 };
