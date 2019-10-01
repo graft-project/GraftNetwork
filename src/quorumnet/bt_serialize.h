@@ -188,10 +188,12 @@ struct bt_deserialize<std::string> {
 
 /// char * and string literals -- we allow serialization for convenience, but not deserialization
 template <>
-struct bt_serialize<char *> : bt_serialize<std::string> {};
+struct bt_serialize<char *> {
+    void operator()(std::ostream &os, const char *str) { auto len = std::strlen(str); os << len << ':'; os.write(str, len); }
+};
 template <size_t N>
 struct bt_serialize<char[N]> {
-    void operator()(std::ostream &os, const char *str) { os << N-1 << ':' << std::string{str, N-1}; }
+    void operator()(std::ostream &os, const char *str) { os << N-1 << ':'; os.write(str, N-1); }
 };
 
 /// Partial dict validity; we don't check the second type for serializability, that will be handled
