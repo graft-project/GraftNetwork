@@ -41,9 +41,9 @@
 #include <functional>
 #include <ostream>
 #include <sstream>
-#include <streambuf>
 #include <boost/variant.hpp>
 #include "common.h"
+#include "osrb.h"
 
 #include <iostream> // DEBUG
 
@@ -223,7 +223,7 @@ struct is_bt_output_dict_container<T, std::enable_if_t<
 
 /// Specialization for a dict-like container (such as an unordered_map).  We accept anything for a
 /// dict that is const iterable over something that looks like a pair with std::string for first
-/// value type.  The value (i.e. second element of the paid) also must be serializable.
+/// value type.  The value (i.e. second element of the pair) also must be serializable.
 template <typename T>
 struct bt_serialize<T, std::enable_if_t<is_bt_input_dict_container<T>::value>> {
     using second_type = typename T::value_type::second_type;
@@ -410,16 +410,6 @@ struct bt_deserialize<std::variant<Ts...>> {
 };
 #endif
 
-/// Simple class to read from memory in-place
-class one_shot_read_buffer : public std::streambuf {
-public:
-    one_shot_read_buffer(const char *s_in, size_t n) {
-        // We won't actually modify it, but setg needs non-const
-        auto *s = const_cast<char *>(s_in);
-        setg(s, s, s+n);
-    }
-};
-
 template <typename T>
 struct bt_stream_serializer {
     const T &val;
@@ -504,7 +494,7 @@ detail::bt_stream_deserializer<T> bt_deserializer(T &val) { return detail::bt_st
 ///     bt_deserialize(encoded, n, value); // Sets value to 42
 template <typename T, std::enable_if_t<!std::is_const<T>::value, int> = 0>
 void bt_deserialize(const char *data, size_t len, T &val) {
-    detail::one_shot_read_buffer buf{data, len};
+    one_shot_read_buffer buf{data, len};
     std::istream is{&buf};
     is >> bt_deserializer(val);
 }
