@@ -27,6 +27,9 @@ constexpr char ZMQ_ADDR_ZAP[] = "inproc://zeromq.zap.01";
  * and closing the connection */
 constexpr int SN_HANDSHAKE_TIME = 10000;
 
+/** Maximum incoming message size; if a remote tries sending a message larger than this they get disconnected */
+constexpr int64_t SN_ZMQ_MAX_MSG_SIZE = 4 * 1024 * 1024;
+
 
 // Inside some method:
 //     SN_LOG(warn, "bad" << 42 << "stuff");
@@ -486,6 +489,7 @@ SNNetwork::proxy_connect(const std::string &remote, const std::string &connect_h
     socket->setsockopt(ZMQ_CURVE_SECRETKEY, privkey.data(), privkey.size());
     socket->setsockopt(ZMQ_ZAP_DOMAIN, AUTH_DOMAIN_SN, sizeof(AUTH_DOMAIN_SN)-1);
     socket->setsockopt(ZMQ_HANDSHAKE_IVL, SN_HANDSHAKE_TIME);
+    socket->setsockopt<int64_t>(ZMQ_MAXMSGSIZE, SN_ZMQ_MAX_MSG_SIZE);
 #if ZMQ_VERSION >= ZMQ_MAKE_VERSION (4, 3, 0)
 //    socket->setsockopt(ZMQ_ROUTING_ID, pubkey.data(), pubkey.size());
 #else
@@ -644,6 +648,7 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
     listen.setsockopt<int>(ZMQ_CURVE_SERVER, 1);
     listen.setsockopt(ZMQ_CURVE_PUBLICKEY, pubkey.data(), pubkey.size());
     listen.setsockopt(ZMQ_CURVE_SECRETKEY, privkey.data(), privkey.size());
+    listen.setsockopt<int64_t>(ZMQ_MAXMSGSIZE, SN_ZMQ_MAX_MSG_SIZE);
 //    listen.setsockopt<int>(ZMQ_ROUTER_HANDOVER, 1);
     listen.setsockopt<int>(ZMQ_ROUTER_MANDATORY, 1);
 
