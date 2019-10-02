@@ -775,6 +775,7 @@ namespace cryptonote
       std::string status;                   // General RPC error code. "OK" means everything looks good.
       uint64_t height;                      // Current length of longest chain known to daemon.
       uint64_t target_height;               // The height of the next block in the chain.
+      uint64_t immutable_height;            // The latest height in the blockchain that can not be reorganized from (backed by atleast 2 Service Node, or 1 hardcoded checkpoint, 0 if N/A).
       uint64_t difficulty;                  // Network difficulty (analogous to the strength of the network).
       uint64_t target;                      // Current target for next proof of work.
       uint64_t tx_count;                    // Total number of non-coinbase transaction in the chain.
@@ -810,6 +811,7 @@ namespace cryptonote
         KV_SERIALIZE(status)
         KV_SERIALIZE(height)
         KV_SERIALIZE(target_height)
+        KV_SERIALIZE(immutable_height)
         KV_SERIALIZE(difficulty)
         KV_SERIALIZE(target)
         KV_SERIALIZE(tx_count)
