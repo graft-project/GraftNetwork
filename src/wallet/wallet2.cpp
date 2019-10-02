@@ -3293,6 +3293,11 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
   if(last_tx_hash_id != (m_transfers.size() ? m_transfers.back().m_txid : null_hash))
     received_money = true;
 
+  uint64_t immutable_height = 0;
+  boost::optional<std::string> fail_string = m_node_rpc_proxy.get_immutable_height(immutable_height);
+  if (!fail_string)
+    m_immutable_height = immutable_height;
+
   try
   {
     // If stop() is called we don't need to check pending transactions
@@ -5801,6 +5806,7 @@ void wallet2::fill_transfer_view(wallet2::transfer_view &entry, const crypto::ha
   const bool unlocked = is_transfer_unlocked(entry.unlock_time, entry.height);
   entry.lock_msg = unlocked ? "unlocked" : "locked";
   set_confirmations(entry, get_blockchain_current_height(), get_last_block_reward());
+  entry.checkpointed = entry.height <= m_immutable_height;
 }
 //------------------------------------------------------------------------------------------------------------------------------
 void wallet2::fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const tools::wallet2::confirmed_transfer_details &pd) const
@@ -5832,6 +5838,7 @@ void wallet2::fill_transfer_view(wallet2::transfer_view &entry, const crypto::ha
     entry.subaddr_indices.push_back({pd.m_subaddr_account, i});
   entry.address = get_subaddress_as_str({pd.m_subaddr_account, 0});
   entry.confirmed = true;
+  entry.checkpointed = entry.height <= m_immutable_height;
   set_confirmations(entry, get_blockchain_current_height(), get_last_block_reward());
 }
 //------------------------------------------------------------------------------------------------------------------------------
@@ -5966,12 +5973,12 @@ void wallet2::get_transfers(get_transfers_args_t args, std::vector<transfer_view
 std::string wallet2::transfers_to_csv(const std::vector<wallet2::transfer_view>& transfers, bool formatting) const
 {
   uint64_t running_balance = 0;
-  auto data_formatter = boost::format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'%s',%s");
-  auto title_formatter = boost::format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s");
+  auto data_formatter  = boost::format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'%s',%s");
+  auto title_formatter = boost::format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s");
   if (formatting)
   {
-    title_formatter = boost::format("%8.8s,%9.9s,%8.8s,%16.16s,%20.20s,%20.20s,%64.64s,%16.16s,%14.14s,%100.100s,%20.20s,%s,%s");
-    data_formatter = boost::format("%8.8s,%9.9s,%8.8s,%16.16s,%20.20s,%20.20s,%64.64s,%16.16s,%14.14s,%100.100s,%20.20s,\"%s\",%s");
+    title_formatter = boost::format("%8.8s,%9.9s,%8.8s,%14.14s,%16.16s,%20.20s,%20.20s,%64.64s,%16.16s,%14.14s,%100.100s,%20.20s,%s,%s");
+    data_formatter  = boost::format("%8.8s,%9.9s,%8.8s,%14.14s,%16.16s,%20.20s,%20.20s,%64.64s,%16.16s,%14.14s,%100.100s,%20.20s,\"%s\",%s");
   }
 
   auto new_line = [&](std::stringstream& output){
@@ -5990,6 +5997,7 @@ std::string wallet2::transfers_to_csv(const std::vector<wallet2::transfer_view>&
     % tr("block")
     % tr("type")
     % tr("lock")
+    % tr("checkpointed")
     % tr("timestamp")
     % tr("amount")
     % tr("running balance")
@@ -6027,6 +6035,7 @@ std::string wallet2::transfers_to_csv(const std::vector<wallet2::transfer_view>&
       % transfer.block
       % pay_type_string(transfer.type)
       % transfer.lock_msg
+      % (transfer.checkpointed ? "checkpointed" : "no")
       % tools::get_human_readable_timestamp(transfer.timestamp)
       % cryptonote::print_money(transfer.amount)
       % cryptonote::print_money(running_balance)
@@ -6047,6 +6056,7 @@ std::string wallet2::transfers_to_csv(const std::vector<wallet2::transfer_view>&
     for (auto it = std::next(transfer.destinations.cbegin()); it != transfer.destinations.cend(); ++it)
     {
       output << data_formatter
+        % ""
         % ""
         % ""
         % ""

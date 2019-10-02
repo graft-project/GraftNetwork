@@ -7946,12 +7946,13 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
       }
     }
 
-    auto formatter = boost::format("%8.8llu %6.6s %8.8s %16.16s %20.20s %s %s %14.14s %s %s - %s");
+    auto formatter = boost::format("%8.8llu %6.6s %8.8s %12.12s %16.16s %20.20s %s %s %14.14s %s %s - %s");
 
     message_writer(color, false) << formatter
       % transfer.block
       % tools::pay_type_string(transfer.type)
       % transfer.lock_msg
+      % (transfer.checkpointed ? "checkpointed" : "no")
       % tools::get_human_readable_timestamp(transfer.timestamp)
       % print_money(transfer.amount)
       % string_tools::pod_to_hex(transfer.hash)
@@ -9265,6 +9266,7 @@ bool simple_wallet::show_transfer(const std::vector<std::string> &args)
         else
           success_msg_writer() << "locked for " << tools::get_human_readable_timespan(std::chrono::seconds(pd.m_unlock_time - threshold));
       }
+      success_msg_writer() << "Checkpointed: " << (pd.m_block_height <= m_wallet->get_immutable_height() ? "Yes" : "No");
       success_msg_writer() << "Address index: " << pd.m_subaddr_index.minor;
       success_msg_writer() << "Note: " << m_wallet->get_tx_note(txid);
       return true;

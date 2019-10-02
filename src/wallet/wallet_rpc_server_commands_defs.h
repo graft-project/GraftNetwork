@@ -1499,6 +1499,7 @@ namespace wallet_rpc
     bool double_spend_seen;                                    // True if the key image(s) for the transfer have been seen before.
     uint64_t confirmations;                                    // Number of block mined since the block containing this transaction (or block height at which the transaction should be added to a block if not yet confirmed).
     uint64_t suggested_confirmations_threshold;                // Estimation of the confirmations needed for the transaction to be included in a block.
+    uint64_t checkpointed;                                     // If transfer is backed by atleast 2 Service Node Checkpoints, 0 if it is not, see immutable_height in the daemon rpc call get_info
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(txid);
@@ -1517,6 +1518,7 @@ namespace wallet_rpc
       KV_SERIALIZE(double_spend_seen)
       KV_SERIALIZE_OPT(confirmations, (uint64_t)0)
       KV_SERIALIZE_OPT(suggested_confirmations_threshold, (uint64_t)0)
+      KV_SERIALIZE(checkpointed)
     END_KV_SERIALIZE_MAP()
   };
 

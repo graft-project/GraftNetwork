@@ -494,6 +494,7 @@ private:
       bool double_spend_seen;                                    // True if the key image(s) for the transfer have been seen before.
       uint64_t confirmations;                                    // Number of block mined since the block containing this transaction (or block height at which the transaction should be added to a block if not yet confirmed).
       uint64_t suggested_confirmations_threshold;
+      bool checkpointed = false; // If the transfer is backed by atleast (2 service node|| 1 hardcoded) checkpoints // TODO(loki): Make this count the number of checkpoints backing this transfer
     };
 
     typedef std::vector<transfer_details> transfer_container;
@@ -963,6 +964,7 @@ private:
 
     uint64_t get_last_block_reward() const { return m_last_block_reward; }
     uint64_t get_device_last_key_image_sync() const { return m_device_last_key_image_sync; }
+    uint64_t get_immutable_height() const { return m_immutable_height; }
 
     template <class t_archive>
     inline void serialize(t_archive &a, const unsigned int ver)
@@ -1077,6 +1079,9 @@ private:
       if(ver < 28)
         return;
       a & m_cold_key_images;
+      if(ver < 29)
+        return;
+      a & m_immutable_height;
     }
 
     /*!
@@ -1667,6 +1672,7 @@ private:
     std::string m_device_derivation_path;
     uint64_t m_device_last_key_image_sync;
     bool m_offline;
+    uint64_t m_immutable_height;
 
     // Aux transaction data from device
     std::unordered_map<crypto::hash, std::string> m_tx_device;
@@ -1721,7 +1727,7 @@ private:
   bool parse_priority          (const std::string& arg, uint32_t& priority);
 
 }
-BOOST_CLASS_VERSION(tools::wallet2, 28)
+BOOST_CLASS_VERSION(tools::wallet2, 29)
 BOOST_CLASS_VERSION(tools::wallet2::transfer_details, 12)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_info, 1)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_info::LR, 0)
