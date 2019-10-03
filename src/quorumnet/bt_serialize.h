@@ -43,7 +43,7 @@
 #include <sstream>
 #include <boost/variant.hpp>
 #include "common.h"
-#include "osrb.h"
+#include "../common/osrb.h"
 
 #include <iostream> // DEBUG
 
@@ -494,7 +494,7 @@ detail::bt_stream_deserializer<T> bt_deserializer(T &val) { return detail::bt_st
 ///     bt_deserialize(encoded, n, value); // Sets value to 42
 template <typename T, std::enable_if_t<!std::is_const<T>::value, int> = 0>
 void bt_deserialize(const char *data, size_t len, T &val) {
-    one_shot_read_buffer buf{data, len};
+    tools::one_shot_read_buffer buf{data, len};
     std::istream is{&buf};
     is >> bt_deserializer(val);
 }

@@ -28,17 +28,31 @@
 
 #pragma once
 #include <streambuf>
+#include <string>
 
-namespace quorumnet {
+namespace tools {
 
-/// Simple class to read from memory in-place
-class one_shot_read_buffer : public std::streambuf {
+/// Simple class to read from memory in-place.  Intended use:
+///
+///     one_shot_read_buffer buf{data, len};
+///     std::istream is{&buf};
+///     is >> foo; /* do some istream stuff with is */
+///
+class one_shot_read_buffer : public std::stringbuf {
 public:
-    one_shot_read_buffer(const char *s_in, size_t n) {
+    /// Construct from char pointer & size
+    one_shot_read_buffer(const char *s_in, size_t n) : std::stringbuf(std::ios::in) {
         // We won't actually modify it, but setg needs non-const
         auto *s = const_cast<char *>(s_in);
         setg(s, s, s+n);
     }
+
+    /// Construct from std::string lvalue reference (but *not* a temporary, see below!)
+    explicit one_shot_read_buffer(const std::string &s_in)
+        : one_shot_read_buffer{s_in.data(), s_in.size()} {}
+
+    /// Explicitly disallow construction with std::string temporary
+    explicit one_shot_read_buffer(const std::string &&s) = delete;
 };
 
 }

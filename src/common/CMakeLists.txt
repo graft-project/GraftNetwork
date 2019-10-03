@@ -76,6 +76,7 @@ set(common_private_headers
   http_connection.h
   loki_integration_test_hooks.h
   notify.h
+  osrb.h
   pruning.h
   rpc_client.h
   scoped_message_writer.h

@@ -37,7 +37,6 @@ set(quorumnet_private_headers
   sn_network.h
   bt_serialize.h
   common.h
-  osrb.h
   conn_matrix.h)
 
 loki_private_headers(quorumnet
