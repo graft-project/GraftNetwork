@@ -469,18 +469,6 @@ namespace wallet_rpc
   };
 
   LOKI_RPC_DOC_INTROSPECT
-  struct transfer_destination
-  {
-    uint64_t amount;     // Amount to send to each destination, in atomic units.
-    std::string address; // Destination public address.
-
-    BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE(amount)
-      KV_SERIALIZE(address)
-    END_KV_SERIALIZE_MAP()
-  };
-
-  LOKI_RPC_DOC_INTROSPECT
   // Send loki to a number of recipients. To preview the transaction fee, set do_not_relay to true and get_tx_metadata to true. 
   // Submit the response using the data in get_tx_metadata in the RPC call, relay_tx.
   struct COMMAND_RPC_TRANSFER
@@ -1452,77 +1440,6 @@ namespace wallet_rpc
   };
 
   LOKI_RPC_DOC_INTROSPECT
-  // 
-  struct transfer_entry
-  {
-    transfer_entry() = default;
-    transfer_entry(const wallet2::transfer_view& transfer)
-      : txid(transfer.txid)
-      , payment_id(transfer.payment_id)
-      , height(transfer.height)
-      , timestamp(transfer.timestamp)
-      , amount(transfer.amount)
-      , fee(transfer.fee)
-      , note(transfer.note)
-      // destinations
-      , type(tools::pay_type_string(transfer.type))
-      , unlock_time(transfer.unlock_time)
-      , subaddr_index(transfer.subaddr_index)
-      , subaddr_indices(transfer.subaddr_indices)
-      , address(transfer.address)
-      , double_spend_seen(transfer.double_spend_seen)
-      , confirmations(transfer.confirmations)
-      , suggested_confirmations_threshold(transfer.suggested_confirmations_threshold)
-    {
-      if (transfer.block.type() == typeid(std::string))
-      {
-          type = boost::get<std::string>(transfer.block);
-      }
-      for (const auto& dest : transfer.destinations)
-      {
-        destinations.push_back({std::move(dest.amount), std::move(dest.address)});
-      }
-    }
-    std::string txid;                                          // Transaction ID for this transfer.
-    std::string payment_id;                                    // Payment ID for this transfer.
-    uint64_t height;                                           // Height of the first block that confirmed this transfer (0 if not mined yet).
-    uint64_t timestamp;                                        // UNIX timestamp for when this transfer was first confirmed in a block (or timestamp submission if not mined yet).
-    uint64_t amount;                                           // Amount transferred.
-    uint64_t fee;                                              // Transaction fee for this transfer.
-    std::string note;                                          // Note about this transfer.
-    std::list<transfer_destination> destinations;              // Array of transfer destinations.
-    std::string type;                                          // Type of transfer, one of the following: "in", "out", "pending", "failed", "pool".
-    uint64_t unlock_time;                                      // Number of blocks until transfer is safely spendable.
-    cryptonote::subaddress_index subaddr_index;                // Major & minor index, account and subaddress index respectively.
-    std::vector<cryptonote::subaddress_index> subaddr_indices;
-    std::string address;                                       // Address that transferred the funds.
-    bool double_spend_seen;                                    // True if the key image(s) for the transfer have been seen before.
-    uint64_t confirmations;                                    // Number of block mined since the block containing this transaction (or block height at which the transaction should be added to a block if not yet confirmed).
-    uint64_t suggested_confirmations_threshold;                // Estimation of the confirmations needed for the transaction to be included in a block.
-    uint64_t checkpointed;                                     // If transfer is backed by atleast 2 Service Node Checkpoints, 0 if it is not, see immutable_height in the daemon rpc call get_info
-
-    BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE(txid);
-      KV_SERIALIZE(payment_id);
-      KV_SERIALIZE(height);
-      KV_SERIALIZE(timestamp);
-      KV_SERIALIZE(amount);
-      KV_SERIALIZE(fee);
-      KV_SERIALIZE(note);
-      KV_SERIALIZE(destinations);
-      KV_SERIALIZE(type);
-      KV_SERIALIZE(unlock_time)
-      KV_SERIALIZE(subaddr_index);
-      KV_SERIALIZE(subaddr_indices);
-      KV_SERIALIZE(address);
-      KV_SERIALIZE(double_spend_seen)
-      KV_SERIALIZE_OPT(confirmations, (uint64_t)0)
-      KV_SERIALIZE_OPT(suggested_confirmations_threshold, (uint64_t)0)
-      KV_SERIALIZE(checkpointed)
-    END_KV_SERIALIZE_MAP()
-  };
-
-  LOKI_RPC_DOC_INTROSPECT
   // Generate a signature to prove a spend. Unlike proving a transaction, it does not requires the destination public address.
   struct COMMAND_RPC_GET_SPEND_PROOF
   {
@@ -1679,11 +1596,11 @@ namespace wallet_rpc
 
     struct response_t
     {
-      std::list<transfer_entry> in;      // 
-      std::list<transfer_entry> out;     //
-      std::list<transfer_entry> pending; //
-      std::list<transfer_entry> failed;  //
-      std::list<transfer_entry> pool;    // 
+      std::list<transfer_view> in;      // 
+      std::list<transfer_view> out;     //
+      std::list<transfer_view> pending; //
+      std::list<transfer_view> failed;  //
+      std::list<transfer_view> pool;    // 
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(in);
@@ -1731,8 +1648,8 @@ namespace wallet_rpc
 
     struct response_t
     {
-      transfer_entry transfer;             // 
-      std::list<transfer_entry> transfers; // 
+      transfer_view transfer;             // 
+      std::list<transfer_view> transfers; // 
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(transfer);

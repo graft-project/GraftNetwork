@@ -7871,7 +7871,7 @@ static bool parse_get_transfers_args(std::vector<std::string>& local_args, tools
 }
 //----------------------------------------------------------------------------------------------------
 // mutates local_args as it parses and consumes arguments
-bool simple_wallet::get_transfers(std::vector<std::string>& local_args, std::vector<tools::wallet2::transfer_view>& transfers)
+bool simple_wallet::get_transfers(std::vector<std::string>& local_args, std::vector<tools::transfer_view>& transfers)
 {
   tools::wallet2::get_transfers_args_t args;
   if (!parse_get_transfers_args(local_args, args))
@@ -7897,7 +7897,7 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
 
   LOCK_IDLE_SCOPE();
 
-  std::vector<tools::wallet2::transfer_view> all_transfers;
+  std::vector<tools::transfer_view> all_transfers;
 
   if (!get_transfers(local_args, all_transfers))
     return true;
@@ -7908,7 +7908,7 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
     enum console_colors color = console_color_white;
     if (transfer.confirmed)
     {
-      switch (transfer.type)
+      switch (transfer.pay_type)
       {
         case tools::pay_type::in:           color = console_color_green; break;
         case tools::pay_type::out:          color = console_color_yellow; break;
@@ -7920,10 +7920,8 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
       }
     }
 
-    if (transfer.block.type() == typeid(std::string) && boost::get<std::string>(transfer.block) == "failed")
-    {
+    if (transfer.type == "failed")
       color = console_color_red;
-    }
 
     std::string destinations = "-";
     if (!transfer.destinations.empty())
@@ -7934,10 +7932,10 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
         if (!destinations.empty())
           destinations += ", ";
 
-        if (transfer.type == tools::pay_type::in ||
-            transfer.type == tools::pay_type::governance ||
-            transfer.type == tools::pay_type::service_node ||
-            transfer.type == tools::pay_type::miner)
+        if (transfer.pay_type == tools::pay_type::in ||
+            transfer.pay_type == tools::pay_type::governance ||
+            transfer.pay_type == tools::pay_type::service_node ||
+            transfer.pay_type == tools::pay_type::miner)
           destinations += output.address.substr(0, 6);
         else
           destinations += output.address;
@@ -7946,11 +7944,11 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
       }
     }
 
-    auto formatter = boost::format("%8.8llu %6.6s %8.8s %12.12s %16.16s %20.20s %s %s %14.14s %s %s - %s");
+    auto formatter = boost::format("%8.8s %6.6s %8.8s %12.12s %16.16s %20.20s %s %s %14.14s %s %s - %s");
 
     message_writer(color, false) << formatter
-      % transfer.block
-      % tools::pay_type_string(transfer.type)
+      % (transfer.type.size() ? transfer.type : std::to_string(transfer.height))
+      % tools::pay_type_string(transfer.pay_type)
       % transfer.lock_msg
       % (transfer.checkpointed ? "checkpointed" : "no")
       % tools::get_human_readable_timestamp(transfer.timestamp)
@@ -7978,7 +7976,7 @@ bool simple_wallet::export_transfers(const std::vector<std::string>& args_)
 
   LOCK_IDLE_SCOPE();
 
-  std::vector<tools::wallet2::transfer_view> all_transfers;
+  std::vector<tools::transfer_view> all_transfers;
 
   // might consumes arguments in local_args
   if (!get_transfers(local_args, all_transfers))

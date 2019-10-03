@@ -226,6 +226,79 @@ private:
 
   enum class stake_check_result { allowed, not_allowed, try_later };
 
+  LOKI_RPC_DOC_INTROSPECT
+  struct transfer_destination
+  {
+    std::string address; // Destination public address.
+    uint64_t amount;     // Amount to send to each destination, in atomic units.
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(amount)
+      KV_SERIALIZE(address)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  struct transfer_view
+  {
+    std::string txid;                                          // Transaction ID for this transfer.
+    std::string payment_id;                                    // Payment ID for this transfer.
+    uint64_t height;                                           // Height of the first block that confirmed this transfer (0 if not mined yet).
+    uint64_t timestamp;                                        // UNIX timestamp for when this transfer was first confirmed in a block (or timestamp submission if not mined yet).
+    uint64_t amount;                                           // Amount transferred.
+    uint64_t fee;                                              // Transaction fee for this transfer.
+    std::string note;                                          // Note about this transfer.
+    std::list<transfer_destination> destinations;              // Array of transfer destinations.
+    std::string type;                                          // Type of transfer, one of the following: "in", "out", "stake", "miner", "snode", "gov", "pending", "failed", "pool".
+    uint64_t unlock_time;                                      // Number of blocks until transfer is safely spendable.
+    cryptonote::subaddress_index subaddr_index;                // Major & minor index, account and subaddress index respectively.
+    std::vector<cryptonote::subaddress_index> subaddr_indices;
+    std::string address;                                       // Address that transferred the funds.
+    bool double_spend_seen;                                    // True if the key image(s) for the transfer have been seen before.
+    uint64_t confirmations;                                    // Number of block mined since the block containing this transaction (or block height at which the transaction should be added to a block if not yet confirmed).
+    uint64_t suggested_confirmations_threshold;                // Estimation of the confirmations needed for the transaction to be included in a block.
+    uint64_t checkpointed;                                     // If transfer is backed by atleast 2 Service Node Checkpoints, 0 if it is not, see immutable_height in the daemon rpc call get_info
+
+    // Not serialized, for internal wallet2 use
+    tools::pay_type pay_type;                                  // Internal use only, not serialized
+    bool            confirmed;                                 // Internal use only, not serialized
+    crypto::hash    hash;                                      // Internal use only, not serialized
+    std::string     lock_msg;                                  // Internal use only, not serialized
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(txid);
+      KV_SERIALIZE(payment_id);
+      KV_SERIALIZE(height);
+      KV_SERIALIZE(timestamp);
+      KV_SERIALIZE(amount);
+      KV_SERIALIZE(fee);
+      KV_SERIALIZE(note);
+      KV_SERIALIZE(destinations);
+
+      // TODO(loki): This discrepancy between having to use pay_type if type is
+      // empty and type if pay type is neither is super unintuitive.
+      if (this_ref.type.empty())
+      {
+        std::string type = pay_type_string(this_ref.pay_type);
+        KV_SERIALIZE_VALUE(type)
+      }
+      else
+      {
+        KV_SERIALIZE(type)
+      }
+
+      KV_SERIALIZE(unlock_time)
+      KV_SERIALIZE(subaddr_index);
+      KV_SERIALIZE(subaddr_indices);
+      KV_SERIALIZE(address);
+      KV_SERIALIZE(double_spend_seen)
+      KV_SERIALIZE_OPT(confirmations, (uint64_t)0)
+      KV_SERIALIZE_OPT(suggested_confirmations_threshold, (uint64_t)0)
+      KV_SERIALIZE(checkpointed)
+    END_KV_SERIALIZE_MAP()
+  };
+
+
   class wallet_keys_unlocker;
   class wallet2
   {
@@ -464,37 +537,6 @@ private:
         FIELD(subaddr_account)
         FIELD(subaddr_indices)
       END_SERIALIZE()
-    };
-    struct transfer_view
-    {
-      struct dest_output
-      {
-        std::string address;
-        uint64_t    amount;
-      };
-
-      uint64_t height;
-      uint64_t timestamp;
-      pay_type type;
-      boost::variant<uint64_t, std::string> block;          // string representation of height (+ "failed")
-      bool confirmed;
-      uint64_t amount;
-      crypto::hash hash;
-      std::string payment_id;
-      uint64_t fee;
-      uint64_t unlock_time;
-      std::vector<dest_output> destinations;
-      std::string note;
-      std::string lock_msg;
-      // ported from transfer_entry
-      cryptonote::subaddress_index subaddr_index;                // Major & minor index, account and subaddress index respectively.
-      std::vector<cryptonote::subaddress_index> subaddr_indices;
-      std::string txid;
-      std::string address;
-      bool double_spend_seen;                                    // True if the key image(s) for the transfer have been seen before.
-      uint64_t confirmations;                                    // Number of block mined since the block containing this transaction (or block height at which the transaction should be added to a block if not yet confirmed).
-      uint64_t suggested_confirmations_threshold;
-      bool checkpointed = false; // If the transfer is backed by atleast (2 service node|| 1 hardcoded) checkpoints // TODO(loki): Make this count the number of checkpoints backing this transfer
     };
 
     typedef std::vector<transfer_details> transfer_container;
@@ -921,10 +963,10 @@ private:
     void discard_unmixable_outputs();
     bool is_connected() const;
     bool check_connection(uint32_t *version = NULL, bool *ssl = NULL, uint32_t timeout = 200000);
-    void fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const crypto::hash &payment_id, const wallet2::payment_details &pd) const;
-    void fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const tools::wallet2::confirmed_transfer_details &pd) const;
-    void fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &txid, const tools::wallet2::unconfirmed_transfer_details &pd) const;
-    void fill_transfer_view(wallet2::transfer_view &entry, const crypto::hash &payment_id, const tools::wallet2::pool_payment_details &pd) const;
+    transfer_view make_transfer_view(const crypto::hash &txid, const crypto::hash &payment_id, const wallet2::payment_details &pd) const;
+    transfer_view make_transfer_view(const crypto::hash &txid, const tools::wallet2::confirmed_transfer_details &pd) const;
+    transfer_view make_transfer_view(const crypto::hash &txid, const tools::wallet2::unconfirmed_transfer_details &pd) const;
+    transfer_view make_transfer_view(const crypto::hash &payment_id, const tools::wallet2::pool_payment_details &pd) const;
     void get_transfers(wallet2::transfer_container& incoming_transfers) const;
 
     struct get_transfers_args_t
