@@ -280,7 +280,7 @@ namespace cryptonote
     std::pair<std::string, std::string> show_outputs_line(const std::vector<uint64_t> &heights, uint64_t blockchain_height, uint64_t highlight_height = std::numeric_limits<uint64_t>::max()) const;
     bool freeze_thaw(const std::vector<std::string>& args, bool freeze);
 
-    bool get_transfers(std::vector<std::string>& args_, std::vector<tools::wallet2::transfer_view>& transfers);
+    bool get_transfers(std::vector<std::string>& args_, std::vector<tools::transfer_view>& transfers);
 
     /*!
      * \brief Prints the seed with a nice message
