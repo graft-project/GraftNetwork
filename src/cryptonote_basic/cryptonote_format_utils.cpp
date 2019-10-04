@@ -34,6 +34,7 @@
 #include "wipeable_string.h"
 #include "string_tools.h"
 #include "common/i18n.h"
+#include "common/osrb.h"
 #include "serialization/string.h"
 #include "cryptonote_format_utils.h"
 #include "cryptonote_config.h"
@@ -181,9 +182,9 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool parse_and_validate_tx_from_blob(const blobdata& tx_blob, transaction& tx)
   {
-    std::stringstream ss;
-    ss << tx_blob;
-    binary_archive<false> ba(ss);
+    tools::one_shot_read_buffer buf{tx_blob};
+    std::istream is{&buf};
+    binary_archive<false> ba(is);
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
@@ -194,9 +195,9 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool parse_and_validate_tx_base_from_blob(const blobdata& tx_blob, transaction& tx)
   {
-    std::stringstream ss;
-    ss << tx_blob;
-    binary_archive<false> ba(ss);
+    tools::one_shot_read_buffer buf{tx_blob};
+    std::istream is{&buf};
+    binary_archive<false> ba(is);
     bool r = tx.serialize_base(ba);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, true), false, "Failed to expand transaction data");
@@ -206,9 +207,9 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool parse_and_validate_tx_prefix_from_blob(const blobdata& tx_blob, transaction_prefix& tx)
   {
-    std::stringstream ss;
-    ss << tx_blob;
-    binary_archive<false> ba(ss);
+    tools::one_shot_read_buffer buf{tx_blob};
+    std::istream is{&buf};
+    binary_archive<false> ba(is);
     bool r = ::serialization::serialize_noeof(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction prefix from blob");
     return true;
@@ -216,9 +217,9 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool parse_and_validate_tx_from_blob(const blobdata& tx_blob, transaction& tx, crypto::hash& tx_hash)
   {
-    std::stringstream ss;
-    ss << tx_blob;
-    binary_archive<false> ba(ss);
+    tools::one_shot_read_buffer buf{tx_blob};
+    std::istream is{&buf};
+    binary_archive<false> ba(is);
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
@@ -461,8 +462,8 @@ namespace cryptonote
     if(tx_extra.empty())
       return true;
 
-    std::string extra_str(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size());
-    std::istringstream iss(extra_str);
+    tools::one_shot_read_buffer buf{reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size()};
+    std::istream iss{&buf};
     binary_archive<false> ar(iss);
 
     bool eof = false;
@@ -507,8 +508,8 @@ namespace cryptonote
       return true;
     }
 
-    std::string extra_str(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size());
-    std::istringstream iss(extra_str);
+    tools::one_shot_read_buffer buf{reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size()};
+    std::istream iss{&buf};
     binary_archive<false> ar(iss);
 
     bool eof = false;
@@ -874,8 +875,8 @@ namespace cryptonote
   {
     if (tx_extra.empty())
       return true;
-    std::string extra_str(reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size());
-    std::istringstream iss(extra_str);
+    tools::one_shot_read_buffer buf{reinterpret_cast<const char*>(tx_extra.data()), tx_extra.size()};
+    std::istream iss{&buf};
     binary_archive<false> ar(iss);
     std::ostringstream oss;
     binary_archive<true> newar(oss);
