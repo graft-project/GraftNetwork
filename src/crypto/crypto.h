@@ -52,6 +52,8 @@ namespace crypto {
 
   struct ec_point {
     char data[32];
+    // Returns true if non-null, i.e. not 0.
+    operator bool() const { static constexpr char null[32] = {0}; return memcmp(data, null, sizeof(data)); }
   };
 
   struct ec_scalar {

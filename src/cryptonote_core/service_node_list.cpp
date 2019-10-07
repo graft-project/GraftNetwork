@@ -80,7 +80,6 @@ namespace service_nodes
   service_node_list::service_node_list(cryptonote::Blockchain &blockchain)
   : m_blockchain(blockchain)
   , m_db(nullptr)
-  , m_service_node_pubkey(nullptr)
   , m_store_quorum_history(0)
   , m_state_added_to_archive(false)
   {
@@ -317,10 +316,10 @@ namespace service_nodes
     m_db = db;
   }
 
-  void service_node_list::set_my_service_node_keys(crypto::public_key const *pub_key)
+  void service_node_list::set_my_service_node_keys(std::shared_ptr<const service_node_keys> keys)
   {
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
-    m_service_node_pubkey = pub_key;
+    m_service_node_keys = std::move(keys);
   }
 
   void service_node_list::set_quorum_history_storage(uint64_t hist_size) {
@@ -451,7 +450,7 @@ namespace service_nodes
                                                            cryptonote::network_type nettype,
                                                            const cryptonote::block &block,
                                                            const cryptonote::transaction &tx,
-                                                           crypto::public_key const *my_pubkey)
+                                                           const keys_ptr &my_keys)
   {
     if (tx.type != cryptonote::txtype::state_change)
       return false;
@@ -512,7 +511,7 @@ namespace service_nodes
 
     uint64_t block_height = cryptonote::get_block_height(block);
     auto &info = duplicate_info(iter->second);
-    bool is_me = my_pubkey && *my_pubkey == key;
+    bool is_me = my_keys && my_keys->pub == key;
 
     switch (state_change.state) {
       case new_state::deregister:
@@ -917,7 +916,7 @@ namespace service_nodes
     return true;
   }
 
-  bool service_node_list::state_t::process_registration_tx(cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, uint32_t index, crypto::public_key const *my_pubkey)
+  bool service_node_list::state_t::process_registration_tx(cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, uint32_t index, const keys_ptr &my_keys)
   {
     uint8_t const hf_version       = block.major_version;
     uint64_t const block_timestamp = block.timestamp;
@@ -936,7 +935,7 @@ namespace service_nodes
       if (iter != service_nodes_infos.end())
         return false;
 
-      if (my_pubkey && *my_pubkey == key) MGINFO_GREEN("Service node registered (yours): " << key << " on height: " << block_height);
+      if (my_keys && my_keys->pub == key) MGINFO_GREEN("Service node registered (yours): " << key << " on height: " << block_height);
       else                                LOG_PRINT_L1("New service node registered: "     << key << " on height: " << block_height);
     }
     else
@@ -965,7 +964,7 @@ namespace service_nodes
         }
       }
 
-      if (my_pubkey && *my_pubkey == key)
+      if (my_keys && my_keys->pub == key)
       {
         if (registered_during_grace_period)
         {
@@ -1281,7 +1280,7 @@ namespace service_nodes
                                                      std::unordered_map<crypto::hash, state_t> const &alt_states,
                                                      const cryptonote::block &block,
                                                      const std::vector<cryptonote::transaction> &txs,
-                                                     crypto::public_key const *my_pubkey)
+                                                     const keys_ptr &my_keys)
   {
     ++height;
     bool need_swarm_update = false;
@@ -1313,14 +1312,8 @@ namespace service_nodes
       auto i = service_nodes_infos.find(pubkey);
       if (i != service_nodes_infos.end())
       {
-        if (my_pubkey && *my_pubkey == pubkey)
-        {
-          MGINFO_GREEN("Service node expired (yours): " << pubkey << " at block height: " << block_height);
-        }
-        else
-        {
-          LOG_PRINT_L1("Service node expired: " << pubkey << " at block height: " << block_height);
-        }
+        if (my_keys && my_keys->pub == pubkey) MGINFO_GREEN("Service node expired (yours): " << pubkey << " at block height: " << block_height);
+        else                                   LOG_PRINT_L1("Service node expired: " << pubkey << " at block height: " << block_height);
 
         need_swarm_update += i->second->is_active();
         service_nodes_infos.erase(i);
@@ -1350,12 +1343,12 @@ namespace service_nodes
       const cryptonote::transaction& tx = txs[index];
       if (tx.type == cryptonote::txtype::standard)
       {
-        process_registration_tx(nettype, block, tx, index, my_pubkey);
+        process_registration_tx(nettype, block, tx, index, my_keys);
         need_swarm_update += process_contribution_tx(nettype, block, tx, index);
       }
       else if (tx.type == cryptonote::txtype::state_change)
       {
-        need_swarm_update += process_state_change_tx(state_history, alt_states, nettype, block, tx, my_pubkey);
+        need_swarm_update += process_state_change_tx(state_history, alt_states, nettype, block, tx, my_keys);
       }
       else if (tx.type == cryptonote::txtype::key_image_unlock)
       {
@@ -1454,7 +1447,7 @@ namespace service_nodes
 
     cryptonote::network_type nettype = m_blockchain.nettype();
     m_state_history.insert(m_state_history.end(), m_state);
-    m_state.update_from_block(*m_db, nettype, m_state_history, m_alt_state, block, txs, m_service_node_pubkey);
+    m_state.update_from_block(*m_db, nettype, m_state_history, m_alt_state, block, txs, m_service_node_keys);
   }
 
   void service_node_list::blockchain_detached(uint64_t height)
@@ -1736,7 +1729,7 @@ namespace service_nodes
     }
 
     state_t alt_state = *starting_state;
-    alt_state.update_from_block(*m_db, m_blockchain.nettype(), m_state_history, m_alt_state, block, txs, m_service_node_pubkey);
+    alt_state.update_from_block(*m_db, m_blockchain.nettype(), m_state_history, m_alt_state, block, txs, m_service_node_keys);
     m_alt_state[block_hash] = std::move(alt_state);
 
     if (checkpoint)
@@ -1911,22 +1904,20 @@ namespace service_nodes
     return result;
   }
 
-  cryptonote::NOTIFY_UPTIME_PROOF::request service_node_list::generate_uptime_proof(crypto::public_key const &pubkey,
-                                                                                    crypto::secret_key const &key,
-                                                                                    uint32_t public_ip,
-                                                                                    uint16_t storage_port) const
+  cryptonote::NOTIFY_UPTIME_PROOF::request service_node_list::generate_uptime_proof(
+      const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port) const
   {
     cryptonote::NOTIFY_UPTIME_PROOF::request result = {};
     result.snode_version_major                      = static_cast<uint16_t>(LOKI_VERSION_MAJOR);
     result.snode_version_minor                      = static_cast<uint16_t>(LOKI_VERSION_MINOR);
     result.snode_version_patch                      = static_cast<uint16_t>(LOKI_VERSION_PATCH);
     result.timestamp                                = time(nullptr);
-    result.pubkey                                   = pubkey;
+    result.pubkey                                   = keys.pub;
     result.public_ip                                = public_ip;
     result.storage_port                             = storage_port;
 
-    crypto::hash hash = make_uptime_proof_hash(pubkey, result.timestamp, public_ip, storage_port);
-    crypto::generate_signature(hash, pubkey, key, result.sig);
+    crypto::hash hash = make_uptime_proof_hash(keys.pub, result.timestamp, public_ip, storage_port);
+    crypto::generate_signature(hash, keys.pub, keys.key, result.sig);
     return result;
   }
 
@@ -1987,7 +1978,7 @@ namespace service_nodes
     if (iproof.timestamp >= now - (UPTIME_PROOF_FREQUENCY_IN_SECONDS / 2))
       REJECT_PROOF("already received one uptime proof for this node recently");
 
-    if (m_service_node_pubkey && (proof.pubkey == *m_service_node_pubkey))
+    if (m_service_node_keys && proof.pubkey == m_service_node_keys->pub)
     {
       my_uptime_proof_confirmation = true;
       MGINFO("Received uptime-proof confirmation back from network for Service Node (yours): " << proof.pubkey);
@@ -2162,7 +2153,7 @@ namespace service_nodes
               state_t long_term_state                  = entry;
               cryptonote::block const &block           = m_db->get_block_from_height(long_term_state.height + 1);
               std::vector<cryptonote::transaction> txs = m_db->get_tx_list(block.tx_hashes);
-              long_term_state.update_from_block(*m_db, m_blockchain.nettype(), {} /*state_history*/, {} /*alt_states*/, block, txs, nullptr /*my_pubkey*/);
+              long_term_state.update_from_block(*m_db, m_blockchain.nettype(), {} /*state_history*/, {} /*alt_states*/, block, txs, nullptr /*my_keys*/);
 
               entry.service_nodes_infos                = {};
               entry.key_image_blacklist                = {};
@@ -2465,8 +2456,7 @@ namespace service_nodes
       uint8_t hf_version,
       uint64_t staking_requirement,
       const std::vector<std::string>& args,
-      const crypto::public_key& service_node_pubkey,
-      const crypto::secret_key &service_node_key,
+      const service_node_keys &keys,
       std::string &cmd,
       bool make_friendly,
       boost::optional<std::string&> err_msg)
@@ -2490,7 +2480,7 @@ namespace service_nodes
     }
 
     crypto::signature signature;
-    crypto::generate_signature(hash, service_node_pubkey, service_node_key, signature);
+    crypto::generate_signature(hash, keys.pub, keys.key, signature);
 
     std::stringstream stream;
     if (make_friendly)
@@ -2505,7 +2495,7 @@ namespace service_nodes
     }
 
     stream << " " << exp_timestamp << " ";
-    stream << epee::string_tools::pod_to_hex(service_node_pubkey) << " ";
+    stream << epee::string_tools::pod_to_hex(keys.pub) << " ";
     stream << epee::string_tools::pod_to_hex(signature);
 
     if (make_friendly)

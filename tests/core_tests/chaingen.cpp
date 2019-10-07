@@ -56,6 +56,16 @@ cryptonote::block loki_chain_generator_db::get_block_from_height(const uint64_t 
   return result;
 }
 
+service_nodes::service_node_keys loki_chain_generator::get_cached_keys(const crypto::public_key &pubkey) const {
+  service_nodes::service_node_keys keys;
+  keys.pub = pubkey;
+  auto it = service_node_keys_.find(keys.pub);
+  assert(it != service_node_keys_.end());
+  if (it != service_node_keys_.end())
+    keys.key = it->second;
+  return keys;
+}
+
 bool loki_chain_generator_db::get_tx(const crypto::hash &h, cryptonote::transaction &tx) const
 {
   auto it = tx_table.find(h);
@@ -320,11 +330,8 @@ cryptonote::transaction loki_chain_generator::create_state_change_tx(service_nod
   {
     for (const auto voter_index : voters)
     {
-      crypto::public_key const &voter_pub_key = validator_service_nodes[voter_index];
-      assert(service_node_keys_.count(voter_pub_key) == 1);
-      crypto::secret_key const &voter_sec_key = service_node_keys_[voter_pub_key];
-
-      service_nodes::quorum_vote_t vote = service_nodes::make_state_change_vote(state_change_extra.block_height, voter_index, state_change_extra.service_node_index, state, voter_pub_key, voter_sec_key);
+      auto voter_keys = get_cached_keys(validator_service_nodes[voter_index]);
+      service_nodes::quorum_vote_t vote = service_nodes::make_state_change_vote(state_change_extra.block_height, voter_index, state_change_extra.service_node_index, state, voter_keys);
       state_change_extra.votes.push_back({vote.signature, (uint32_t)voter_index});
     }
   }
@@ -332,11 +339,9 @@ cryptonote::transaction loki_chain_generator::create_state_change_tx(service_nod
   {
     for (size_t i = 0; i < service_nodes::STATE_CHANGE_MIN_VOTES_TO_CHANGE_STATE; i++)
     {
-      crypto::public_key const &voter_pub_key = validator_service_nodes[i];
-      assert(service_node_keys_.count(voter_pub_key) == 1);
-      crypto::secret_key const &voter_sec_key = service_node_keys_[voter_pub_key];
+      auto voter_keys = get_cached_keys(validator_service_nodes[i]);
 
-      service_nodes::quorum_vote_t vote = service_nodes::make_state_change_vote(state_change_extra.block_height, i, state_change_extra.service_node_index, state, voter_pub_key, voter_sec_key);
+      service_nodes::quorum_vote_t vote = service_nodes::make_state_change_vote(state_change_extra.block_height, i, state_change_extra.service_node_index, state, voter_keys);
       state_change_extra.votes.push_back({vote.signature, (uint32_t)i});
     }
   }
@@ -366,11 +371,8 @@ cryptonote::checkpoint_t loki_chain_generator::create_service_node_checkpoint(ui
   result.signatures.reserve(num_votes);
   for (size_t i = 0; i < num_votes; i++)
   {
-    crypto::public_key const &pub_key = quorum.validators[i];
-    assert(service_node_keys_.count(pub_key) == 1);
-    crypto::secret_key const &sec_key = service_node_keys_[pub_key];
-
-    service_nodes::quorum_vote_t vote = service_nodes::make_checkpointing_vote(entry.block.major_version, result.block_hash, block_height, i, pub_key, sec_key);
+    auto keys = get_cached_keys(quorum.validators[i]);
+    service_nodes::quorum_vote_t vote = service_nodes::make_checkpointing_vote(entry.block.major_version, result.block_hash, block_height, i, keys);
     result.signatures.push_back(service_nodes::voter_to_signature(vote));
   }
 
