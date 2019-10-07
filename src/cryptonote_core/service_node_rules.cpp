@@ -90,12 +90,11 @@ uint64_t get_min_node_contribution(uint8_t version, uint64_t staking_requirement
   if (version < cryptonote::network_version_11_infinite_staking)
     return get_min_node_contribution_pre_v11(staking_requirement, total_reserved);
 
-  const uint64_t needed                 = staking_requirement - total_reserved;
-  const size_t max_num_of_contributions = MAX_NUMBER_OF_CONTRIBUTORS * MAX_KEY_IMAGES_PER_CONTRIBUTOR;
-  assert(max_num_of_contributions > num_contributions);
-  if (max_num_of_contributions <= num_contributions) return UINT64_MAX;
+  const uint64_t needed = staking_requirement - total_reserved;
+  assert(MAX_NUMBER_OF_CONTRIBUTORS > num_contributions);
+  if (MAX_NUMBER_OF_CONTRIBUTORS <= num_contributions) return UINT64_MAX;
 
-  const size_t num_contributions_remaining_avail = max_num_of_contributions - num_contributions;
+  const size_t num_contributions_remaining_avail = MAX_NUMBER_OF_CONTRIBUTORS - num_contributions;
   return needed / num_contributions_remaining_avail;
 }
 

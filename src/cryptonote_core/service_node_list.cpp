@@ -1035,19 +1035,33 @@ namespace service_nodes
         [&parsed_contribution](const service_node_info::contributor_t& contributor) { return contributor.address == parsed_contribution.address; });
     const bool new_contributor = (contrib_iter == contributors.end());
 
-    if (new_contributor)
+    // Check node contributor counts
     {
-      if (contributors.size() >= MAX_NUMBER_OF_CONTRIBUTORS)
+      bool too_many_contributions = false;
+      if (hf_version >= cryptonote::network_version_11_infinite_staking)
+        // As of HF11 we allow up to 4 stakes total.
+        too_many_contributions = info.total_num_locked_contributions() + parsed_contribution.locked_contributions.size() > MAX_NUMBER_OF_CONTRIBUTORS;
+      else
+        // Before HF11 we allowed up to 4 contributors, but each can contribute multiple times
+        too_many_contributions = new_contributor && contributors.size() >= MAX_NUMBER_OF_CONTRIBUTORS;
+
+      if (too_many_contributions)
       {
-        LOG_PRINT_L1("Contribution TX: Node is full with max contributors: " << MAX_NUMBER_OF_CONTRIBUTORS <<
-                     " for service node: " << pubkey <<
+        LOG_PRINT_L1("Contribution TX: Already hit the max number of contributions: " << MAX_NUMBER_OF_CONTRIBUTORS <<
+                     " for contributor: " << cryptonote::get_account_address_as_str(nettype, false, parsed_contribution.address) <<
                      " on height: "  << block_height <<
                      " for tx: " << cryptonote::get_transaction_hash(tx));
         return false;
       }
+    }
 
-      /// Check that the contribution is large enough
-      const uint64_t min_contribution = get_min_node_contribution(hf_version, info.staking_requirement, info.total_reserved, info.total_num_locked_contributions());
+    // Check that the contribution is large enough
+    {
+      const uint64_t min_contribution =
+        (!new_contributor && hf_version < cryptonote::network_version_11_infinite_staking)
+        ? 1 // Follow-up contributions from an existing contributor could be any size before HF11
+        : get_min_node_contribution(hf_version, info.staking_requirement, info.total_reserved, info.total_num_locked_contributions());
+
       if (parsed_contribution.transferred < min_contribution)
       {
         LOG_PRINT_L1("Contribution TX: Amount " << parsed_contribution.transferred <<
@@ -1057,7 +1071,10 @@ namespace service_nodes
                      " for tx: " << cryptonote::get_transaction_hash(tx));
         return false;
       }
+    }
 
+    if (new_contributor)
+    {
       //
       // Successfully Validated
       //
@@ -1085,23 +1102,9 @@ namespace service_nodes
     info.last_reward_block_height = block_height;
     info.last_reward_transaction_index = index;
 
-    const size_t max_contributions_per_node = service_nodes::MAX_KEY_IMAGES_PER_CONTRIBUTOR * MAX_NUMBER_OF_CONTRIBUTORS;
     if (hf_version >= cryptonote::network_version_11_infinite_staking)
-    {
-      for (const service_node_info::contribution_t &contribution : parsed_contribution.locked_contributions)
-      {
-        if (info.total_num_locked_contributions() < max_contributions_per_node)
-          contributor.locked_contributions.push_back(contribution);
-        else
-        {
-          LOG_PRINT_L1("Contribution TX: Already hit the max number of contributions: " << max_contributions_per_node <<
-                       " for contributor: " << cryptonote::get_account_address_as_str(nettype, false, contributor.address) <<
-                       " on height: "  << block_height <<
-                       " for tx: " << cryptonote::get_transaction_hash(tx));
-          break;
-        }
-      }
-    }
+      for (const auto &contribution : parsed_contribution.locked_contributions)
+        contributor.locked_contributions.push_back(contribution);
 
     LOG_PRINT_L1("Contribution of " << parsed_contribution.transferred << " received for service node " << pubkey);
     if (info.is_fully_funded()) {
@@ -1927,74 +1930,62 @@ namespace service_nodes
     return result;
   }
 
+#ifdef __cpp_lib_erase_if
+  using std::erase_if;
+#else
+  template <typename Container, typename Predicate>
+  static void erase_if(Container &c, Predicate pred) {
+    for (auto it = c.begin(), last = c.end(); it != last; ) {
+      if (pred(*it))
+        it = c.erase(it);
+      else
+        ++it;
+    }
+  }
+#endif
+
+  static constexpr std::pair<uint8_t, uint16_t> hf_min_loki_versions[] = {
+    {cryptonote::network_version_13_enforce_checkpoints,  5},
+    {cryptonote::network_version_12_checkpointing,        4},
+    {cryptonote::network_version_11_infinite_staking,     3},
+    {cryptonote::network_version_10_bulletproofs,         2},
+  };
+
+#define REJECT_PROOF(log) do { LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey << ": " log); return false; } while (0)
+
   bool service_node_list::handle_uptime_proof(cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool &my_uptime_proof_confirmation)
   {
     uint8_t const hf_version = m_blockchain.get_current_hard_fork_version();
     uint64_t const now       = time(nullptr);
 
-    // NOTE: Validate proof version, timestamp range,
-    {
-      if ((proof.timestamp < now - UPTIME_PROOF_BUFFER_IN_SECONDS) || (proof.timestamp > now + UPTIME_PROOF_BUFFER_IN_SECONDS))
-      {
-        LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey << ": timestamp is too far from now");
-        return false;
-      }
+    // Validate proof version, timestamp range,
+    if ((proof.timestamp < now - UPTIME_PROOF_BUFFER_IN_SECONDS) || (proof.timestamp > now + UPTIME_PROOF_BUFFER_IN_SECONDS))
+      REJECT_PROOF("timestamp is too far from now");
 
-      // NOTE: Only care about major version for now
-      if (hf_version >= cryptonote::network_version_13_enforce_checkpoints && proof.snode_version_major < 5)
-      {
-        LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey
-                                                    << ": v5+ loki version is required for v13+ network proofs");
-        return false;
-      }
-      if (hf_version >= cryptonote::network_version_12_checkpointing && proof.snode_version_major < 4)
-      {
-        LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey
-                                                    << ": v4+ loki version is required for v12+ network proofs");
-        return false;
-      }
-      else if (hf_version >= cryptonote::network_version_11_infinite_staking && proof.snode_version_major < 3)
-      {
-        LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey << ": v3+ loki version is required for v11+ network proofs");
-        return false;
-      }
-      else if (hf_version >= cryptonote::network_version_10_bulletproofs && proof.snode_version_major < 2)
-      {
-        LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey << ": v2+ loki version is required for v10+ network proofs");
-        return false;
-      }
-    }
+    for (auto &hf_major : hf_min_loki_versions)
+      if (hf_version >= hf_major.first && proof.snode_version_major < hf_major.second)
+        REJECT_PROOF("v" << hf_major.second << "+ loki version is required for v" << hf_version << "+ network proofs");
+
+    if (!debug_allow_local_ips && !epee::net_utils::is_ip_public(proof.public_ip))
+      REJECT_PROOF("public_ip is not actually public");
 
     //
-    // NOTE: Validate proof signature
+    // Validate proof signature
     //
-    {
-      crypto::hash hash = make_uptime_proof_hash(proof.pubkey, proof.timestamp, proof.public_ip, proof.storage_port);
-      bool signature_ok = crypto::check_signature(hash, proof.pubkey, proof.sig);
-      if (!debug_allow_local_ips && !epee::net_utils::is_ip_public(proof.public_ip)) return false; // Sanity check; we do the same on lokid startup
+    crypto::hash hash = make_uptime_proof_hash(proof.pubkey, proof.timestamp, proof.public_ip, proof.storage_port);
 
-      if (!signature_ok)
-      {
-        LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey << ": signature validation failed");
-        return false;
-      }
-    }
+    if (!crypto::check_signature(hash, proof.pubkey, proof.sig))
+      REJECT_PROOF("signature validation failed");
 
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
     auto it = m_state.service_nodes_infos.find(proof.pubkey);
     if (it == m_state.service_nodes_infos.end())
-    {
-      LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey << ": no such service node is currently registered");
-      return false;
-    }
+      REJECT_PROOF("no such service node is currently registered");
 
-    const service_node_info &info = *it->second;
-    if (info.proof->timestamp >= now - (UPTIME_PROOF_FREQUENCY_IN_SECONDS / 2))
-    {
-      LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey
-                                                  << ": already received one uptime proof for this node recently");
-      return false;
-    }
+    auto &iproof = *it->second->proof;
+
+    if (iproof.timestamp >= now - (UPTIME_PROOF_FREQUENCY_IN_SECONDS / 2))
+      REJECT_PROOF("already received one uptime proof for this node recently");
 
     if (m_service_node_pubkey && (proof.pubkey == *m_service_node_pubkey))
     {
@@ -2007,7 +1998,6 @@ namespace service_nodes
       LOG_PRINT_L2("Accepted uptime proof from " << proof.pubkey);
     }
 
-    auto &iproof = *info.proof;
     iproof.update_timestamp(now);
     iproof.version_major = proof.snode_version_major;
     iproof.version_minor = proof.snode_version_minor;
@@ -2015,10 +2005,10 @@ namespace service_nodes
     iproof.public_ip     = proof.public_ip;
     iproof.storage_port  = proof.storage_port;
 
-    // Track any IP changes (so that the obligations quorum can penalize for IP changes)
-    // First prune any stale (>1w) ip info.  1 week is probably excessive, but IP switches should be
-    // rare and this could, in theory, be useful for diagnostics.
-    auto &ips = info.proof->public_ips;
+    // Track an IP change (so that the obligations quorum can penalize for IP changes)
+    // We only keep the two most recent because all we really care about is whether it had more than one
+    auto &ips = iproof.public_ips;
+
     // If we already know about the IP, update its timestamp:
     if (ips[0].first && ips[0].first == proof.public_ip)
         ips[0].second = now;
@@ -2384,8 +2374,8 @@ namespace service_nodes
     // This is temporary code to redistribute the insufficient portion dust
     // amounts between contributors. It should be removed in HF12.
     //
-    std::array<uint64_t, MAX_NUMBER_OF_CONTRIBUTORS * service_nodes::MAX_KEY_IMAGES_PER_CONTRIBUTOR> excess_portions;
-    std::array<uint64_t, MAX_NUMBER_OF_CONTRIBUTORS * service_nodes::MAX_KEY_IMAGES_PER_CONTRIBUTOR> min_contributions;
+    std::array<uint64_t, MAX_NUMBER_OF_CONTRIBUTORS> excess_portions;
+    std::array<uint64_t, MAX_NUMBER_OF_CONTRIBUTORS> min_contributions;
     {
       // NOTE: Calculate excess portions from each contributor
       uint64_t loki_reserved = 0;
@@ -2443,7 +2433,7 @@ namespace service_nodes
 
           // NOTE: Operator is sending in the minimum amount and it falls below
           // the minimum by dust, just increase the portions so it passes
-          if (needed > 0 && addr_to_portions.size() < MAX_NUMBER_OF_CONTRIBUTORS * service_nodes::MAX_KEY_IMAGES_PER_CONTRIBUTOR)
+          if (needed > 0 && addr_to_portions.size() < MAX_NUMBER_OF_CONTRIBUTORS)
             addr_to_portion.portions += needed;
       }
 
