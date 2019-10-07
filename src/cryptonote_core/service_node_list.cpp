@@ -33,6 +33,10 @@
 
 #include <boost/endian/conversion.hpp>
 
+extern "C" {
+#include <sodium.h>
+}
+
 #include "ringct/rctSigs.h"
 #include "wallet/wallet2.h"
 #include "cryptonote_tx_utils.h"
@@ -56,6 +60,10 @@ namespace service_nodes
 {
   size_t constexpr STORE_LONG_TERM_STATE_INTERVAL = 10000;
 
+  constexpr int X25519_MAP_PRUNING_INTERVAL = 5*60;
+  constexpr int X25519_MAP_PRUNING_LAG = 24*60*60;
+  static_assert(X25519_MAP_PRUNING_LAG > UPTIME_PROOF_MAX_TIME_IN_SECONDS, "x25519 map pruning lag is too short!");
+
   static uint64_t short_term_state_cull_height(uint8_t hf_version, cryptonote::BlockchainDB const *db, uint64_t block_height)
   {
     size_t constexpr DEFAULT_SHORT_TERM_STATE_HISTORY = 6 * STATE_CHANGE_TX_LIFETIME_IN_BLOCKS;
@@ -72,10 +80,12 @@ namespace service_nodes
     return result;
   }
 
-  static int get_min_service_node_info_version_for_hf(uint8_t hf_version)
-  {
-    return service_node_info::version_1_add_registration_hf_version;
-  }
+  static constexpr service_node_info::version_t get_min_service_node_info_version_for_hf(uint8_t hf_version)
+   {
+    return hf_version < cryptonote::network_version_13_enforce_checkpoints
+      ? service_node_info::version_t::v1_add_registration_hf_version
+      : service_node_info::version_t::v2_ed25519;
+   }
 
   service_node_list::service_node_list(cryptonote::Blockchain &blockchain)
   : m_blockchain(blockchain)
@@ -746,7 +756,7 @@ namespace service_nodes
             continue;
 
           parsed_contribution.locked_contributions.emplace_back(
-              service_node_info::version_0_checkpointing,
+              service_node_info::contribution_t::version_t::v0,
               ephemeral_pub_key,
               proof->key_image,
               transferred
@@ -887,6 +897,8 @@ namespace service_nodes
     info.swarm_id                      = UNASSIGNED_SWARM_ID;
     info.proof->public_ip              = 0;
     info.proof->storage_port           = 0;
+    info.proof->pubkey_ed25519         = crypto::ed25519_public_key::null();
+    info.proof->pubkey_x25519          = crypto::x25519_public_key::null();
     info.last_ip_change_height         = block_height;
     info.version                       = get_min_service_node_info_version_for_hf(hf_version);
 
@@ -1884,23 +1896,18 @@ namespace service_nodes
     }
   }
 
-  static crypto::hash make_uptime_proof_hash(crypto::public_key const &pubkey, uint64_t timestamp, uint32_t pub_ip, uint16_t storage_port)
+  static crypto::hash hash_uptime_proof(const cryptonote::NOTIFY_UPTIME_PROOF::request &proof, uint8_t hf_version)
   {
-    constexpr size_t BUFFER_SIZE = sizeof(pubkey) + sizeof(timestamp) + sizeof(pub_ip) + sizeof(storage_port);
+    // NB: quorumnet_port isn't actually used or exposed yet; including it in the HF13 proof and
+    // hash, however, allows HF14 nodes start broadcasting it to the network immediately (rather
+    // than waiting for the fork) so that they are immediately accessible at the HF14 fork.
+    auto buf = tools::memcpy_le(proof.pubkey, proof.timestamp, proof.public_ip, proof.storage_port, proof.pubkey_ed25519, proof.qnet_port);
+    size_t buf_size = buf.size();
+    if (hf_version < HF_VERSION_ED25519_KEY) // TODO - can be removed post-HF13
+      buf_size -= (sizeof(proof.pubkey_ed25519) + sizeof(proof.qnet_port));
 
-    boost::endian::native_to_little_inplace(timestamp);
-    boost::endian::native_to_little_inplace(pub_ip);
-    boost::endian::native_to_little_inplace(storage_port);
-
-    char buf[BUFFER_SIZE];
     crypto::hash result;
-    memcpy(buf, reinterpret_cast<const void *>(&pubkey), sizeof(pubkey));
-    memcpy(buf + sizeof(pubkey), reinterpret_cast<const void *>(&timestamp), sizeof(timestamp));
-    memcpy(buf + sizeof(pubkey) + sizeof(timestamp), reinterpret_cast<const void *>(&pub_ip), sizeof(pub_ip));
-    memcpy(buf + sizeof(pubkey) + sizeof(timestamp) + sizeof(pub_ip), reinterpret_cast<const void *>(&storage_port), sizeof(storage_port));
-
-    crypto::cn_fast_hash(buf, sizeof(buf), result);
-
+    crypto::cn_fast_hash(buf.data(), buf_size, result);
     return result;
   }
 
@@ -1915,9 +1922,12 @@ namespace service_nodes
     result.pubkey                                   = keys.pub;
     result.public_ip                                = public_ip;
     result.storage_port                             = storage_port;
+    result.qnet_port                                = 0; // Reserved for HF14
+    result.pubkey_ed25519                           = keys.pub_ed25519;
 
-    crypto::hash hash = make_uptime_proof_hash(keys.pub, result.timestamp, public_ip, storage_port);
+    crypto::hash hash = hash_uptime_proof(result, m_blockchain.get_current_hard_fork_version());
     crypto::generate_signature(hash, keys.pub, keys.key, result.sig);
+    crypto_sign_detached(result.sig_ed25519.data, NULL, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), keys.key_ed25519.data);
     return result;
   }
 
@@ -1942,6 +1952,14 @@ namespace service_nodes
     {cryptonote::network_version_10_bulletproofs,         2},
   };
 
+  void service_node_info::derive_x25519_pubkey_from_ed25519() {
+    if (0 != crypto_sign_ed25519_pk_to_curve25519(proof->pubkey_x25519.data, proof->pubkey_ed25519.data)) {
+      proof->pubkey_x25519 = crypto::x25519_public_key::null();
+      proof->pubkey_ed25519 = crypto::ed25519_public_key::null();
+    }
+
+  }
+
 #define REJECT_PROOF(log) do { LOG_PRINT_L2("Rejecting uptime proof from " << proof.pubkey << ": " log); return false; } while (0)
 
   bool service_node_list::handle_uptime_proof(cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool &my_uptime_proof_confirmation)
@@ -1963,10 +1981,26 @@ namespace service_nodes
     //
     // Validate proof signature
     //
-    crypto::hash hash = make_uptime_proof_hash(proof.pubkey, proof.timestamp, proof.public_ip, proof.storage_port);
+    crypto::hash hash = hash_uptime_proof(proof, hf_version);
 
     if (!crypto::check_signature(hash, proof.pubkey, proof.sig))
       REJECT_PROOF("signature validation failed");
+
+    crypto::x25519_public_key derived_x25519_pubkey = crypto::x25519_public_key::null();
+    if (hf_version >= HF_VERSION_ED25519_KEY)
+    {
+      if (!debug_allow_local_ips && !epee::net_utils::is_ip_public(proof.public_ip)) return false; // Sanity check; we do the same on lokid startup
+
+      if (!proof.pubkey_ed25519)
+        REJECT_PROOF("required ed25519 auxiliary pubkey " << epee::string_tools::pod_to_hex(proof.pubkey_ed25519) << " not included in proof");
+
+      if (0 != crypto_sign_verify_detached(proof.sig_ed25519.data, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), proof.pubkey_ed25519.data))
+        REJECT_PROOF("ed25519 signature validation failed");
+
+      if (0 != crypto_sign_ed25519_pk_to_curve25519(derived_x25519_pubkey.data, proof.pubkey_ed25519.data)
+          || !derived_x25519_pubkey)
+        REJECT_PROOF("invalid ed25519 pubkey included in proof (x25519 derivation failed)");
+    }
 
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
     auto it = m_state.service_nodes_infos.find(proof.pubkey);
@@ -1996,6 +2030,23 @@ namespace service_nodes
     iproof.public_ip     = proof.public_ip;
     iproof.storage_port  = proof.storage_port;
 
+    if (hf_version >= HF_VERSION_ED25519_KEY)
+    {
+      time_t now = std::time(nullptr);
+      if (m_x25519_map_last_pruned + X25519_MAP_PRUNING_INTERVAL <= now)
+      {
+        time_t cutoff = now - 24*60*60;
+        erase_if(m_x25519_to_pub, [&cutoff](const decltype(m_x25519_to_pub)::value_type &x) { return x.second.second < cutoff; });
+        m_x25519_map_last_pruned = now;
+      }
+
+      iproof.pubkey_ed25519 = proof.pubkey_ed25519;
+      if (iproof.pubkey_x25519 && iproof.pubkey_x25519 != derived_x25519_pubkey)
+        m_x25519_to_pub.erase(iproof.pubkey_x25519);
+      iproof.pubkey_x25519 = derived_x25519_pubkey;
+      m_x25519_to_pub[derived_x25519_pubkey] = {proof.pubkey, now};
+    }
+
     // Track an IP change (so that the obligations quorum can penalize for IP changes)
     // We only keep the two most recent because all we really care about is whether it had more than one
     auto &ips = iproof.public_ips;
@@ -2012,6 +2063,13 @@ namespace service_nodes
         ips[0] = {proof.public_ip, now};
 
     return true;
+  }
+
+  crypto::public_key service_node_list::get_pubkey_from_x25519(const crypto::x25519_public_key &x25519) const {
+    auto it = m_x25519_to_pub.find(x25519);
+    if (it != m_x25519_to_pub.end())
+      return it->second.first;
+    return crypto::null_pkey;
   }
 
   void service_node_list::record_checkpoint_vote(crypto::public_key const &pubkey, uint64_t height, bool voted)
@@ -2078,11 +2136,20 @@ namespace service_nodes
 
     for (auto &pubkey_info : state.infos)
     {
-      if (pubkey_info.info->version == service_node_info::version_0_checkpointing)
+      auto &info = const_cast<service_node_info &>(*pubkey_info.info);
+      if (info.version < service_node_info::version_t::v1_add_registration_hf_version)
       {
-        const_cast<service_node_info &>(*pubkey_info.info).version = service_node_info::version_1_add_registration_hf_version;
-        const_cast<service_node_info &>(*pubkey_info.info).registration_hf_version = blockchain.get_hard_fork_version(pubkey_info.info->registration_height);
+        info.version = service_node_info::version_t::v1_add_registration_hf_version;
+        info.registration_hf_version = blockchain.get_hard_fork_version(pubkey_info.info->registration_height);
       }
+      if (info.version < service_node_info::version_t::v2_ed25519)
+      {
+        // Nothing to do here (the missing data only comes in via uptime proof).
+        info.version = service_node_info::version_t::v2_ed25519;
+      }
+      // Make sure we handled any future state version upgrades:
+      assert(info.version == service_node_info::version_t::count - 1);
+
       service_nodes_infos.emplace(std::move(pubkey_info.pubkey), std::move(pubkey_info.info));
     }
     quorums = quorum_for_serialization_to_quorum_manager(state.quorums);
@@ -2165,8 +2232,15 @@ namespace service_nodes
         }
         else
         {
-          for (state_serialized &entry : data_in.states)
+          for (state_serialized &entry : data_in.states) {
+            for (auto &pki : entry.infos)
+            {
+              if (const auto &x25519_pub = pki.info->proof->pubkey_x25519)
+                m_x25519_to_pub[x25519_pub] = {pki.pubkey, time_t(nullptr)};
+            }
+
             m_state_archive.emplace_hint(m_state_archive.end(), m_blockchain, std::move(entry));
+          }
         }
       }
     }

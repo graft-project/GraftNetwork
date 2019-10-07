@@ -38,6 +38,10 @@ using namespace epee;
 #include <unordered_set>
 #include <iomanip>
 
+extern "C" {
+#include <sodium.h>
+}
+
 #include "cryptonote_core.h"
 #include "common/util.h"
 #include "common/updates.h"
@@ -869,6 +873,35 @@ namespace cryptonote
       return false;
 
     MGINFO_YELLOW("Service node primary pubkey is " << epee::string_tools::pod_to_hex(keys.pub));
+
+    static_assert(
+        sizeof(crypto::ed25519_public_key) == crypto_sign_ed25519_PUBLICKEYBYTES &&
+        sizeof(crypto::ed25519_secret_key) == crypto_sign_ed25519_SECRETKEYBYTES &&
+        sizeof(crypto::ed25519_signature) == crypto_sign_BYTES &&
+        sizeof(crypto::x25519_public_key) == crypto_scalarmult_curve25519_BYTES &&
+        sizeof(crypto::x25519_secret_key) == crypto_scalarmult_curve25519_BYTES,
+        "Invalid ed25519/x25519 sizes");
+
+    // Secondary standard ed25519 key, usable in tools wanting standard ed25519 keys
+    //
+    // TODO(loki) - eventually it would be nice to make this become the only key pair that gets used
+    // for new registrations instead of the above.  We'd still need to keep the above for
+    // compatibility with existing stakes registered before the relevant fork height, but we could
+    // then avoid needing to include this secondary key in uptime proofs for new SN registrations.
+    if (!init_key(m_config_folder + "/key_ed25519", keys.key_ed25519, keys.pub_ed25519,
+          [](crypto::ed25519_secret_key &sk, crypto::ed25519_public_key &pk) { crypto_sign_ed25519_sk_to_pk(pk.data, sk.data); return true; },
+          [](crypto::ed25519_secret_key &sk, crypto::ed25519_public_key &pk) { crypto_sign_ed25519_keypair(pk.data, sk.data); })
+       )
+      return false;
+
+    MGINFO_YELLOW("Service node ed25519 pubkey is " << epee::string_tools::pod_to_hex(keys.pub_ed25519));
+
+    // Standard x25519 keys generated from the ed25519 keypair, used for encrypted communication between SNs
+    int rc = crypto_sign_ed25519_pk_to_curve25519(keys.pub_x25519.data, keys.pub_ed25519.data);
+    CHECK_AND_ASSERT_MES(rc == 0, false, "failed to convert ed25519 pubkey to x25519");
+    crypto_sign_ed25519_sk_to_curve25519(keys.key_x25519.data, keys.key_ed25519.data);
+
+    MGINFO_YELLOW("Service node x25519 pubkey is " << epee::string_tools::pod_to_hex(keys.pub_x25519));
 
     return true;
   }
