@@ -34,6 +34,7 @@
 #include "cryptonote_basic/connection_context.h"
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
 #include "checkpoints/checkpoints.h"
+#include "common/util.h"
 
 #include "misc_log_ex.h"
 #include "string_tools.h"
@@ -53,21 +54,14 @@ namespace service_nodes
   {
     uint16_t state_int = static_cast<uint16_t>(state);
 
-    char buf[sizeof(block_height) + sizeof(service_node_index) + sizeof(state_int)];
+    auto buf = tools::memcpy_le(block_height, service_node_index, state_int);
 
-    boost::endian::native_to_little_inplace(block_height);
-    boost::endian::native_to_little_inplace(service_node_index);
-    boost::endian::native_to_little_inplace(state_int);
-    memcpy(buf,                                                     &block_height,       sizeof(block_height));
-    memcpy(buf + sizeof(block_height),                              &service_node_index, sizeof(service_node_index));
-    memcpy(buf + sizeof(block_height) + sizeof(service_node_index), &state_int,          sizeof(state_int));
-
-    auto size = sizeof(buf);
+    auto size = buf.size();
     if (state == new_state::deregister)
-        size -= sizeof(uint16_t); // Don't include state value for deregs (to be backwards compatible with pre-v12 dereg votes)
+        size -= sizeof(state_int); // Don't include state value for deregs (to be backwards compatible with pre-v12 dereg votes)
 
     crypto::hash result;
-    crypto::cn_fast_hash(buf, size, result);
+    crypto::cn_fast_hash(buf.data(), size, result);
     return result;
   }
 
