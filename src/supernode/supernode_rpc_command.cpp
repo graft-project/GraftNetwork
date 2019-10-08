@@ -60,6 +60,7 @@ DCALL(PoSTRSigned);
 DCALL(WalletGetPosData);
 DCALL(WalletProxyGetPosData);
 DCALL(GetWalletBalance)
+DCALL(GetWalletTransactions)
 DCALL(CreateAccount)
 DCALL(GetSeed)
 DCALL(RestoreAccount)
