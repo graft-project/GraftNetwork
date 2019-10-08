@@ -248,7 +248,7 @@ namespace cryptonote
               m_update_download(0),
               m_nettype(UNDEFINED),
               m_update_available(false),
-              m_last_storage_server_ping(time(nullptr)), // Reset the storage server last ping to make sure the very first uptime proof works
+              m_last_storage_server_ping(0),
               m_pad_transactions(false)
   {
     m_checkpoints_updating.clear();
@@ -1777,8 +1777,9 @@ namespace cryptonote
     const auto elapsed = std::time(nullptr) - last_time_storage_server_pinged;
     if (elapsed > STORAGE_SERVER_PING_LIFETIME)
     {
-      MWARNING("Have not heard from the storage server since at least: "
-               << tools::get_human_readable_timespan(std::chrono::seconds(last_time_storage_server_pinged)));
+      MWARNING("Have not heard from the storage server " <<
+              (!last_time_storage_server_pinged ? "since starting" :
+               "for more than " + tools::get_human_readable_timespan(std::chrono::seconds(elapsed))));
       return false;
     }
     return true;
@@ -1795,24 +1796,12 @@ namespace cryptonote
       m_check_uptime_proof_interval.do_call([&info, this]() {
         if (info.proof->timestamp <= static_cast<uint64_t>(time(nullptr) - UPTIME_PROOF_FREQUENCY_IN_SECONDS))
         {
-          uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
-
           if (!check_storage_server_ping(m_last_storage_server_ping))
           {
-            if (hf_version >= cryptonote::network_version_12_checkpointing)
-            {
-              MGINFO_RED(
-                  "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
-                  "is running! It is required to run alongside the Loki daemon after hard-fork 12");
-              return true;
-            }
-            else
-            {
-              MGINFO_RED(
-                  "We have not heard from the storage server recently. Make sure that it is running! After hard fork "
-                  "12, this Service Node will stop submitting uptime proofs if it does not hear from the Loki Storage "
-                  "Server.");
-            }
+            MGINFO_RED(
+                "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
+                "is running! It is required to run alongside the Loki daemon");
+            return true;
           }
 
           this->submit_uptime_proof();
