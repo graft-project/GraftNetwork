@@ -3,7 +3,7 @@
 #include "int-util.h"
 #include <vector>
 #include <boost/lexical_cast.hpp>
-#include <fenv.h>
+#include <cfenv>
 
 #include "service_node_rules.h"
 
@@ -17,7 +17,7 @@ uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t he
 
   if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
   {
-    constexpr uint64_t y[] = {
+    constexpr int64_t heights[] = {
         385824,
         429024,
         472224,
@@ -33,7 +33,7 @@ uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t he
         1000000,
     };
 
-    constexpr uint64_t x[] = {
+    constexpr int64_t lsr[] = {
         20458380815527,
         19332319724305,
         18438564443912,
@@ -49,25 +49,25 @@ uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t he
         15000000000000,
     };
 
-    assert(height >= y[0]);
-    constexpr uint64_t LAST_HEIGHT      = y[loki::array_count(y) - 1];
-    constexpr uint64_t LAST_REQUIREMENT = x[loki::array_count(x) - 1];
+    assert(height >= heights[0]);
+    constexpr uint64_t LAST_HEIGHT      = heights[loki::array_count(heights) - 1];
+    constexpr uint64_t LAST_REQUIREMENT = lsr    [loki::array_count(lsr) - 1];
     if (height >= LAST_HEIGHT)
         return LAST_REQUIREMENT;
 
     size_t i = 0;
-    for (size_t index = 0; index < loki::array_count(y); index++)
+    for (size_t index = 1; index < loki::array_count(heights); index++)
     {
-      if (y[index] > height)
+      if (heights[index] > static_cast<int64_t>(height))
       {
         i = (index - 1);
         break;
       }
     }
 
-    uint64_t H      = height;
-    uint64_t result = y[i] + (H - x[i]) * ((y[i + 1] - y[i]) / (x[i + 1] - x[i]));
-    return result;
+    int64_t H      = height;
+    int64_t result = lsr[i] + (H - heights[i]) * ((lsr[i + 1] - lsr[i]) / (heights[i + 1] - heights[i]));
+    return static_cast<uint64_t>(result);
   }
 
   uint64_t hardfork_height = m_nettype == cryptonote::MAINNET ? 101250 : 96210 /* stagenet */;
