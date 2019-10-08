@@ -3,6 +3,7 @@
 #include "int-util.h"
 #include <vector>
 #include <boost/lexical_cast.hpp>
+#include <fenv.h>
 
 #include "service_node_rules.h"
 
@@ -14,6 +15,61 @@ uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t he
   if (m_nettype == cryptonote::TESTNET || m_nettype == cryptonote::FAKECHAIN)
       return COIN * 100;
 
+  if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
+  {
+    constexpr uint64_t y[] = {
+        385824,
+        429024,
+        472224,
+        515424,
+        558624,
+        601824,
+        645024,
+        688224,
+        731424,
+        774624,
+        817824,
+        861024,
+        1000000,
+    };
+
+    constexpr uint64_t x[] = {
+        20458380815527,
+        19332319724305,
+        18438564443912,
+        17729190407764,
+        17166159862153,
+        16719282221956,
+        16364595203882,
+        16083079931076,
+        15859641110978,
+        15682297601941,
+        15541539965538,
+        15429820555489,
+        15000000000000,
+    };
+
+    assert(height >= y[0]);
+    constexpr uint64_t LAST_HEIGHT      = y[loki::array_count(y) - 1];
+    constexpr uint64_t LAST_REQUIREMENT = x[loki::array_count(x) - 1];
+    if (height >= LAST_HEIGHT)
+        return LAST_REQUIREMENT;
+
+    size_t i = 0;
+    for (size_t index = 0; index < loki::array_count(y); index++)
+    {
+      if (y[index] > height)
+      {
+        i = (index - 1);
+        break;
+      }
+    }
+
+    uint64_t H      = height;
+    uint64_t result = y[i] + (H - x[i]) * ((y[i + 1] - y[i]) / (x[i + 1] - x[i]));
+    return result;
+  }
+
   uint64_t hardfork_height = m_nettype == cryptonote::MAINNET ? 101250 : 96210 /* stagenet */;
   if (height < hardfork_height) height = hardfork_height;
 
@@ -21,8 +77,11 @@ uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t he
   uint64_t base = 0, variable = 0;
   if (hf_version >= cryptonote::network_version_11_infinite_staking)
   {
+    auto round_method = std::fegetround();
+    std::fesetround(FE_TONEAREST);
     base     = 15000 * COIN;
     variable = (25007.0 * COIN) / loki::exp2(height_adjusted/129600.0);
+    std::fesetround(round_method);
   }
   else
   {
