@@ -2141,19 +2141,20 @@ namespace service_nodes
 
     for (auto &pubkey_info : state.infos)
     {
+      using version_t = service_node_info::version_t;
       auto &info = const_cast<service_node_info &>(*pubkey_info.info);
-      if (info.version < service_node_info::version_t::v1_add_registration_hf_version)
+      if (info.version < version_t::v1_add_registration_hf_version)
       {
-        info.version = service_node_info::version_t::v1_add_registration_hf_version;
+        info.version = version_t::v1_add_registration_hf_version;
         info.registration_hf_version = blockchain.get_hard_fork_version(pubkey_info.info->registration_height);
       }
-      if (info.version < service_node_info::version_t::v2_ed25519)
+      if (info.version < version_t::v2_ed25519)
       {
         // Nothing to do here (the missing data only comes in via uptime proof).
-        info.version = service_node_info::version_t::v2_ed25519;
+        info.version = version_t::v2_ed25519;
       }
       // Make sure we handled any future state version upgrades:
-      assert(info.version == service_node_info::version_t::count - 1);
+      assert(info.version == static_cast<version_t>(static_cast<uint8_t>(version_t::count) - 1));
 
       service_nodes_infos.emplace(std::move(pubkey_info.pubkey), std::move(pubkey_info.info));
     }
