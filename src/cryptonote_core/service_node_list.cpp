@@ -1039,19 +1039,22 @@ namespace service_nodes
       return false;
     }
 
-    auto &info = duplicate_info(iter->second);
-    auto &contributors = info.contributors;
-
-    auto contrib_iter = std::find_if(contributors.begin(), contributors.end(),
-        [&parsed_contribution](const service_node_info::contributor_t& contributor) { return contributor.address == parsed_contribution.address; });
-    const bool new_contributor = (contrib_iter == contributors.end());
+    auto &contributors = curinfo.contributors;
+    bool new_contributor = true;
+    size_t contributor_position = 0;
+    for (size_t i = 0; i < contributors.size(); i++)
+      if (contributors[i].address == parsed_contribution.address){
+        contributor_position = i;
+        new_contributor = false;
+        break;
+      }
 
     // Check node contributor counts
     {
       bool too_many_contributions = false;
       if (hf_version >= cryptonote::network_version_11_infinite_staking)
         // As of HF11 we allow up to 4 stakes total.
-        too_many_contributions = info.total_num_locked_contributions() + parsed_contribution.locked_contributions.size() > MAX_NUMBER_OF_CONTRIBUTORS;
+        too_many_contributions = curinfo.total_num_locked_contributions() + parsed_contribution.locked_contributions.size() > MAX_NUMBER_OF_CONTRIBUTORS;
       else
         // Before HF11 we allowed up to 4 contributors, but each can contribute multiple times
         too_many_contributions = new_contributor && contributors.size() >= MAX_NUMBER_OF_CONTRIBUTORS;
@@ -1071,7 +1074,7 @@ namespace service_nodes
       const uint64_t min_contribution =
         (!new_contributor && hf_version < cryptonote::network_version_11_infinite_staking)
         ? 1 // Follow-up contributions from an existing contributor could be any size before HF11
-        : get_min_node_contribution(hf_version, info.staking_requirement, info.total_reserved, info.total_num_locked_contributions());
+        : get_min_node_contribution(hf_version, curinfo.staking_requirement, curinfo.total_reserved, curinfo.total_num_locked_contributions());
 
       if (parsed_contribution.transferred < min_contribution)
       {
@@ -1084,16 +1087,18 @@ namespace service_nodes
       }
     }
 
+    //
+    // Successfully Validated
+    //
+
+    auto &info = duplicate_info(iter->second);
     if (new_contributor)
     {
-      //
-      // Successfully Validated
-      //
-      contrib_iter          = info.contributors.emplace(contributors.end());
-      contrib_iter->address = parsed_contribution.address;
+      contributor_position = info.contributors.size();
+      info.contributors.emplace_back();
+      info.contributors.back().address = parsed_contribution.address;
     }
-
-    service_node_info::contributor_t& contributor = *contrib_iter;
+    service_node_info::contributor_t& contributor = info.contributors[contributor_position];
 
     // In this action, we cannot
     // increase total_reserved so much that it is >= staking_requirement
