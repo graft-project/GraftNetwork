@@ -87,7 +87,6 @@ namespace service_nodes {
   constexpr size_t   DECOMMISSIONED_REDISTRIBUTION_LOWER_PERCENTILE = 0;
   // The upper swarm percentile that will be randomly selected during stealing
   constexpr size_t   STEALING_SWARM_UPPER_PERCENTILE  = 75;
-  constexpr int      MAX_KEY_IMAGES_PER_CONTRIBUTOR   = 1;
   constexpr uint64_t KEY_IMAGE_AWAITING_UNLOCK_HEIGHT = 0;
 
   constexpr uint64_t STATE_CHANGE_TX_LIFETIME_IN_BLOCKS = VOTE_LIFETIME;

@@ -186,20 +186,16 @@ bool loki_checkpointing_alt_chain_receive_checkpoint_votes_should_reorg_back::ge
   // First send the votes for the newest checkpoint, we should reorg back halfway
   for (size_t i = 0; i < service_nodes::CHECKPOINT_MIN_VOTES; i++)
   {
-    crypto::public_key const &pub_key = second_quorum->validators[i];
-    assert(gen.service_node_keys_.count(pub_key) == 1);
-    crypto::secret_key const &sec_key = gen.service_node_keys_[pub_key];
-    service_nodes::quorum_vote_t fork_vote = service_nodes::make_checkpointing_vote(second_checkpointed_height_hf, second_checkpointed_hash, second_checkpointed_height, i, pub_key, sec_key);
+    auto keys = gen.get_cached_keys(second_quorum->validators[i]);
+    service_nodes::quorum_vote_t fork_vote = service_nodes::make_checkpointing_vote(second_checkpointed_height_hf, second_checkpointed_hash, second_checkpointed_height, i, keys);
     events.push_back(loki_blockchain_addable<service_nodes::quorum_vote_t>(fork_vote, true/*can_be_added_to_blockchain*/, "A second_checkpoint vote from the forked chain should be accepted since we should be storing alternative service node states and quorums"));
   }
 
   // Then we send the votes for the next newest checkpoint, we should reorg back to our forking point
   for (size_t i = 0; i < service_nodes::CHECKPOINT_MIN_VOTES; i++)
   {
-    crypto::public_key const &pub_key = first_quorum->validators[i];
-    assert(gen.service_node_keys_.count(pub_key) == 1);
-    crypto::secret_key const &sec_key = gen.service_node_keys_[pub_key];
-    service_nodes::quorum_vote_t fork_vote = service_nodes::make_checkpointing_vote(first_checkpointed_height_hf, first_checkpointed_hash, first_checkpointed_height, i, pub_key, sec_key);
+    auto keys = gen.get_cached_keys(first_quorum->validators[i]);
+    service_nodes::quorum_vote_t fork_vote = service_nodes::make_checkpointing_vote(first_checkpointed_height_hf, first_checkpointed_hash, first_checkpointed_height, i, keys);
     events.push_back(loki_blockchain_addable<service_nodes::quorum_vote_t>(fork_vote, true/*can_be_added_to_blockchain*/, "A first_checkpoint vote from the forked chain should be accepted since we should be storing alternative service node states and quorums"));
   }
 
@@ -336,16 +332,18 @@ bool loki_checkpointing_service_node_checkpoint_from_votes::generate(std::vector
   std::vector<service_nodes::quorum_vote_t> checkpoint_votes(service_nodes::CHECKPOINT_MIN_VOTES);
   for (size_t i = 0; i < service_nodes::CHECKPOINT_MIN_VOTES; i++)
   {
-    crypto::public_key const &pub_key = quorum->validators[i];
-    assert(gen.service_node_keys_.count(pub_key) == 1);
-    crypto::secret_key const &sec_key = gen.service_node_keys_[pub_key];
-    checkpoint_votes[i] = service_nodes::make_checkpointing_vote(gen.top().block.major_version, checkpointed_hash, checkpointed_height, i, pub_key, sec_key);
+    auto keys = gen.get_cached_keys(quorum->validators[i]);
+    checkpoint_votes[i] = service_nodes::make_checkpointing_vote(gen.top().block.major_version, checkpointed_hash, checkpointed_height, i, keys);
   }
 
   // NOTE: Submit invalid vote using service node keys not in the quorum
   {
-    const cryptonote::keypair &invalid_keys = cryptonote::keypair::generate(hw::get_device("default"));
-    service_nodes::quorum_vote_t invalid_vote = service_nodes::make_checkpointing_vote(gen.top().block.major_version, checkpointed_hash, checkpointed_height, 0, invalid_keys.pub, invalid_keys.sec);
+    const cryptonote::keypair invalid_kp = cryptonote::keypair::generate(hw::get_device("default"));
+    service_nodes::service_node_keys invalid_keys;
+    invalid_keys.pub = invalid_kp.pub;
+    invalid_keys.key = invalid_kp.sec;
+
+    service_nodes::quorum_vote_t invalid_vote = service_nodes::make_checkpointing_vote(gen.top().block.major_version, checkpointed_hash, checkpointed_height, 0, invalid_keys);
     gen.events_.push_back(loki_blockchain_addable<decltype(invalid_vote)>(
         invalid_vote,
         false /*can_be_added_to_blockchain*/,
@@ -660,8 +658,8 @@ bool loki_core_test_deregister_safety_buffer::generate(std::vector<test_event_en
 
   /// Register the node again
   {
-    assert(gen.service_node_keys_.count(deregister_pub_key) == 1);
-    cryptonote::keypair pair = {deregister_pub_key, gen.service_node_keys_[deregister_pub_key]};
+    auto keys = gen.get_cached_keys(deregister_pub_key);
+    cryptonote::keypair pair = {keys.pub, keys.key};
     const auto tx = gen.create_and_add_registration_tx(miner, pair);
     gen.create_and_add_next_block({tx});
   }

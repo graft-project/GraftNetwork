@@ -135,6 +135,10 @@ TEST(service_nodes, vote_validation)
   cryptonote::keypair service_node_voter = cryptonote::keypair::generate(hw::get_device("default"));
   int voter_index = 0;
 
+  service_nodes::service_node_keys voter_keys;
+  voter_keys.pub = service_node_voter.pub;
+  voter_keys.key = service_node_voter.sec;
+
   service_nodes::testing_quorum state = {};
   {
     state.validators.resize(10);
@@ -149,7 +153,7 @@ TEST(service_nodes, vote_validation)
 
   // Valid vote
   uint64_t block_height = 70;
-  service_nodes::quorum_vote_t valid_vote = service_nodes::make_state_change_vote(block_height, voter_index, 1 /*worker_index*/, service_nodes::new_state::decommission, service_node_voter.pub, service_node_voter.sec);
+  service_nodes::quorum_vote_t valid_vote = service_nodes::make_state_change_vote(block_height, voter_index, 1 /*worker_index*/, service_nodes::new_state::decommission, voter_keys);
   {
     cryptonote::vote_verification_context vvc = {};
     bool result = verify_vote(valid_vote, block_height, vvc, state);
@@ -163,7 +167,7 @@ TEST(service_nodes, vote_validation)
   {
     auto vote           = valid_vote;
     vote.index_in_group = state.validators.size() + 10;
-    vote.signature      = service_nodes::make_signature_from_vote(vote, service_node_voter.pub, service_node_voter.sec);
+    vote.signature      = service_nodes::make_signature_from_vote(vote, voter_keys);
 
     cryptonote::vote_verification_context vvc = {};
     bool result                               = verify_vote(vote, block_height, vvc, state);
@@ -174,7 +178,7 @@ TEST(service_nodes, vote_validation)
   {
     auto vote                      = valid_vote;
     vote.state_change.worker_index = state.workers.size() + 10;
-    vote.signature = service_nodes::make_signature_from_vote(vote, service_node_voter.pub, service_node_voter.sec);
+    vote.signature = service_nodes::make_signature_from_vote(vote, voter_keys);
 
     cryptonote::vote_verification_context vvc = {};
     bool result = verify_vote(vote, block_height, vvc, state);
@@ -210,17 +214,18 @@ TEST(service_nodes, vote_validation)
 TEST(service_nodes, tx_extra_state_change_validation)
 {
   // Generate a quorum and the voter
-  const size_t num_voters = 10;
-  cryptonote::keypair voters[num_voters] = {};
+  std::array<service_nodes::service_node_keys, 10> voters = {};
 
   service_nodes::testing_quorum state = {};
   {
-    state.validators.resize(num_voters);
-    state.workers.resize(num_voters);
+    state.validators.resize(voters.size());
+    state.workers.resize(voters.size());
 
     for (size_t i = 0; i < state.validators.size(); ++i)
     {
-      voters[i]           = cryptonote::keypair::generate(hw::get_device("default"));
+      cryptonote::keypair voter = cryptonote::keypair::generate(hw::get_device("default"));
+      voters[i].pub = voter.pub;
+      voters[i].key = voter.sec;
       state.validators[i] = voters[i].pub;
       state.workers[i]    = cryptonote::keypair::generate(hw::get_device("default")).pub;
     }
@@ -233,13 +238,12 @@ TEST(service_nodes, tx_extra_state_change_validation)
   {
     valid_state_change.block_height       = HEIGHT - 1;
     valid_state_change.service_node_index = 1;
-    valid_state_change.votes.reserve(num_voters);
-    for (size_t i = 0; i < num_voters; ++i)
+    valid_state_change.votes.reserve(voters.size());
+    for (size_t i = 0; i < voters.size(); ++i)
     {
-      cryptonote::keypair const *voter                        = voters + i;
       cryptonote::tx_extra_service_node_state_change::vote vote = {};
       vote.validator_index                                    = i;
-      vote.signature = service_nodes::make_signature_from_tx_state_change(valid_state_change, voter->pub, voter->sec);
+      vote.signature = service_nodes::make_signature_from_tx_state_change(valid_state_change, voters[i]);
       valid_state_change.votes.push_back(vote);
     }
 

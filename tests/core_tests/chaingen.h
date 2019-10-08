@@ -1351,6 +1351,8 @@ struct loki_chain_generator
   mutable std::unordered_map<crypto::public_key, crypto::secret_key>  service_node_keys_;
   std::set<service_nodes::service_node_list::state_t>                 state_history_;
 
+  service_nodes::service_node_keys get_cached_keys(const crypto::public_key &pubkey) const;
+
   // TODO(loki): I want to store pointers to transactions but I get some memory corruption somewhere. Pls fix.
   // We already store blockchain_entries in block_ vector which stores the actual backing transaction entries.
   std::unordered_map<crypto::hash, cryptonote::transaction>   tx_table_;
