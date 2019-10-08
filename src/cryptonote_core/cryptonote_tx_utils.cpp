@@ -45,6 +45,7 @@ using namespace epee;
 #include "ringct/rctSigs.h"
 #include "multisig/multisig.h"
 #include "int-util.h"
+#include <cfenv>
 
 using namespace crypto;
 
@@ -981,6 +982,7 @@ namespace cryptonote
   {
     blobdata bd = get_block_hashing_blob(b);
     rx_slow_hash(main_height, seed_height, seed_hash.data, bd.data(), bd.size(), res.data, 0, 1);
+    std::fesetround(FE_TONEAREST);
   }
 
   bool get_block_longhash(const Blockchain *pbc, const block& b, crypto::hash& res, const uint64_t height, const int miners)
@@ -993,7 +995,8 @@ namespace cryptonote
     const_cast<int &>(miners) = 0;
 #endif
 
-    if (hf_version >= network_version_12_checkpointing) {
+    if (hf_version >= network_version_12_checkpointing)
+    {
       uint64_t seed_height, main_height;
       crypto::hash hash;
       if (pbc != NULL)
@@ -1008,6 +1011,7 @@ namespace cryptonote
         main_height = 0;
       }
       rx_slow_hash(main_height, seed_height, hash.data, bd.data(), bd.size(), res.data, miners, 0);
+      std::fesetround(FE_TONEAREST);
       return true;
     }
 
