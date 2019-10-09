@@ -44,6 +44,7 @@ using namespace epee;
 #include "int-util.h"
 #include "common/dns_utils.h"
 #include "common/loki.h"
+#include <cfenv>
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "cn"
