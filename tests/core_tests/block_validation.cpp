@@ -334,7 +334,7 @@ bool gen_block_miner_tx_has_2_in::generate(std::vector<test_event_entry>& events
 
   transaction tmp_tx;
 
-  if (!TxBuilder(events, tmp_tx, blk_0r, miner_account, miner_account, blk_0.miner_tx.vout[0].amount, cryptonote::network_version_7).build())
+  if (!loki_tx_builder(events, tmp_tx, blk_0r, miner_account, miner_account, blk_0.miner_tx.vout[0].amount, cryptonote::network_version_7).build())
     return false;
 
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0r);
@@ -361,7 +361,7 @@ bool gen_block_miner_tx_with_txin_to_key::generate(std::vector<test_event_entry>
   REWIND_BLOCKS(events, blk_1r, blk_1, miner_account);
 
   transaction tmp_tx;
-  if (!TxBuilder(events, tmp_tx, blk_1r, miner_account, miner_account, blk_1.miner_tx.vout[0].amount, cryptonote::network_version_7).build())
+  if (!loki_tx_builder(events, tmp_tx, blk_1r, miner_account, miner_account, blk_1.miner_tx.vout[0].amount, cryptonote::network_version_7).build())
     return false;
 
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_1);
@@ -409,6 +409,16 @@ bool gen_block_miner_tx_has_no_out::generate(std::vector<test_event_entry>& even
   return true;
 }
 
+static crypto::public_key
+get_output_key(const cryptonote::keypair &txkey, const cryptonote::account_public_address &addr, size_t output_index)
+{
+  crypto::key_derivation derivation;
+  crypto::generate_key_derivation(addr.m_view_public_key, txkey.sec, derivation);
+  crypto::public_key out_eph_public_key;
+  crypto::derive_public_key(derivation, output_index, addr.m_spend_public_key, out_eph_public_key);
+  return out_eph_public_key;
+}
+
 static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
                                                  const cryptonote::account_public_address& miner_address,
                                                  size_t height,
@@ -429,8 +439,8 @@ static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
 
     // This will work, until size of constructed block is less then CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE
     const int hard_fork_version = 7; // NOTE(loki): We know this test doesn't need the new block reward formula
-    uint64_t block_reward;
-    if (!get_base_block_reward(0, 0, already_generated_coins, block_reward, 1, 0)) {
+    uint64_t block_reward, block_reward_unpenalized;
+    if (!get_base_block_reward(0, 0, already_generated_coins, block_reward, block_reward_unpenalized, 1, 0)) {
         LOG_PRINT_L0("Block is too big");
         return false;
     }
@@ -637,7 +647,7 @@ bool gen_block_invalid_binary_format::check_block_verification_context(const cry
   else
   {
     return (!bvc.m_added_to_main_chain && (bvc.m_already_exists || bvc.m_marked_as_orphaned || bvc.m_verifivation_failed))
-      || (bvc.m_added_to_main_chain && bvc.m_partial_block_reward);
+      || bvc.m_added_to_main_chain;
   }
 }
 

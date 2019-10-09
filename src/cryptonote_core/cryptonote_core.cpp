@@ -38,6 +38,10 @@ using namespace epee;
 #include <unordered_set>
 #include <iomanip>
 
+extern "C" {
+#include <sodium.h>
+}
+
 #include "cryptonote_core.h"
 #include "common/util.h"
 #include "common/updates.h"
@@ -56,7 +60,7 @@ using namespace epee;
 #include "ringct/rctSigs.h"
 #include "common/notify.h"
 #include "version.h"
-#include "wipeable_string.h"
+#include "memwipe.h"
 #include "common/i18n.h"
 #include "net/local_ip.h"
 
@@ -95,6 +99,11 @@ namespace cryptonote
     "fixed-difficulty"
   , "Fixed difficulty used for testing."
   , 0
+  };
+  const command_line::arg_descriptor<bool> arg_dev_allow_local  = {
+    "dev-allow-local-ips"
+  , "Allow a local IPs for local and received service node public IP (for local testing only)"
+  , false
   };
   const command_line::arg_descriptor<std::string, false, true, 2> arg_data_dir = {
     "data-dir"
@@ -248,7 +257,7 @@ namespace cryptonote
               m_update_download(0),
               m_nettype(UNDEFINED),
               m_update_available(false),
-              m_last_storage_server_ping(time(nullptr)), // Reset the storage server last ping to make sure the very first uptime proof works
+              m_last_storage_server_ping(0),
               m_pad_transactions(false)
   {
     m_checkpoints_updating.clear();
@@ -264,7 +273,6 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::update_checkpoints_from_json_file()
   {
-    if (m_nettype != MAINNET) return true;
     if (m_checkpoints_updating.test_and_set()) return true;
 
     // load json checkpoints every 10min and verify them with respect to what blocks we already have
@@ -310,6 +318,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_stagenet_on);
     command_line::add_arg(desc, arg_regtest_on);
     command_line::add_arg(desc, arg_fixed_difficulty);
+    command_line::add_arg(desc, arg_dev_allow_local);
     command_line::add_arg(desc, arg_prep_blocks_threads);
     command_line::add_arg(desc, arg_fast_block_sync);
     command_line::add_arg(desc, arg_show_time_stats);
@@ -357,9 +366,15 @@ namespace cryptonote
     if (command_line::get_arg(vm, arg_test_drop_download) == true)
       test_drop_download();
 
-    m_service_node = command_line::get_arg(vm, arg_service_node);
 
-    if (m_service_node) {
+    if (command_line::get_arg(vm, arg_dev_allow_local))
+      m_service_node_list.debug_allow_local_ips = true;
+
+    bool service_node = command_line::get_arg(vm, arg_service_node);
+
+    if (service_node) {
+      m_service_node_keys = std::make_shared<service_node_keys>(); // Will be updated or generated later, in init()
+
       /// TODO: parse these options early, before we start p2p server etc?
       m_storage_port = command_line::get_arg(vm, arg_sn_bind_port);
 
@@ -378,8 +393,12 @@ namespace cryptonote
         }
 
         if (!epee::net_utils::is_ip_public(m_sn_public_ip)) {
-          MERROR("Address given for public-ip is not public: " << epee::string_tools::get_ip_string_from_int32(m_sn_public_ip));
-          storage_ok = false;
+          if (m_service_node_list.debug_allow_local_ips) {
+            MWARNING("Address given for public-ip is not public; allowing it because dev-allow-local-ips was specified. This service node WILL NOT WORK ON THE PUBLIC LOKI NETWORK!");
+          } else {
+            MERROR("Address given for public-ip is not public: " << epee::string_tools::get_ip_string_from_int32(m_sn_public_ip));
+            storage_ok = false;
+          }
         }
       }
       else
@@ -523,11 +542,11 @@ namespace cryptonote
     bool prune_blockchain = command_line::get_arg(vm, arg_prune_blockchain);
     bool keep_alt_blocks = command_line::get_arg(vm, arg_keep_alt_blocks);
 
-    if (m_service_node)
+    if (m_service_node_keys)
     {
-      r = init_service_node_key();
+      r = init_service_node_keys();
       CHECK_AND_ASSERT_MES(r, false, "Failed to create or load service node key");
-      m_service_node_list.set_my_service_node_keys(&m_service_node_pubkey);
+      m_service_node_list.set_my_service_node_keys(m_service_node_keys);
     }
 
     boost::filesystem::path folder(m_config_folder);
@@ -659,7 +678,7 @@ namespace cryptonote
       if (db_salvage)
         db_flags |= DBF_SALVAGE;
 
-      db->open(filename, db_flags);
+      db->open(filename, m_nettype, db_flags);
       if(!db->m_open)
         return false;
     }
@@ -702,24 +721,24 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec");
     }
 
-    const std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks = {std::make_pair(1, 0), std::make_pair(Blockchain::get_hard_fork_heights(MAINNET).back().version, 1), std::make_pair(0, 0)};
+    const std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks = {std::make_pair(cryptonote::network_version_count - 1, 1)};
     const cryptonote::test_options regtest_test_options = {
       regtest_hard_forks,
       0
     };
-    const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
 
     BlockchainDB *initialized_db = db.release();
     // Service Nodes
     {
       m_service_node_list.set_db_pointer(initialized_db);
-
       m_service_node_list.set_quorum_history_storage(command_line::get_arg(vm, arg_store_quorum_history));
 
+      // NOTE: Implicit dependency. Service node list needs to be hooked before checkpoints.
       m_blockchain_storage.hook_block_added(m_service_node_list);
       m_blockchain_storage.hook_blockchain_detached(m_service_node_list);
       m_blockchain_storage.hook_init(m_service_node_list);
       m_blockchain_storage.hook_validate_miner_tx(m_service_node_list);
+      m_blockchain_storage.hook_alt_block_added(m_service_node_list);
 
       // NOTE: There is an implicit dependency on service node lists being hooked first!
       m_blockchain_storage.hook_init(m_quorum_cop);
@@ -735,6 +754,7 @@ namespace cryptonote
       m_checkpoints_path = checkpoint_json_hashfile_fullpath.string();
     }
 
+    const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
     r = m_blockchain_storage.init(initialized_db, m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
 
     if (!command_line::is_arg_defaulted(vm, arg_recalculate_difficulty))
@@ -759,7 +779,7 @@ namespace cryptonote
 
     block_sync_size = command_line::get_arg(vm, arg_block_sync_size);
     if (block_sync_size > BLOCKS_SYNCHRONIZING_MAX_COUNT)
-      MERROR("Error --dblock-sync-size cannot be greater than " << BLOCKS_SYNCHRONIZING_MAX_COUNT);
+      MERROR("Error --block-sync-size cannot be greater than " << BLOCKS_SYNCHRONIZING_MAX_COUNT);
 
     MGINFO("Loading checkpoints");
     CHECK_AND_ASSERT_MES(update_checkpoints_from_json_file(), false, "One or more checkpoints loaded from json conflicted with existing checkpoints.");
@@ -798,39 +818,90 @@ namespace cryptonote
       }
     }
 
-    return load_state_data();
+    return true;
   }
-  //-----------------------------------------------------------------------------------------------
-  bool core::init_service_node_key()
-  {
-    std::string keypath = m_config_folder + "/key";
+
+  /// Loads a key pair from disk, if it exists, otherwise generates a new key pair and saves it to
+  /// disk.
+  ///
+  /// get_pubkey - a function taking (privkey &, pubkey &) that sets the pubkey from the privkey;
+  ///              returns true for success/false for failure
+  /// generate_pair - a void function taking (privkey &, pubkey &) that sets them to the generated values
+  template <typename Privkey, typename Pubkey, typename GetPubkey, typename GeneratePair>
+  bool init_key(const std::string &keypath, Privkey &privkey, Pubkey &pubkey, GetPubkey get_pubkey, GeneratePair generate_pair) {
     if (epee::file_io_utils::is_file_exist(keypath))
     {
       std::string keystr;
       bool r = epee::file_io_utils::load_file_to_string(keypath, keystr);
-      memcpy(&unwrap(unwrap(m_service_node_key)), keystr.data(), sizeof(m_service_node_key));
-      wipeable_string wipe(keystr);
-      CHECK_AND_ASSERT_MES(r, false, "failed to load service node key from file");
+      memcpy(&unwrap(unwrap(privkey)), keystr.data(), sizeof(privkey));
+      memwipe(&keystr[0], keystr.size());
+      CHECK_AND_ASSERT_MES(r, false, "failed to load service node key from " + keypath);
+      CHECK_AND_ASSERT_MES(keystr.size() == sizeof(privkey), false,
+          "service node key file " + keypath + " has an invalid size");
 
-      r = crypto::secret_key_to_public_key(m_service_node_key, m_service_node_pubkey);
+      r = get_pubkey(privkey, pubkey);
       CHECK_AND_ASSERT_MES(r, false, "failed to generate pubkey from secret key");
     }
     else
     {
-      cryptonote::keypair keypair = keypair::generate(hw::get_device("default"));
-      m_service_node_pubkey = keypair.pub;
-      m_service_node_key = keypair.sec;
+      generate_pair(privkey, pubkey);
 
-      std::string keystr(reinterpret_cast<const char *>(&m_service_node_key), sizeof(m_service_node_key));
+      std::string keystr(reinterpret_cast<const char *>(&privkey), sizeof(privkey));
       bool r = epee::file_io_utils::save_string_to_file(keypath, keystr);
-      wipeable_string wipe(keystr);
-      CHECK_AND_ASSERT_MES(r, false, "failed to save service node key to file");
+      memwipe(&keystr[0], keystr.size());
+      CHECK_AND_ASSERT_MES(r, false, "failed to save service node key to " + keypath);
 
       using namespace boost::filesystem;
       permissions(keypath, owner_read);
     }
+    return true;
+  }
 
-    MGINFO_YELLOW("Service node pubkey is " << epee::string_tools::pod_to_hex(m_service_node_pubkey));
+  //-----------------------------------------------------------------------------------------------
+  bool core::init_service_node_keys()
+  {
+    auto &keys = *m_service_node_keys;
+    // Primary SN pubkey (monero NIH curve25519 algo)
+    if (!init_key(m_config_folder + "/key", keys.key, keys.pub,
+          crypto::secret_key_to_public_key,
+          [](crypto::secret_key &key, crypto::public_key &pubkey) {
+            cryptonote::keypair keypair = keypair::generate(hw::get_device("default"));
+            key = keypair.sec;
+            pubkey = keypair.pub;
+          })
+        )
+      return false;
+
+    MGINFO_YELLOW("Service node primary pubkey is " << epee::string_tools::pod_to_hex(keys.pub));
+
+    static_assert(
+        sizeof(crypto::ed25519_public_key) == crypto_sign_ed25519_PUBLICKEYBYTES &&
+        sizeof(crypto::ed25519_secret_key) == crypto_sign_ed25519_SECRETKEYBYTES &&
+        sizeof(crypto::ed25519_signature) == crypto_sign_BYTES &&
+        sizeof(crypto::x25519_public_key) == crypto_scalarmult_curve25519_BYTES &&
+        sizeof(crypto::x25519_secret_key) == crypto_scalarmult_curve25519_BYTES,
+        "Invalid ed25519/x25519 sizes");
+
+    // Secondary standard ed25519 key, usable in tools wanting standard ed25519 keys
+    //
+    // TODO(loki) - eventually it would be nice to make this become the only key pair that gets used
+    // for new registrations instead of the above.  We'd still need to keep the above for
+    // compatibility with existing stakes registered before the relevant fork height, but we could
+    // then avoid needing to include this secondary key in uptime proofs for new SN registrations.
+    if (!init_key(m_config_folder + "/key_ed25519", keys.key_ed25519, keys.pub_ed25519,
+          [](crypto::ed25519_secret_key &sk, crypto::ed25519_public_key &pk) { crypto_sign_ed25519_sk_to_pk(pk.data, sk.data); return true; },
+          [](crypto::ed25519_secret_key &sk, crypto::ed25519_public_key &pk) { crypto_sign_ed25519_keypair(pk.data, sk.data); })
+       )
+      return false;
+
+    MGINFO_YELLOW("Service node ed25519 pubkey is " << epee::string_tools::pod_to_hex(keys.pub_ed25519));
+
+    // Standard x25519 keys generated from the ed25519 keypair, used for encrypted communication between SNs
+    int rc = crypto_sign_ed25519_pk_to_curve25519(keys.pub_x25519.data, keys.pub_ed25519.data);
+    CHECK_AND_ASSERT_MES(rc == 0, false, "failed to convert ed25519 pubkey to x25519");
+    crypto_sign_ed25519_sk_to_curve25519(keys.key_x25519.data, keys.key_ed25519.data);
+
+    MGINFO_YELLOW("Service node x25519 pubkey is " << epee::string_tools::pod_to_hex(keys.pub_x25519));
 
     return true;
   }
@@ -838,12 +909,6 @@ namespace cryptonote
   bool core::set_genesis_block(const block& b)
   {
     return m_blockchain_storage.reset_and_set_genesis_block(b);
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::load_state_data()
-  {
-    // may be some code later
-    return true;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::deinit()
@@ -1271,12 +1336,9 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   size_t core::get_block_sync_size(uint64_t height) const
   {
-    static const uint64_t quick_height = m_nettype == TESTNET ? 801219 : m_nettype == MAINNET ? 1220516 : 0;
     if (block_sync_size > 0)
       return block_sync_size;
-    if (height >= quick_height)
-      return BLOCKS_SYNCHRONIZING_DEFAULT_COUNT;
-    return BLOCKS_SYNCHRONIZING_DEFAULT_COUNT_PRE_V4;
+    return BLOCKS_SYNCHRONIZING_DEFAULT_COUNT;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::are_key_images_spent_in_pool(const std::vector<crypto::key_image>& key_im, std::vector<bool> &spent) const
@@ -1407,22 +1469,22 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::submit_uptime_proof()
   {
-    if (!m_service_node)
+    if (!m_service_node_keys)
       return true;
 
-    NOTIFY_UPTIME_PROOF::request req = m_service_node_list.generate_uptime_proof(m_service_node_pubkey, m_service_node_key, m_sn_public_ip, m_storage_port);
+    NOTIFY_UPTIME_PROOF::request req = m_service_node_list.generate_uptime_proof(*m_service_node_keys, m_sn_public_ip, m_storage_port);
 
     cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
-    bool relayed = get_protocol()->relay_uptime_proof(req, fake_context, true /*force_relay*/);
+    bool relayed = get_protocol()->relay_uptime_proof(req, fake_context);
     if (relayed)
-      MGINFO("Submitted uptime-proof for service node (yours): " << m_service_node_pubkey);
+      MGINFO("Submitted uptime-proof for Service Node (yours): " << m_service_node_keys->pub);
 
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_uptime_proof(const NOTIFY_UPTIME_PROOF::request &proof)
+  bool core::handle_uptime_proof(const NOTIFY_UPTIME_PROOF::request &proof, bool &my_uptime_proof_confirmation)
   {
-    return m_service_node_list.handle_uptime_proof(proof);
+    return m_service_node_list.handle_uptime_proof(proof, my_uptime_proof_confirmation);
   }
   //-----------------------------------------------------------------------------------------------
   void core::on_transaction_relayed(const cryptonote::blobdata& tx_blob)
@@ -1585,17 +1647,6 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::add_new_block(const block& b, block_verification_context& bvc, checkpoint_t const *checkpoint)
   {
-    // TODO(loki): Temporary soft-fork code can be removed
-    uint64_t latest_height = std::max(get_current_blockchain_height(), get_target_blockchain_height());
-    if (get_nettype() == cryptonote::MAINNET &&
-        latest_height >= HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT &&
-        get_block_height(b) < HF_VERSION_12_CHECKPOINTING_SOFT_FORK_HEIGHT)
-    {
-      // NOTE: After the soft fork, ignore all checkpoints from before the fork so we
-      // only create and enforce checkpoints from after the soft-fork.
-      checkpoint = nullptr;
-    }
-
     bool result = m_blockchain_storage.add_new_block(b, bvc, checkpoint);
     if (result)
     {
@@ -1659,37 +1710,14 @@ namespace cryptonote
       b = &lb;
     }
 
-    // TODO(loki): This check should be redundant and included in
-    // verify_checkpoints once we enable it. It is not enabled until alternate
-    // quorums are implemented and merged
-    if (checkpoint)
+    // TODO(loki): Temporary to make hf12 checkpoints play nicely, but, hf12 checkpoints will be deleted on hf13
+    if (checkpoint && b->major_version < network_version_12_checkpointing)
     {
-      if (b->major_version >= network_version_13)
-      {
-        if (checkpoint->signatures.size() > 1)
-        {
-          for (size_t i = 0; i < (checkpoint->signatures.size() - 1); i++)
-          {
-            auto curr = checkpoint->signatures[i].voter_index;
-            auto next = checkpoint->signatures[i + 1].voter_index;
-
-            if (curr >= next)
-            {
-              LOG_PRINT_L1("Voters in checkpoints are not given in ascending order, block failed");
-              bvc.m_verifivation_failed = true;
-              return false;
-            }
-          }
-        }
-      }
-      else
-      {
-        std::sort(checkpoint->signatures.begin(),
-                  checkpoint->signatures.end(),
-                  [](service_nodes::voter_to_signature const &lhs, service_nodes::voter_to_signature const &rhs) {
-                    return lhs.voter_index < rhs.voter_index;
-                  });
-      }
+      std::sort(checkpoint->signatures.begin(),
+                checkpoint->signatures.end(),
+                [](service_nodes::voter_to_signature const &lhs, service_nodes::voter_to_signature const &rhs) {
+                  return lhs.voter_index < rhs.voter_index;
+                });
     }
 
     add_new_block(*b, bvc, checkpoint);
@@ -1814,8 +1842,9 @@ namespace cryptonote
     const auto elapsed = std::time(nullptr) - last_time_storage_server_pinged;
     if (elapsed > STORAGE_SERVER_PING_LIFETIME)
     {
-      MWARNING("Have not heard from the storage server since at least: "
-               << tools::get_human_readable_timespan(std::chrono::seconds(last_time_storage_server_pinged)));
+      MWARNING("Have not heard from the storage server " <<
+              (!last_time_storage_server_pinged ? "since starting" :
+               "for more than " + tools::get_human_readable_timespan(std::chrono::seconds(elapsed))));
       return false;
     }
     return true;
@@ -1824,7 +1853,7 @@ namespace cryptonote
   void core::do_uptime_proof_call()
   {
     // wait one block before starting uptime proofs.
-    std::vector<service_nodes::service_node_pubkey_info> const states = get_service_node_list_state({ m_service_node_pubkey });
+    std::vector<service_nodes::service_node_pubkey_info> const states = get_service_node_list_state({ m_service_node_keys->pub });
 
     if (!states.empty() && (states[0].info->registration_height + 1) < get_current_blockchain_height())
     {
@@ -1832,24 +1861,12 @@ namespace cryptonote
       m_check_uptime_proof_interval.do_call([&info, this]() {
         if (info.proof->timestamp <= static_cast<uint64_t>(time(nullptr) - UPTIME_PROOF_FREQUENCY_IN_SECONDS))
         {
-          uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
-
           if (!check_storage_server_ping(m_last_storage_server_ping))
           {
-            if (hf_version >= cryptonote::network_version_12_checkpointing)
-            {
-              MGINFO_RED(
-                  "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
-                  "is running! It is required to run alongside the Loki daemon after hard-fork 12");
-              return true;
-            }
-            else
-            {
-              MGINFO_RED(
-                  "We have not heard from the storage server recently. Make sure that it is running! After hard fork "
-                  "12, this Service Node will stop submitting uptime proofs if it does not hear from the Loki Storage "
-                  "Server.");
-            }
+            MGINFO_RED(
+                "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
+                "is running! It is required to run alongside the Loki daemon");
+            return true;
           }
 
           this->submit_uptime_proof();
@@ -1894,7 +1911,7 @@ namespace cryptonote
     m_block_rate_interval.do_call(boost::bind(&core::check_block_rate, this));
 
     time_t const lifetime = time(nullptr) - get_start_time();
-    if (m_service_node && lifetime > DIFFICULTY_TARGET_V2) // Give us some time to connect to peers before sending uptimes
+    if (m_service_node_keys && lifetime > DIFFICULTY_TARGET_V2) // Give us some time to connect to peers before sending uptimes
     {
       do_uptime_proof_call();
     }
@@ -2172,6 +2189,11 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
+  bool core::set_storage_server_peer_reachable(crypto::public_key const &pubkey, bool value)
+  {
+    return m_service_node_list.set_storage_server_peer_reachable(pubkey, value);
+  }
+  //-----------------------------------------------------------------------------------------------
   bool core::update_blockchain_pruning()
   {
     return m_blockchain_storage.update_blockchain_pruning();
@@ -2204,9 +2226,9 @@ namespace cryptonote
     return si.available;
   }
   //-----------------------------------------------------------------------------------------------
-  std::shared_ptr<const service_nodes::testing_quorum> core::get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old) const
+  std::shared_ptr<const service_nodes::testing_quorum> core::get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const service_nodes::testing_quorum>> *alt_states) const
   {
-    return m_service_node_list.get_testing_quorum(type, height, include_old);
+    return m_service_node_list.get_testing_quorum(type, height, include_old, alt_states);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::is_service_node(const crypto::public_key& pubkey, bool require_active) const
@@ -2229,14 +2251,9 @@ namespace cryptonote
     return m_quorum_cop.handle_vote(vote, vvc);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::get_service_node_keys(crypto::public_key &pub_key, crypto::secret_key &sec_key) const
+  std::shared_ptr<const core::service_node_keys> core::get_service_node_keys() const
   {
-    if (m_service_node)
-    {
-      pub_key = m_service_node_pubkey;
-      sec_key = m_service_node_key;
-    }
-    return m_service_node;
+    return m_service_node_keys;
   }
   uint32_t core::get_blockchain_pruning_seed() const
   {

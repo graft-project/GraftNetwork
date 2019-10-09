@@ -39,6 +39,7 @@ namespace cryptonote
 {
   class core;
   struct vote_verification_context;
+  struct checkpoint_t;
 };
 
 namespace service_nodes
@@ -62,14 +63,25 @@ namespace service_nodes
     // TODO(doyle): Validators aren't used, but I kept this as a testing_quorum
     // to avoid drastic changes for now to a lot of the service node API
     std::shared_ptr<const testing_quorum> checkpointing;
+
+    std::shared_ptr<const testing_quorum> get(quorum_type type) const
+    {
+      if (type == quorum_type::obligations) return obligations;
+      else if (type == quorum_type::checkpointing) return checkpointing;
+      MERROR("Developer error: Unhandled quorum enum with value: " << (size_t)type);
+      assert(!"Developer error: Unhandled quorum enum with value: ");
+      return nullptr;
+    }
   };
 
   struct service_node_test_results {
-    bool uptime_proved        = true;
-    bool single_ip            = true;
-    bool voted_in_checkpoints = true;
+    bool uptime_proved            = true;
+    bool single_ip                = true;
+    bool voted_in_checkpoints     = true;
+    bool storage_server_reachable = true;
 
-    bool passed() const { return uptime_proved && voted_in_checkpoints; }
+    char const *why() const;
+    bool passed() const { return uptime_proved && voted_in_checkpoints && storage_server_reachable; }
   };
 
   class quorum_cop
@@ -81,7 +93,7 @@ namespace service_nodes
     explicit quorum_cop(cryptonote::core& core);
 
     void init() override;
-    void block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs) override;
+    bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const * /*checkpoint*/) override;
     void blockchain_detached(uint64_t height) override;
 
     void                       set_votes_relayed  (std::vector<quorum_vote_t> const &relayed_votes);
@@ -92,7 +104,7 @@ namespace service_nodes
 
   private:
     void process_quorums(cryptonote::block const &block);
-    service_node_test_results check_service_node(const crypto::public_key &pubkey, const service_node_info &info) const;
+    service_node_test_results check_service_node(uint8_t hf_version, const crypto::public_key &pubkey, const service_node_info &info) const;
 
     cryptonote::core& m_core;
     voting_pool       m_vote_pool;

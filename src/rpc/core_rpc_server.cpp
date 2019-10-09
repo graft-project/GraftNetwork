@@ -192,6 +192,12 @@ namespace cryptonote
     ++res.height; // turn top block height into blockchain height
     res.top_block_hash = string_tools::pod_to_hex(top_hash);
     res.target_height = m_core.get_target_blockchain_height();
+
+    res.immutable_height = 0;
+    cryptonote::checkpoint_t checkpoint;
+    if (m_core.get_blockchain_storage().get_db().get_immutable_checkpoint(&checkpoint, res.height - 1))
+      res.immutable_height = checkpoint.height;
+
     res.difficulty = m_core.get_blockchain_storage().get_difficulty_for_next_block();
     res.target = m_core.get_blockchain_storage().get_difficulty_target();
     res.tx_count = m_core.get_blockchain_storage().get_total_transactions() - res.height; //without coinbase
@@ -210,10 +216,20 @@ namespace cryptonote
     res.stagenet = nettype == STAGENET;
     res.nettype = nettype == MAINNET ? "mainnet" : nettype == TESTNET ? "testnet" : nettype == STAGENET ? "stagenet" : "fakechain";
 
-    res.cumulative_difficulty = m_core.get_blockchain_storage().get_db().get_block_cumulative_difficulty(res.height - 1);
+    try
+    {
+      res.cumulative_difficulty = m_core.get_blockchain_storage().get_db().get_block_cumulative_difficulty(res.height - 1);
+    }
+    catch(std::exception const &e)
+    {
+      res.status = "Error retrieving cumulative difficulty at height " + std::to_string(res.height - 1);
+      return true;
+    }
+
     res.block_size_limit = res.block_weight_limit = m_core.get_blockchain_storage().get_current_cumulative_block_weight_limit();
     res.block_size_median = res.block_weight_median = m_core.get_blockchain_storage().get_current_cumulative_block_weight_median();
     res.start_time = restricted ? 0 : (uint64_t)m_core.get_start_time();
+    res.last_storage_server_ping = restricted ? 0 : (uint64_t)m_core.m_last_storage_server_ping;
     res.free_space = restricted ? std::numeric_limits<uint64_t>::max() : m_core.get_free_space();
     res.offline = m_core.offline();
     res.bootstrap_daemon_address = restricted ? "" : m_bootstrap_daemon_address;
@@ -1457,7 +1473,8 @@ namespace cryptonote
     response.depth = m_core.get_current_blockchain_height() - height - 1;
     response.hash = string_tools::pod_to_hex(hash);
     response.difficulty = m_core.get_blockchain_storage().block_difficulty(height);
-    response.cumulative_difficulty = response.block_weight = m_core.get_blockchain_storage().get_db().get_block_cumulative_difficulty(height);
+    response.cumulative_difficulty = m_core.get_blockchain_storage().get_db().get_block_cumulative_difficulty(height);
+    response.block_weight = m_core.get_blockchain_storage().get_db().get_block_weight(height);
     response.reward = get_block_reward(blk);
     response.miner_reward = blk.miner_tx.vout[0].amount;
     response.block_size = response.block_weight = m_core.get_blockchain_storage().get_db().get_block_weight(height);
@@ -1465,6 +1482,7 @@ namespace cryptonote
     response.pow_hash = fill_pow_hash ? string_tools::pod_to_hex(get_block_longhash(&(m_core.get_blockchain_storage()), blk, height, 0)) : "";
     response.long_term_weight = m_core.get_blockchain_storage().get_db().get_block_long_term_weight(height);
     response.miner_tx_hash = string_tools::pod_to_hex(cryptonote::get_transaction_hash(blk.miner_tx));
+    response.service_node_winner = string_tools::pod_to_hex(cryptonote::get_service_node_winner_from_tx_extra(blk.miner_tx.extra));
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -1747,7 +1765,6 @@ namespace cryptonote
       error_resp.message = "Internal error: can't produce valid response.";
       return false;
     }
-    res.miner_tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(blk.miner_tx));
     for (size_t n = 0; n < blk.tx_hashes.size(); ++n)
     {
       res.tx_hashes.push_back(epee::string_tools::pod_to_hex(blk.tx_hashes[n]));
@@ -1795,12 +1812,12 @@ namespace cryptonote
     PERF_TIMER(on_get_bans);
 
     auto now = time(nullptr);
-    std::map<epee::net_utils::network_address, time_t> blocked_hosts = m_p2p.get_blocked_hosts();
-    for (std::map<epee::net_utils::network_address, time_t>::const_iterator i = blocked_hosts.begin(); i != blocked_hosts.end(); ++i)
+    std::map<std::string, time_t> blocked_hosts = m_p2p.get_blocked_hosts();
+    for (std::map<std::string, time_t>::const_iterator i = blocked_hosts.begin(); i != blocked_hosts.end(); ++i)
     {
       if (i->second > now) {
         COMMAND_RPC_GETBANS::ban b;
-        b.host = i->first.host_str();
+        b.host = i->first;
         b.ip = 0;
         uint32_t ip;
         if (epee::string_tools::get_ip_int32_from_string(ip, b.host))
@@ -2023,7 +2040,9 @@ namespace cryptonote
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_GET_BASE_FEE_ESTIMATE>(invoke_http_mode::JON_RPC, "get_fee_estimate", req, res, r))
       return r;
 
-    res.fee = m_core.get_blockchain_storage().get_dynamic_base_fee_estimate(req.grace_blocks);
+    auto fees = m_core.get_blockchain_storage().get_dynamic_base_fee_estimate(req.grace_blocks);
+    res.fee_per_byte = fees.first;
+    res.fee_per_output = fees.second;
     res.quantization_mask = Blockchain::get_fee_quantization_mask();
     res.status = CORE_RPC_STATUS_OK;
     return true;
@@ -2595,9 +2614,8 @@ namespace cryptonote
   {
     PERF_TIMER(on_get_service_node_registration_cmd_raw);
 
-    crypto::public_key service_node_pubkey;
-    crypto::secret_key service_node_key;
-    if (!m_core.get_service_node_keys(service_node_pubkey, service_node_key))
+    auto keys = m_core.get_service_node_keys();
+    if (!keys)
     {
       error_resp.code    = CORE_RPC_ERROR_CODE_WRONG_PARAM;
       error_resp.message = "Daemon has not been started in service node mode, please relaunch with --service-node flag.";
@@ -2606,7 +2624,7 @@ namespace cryptonote
 
     std::string err_msg;
     uint8_t hf_version = m_core.get_hard_fork_version(m_core.get_current_blockchain_height());
-    if (!service_nodes::make_registration_cmd(m_core.get_nettype(), hf_version, req.staking_requirement, req.args, service_node_pubkey, service_node_key, res.registration_cmd, req.make_friendly, err_msg))
+    if (!service_nodes::make_registration_cmd(m_core.get_nettype(), hf_version, req.staking_requirement, req.args, *keys, res.registration_cmd, req.make_friendly, err_msg))
     {
       error_resp.code    = CORE_RPC_ERROR_CODE_WRONG_PARAM;
       error_resp.message = "Failed to make registration command";
@@ -2685,22 +2703,16 @@ namespace cryptonote
   {
     PERF_TIMER(on_get_service_node_key);
 
-    crypto::public_key pubkey;
-    crypto::secret_key seckey;
-    bool result = m_core.get_service_node_keys(pubkey, seckey);
-    if (result)
+    if (auto keys = m_core.get_service_node_keys())
     {
-      res.service_node_pubkey = string_tools::pod_to_hex(pubkey);
-    }
-    else
-    {
-      error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-      error_resp.message = "Daemon queried is not a service node or did not launch with --service-node";
-      return false;
+      res.service_node_pubkey = string_tools::pod_to_hex(keys->pub);
+      res.status = CORE_RPC_STATUS_OK;
+      return true;
     }
 
-    res.status = CORE_RPC_STATUS_OK;
-    return result;
+    error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
+    error_resp.message = "Daemon queried is not a service node or did not launch with --service-node";
+    return false;
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_all_service_nodes_keys(const COMMAND_RPC_GET_ALL_SERVICE_NODES_KEYS::request& req, COMMAND_RPC_GET_ALL_SERVICE_NODES_KEYS::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
@@ -2728,7 +2740,6 @@ namespace cryptonote
     entry.requested_unlock_height       = info.requested_unlock_height;
     entry.last_reward_block_height      = info.last_reward_block_height;
     entry.last_reward_transaction_index = info.last_reward_transaction_index;
-    entry.last_uptime_proof             = info.proof->timestamp;
     entry.active                        = info.is_active();
     entry.funded                        = info.is_fully_funded();
     entry.state_height                  = info.is_fully_funded()
@@ -2738,6 +2749,9 @@ namespace cryptonote
     entry.service_node_version          = {info.proof->version_major, info.proof->version_minor, info.proof->version_patch};
     entry.public_ip                     = string_tools::get_ip_string_from_int32(info.proof->public_ip);
     entry.storage_port                  = info.proof->storage_port;
+    entry.storage_server_reachable      = info.proof->storage_server_reachable;
+    entry.pubkey_ed25519                = info.proof->pubkey_ed25519 ? string_tools::pod_to_hex(info.proof->pubkey_ed25519) : "";
+    entry.pubkey_x25519                 = info.proof->pubkey_x25519 ? string_tools::pod_to_hex(info.proof->pubkey_x25519) : "";
 
     entry.contributors.reserve(info.contributors.size());
 
@@ -2767,6 +2781,16 @@ namespace cryptonote
     entry.portions_for_operator         = info.portions_for_operator;
     entry.operator_address              = cryptonote::get_account_address_as_str(m_core.get_nettype(), false/*is_subaddress*/, info.operator_address);
     entry.swarm_id                      = info.swarm_id;
+    entry.registration_hf_version       = info.registration_hf_version;
+
+    // NOTE: Service Node Testing
+    entry.last_uptime_proof                  = info.proof->timestamp;
+    entry.storage_server_reachable           = info.proof->storage_server_reachable;
+    entry.storage_server_reachable_timestamp = info.proof->storage_server_reachable_timestamp;
+    entry.version_major                      = info.proof->version_major;
+    entry.version_minor                      = info.proof->version_minor;
+    entry.version_patch                      = info.proof->version_patch;
+    entry.votes = std::vector<service_nodes::checkpoint_vote_record>(info.proof->votes.begin(), info.proof->votes.end());
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_service_nodes(const COMMAND_RPC_GET_SERVICE_NODES::request& req, COMMAND_RPC_GET_SERVICE_NODES::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
@@ -2809,7 +2833,6 @@ namespace cryptonote
     {
       COMMAND_RPC_GET_SERVICE_NODES::response::entry entry = {};
       fill_sn_response_entry(entry, pubkey_info, height);
-
       res.service_node_states.push_back(entry);
     }
 
@@ -2965,13 +2988,27 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_storage_server_ping(const COMMAND_RPC_STORAGE_SERVER_PING::request&,
+  bool core_rpc_server::on_storage_server_ping(const COMMAND_RPC_STORAGE_SERVER_PING::request& req,
                                                COMMAND_RPC_STORAGE_SERVER_PING::response& res,
                                                epee::json_rpc::error&,
                                                const connection_context*)
   {
-    m_core.m_last_storage_server_ping = time(nullptr);
-    res.status = "OK";
+
+    const std::array<int, 3> cur_version = { req.version_major, req.version_minor, req.version_patch };
+
+    if (cur_version < service_nodes::MIN_STORAGE_SERVER_VERSION) {
+      std::stringstream status;
+      status << "Outdated Storage Server. ";
+      status << "Current: " << req.version_major << "." << req.version_minor << "." << req.version_patch << ". ";
+      status << "Required: " << service_nodes::MIN_STORAGE_SERVER_VERSION[0] << "."
+             << service_nodes::MIN_STORAGE_SERVER_VERSION[1] << "." << service_nodes::MIN_STORAGE_SERVER_VERSION[2];
+      res.status = status.str();
+      MERROR(status.str());
+    } else {
+      m_core.m_last_storage_server_ping = time(nullptr);
+      res.status = "OK";
+    }
+
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -3126,6 +3163,35 @@ namespace cryptonote
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_report_peer_storage_server_status(const COMMAND_RPC_REPORT_PEER_SS_STATUS::request& req,
+                                                             COMMAND_RPC_REPORT_PEER_SS_STATUS::response& res,
+                                                             epee::json_rpc::error& error_resp,
+                                                             const connection_context* ctx)
+  {
+    crypto::public_key pubkey;
+    if (!string_tools::hex_to_pod(req.pubkey, pubkey)) {
+      MERROR("Could not parse public key: " << req.pubkey);
+      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+      error_resp.message = "Could not parse public key";
+      return false;
+    }
 
+    if (req.type == "reachability") {
+
+      if (!m_core.set_storage_server_peer_reachable(pubkey, req.passed)) {
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+        error_resp.message = "Pubkey not found";
+        return false;
+      }
+    } else {
+      error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+      error_resp.message = "Unknown status type";
+      return false;
+    }
+
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
 
 }  // namespace cryptonote

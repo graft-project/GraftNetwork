@@ -158,20 +158,6 @@ private:
     wallet2 * wallet;
   };
 
-  struct tx_dust_policy
-  {
-    uint64_t dust_threshold;
-    bool add_to_fee;
-    cryptonote::account_public_address addr_for_dust;
-
-    tx_dust_policy(uint64_t a_dust_threshold = 0, bool an_add_to_fee = true, cryptonote::account_public_address an_addr_for_dust = cryptonote::account_public_address())
-      : dust_threshold(a_dust_threshold)
-      , add_to_fee(an_add_to_fee)
-      , addr_for_dust(an_addr_for_dust)
-    {
-    }
-  };
-
   enum struct pay_type
   {
     unspecified, // For serialized data before this was introduced in hardfork 10
@@ -239,6 +225,79 @@ private:
   };
 
   enum class stake_check_result { allowed, not_allowed, try_later };
+
+  LOKI_RPC_DOC_INTROSPECT
+  struct transfer_destination
+  {
+    std::string address; // Destination public address.
+    uint64_t amount;     // Amount to send to each destination, in atomic units.
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(amount)
+      KV_SERIALIZE(address)
+    END_KV_SERIALIZE_MAP()
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  struct transfer_view
+  {
+    std::string txid;                                          // Transaction ID for this transfer.
+    std::string payment_id;                                    // Payment ID for this transfer.
+    uint64_t height;                                           // Height of the first block that confirmed this transfer (0 if not mined yet).
+    uint64_t timestamp;                                        // UNIX timestamp for when this transfer was first confirmed in a block (or timestamp submission if not mined yet).
+    uint64_t amount;                                           // Amount transferred.
+    uint64_t fee;                                              // Transaction fee for this transfer.
+    std::string note;                                          // Note about this transfer.
+    std::list<transfer_destination> destinations;              // Array of transfer destinations.
+    std::string type;                                          // Type of transfer, one of the following: "in", "out", "stake", "miner", "snode", "gov", "pending", "failed", "pool".
+    uint64_t unlock_time;                                      // Number of blocks until transfer is safely spendable.
+    cryptonote::subaddress_index subaddr_index;                // Major & minor index, account and subaddress index respectively.
+    std::vector<cryptonote::subaddress_index> subaddr_indices;
+    std::string address;                                       // Address that transferred the funds.
+    bool double_spend_seen;                                    // True if the key image(s) for the transfer have been seen before.
+    uint64_t confirmations;                                    // Number of block mined since the block containing this transaction (or block height at which the transaction should be added to a block if not yet confirmed).
+    uint64_t suggested_confirmations_threshold;                // Estimation of the confirmations needed for the transaction to be included in a block.
+    uint64_t checkpointed;                                     // If transfer is backed by atleast 2 Service Node Checkpoints, 0 if it is not, see immutable_height in the daemon rpc call get_info
+
+    // Not serialized, for internal wallet2 use
+    tools::pay_type pay_type;                                  // Internal use only, not serialized
+    bool            confirmed;                                 // Internal use only, not serialized
+    crypto::hash    hash;                                      // Internal use only, not serialized
+    std::string     lock_msg;                                  // Internal use only, not serialized
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(txid);
+      KV_SERIALIZE(payment_id);
+      KV_SERIALIZE(height);
+      KV_SERIALIZE(timestamp);
+      KV_SERIALIZE(amount);
+      KV_SERIALIZE(fee);
+      KV_SERIALIZE(note);
+      KV_SERIALIZE(destinations);
+
+      // TODO(loki): This discrepancy between having to use pay_type if type is
+      // empty and type if pay type is neither is super unintuitive.
+      if (this_ref.type.empty())
+      {
+        std::string type = pay_type_string(this_ref.pay_type);
+        KV_SERIALIZE_VALUE(type)
+      }
+      else
+      {
+        KV_SERIALIZE(type)
+      }
+
+      KV_SERIALIZE(unlock_time)
+      KV_SERIALIZE(subaddr_index);
+      KV_SERIALIZE(subaddr_indices);
+      KV_SERIALIZE(address);
+      KV_SERIALIZE(double_spend_seen)
+      KV_SERIALIZE_OPT(confirmations, (uint64_t)0)
+      KV_SERIALIZE_OPT(suggested_confirmations_threshold, (uint64_t)0)
+      KV_SERIALIZE(checkpointed)
+    END_KV_SERIALIZE_MAP()
+  };
+
 
   class wallet_keys_unlocker;
   class wallet2
@@ -860,10 +919,6 @@ private:
     // all locked & unlocked balances of all subaddress accounts
     uint64_t balance_all() const;
     uint64_t unlocked_balance_all(uint64_t *blocks_to_unlock = NULL) const;
-    template<typename T>
-    void transfer_selected(const std::vector<cryptonote::tx_destination_entry>& dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
-      std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
-      uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx);
     void transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
       uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, const rct::RCTConfig &rct_config, bool is_staking_tx = false);
@@ -906,8 +961,31 @@ private:
     bool sign_multisig_tx_to_file(multisig_tx_set &exported_txs, const std::string &filename, std::vector<crypto::hash> &txids);
     std::vector<pending_tx> create_unmixable_sweep_transactions();
     void discard_unmixable_outputs();
+    bool is_connected() const;
     bool check_connection(uint32_t *version = NULL, bool *ssl = NULL, uint32_t timeout = 200000);
+    transfer_view make_transfer_view(const crypto::hash &txid, const crypto::hash &payment_id, const wallet2::payment_details &pd) const;
+    transfer_view make_transfer_view(const crypto::hash &txid, const tools::wallet2::confirmed_transfer_details &pd) const;
+    transfer_view make_transfer_view(const crypto::hash &txid, const tools::wallet2::unconfirmed_transfer_details &pd) const;
+    transfer_view make_transfer_view(const crypto::hash &payment_id, const tools::wallet2::pool_payment_details &pd) const;
     void get_transfers(wallet2::transfer_container& incoming_transfers) const;
+
+    struct get_transfers_args_t
+    {
+      bool in = true;
+      bool out = true;
+      bool pending = true;
+      bool failed = true;
+      bool pool = true;
+      bool coinbase = true;
+      bool filter_by_height = false;
+      uint64_t min_height = 0;
+      uint64_t max_height = CRYPTONOTE_MAX_BLOCK_NUMBER;
+      std::set<uint32_t> subaddr_indices;
+      uint32_t account_index;
+      bool all_accounts;
+    };
+    void get_transfers(get_transfers_args_t args, std::vector<transfer_view>& transfers);
+    std::string transfers_to_csv(const std::vector<transfer_view>& transfers, bool formatting = false) const;
     void get_payments(const crypto::hash& payment_id, std::list<wallet2::payment_details>& payments, uint64_t min_height = 0, const boost::optional<uint32_t>& subaddr_account = boost::none, const std::set<uint32_t>& subaddr_indices = {}) const;
     void get_payments(std::list<std::pair<crypto::hash,wallet2::payment_details>>& payments, uint64_t min_height, uint64_t max_height = (uint64_t)-1, const boost::optional<uint32_t>& subaddr_account = boost::none, const std::set<uint32_t>& subaddr_indices = {}) const;
     void get_payments_out(std::list<std::pair<crypto::hash,wallet2::confirmed_transfer_details>>& confirmed_payments,
@@ -928,6 +1006,7 @@ private:
 
     uint64_t get_last_block_reward() const { return m_last_block_reward; }
     uint64_t get_device_last_key_image_sync() const { return m_device_last_key_image_sync; }
+    uint64_t get_immutable_height() const { return m_immutable_height; }
 
     template <class t_archive>
     inline void serialize(t_archive &a, const unsigned int ver)
@@ -1042,6 +1121,9 @@ private:
       if(ver < 28)
         return;
       a & m_cold_key_images;
+      if(ver < 29)
+        return;
+      a & m_immutable_height;
     }
 
     /*!
@@ -1265,7 +1347,7 @@ private:
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees);
 
     uint64_t get_fee_multiplier(uint32_t priority, int fee_algorithm = -1) const;
-    uint64_t get_base_fee() const;
+    cryptonote::byte_and_output_fees get_base_fees() const;
     uint64_t get_fee_quantization_mask() const;
     uint64_t adjust_mixin(uint64_t mixin) const;
     uint32_t adjust_priority(uint32_t priority);
@@ -1493,14 +1575,14 @@ private:
     void parse_block_round(const cryptonote::blobdata &blob, cryptonote::block &bl, crypto::hash &bl_id, bool &error) const;
     uint64_t get_upper_transaction_weight_limit() const;
     std::vector<uint64_t> get_unspent_amounts_vector() const;
-    uint64_t get_dynamic_base_fee_estimate() const;
+    cryptonote::byte_and_output_fees get_dynamic_base_fee_estimate() const;
     float get_output_relatedness(const transfer_details &td0, const transfer_details &td1) const;
     std::vector<size_t> pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices) const;
     void set_spent(size_t idx, uint64_t height);
     void set_unspent(size_t idx);
     void get_outs(std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool has_rct);
     bool tx_add_fake_output(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, uint64_t global_index, const crypto::public_key& tx_public_key, const rct::key& mask, uint64_t real_index, bool unlocked) const;
-    bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
+    bool should_pick_a_second_output(size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
     void scan_output(const cryptonote::transaction &tx, bool miner_tx, const crypto::public_key &tx_pub_key, size_t vout_index, tx_scan_info_t &tx_scan_info, std::vector<tx_money_got_in_out> &tx_money_got_in_outs, std::vector<size_t> &outs, bool pool);
     void trim_hashchain();
@@ -1632,6 +1714,7 @@ private:
     std::string m_device_derivation_path;
     uint64_t m_device_last_key_image_sync;
     bool m_offline;
+    uint64_t m_immutable_height;
 
     // Aux transaction data from device
     std::unordered_map<crypto::hash, std::string> m_tx_device;
@@ -1686,7 +1769,7 @@ private:
   bool parse_priority          (const std::string& arg, uint32_t& priority);
 
 }
-BOOST_CLASS_VERSION(tools::wallet2, 28)
+BOOST_CLASS_VERSION(tools::wallet2, 29)
 BOOST_CLASS_VERSION(tools::wallet2::transfer_details, 12)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_info, 1)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_info::LR, 0)

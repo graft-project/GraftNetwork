@@ -39,7 +39,7 @@ namespace cryptonote {
   class BlockAddedHook
   {
   public:
-    virtual void block_added(const block& block, const std::vector<transaction>& txs) = 0;
+    virtual bool block_added(const block& block, const std::vector<transaction>& txs, struct checkpoint_t const *checkpoint) = 0;
   };
 
   class BlockchainDetachedHook
@@ -58,6 +58,12 @@ namespace cryptonote {
   {
   public:
     virtual bool validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hard_fork_version, struct block_reward_parts const &reward_parts) const = 0;
+  };
+
+  class AltBlockAddedHook
+  {
+  public:
+    virtual bool alt_block_added(const block &block, const std::vector<transaction>& txs, struct checkpoint_t const *checkpoint) = 0;
   };
   /************************************************************************/
   /*                                                                      */
@@ -111,7 +117,9 @@ namespace cryptonote {
   /************************************************************************/
   size_t get_min_block_weight(uint8_t version);
   size_t get_max_tx_size();
-  bool get_base_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint8_t version, uint64_t height);
+  uint64_t block_reward_unpenalized_formula_v7(uint64_t already_generated_coins, uint64_t height);
+  uint64_t block_reward_unpenalized_formula_v8(uint64_t height);
+  bool get_base_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint64_t &reward_unpenalized, uint8_t version, uint64_t height);
   uint8_t get_account_address_checksum(const public_address_outer_blob& bl);
   uint8_t get_account_integrated_address_checksum(const public_integrated_address_outer_blob& bl);
 

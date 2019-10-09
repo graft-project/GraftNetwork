@@ -525,6 +525,9 @@ namespace cryptonote
       return k;
     }
   };
+
+  using byte_and_output_fees = std::pair<uint64_t, uint64_t>;
+
   //---------------------------------------------------------------
   inline static cryptonote::network_type validate_nettype(cryptonote::network_type nettype)
   {

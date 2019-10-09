@@ -58,11 +58,18 @@
 #include "cryptonote_basic/hardfork.h"
 #include "blockchain_db/blockchain_db.h"
 
-namespace service_nodes { class service_node_list; struct voting_pool; };
+namespace service_nodes { class service_node_list; };
 namespace tools { class Notify; }
 
 namespace cryptonote
 {
+  struct block_and_checkpoint
+  {
+    cryptonote::block block;
+    checkpoint_t      checkpoint;
+    bool              checkpointed;
+  };
+
   class tx_memory_pool;
   struct test_options;
 
@@ -97,11 +104,15 @@ namespace cryptonote
      */
     struct block_extended_info
     {
-      block   bl; //!< the block
-      uint64_t height; //!< the height of the block in the blockchain
-      uint64_t block_cumulative_weight; //!< the weight of the block
+      block_extended_info() = default;
+      block_extended_info(const alt_block_data_t &src, block const &blk, checkpoint_t const *checkpoint);
+      block           bl; //!< the block
+      bool            checkpointed;
+      checkpoint_t    checkpoint;
+      uint64_t        height; //!< the height of the block in the blockchain
+      uint64_t        block_cumulative_weight; //!< the weight of the block
       difficulty_type cumulative_difficulty; //!< the accumulated difficulty after that block
-      uint64_t already_generated_coins; //!< the total coins minted after that block
+      uint64_t        already_generated_coins; //!< the total coins minted after that block
     };
 
     /**
@@ -575,48 +586,51 @@ namespace cryptonote
     static uint64_t get_fee_quantization_mask();
 
     /**
-     * @brief get dynamic per kB or byte fee for a given block weight
+     * @brief get dynamic per-kB or -byte fee and the per-output fee for a given
+     * block weight and hard fork version.
      *
-     * The dynamic fee is based on the block weight in a past window, and
-     * the current block reward. It is expressed by kB before v8, and
-     * per byte from v8.
+     * The dynamic per-byte fee is based on the block weight in a past window,
+     * and the current block reward. It is expressed as a per-kiB value before
+     * v8, and per byte from v8.
+     *
+     * The per-output fee is a fixed amount per output created in the
+     * transaction beginning in Loki hard fork 13 and will be 0 before v13.
      *
      * @param block_reward the current block reward
      * @param median_block_weight the median block weight in the past window
      * @param version hard fork version for rules and constants to use
      *
-     * @return the fee
+     * @return pair of {per-size, per-output} fees
      */
-    static uint64_t get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version);
+    static byte_and_output_fees get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version);
 
     /**
      * @brief get dynamic per kB or byte fee estimate for the next few blocks
      *
-     * The dynamic fee is based on the block weight in a past window, and
-     * the current block reward. It is expressed by kB before v8, and
-     * per byte from v8.
-     * This function calculates an estimate for a dynamic fee which will be
-     * valid for the next grace_blocks
+     * Returns an estimate of the get_dynamic_base_fee() value that will be
+     * valid for the next `grace_blocks` blocks.
      *
      * @param grace_blocks number of blocks we want the fee to be valid for
      *
-     * @return the fee estimate
+     * @return the {per-size, per-output} fee estimate
      */
-    uint64_t get_dynamic_base_fee_estimate(uint64_t grace_blocks) const;
+    byte_and_output_fees get_dynamic_base_fee_estimate(uint64_t grace_blocks) const;
 
     /**
      * @brief validate a transaction's fee
      *
      * This function validates the fee is enough for the transaction.
      * This is based on the weight of the transaction, and, after a
-     * height threshold, on the average weight of transaction in a past window
+     * height threshold, on the average weight of transaction in a past window.
+     * From Loki v13 the amount must also include a per-output-created fee.
      *
      * @param tx_weight the transaction weight
+     * @param tx_outs the number of outputs created in the transaction
      * @param fee the fee
      *
      * @return true if the fee is enough, false otherwise
      */
-    bool check_fee(size_t tx_weight, uint64_t fee) const;
+    bool check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee) const;
 
     /**
      * @brief check that a transaction's outputs conform to current standards
@@ -760,13 +774,6 @@ namespace cryptonote
      * @return the HardFork object
      */
     HardFork::State get_hard_fork_state() const;
-
-    /**
-     * @brief gets the hardfork heights of given network
-     *
-     * @return the HardFork object
-     */
-    static const std::vector<HardFork::Params>& get_hard_fork_heights(network_type nettype);
 
     /**
      * @brief gets the current hardfork version in use/voted for
@@ -991,6 +998,7 @@ namespace cryptonote
     void hook_blockchain_detached(BlockchainDetachedHook& hook) { m_blockchain_detached_hooks.push_back(&hook); }
     void hook_init               (InitHook& hook)               { m_init_hooks.push_back(&hook); }
     void hook_validate_miner_tx  (ValidateMinerTxHook& hook)    { m_validate_miner_tx_hooks.push_back(&hook); }
+    void hook_alt_block_added    (AltBlockAddedHook& hook)      { m_alt_block_added_hooks.push_back(&hook); }
 
     /**
      * @brief returns the timestamps of the last N blocks
@@ -1065,12 +1073,13 @@ namespace cryptonote
     std::unique_ptr<boost::asio::io_service::work> m_async_work_idle;
 
     // some invalid blocks
-    blocks_ext_by_hash m_invalid_blocks;     // crypto::hash -> block_extended_info
+    std::set<crypto::hash> m_invalid_blocks;
 
     std::vector<BlockAddedHook*> m_block_added_hooks;
     std::vector<BlockchainDetachedHook*> m_blockchain_detached_hooks;
     std::vector<InitHook*> m_init_hooks;
     std::vector<ValidateMinerTxHook*> m_validate_miner_tx_hooks;
+    std::vector<AltBlockAddedHook*> m_alt_block_added_hooks;
 
     checkpoints m_checkpoints;
     HardFork *m_hardfork;
@@ -1179,11 +1188,11 @@ namespace cryptonote
      * the blockchain is reverted to its previous state.
      *
      * @param alt_chain the chain to switch to
-     * @param discard_disconnected_chain whether or not to keep the old chain as an alternate
+     * @param keep_disconnected_chain whether or not to keep the old chain as an alternate
      *
      * @return false if the reorganization fails, otherwise true
      */
-    bool switch_to_alternative_blockchain(std::list<block_extended_info>& alt_chain);
+    bool switch_to_alternative_blockchain(const std::list<block_extended_info>& alt_chain, bool keep_disconnected_chain);
 
     /**
      * @brief removes the most recent block from the blockchain
@@ -1219,7 +1228,7 @@ namespace cryptonote
      *
      * @return true if the block was added successfully, otherwise false
      */
-    bool handle_block_to_main_chain(const block& bl, const crypto::hash& id, block_verification_context& bvc);
+    bool handle_block_to_main_chain(const block& bl, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint);
 
     /**
      * @brief validate and add a new block to an alternate blockchain
@@ -1234,7 +1243,7 @@ namespace cryptonote
      *
      * @return true if the block was added successfully, otherwise false
      */
-    bool handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc, bool has_checkpoint);
+    bool handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint);
 
     /**
      * @brief builds a list of blocks connecting a block to the main chain
@@ -1246,7 +1255,7 @@ namespace cryptonote
      *
      * @return true on success, false otherwise
      */
-    bool build_alt_chain(const crypto::hash &prev_id, std::list<block_extended_info>& alt_chain, std::vector<uint64_t> &timestamps, block_verification_context& bvc) const;
+    bool build_alt_chain(const crypto::hash &prev_id, std::list<block_extended_info>& alt_chain, std::vector<uint64_t> &timestamps, block_verification_context& bvc, int *num_checkpoints) const;
 
     /**
      * @brief gets the difficulty requirement for a new block on an alternate chain
@@ -1256,7 +1265,7 @@ namespace cryptonote
      *
      * @return the difficulty requirement
      */
-    difficulty_type get_next_difficulty_for_alternative_chain(const std::list<block_extended_info>& alt_chain, block_extended_info& bei) const;
+    difficulty_type get_next_difficulty_for_alternative_chain(const std::list<block_extended_info>& alt_chain, uint64_t height) const;
 
     /**
      * @brief sanity checks a miner transaction before validating an entire block
@@ -1282,12 +1291,11 @@ namespace cryptonote
      * @param fee the total fees collected in the block
      * @param base_reward return-by-reference the new block's generated coins
      * @param already_generated_coins the amount of currency generated prior to this block
-     * @param partial_block_reward return-by-reference true if miner accepted only partial reward
      * @param version hard fork version for that transaction
      *
      * @return false if anything is found wrong with the miner transaction, otherwise true
      */
-    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version);
+    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, uint8_t version);
 
     /**
      * @brief reverts the blockchain to its previous state following a failed switch
@@ -1301,7 +1309,7 @@ namespace cryptonote
      *
      * @return false if something goes wrong with reverting (very bad), otherwise true
      */
-    bool rollback_blockchain_switching(std::list<block>& original_chain, uint64_t rollback_height);
+    bool rollback_blockchain_switching(const std::list<block_and_checkpoint>& original_chain, uint64_t rollback_height);
 
     /**
      * @brief gets recent block weights for median calculation
@@ -1348,20 +1356,7 @@ namespace cryptonote
      *
      * @return false if the block cannot be stored for some reason, otherwise true
      */
-    bool add_block_as_invalid(const block& bl, const crypto::hash& h);
-
-    /**
-     * @brief stores an invalid block in a separate container
-     *
-     * Storing invalid blocks allows quick dismissal of the same block
-     * if it is seen again.
-     *
-     * @param bei the invalid block (see ::block_extended_info)
-     * @param h the block's hash
-     *
-     * @return false if the block cannot be stored for some reason, otherwise true
-     */
-    bool add_block_as_invalid(const block_extended_info& bei, const crypto::hash& h);
+    bool add_block_as_invalid(const cryptonote::block &block);
 
     /**
      * @brief checks a block's timestamp

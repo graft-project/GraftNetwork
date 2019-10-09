@@ -167,7 +167,7 @@ namespace nodetool
     const time_t now = time(nullptr);
 
     // look in the hosts list
-    auto it = m_blocked_hosts.find(address);
+    auto it = m_blocked_hosts.find(address.host_str());
     if (it != m_blocked_hosts.end())
     {
       if (now >= it->second)
@@ -225,7 +225,7 @@ namespace nodetool
       limit = std::numeric_limits<time_t>::max();
     else
       limit = now + seconds;
-    m_blocked_hosts[addr] = limit;
+    m_blocked_hosts[addr.host_str()] = limit;
 
     // drop any connection to that address. This should only have to look into
     // the zone related to the connection, but really make sure everything is
@@ -255,7 +255,7 @@ namespace nodetool
   bool node_server<t_payload_net_handler>::unblock_host(const epee::net_utils::network_address &address)
   {
     CRITICAL_REGION_LOCAL(m_blocked_hosts_lock);
-    auto i = m_blocked_hosts.find(address);
+    auto i = m_blocked_hosts.find(address.host_str());
     if (i == m_blocked_hosts.end())
       return false;
     m_blocked_hosts.erase(i);
@@ -575,11 +575,11 @@ namespace nodetool
     std::set<std::string> full_addrs;
     if (nettype == cryptonote::TESTNET)
     {
-      full_addrs.insert("52.63.146.137:38156");
+      full_addrs.insert("159.69.109.145:38156");
     }
     else if (nettype == cryptonote::STAGENET)
     {
-      full_addrs.insert("13.211.225.142:38153");
+      full_addrs.insert("159.69.109.145:38153");
     }
     else if (nettype == cryptonote::FAKECHAIN)
     {
@@ -1312,7 +1312,7 @@ namespace nodetool
   bool node_server<t_payload_net_handler>::is_addr_recently_failed(const epee::net_utils::network_address& addr)
   {
     CRITICAL_REGION_LOCAL(m_conn_fails_cache_lock);
-    auto it = m_conn_fails_cache.find(addr);
+    auto it = m_conn_fails_cache.find(addr.host_str());
     if(it == m_conn_fails_cache.end())
       return false;
 
@@ -1393,7 +1393,7 @@ namespace nodetool
       size_t idx = 0, skipped = 0;
       for (int step = 0; step < 2; ++step)
       {
-        bool skip_duplicate_class_B = step == 0;
+        bool skip_duplicate_class_B = step == 0 && m_nettype == cryptonote::MAINNET;
         zone.m_peerlist.foreach (use_white_list, [&classB, &filtered, &idx, &skipped, skip_duplicate_class_B, limit, next_needed_pruning_stripe](const peerlist_entry &pe){
           if (filtered.size() >= limit)
             return false;
@@ -1863,7 +1863,6 @@ namespace nodetool
     return true;
   }
   //-----------------------------------------------------------------------------------
-#ifdef ALLOW_DEBUG_COMMANDS
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::check_trust(const proof_of_trust& tr, const epee::net_utils::zone zone_type)
   {
@@ -1946,7 +1945,6 @@ namespace nodetool
     rsp.my_id = m_network_zones.at(context.m_remote_address.get_zone()).m_config.m_peer_id;
     return 1;
   }
-#endif
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_get_support_flags(int command, COMMAND_REQUEST_SUPPORT_FLAGS::request& arg, COMMAND_REQUEST_SUPPORT_FLAGS::response& rsp, p2p_connection_context& context)
@@ -2522,7 +2520,7 @@ namespace nodetool
     if (address.get_zone() != epee::net_utils::zone::public_)
       return false; // Unable to determine how many connections from host
 
-    const size_t max_connections = 1;
+    const size_t max_connections = m_nettype == cryptonote::MAINNET ? 1 : 20;
     size_t count = 0;
 
     m_network_zones.at(epee::net_utils::zone::public_).m_net_server.get_config_object().foreach_connection([&](const p2p_connection_context& cntxt)

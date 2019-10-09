@@ -342,11 +342,6 @@ namespace cryptonote
 
     if(m_core.have_block(hshd.top_id))
     {
-      if (target > m_core.get_current_blockchain_height())
-      {
-        MINFO(context << "peer is not ahead of us and we're syncing, disconnecting");
-        return false;
-      }
       context.m_state = cryptonote_connection_context::state_normal;
       if(is_inital && target == m_core.get_current_blockchain_height())
         on_connection_synchronized();
@@ -727,10 +722,31 @@ namespace cryptonote
   int t_cryptonote_protocol_handler<t_core>::handle_uptime_proof(int command, NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& context)
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_UPTIME_PROOF");
-    if(context.m_state != cryptonote_connection_context::state_normal)
-      return 1;
-    if (m_core.handle_uptime_proof(arg))
-      relay_uptime_proof(arg, context, false /*force_relay*/);
+    // NOTE: Don't relay your own uptime proof, otherwise we have the following situation
+
+    // Node1 sends uptime ->
+    // Node2 receives uptime and relays it back to Node1 for acknowledgement ->
+    // Node1 receives it, handle_uptime_proof returns true to acknowledge, Node1 tries to resend to the same peers again
+
+    // Instead, if we receive our own uptime proof, then acknowledge but don't
+    // send on. If the we are missing an uptime proof it will have been
+    // submitted automatically by the daemon itself instead of
+    // using my own proof relayed by other nodes.
+
+    (void)context;
+    bool my_uptime_proof_confirmation = false;
+    if (m_core.handle_uptime_proof(arg, my_uptime_proof_confirmation))
+    {
+      if (!my_uptime_proof_confirmation)
+      {
+        // NOTE: The default exclude context contains the peer who sent us this
+        // uptime proof, we want to ensure we relay it back so they know that the
+        // peer they relayed to received their uptime and confirm it, so send in an
+        // empty context so we don't omit the source peer from the relay back.
+        cryptonote_connection_context empty_context = {};
+        relay_uptime_proof(arg, empty_context);
+      }
+    }
     return 1;
   }
   //------------------------------------------------------------------------------------------------------------------------  
@@ -755,7 +771,7 @@ namespace cryptonote
 
       if (vvc.m_verification_failed)
       {
-        LOG_PRINT_CCONTEXT_L1("Vote type: " << service_nodes::quorum_type_to_string(it->type) << ", verification failed, dropping connection");
+        LOG_PRINT_CCONTEXT_L1("Vote type: " << it->type << ", verification failed, dropping connection");
         drop_connection(context, false /*add_fail*/, false /*flush_all_spans i.e. delete cached block data from this peer*/);
         return 1;
       }
@@ -1317,38 +1333,7 @@ namespace cryptonote
                   return false;
                 }
 
-                checkpoint                = &checkpoint_allocated_on_stack_;
-                bool maybe_has_checkpoint = (checkpoint->height % service_nodes::CHECKPOINT_INTERVAL == 0);
-
-                if (!maybe_has_checkpoint)
-                {
-                  MERROR("Checkpoint blob given but not expecting a checkpoint at this height");
-                  return false;
-                }
-
-                // TODO(doyle): If we are receiving alternative blocks, we won't
-                // have the quorum for the alternative chain meaning we will not
-                // be able to verify the checkpoint. For now always accept
-                // whatever checkpoint we receive
-#if 0
-                std::shared_ptr<const service_nodes::testing_quorum> quorum =
-                    get_testing_quorum(service_nodes::quorum_type::checkpointing, checkpoint.height);
-                if (!quorum)
-                {
-                  MERROR(
-                      "Failed to get service node quorum for height: "
-                      << checkpoint.height
-                      << ", quorum should be available as we are syncing the chain and deriving the current relevant quorum");
-                  return false;
-                }
-
-                // TODO(doyle): add reasoning, important for sync failures
-                if (!service_nodes::verify_checkpoint(checkpoint, *quorum))
-                {
-                  MERROR("Failed to verify checkpoint at height: " << checkpoint.height);
-                  return false;
-                }
-#endif
+                checkpoint = &checkpoint_allocated_on_stack_;
               }
 
               // process block
@@ -2238,11 +2223,8 @@ skip:
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
-  bool t_cryptonote_protocol_handler<t_core>::relay_uptime_proof(NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& exclude_context, bool force_relay)
+  bool t_cryptonote_protocol_handler<t_core>::relay_uptime_proof(NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& exclude_context)
   {
-    if (!is_synchronized() && !force_relay)
-      return false;
-
     bool result = relay_to_synchronized_peers<NOTIFY_UPTIME_PROOF>(arg, exclude_context);
     return result;
   }

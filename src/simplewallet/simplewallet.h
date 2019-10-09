@@ -280,29 +280,7 @@ namespace cryptonote
     std::pair<std::string, std::string> show_outputs_line(const std::vector<uint64_t> &heights, uint64_t blockchain_height, uint64_t highlight_height = std::numeric_limits<uint64_t>::max()) const;
     bool freeze_thaw(const std::vector<std::string>& args, bool freeze);
 
-    struct transfer_view
-    {
-      struct dest_output
-      {
-        std::string wallet_addr;
-        uint64_t    amount;
-        uint64_t    unlock_time;
-      };
-
-      boost::variant<uint64_t, std::string> block;
-      uint64_t timestamp;
-      tools::pay_type type;
-      bool confirmed;
-      uint64_t amount;
-      crypto::hash hash;
-      std::string payment_id;
-      uint64_t fee;
-      std::vector<dest_output> outputs;
-      std::set<uint32_t> index;
-      std::string note;
-      std::string lock_msg;
-    };
-    bool get_transfers(std::vector<std::string>& args_, std::vector<transfer_view>& transfers);
+    bool get_transfers(std::vector<std::string>& args_, std::vector<tools::transfer_view>& transfers);
 
     /*!
      * \brief Prints the seed with a nice message

@@ -795,7 +795,8 @@ rapidjson::Value GetFeeEstimate::Response::toJson(rapidjson::Document& doc) cons
 {
   auto val = Message::toJson(doc);
 
-  INSERT_INTO_JSON_OBJECT(val, doc, estimated_base_fee, estimated_base_fee);
+  INSERT_INTO_JSON_OBJECT(val, doc, estimated_base_fee_per_byte, estimated_base_fee_per_byte);
+  INSERT_INTO_JSON_OBJECT(val, doc, estimated_base_fee_per_output, estimated_base_fee_per_output);
   INSERT_INTO_JSON_OBJECT(val, doc, fee_mask, fee_mask);
   INSERT_INTO_JSON_OBJECT(val, doc, size_scale, size_scale);
   INSERT_INTO_JSON_OBJECT(val, doc, hard_fork_version, hard_fork_version);
@@ -805,7 +806,8 @@ rapidjson::Value GetFeeEstimate::Response::toJson(rapidjson::Document& doc) cons
 
 void GetFeeEstimate::Response::fromJson(rapidjson::Value& val)
 {
-  GET_FROM_JSON_OBJECT(val, estimated_base_fee, estimated_base_fee);
+  GET_FROM_JSON_OBJECT(val, estimated_base_fee_per_byte, estimated_base_fee_per_byte);
+  GET_FROM_JSON_OBJECT(val, estimated_base_fee_per_output, estimated_base_fee_per_output);
   GET_FROM_JSON_OBJECT(val, fee_mask, fee_mask);
   GET_FROM_JSON_OBJECT(val, size_scale, size_scale);
   GET_FROM_JSON_OBJECT(val, hard_fork_version, hard_fork_version);

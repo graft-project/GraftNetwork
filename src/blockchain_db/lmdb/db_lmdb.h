@@ -194,7 +194,7 @@ public:
   BlockchainLMDB(bool batch_transactions=true);
   ~BlockchainLMDB();
 
-  void open(const std::string& filename, const int mdb_flags=0) override;
+  void open(const std::string& filename, cryptonote::network_type nettype, const int mdb_flags=0) override;
 
   void close() override;
 
@@ -301,8 +301,8 @@ public:
   bool update_pruning() override;
   bool check_pruning() override;
 
-  void add_alt_block(const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata &blob) override;
-  bool get_alt_block(const crypto::hash &blkid, alt_block_data_t *data, cryptonote::blobdata *blob) override;
+  void add_alt_block(const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata &blob, const cryptonote::blobdata *checkpoint) override;
+  bool get_alt_block(const crypto::hash &blkid, alt_block_data_t *data, cryptonote::blobdata *blob, cryptonote::blobdata *checkpoint) override;
   void remove_alt_block(const crypto::hash &blkid) override;
   uint64_t get_alt_block_count() override;
   void drop_alt_blocks() override;
@@ -314,7 +314,7 @@ public:
   bool for_all_transactions(std::function<bool(const crypto::hash&, const cryptonote::transaction&)>, bool pruned) const override;
   bool for_all_outputs(std::function<bool(uint64_t amount, const crypto::hash &tx_hash, uint64_t height, size_t tx_idx)> f) const override;
   bool for_all_outputs(uint64_t amount, const std::function<bool(uint64_t height)> &f) const override;
-  bool for_all_alt_blocks(std::function<bool(const crypto::hash &blkid, const alt_block_data_t &data, const cryptonote::blobdata *blob)> f, bool include_blob = false) const override;
+  bool for_all_alt_blocks(std::function<bool(const crypto::hash &blkid, const alt_block_data_t &data, const cryptonote::blobdata *block_blob, const cryptonote::blobdata *checkpoint_blob)> f, bool include_blob = false) const override;
 
   uint64_t add_block( const std::pair<block, blobdata>& blk
                             , size_t block_weight
@@ -327,6 +327,7 @@ public:
   void remove_block_checkpoint(uint64_t height) override;
   bool get_block_checkpoint   (uint64_t height, checkpoint_t &checkpoint) const override;
   bool get_top_checkpoint     (checkpoint_t &checkpoint) const override;
+  std::vector<checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = GET_ALL_CHECKPOINTS) const override;
 
   void set_batch_transactions(bool batch_transactions) override;
   bool batch_start(uint64_t batch_num_blocks=0, uint64_t batch_bytes=0) override;
@@ -436,19 +437,13 @@ private:
   void fixup(fixup_context const context) override;
 
   // migrate from older DB version to current
-  void migrate(const uint32_t oldversion);
+  void migrate(const uint32_t oldversion, cryptonote::network_type nettype);
 
-  // migrate from DB version 0 to 1
   void migrate_0_1();
-
-  // migrate from DB version 1 to 2
   void migrate_1_2();
-
-  // migrate from DB version 2 to 3
   void migrate_2_3();
-
-  // migrate from DB version 3 to 4
   void migrate_3_4();
+  void migrate_4_5(cryptonote::network_type nettype);
 
   void cleanup_batch();
 
