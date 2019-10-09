@@ -92,6 +92,7 @@ namespace cryptonote {
 
   uint64_t block_reward_unpenalized_formula_v8(uint64_t height)
   {
+    std::fesetround(FE_TONEAREST);
     uint64_t result = 28000000000.0 + 100000000000.0 / loki::exp2(height / (720.0 * 90.0)); // halve every 90 days.
     return result;
   }
