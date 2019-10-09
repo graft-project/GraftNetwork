@@ -1953,8 +1953,8 @@ namespace service_nodes
   struct proof_version
   {
     uint8_t hardfork;
-    uint8_t major;
-    uint8_t minor;
+    uint16_t major;
+    uint16_t minor;
   };
 
   static constexpr proof_version hf_min_loki_versions[] = {
@@ -1988,7 +1988,7 @@ namespace service_nodes
         if (proof.snode_version_major < min.major ||
             (proof.snode_version_major == min.major && proof.snode_version_minor < min.minor))
         {
-          REJECT_PROOF("v" << min.major << "." << min.minor << "+ loki version is required for v" << hf_version << "+ network proofs");
+          REJECT_PROOF("v" << min.major << "." << min.minor << "+ loki version is required for v" << std::to_string(hf_version) << "+ network proofs");
         }
       }
     }
