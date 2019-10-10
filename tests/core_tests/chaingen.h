@@ -64,6 +64,12 @@
 
 #define DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN  DIFFICULTY_TARGET_V2
 
+#if defined(__GNUG__) && !defined(__clang__) && __GNUC__ < 6
+namespace service_nodes {
+  const std::vector<payout_entry> dummy; // help GCC 5 realize it needs to generate a default constructor
+}
+#endif
+
 struct loki_block_with_checkpoint
 {
   cryptonote::block        block;
