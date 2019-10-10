@@ -117,6 +117,7 @@ set(CMAKE_FIND_FRAMEWORK "LAST")
 # when ARCH is not set to an explicit identifier, cmake's builtin is used
 # to identify the target architecture, to direct logic in this cmake script.
 # Since ARCH is a cached variable, it will not be set on first cmake invocation.
+if (NOT ARCH_ID)
 if (NOT ARCH OR ARCH STREQUAL "" OR ARCH STREQUAL "native" OR ARCH STREQUAL "default")
   if(CMAKE_SYSTEM_PROCESSOR STREQUAL "")
     set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_HOST_SYSTEM_PROCESSOR})
@@ -124,6 +125,7 @@ if (NOT ARCH OR ARCH STREQUAL "" OR ARCH STREQUAL "native" OR ARCH STREQUAL "def
   set(ARCH_ID "${CMAKE_SYSTEM_PROCESSOR}")
 else()
   set(ARCH_ID "${ARCH}")
+endif()
 endif()
 string(TOLOWER "${ARCH_ID}" ARM_ID)
 string(SUBSTRING "${ARM_ID}" 0 3 ARM_TEST)
@@ -456,7 +458,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "(SunOS|Solaris)")
 endif ()
 
 if (APPLE AND NOT IOS)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64 -fvisibility=default")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64 -fvisibility=default -std=c++14")
   if (NOT OpenSSL_DIR)
       EXECUTE_PROCESS(COMMAND brew --prefix openssl
         OUTPUT_VARIABLE OPENSSL_ROOT_DIR
