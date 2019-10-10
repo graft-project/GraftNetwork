@@ -68,6 +68,19 @@ RUN set -ex \
     && make install
 ENV OPENSSL_ROOT_DIR=/usr/local/openssl-${OPENSSL_VERSION}
 
+# Sodium
+ARG SODIUM_VERSION=1.0.17
+ARG SODIUM_HASH=b732443c442239c2e0184820e9b23cca0de0828c
+RUN set -ex \
+    && git clone https://github.com/jedisct1/libsodium.git -b ${SODIUM_VERSION} --depth=1 \
+    && cd libsodium \
+    && test `git rev-parse HEAD` = ${SODIUM_HASH} || exit 1 \
+    && ./autogen.sh \
+    && ./configure \
+    && make \
+    && make check \
+    && make install
+
 # ZMQ
 ARG ZMQ_VERSION=v4.3.1
 ARG ZMQ_HASH=2cb1240db64ce1ea299e00474c646a2453a8435b
@@ -76,7 +89,7 @@ RUN set -ex \
     && cd libzmq \
     && test `git rev-parse HEAD` = ${ZMQ_HASH} || exit 1 \
     && ./autogen.sh \
-    && ./configure --enable-static --disable-shared \
+    && ./configure --with-libsodium --enable-static --disable-shared \
     && make \
     && make install \
     && ldconfig
@@ -101,19 +114,6 @@ RUN set -ex \
 #     && ./configure \
 #     && make \
 #     && make install
-
-# Sodium
-ARG SODIUM_VERSION=1.0.17
-ARG SODIUM_HASH=b732443c442239c2e0184820e9b23cca0de0828c
-RUN set -ex \
-    && git clone https://github.com/jedisct1/libsodium.git -b ${SODIUM_VERSION} --depth=1 \
-    && cd libsodium \
-    && test `git rev-parse HEAD` = ${SODIUM_HASH} || exit 1 \
-    && ./autogen.sh \
-    && ./configure \
-    && make \
-    && make check \
-    && make install
 
 # Udev
 ARG UDEV_VERSION=v3.2.7
