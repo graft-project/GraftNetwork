@@ -307,4 +307,8 @@ namespace tools
     return r;
   }
 
+  // Returns the `_count` element of a scoped enum, cast to the enum's underlying type
+  template <typename Enum>
+  constexpr auto enum_count = static_cast<std::underlying_type_t<Enum>>(Enum::_count);
+
 }

@@ -35,6 +35,7 @@
 #include "cryptonote_core/service_node_rules.h"
 #include "cryptonote_core/service_node_voting.h"
 #include "cryptonote_core/service_node_quorum_cop.h"
+#include "common/util.h"
 
 namespace cryptonote
 {
@@ -93,14 +94,15 @@ namespace service_nodes
       v2_ed25519,
       v3_quorumnet,
 
-      count
+      _count
     };
 
     struct contribution_t
     {
       enum class version_t : uint8_t {
         v0,
-        count
+
+        _count
       };
 
       version_t          version{version_t::v0};
@@ -113,7 +115,7 @@ namespace service_nodes
         : version{version}, key_image_pub_key{pubkey}, key_image{key_image}, amount{amount} {}
 
       BEGIN_SERIALIZE_OBJECT()
-        ENUM_FIELD(version, version < version_t::count)
+        ENUM_FIELD(version, version < version_t::_count)
         FIELD(key_image_pub_key)
         FIELD(key_image)
         VARINT_FIELD(amount)
@@ -183,7 +185,7 @@ namespace service_nodes
     void derive_x25519_pubkey_from_ed25519(); // Attempts to set x25519 from ed25519 pubkey.  Sets both to null if conversion fails.
 
     BEGIN_SERIALIZE_OBJECT()
-      ENUM_FIELD(version, version < version_t::count)
+      ENUM_FIELD(version, version < version_t::_count)
       VARINT_FIELD(registration_height)
       VARINT_FIELD(requested_unlock_height)
       VARINT_FIELD(last_reward_block_height)
@@ -363,7 +365,7 @@ namespace service_nodes
     {
       uint8_t        version;
       uint64_t       height;
-      quorum         quorums[static_cast<uint8_t>(quorum_type::count)];
+      quorum         quorums[tools::enum_count<quorum_type>];
 
       BEGIN_SERIALIZE()
         FIELD(version)

@@ -61,7 +61,7 @@ namespace service_nodes
   {
     obligations = 0,
     checkpointing,
-    count,
+    _count,
     rpc_request_all_quorums_sentinel_value = 255, // Only valid for get_quorum_state RPC call
   };
 
@@ -70,11 +70,12 @@ namespace service_nodes
     {
       case quorum_type::obligations:   return os << "obligation";
       case quorum_type::checkpointing: return os << "checkpointing";
+      case quorum_type::blink:         return os << "blink";
       default: assert(false);          return os << "xx_unhandled_type";
     }
   }
 
-  enum struct quorum_group : uint8_t { invalid, validator, worker, count };
+  enum struct quorum_group : uint8_t { invalid, validator, worker, _count };
   struct quorum_vote_t
   {
     uint8_t           version = 0;

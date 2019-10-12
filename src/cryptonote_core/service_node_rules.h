@@ -113,7 +113,7 @@ namespace service_nodes {
   {
     quorum_type result = (hf_version <= cryptonote::network_version_12_checkpointing) ? quorum_type::obligations
                                                                                       : quorum_type::checkpointing;
-    assert(result != quorum_type::count);
+    assert(result != quorum_type::_count);
     return result;
   }
 

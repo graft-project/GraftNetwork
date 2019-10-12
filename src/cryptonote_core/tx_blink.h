@@ -29,6 +29,7 @@
 #pragma once
 
 #include "../cryptonote_basic/cryptonote_basic.h"
+#include "../common/util.h"
 #include <iostream>
 
 namespace cryptonote {
@@ -86,7 +87,7 @@ public:
 private:
   transaction tx_;
   uint64_t height_;
-  std::array<std::array<crypto::signature, BLINK_QUORUM_SIZE>, static_cast<uint8_t>(quorum::_count)> signatures_;
+  std::array<std::array<crypto::signature, BLINK_QUORUM_SIZE>, tools::enum_count<quorum>> signatures_;
 
 };
 
