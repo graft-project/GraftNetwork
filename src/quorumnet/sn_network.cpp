@@ -829,19 +829,20 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
 
                     } else {
                         // No pubkey (i.e. not a SN quorum message); this can only happen on an
-                        // incoming connection on listener, ...
+                        // incoming connection on listener
                         assert(i == 0);
-                        // ... which means the first part is already the return route zmq added, so
-                        // just leave it there and prepend a blank frame to indicate a no-pubkey
-                        // message.
-                        parts.emplace_front();
 
-                        auto incoming_parts = parts.size() - 2; // ZMQ router prepended one, we just prepended another.
+                        // and, for such an incoming connection, the ZMQ router socket has already
+                        // prepended a return path on the front:
+                        auto incoming_parts = parts.size() - 1;
 
                         if (incoming_parts < 1 || incoming_parts > 2) {
                             SN_LOG(warn, "Invalid incoming message: expected 1-2 parts, not " << incoming_parts);
                             continue;
                         }
+
+                        // Push an empty frame on the front to indicate a no-pubkey message
+                        parts.emplace_front();
                     }
 
                     if (want_logs(LogLevel::trace)) {
