@@ -61,8 +61,7 @@ namespace service_nodes
   {
     obligations = 0,
     checkpointing,
-    _count,
-    rpc_request_all_quorums_sentinel_value = 255, // Only valid for get_quorum_state RPC call
+    _count
   };
 
   inline std::ostream &operator<<(std::ostream &os, quorum_type v) {

@@ -2495,6 +2495,7 @@ namespace cryptonote
   struct COMMAND_RPC_GET_QUORUM_STATE
   {
     static constexpr uint64_t HEIGHT_SENTINEL_VALUE = UINT64_MAX;
+    static constexpr uint8_t ALL_QUORUMS_SENTINEL_VALUE = 255;
     struct request_t
     {
       uint64_t start_height; // (Optional): Start height, omit both start and end height to request the latest quorum
@@ -2504,7 +2505,7 @@ namespace cryptonote
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_OPT(start_height, HEIGHT_SENTINEL_VALUE)
         KV_SERIALIZE_OPT(end_height, HEIGHT_SENTINEL_VALUE)
-        KV_SERIALIZE_OPT(quorum_type, (uint8_t)service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value)
+        KV_SERIALIZE_OPT(quorum_type, ALL_QUORUMS_SENTINEL_VALUE)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;

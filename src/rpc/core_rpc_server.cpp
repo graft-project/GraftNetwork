@@ -2512,8 +2512,8 @@ namespace cryptonote
   {
     PERF_TIMER(on_get_quorum_state);
 
-    if (req.quorum_type >= (decltype(req.quorum_type))service_nodes::quorum_type::count &&
-        req.quorum_type != (decltype(req.quorum_type))service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value)
+    if (req.quorum_type >= tools::enum_count<service_nodes::quorum_type> &&
+        req.quorum_type != COMMAND_RPC_GET_QUORUM_STATE::ALL_QUORUMS_SENTINEL_VALUE)
     {
       error_resp.code    = CORE_RPC_ERROR_CODE_WRONG_PARAM;
       error_resp.message = "Quorum type specifies an invalid value: ";
@@ -2576,7 +2576,7 @@ namespace cryptonote
         auto start_quorum_iterator = static_cast<service_nodes::quorum_type>(0);
         auto end_quorum_iterator   = service_nodes::max_quorum_type_for_hf(hf_version);
 
-        if (req.quorum_type != (decltype(req.quorum_type))service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value)
+        if (req.quorum_type != COMMAND_RPC_GET_QUORUM_STATE::ALL_QUORUMS_SENTINEL_VALUE)
         {
           start_quorum_iterator = static_cast<service_nodes::quorum_type>(req.quorum_type);
           end_quorum_iterator   = start_quorum_iterator;

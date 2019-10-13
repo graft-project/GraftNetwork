@@ -997,7 +997,7 @@ bool t_rpc_command_executor::print_quorum_state(uint64_t start_height, uint64_t 
 
   req.start_height = start_height;
   req.end_height   = end_height;
-  req.quorum_type  = (decltype(req.quorum_type))service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value;
+  req.quorum_type  = cryptonote::COMMAND_RPC_GET_QUORUM_STATE::ALL_QUORUMS_SENTINEL_VALUE;
 
   std::string fail_message = "Unsuccessful";
 
