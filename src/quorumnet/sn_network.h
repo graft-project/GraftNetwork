@@ -99,7 +99,7 @@ public:
         SNNetwork &net;
     public:
         std::string command; ///< The command name
-        bt_dict data; ///< The provided command data, if any.
+        std::vector<bt_value> data; ///< The provided command data parts, if any.
         const std::string pubkey; ///< The originator pubkey (32 bytes), if from an authenticated service node; empty for a non-SN incoming message.
         const std::string route; ///< Opaque routing string used to route a reply back to the correct place when `pubkey` is empty.
 
@@ -365,18 +365,20 @@ public:
      * message to send; it merely instructs the proxy thread that it should send.
      *
      * @param pubkey - the pubkey to send this to
-     * @param cmd - the command
-     * @param value - the optional bt_dict value to serialize and send (only included if specified
-     *                and non-empty)
+     * @param value - a bt_serializable value to serialize and send
+     * @param opts - any number of bt_serializable values and send options.  Each send option affect
+     *               how the send works; each serializable value becomes a serialized message part.
+     *
+     * Example:
+     *
+     *     sn.send(pubkey, "hello", "abc", 42, send_option::hint("tcp://localhost:1234"));
+     *
+     * sends the command `hello` to the given pubkey, containing two additional message parts of
+     * serialized "abc" and 42 values, and, if not currently connected, using the given connection
+     * hint rather than performing a connection address lookup on the pubkey.
      */
-    void send(const std::string &pubkey, const std::string &cmd, const bt_dict &data = {});
-
-    /**
-     * Works just like send(), but also takes a connection hint.  If there is no current connection
-     * to the peer then the hint is used to save a call to the LookupFunc to get the connection
-     * location.  (Note that there is no guarantee that the given hint will be used.)
-     */
-    void send_hint(const std::string &pubkey, const std::string &connect_hint, const std::string &cmd, const bt_dict &data = {});
+    template <typename... T>
+    void send(const std::string &pubkey, const std::string &cmd, const T &...opts);
 
     /** Queue a message to be replied to the given incoming route.  This method is typically invoked
      * indirectly by calling `message.reply(...)` which either calls `send()` or this message,
@@ -414,6 +416,62 @@ public:
      */
     static void register_public_command(std::string command, std::function<void(SNNetwork::message &message, void *data)> callback);
 };
+
+/// Namespace for options to the send() method
+namespace send_option {
+/// Specifies a connection hint when passed in to send().  If there is no current connection to the
+/// peer then the hint is used to save a call to the LookupFunc to get the connection location.
+/// (Note that there is no guarantee that the given hint will be used or that a LookupFunc call will
+/// not be done.)
+struct hint {
+    std::string connect_hint;
+    hint(std::string connect_hint) : connect_hint{std::move(connect_hint)} {}
+};
+
+/// Does a send() if we already have a connection (incoming or outgoing) with the given peer,
+/// otherwise drops the message.
+struct optional {};
+}
+
+namespace detail {
+
+// Sends a control message to the given socket consisting of the command plus optional dict
+// data (only sent if the dict is non-empty).
+void send_control(zmq::socket_t &sock, const std::string &cmd, const bt_dict &data = {});
+
+/// Base case: takes a serializable value and appends it to the message parts
+template <typename T>
+void apply_send_option(bt_list &parts, bt_dict &, const T &arg) {
+    parts.push_back(quorumnet::bt_serialize(arg));
+}
+
+/// hint specialization: sets the hint in the control data
+template <> void apply_send_option(bt_list &, bt_dict &control_data, const send_option::hint &hint) {
+    control_data["hint"] = hint.connect_hint;
+}
+/// optional specialization: sets the optional flag in the control data
+template <> void apply_send_option(bt_list &, bt_dict &control_data, const send_option::optional &) {
+    control_data["optional"] = 1;
+}
+
+}
+
+
+template <typename... T>
+void SNNetwork::send(const std::string &pubkey, const std::string &cmd, const T &...opts) {
+    bt_list parts{{cmd}};
+    bt_dict control_data{{"pubkey",pubkey}};
+
+#ifdef __cpp_fold_expressions
+    (detail::apply_send_option(parts, control_data, opts),...);
+#else
+    std::initializer_list<int>{(detail::apply_send_option(parts, control_data, opts), 0)...};
+#endif
+
+    control_data["send"] = std::move(parts);
+    detail::send_control(get_control_socket(), "SEND", control_data);
+}
+
 
 // Creates a hex string from a character sequence.
 template <typename It>

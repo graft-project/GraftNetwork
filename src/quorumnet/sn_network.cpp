@@ -135,25 +135,28 @@ zmq::message_t create_message(
 /// Creates a message by serializing a bt serialization dict
 zmq::message_t create_bt_message(const bt_dict &data) { return create_message(bt_serialize(data)); }
 
+namespace detail {
 // Control messages between proxy and threads and between proxy and workers are command codes in the
 // first frame followed by an optional bt-serialized dict in the second frame (if specified and
 // non-empty).
-void send_control(zmq::socket_t &sock, const std::string &cmd, const bt_dict &data = {}) {
+void send_control(zmq::socket_t &sock, const std::string &cmd, const bt_dict &data) {
     zmq::message_t c{cmd.begin(), cmd.end()};
     if (data.empty()) {
         sock.send(c, zmq::send_flags::none);
     } else {
-        zmq::message_t d{bt_serialize(data)};
+        zmq::message_t d{quorumnet::bt_serialize(data)};
         sock.send(c, zmq::send_flags::sndmore);
         sock.send(d, zmq::send_flags::none);
     }
 }
+}
+
 /// Sends a control message to a specific destination by prefixing the worker name (or identity)
 /// then appending the command and optional data.  (This is needed when sending the control message
 /// to a router socket, i.e. inside the proxy thread).
-void route_control(zmq::socket_t &sock, const std::string &identity, const std::string &cmd, const bt_dict &data = {}) {
+static void route_control(zmq::socket_t &sock, const std::string &identity, const std::string &cmd, const bt_dict &data = {}) {
     sock.send(zmq::message_t{identity.begin(), identity.end()}, zmq::send_flags::sndmore);
-    send_control(sock, cmd, data);
+    detail::send_control(sock, cmd, data);
 }
 
 /// Constructs a message sequence consisting of a recipient address (generally the pubkey) followed
@@ -316,7 +319,7 @@ SNNetwork::SNNetwork(
 
         SN_LOG(warn, "Waiting for proxy thread to get ready...");
         auto &control = get_control_socket();
-        send_control(control, "START");
+        detail::send_control(control, "START");
         SN_LOG(trace, "Sent START command");
 
         zmq::message_t ready_msg;
@@ -341,7 +344,7 @@ void SNNetwork::worker_thread(std::string worker_id) {
     sock.connect(SN_ADDR_WORKERS);
 
     while (true) {
-        send_control(sock, "READY");
+        detail::send_control(sock, "READY");
 
         // When we get an incoming message it'll be in parts that look like one of:
         // [CONTROL] -- some control command, e.g. "QUIT"
@@ -361,7 +364,7 @@ void SNNetwork::worker_thread(std::string worker_id) {
                 auto control = pop_string(parts);
                 if (control == "QUIT") {
                     SN_LOG(debug, "worker " << worker_id << " shutting down");
-                    send_control(sock, "QUITTING");
+                    detail::send_control(sock, "QUITTING");
                     sock.setsockopt<int>(ZMQ_LINGER, 1000);
                     sock.close();
                     return;
@@ -377,17 +380,19 @@ void SNNetwork::worker_thread(std::string worker_id) {
             if (pubkey.empty())
                 route = pop_string(parts);
 
-            if (parts.size() < 1 || parts.size() > 2 || (pubkey.empty() ? route.empty() : pubkey.size() != 32)) {
+            if (parts.size() < 1 || (pubkey.empty() ? route.empty() : pubkey.size() != 32)) {
                 // proxy shouldn't have let this through!
-                SN_LOG(error, worker_id << "\e[31m\e[1m received malformed message from proxy thread:\e[0m " << parts.size() << " message frames, pubkey size " << pubkey.size() << ", route? " << !route.empty());
+                SN_LOG(error, worker_id << "received malformed message from proxy thread: " << parts.size() << " message frames, pubkey size " << pubkey.size() << ", route? " << !route.empty());
                 continue;
             }
 
             message msg{*this, pop_string(parts), std::move(pubkey), std::move(route)};
             SN_LOG(trace, worker_id << " received " << msg.command << " message from " << (msg.from_sn() ? as_hex(msg.pubkey) : "non-SN remote"s) <<
-                    " with encoded data: " << (parts.empty() ? "(none)"s : parts.front().str()));
-            if (!parts.empty())
-                bt_deserialize(parts.front().data<char>(), parts.front().size(), msg.data);
+                    " with " << parts.size() << " data parts");
+            for (const auto &part : parts) {
+                msg.data.emplace_back();
+                bt_deserialize(part.data<char>(), part.size(), msg.data.back());
+            }
 
             auto cmdit = commands.find(msg.command);
             if (cmdit == commands.end()) {
@@ -988,29 +993,13 @@ void SNNetwork::process_zap_requests(zmq::socket_t &zap_auth) {
 
 SNNetwork::~SNNetwork() {
     SN_LOG(info, "SNNetwork shutting down proxy thread");
-    send_control(get_control_socket(), "QUIT");
+    detail::send_control(get_control_socket(), "QUIT");
     proxy_thread.join();
     SN_LOG(info, "SNNetwork proxy thread has stopped");
 }
 
 void SNNetwork::connect(const std::string &pubkey, std::chrono::milliseconds keep_alive) {
-    send_control(get_control_socket(), "CONNECT", {{"pubkey",pubkey}, {"keep-alive",keep_alive.count()}});
-}
-
-void SNNetwork::send(const std::string &pubkey, const std::string &cmd, const bt_dict &data) {
-    bt_list parts{{cmd}};
-    if (!data.empty())
-        parts.push_back(bt_serialize(data));
-
-    send_control(get_control_socket(), "SEND", {{"pubkey",pubkey}, {"send",std::move(parts)}});
-}
-
-void SNNetwork::send_hint(const std::string &pubkey, const std::string &connect_hint, const std::string &cmd, const bt_dict &data) {
-    bt_list parts{{cmd}};
-    if (!data.empty())
-        parts.push_back(bt_serialize(data));
-
-    send_control(get_control_socket(), "SEND", {{"pubkey",pubkey}, {"hint",connect_hint}, {"send",std::move(parts)}});
+    detail::send_control(get_control_socket(), "CONNECT", {{"pubkey",pubkey}, {"keep-alive",keep_alive.count()}});
 }
 
 void SNNetwork::reply_incoming(const std::string &route, const std::string &cmd, const bt_dict &data) {
@@ -1018,7 +1007,7 @@ void SNNetwork::reply_incoming(const std::string &route, const std::string &cmd,
     if (!data.empty())
         parts.push_back(bt_serialize(data));
 
-    send_control(get_control_socket(), "REPLY", {{"route",route}, {"send",std::move(parts)}});
+    detail::send_control(get_control_socket(), "REPLY", {{"route",route}, {"send",std::move(parts)}});
 }
 
 void SNNetwork::message::reply(const std::string &command, const bt_dict &data) {
