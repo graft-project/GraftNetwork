@@ -112,11 +112,16 @@ public:
         /// True if this message is from a service node (i.e. pubkey is set)
         bool from_sn() const { return !pubkey.empty(); }
 
-        /// Sends a reply.  For SN messages (i.e. where `from_sn()` is true) this is a "strong"
-        /// reply in that the proxy will establish a new connection to the SN if no longer
-        /// connected.  For non-SN messages the reply will be attempted using the available routing
-        /// information, but if the connection has already been closed the reply will be dropped.
-        void reply(const std::string &command, const bt_dict &data = {});
+        /// Sends a reply.  Arguments are forward appropriately to send() or reply_incoming().  For
+        /// SN messages (i.e.  where `from_sn()` is true) this is a "strong" reply by default in
+        /// that the proxy will establish a new connection to the SN if no longer connected.  For
+        /// non-SN messages the reply will be attempted using the available routing information, but
+        /// if the connection has already been closed the reply will be dropped.
+        template <typename... Args>
+        void reply(const std::string &command, Args &&...args) {
+            if (from_sn()) net.send(pubkey, command, std::forward<Args>(args)...);
+            else net.reply_incoming(route, command, std::forward<Args>(args)...);
+        }
     };
 
     /// Opaque pointer sent to the callbacks, to allow for including arbitrary state data (for
@@ -256,7 +261,7 @@ private:
 
     /// Common connection implementation used by proxy_connect/proxy_send.  Returns the socket
     /// and, if a routing prefix is needed, the required prefix (or an empty string if not needed).
-    std::pair<std::shared_ptr<zmq::socket_t>, std::string> proxy_connect(const std::string &pubkey, const std::string &connect_hint, std::chrono::milliseconds keep_alive);
+    std::pair<std::shared_ptr<zmq::socket_t>, std::string> proxy_connect(const std::string &pubkey, const std::string &connect_hint, bool optional, std::chrono::milliseconds keep_alive);
 
     /// CONNECT command telling us to connect to a new pubkey.  Returns the socket (which could be
     /// existing or a new one).
@@ -341,17 +346,24 @@ public:
      * future.  If a connection is already established, the connection's idle timer will be reset
      * (so that the connection will not be closed too soon).  If the given idle timeout is greater
      * than the current idle timeout then the timeout increases to the new value; if less than the
-     * current timeout it is ignored.
+     * current timeout it is ignored.  (Note that idle timeouts only apply if the existing
+     * connection is an outgoing connection).
      *
      * Note that this method (along with send) doesn't block waiting for a connection; it merely
      * instructs the proxy thread that it should establish a connection.
      *
      * @param pubkey - the public key (32-byte binary string) of the service node to connect to
-     * @param idle_timeout - the connection will be kept alive if there was valid activity within
-     *                       the past `keep_alive` milliseconds.  If a connection already exists,
-     *                       the longer of the existing and the given keep alive is used.
+     * @param keep_alive - the connection will be kept alive if there was valid activity within
+     *                     the past `keep_alive` milliseconds.  If an outgoing connection already
+     *                     exists, the longer of the existing and the given keep alive is used.
+     *                     Note that the default applied here is much longer than the default for an
+     *                     implicit connect() by calling send() directly.
+     * @param hint - if non-empty and a new outgoing connection needs to be made this hint value
+     *               may be used instead of calling the lookup function.  (Note that there is no
+     *               guarantee that the hint will be used; it should only be used when the lookup
+     *               value has been precomputed to save a lookup call).
      */
-    void connect(const std::string &pubkey, std::chrono::milliseconds idle_timeout = 600s);
+    void connect(const std::string &pubkey, std::chrono::milliseconds keep_alive = 5min, const std::string &hint = "");
 
     /**
      * Queue a message to be relayed to SN identified with the given pubkey without expecting a
@@ -380,14 +392,16 @@ public:
     template <typename... T>
     void send(const std::string &pubkey, const std::string &cmd, const T &...opts);
 
-    /** Queue a message to be replied to the given incoming route.  This method is typically invoked
-     * indirectly by calling `message.reply(...)` which either calls `send()` or this message,
-     * depending on the original source of the message.
+    /** Queue a message to be replied to the given incoming route, if still connected.  This method
+     * is typically invoked indirectly by calling `message.reply(...)` which either calls `send()`
+     * or this message, depending on the original source of the message.
      */
-    void reply_incoming(const std::string &route, const std::string &cmd, const bt_dict &data = {});
+    template <typename... T>
+    void reply_incoming(const std::string &route, const std::string &cmd, const T &...opts);
 
     /** The keep-alive time for a send() that results in a new connection.  To use a longer
-     * keep-alive to a host call `connect()` first with the desired keep-alive time.
+     * keep-alive to a host call `connect()` first with the desired keep-alive time or pass the
+     * send_options::keep_alive
      */
     static constexpr std::chrono::milliseconds default_send_keep_alive{15000};
 
@@ -431,6 +445,14 @@ struct hint {
 /// Does a send() if we already have a connection (incoming or outgoing) with the given peer,
 /// otherwise drops the message.
 struct optional {};
+
+/// Specifies the idle timeout for the connection - if a new or existing outgoing connection is used
+/// for the send and its current idle timeout setting is less than this value then it is updated.
+struct keep_alive {
+    std::chrono::milliseconds time;
+    keep_alive(std::chrono::milliseconds time) : time{std::move(time)} {}
+};
+
 }
 
 namespace detail {
@@ -445,23 +467,27 @@ void apply_send_option(bt_list &parts, bt_dict &, const T &arg) {
     parts.push_back(quorumnet::bt_serialize(arg));
 }
 
-/// hint specialization: sets the hint in the control data
-template <> void apply_send_option(bt_list &, bt_dict &control_data, const send_option::hint &hint) {
+/// `hint` specialization: sets the hint in the control data
+template <> inline void apply_send_option(bt_list &, bt_dict &control_data, const send_option::hint &hint) {
     control_data["hint"] = hint.connect_hint;
 }
-/// optional specialization: sets the optional flag in the control data
-template <> void apply_send_option(bt_list &, bt_dict &control_data, const send_option::optional &) {
+
+/// `optional` specialization: sets the optional flag in the control data
+template <> inline void apply_send_option(bt_list &, bt_dict &control_data, const send_option::optional &) {
     control_data["optional"] = 1;
 }
 
+/// `keep_alive` specialization: increases the outgoing socket idle timeout (if shorter)
+template <> inline void apply_send_option(bt_list &, bt_dict &control_data, const send_option::keep_alive &timeout) {
+    control_data["keep-alive"] = timeout.time.count();
 }
 
-
+/// Calls apply_send_option on each argument and returns a bt_dict with the command plus data stored
+/// in the "send" key plus whatever else is implied by any given option arguments.
 template <typename... T>
-void SNNetwork::send(const std::string &pubkey, const std::string &cmd, const T &...opts) {
+bt_dict send_control_data(const std::string &cmd, const T &...opts) {
+    bt_dict control_data;
     bt_list parts{{cmd}};
-    bt_dict control_data{{"pubkey",pubkey}};
-
 #ifdef __cpp_fold_expressions
     (detail::apply_send_option(parts, control_data, opts),...);
 #else
@@ -469,7 +495,23 @@ void SNNetwork::send(const std::string &pubkey, const std::string &cmd, const T 
 #endif
 
     control_data["send"] = std::move(parts);
+    return control_data;
+}
+
+}
+
+template <typename... T>
+void SNNetwork::send(const std::string &pubkey, const std::string &cmd, const T &...opts) {
+    bt_dict control_data = detail::send_control_data(cmd, opts...);
+    control_data["pubkey"] = pubkey;
     detail::send_control(get_control_socket(), "SEND", control_data);
+}
+
+template <typename... T>
+void SNNetwork::reply_incoming(const std::string &route, const std::string &cmd, const T &...opts) {
+    bt_dict control_data = detail::send_control_data(cmd, opts...);
+    control_data["route"] = route;
+    detail::send_control(get_control_socket(), "REPLY", control_data);
 }
 
 

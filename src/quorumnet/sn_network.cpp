@@ -453,7 +453,7 @@ void SNNetwork::proxy_quit() {
 }
 
 std::pair<std::shared_ptr<zmq::socket_t>, std::string>
-SNNetwork::proxy_connect(const std::string &remote, const std::string &connect_hint, std::chrono::milliseconds keep_alive) {
+SNNetwork::proxy_connect(const std::string &remote, const std::string &connect_hint, bool optional, std::chrono::milliseconds keep_alive) {
     auto &peer = peers[remote];
 
     if (auto socket = peer.socket()) {
@@ -466,6 +466,9 @@ SNNetwork::proxy_connect(const std::string &remote, const std::string &connect_h
         peer.activity();
 
         return {socket, socket == listener ? peer.incoming_route : ""s};
+    } else if (optional) {
+        SN_LOG(debug, "proxy asked for optional connection but not currently connected so cancelling connection attempt");
+        return {};
     }
 
     // No connection so establish a new one
@@ -519,7 +522,9 @@ std::pair<std::shared_ptr<zmq::socket_t>, std::string> SNNetwork::proxy_connect(
     if (hint_it != data.end())
         hint = get<std::string>(data.at("hint"));
 
-    return proxy_connect(remote_pubkey, hint, keep_alive);
+    bool optional = data.count("optional");
+
+    return proxy_connect(remote_pubkey, hint, optional, keep_alive);
 }
 
 constexpr std::chrono::milliseconds SNNetwork::default_send_keep_alive;
@@ -539,11 +544,21 @@ void SNNetwork::proxy_send(bt_dict &&data) {
     std::string hint;
     auto hint_it = data.find("hint");
     if (hint_it != data.end())
-        hint = get<std::string>(data.at("hint"));
+        hint = get<std::string>(hint_it->second);
 
-    auto sock_route = proxy_connect(remote_pubkey, hint, default_send_keep_alive);
+    auto idle_it = data.find("keep-alive");
+    std::chrono::milliseconds keep_alive = idle_it != data.end()
+        ? std::chrono::milliseconds(get_int<uint64_t>(idle_it->second))
+        : default_send_keep_alive;
+
+    bool optional = data.count("optional");
+
+    auto sock_route = proxy_connect(remote_pubkey, hint, optional, keep_alive);
     if (!sock_route.first) {
-        SN_LOG(error, "Unable to send to " << as_hex(remote_pubkey) << ": no connection could be established");
+        if (optional)
+            SN_LOG(debug, "Not sending: send is optional and no connection to " << as_hex(remote_pubkey) << " is currently established");
+        else
+            SN_LOG(error, "Unable to send to " << as_hex(remote_pubkey) << ": no connection could be established");
         return;
     }
     try {
@@ -998,23 +1013,8 @@ SNNetwork::~SNNetwork() {
     SN_LOG(info, "SNNetwork proxy thread has stopped");
 }
 
-void SNNetwork::connect(const std::string &pubkey, std::chrono::milliseconds keep_alive) {
-    detail::send_control(get_control_socket(), "CONNECT", {{"pubkey",pubkey}, {"keep-alive",keep_alive.count()}});
-}
-
-void SNNetwork::reply_incoming(const std::string &route, const std::string &cmd, const bt_dict &data) {
-    bt_list parts{{cmd}};
-    if (!data.empty())
-        parts.push_back(bt_serialize(data));
-
-    detail::send_control(get_control_socket(), "REPLY", {{"route",route}, {"send",std::move(parts)}});
-}
-
-void SNNetwork::message::reply(const std::string &command, const bt_dict &data) {
-    if (from_sn())
-        net.send(pubkey, command, data);
-    else
-        net.reply_incoming(route, command, data);
+void SNNetwork::connect(const std::string &pubkey, std::chrono::milliseconds keep_alive, const std::string &hint) {
+    detail::send_control(get_control_socket(), "CONNECT", {{"pubkey",pubkey}, {"keep-alive",keep_alive.count()}, {"hint",hint}});
 }
 
 std::shared_ptr<zmq::socket_t> SNNetwork::peer_info::socket() {
