@@ -27,7 +27,6 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
-#include <iostream> // DEBUG
 
 // Please no epee.  *Especially* for serialization!
 #include <string>
@@ -40,12 +39,12 @@
 #include <algorithm>
 #include <functional>
 #include <ostream>
+#include <istream>
 #include <sstream>
 #include <boost/variant.hpp>
 #include "common.h"
 #include "../common/osrb.h"
 
-#include <iostream> // DEBUG
 
 namespace quorumnet {
 
