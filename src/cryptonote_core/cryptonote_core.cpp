@@ -264,7 +264,6 @@ namespace cryptonote
   void (*quorumnet_delete)(void *self);
   void (*quorumnet_relay_votes)(void *self, const std::vector<service_nodes::quorum_vote_t> &);
   static bool init_core_callback_stubs() {
-    if (init_core_callback_complete) return true;
     quorumnet_new = [](core &, service_nodes::service_node_list &, const std::string &) -> void * { need_core_init(); };
     quorumnet_delete = [](void *) { need_core_init(); };
     quorumnet_relay_votes = [](void *, const std::vector<service_nodes::quorum_vote_t> &) { need_core_init(); };
