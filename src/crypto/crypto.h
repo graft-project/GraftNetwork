@@ -86,6 +86,9 @@ namespace crypto {
 
   struct signature {
     ec_scalar c, r;
+
+    // Returns true if non-null, i.e. not 0.
+    operator bool() const { static constexpr char null[64] = {0}; return memcmp(this, null, sizeof(null)); }
   };
 
   // The sizes below are all provided by sodium.h, but we don't want to depend on it here; we check
@@ -106,6 +109,8 @@ namespace crypto {
   struct ed25519_signature {
     unsigned char data[64]; // 64 = crypto_sign_BYTES
     static constexpr ed25519_signature null() { return {0}; }
+    // Returns true if non-null, i.e. not 0.
+    operator bool() const { auto z = null(); return memcmp(this, &z, sizeof(z)); }
   };
 
   struct x25519_public_key {
