@@ -185,7 +185,7 @@ namespace service_nodes
     return m_vote_pool.get_relayable_votes(current_height);
   }
 
-  static int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, crypto::public_key const &my_pubkey)
+  int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, crypto::public_key const &my_pubkey)
   {
     int result = -1;
     auto it = std::find(group.begin(), group.end(), my_pubkey);

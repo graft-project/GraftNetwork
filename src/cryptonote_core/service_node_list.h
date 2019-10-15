@@ -74,9 +74,10 @@ namespace service_nodes
     // Called to update both actual and effective timestamp, i.e. when a proof is received
     void update_timestamp(uint64_t ts) { timestamp = ts; effective_timestamp = ts; }
 
-    // Unlike the above, these three *do* get serialized, but directly from state_t rather than as a subobject:
-    uint32_t public_ip;
-    uint16_t storage_port;
+    // Unlike the above, these four *do* get serialized, but directly from state_t rather than as a subobject:
+    uint32_t public_ip      = 0;
+    uint16_t storage_port   = 0;
+    uint16_t quorumnet_port = 0;
     crypto::ed25519_public_key pubkey_ed25519 = crypto::ed25519_public_key::null();
 
     // Derived from pubkey_ed25519, not serialized
@@ -90,6 +91,7 @@ namespace service_nodes
       v0_checkpointing,               // versioning reset in 4.0.0 (data structure storage changed)
       v1_add_registration_hf_version,
       v2_ed25519,
+      v3_quorumnet,
 
       count
     };
@@ -159,7 +161,7 @@ namespace service_nodes
     swarm_id_t                         swarm_id = 0;
     cryptonote::account_public_address operator_address{};
     uint64_t                           last_ip_change_height = 0; // The height of the last quorum penalty for changing IPs
-    version_t                          version = version_t::v2_ed25519;
+    version_t                          version = version_t::v3_quorumnet;
     uint8_t                            registration_hf_version = 0;
 
     // The data in `proof_info` are shared across states because we don't want to roll them back in
@@ -206,7 +208,8 @@ namespace service_nodes
         if (!W)
           derive_x25519_pubkey_from_ed25519();
       }
-
+      if (version >= version_t::v3_quorumnet)
+        VARINT_FIELD_N("quorumnet_port", proof->quorumnet_port)
     END_SERIALIZE()
   };
 
@@ -331,13 +334,26 @@ namespace service_nodes
     /// key if not found.  (Note: this is just looking up the association, not derivation).
     crypto::public_key get_pubkey_from_x25519(const crypto::x25519_public_key &x25519) const;
 
+    /// Does something for each service node info in the range of pubkeys.  Note that the SN lock is
+    /// held while iterating, so the "something" should be quick.  Func should take arguments:
+    /// (const std::string &pubkey, const service_node_info &info)
+    template <typename It, typename Func>
+    void for_each_service_node_info(It begin, It end, Func f) const {
+      std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+      for (auto sni_end = m_state.service_nodes_infos.end(); begin != end; ++begin) {
+        auto it = m_state.service_nodes_infos.find(*begin);
+        if (it != sni_end)
+          f(it->first, *it->second);
+      }
+    }
+
     void set_db_pointer(cryptonote::BlockchainDB* db);
     void set_my_service_node_keys(std::shared_ptr<const service_node_keys> keys);
     void set_quorum_history_storage(uint64_t hist_size); // 0 = none (default), 1 = unlimited, N = # of blocks
     bool store();
 
     /// Record public ip and storage port and add them to the service node list
-    cryptonote::NOTIFY_UPTIME_PROOF::request generate_uptime_proof(const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port) const;
+    cryptonote::NOTIFY_UPTIME_PROOF::request generate_uptime_proof(const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port, uint16_t quorumnet_port) const;
     bool handle_uptime_proof        (cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool &my_uptime_proof_confirmation);
     void record_checkpoint_vote     (crypto::public_key const &pubkey, uint64_t height, bool voted);
 

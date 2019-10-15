@@ -193,6 +193,7 @@ namespace config
   uint16_t const P2P_DEFAULT_PORT = 22022;
   uint16_t const RPC_DEFAULT_PORT = 22023;
   uint16_t const ZMQ_RPC_DEFAULT_PORT = 22024;
+  uint16_t const QNET_DEFAULT_PORT = 22025;
   boost::uuids::uuid const NETWORK_ID = { {
         0x46 ,0x61, 0x72, 0x62 ,0x61, 0x75, 0x74, 0x69, 0x2a, 0x4c, 0x61, 0x75, 0x66, 0x65, 0x79
     } }; // Bender's nightmare
@@ -214,6 +215,7 @@ namespace config
     uint16_t const P2P_DEFAULT_PORT = 38156;
     uint16_t const RPC_DEFAULT_PORT = 38157;
     uint16_t const ZMQ_RPC_DEFAULT_PORT = 38158;
+    uint16_t const QNET_DEFAULT_PORT = 38159;
     boost::uuids::uuid const NETWORK_ID = { {
         0x5f, 0x3a, 0x78, 0x65, 0xe1, 0x6f, 0xca, 0xb8, 0x02, 0xa1, 0xdc, 0x17, 0x61, 0x64, 0x15, 0xbe,
       } }; // Bender's daydream
@@ -234,9 +236,10 @@ namespace config
     uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 24;
     uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 25;
     uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 36;
-    uint16_t const P2P_DEFAULT_PORT = 38153;
-    uint16_t const RPC_DEFAULT_PORT = 38154;
-    uint16_t const ZMQ_RPC_DEFAULT_PORT = 38155;
+    uint16_t const P2P_DEFAULT_PORT = 38056;
+    uint16_t const RPC_DEFAULT_PORT = 38057;
+    uint16_t const ZMQ_RPC_DEFAULT_PORT = 38058;
+    uint16_t const QNET_DEFAULT_PORT = 38059;
     boost::uuids::uuid const NETWORK_ID = { {
         0xbb ,0x37, 0x9B, 0x22 , 0x0A, 0x66 , 0x69, 0x1E, 0x09, 0xB2, 0x97, 0x8A, 0xCC, 0xA1, 0xDF, 0x9C
       } }; // Beep Boop
@@ -284,6 +287,7 @@ namespace cryptonote
     uint16_t P2P_DEFAULT_PORT;
     uint16_t RPC_DEFAULT_PORT;
     uint16_t ZMQ_RPC_DEFAULT_PORT;
+    uint16_t QNET_DEFAULT_PORT;
     boost::uuids::uuid NETWORK_ID;
     std::string GENESIS_TX;
     uint32_t GENESIS_NONCE;
@@ -299,6 +303,7 @@ namespace cryptonote
       ::config::P2P_DEFAULT_PORT,
       ::config::RPC_DEFAULT_PORT,
       ::config::ZMQ_RPC_DEFAULT_PORT,
+      ::config::QNET_DEFAULT_PORT,
       ::config::NETWORK_ID,
       ::config::GENESIS_TX,
       ::config::GENESIS_NONCE,
@@ -313,6 +318,7 @@ namespace cryptonote
       ::config::testnet::P2P_DEFAULT_PORT,
       ::config::testnet::RPC_DEFAULT_PORT,
       ::config::testnet::ZMQ_RPC_DEFAULT_PORT,
+      ::config::testnet::QNET_DEFAULT_PORT,
       ::config::testnet::NETWORK_ID,
       ::config::testnet::GENESIS_TX,
       ::config::testnet::GENESIS_NONCE,
@@ -327,6 +333,7 @@ namespace cryptonote
       ::config::stagenet::P2P_DEFAULT_PORT,
       ::config::stagenet::RPC_DEFAULT_PORT,
       ::config::stagenet::ZMQ_RPC_DEFAULT_PORT,
+      ::config::stagenet::QNET_DEFAULT_PORT,
       ::config::stagenet::NETWORK_ID,
       ::config::stagenet::GENESIS_TX,
       ::config::stagenet::GENESIS_NONCE,

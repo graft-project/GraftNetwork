@@ -81,11 +81,11 @@ namespace service_nodes
   }
 
   static constexpr service_node_info::version_t get_min_service_node_info_version_for_hf(uint8_t hf_version)
-   {
-    return hf_version < cryptonote::network_version_13_enforce_checkpoints
-      ? service_node_info::version_t::v1_add_registration_hf_version
-      : service_node_info::version_t::v2_ed25519;
-   }
+  {
+    return hf_version < cryptonote::network_version_14
+      ? service_node_info::version_t::v2_ed25519
+      : service_node_info::version_t::v3_quorumnet;
+  }
 
   service_node_list::service_node_list(cryptonote::Blockchain &blockchain)
   : m_blockchain(blockchain)
@@ -1870,13 +1870,8 @@ namespace service_nodes
 
   static crypto::hash hash_uptime_proof(const cryptonote::NOTIFY_UPTIME_PROOF::request &proof, uint8_t hf_version)
   {
-    // NB: quorumnet_port isn't actually used or exposed yet; including it in the HF13 proof and
-    // hash, however, allows HF14 nodes start broadcasting it to the network immediately (rather
-    // than waiting for the fork) so that they are immediately accessible at the HF14 fork.
     auto buf = tools::memcpy_le(proof.pubkey, proof.timestamp, proof.public_ip, proof.storage_port, proof.pubkey_ed25519, proof.qnet_port);
     size_t buf_size = buf.size();
-    if (hf_version < HF_VERSION_ED25519_KEY) // TODO - can be removed post-HF13
-      buf_size -= (sizeof(proof.pubkey_ed25519) + sizeof(proof.qnet_port));
 
     crypto::hash result;
     crypto::cn_fast_hash(buf.data(), buf_size, result);
@@ -1884,7 +1879,7 @@ namespace service_nodes
   }
 
   cryptonote::NOTIFY_UPTIME_PROOF::request service_node_list::generate_uptime_proof(
-      const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port) const
+      const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port, uint16_t quorumnet_port) const
   {
     cryptonote::NOTIFY_UPTIME_PROOF::request result = {};
     result.snode_version_major                      = static_cast<uint16_t>(LOKI_VERSION_MAJOR);
@@ -1894,7 +1889,7 @@ namespace service_nodes
     result.pubkey                                   = keys.pub;
     result.public_ip                                = public_ip;
     result.storage_port                             = storage_port;
-    result.qnet_port                                = 0; // Reserved for HF14
+    result.qnet_port                                = quorumnet_port;
     result.pubkey_ed25519                           = keys.pub_ed25519;
 
     crypto::hash hash = hash_uptime_proof(result, m_blockchain.get_current_hard_fork_version());
@@ -1974,8 +1969,6 @@ namespace service_nodes
     crypto::x25519_public_key derived_x25519_pubkey = crypto::x25519_public_key::null();
     if (hf_version >= HF_VERSION_ED25519_KEY)
     {
-      if (!debug_allow_local_ips && !epee::net_utils::is_ip_public(proof.public_ip)) return false; // Sanity check; we do the same on lokid startup
-
       if (!proof.pubkey_ed25519)
         REJECT_PROOF("required ed25519 auxiliary pubkey " << epee::string_tools::pod_to_hex(proof.pubkey_ed25519) << " not included in proof");
 
@@ -1985,6 +1978,9 @@ namespace service_nodes
       if (0 != crypto_sign_ed25519_pk_to_curve25519(derived_x25519_pubkey.data, proof.pubkey_ed25519.data)
           || !derived_x25519_pubkey)
         REJECT_PROOF("invalid ed25519 pubkey included in proof (x25519 derivation failed)");
+
+      if (proof.qnet_port == 0)
+        REJECT_PROOF("invalid quorumnet port in uptime proof");
     }
 
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
@@ -2025,6 +2021,7 @@ namespace service_nodes
         m_x25519_map_last_pruned = now;
       }
 
+      iproof.quorumnet_port = proof.qnet_port;
       iproof.pubkey_ed25519 = proof.pubkey_ed25519;
       if (iproof.pubkey_x25519 && iproof.pubkey_x25519 != derived_x25519_pubkey)
         m_x25519_to_pub.erase(iproof.pubkey_x25519);
@@ -2128,10 +2125,10 @@ namespace service_nodes
         info.version = version_t::v1_add_registration_hf_version;
         info.registration_hf_version = blockchain.get_hard_fork_version(pubkey_info.info->registration_height);
       }
-      if (info.version < version_t::v2_ed25519)
+      if (info.version < version_t::v3_quorumnet)
       {
         // Nothing to do here (the missing data only comes in via uptime proof).
-        info.version = version_t::v2_ed25519;
+        info.version = version_t::v3_quorumnet;
       }
       // Make sure we handled any future state version upgrades:
       assert(info.version == static_cast<version_t>(static_cast<uint8_t>(version_t::count) - 1));
