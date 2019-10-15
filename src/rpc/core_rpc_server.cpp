@@ -257,7 +257,7 @@ namespace cryptonote
     if (restricted)
       res.database_size = round_up(res.database_size, 5ull* 1024 * 1024 * 1024);
     res.update_available = restricted ? false : m_core.is_update_available();
-    res.version = restricted ? "" : LOKI_VERSION;
+    res.version = restricted ? std::to_string(LOKI_VERSION[0]) : LOKI_VERSION_STR;
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -2191,7 +2191,7 @@ namespace cryptonote
       res.status = "Error checking for updates";
       return true;
     }
-    if (tools::vercmp(version.c_str(), LOKI_VERSION) <= 0)
+    if (tools::vercmp(version.c_str(), LOKI_VERSION_STR) <= 0)
     {
       res.update = false;
       res.status = CORE_RPC_STATUS_OK;
@@ -2762,7 +2762,7 @@ namespace cryptonote
         ? (info.is_decommissioned() ? info.last_decommission_height : info.active_since_height) : info.last_reward_block_height;
     entry.earned_downtime_blocks        = service_nodes::quorum_cop::calculate_decommission_credit(info, current_height);
     entry.decommission_count            = info.decommission_count;
-    entry.service_node_version          = {info.proof->version_major, info.proof->version_minor, info.proof->version_patch};
+    entry.service_node_version          = info.proof->version;
     entry.public_ip                     = string_tools::get_ip_string_from_int32(info.proof->public_ip);
     entry.storage_port                  = info.proof->storage_port;
     entry.storage_server_reachable      = info.proof->storage_server_reachable;
@@ -2804,9 +2804,9 @@ namespace cryptonote
     entry.last_uptime_proof                  = info.proof->timestamp;
     entry.storage_server_reachable           = info.proof->storage_server_reachable;
     entry.storage_server_reachable_timestamp = info.proof->storage_server_reachable_timestamp;
-    entry.version_major                      = info.proof->version_major;
-    entry.version_minor                      = info.proof->version_minor;
-    entry.version_patch                      = info.proof->version_patch;
+    entry.version_major                      = info.proof->version[0];
+    entry.version_minor                      = info.proof->version[1];
+    entry.version_patch                      = info.proof->version[2];
     entry.votes = std::vector<service_nodes::checkpoint_vote_record>(info.proof->votes.begin(), info.proof->votes.end());
   }
   //------------------------------------------------------------------------------------------------------------------------------

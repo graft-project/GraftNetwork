@@ -300,9 +300,7 @@ namespace cryptonote
 
     struct request
     {
-      uint16_t snode_version_major;
-      uint16_t snode_version_minor;
-      uint16_t snode_version_patch;
+      std::array<uint16_t, 3> snode_version;
 
       uint64_t timestamp;
       crypto::public_key pubkey;
@@ -314,9 +312,9 @@ namespace cryptonote
       uint16_t qnet_port;
 
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(snode_version_major)
-        KV_SERIALIZE(snode_version_minor)
-        KV_SERIALIZE(snode_version_patch)
+        KV_SERIALIZE_N(snode_version[0], "snode_version_major")
+        KV_SERIALIZE_N(snode_version[1], "snode_version_minor")
+        KV_SERIALIZE_N(snode_version[2], "snode_version_patch")
         KV_SERIALIZE(timestamp)
         KV_SERIALIZE(public_ip)
         KV_SERIALIZE(storage_port)

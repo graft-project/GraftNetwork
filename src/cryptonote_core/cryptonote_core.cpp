@@ -2022,7 +2022,7 @@ namespace cryptonote
     if (!tools::check_updates(software, buildtag, version, hash))
       return false;
 
-    if (tools::vercmp(version.c_str(), LOKI_VERSION) <= 0)
+    if (tools::vercmp(version.c_str(), LOKI_VERSION_STR) <= 0)
     {
       m_update_available = false;
       return true;

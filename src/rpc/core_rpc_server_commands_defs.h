@@ -2777,7 +2777,7 @@ namespace cryptonote
         uint64_t                              state_height;                  // If active: the state at which registration was completed; if decommissioned: the decommissioning height; if awaiting: the last contribution (or registration) height
         uint32_t                              decommission_count;            // The number of times the Service Node has been decommissioned since registration
         int64_t                               earned_downtime_blocks;        // The number of blocks earned towards decommissioning, or the number of blocks remaining until deregistration if currently decommissioned
-        std::vector<uint16_t>                 service_node_version;          // The major, minor, patch version of the Service Node respectively.
+        std::array<uint16_t, 3>               service_node_version;          // The major, minor, patch version of the Service Node respectively.
         std::vector<service_node_contributor> contributors;                  // Array of contributors, contributing to this Service Node.
         uint64_t                              total_contributed;             // The total amount of Loki in atomic units contributed to this Service Node.
         uint64_t                              total_reserved;                // The total amount of Loki in atomic units reserved in this Service Node.
@@ -2986,7 +2986,7 @@ namespace cryptonote
         uint64_t                              state_height;                  // If active: the state at which registration was completed; if decommissioned: the decommissioning height; if awaiting: the last contribution (or registration) height
         uint32_t                              decommission_count;            // The number of times the Service Node has been decommissioned since registration
         int64_t                               earned_downtime_blocks;        // The number of blocks earned towards decommissioning, or the number of blocks remaining until deregistration if currently decommissioned
-        std::vector<uint16_t>                 service_node_version;          // The major, minor, patch version of the Service Node respectively.
+        std::array<uint16_t, 3>               service_node_version;          // The major, minor, patch version of the Service Node respectively.
         std::vector<service_node_contributor> contributors;                  // Array of contributors, contributing to this Service Node.
         uint64_t                              total_contributed;             // The total amount of Loki in atomic units contributed to this Service Node.
         uint64_t                              total_reserved;                // The total amount of Loki in atomic units reserved in this Service Node.

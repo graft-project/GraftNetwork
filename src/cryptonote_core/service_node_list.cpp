@@ -1882,9 +1882,7 @@ namespace service_nodes
       const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port, uint16_t quorumnet_port) const
   {
     cryptonote::NOTIFY_UPTIME_PROOF::request result = {};
-    result.snode_version_major                      = static_cast<uint16_t>(LOKI_VERSION_MAJOR);
-    result.snode_version_minor                      = static_cast<uint16_t>(LOKI_VERSION_MINOR);
-    result.snode_version_patch                      = static_cast<uint16_t>(LOKI_VERSION_PATCH);
+    result.snode_version                            = LOKI_VERSION;
     result.timestamp                                = time(nullptr);
     result.pubkey                                   = keys.pub;
     result.public_ip                                = public_ip;
@@ -1915,13 +1913,12 @@ namespace service_nodes
   struct proof_version
   {
     uint8_t hardfork;
-    uint16_t major;
-    uint16_t minor;
+    std::array<uint16_t, 3> version;
   };
 
   static constexpr proof_version hf_min_loki_versions[] = {
-    {cryptonote::network_version_13_enforce_checkpoints,  5 /*major*/, 1 /*minor*/},
-    {cryptonote::network_version_12_checkpointing,        4 /*major*/, 0 /*minor*/},
+    {cryptonote::network_version_13_enforce_checkpoints,  {5,1,0}},
+    {cryptonote::network_version_12_checkpointing,        {4,0,3}},
   };
 
   void service_node_info::derive_x25519_pubkey_from_ed25519() {
@@ -1944,16 +1941,8 @@ namespace service_nodes
       REJECT_PROOF("timestamp is too far from now");
 
     for (auto &min : hf_min_loki_versions)
-    {
-      if (hf_version >= min.hardfork)
-      {
-        if (proof.snode_version_major < min.major ||
-            (proof.snode_version_major == min.major && proof.snode_version_minor < min.minor))
-        {
-          REJECT_PROOF("v" << min.major << "." << min.minor << "+ loki version is required for v" << std::to_string(hf_version) << "+ network proofs");
-        }
-      }
-    }
+      if (hf_version >= min.hardfork && proof.snode_version < min.version)
+        REJECT_PROOF("v" << min.version[0] << "." << min.version[1] << "." << min.version[2] << "+ loki version is required for v" << std::to_string(hf_version) << "+ network proofs");
 
     if (!debug_allow_local_ips && !epee::net_utils::is_ip_public(proof.public_ip))
       REJECT_PROOF("public_ip is not actually public");
@@ -2005,9 +1994,7 @@ namespace service_nodes
     }
 
     iproof.update_timestamp(now);
-    iproof.version_major = proof.snode_version_major;
-    iproof.version_minor = proof.snode_version_minor;
-    iproof.version_patch = proof.snode_version_patch;
+    iproof.version       = proof.snode_version;
     iproof.public_ip     = proof.public_ip;
     iproof.storage_port  = proof.storage_port;
 
