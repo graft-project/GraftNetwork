@@ -63,11 +63,13 @@ namespace service_nodes
     // TODO(doyle): Workers aren't used, but I kept this as a quorum
     // to avoid drastic changes for now to a lot of the service node API
     std::shared_ptr<const quorum> checkpointing;
+    std::shared_ptr<const quorum> blink;
 
     std::shared_ptr<const quorum> get(quorum_type type) const
     {
       if (type == quorum_type::obligations) return obligations;
       else if (type == quorum_type::checkpointing) return checkpointing;
+      else if (type == quorum_type::blink) return blink;
       MERROR("Developer error: Unhandled quorum enum with value: " << (size_t)type);
       assert(!"Developer error: Unhandled quorum enum with value: ");
       return nullptr;

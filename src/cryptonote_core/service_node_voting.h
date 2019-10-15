@@ -61,6 +61,7 @@ namespace service_nodes
   {
     obligations = 0,
     checkpointing,
+    blink,
     _count
   };
 

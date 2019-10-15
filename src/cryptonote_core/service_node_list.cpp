@@ -67,6 +67,8 @@ namespace service_nodes
   static uint64_t short_term_state_cull_height(uint8_t hf_version, cryptonote::BlockchainDB const *db, uint64_t block_height)
   {
     size_t constexpr DEFAULT_SHORT_TERM_STATE_HISTORY = 6 * STATE_CHANGE_TX_LIFETIME_IN_BLOCKS;
+    static_assert(DEFAULT_SHORT_TERM_STATE_HISTORY >= BLOCKS_EXPECTED_IN_HOURS(12), // Arbitrary, but raises a compilation failure if it gets shortened.
+        "not enough short term state storage for blink quorum retrieval!");
     uint64_t result =
         (block_height < DEFAULT_SHORT_TERM_STATE_HISTORY) ? 0 : block_height - DEFAULT_SHORT_TERM_STATE_HISTORY;
 
@@ -1245,6 +1247,32 @@ namespace service_nodes
           num_validators   = std::min(pub_keys_indexes.size(), CHECKPOINT_QUORUM_SIZE);
         }
         result.checkpointing = quorum;
+      }
+      else if (type == quorum_type::blink)
+      {
+        if (state.height % BLINK_QUORUM_INTERVAL != 0)
+          continue;
+
+        // Further filter the active SN list for the blink quorum to only include SNs that are not
+        // scheduled to finish unlocking between the quorum height and a few blocks after the
+        // associated blink height.
+        active_snode_list.erase(std::remove_if(active_snode_list.begin(), active_snode_list.end(),
+            [active_until = state.height + BLINK_EXPIRY_BUFFER](auto &info) {
+              auto ruh = info.second->requested_unlock_height;
+              return ruh != KEY_IMAGE_AWAITING_UNLOCK_HEIGHT && ruh <= active_until;
+            }),
+            active_snode_list.end()
+        );
+        size_t total_nodes = active_snode_list.size();
+
+        if (total_nodes >= BLINK_MIN_VOTES)
+        {
+          pub_keys_indexes = generate_shuffled_service_node_index_list(total_nodes, state.block_hash, type);
+          num_validators = std::min(pub_keys_indexes.size(), BLINK_MIN_VOTES);
+        }
+        // Otherwise leave empty to signal that there aren't enough SNs to form a usable quorum (to
+        // distinguish it from an invalid height, which gets left as a nullptr)
+        result.blink = quorum;
       }
       else
       {
