@@ -183,7 +183,7 @@ static quorum_vote_t deserialize_vote(const bt_dict &d) {
     return vote;
 }
 
-static const std::vector<crypto::public_key> &quorum_voter_list(quorum_type t, const service_nodes::testing_quorum &q) {
+static const std::vector<crypto::public_key> &quorum_voter_list(quorum_type t, const service_nodes::quorum &q) {
     return t == quorum_type::checkpointing ? q.workers : q.validators;
 }
 
@@ -203,7 +203,7 @@ static void relay_votes(void *obj, const std::vector<service_nodes::quorum_vote_
     std::vector<std::tuple<int, const service_nodes::quorum_vote_t *, const std::vector<crypto::public_key> *>> valid_votes;
     valid_votes.reserve(votes.size());
     for (auto &v : votes) {
-        auto quorum = snw.sn_list.get_testing_quorum(v.type, v.block_height);
+        auto quorum = snw.sn_list.get_quorum(v.type, v.block_height);
 
         if (!quorum) {
             MWARNING("Unable to relay vote: no testing quorum vote for type " << v.type << " @ height " << v.block_height);

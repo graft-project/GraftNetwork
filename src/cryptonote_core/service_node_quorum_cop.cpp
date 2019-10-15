@@ -253,15 +253,14 @@ namespace service_nodes
             // don't vote for the first 2 hours so this is purely cosmetic
             if (obligations_height_hf_version >= cryptonote::network_version_12_checkpointing)
             {
-              service_nodes::quorum_type checkpoint_type   = quorum_type::checkpointing;
-              std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(checkpoint_type, m_obligations_height);
+              auto quorum = m_core.get_quorum(quorum_type::checkpointing, m_obligations_height);
               std::vector<cryptonote::block> blocks;
               if (quorum && m_core.get_blocks(m_obligations_height, 1, blocks))
               {
                 cryptonote::block const &block = blocks[0];
                 if (start_time < static_cast<ptrdiff_t>(block.timestamp)) // NOTE: If we started up before receiving the block, we likely have the voting information, if not we probably don't.
                 {
-                  uint64_t quorum_height = offset_testing_quorum_height(checkpoint_type, m_obligations_height);
+                  uint64_t quorum_height = offset_testing_quorum_height(quorum_type::checkpointing, m_obligations_height);
                   for (size_t index_in_quorum = 0; index_in_quorum < quorum->validators.size(); index_in_quorum++)
                   {
                     crypto::public_key const &key = quorum->validators[index_in_quorum];
@@ -282,7 +281,7 @@ namespace service_nodes
             if (!my_keys)
               continue;
 
-            std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(quorum_type::obligations, m_obligations_height);
+            auto quorum = m_core.get_quorum(quorum_type::obligations, m_obligations_height);
             if (!quorum)
             {
               // TODO(loki): Fatal error
@@ -437,7 +436,7 @@ namespace service_nodes
               if (m_last_checkpointed_height < REORG_SAFETY_BUFFER_BLOCKS)
                 continue;
 
-              const std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(quorum_type::checkpointing, m_last_checkpointed_height);
+              auto quorum = m_core.get_quorum(quorum_type::checkpointing, m_last_checkpointed_height);
               if (!quorum)
               {
                 // TODO(loki): Fatal error
@@ -479,7 +478,7 @@ namespace service_nodes
     if (!verify_vote_age(vote, m_core.get_current_blockchain_height(), vvc))
       return false;
 
-    std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(vote.type, vote.block_height);
+    std::shared_ptr<const quorum> quorum = m_core.get_quorum(vote.type, vote.block_height);
     if (!quorum)
     {
       vvc.m_invalid_block_height = true;

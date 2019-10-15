@@ -209,7 +209,7 @@ namespace service_nodes
     return sort_and_filter(service_nodes_infos, [](const service_node_info &info) { return info.is_decommissioned() && info.is_fully_funded(); }, /*reserve=*/ false);
   }
 
-  std::shared_ptr<const testing_quorum> service_node_list::get_testing_quorum(quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const testing_quorum>> *alt_quorums) const
+  std::shared_ptr<const quorum> service_node_list::get_quorum(quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const quorum>> *alt_quorums) const
   {
     height = offset_testing_quorum_height(type, height);
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
@@ -251,17 +251,17 @@ namespace service_nodes
         state_t const &alt_state = hash_to_state.second;
         if (alt_state.height == height)
         {
-          std::shared_ptr<const testing_quorum> alt_result = alt_state.quorums.get(type);
+          std::shared_ptr<const quorum> alt_result = alt_state.quorums.get(type);
           if (alt_result) alt_quorums->push_back(alt_result);
         }
       }
     }
 
-    std::shared_ptr<const testing_quorum> result = quorums->get(type);
+    std::shared_ptr<const quorum> result = quorums->get(type);
     return result;
   }
 
-  static bool get_pubkey_from_quorum(testing_quorum const &quorum, quorum_group group, size_t quorum_index, crypto::public_key &key)
+  static bool get_pubkey_from_quorum(quorum const &quorum, quorum_group group, size_t quorum_index, crypto::public_key &key)
   {
     std::vector<crypto::public_key> const *array = nullptr;
     if      (group == quorum_group::validator) array = &quorum.validators;
@@ -284,7 +284,7 @@ namespace service_nodes
 
   bool service_node_list::get_quorum_pubkey(quorum_type type, quorum_group group, uint64_t height, size_t quorum_index, crypto::public_key &key) const
   {
-    std::shared_ptr<const testing_quorum> quorum = get_testing_quorum(type, height);
+    std::shared_ptr<const quorum> quorum = get_quorum(type, height);
     if (!quorum)
     {
       LOG_PRINT_L1("Quorum for height: " << height << ", was not stored by the daemon");
@@ -1132,7 +1132,7 @@ namespace service_nodes
 
     if (block.major_version >= cryptonote::network_version_13_enforce_checkpoints && checkpoint)
     {
-      std::shared_ptr<const testing_quorum> quorum = get_testing_quorum(quorum_type::checkpointing, checkpoint->height);
+      std::shared_ptr<const quorum> quorum = get_quorum(quorum_type::checkpointing, checkpoint->height);
       if (!quorum)
       {
         LOG_PRINT_L1("Failed to get testing quorum checkpoint for block: " << cryptonote::get_block_hash(block));
@@ -1211,7 +1211,7 @@ namespace service_nodes
     {
       auto type             = static_cast<quorum_type>(type_int);
       size_t num_validators = 0, num_workers = 0;
-      auto quorum           = std::make_shared<testing_quorum>();
+      auto quorum           = std::make_shared<service_nodes::quorum>();
       std::vector<size_t> pub_keys_indexes;
 
       if (type == quorum_type::obligations)
@@ -1734,15 +1734,15 @@ namespace service_nodes
 
     if (checkpoint)
     {
-      std::vector<std::shared_ptr<const service_nodes::testing_quorum>> alt_quorums;
-      std::shared_ptr<const testing_quorum> quorum = get_testing_quorum(quorum_type::checkpointing, checkpoint->height, false, &alt_quorums);
+      std::vector<std::shared_ptr<const service_nodes::quorum>> alt_quorums;
+      std::shared_ptr<const quorum> quorum = get_quorum(quorum_type::checkpointing, checkpoint->height, false, &alt_quorums);
       if (!quorum)
         return false;
 
       if (!service_nodes::verify_checkpoint(block.major_version, *checkpoint, *quorum))
       {
         bool verified_on_alt_quorum = false;
-        for (std::shared_ptr<const service_nodes::testing_quorum> alt_quorum : alt_quorums)
+        for (std::shared_ptr<const service_nodes::quorum> alt_quorum : alt_quorums)
         {
           if (service_nodes::verify_checkpoint(block.major_version, *checkpoint, *alt_quorum))
           {
@@ -2092,17 +2092,11 @@ namespace service_nodes
   static quorum_manager quorum_for_serialization_to_quorum_manager(service_node_list::quorum_for_serialization const &source)
   {
     quorum_manager result = {};
-    {
-      auto quorum        = std::make_shared<testing_quorum>(source.quorums[static_cast<uint8_t>(quorum_type::obligations)]);
-      result.obligations = quorum;
-    }
+    result.obligations = std::make_shared<quorum>(source.quorums[static_cast<uint8_t>(quorum_type::obligations)]);
 
     // Don't load any checkpoints that shouldn't exist (see the comment in generate_quorums as to why the `+BUFFER` term is here).
     if ((source.height + REORG_SAFETY_BUFFER_BLOCKS_POST_HF12) % CHECKPOINT_INTERVAL == 0)
-    {
-      auto quorum = std::make_shared<testing_quorum>(source.quorums[static_cast<uint8_t>(quorum_type::checkpointing)]);
-      result.checkpointing = quorum;
-    }
+      result.checkpointing = std::make_shared<quorum>(source.quorums[static_cast<uint8_t>(quorum_type::checkpointing)]);
 
     return result;
   }

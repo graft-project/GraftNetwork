@@ -46,10 +46,10 @@ namespace service_nodes
 {
   struct service_node_info;
 
-  struct testing_quorum
+  struct quorum
   {
-    std::vector<crypto::public_key> validators; // Array of public keys identifying service nodes which are being tested for the queried height.
-    std::vector<crypto::public_key> workers;    // Array of public keys identifying service nodes which are responsible for voting on the queried height.
+    std::vector<crypto::public_key> validators; // Array of public keys identifying service nodes who validate and sign.
+    std::vector<crypto::public_key> workers;    // Array of public keys of tested service nodes (if applicable).
 
     BEGIN_SERIALIZE()
       FIELD(validators)
@@ -59,12 +59,12 @@ namespace service_nodes
 
   struct quorum_manager
   {
-    std::shared_ptr<const testing_quorum> obligations;
-    // TODO(doyle): Validators aren't used, but I kept this as a testing_quorum
+    std::shared_ptr<const quorum> obligations;
+    // TODO(doyle): Workers aren't used, but I kept this as a quorum
     // to avoid drastic changes for now to a lot of the service node API
-    std::shared_ptr<const testing_quorum> checkpointing;
+    std::shared_ptr<const quorum> checkpointing;
 
-    std::shared_ptr<const testing_quorum> get(quorum_type type) const
+    std::shared_ptr<const quorum> get(quorum_type type) const
     {
       if (type == quorum_type::obligations) return obligations;
       else if (type == quorum_type::checkpointing) return checkpointing;

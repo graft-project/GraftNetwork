@@ -3211,7 +3211,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       }
 
       auto const quorum_type  = service_nodes::quorum_type::obligations;
-      auto const quorum       = m_service_node_list.get_testing_quorum(quorum_type, state_change.block_height);
+      auto const quorum       = m_service_node_list.get_quorum(quorum_type, state_change.block_height);
       {
         if (!quorum)
         {

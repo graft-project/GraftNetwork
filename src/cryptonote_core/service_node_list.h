@@ -324,8 +324,8 @@ namespace service_nodes
     /// the actual internal quorum used is for `height - REORG_SAFETY_BUFFER_BLOCKS_POST_HF12`, i.e.
     /// do no subtract off the buffer in advance)
     /// return: nullptr if the quorum is not cached in memory (pruned from memory).
-    std::shared_ptr<const testing_quorum> get_testing_quorum(quorum_type type, uint64_t height, bool include_old = false, std::vector<std::shared_ptr<const testing_quorum>> *alt_states = nullptr) const;
-    bool                                  get_quorum_pubkey(quorum_type type, quorum_group group, uint64_t height, size_t quorum_index, crypto::public_key &key) const;
+    std::shared_ptr<const quorum> get_quorum(quorum_type type, uint64_t height, bool include_old = false, std::vector<std::shared_ptr<const quorum>> *alt_states = nullptr) const;
+    bool                          get_quorum_pubkey(quorum_type type, quorum_group group, uint64_t height, size_t quorum_index, crypto::public_key &key) const;
 
     std::vector<service_node_pubkey_info> get_service_node_list_state(const std::vector<crypto::public_key> &service_node_pubkeys) const;
     const std::vector<key_image_blacklist_entry> &get_blacklisted_key_images() const { return m_state.key_image_blacklist; }
@@ -363,7 +363,7 @@ namespace service_nodes
     {
       uint8_t        version;
       uint64_t       height;
-      testing_quorum quorums[static_cast<uint8_t>(quorum_type::count)];
+      quorum         quorums[static_cast<uint8_t>(quorum_type::count)];
 
       BEGIN_SERIALIZE()
         FIELD(version)
