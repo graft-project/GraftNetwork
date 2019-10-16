@@ -40,14 +40,10 @@ namespace service_nodes {
 
 namespace quorumnet {
 
-/// Relays votes.  Returns all votes that were successfully relayed to at least one peer.
-/// Will be set to the core::quorumnet_relay_votes function pointer.
-void relay_votes(const std::vector<service_nodes::quorum_vote_t> &votes);
-
 /// Sets the cryptonote::quorumnet_* function pointers (allowing core to avoid linking to
 /// cryptonote_protocol).
 void init_core_callbacks();
 
-
+/// Everything else is in a hidden namespace with internal linkage.
 
 }

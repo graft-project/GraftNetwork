@@ -309,7 +309,7 @@ namespace service_nodes
       public cryptonote::AltBlockAddedHook
   {
   public:
-    service_node_list(cryptonote::Blockchain& blockchain);
+    explicit service_node_list(cryptonote::Blockchain& blockchain);
     bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint) override;
     void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
     void init() override;
@@ -337,7 +337,7 @@ namespace service_nodes
     /// key if not found.  (Note: this is just looking up the association, not derivation).
     crypto::public_key get_pubkey_from_x25519(const crypto::x25519_public_key &x25519) const;
 
-    /// Does something for each service node info in the range of pubkeys.  Note that the SN lock is
+    /// Does something read-only for each service node info in the range of pubkeys.  The SN lock is
     /// held while iterating, so the "something" should be quick.  Func should take arguments:
     /// (const std::string &pubkey, const service_node_info &info)
     template <typename It, typename Func>

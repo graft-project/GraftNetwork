@@ -30,16 +30,20 @@
 
 #include "../cryptonote_basic/cryptonote_basic.h"
 #include "../common/util.h"
+#include "service_node_rules.h"
 #include <iostream>
+
+namespace service_nodes {
+class service_node_list;
+}
 
 namespace cryptonote {
 
-constexpr unsigned int BLINK_QUORUM_SIZE = 10;
-constexpr unsigned int BLOCK_QUORUM_VOTES_REQUIRED = 7;
+// FIXME TODO XXX - rename this file to blink_tx.h
 
 class blink_tx {
 public:
-  enum class quorum : uint8_t { base, future, _count };
+  enum class subquorum : uint8_t { base, future, _count };
 
   class signature_verification_error : public std::runtime_error {
     using std::runtime_error::runtime_error;
@@ -48,26 +52,32 @@ public:
   /**
    * Construct a new blink_tx wrapper given the tx and a blink authorization height.
    */
-  blink_tx(transaction tx, uint64_t height)
-    : tx_{std::move(tx)}, height_{height} {}
+  blink_tx(std::shared_ptr<transaction> tx, uint64_t height)
+    : tx_{std::move(tx)}, height_{height} {
+    signatures_.fill({});
+  }
+
+  /** Construct a new blink_tx from just a height; constructs a default transaction.
+   */
+  explicit blink_tx(uint64_t height) : blink_tx(std::make_shared<transaction>(), height) {}
 
   /**
    * Adds a signature for the given quorum and position.  Returns true if the signature was accepted
    * (i.e. is valid, and existing signature is empty), false if the signature was already present,
    * and throws a `blink_tx::signature_verification_error` if the signature fails validation.
    */
-  bool add_signature(quorum q, unsigned int position, const crypto::signature &sig);
+  bool add_signature(subquorum q, unsigned int position, const crypto::signature &sig, const service_nodes::service_node_list &snl);
 
   /**
    * Remove the signature at the given quorum and position by setting it to null.  Returns true if
    * removed, false if it was already null.
    */
-  bool clear_signature(quorum q, unsigned int position);
+  bool clear_signature(subquorum q, unsigned int position);
 
   /**
    * Returns true if there is a verified signature at the given quorum and position.
    */
-  bool has_signature(quorum q, unsigned int position);
+  bool has_signature(subquorum q, unsigned int position);
 
   /**
    * Returns true if this blink tx is valid for inclusion in the blockchain, that is, has the
@@ -76,18 +86,37 @@ public:
   bool valid() const;
 
   /// Returns a reference to the transaction.
-  const transaction &tx() const { return tx_; }
+  transaction &tx() { return *tx_; }
 
-  /// Returns the blink authorization height of this blink tx
+  /// Returns a reference to the transaction, const version.
+  const transaction &tx() const { return *tx_; }
+
+  /// Returns the blink authorization height of this blink tx, i.e. the block height at the time the
+  /// transaction was created.
   uint64_t height() const { return height_; }
+
+  /// Returns the quorum height for the given height and quorum (base or future); returns 0 at the
+  /// beginning of the chain (before there are enough blocks for a blink quorum).
+  static uint64_t quorum_height(uint64_t h, subquorum q) {
+    uint64_t bh = h - (h % service_nodes::BLINK_QUORUM_INTERVAL) - service_nodes::BLINK_QUORUM_LAG
+      + static_cast<uint8_t>(q) * service_nodes::BLINK_QUORUM_INTERVAL;
+    return bh > h /*overflow*/ ? 0 : bh;
+  }
+
+  /// Returns the quorum height for the given quorum (base or future); returns 0 at the beginning of
+  /// the chain (before there are enough blocks for a blink quorum).
+  uint64_t quorum_height(subquorum q) const { return quorum_height(height_, q); }
+
+  /// Returns the pubkey of the referenced service node, or null if there is no such service node.
+  crypto::public_key get_sn_pubkey(subquorum q, unsigned position, const service_nodes::service_node_list &snl) const;
 
   /// Returns the hashed signing value for this blink TX (a fast hash of the height + tx hash)
   crypto::hash hash() const;
 
 private:
-  transaction tx_;
+  std::shared_ptr<transaction> tx_;
   uint64_t height_;
-  std::array<std::array<crypto::signature, BLINK_QUORUM_SIZE>, tools::enum_count<quorum>> signatures_;
+  std::array<std::array<crypto::signature, service_nodes::BLINK_SUBQUORUM_SIZE>, tools::enum_count<subquorum>> signatures_;
 
 };
 

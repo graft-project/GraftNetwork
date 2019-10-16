@@ -116,4 +116,22 @@ namespace service_nodes
   };
 
   int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, const crypto::public_key &my_pubkey);
+
+  /** Calculates a checksum value from the (ordered!) set of pubkeys to casually test whether two
+   * quorums are the same.  (Not meant to be cryptographically secure).
+   *
+   * offset is used to add multiple lists together without having to construct a separate vector,
+   * that is:
+   *
+   *     checksum([a,b,c,d,e])
+   *
+   * and
+   *
+   *     checksum([a,b,c]) + checksum([d,e], 3)
+   *
+   * yield the same result.  Public keys may be null; pubkeys that are skipped via the offset are
+   * equivalent to a null pubkey for skipped entries, and the checksum of [a,b,ZERO] is equal to the
+   * checksum of [a,b] but not equal to [a,ZERO,b].
+   */
+  uint64_t quorum_checksum(const std::vector<crypto::public_key> &pubkeys, size_t offset = 0);
 }

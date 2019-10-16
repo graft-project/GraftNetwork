@@ -856,6 +856,13 @@ namespace cryptonote
       }
     }
 
+    if (m_service_node_keys)
+    {
+      // quorumnet_new takes a zmq bind string, e.g. "tcp://1.2.3.4:5678"
+      std::string qnet_listen = "tcp://" + vm["p2p-bind-ip"].as<std::string>() + ":" + std::to_string(m_quorumnet_port);
+      m_quorumnet_obj = quorumnet_new(*this, m_service_node_list, qnet_listen);
+    }
+
     return true;
   }
 

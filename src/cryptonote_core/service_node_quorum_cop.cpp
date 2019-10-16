@@ -668,4 +668,31 @@ namespace service_nodes
 
     return credit;
   }
+
+  uint64_t quorum_checksum(const std::vector<crypto::public_key> &pubkeys, size_t offset) {
+    constexpr size_t KEY_BYTES = sizeof(crypto::public_key);
+
+    // Calculate a checksum by reading bytes 0-7 from the first pubkey as a little-endian uint64_t,
+    // then reading 1-8 from the second pubkey, 2-9 from the third, and so on, and adding all the
+    // uint64_t values together.  If we get to 25 we wrap the read around the end and keep going.
+    uint64_t sum = 0;
+    uint64_t local;
+    auto *local_data = reinterpret_cast<char *>(&local);
+    offset %= KEY_BYTES;
+    for (auto &pk : pubkeys) {
+      auto *pkdata = reinterpret_cast<const char *>(&pk);
+      if (offset <= KEY_BYTES - 8)
+        std::memcpy(local_data, pkdata + offset, 8);
+      else {
+        size_t prewrap = KEY_BYTES - offset;
+        std::memcpy(local_data, pkdata + offset, prewrap);
+        std::memcpy(local_data + prewrap, pkdata, 8 - prewrap);
+      }
+      boost::endian::little_to_native_inplace(local);
+      sum += local;
+      offset = (offset + 1) % KEY_BYTES;
+    }
+    return sum;
+  }
+
 }
