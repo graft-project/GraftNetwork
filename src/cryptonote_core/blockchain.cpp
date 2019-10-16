@@ -590,7 +590,7 @@ void Blockchain::pop_blocks(uint64_t nblocks)
 
   auto split_height = m_db->height();
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
-    hook->blockchain_detached(split_height);
+    hook->blockchain_detached(split_height, true /*by_pop_blocks*/);
 
   if (stop_batch)
     m_db->batch_stop();
@@ -970,7 +970,7 @@ bool Blockchain::rollback_blockchain_switching(const std::list<block_and_checkpo
 
   // Revert all changes from switching to the alt chain before adding the original chain back in
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
-    hook->blockchain_detached(rollback_height);
+    hook->blockchain_detached(rollback_height, false /*by_pop_blocks*/);
 
   // make sure the hard fork object updates its current version
   m_hardfork->reorganize_from_chain_height(rollback_height);
@@ -1024,7 +1024,7 @@ bool Blockchain::switch_to_alternative_blockchain(const std::list<block_extended
 
   auto split_height = m_db->height();
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
-    hook->blockchain_detached(split_height);
+    hook->blockchain_detached(split_height, false /*by_pop_blocks*/);
 
   //connecting new alternative chain
   for(auto alt_ch_iter = alt_chain.begin(); alt_ch_iter != alt_chain.end(); alt_ch_iter++)
