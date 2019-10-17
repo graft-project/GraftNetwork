@@ -3644,7 +3644,6 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   {
     MERROR_VER("Block with id: " << id << std::endl << "has wrong prev_id: " << bl.prev_id << std::endl << "expected: " << top_hash);
     bvc.m_verifivation_failed = true;
-leave:
     return false;
   }
 
@@ -3665,7 +3664,7 @@ leave:
   {
     MERROR_VER("Block with id: " << id << std::endl << "has old version: " << (unsigned)bl.major_version << std::endl << "current: " << (unsigned)m_hardfork->get_current_version());
     bvc.m_verifivation_failed = true;
-    goto leave;
+    return false;
   }
 
   TIME_MEASURE_FINISH(t1);
@@ -3677,7 +3676,7 @@ leave:
   {
     MERROR_VER("Block with id: " << id << std::endl << "has invalid timestamp: " << bl.timestamp);
     bvc.m_verifivation_failed = true;
-    goto leave;
+    return false;
   }
 
   TIME_MEASURE_FINISH(t2);
@@ -3719,7 +3718,7 @@ leave:
       {
         MERROR_VER("Block with id is INVALID: " << id << ", expected " << expected_hash);
         bvc.m_verifivation_failed = true;
-        goto leave;
+        return false;
       }
       fast_check = true;
     }
@@ -3745,7 +3744,7 @@ leave:
     {
       MERROR_VER("Block with id: " << id << std::endl << "does not have enough proof of work: " << proof_of_work << " at height " << blockchain_height << ", unexpected difficulty: " << current_diffic);
       bvc.m_verifivation_failed = true;
-      goto leave;
+      return false;
     }
   }
 
@@ -3760,7 +3759,7 @@ leave:
       {
         LOG_ERROR("CHECKPOINT VALIDATION FAILED");
         bvc.m_verifivation_failed = true;
-        goto leave;
+        return false;
       }
     }
 
@@ -3777,7 +3776,7 @@ leave:
   {
     MERROR_VER("Block with id: " << id << " failed to pass prevalidation");
     bvc.m_verifivation_failed = true;
-    goto leave;
+    return false;
   }
 
   size_t coinbase_weight = get_transaction_weight(bl.miner_tx);
@@ -3815,7 +3814,7 @@ leave:
       MERROR("Block with id: " << id << " attempting to add transaction already in blockchain with id: " << tx_id);
       bvc.m_verifivation_failed = true;
       return_tx_to_pool(txs);
-      goto leave;
+      return false;
     }
 
     TIME_MEASURE_FINISH(aa);
@@ -3828,7 +3827,7 @@ leave:
       MERROR_VER("Block with id: " << id  << " has at least one unknown transaction with id: " << tx_id);
       bvc.m_verifivation_failed = true;
       return_tx_to_pool(txs);
-      goto leave;
+      return false;
     }
 
     TIME_MEASURE_FINISH(bb);
@@ -3873,7 +3872,7 @@ leave:
         for (const auto &h: m_blocks_txs_check) MERROR_VER("  " << h);
         bvc.m_verifivation_failed = true;
         return_tx_to_pool(txs);
-        goto leave;
+        return false;
       }
     }
 #if defined(PER_BLOCK_CHECKPOINT)
@@ -3888,7 +3887,7 @@ leave:
         MERROR_VER("Block with id " << id << " added as invalid because of wrong inputs in transactions");
         bvc.m_verifivation_failed = true;
         return_tx_to_pool(txs);
-        goto leave;
+        return false;
       }
     }
 #endif
@@ -3908,7 +3907,7 @@ leave:
     MERROR_VER("Block with id: " << id << " has incorrect miner transaction");
     bvc.m_verifivation_failed = true;
     return_tx_to_pool(txs);
-    goto leave;
+    return false;
   }
 
   TIME_MEASURE_FINISH(vmt);
