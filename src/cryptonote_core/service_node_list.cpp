@@ -1468,7 +1468,7 @@ namespace service_nodes
     m_state.update_from_block(*m_db, nettype, m_state_history, m_alt_state, block, txs, m_service_node_keys);
   }
 
-  void service_node_list::blockchain_detached(uint64_t height)
+  void service_node_list::blockchain_detached(uint64_t height, bool /*by_pop_blocks*/)
   {
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
 
