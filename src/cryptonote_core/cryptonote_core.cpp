@@ -984,18 +984,6 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_incoming_tx_post(const blobdata& tx_blob, tx_verification_context& tvc, cryptonote::transaction &tx, crypto::hash &tx_hash, bool keeped_by_block, bool relayed, bool do_not_relay)
-  {
-    if(!check_tx_syntax(tx))
-    {
-      LOG_PRINT_L1("WRONG TRANSACTION BLOB, Failed to check tx " << tx_hash << " syntax, rejected");
-      tvc.m_verifivation_failed = true;
-      return false;
-    }
-
-    return true;
-  }
-  //-----------------------------------------------------------------------------------------------
   void core::set_semantics_failed(const crypto::hash &tx_hash)
   {
     LOG_PRINT_L1("WRONG TRANSACTION BLOB, Failed to check tx " << tx_hash << " semantic, rejected");
@@ -1118,7 +1106,7 @@ namespace cryptonote
     TRY_ENTRY();
     CRITICAL_REGION_LOCAL(m_incoming_tx_lock);
 
-    struct result { bool res; cryptonote::transaction tx; crypto::hash hash; };
+    struct result { bool res; bool already_have; cryptonote::transaction tx; crypto::hash hash; };
     std::vector<result> results(tx_blobs.size());
 
     tvc.resize(tx_blobs.size());
@@ -1140,46 +1128,28 @@ namespace cryptonote
       });
     }
     waiter.wait(&tpool);
-    it = tx_blobs.begin();
-    std::vector<bool> already_have(tx_blobs.size(), false);
-    for (size_t i = 0; i < tx_blobs.size(); i++, ++it) {
-      if (!results[i].res)
-        continue;
-      if(m_mempool.have_tx(results[i].hash))
-      {
-        LOG_PRINT_L2("tx " << results[i].hash << "already have transaction in tx_pool");
-        already_have[i] = true;
-      }
-      else if(m_blockchain_storage.have_tx(results[i].hash))
-      {
-        LOG_PRINT_L2("tx " << results[i].hash << " already have transaction in blockchain");
-        already_have[i] = true;
-      }
-      else
-      {
-        tpool.submit(&waiter, [&, i, it] {
-          try
-          {
-            results[i].res = handle_incoming_tx_post(*it, tvc[i], results[i].tx, results[i].hash, keeped_by_block, relayed, do_not_relay);
-          }
-          catch (const std::exception &e)
-          {
-            MERROR_VER("Exception in handle_incoming_tx_post: " << e.what());
-            tvc[i].m_verifivation_failed = true;
-            results[i].res = false;
-          }
-        });
-      }
-    }
-    waiter.wait(&tpool);
 
     std::vector<tx_verification_batch_info> tx_info;
     tx_info.reserve(tx_blobs.size());
     for (size_t i = 0; i < tx_blobs.size(); i++) {
-      if (!results[i].res || already_have[i])
+      if (!results[i].res)
         continue;
+
+      if(m_mempool.have_tx(results[i].hash))
+      {
+        LOG_PRINT_L2("tx " << results[i].hash << "already have transaction in tx_pool");
+        results[i].already_have = true;
+      }
+      else if(m_blockchain_storage.have_tx(results[i].hash))
+      {
+        LOG_PRINT_L2("tx " << results[i].hash << " already have transaction in blockchain");
+        results[i].already_have = true;
+      }
+
+      if (results[i].already_have) continue;
       tx_info.push_back({&results[i].tx, results[i].hash, tvc[i], results[i].res});
     }
+
     if (!tx_info.empty())
       handle_incoming_tx_accumulated_batch(tx_info, keeped_by_block);
 
@@ -1193,7 +1163,7 @@ namespace cryptonote
       }
       if (keeped_by_block)
         get_blockchain_storage().on_new_tx_from_block(results[i].tx);
-      if (already_have[i])
+      if (results[i].already_have)
         continue;
 
       const size_t weight = get_transaction_weight(results[i].tx, it->size());
@@ -1767,11 +1737,6 @@ namespace cryptonote
   bool core::parse_tx_from_blob(transaction& tx, crypto::hash& tx_hash, const blobdata& blob) const
   {
     return parse_and_validate_tx_from_blob(blob, tx, tx_hash);
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::check_tx_syntax(const transaction& tx) const
-  {
-    return true;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::get_pool_transactions(std::vector<transaction>& txs, bool include_sensitive_data) const
