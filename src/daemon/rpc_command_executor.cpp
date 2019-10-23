@@ -3481,6 +3481,7 @@ bool t_rpc_command_executor::prepare_registration()
 
 bool t_rpc_command_executor::prune_blockchain()
 {
+#if 0
     cryptonote::COMMAND_RPC_PRUNE_BLOCKCHAIN::request req;
     cryptonote::COMMAND_RPC_PRUNE_BLOCKCHAIN::response res;
     std::string fail_message = "Unsuccessful";
@@ -3505,6 +3506,9 @@ bool t_rpc_command_executor::prune_blockchain()
     }
 
     tools::success_msg_writer() << "Blockchain pruned";
+#else
+    tools::fail_msg_writer() << "Blockchain pruning is not supported in Loki yet";
+#endif
     return true;
 }
 
