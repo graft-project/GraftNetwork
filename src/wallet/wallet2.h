@@ -77,6 +77,7 @@
 class Serialization_portability_wallet_Test;
 class wallet_accessor_test;
 
+LOKI_RPC_DOC_INTROSPECT
 namespace tools
 {
   class ringdb;
@@ -260,10 +261,10 @@ private:
     uint64_t checkpointed;                                     // If transfer is backed by atleast 2 Service Node Checkpoints, 0 if it is not, see immutable_height in the daemon rpc call get_info
 
     // Not serialized, for internal wallet2 use
-    tools::pay_type pay_type;                                  // Internal use only, not serialized
-    bool            confirmed;                                 // Internal use only, not serialized
-    crypto::hash    hash;                                      // Internal use only, not serialized
-    std::string     lock_msg;                                  // Internal use only, not serialized
+    tools::pay_type pay_type;                                  // @NoLokiRPCDocGen Internal use only, not serialized
+    bool            confirmed;                                 // @NoLokiRPCDocGen Internal use only, not serialized
+    crypto::hash    hash;                                      // @NoLokiRPCDocGen Internal use only, not serialized
+    std::string     lock_msg;                                  // @NoLokiRPCDocGen Internal use only, not serialized
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(txid);
