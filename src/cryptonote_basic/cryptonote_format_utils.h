@@ -179,8 +179,8 @@ namespace cryptonote
   std::string get_unit(unsigned int decimal_point = -1);
   std::string print_money(uint64_t amount, unsigned int decimal_point = -1);
 
-  char const *print_tx_verification_context  (tx_verification_context const &tvc, transaction const *tx = nullptr);
-  char const *print_vote_verification_context(vote_verification_context const &vvc, service_nodes::quorum_vote_t const *vote = nullptr);
+  std::string print_tx_verification_context  (tx_verification_context const &tvc, transaction const *tx = nullptr);
+  std::string print_vote_verification_context(vote_verification_context const &vvc, service_nodes::quorum_vote_t const *vote = nullptr);
   //---------------------------------------------------------------
   template<class t_object>
   bool t_serializable_object_from_blob(t_object& to, const blobdata& b_blob)
