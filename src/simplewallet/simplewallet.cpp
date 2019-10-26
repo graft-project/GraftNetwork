@@ -5604,7 +5604,7 @@ static bool locked_blocks_arg_valid(const std::string& arg, uint64_t& duration)
 
   if (duration > 1000000)
   {
-    fail_msg_writer() << tr("Locked blocks too high, max 1000000 (˜4 yrs)");
+    fail_msg_writer() << tr("Locked blocks too high, max 1000000 (~4 yrs)");
     return false;
   }
 
@@ -6754,7 +6754,7 @@ bool simple_wallet::sweep_main(uint64_t below, bool locked, const std::vector<st
     }
     if (locked_blocks > 1000000)
     {
-      fail_msg_writer() << tr("Locked blocks too high, max 1000000 (˜4 yrs)");
+      fail_msg_writer() << tr("Locked blocks too high, max 1000000 (~4 yrs)");
       return true;
     }
     std::string err;
