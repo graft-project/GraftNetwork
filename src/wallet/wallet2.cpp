@@ -4764,7 +4764,7 @@ std::string wallet2::exchange_multisig_keys(const epee::wipeable_string &passwor
 
   if (info[0].substr(0, MULTISIG_EXTRA_INFO_MAGIC.size()) != MULTISIG_EXTRA_INFO_MAGIC)
   {
-    THROW_WALLET_EXCEPTION_IF(false,
+    THROW_WALLET_EXCEPTION(
       error::wallet_internal_error, "Unsupported info string");
   }
 
@@ -7362,8 +7362,7 @@ uint64_t wallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm) const
     return curr_multiplier->values[priority-1];
   }
 
-  THROW_WALLET_EXCEPTION_IF (false, error::invalid_priority);
-  return 1;
+  THROW_WALLET_EXCEPTION(error::invalid_priority);
 }
 //----------------------------------------------------------------------------------------------------
 byte_and_output_fees wallet2::get_dynamic_base_fee_estimate() const
