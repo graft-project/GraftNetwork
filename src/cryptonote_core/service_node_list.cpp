@@ -90,7 +90,8 @@ namespace service_nodes
   }
 
   service_node_list::service_node_list(cryptonote::Blockchain &blockchain)
-  : m_blockchain(blockchain)
+  : m_blockchain(blockchain) // Warning: don't touch `blockchain`, it gets initialized *after* us
+  , m_service_node_keys(nullptr)
   , m_db(nullptr)
   , m_store_quorum_history(0)
   , m_state_added_to_archive(false)
@@ -329,10 +330,10 @@ namespace service_nodes
     m_db = db;
   }
 
-  void service_node_list::set_my_service_node_keys(std::shared_ptr<const service_node_keys> keys)
+  void service_node_list::set_my_service_node_keys(const service_node_keys *keys)
   {
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
-    m_service_node_keys = std::move(keys);
+    m_service_node_keys = keys;
   }
 
   void service_node_list::set_quorum_history_storage(uint64_t hist_size) {
@@ -463,7 +464,7 @@ namespace service_nodes
                                                            cryptonote::network_type nettype,
                                                            const cryptonote::block &block,
                                                            const cryptonote::transaction &tx,
-                                                           const keys_ptr &my_keys)
+                                                           const service_node_keys *my_keys)
   {
     if (tx.type != cryptonote::txtype::state_change)
       return false;
@@ -922,7 +923,7 @@ namespace service_nodes
     return true;
   }
 
-  bool service_node_list::state_t::process_registration_tx(cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, uint32_t index, const keys_ptr &my_keys)
+  bool service_node_list::state_t::process_registration_tx(cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, uint32_t index, const service_node_keys *my_keys)
   {
     uint8_t const hf_version       = block.major_version;
     uint64_t const block_timestamp = block.timestamp;
@@ -1308,7 +1309,7 @@ namespace service_nodes
                                                      std::unordered_map<crypto::hash, state_t> const &alt_states,
                                                      const cryptonote::block &block,
                                                      const std::vector<cryptonote::transaction> &txs,
-                                                     const keys_ptr &my_keys)
+                                                     const service_node_keys *my_keys)
   {
     ++height;
     bool need_swarm_update = false;

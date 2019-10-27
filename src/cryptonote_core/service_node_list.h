@@ -355,7 +355,7 @@ namespace service_nodes
     }
 
     void set_db_pointer(cryptonote::BlockchainDB* db);
-    void set_my_service_node_keys(std::shared_ptr<const service_node_keys> keys);
+    void set_my_service_node_keys(const service_node_keys *keys);
     void set_quorum_history_storage(uint64_t hist_size); // 0 = none (default), 1 = unlimited, N = # of blocks
     bool store();
 
@@ -424,7 +424,6 @@ namespace service_nodes
     };
 
     using block_height = uint64_t;
-    using keys_ptr = std::shared_ptr<const service_node_keys>;
     struct state_t
     {
       crypto::hash                           block_hash;
@@ -449,10 +448,10 @@ namespace service_nodes
           std::unordered_map<crypto::hash, state_t> const &alt_states,
           const cryptonote::block& block,
           const std::vector<cryptonote::transaction>& txs,
-          const keys_ptr &my_keys);
+          const service_node_keys *my_keys);
 
       // Returns true if there was a registration:
-      bool process_registration_tx(cryptonote::network_type nettype, cryptonote::block const &block, const cryptonote::transaction& tx, uint32_t index, const keys_ptr &my_keys);
+      bool process_registration_tx(cryptonote::network_type nettype, cryptonote::block const &block, const cryptonote::transaction& tx, uint32_t index, const service_node_keys *my_keys);
       // Returns true if there was a successful contribution that fully funded a service node:
       bool process_contribution_tx(cryptonote::network_type nettype, cryptonote::block const &block, const cryptonote::transaction& tx, uint32_t index);
       // Returns true if a service node changed state (deregistered, decommissioned, or recommissioned)
@@ -462,7 +461,7 @@ namespace service_nodes
           cryptonote::network_type nettype,
           const cryptonote::block &block,
           const cryptonote::transaction& tx,
-          const keys_ptr &my_keys);
+          const service_node_keys *my_keys);
       bool process_key_image_unlock_tx(cryptonote::network_type nettype, uint64_t block_height, const cryptonote::transaction &tx);
       block_winner get_block_winner() const;
     };
@@ -480,7 +479,7 @@ namespace service_nodes
 
     mutable boost::recursive_mutex m_sn_mutex;
     cryptonote::Blockchain&        m_blockchain;
-    keys_ptr                       m_service_node_keys;
+    const service_node_keys       *m_service_node_keys;
     cryptonote::BlockchainDB      *m_db;
     uint64_t                       m_store_quorum_history;
 

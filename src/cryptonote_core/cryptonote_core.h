@@ -844,10 +844,9 @@ namespace cryptonote
      /**
       * @brief Get the keys for this service node.
       *
-      * @return shared point to service node keys; the shared pointer will be empty if this node is
-      * not running as a service node.
+      * @return pointer to service node keys, or nullptr if this node is not running as a service node.
       */
-     std::shared_ptr<const service_node_keys> get_service_node_keys() const;
+     const service_node_keys* get_service_node_keys() const;
 
      /**
       * @brief attempts to submit an uptime proof to the network, if this is running in service node mode
@@ -1108,7 +1107,7 @@ namespace cryptonote
 
      std::atomic_flag m_checkpoints_updating; //!< set if checkpoints are currently updating to avoid multiple threads attempting to update at once
 
-     std::shared_ptr<service_node_keys> m_service_node_keys;
+     std::unique_ptr<service_node_keys> m_service_node_keys;
 
      /// Service Node's public IP and storage server port
      uint32_t m_sn_public_ip;

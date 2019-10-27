@@ -404,7 +404,7 @@ namespace cryptonote
     bool service_node = command_line::get_arg(vm, arg_service_node);
 
     if (service_node) {
-      m_service_node_keys = std::make_shared<service_node_keys>(); // Will be updated or generated later, in init()
+      m_service_node_keys = std::make_unique<service_node_keys>(); // Will be updated or generated later, in init()
 
       /// TODO: parse these options early, before we start p2p server etc?
       m_storage_port = command_line::get_arg(vm, arg_storage_server_port);
@@ -584,7 +584,7 @@ namespace cryptonote
     {
       r = init_service_node_keys();
       CHECK_AND_ASSERT_MES(r, false, "Failed to create or load service node key");
-      m_service_node_list.set_my_service_node_keys(m_service_node_keys);
+      m_service_node_list.set_my_service_node_keys(m_service_node_keys.get());
     }
 
     boost::filesystem::path folder(m_config_folder);
@@ -2289,9 +2289,9 @@ namespace cryptonote
     return m_quorum_cop.handle_vote(vote, vvc);
   }
   //-----------------------------------------------------------------------------------------------
-  std::shared_ptr<const core::service_node_keys> core::get_service_node_keys() const
+  const core::service_node_keys* core::get_service_node_keys() const
   {
-    return m_service_node_keys;
+    return m_service_node_keys.get();
   }
   uint32_t core::get_blockchain_pruning_seed() const
   {
