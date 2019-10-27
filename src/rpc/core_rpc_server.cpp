@@ -841,6 +841,27 @@ namespace cryptonote
     }
     res.sanity_check_failed = false;
 
+    if (req.blink)
+    {
+      using namespace std::chrono_literals;
+      auto future = m_core.handle_blink_tx(tx_blob);
+      auto status = future.wait_for(10s);
+      if (status != std::future_status::ready) {
+        res.status = "Failed";
+        res.reason = "Blink quorum timeout";
+        return true;
+      }
+
+      auto result = future.get();
+      if (result.first == blink_result::accepted) {
+        res.status = CORE_RPC_STATUS_OK;
+      } else {
+        res.status = "Failed";
+        res.reason = !result.second.empty() ? result.second : result.first == blink_result::timeout ? "Blink quorum timeout" : "Transaction rejected by blink quorum";
+      }
+      return true;
+    }
+
     cryptonote_connection_context fake_context{};
     tx_verification_context tvc{};
     if(!m_core.handle_incoming_tx(tx_blob, tvc, false, false, req.do_not_relay) || tvc.m_verifivation_failed)

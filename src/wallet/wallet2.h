@@ -307,6 +307,7 @@ private:
     friend class wallet_keys_unlocker;
     friend class wallet_device_callback;
   public:
+    static constexpr uint32_t BLINK_PRIORITY = 0x626c6e6b; // "blnk"
     static constexpr const std::chrono::seconds rpc_timeout = std::chrono::minutes(3) + std::chrono::seconds(30);
 
     enum RefreshType {
@@ -923,8 +924,8 @@ private:
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
       uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, const rct::RCTConfig &rct_config, bool is_staking_tx = false);
 
-    void commit_tx(pending_tx& ptx_vector);
-    void commit_tx(std::vector<pending_tx>& ptx_vector);
+    void commit_tx(pending_tx& ptx_vector, bool blink = false);
+    void commit_tx(std::vector<pending_tx>& ptx_vector, bool blink = false);
     bool save_tx(const std::vector<pending_tx>& ptx_vector, const std::string &filename) const;
     std::string dump_tx_to_str(const std::vector<pending_tx> &ptx_vector) const;
     std::string save_multisig_tx(multisig_tx_set txs);
@@ -1447,6 +1448,7 @@ private:
       service_node_contributors_maxed,
       service_node_insufficient_contribution,
       too_many_transactions_constructed,
+      no_blink,
     };
 
     struct stake_result
@@ -1483,6 +1485,7 @@ private:
       wallet_not_synced,
       too_many_transactions_constructed,
       exception_thrown,
+      no_blink,
     };
 
     struct register_service_node_result

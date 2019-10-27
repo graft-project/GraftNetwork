@@ -114,7 +114,7 @@ namespace cryptonote
     };
   }
   //---------------------------------------------------------------------------------
-  //---------------------------------------------------------------------------------
+  // warning: bchs is passed here uninitialized, so don't do anything but store it
   tx_memory_pool::tx_memory_pool(Blockchain& bchs): m_blockchain(bchs), m_txpool_max_weight(DEFAULT_TXPOOL_MAX_WEIGHT), m_txpool_weight(0), m_cookie(0)
   {
 
@@ -223,6 +223,12 @@ namespace cryptonote
 
     return false;
   }
+
+  // Blink notes: a blink quorum member adds an incoming blink tx into the mempool to make sure it
+  // can be accepted, but sets it as do_not_relay initially.  If it gets added, the quorum member
+  // sends a signature to other quorum members.  Once enough signatures are received it updates it
+  // to set `do_not_relay` to false and starts relaying it (other quorum members do the same).
+
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::add_tx(transaction &tx, /*const crypto::hash& tx_prefix_hash,*/ const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version)
   {
@@ -428,6 +434,35 @@ namespace cryptonote
     if (bl.size() == 0 || !get_transaction_hash(tx, h))
       return false;
     return add_tx(tx, h, bl, get_transaction_weight(tx, bl.size()), tvc, keeped_by_block, relayed, do_not_relay, version);
+  }
+  //---------------------------------------------------------------------------------
+  bool tx_memory_pool::add_blink(const std::shared_ptr<blink_tx> &blink_ptr, tx_verification_context &tvc, bool &blink_exists)
+  {
+    assert((bool) blink_ptr);
+    std::unique_lock<std::shared_timed_mutex> lock(m_blinks_mutex);
+    CRITICAL_REGION_LOCAL(m_transactions_lock);
+    auto &tx = blink_ptr->tx;
+    auto txhash = get_transaction_hash(tx);
+    auto &ptr = m_blinks[txhash];
+    blink_exists = (bool) ptr;
+    if (blink_exists)
+      return false;
+    ptr = blink_ptr;
+    auto &blink = *ptr;
+    auto hf_version = m_blockchain.get_ideal_hard_fork_version(blink.height);
+    bool ret = add_tx(tx, tvc, false /*kept_by_block*/, false /*relayed*/, true /*do_not_relay*/, hf_version);
+    if (!ret)
+      m_blinks.erase(txhash);
+    return ret;
+  }
+  //---------------------------------------------------------------------------------
+  std::shared_ptr<blink_tx> tx_memory_pool::get_blink(const crypto::hash &tx_hash) const
+  {
+    std::shared_lock<std::shared_timed_mutex> lock(m_blinks_mutex);
+    auto it = m_blinks.find(tx_hash);
+    if (it != m_blinks.end())
+        return it->second;
+    return {};
   }
   //---------------------------------------------------------------------------------
   size_t tx_memory_pool::get_txpool_weight() const

@@ -1269,7 +1269,7 @@ namespace service_nodes
         if (total_nodes >= BLINK_MIN_VOTES)
         {
           pub_keys_indexes = generate_shuffled_service_node_index_list(total_nodes, state.block_hash, type);
-          num_validators = std::min(pub_keys_indexes.size(), BLINK_MIN_VOTES);
+          num_validators = std::min<size_t>(pub_keys_indexes.size(), BLINK_SUBQUORUM_SIZE);
         }
         // Otherwise leave empty to signal that there aren't enough SNs to form a usable quorum (to
         // distinguish it from an invalid height, which gets left as a nullptr)

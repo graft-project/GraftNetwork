@@ -31,6 +31,7 @@
 #pragma once
 
 #include <ctime>
+#include <future>
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -70,17 +71,24 @@ namespace cryptonote
   extern const command_line::arg_descriptor<size_t> arg_block_download_max_size;
   extern const command_line::arg_descriptor<uint64_t> arg_recalculate_difficulty;
 
+  enum class blink_result { rejected, accepted, timeout };
+
   // Function pointers that are set to throwing stubs and get replaced by the actual functions in
   // cryptonote_protocol/quorumnet.cpp's quorumnet::init_core_callbacks().  This indirection is here
   // so that core doesn't need to link against cryptonote_protocol (plus everything it depends on).
 
-  // Starts the quorumnet listener.  Return an opaque object (i.e. "this") that gets passed into all
-  // the other callbacks below.
-  extern void *(*quorumnet_new)(core &core, service_nodes::service_node_list &sn_list, const std::string &bind);
-  // Stops the quorumnet listener; is expected to delete the object.
-  extern void (*quorumnet_delete)(void *self);
+  // Starts the quorumnet listener.  Return an opaque pointer (void *) that gets passed into all the
+  // other callbacks below so that the callbacks can recast it into whatever it should be.  `bind`
+  // will be null if the quorumnet object is started in remote-only (non-listening) mode, which only
+  // happens on-demand when running in non-SN mode.
+  extern void *(*quorumnet_new)(core &core, tx_memory_pool &pool, const std::string &bind);
+  // Stops the quorumnet listener; is expected to delete the object and reset the pointer to nullptr.
+  extern void (*quorumnet_delete)(void *&self);
   // Relays votes via quorumnet.
   extern void (*quorumnet_relay_votes)(void *self, const std::vector<service_nodes::quorum_vote_t> &votes);
+  // Sends a blink tx to the current blink quorum, returns a future that can be used to wait for the
+  // result.
+  extern std::future<std::pair<blink_result, std::string>> (*quorumnet_send_blink)(void *self, const std::string &tx_blob);
   extern bool init_core_callback_complete;
 
 
@@ -106,7 +114,11 @@ namespace cryptonote
        *
        * @param pprotocol pre-constructed protocol object to store and use
        */
-     core(i_cryptonote_protocol* pprotocol);
+     explicit core(i_cryptonote_protocol* pprotocol);
+
+     // Non-copyable:
+     core(const core &) = delete;
+     core &operator=(const core &) = delete;
 
     /**
      * @copydoc Blockchain::handle_get_objects
@@ -165,6 +177,18 @@ namespace cryptonote
       * @return true if the transactions were accepted, false otherwise
       */
      bool handle_incoming_txs(const std::vector<blobdata>& tx_blobs, std::vector<tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
+
+     /**
+      * @brief handles an incoming blink transaction by dispatching it to the service node network
+      * via quorumnet.  If this node is not a service node this will start up quorumnet in
+      * remote-only mode the first time it is called.
+      *
+      * @param tx_blob the transaction data
+      *
+      * @returns a pair of a blink result value: rejected, accepted, or timeout; and a rejection
+      * reason as returned by one of the blink quorum nodes.
+      */
+     std::future<std::pair<blink_result, std::string>> handle_blink_tx(const std::string &tx_blob);
 
      /**
       * @brief handles an incoming block
@@ -1116,6 +1140,7 @@ namespace cryptonote
 
      std::string m_quorumnet_bind_ip; // Currently just copied from p2p-bind-ip
      void *m_quorumnet_obj = nullptr;
+     std::mutex m_quorumnet_init_mutex;
 
      size_t block_sync_size;
 

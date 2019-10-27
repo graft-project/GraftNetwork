@@ -459,6 +459,9 @@ namespace service_nodes
           }
         }
         break;
+
+        case quorum_type::blink:
+        break;
       }
     }
   }
@@ -676,21 +679,19 @@ namespace service_nodes
     // then reading 1-8 from the second pubkey, 2-9 from the third, and so on, and adding all the
     // uint64_t values together.  If we get to 25 we wrap the read around the end and keep going.
     uint64_t sum = 0;
-    uint64_t local;
-    auto *local_data = reinterpret_cast<char *>(&local);
-    offset %= KEY_BYTES;
+    alignas(uint64_t) std::array<char, sizeof(uint64_t)> local;
     for (auto &pk : pubkeys) {
+      offset %= KEY_BYTES;
       auto *pkdata = reinterpret_cast<const char *>(&pk);
-      if (offset <= KEY_BYTES - 8)
-        std::memcpy(local_data, pkdata + offset, 8);
+      if (offset <= KEY_BYTES - sizeof(uint64_t))
+        std::memcpy(local.data(), pkdata + offset, sizeof(uint64_t));
       else {
         size_t prewrap = KEY_BYTES - offset;
-        std::memcpy(local_data, pkdata + offset, prewrap);
-        std::memcpy(local_data + prewrap, pkdata, 8 - prewrap);
+        std::memcpy(local.data(), pkdata + offset, prewrap);
+        std::memcpy(local.data() + prewrap, pkdata, sizeof(uint64_t) - prewrap);
       }
-      boost::endian::little_to_native_inplace(local);
-      sum += local;
-      offset = (offset + 1) % KEY_BYTES;
+      sum += boost::endian::little_to_native(*reinterpret_cast<uint64_t *>(local.data()));
+      ++offset;
     }
     return sum;
   }

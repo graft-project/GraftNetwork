@@ -260,13 +260,15 @@ namespace cryptonote
   [[noreturn]] static void need_core_init() {
       throw std::logic_error("Internal error: quorumnet::init_core_callbacks() should have been called");
   }
-  void *(*quorumnet_new)(core &, service_nodes::service_node_list &, const std::string &bind);
-  void (*quorumnet_delete)(void *self);
+  void *(*quorumnet_new)(core &, tx_memory_pool &, const std::string &bind);
+  void (*quorumnet_delete)(void *&self);
   void (*quorumnet_relay_votes)(void *self, const std::vector<service_nodes::quorum_vote_t> &);
+  std::future<std::pair<blink_result, std::string>> (*quorumnet_send_blink)(void *self, const std::string &tx_blob);
   static bool init_core_callback_stubs() {
-    quorumnet_new = [](core &, service_nodes::service_node_list &, const std::string &) -> void * { need_core_init(); };
-    quorumnet_delete = [](void *) { need_core_init(); };
+    quorumnet_new = [](core &, tx_memory_pool &, const std::string &) -> void * { need_core_init(); };
+    quorumnet_delete = [](void *&) { need_core_init(); };
     quorumnet_relay_votes = [](void *, const std::vector<service_nodes::quorum_vote_t> &) { need_core_init(); };
+    quorumnet_send_blink = [](void *, const std::string &) -> std::future<std::pair<blink_result, std::string>> { need_core_init(); };
     return false;
   }
   bool init_core_callback_complete = init_core_callback_stubs();
@@ -858,10 +860,15 @@ namespace cryptonote
 
     if (m_service_node_keys)
     {
+      std::lock_guard<std::mutex> lock{m_quorumnet_init_mutex};
       // quorumnet_new takes a zmq bind string, e.g. "tcp://1.2.3.4:5678"
-      std::string qnet_listen = "tcp://" + vm["p2p-bind-ip"].as<std::string>() + ":" + std::to_string(m_quorumnet_port);
-      m_quorumnet_obj = quorumnet_new(*this, m_service_node_list, qnet_listen);
+      std::string listen_ip = vm["p2p-bind-ip"].as<std::string>();
+      if (listen_ip.empty())
+        listen_ip = "0.0.0.0";
+      std::string qnet_listen = "tcp://" + listen_ip + ":" + std::to_string(m_quorumnet_port);
+      m_quorumnet_obj = quorumnet_new(*this, m_mempool, qnet_listen);
     }
+    // Otherwise we may still need quorumnet in remote-only mode, but we construct it on demand
 
     return true;
   }
@@ -958,10 +965,8 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::deinit()
   {
-    if (m_quorumnet_obj) {
+    if (m_quorumnet_obj)
       quorumnet_delete(m_quorumnet_obj);
-      m_quorumnet_obj = nullptr;
-    }
     m_service_node_list.store();
     m_service_node_list.set_db_pointer(nullptr);
     m_miner.stop();
@@ -1242,6 +1247,17 @@ namespace cryptonote
     bool r = handle_incoming_txs(tx_blobs, tvcv, keeped_by_block, relayed, do_not_relay);
     tvc = tvcv[0];
     return r;
+  }
+  //-----------------------------------------------------------------------------------------------
+  std::future<std::pair<blink_result, std::string>> core::handle_blink_tx(const std::string &tx_blob)
+  {
+    if (!m_quorumnet_obj) {
+      assert(!m_service_node_keys);
+      std::lock_guard<std::mutex> lock{m_quorumnet_init_mutex};
+      if (!m_quorumnet_obj)
+        m_quorumnet_obj = quorumnet_new(*this, m_mempool, "" /* don't listen */);
+    }
+    return quorumnet_send_blink(m_quorumnet_obj, tx_blob);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::get_stat_info(core_stat_info& st_inf) const

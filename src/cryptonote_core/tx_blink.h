@@ -32,6 +32,7 @@
 #include "../common/util.h"
 #include "service_node_rules.h"
 #include <iostream>
+#include <shared_mutex>
 
 namespace service_nodes {
 class service_node_list;
@@ -43,81 +44,107 @@ namespace cryptonote {
 
 class blink_tx {
 public:
-  enum class subquorum : uint8_t { base, future, _count };
+    enum class subquorum : uint8_t { base, future, _count };
 
-  class signature_verification_error : public std::runtime_error {
-    using std::runtime_error::runtime_error;
-  };
+    enum class signature_status : uint8_t { none, rejected, approved };
 
-  /**
-   * Construct a new blink_tx wrapper given the tx and a blink authorization height.
-   */
-  blink_tx(std::shared_ptr<transaction> tx, uint64_t height)
-    : tx_{std::move(tx)}, height_{height} {
-    signatures_.fill({});
-  }
+    /// The blink authorization height of this blink tx, i.e. the block height at the time the
+    /// transaction was created.
+    const uint64_t height;
 
-  /** Construct a new blink_tx from just a height; constructs a default transaction.
-   */
-  explicit blink_tx(uint64_t height) : blink_tx(std::make_shared<transaction>(), height) {}
+    /// The encapsulated transaction.  Any modifications to this (including getting the tx_hash,
+    /// which gets cached!) should either take place before the object is shared, or protected by
+    /// the unique_lock.
+    transaction tx;
 
-  /**
-   * Adds a signature for the given quorum and position.  Returns true if the signature was accepted
-   * (i.e. is valid, and existing signature is empty), false if the signature was already present,
-   * and throws a `blink_tx::signature_verification_error` if the signature fails validation.
-   */
-  bool add_signature(subquorum q, unsigned int position, const crypto::signature &sig, const service_nodes::service_node_list &snl);
+    class signature_verification_error : public std::runtime_error {
+        using std::runtime_error::runtime_error;
+    };
 
-  /**
-   * Remove the signature at the given quorum and position by setting it to null.  Returns true if
-   * removed, false if it was already null.
-   */
-  bool clear_signature(subquorum q, unsigned int position);
+    // Not default constructible
+    blink_tx() = delete;
 
-  /**
-   * Returns true if there is a verified signature at the given quorum and position.
-   */
-  bool has_signature(subquorum q, unsigned int position);
+    /** Construct a new blink_tx from just a height; constructs a default transaction.
+    */
+    explicit blink_tx(uint64_t height) : tx{}, height{height} {
+        assert(quorum_height(subquorum::base) > 0);
+        for (auto &q : signatures_)
+            for (auto &s : q)
+                s.status = signature_status::none;
+    }
 
-  /**
-   * Returns true if this blink tx is valid for inclusion in the blockchain, that is, has the
-   * required number of valid signatures in each quorum.
-   */
-  bool valid() const;
+    /// Obtains a unique lock on this blink tx; required for any signature-mutating method unless
+    /// otherwise noted
+    template <typename... Args>
+    auto unique_lock(Args &&...args) { return std::unique_lock<std::shared_timed_mutex>{mutex_, std::forward<Args>(args)...}; }
 
-  /// Returns a reference to the transaction.
-  transaction &tx() { return *tx_; }
+    /// Obtains a unique lock on this blink tx; required for any signature-dependent method unless
+    /// otherwise noted
+    template <typename... Args>
+    auto shared_lock(Args &&...args) { return std::shared_lock<std::shared_timed_mutex>{mutex_, std::forward<Args>(args)...}; }
 
-  /// Returns a reference to the transaction, const version.
-  const transaction &tx() const { return *tx_; }
+    /**
+     * Adds a signature for the given quorum and position.  Returns false if a signature was already
+     * present; true if the signature was accepted and stored; and throws a
+     * `blink_tx::signature_verification_error` if the signature fails validation.
+     */
+    bool add_signature(subquorum q, int position, bool approved, const crypto::signature &sig, const service_nodes::service_node_list &snl);
 
-  /// Returns the blink authorization height of this blink tx, i.e. the block height at the time the
-  /// transaction was created.
-  uint64_t height() const { return height_; }
+    /**
+     * Adds a signature for the given quorum and position without checking it for validity (i.e.
+     * because it has already been checked with crypto::check_signature).  Returns true if added,
+     * false if a signature was already present.
+     */
+    bool add_prechecked_signature(subquorum q, int position, bool approved, const crypto::signature &sig);
 
-  /// Returns the quorum height for the given height and quorum (base or future); returns 0 at the
-  /// beginning of the chain (before there are enough blocks for a blink quorum).
-  static uint64_t quorum_height(uint64_t h, subquorum q) {
-    uint64_t bh = h - (h % service_nodes::BLINK_QUORUM_INTERVAL) - service_nodes::BLINK_QUORUM_LAG
-      + static_cast<uint8_t>(q) * service_nodes::BLINK_QUORUM_INTERVAL;
-    return bh > h /*overflow*/ ? 0 : bh;
-  }
+    /**
+     * Returns the signature status for the given subquorum and position.
+     */
+    signature_status get_signature_status(subquorum q, int position) const;
 
-  /// Returns the quorum height for the given quorum (base or future); returns 0 at the beginning of
-  /// the chain (before there are enough blocks for a blink quorum).
-  uint64_t quorum_height(subquorum q) const { return quorum_height(height_, q); }
+    /**
+     * Returns true if this blink tx is valid for inclusion in the blockchain, that is, has the
+     * required number of approval signatures in each quorum.  (Note that it is possible for a blink
+     * tx to be neither approved() nor rejected()).  You must hold a shared_lock when calling this.
+     */
+    bool approved() const;
 
-  /// Returns the pubkey of the referenced service node, or null if there is no such service node.
-  crypto::public_key get_sn_pubkey(subquorum q, unsigned position, const service_nodes::service_node_list &snl) const;
+    /**
+     * Returns true if this blink tx has been definitively rejected, that is, has enough rejection
+     * signatures in at least one of the quorums that it is impossible for it to become approved().
+     * (Note that it is possible for a blink tx to be neither approved() nor rejected()).  You must
+     * hold a shared_lock when calling this.
+     */
+    bool rejected() const;
 
-  /// Returns the hashed signing value for this blink TX (a fast hash of the height + tx hash)
-  crypto::hash hash() const;
+    /// Returns the quorum height for the given height and quorum (base or future); returns 0 at the
+    /// beginning of the chain (before there are enough blocks for a blink quorum).
+    static uint64_t quorum_height(uint64_t h, subquorum q) {
+        uint64_t bh = h - (h % service_nodes::BLINK_QUORUM_INTERVAL) - service_nodes::BLINK_QUORUM_LAG
+            + static_cast<uint8_t>(q) * service_nodes::BLINK_QUORUM_INTERVAL;
+        return bh > h /*overflow*/ ? 0 : bh;
+    }
+
+    /// Returns the height of the given subquorum (base or future) for this blink tx; returns 0 at
+    /// the beginning of the chain (before there are enough blocks for a blink quorum).  Lock not
+    /// required.
+    uint64_t quorum_height(subquorum q) const { return quorum_height(height, q); }
+
+    /// Returns the pubkey of the referenced service node, or null if there is no such service node.
+    crypto::public_key get_sn_pubkey(subquorum q, int position, const service_nodes::service_node_list &snl) const;
+
+    /// Returns the hashed signing value for this blink TX for a tx with status `approved`.  The
+    /// result is a fast hash of the height + tx hash + approval value.  Lock not required.
+    crypto::hash hash(bool approved) const;
+
+    struct quorum_signature {
+        signature_status status;
+        crypto::signature sig;
+    };
 
 private:
-  std::shared_ptr<transaction> tx_;
-  uint64_t height_;
-  std::array<std::array<crypto::signature, service_nodes::BLINK_SUBQUORUM_SIZE>, tools::enum_count<subquorum>> signatures_;
-
+    std::array<std::array<quorum_signature, service_nodes::BLINK_SUBQUORUM_SIZE>, tools::enum_count<subquorum>> signatures_;
+    std::shared_timed_mutex mutex_;
 };
 
 }

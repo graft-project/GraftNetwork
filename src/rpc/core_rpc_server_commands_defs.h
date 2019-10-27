@@ -341,11 +341,13 @@ namespace cryptonote
         std::string address;
         std::string view_key;
         std::string tx;
+        bool blink;
 
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(address)
           KV_SERIALIZE(view_key)
           KV_SERIALIZE(tx)
+          KV_SERIALIZE_OPT(blink, false)
         END_KV_SERIALIZE_MAP()
       };
       typedef epee::misc_utils::struct_init<request_t> request;
@@ -699,13 +701,15 @@ namespace cryptonote
     struct request_t
     {
       std::string tx_as_hex; // Full transaction information as hexidecimal string.
-      bool do_not_relay;     // (Optional: Default false) Stop relaying transaction to other nodes.
+      bool do_not_relay;     // (Optional: Default false) Stop relaying transaction to other nodes.  Ignored if `blink` is true.
       bool do_sanity_checks; // (Optional: Default true) Verify TX params have sane values.
+      bool blink;            // (Optional: Default false) Submit this as a blink tx rather than into the mempool.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(tx_as_hex)
         KV_SERIALIZE_OPT(do_not_relay, false)
         KV_SERIALIZE_OPT(do_sanity_checks, true)
+        KV_SERIALIZE_OPT(blink, false)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;

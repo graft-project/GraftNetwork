@@ -202,11 +202,16 @@ namespace
     return false;
   }
 
-  std::string get_text_reason(const cryptonote::COMMAND_RPC_SEND_RAW_TX::response &res, cryptonote::transaction const *tx)
+  std::string get_text_reason(const cryptonote::COMMAND_RPC_SEND_RAW_TX::response &res, cryptonote::transaction const *tx, bool blink)
   {
+    if (blink) {
+      return res.reason;
+    }
+    else {
       std::string reason  = print_tx_verification_context  (res.tvc, tx);
       reason             += print_vote_verification_context(res.tvc.m_vote_ctx);
       return reason;
+    }
   }
 }
 
@@ -6514,7 +6519,7 @@ crypto::hash wallet2::get_payment_id(const pending_tx &ptx) const
 }
 //----------------------------------------------------------------------------------------------------
 // take a pending tx and actually send it to the daemon
-void wallet2::commit_tx(pending_tx& ptx)
+void wallet2::commit_tx(pending_tx& ptx, bool blink)
 {
   using namespace cryptonote;
   
@@ -6525,6 +6530,7 @@ void wallet2::commit_tx(pending_tx& ptx)
     oreq.address = get_account().get_public_address_str(m_nettype);
     oreq.view_key = string_tools::pod_to_hex(get_account().get_keys().m_view_secret_key);
     oreq.tx = epee::string_tools::buff_to_hex_nodelimer(tx_to_blob(ptx.tx));
+    oreq.blink = blink;
     m_daemon_rpc_mutex.lock();
     bool r = invoke_http_json("/submit_raw_tx", oreq, ores, rpc_timeout, "POST");
     m_daemon_rpc_mutex.unlock();
@@ -6539,13 +6545,14 @@ void wallet2::commit_tx(pending_tx& ptx)
     req.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(tx_to_blob(ptx.tx));
     req.do_not_relay = false;
     req.do_sanity_checks = true;
+    req.blink = blink;
     COMMAND_RPC_SEND_RAW_TX::response daemon_send_resp;
     m_daemon_rpc_mutex.lock();
     bool r = invoke_http_json("/sendrawtransaction", req, daemon_send_resp, rpc_timeout);
     m_daemon_rpc_mutex.unlock();
     THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "sendrawtransaction");
     THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "sendrawtransaction");
-    THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status != CORE_RPC_STATUS_OK, error::tx_rejected, ptx.tx, get_rpc_status(daemon_send_resp.status), get_text_reason(daemon_send_resp, &ptx.tx));
+    THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status != CORE_RPC_STATUS_OK, error::tx_rejected, ptx.tx, get_rpc_status(daemon_send_resp.status), get_text_reason(daemon_send_resp, &ptx.tx, blink));
     // sanity checks
     for (size_t idx: ptx.selected_transfers)
     {
@@ -6592,11 +6599,11 @@ void wallet2::commit_tx(pending_tx& ptx)
             << "Please, wait for confirmation for your balance to be unlocked.");
 }
 
-void wallet2::commit_tx(std::vector<pending_tx>& ptx_vector)
+void wallet2::commit_tx(std::vector<pending_tx>& ptx_vector, bool blink)
 {
   for (auto & ptx : ptx_vector)
   {
-    commit_tx(ptx);
+    commit_tx(ptx, blink);
   }
 }
 //----------------------------------------------------------------------------------------------------
@@ -7330,16 +7337,11 @@ bool wallet2::sign_multisig_tx_from_file(const std::string &filename, std::vecto
 //----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm) const
 {
-  static const struct fee_multipliers_t
-  {
-    uint64_t values[4];
-  }
-  multipliers[] =
-  {
-    { {1, 4, 20, 166} },
-    { {1, 5, 25, 1000} },
-    { {1, 5, 25, 125} },
-  };
+  static constexpr std::array<std::array<uint64_t, 4>, 3> multipliers = {{
+    {{1, 4, 20, 166}},
+    {{1, 5, 25, 1000}},
+    {{1, 5, 25, 125}},
+  }};
 
   if (fee_algorithm == -1)
     fee_algorithm = get_fee_algorithm();
@@ -7348,21 +7350,19 @@ uint64_t wallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm) const
   if (priority == 0)
     priority = m_default_priority;
   if (priority == 0)
+    priority = fee_algorithm >= 1 ? 2 : 1;
+
+  if (priority == BLINK_PRIORITY)
   {
-    if (fee_algorithm >= 1)
-      priority = 2;
-    else
-      priority = 1;
+    THROW_WALLET_EXCEPTION_IF(!use_fork_rules(HF_VERSION_BLINK, 0), error::invalid_priority);
+    return BLINK_TX_FEE_MULTIPLE;
   }
 
-  THROW_WALLET_EXCEPTION_IF(fee_algorithm < 0 || fee_algorithm >= (int)(loki::array_count(multipliers)), error::invalid_priority);
-  fee_multipliers_t const *curr_multiplier = multipliers + fee_algorithm;
-  if (priority >= 1 && priority <= (uint32_t)loki::array_count(curr_multiplier->values))
-  {
-    return curr_multiplier->values[priority-1];
-  }
-
-  THROW_WALLET_EXCEPTION(error::invalid_priority);
+  THROW_WALLET_EXCEPTION_IF(
+      fee_algorithm < 0 || fee_algorithm >= (int)multipliers.size() ||
+      priority < 1 || priority > multipliers[0].size(),
+      error::invalid_priority);
+  return multipliers[fee_algorithm][priority-1];
 }
 //----------------------------------------------------------------------------------------------------
 byte_and_output_fees wallet2::get_dynamic_base_fee_estimate() const
@@ -7955,6 +7955,14 @@ wallet2::stake_result wallet2::create_stake_tx(const crypto::public_key& service
   try
   {
     priority = adjust_priority(priority);
+
+    if (priority == BLINK_PRIORITY)
+    {
+      result.status = stake_result_status::no_blink;
+      result.msg += tr("Service node stakes cannot use blink priority");
+      return result;
+    }
+
     auto ptx_vector  = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_at_block, priority, extra, subaddr_account, subaddr_indices, true);
     if (ptx_vector.size() == 1)
     {
@@ -8007,6 +8015,14 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
       local_args.erase(local_args.begin());
 
     priority = adjust_priority(priority);
+
+    if (priority == BLINK_PRIORITY)
+    {
+      result.status = register_service_node_result_status::no_blink;
+      result.msg += tr("Service node registrations cannot use blink priority");
+      return result;
+    }
+
     if (local_args.size() < 6)
     {
       result.status = register_service_node_result_status::insufficient_num_args;
@@ -14021,7 +14037,7 @@ uint64_t wallet2::hash_m_transfers(int64_t transfer_height, crypto::hash &hash) 
   return current_height;
 }
 
-const std::array<const char* const, 5> allowed_priority_strings = {{"default", "unimportant", "normal", "elevated", "priority"}};
+constexpr std::array<const char* const, 5> allowed_priority_strings = {{"default", "unimportant", "normal", "elevated", "priority"}};
 bool parse_subaddress_indices(const std::string& arg, std::set<uint32_t>& subaddr_indices, std::string *err_msg)
 {
   subaddr_indices.clear();
@@ -14054,6 +14070,9 @@ bool parse_priority(const std::string& arg, uint32_t& priority)
     arg);
   if(priority_pos != allowed_priority_strings.end()) {
     priority = std::distance(allowed_priority_strings.begin(), priority_pos);
+    return true;
+  } else if (arg == "blink") {
+    priority = wallet2::BLINK_PRIORITY;
     return true;
   }
   return false;

@@ -28,19 +28,19 @@ constexpr char ZMQ_ADDR_ZAP[] = "inproc://zeromq.zap.01";
 constexpr int SN_HANDSHAKE_TIME = 10000;
 
 /** Maximum incoming message size; if a remote tries sending a message larger than this they get disconnected */
-constexpr int64_t SN_ZMQ_MAX_MSG_SIZE = 4 * 1024 * 1024;
+constexpr int64_t SN_ZMQ_MAX_MSG_SIZE = 1 * 1024 * 1024;
 
+/** How long (in ms) to linger sockets when closing them; this is the maximum time zmq spends trying
+ * to sending pending messages before dropping them and closing the underlying socket after the
+ * high-level zmq socket is closed. */
+constexpr int CLOSE_LINGER = 5000;
 
 // Inside some method:
 //     SN_LOG(warn, "bad" << 42 << "stuff");
 #define SN_LOG(level, stuff) do { if (want_logs(LogLevel::level)) { std::ostringstream o; o << stuff; logger(LogLevel::level, __FILE__, __LINE__, o.str()); } } while (0)
 
-// This is the domain used for service nodes talking to each other, and for the service node in a
-// node -> service node communication.
+// This is the domain used for listening service nodes.
 constexpr const char AUTH_DOMAIN_SN[] = "loki.sn";
-// This is the domain for the node in a node -> service node communication, and requires no client
-// authentication (the SN still authenticates to the client though).
-constexpr const char AUTH_DOMAIN_CLIENT[] = "loki.node";
 
 #ifdef __cpp_lib_string_view
 using msg_view_t = std::string_view;
@@ -200,11 +200,12 @@ template <typename It>
 void forward_to_worker(zmq::socket_t &workers, std::string worker_id, It parts_begin, It parts_end) {
     assert(parts_begin != parts_end);
 
-    // Forwarded message to worker: start with the worker name (so the worker router
+    // Forwarded message to worker: this just sends all the parts, but prefixed with the worker
+    // name.
+    // start with the worker name (so the worker router
     // knows where to send it), then the authenticated remote pubkey, then the message
     // parts.
     workers.send(create_message(std::move(worker_id)), zmq::send_flags::sndmore);
-//    workers.send(create_message(std::move(sender)), zmq::send_flags::sndmore);
     send_message_parts(workers, parts_begin, parts_end);
 }
 
@@ -296,16 +297,43 @@ SNNetwork::SNNetwork(
         WantLog want_log,
         WriteLog log,
         unsigned int max_workers)
-    : object_id{next_id++}, peer_lookup{std::move(lookup)}, allow_connection{std::move(allow)}, want_logs{want_log}, logger{log}, max_workers{max_workers}, pubkey{std::move(pubkey_)}, privkey{std::move(privkey_)}
+    : object_id{next_id++}, pubkey{std::move(pubkey_)}, privkey{std::move(privkey_)}, peer_lookup{std::move(lookup)}, allow_connection{std::move(allow)},
+    want_logs{want_log}, logger{log}, poll_remote_offset{poll_internal_size + 1}, max_workers{max_workers}
 {
-    SN_LOG(trace, "Constructing SNNetwork, id=" << object_id << ", this=" << this);
+    SN_LOG(trace, "Constructing listening SNNetwork, id=" << object_id << ", this=" << this);
 
     if (bind.empty())
-        throw std::invalid_argument{"Cannot create a service node with no address(es) to bind"};
+        throw std::invalid_argument{"Cannot create a service node listener with no address(es) to bind"};
+
+    listener = std::make_unique<zmq::socket_t>(context, zmq::socket_type::router);
+
+    launch_proxy_thread(bind);
+}
+
+SNNetwork::SNNetwork(
+        LookupFunc lookup,
+        AllowFunc allow,
+        WantLog want_log,
+        WriteLog log,
+        unsigned int max_workers)
+    : object_id{next_id++}, peer_lookup{std::move(lookup)}, allow_connection{std::move(allow)},
+        want_logs{want_log}, logger{log}, poll_remote_offset{poll_internal_size}, max_workers{max_workers}
+{
+    SN_LOG(trace, "Constructing remote-only SNNetwork, id=" << object_id << ", this=" << this);
+
+    SN_LOG(debug, "generating x25519 keypair for remote-only SNNetwork instance");
+    pubkey.resize(crypto_box_PUBLICKEYBYTES);
+    privkey.resize(crypto_box_SECRETKEYBYTES);
+    crypto_box_keypair(reinterpret_cast<unsigned char *>(&pubkey[0]), reinterpret_cast<unsigned char *>(&privkey[0]));
+
+    launch_proxy_thread({});
+}
+
+void SNNetwork::launch_proxy_thread(const std::vector<std::string> &bind) {
 
     commands_mutable = false;
 
-    SN_LOG(info, "Initializing SNNetwork quorumnet listener with pubkey " << as_hex(pubkey));
+    SN_LOG(info, "Initializing SNNetwork quorumnet " << (bind.empty() ? "remote-only" : "listener") << " with pubkey " << as_hex(pubkey));
     assert(pubkey.size() == 32 && privkey.size() == 32);
 
     if (max_workers == 0)
@@ -317,7 +345,7 @@ SNNetwork::SNNetwork(
         command.bind(SN_ADDR_COMMAND);
         proxy_thread = std::thread{&SNNetwork::proxy_loop, this, bind};
 
-        SN_LOG(warn, "Waiting for proxy thread to get ready...");
+        SN_LOG(debug, "Waiting for proxy thread to get ready...");
         auto &control = get_control_socket();
         detail::send_control(control, "START");
         SN_LOG(trace, "Sent START command");
@@ -329,9 +357,10 @@ SNNetwork::SNNetwork(
 
         if (!(parts.size() == 1 && view(parts.front()) == "READY"))
             throw std::runtime_error("Invalid startup message from proxy thread (didn't get expected READY message)");
-        SN_LOG(warn, "Proxy thread is ready");
+        SN_LOG(debug, "Proxy thread is ready");
     }
 }
+
 
 void SNNetwork::spawn_worker(std::string id) {
     worker_threads.emplace(std::piecewise_construct, std::make_tuple(id), std::make_tuple(&SNNetwork::worker_thread, this, id));
@@ -348,14 +377,18 @@ void SNNetwork::worker_thread(std::string worker_id) {
 
         // When we get an incoming message it'll be in parts that look like one of:
         // [CONTROL] -- some control command, e.g. "QUIT"
-        // [PUBKEY, CMD] -- some simple command with no arguments
-        // [PUBKEY, CMD, DATA] -- some data-carrying command where DATA is a serialized bt_dict
-        // ["", ROUTE, CMD], ["", ROUTE, CMD, DATA] -- same as above, but for a command originating
-        //                                             from a non-SN source.
+        // [PUBKEY, "S", CMD, DATA...]
+        //     some data-carrying command where DATA... is zero or more serialized bt_values, where
+        //     the command originated from a known service node (i.e. that we can reconnect to, if
+        //     needed, to relay a message).
+        // [PUBKEY, "C", CMD, DATA...]
+        //     same as above, but for a command originating from a non-SN source (e.g. a remote node
+        //     submitting a blink TX).  We have a local route to send back to the source as long as
+        //     it stays connecting but cannot reconnect to it.
         //
         // CMDs are registered *before* a SNNetwork is created and immutable afterwards and have
-        // an associated callback that takes the pubkey and a bt_dict (for simple commands we pass
-        // an empty bt_dict).
+        // an associated callback that takes the pubkey and a vector<bt_value> of deserialized
+        // DATA... values.
         SN_LOG(debug, "worker " << worker_id << " waiting for requests");
         std::list<zmq::message_t> parts;
         recv_message_parts(sock, std::back_inserter(parts));
@@ -375,35 +408,39 @@ void SNNetwork::worker_thread(std::string worker_id) {
                 }
             }
 
+            assert(parts.size() >= 3);
+
             auto pubkey = pop_string(parts);
-            std::string route;
-            if (pubkey.empty())
-                route = pop_string(parts);
+            assert(pubkey.size() == 32);
+            bool sn = pop_string(parts) == "S";
 
-            if (parts.size() < 1 || (pubkey.empty() ? route.empty() : pubkey.size() != 32)) {
-                // proxy shouldn't have let this through!
-                SN_LOG(error, worker_id << "received malformed message from proxy thread: " << parts.size() << " message frames, pubkey size " << pubkey.size() << ", route? " << !route.empty());
-                continue;
-            }
-
-            message msg{*this, pop_string(parts), std::move(pubkey), std::move(route)};
-            SN_LOG(trace, worker_id << " received " << msg.command << " message from " << (msg.from_sn() ? as_hex(msg.pubkey) : "non-SN remote"s) <<
+            message msg{*this, pop_string(parts), std::move(pubkey), sn};
+            SN_LOG(trace, worker_id << " received " << msg.command << " message from " << (msg.sn ? "SN " : "non-SN ") << as_hex(msg.pubkey) <<
                     " with " << parts.size() << " data parts");
             for (const auto &part : parts) {
                 msg.data.emplace_back();
                 bt_deserialize(part.data<char>(), part.size(), msg.data.back());
             }
 
+            if (msg.command == "BYE") {
+                SN_LOG(info, "peer asked us to disconnect");
+                detail::send_control(get_control_socket(), "DISCONNECT", {{"pubkey",msg.pubkey}});
+                continue;
+            }
+
             auto cmdit = commands.find(msg.command);
             if (cmdit == commands.end()) {
-                SN_LOG(warn, worker_id << " received unknown command '" << msg.command << "' from SN " <<
-                        (msg.from_sn() ? as_hex(msg.pubkey) : "non-SN remote"s));
+                SN_LOG(warn, worker_id << " received unknown command '" << msg.command << "' from " <<
+                        (msg.sn ? "SN " : "non-SN ") << as_hex(msg.pubkey));
                 continue;
             }
 
             const bool &public_cmd = cmdit->second.second;
-            if (!public_cmd && !msg.from_sn()) {
-                SN_LOG(warn, worker_id << " (of " << object_id << ") received quorum-only command from an unauthenticated remote; ignoring");
+            if (!public_cmd && !msg.sn) {
+                // If they aren't valid, tell them so that they can disconnect (and attempt to reconnect later with appropriate authentication)
+                SN_LOG(warn, worker_id << " (of " << object_id << ") received quorum-only command from an non-SN authenticated remote; replying with a BYE");
+                send(msg.pubkey, "BYE", send_option::incoming{});
+                detail::send_control(get_control_socket(), "DISCONNECT", {{"pubkey",msg.pubkey}});
                 continue;
             }
 
@@ -431,8 +468,6 @@ void SNNetwork::worker_thread(std::string worker_id) {
 void SNNetwork::proxy_quit() {
     SN_LOG(debug, "Received quit command, shutting down proxy thread");
 
-    int socket_linger = 5000; // milliseconds to try to send pending messages before shutting down (discarding pending)
-
     assert(worker_threads.empty());
     command.setsockopt<int>(ZMQ_LINGER, 0);
     command.close();
@@ -442,33 +477,47 @@ void SNNetwork::proxy_quit() {
             control->close();
     }
     workers.close();
-    listener->setsockopt(ZMQ_LINGER, socket_linger);
-    listener.reset();
+    if (listener) {
+        listener->setsockopt(ZMQ_LINGER, CLOSE_LINGER);
+        listener->close();
+    }
     for (auto &r : remotes)
-        r->setsockopt(ZMQ_LINGER, socket_linger);
+        r.second.setsockopt(ZMQ_LINGER, CLOSE_LINGER);
     remotes.clear();
     peers.clear(); 
 
     SN_LOG(debug, "Proxy thread teardown complete");
 }
 
-std::pair<std::shared_ptr<zmq::socket_t>, std::string>
-SNNetwork::proxy_connect(const std::string &remote, const std::string &connect_hint, bool optional, std::chrono::milliseconds keep_alive) {
-    auto &peer = peers[remote];
+std::pair<zmq::socket_t *, std::string>
+SNNetwork::proxy_connect(const std::string &remote, const std::string &connect_hint, bool optional, bool incoming_only, std::chrono::milliseconds keep_alive) {
+    auto &peer = peers[remote]; // We may auto-vivify here, but that's okay; it'll get cleaned up in idle_expiry if no connection gets established
 
-    if (auto socket = peer.socket()) {
+    std::pair<zmq::socket_t *, std::string> result = {nullptr, ""s};
+
+    bool outgoing = false;
+    if (peer.outgoing >= 0 && !incoming_only) {
+        result.first = &remotes[peer.outgoing].second;
+        outgoing = true;
+    } else if (!peer.incoming.empty() && listener) {
+        result.first = listener.get();
+        result.second = peer.incoming;
+    }
+
+    if (result.first) {
         SN_LOG(trace, "proxy asked to connect to " << as_hex(remote) << "; reusing existing connection");
-        if (peer.idle_expiry < keep_alive) {
-            SN_LOG(debug, "updating existing peer connection idle expiry time from " <<
-                    peer.idle_expiry.count() << "ms to " << keep_alive.count() << "ms");
-            peer.idle_expiry = keep_alive;
+        if (outgoing) {
+            if (peer.idle_expiry < keep_alive) {
+                SN_LOG(debug, "updating existing outgoing peer connection idle expiry time from " <<
+                        peer.idle_expiry.count() << "ms to " << keep_alive.count() << "ms");
+                peer.idle_expiry = keep_alive;
+            }
+            peer.activity();
         }
-        peer.activity();
-
-        return {socket, socket == listener ? peer.incoming_route : ""s};
-    } else if (optional) {
-        SN_LOG(debug, "proxy asked for optional connection but not currently connected so cancelling connection attempt");
-        return {};
+        return result;
+    } else if (optional || incoming_only) {
+        SN_LOG(debug, "proxy asked for optional or incoming connection, but no appropriate connection exists so cancelling connection attempt");
+        return result;
     }
 
     // No connection so establish a new one
@@ -486,35 +535,37 @@ SNNetwork::proxy_connect(const std::string &remote, const std::string &connect_h
 
         if (addr.empty()) {
             SN_LOG(error, "quorumnet peer lookup failed for " << as_hex(remote));
-            return {};
+            return result;
         }
     }
 
     SN_LOG(debug, as_hex(pubkey) << " connecting to " << addr << " to reach " << as_hex(remote));
-    auto socket = std::make_shared<zmq::socket_t>(context, zmq::socket_type::dealer);
-    socket->setsockopt(ZMQ_CURVE_SERVERKEY, remote.data(), remote.size());
-    socket->setsockopt(ZMQ_CURVE_PUBLICKEY, pubkey.data(), pubkey.size());
-    socket->setsockopt(ZMQ_CURVE_SECRETKEY, privkey.data(), privkey.size());
-    socket->setsockopt(ZMQ_ZAP_DOMAIN, AUTH_DOMAIN_SN, sizeof(AUTH_DOMAIN_SN)-1);
-    socket->setsockopt(ZMQ_HANDSHAKE_IVL, SN_HANDSHAKE_TIME);
-    socket->setsockopt<int64_t>(ZMQ_MAXMSGSIZE, SN_ZMQ_MAX_MSG_SIZE);
+    zmq::socket_t socket{context, zmq::socket_type::dealer};
+    socket.setsockopt(ZMQ_CURVE_SERVERKEY, remote.data(), remote.size());
+    socket.setsockopt(ZMQ_CURVE_PUBLICKEY, pubkey.data(), pubkey.size());
+    socket.setsockopt(ZMQ_CURVE_SECRETKEY, privkey.data(), privkey.size());
+    socket.setsockopt(ZMQ_HANDSHAKE_IVL, SN_HANDSHAKE_TIME);
+    socket.setsockopt<int64_t>(ZMQ_MAXMSGSIZE, SN_ZMQ_MAX_MSG_SIZE);
+    // FIXME - do this?
 #if ZMQ_VERSION >= ZMQ_MAKE_VERSION (4, 3, 0)
-//    socket->setsockopt(ZMQ_ROUTING_ID, pubkey.data(), pubkey.size());
+    socket.setsockopt(ZMQ_ROUTING_ID, pubkey.data(), pubkey.size());
 #else
-//    socket->setsockopt(ZMQ_IDENTITY, pubkey.data(), pubkey.size());
+    socket.setsockopt(ZMQ_IDENTITY, pubkey.data(), pubkey.size());
 #endif
-    socket->connect(addr);
+    socket.connect(addr);
     peer.idle_expiry = keep_alive;
 
-    remotes.push_back(socket);
-    add_pollitem(*socket);
-    peer.outgoing = socket;
+    add_pollitem(socket);
+    peer.outgoing = remotes.size();
+    remotes.emplace_back(remote, std::move(socket));
+    peer.service_node = true;
     peer.activity();
 
-    return {std::move(socket), ""s};
+    result.first = &remotes.back().second;
+    return result;
 }
 
-std::pair<std::shared_ptr<zmq::socket_t>, std::string> SNNetwork::proxy_connect(bt_dict &&data) {
+std::pair<zmq::socket_t *, std::string> SNNetwork::proxy_connect(bt_dict &&data) {
     auto remote_pubkey = get<std::string>(data.at("pubkey"));
     std::chrono::milliseconds keep_alive{get_int<int>(data.at("keep-alive"))};
     std::string hint;
@@ -522,9 +573,9 @@ std::pair<std::shared_ptr<zmq::socket_t>, std::string> SNNetwork::proxy_connect(
     if (hint_it != data.end())
         hint = get<std::string>(data.at("hint"));
 
-    bool optional = data.count("optional");
+    bool optional = data.count("optional"), incoming = data.count("incoming");
 
-    return proxy_connect(remote_pubkey, hint, optional, keep_alive);
+    return proxy_connect(remote_pubkey, hint, optional, incoming, keep_alive);
 }
 
 constexpr std::chrono::milliseconds SNNetwork::default_send_keep_alive;
@@ -551,9 +602,9 @@ void SNNetwork::proxy_send(bt_dict &&data) {
         ? std::chrono::milliseconds(get_int<uint64_t>(idle_it->second))
         : default_send_keep_alive;
 
-    bool optional = data.count("optional");
+    bool optional = data.count("optional"), incoming = data.count("incoming");
 
-    auto sock_route = proxy_connect(remote_pubkey, hint, optional, keep_alive);
+    auto sock_route = proxy_connect(remote_pubkey, hint, optional, incoming, keep_alive);
     if (!sock_route.first) {
         if (optional)
             SN_LOG(debug, "Not sending: send is optional and no connection to " << as_hex(remote_pubkey) << " is currently established");
@@ -564,12 +615,11 @@ void SNNetwork::proxy_send(bt_dict &&data) {
     try {
         send_message_parts(*sock_route.first, build_send_parts(data, sock_route.second));
     } catch (const zmq::error_t &e) {
-        if (e.num() == EHOSTUNREACH && sock_route.first == listener && !sock_route.second.empty()) {
+        if (e.num() == EHOSTUNREACH && sock_route.first == listener.get() && !sock_route.second.empty()) {
             // We *tried* to route via the incoming connection but it is no longer valid.  Drop it,
             // establish a new connection, and try again.
-            auto peer = peers[remote_pubkey];
-            peer.incoming.reset();
-            peer.incoming_route.clear();
+            auto &peer = peers[remote_pubkey];
+            peer.incoming.clear(); // Don't worry about cleaning the map entry if outgoing is also < 0: that will happen at the next idle cleanup
             SN_LOG(debug, "Could not route back to SN " << as_hex(remote_pubkey) << " via listening socket; trying via new outgoing connection");
             return proxy_send(std::move(data));
         }
@@ -580,6 +630,11 @@ void SNNetwork::proxy_send(bt_dict &&data) {
 void SNNetwork::proxy_reply(bt_dict &&data) {
     const auto &route = get<std::string>(data.at("route"));
     assert(!route.empty());
+    if (!listener) {
+        SN_LOG(error, "Internal error: proxy_reply called but that shouldn't be possible as we have no listener!");
+        return;
+    }
+
     try {
         send_message_parts(*listener, build_send_parts(data, route));
     } catch (const zmq::error_t &err) {
@@ -615,6 +670,8 @@ void SNNetwork::proxy_control_message(std::list<zmq::message_t> parts) {
         idle_workers.clear();
     } else if (cmd == "CONNECT") {
         proxy_connect(std::move(data));
+    } else if (cmd == "DISCONNECT") {
+        proxy_disconnect(get<std::string>(data.at("pubkey")));
     } else if (cmd == "SEND") {
         SN_LOG(trace, "proxying message to " << as_hex(get<std::string>(data.at("pubkey"))));
         proxy_send(std::move(data));
@@ -627,27 +684,56 @@ void SNNetwork::proxy_control_message(std::list<zmq::message_t> parts) {
     }
 }
 
-void SNNetwork::expire_idle_peers() {
-    for (auto &peer : peers) {
-        auto &info = peer.second;
-        auto idle = info.last_activity - std::chrono::steady_clock::now();
-        if (idle <= info.idle_expiry)
-            continue;
-        auto outgoing = info.outgoing.lock();
-        if (!outgoing)
-            continue;
+auto SNNetwork::proxy_close_outgoing(decltype(peers)::iterator it) -> decltype(it) {
+    auto &peer = *it;
+    auto &info = peer.second;
 
-        SN_LOG(info, "Closing connection to " << as_hex(peer.first) << ": idle timeout reached");
+    if (info.outgoing >= 0) {
+        remotes[info.outgoing].second.setsockopt<int>(ZMQ_LINGER, CLOSE_LINGER);
+        pollitems.erase(pollitems.begin() + poll_remote_offset + info.outgoing);
+        remotes.erase(remotes.begin() + info.outgoing);
+        assert(remotes.size() == pollitems.size() + poll_remote_offset);
 
-        for (size_t i = 0; i < remotes.size(); i++) {
-            if (remotes[i] == outgoing) {
-                remotes[i]->setsockopt<int>(ZMQ_LINGER, 0);
-                remotes.erase(remotes.begin() + i);
-                pollitems.erase(pollitems.begin() + poll_remote_offset + i);
-                assert(remotes.size() == pollitems.size() + poll_remote_offset);
-                break;
+        for (auto &p : peers)
+            if (p.second.outgoing > info.outgoing)
+                --p.second.outgoing;
+
+        info.outgoing = -1;
+    }
+
+    if (info.incoming.empty())
+        // Neither incoming nor outgoing connections left, so erase the peer info
+        return peers.erase(it);
+
+    return std::next(it);
+}
+
+void SNNetwork::proxy_disconnect(const std::string &remote) {
+    auto it = peers.find(remote);
+    if (it == peers.end())
+        return;
+    if (want_logs(LogLevel::debug)) {
+        if (it->second.outgoing >= 0)
+            SN_LOG(debug, "Closing outgoing connection to " << as_hex(it->first));
+    }
+    proxy_close_outgoing(it);
+}
+
+void SNNetwork::proxy_expire_idle_peers() {
+    for (auto it = peers.begin(); it != peers.end(); ) {
+        auto &info = it->second;
+        if (info.outgoing >= 0) {
+            auto idle = info.last_activity - std::chrono::steady_clock::now();
+            if (idle <= info.idle_expiry) {
+                ++it;
+                continue;
             }
+            SN_LOG(info, "Closing outgoing connection to " << as_hex(it->first) << ": idle timeout reached");
         }
+
+        // Deliberately outside the above if: this *also* removes the peer from the map if if has
+        // neither an incoming or outgoing connection
+        it = proxy_close_outgoing(it);
     }
 }
 
@@ -662,36 +748,39 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
     spawn_worker("w1");
     int next_worker_id = 2;
 
-    // Set up the public tcp listener(s):
-    auto &listen = *listener;
-    listen.setsockopt(ZMQ_ZAP_DOMAIN, AUTH_DOMAIN_SN, sizeof(AUTH_DOMAIN_SN)-1);
-    listen.setsockopt<int>(ZMQ_CURVE_SERVER, 1);
-    listen.setsockopt(ZMQ_CURVE_PUBLICKEY, pubkey.data(), pubkey.size());
-    listen.setsockopt(ZMQ_CURVE_SECRETKEY, privkey.data(), privkey.size());
-    listen.setsockopt<int64_t>(ZMQ_MAXMSGSIZE, SN_ZMQ_MAX_MSG_SIZE);
-//    listen.setsockopt<int>(ZMQ_ROUTER_HANDOVER, 1);
-    listen.setsockopt<int>(ZMQ_ROUTER_MANDATORY, 1);
-
-    for (const auto &b : bind) {
-        SN_LOG(info, "Quorumnet listening on " << b);
-        listen.bind(b);
-    }
-
-    // Also add an internal connection to self so that calling code can avoid needing to
-    // special-case rare situations where we are supposed to talk to a quorum member that happens to
-    // be ourselves (which can happen, for example, with cross-quoum Blink communication)
-    self_listener->bind(SN_ADDR_SELF);
-
     add_pollitem(command);
     add_pollitem(workers);
     add_pollitem(zap_auth);
     assert(pollitems.size() == poll_internal_size);
-    add_pollitem(*listener);
-    add_pollitem(*self_listener);
+
+    if (listener) {
+        auto &l = *listener;
+        // Set up the public tcp listener(s):
+        l.setsockopt(ZMQ_ZAP_DOMAIN, AUTH_DOMAIN_SN, sizeof(AUTH_DOMAIN_SN)-1);
+        l.setsockopt<int>(ZMQ_CURVE_SERVER, 1);
+        l.setsockopt(ZMQ_CURVE_PUBLICKEY, pubkey.data(), pubkey.size());
+        l.setsockopt(ZMQ_CURVE_SECRETKEY, privkey.data(), privkey.size());
+        l.setsockopt<int64_t>(ZMQ_MAXMSGSIZE, SN_ZMQ_MAX_MSG_SIZE);
+        l.setsockopt<int>(ZMQ_ROUTER_HANDOVER, 1);
+        l.setsockopt<int>(ZMQ_ROUTER_MANDATORY, 1);
+
+        for (const auto &b : bind) {
+            SN_LOG(info, "Quorumnet listening on " << b);
+            l.bind(b);
+        }
+
+        // Also add an internal connection to self so that calling code can avoid needing to
+        // special-case rare situations where we are supposed to talk to a quorum member that happens to
+        // be ourselves (which can happen, for example, with cross-quoum Blink communication)
+        l.bind(SN_ADDR_SELF);
+
+        add_pollitem(l);
+    }
+
     assert(pollitems.size() == poll_remote_offset);
 
     constexpr auto poll_timeout = 5000ms; // Maximum time we spend in each poll
-    constexpr auto timeout_check_interval = 2000ms; // Minimum time before for checking for connections to close since the last check
+    constexpr auto timeout_check_interval = 10000ms; // Minimum time before for checking for connections to close since the last check
     auto last_conn_timeout = std::chrono::steady_clock::now();
 
     std::string waiting_for_worker; // If set contains the identify of a worker we just spawned but haven't received a READY signal from yet
@@ -711,13 +800,14 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
         // Otherwise, we just look for a control message or a worker coming back with a ready message.
         bool have_workers = idle_workers.size() > 0 || (worker_threads.size() < max_workers && waiting_for_worker.empty());
         zmq::poll(pollitems.data(), have_workers ? pollitems.size() : poll_internal_size, poll_timeout);
-        SN_LOG(trace, "polled a waiting message");
 
+        SN_LOG(trace, "processing control messages");
         // Retrieve any waiting incoming control messages
         for (std::list<zmq::message_t> parts; recv_message_parts(command, std::back_inserter(parts), zmq::recv_flags::dontwait); parts.clear()) {
             proxy_control_message(std::move(parts));
         }
 
+        SN_LOG(trace, "processing worker messages");
         // Process messages sent by workers
         for (std::list<zmq::message_t> parts; recv_message_parts(workers, std::back_inserter(parts), zmq::recv_flags::dontwait); parts.clear()) {
             std::string route = pop_string(parts);
@@ -740,6 +830,7 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
                     if (worker_threads.size() > max_workers) {
                         // We have too many worker threads (possibly because we're shutting down) so
                         // tell this worker to quit, and keep it non-idle.
+                        SN_LOG(trace, "Telling worker " << route << " to quit");
                         route_control(workers, route, "QUIT");
                     } else {
                         idle_workers.push_back(std::move(route));
@@ -758,6 +849,7 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
             }
         }
 
+        SN_LOG(trace, "processing zap requests");
         // Handle any zap authentication
         process_zap_requests(zap_auth);
 
@@ -780,12 +872,14 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
                 continue;
             }
 
+            SN_LOG(trace, "processing incoming messages");
+
             // We round-robin connection queues for any pending messages (as long as we have enough
             // waiting workers), but we don't want a lot of earlier connection requests to starve
             // later request so each time through we continue from wherever we left off in the
             // previous queue.
 
-            const size_t num_sockets = remotes.size() + 2 /*listener + self*/;
+            const size_t num_sockets = remotes.size() + (listener ? 1 : 0);
             if (last_conn_index >= num_sockets)
                 last_conn_index = 0;
             std::queue<size_t> queue_index;
@@ -795,84 +889,13 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
             while (!idle_workers.empty() && !queue_index.empty()) {
                 size_t i = queue_index.front();
                 queue_index.pop();
-                auto &sock = *(i == 0 ? listener : i == 1 ? self_listener : remotes[i - 2]);
+                auto &sock = listener ? (i == 0 ? *listener : remotes[i - 1].second) : remotes[i].second;
 
                 std::list<zmq::message_t> parts;
                 if (recv_message_parts(sock, std::back_inserter(parts), zmq::recv_flags::dontwait)) {
                     last_conn_index = i;
                     queue_index.push(i); // We just read one, but there might be more messages waiting so requeue it at the end
-
-                    // A messge to a worker takes one of the following forms:
-                    //
-                    // ["CONTROL"] -- for an internal proxy instruction such as "QUIT"
-                    // ["PUBKEY", "CMD"] -- for a message send from an authenticated SN (ENCODED_BT_DICT is optional).
-                    // ["", "ROUTE", "CMD"] -- for an incoming message from a non-SN node (i.e. not a SN quorum message)
-                    //
-                    // The latter two may be optionally followed by one frame containing a serialized bt_dict.
-                    //
-                    // The pubkey form supports sending a reply back to the given PUBKEY even if the
-                    // original connection is closed -- a new connection to that SN will be
-                    // established if required.  The routed form only supports replying on the
-                    // existing incoming connection (any attempted reply will be dropped if the
-                    // connection no longer exists).
-
-                    std::string pubkey;
-                    if (i == 1) { // Talking to ourself
-                        pubkey = this->pubkey;
-                    } else {
-                        try {
-                            const char *pubkey_hex = parts.back().gets("User-Id");
-                            auto len = std::strlen(pubkey_hex);
-                            assert(len == 0 || len == 64);
-                            if (len == 64)
-                                pubkey = from_hex(pubkey_hex, pubkey_hex + 64);
-                        } catch (...) {} // User-Id not set, i.e. no pubkey
-                    }
-
-                    if (!pubkey.empty()) {
-                        // SN message which means we want to stick the pubkey on the front.  For a
-                        // connection on the listener we also want to drop the first part (the
-                        // return route) because SN replies have stronger routing.
-                        if (i <= 1) // listener or self: discard the return route
-                            parts.pop_front();
-
-                        if (parts.size() < 1 || parts.size() > 2) {
-                            SN_LOG(warn, "Invalid incoming message; expected 1-2 parts, not " << parts.size());
-                            continue;
-                        }
-
-                        parts.emplace_front(pubkey.data(), pubkey.size());
-
-                        auto it = peers.find(pubkey);
-                        if (it != peers.end())
-                            it->second.activity();
-
-                    } else {
-                        // No pubkey (i.e. not a SN quorum message); this can only happen on an
-                        // incoming connection on listener
-                        assert(i == 0);
-
-                        // and, for such an incoming connection, the ZMQ router socket has already
-                        // prepended a return path on the front:
-                        auto incoming_parts = parts.size() - 1;
-
-                        if (incoming_parts < 1 || incoming_parts > 2) {
-                            SN_LOG(warn, "Invalid incoming message: expected 1-2 parts, not " << incoming_parts);
-                            continue;
-                        }
-
-                        // Push an empty frame on the front to indicate a no-pubkey message
-                        parts.emplace_front();
-                    }
-
-                    if (want_logs(LogLevel::trace)) {
-                        const char *remote_addr = "(unknown)";
-                        try { remote_addr = parts.back().gets("Peer-Address"); } catch (...) {}
-                        logger(LogLevel::trace, __FILE__, __LINE__, "Forwarding incoming message from " +
-                                (pubkey.empty() ? "anonymous"s : as_hex(pubkey)) + " @ " + remote_addr + " to worker " + idle_workers.front());
-                    }
-                    forward_to_worker(workers, std::move(idle_workers.front()), parts.begin(), parts.end());
-                    idle_workers.pop_front();
+                    proxy_to_worker(i, std::move(parts));
                 }
             }
         }
@@ -883,11 +906,83 @@ void SNNetwork::proxy_loop(const std::vector<std::string> &bind) {
         if (!idle_workers.empty()) {
             auto now = std::chrono::steady_clock::now();
             if (now - last_conn_timeout >= timeout_check_interval) {
-                expire_idle_peers();
+                SN_LOG(trace, "closing idle connections");
+                proxy_expire_idle_peers();
                 last_conn_timeout = now;
             }
         }
+
+        SN_LOG(trace, "done proxy loop");
     }
+}
+
+void SNNetwork::proxy_to_worker(size_t conn_index, std::list<zmq::message_t> &&parts) {
+    // A message to a worker takes one of the following forms:
+    //
+    // ["CONTROL"] -- for an internal proxy instruction such as "QUIT"
+    // ["PUBKEY", "S", "CMD", ...] -- for a message relayed from an authenticated SN (... are optional bt_values).
+    // ["PUBKEY", "C", "CMD", ...] -- for an incoming message from a non-SN node (i.e. not a SN quorum message)
+    //
+    // The latter two may be optionally followed (the ...) by one or more frames containing serialized bt_values.
+    //
+    // Both forms support replying back to the given PUBKEY, but only the first form
+    // allows relaying back if the original connection is closed -- a new connection
+    // to that SN will be established if required.  The "C" form only supports
+    // replying on the existing incoming connection (any attempted reply will be
+    // dropped if the connection no longer exists).
+
+    std::string pubkey;
+    bool remote_is_sn;
+    if (conn_index > 0) { // Talking to a remote, we know the pubkey already, and is a SN.
+        pubkey = remotes[conn_index - 1].first;
+        remote_is_sn = 1;
+    } else { // Incoming; extract the pubkey from the message properties
+        try {
+            const char *pubkey_hex = parts.back().gets("User-Id");
+            auto len = std::strlen(pubkey_hex);
+            assert(len == 66 && (pubkey_hex[0] == 'S' || pubkey_hex[0] == 'C') && pubkey_hex[1] == ':');
+            pubkey = from_hex(pubkey_hex + 2, pubkey_hex + 66);
+            remote_is_sn = pubkey_hex[0] == 'S';
+        } catch (...) {
+            SN_LOG(error, "Internal error: socket User-Id not set or invalid; dropping message");
+            return;
+        }
+    }
+    assert(pubkey.size() == 32);
+
+    auto &peer_info = peers[pubkey];
+    peer_info.service_node |= remote_is_sn;
+
+    if (conn_index < 1) { // incoming connection; pop off the route and update it if needed
+        auto route = pop_string(parts);
+        if (peer_info.incoming != route)
+            peer_info.incoming = route;
+    } else { // outgoing connection activity, pump the activity timer
+        peer_info.activity();
+    }
+
+    // We need at least a command:
+    if (parts.empty()) {
+        SN_LOG(warn, "Invalid empty incoming message; require at least a command. Dropping message.");
+        return;
+    }
+
+    if (want_logs(LogLevel::trace)) {
+        const char *remote_addr = "(unknown)";
+        try { remote_addr = parts.back().gets("Peer-Address"); } catch (...) {}
+        logger(LogLevel::trace, __FILE__, __LINE__, "Forwarding incoming message from " +
+                (pubkey.empty() ? "anonymous"s : as_hex(pubkey)) + " @ " + remote_addr + " to worker " + idle_workers.front());
+    }
+
+    // Prepend the [pubkey, [S|C]] for the worker
+    parts.emplace_front(peer_info.service_node ? "S" : "C", 1);
+    parts.push_front(create_message(std::move(pubkey)));
+
+    // Prepend the worker name for the worker router to send it to the right worker
+    parts.emplace_front(idle_workers.front().data(), idle_workers.front().size());
+    idle_workers.pop_front();
+
+    send_message_parts(workers, parts.begin(), parts.end());
 }
 
 void SNNetwork::process_zap_requests(zmq::socket_t &zap_auth) {
@@ -940,62 +1035,46 @@ void SNNetwork::process_zap_requests(zmq::socket_t &zap_auth) {
         std::string &status_code = response_vals[2], &status_text = response_vals[3];
 
         if (frames.size() < 6 || view(frames[0]) != "1.0") {
-            SN_LOG(error, "Bad ZAP authentication request: version != 1.0");
+            SN_LOG(error, "Bad ZAP authentication request: version != 1.0 or invalid ZAP message parts");
             status_code = "500";
             status_text = "Internal error: invalid auth request";
         }
-        else if (view(frames[2]) == AUTH_DOMAIN_SN) {
-            // An auth request 
-            auto mech = view(frames[5]);
-            if (mech != "CURVE") {
-                SN_LOG(error, "Bad ZAP authentication request: expected CURVE authentication");
+        else if (frames.size() != 7 || view(frames[5]) != "CURVE") {
+            SN_LOG(error, "Bad ZAP authentication request: invalid CURVE authentication request");
+            status_code = "500";
+            status_text = "Invalid CURVE authentication request\n";
+        }
+        else if (frames[6].size() != 32) {
+            SN_LOG(error, "Bad ZAP authentication request: invalid request pubkey");
+            status_code = "500";
+            status_text = "Invalid public key size for CURVE authentication";
+        }
+        else {
+            auto domain = view(frames[2]);
+            if (domain != AUTH_DOMAIN_SN) {
+                SN_LOG(error, "Bad ZAP authentication request: invalid auth domain '" << domain << "'");
                 status_code = "400";
-                status_text = "Invalid quorum connection authentication mechanism: " + (std::string) mech;
-            }
-            else if (frames.size() != 7) {
-                SN_LOG(error, "Bad ZAP authentication request: invalid request message size");
-                status_code = "500";
-                status_text = "Invalid CURVE authentication request\n";
-            }
-            else if (frames[6].size() != 32) {
-                SN_LOG(error, "Bad ZAP authentication request: invalid request pubkey");
-                status_code = "500";
-                status_text = "Invalid public key size for CURVE authentication";
-            }
-            else {
-                std::string ip{view(frames[3])}, pubkey{view(frames[6])};
-                if (allow_connection(ip, pubkey)) {
-                    SN_LOG(info, "Successfully authenticated incoming connection from " << as_hex(pubkey) << " at " << ip);
+                status_text = "Unknown authentication domain: " + std::string{domain};
+            } else {
+                std::string ip{view(frames[3])}, pubkey{view(frames[6])}, pubkey_hex{as_hex(pubkey)};
+                auto result = allow_connection(ip, pubkey);
+                bool sn = result == allow::service_node;
+                if (sn || result == allow::client) {
+                    SN_LOG(info, "Successfully " <<
+                            (sn ? "authenticated incoming service node" : "accepted incoming non-SN client") <<
+                            " connection from " << pubkey_hex << " at " << ip);
                     status_code = "200";
                     status_text = "";
-                    response_vals[4 /*user-id*/] = as_hex(pubkey); // ZMQ `gets` requires a null-terminated value
+                    // Set a user-id to the pubkey prefixed with "C:" or "S:" to indicate how we
+                    // recognized the pubkey.
+                    response_vals[4 /*user-id*/] = (sn ? "S:" : "C:") + pubkey_hex; // hex because zmq message property strings are null-terminated
                 } else {
-                    SN_LOG(info, "Authentication failed for incoming connection from " << as_hex(pubkey) << " at " << ip);
+                    SN_LOG(info, "Access denied for incoming " << (sn ? "service node" : "non-SN client") <<
+                            " connection from " << pubkey_hex << " at " << ip);
                     status_code = "400";
                     status_text = "Access denied";
                 }
             }
-        }
-        else if (view(frames[2]) == AUTH_DOMAIN_CLIENT) {
-            std::string ip{view(frames[3])};
-            auto mech = view(frames[5]);
-            if (mech != "NULL") {
-                status_code = "400";
-                status_text = "Client connections require NULL authentication, not " + (std::string) mech;
-            }
-            else if (allow_connection(ip, "")) {
-                SN_LOG(info, "Accepted incoming client connection from " << ip);
-                status_code = "200";
-                status_text = "";
-            } else {
-                SN_LOG(info, "Rejected incoming client connection rejected from " << ip);
-                status_code = "400";
-                status_text = "Access denied";
-            }
-        }
-        else {
-            status_code = "400";
-            status_text = "Unknown authentication domain: " + std::string{view(frames[2])};
         }
 
         SN_LOG(trace, "ZAP request result: " << status_code << " " << status_text);
@@ -1015,13 +1094,6 @@ SNNetwork::~SNNetwork() {
 
 void SNNetwork::connect(const std::string &pubkey, std::chrono::milliseconds keep_alive, const std::string &hint) {
     detail::send_control(get_control_socket(), "CONNECT", {{"pubkey",pubkey}, {"keep-alive",keep_alive.count()}, {"hint",hint}});
-}
-
-std::shared_ptr<zmq::socket_t> SNNetwork::peer_info::socket() {
-    auto sock = outgoing.lock();
-    if (!sock)
-        sock = incoming.lock();
-    return sock;
 }
 
 

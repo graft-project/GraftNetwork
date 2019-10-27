@@ -100,6 +100,12 @@ static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it di
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT        ((uint64_t)3000)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT_V12    ((uint64_t)240000) // Only v12 (v13 switches back)
 
+#define BLINK_MINER_FEE_MULTIPLE                        1 // The blink fee that the miner including it earns (as a multiple of the base fee)
+#define BLINK_TX_FEE_MULTIPLE                           5 // The blink fee that the sender pays (the difference between this and MINER_FEE is burned)
+
+static_assert(BLINK_TX_FEE_MULTIPLE >= BLINK_MINER_FEE_MULTIPLE, "blink tx fees must be as least as large as blink miner fees");
+static_assert(BLINK_MINER_FEE_MULTIPLE >= 1, "blink miner fee cannot be smaller than the base tx fee");
+
 #define DIFFICULTY_TARGET_V2                            120  // seconds
 #define DIFFICULTY_WINDOW_V2                            60
 #define DIFFICULTY_BLOCKS_COUNT_V2                      (DIFFICULTY_WINDOW_V2 + 1) // added +1 to make N=N
@@ -171,6 +177,7 @@ static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it di
 #define HF_VERSION_PER_OUTPUT_FEE               cryptonote::network_version_13_enforce_checkpoints
 #define HF_VERSION_ED25519_KEY                  cryptonote::network_version_13_enforce_checkpoints
 #define HF_VERSION_FEE_BURNING                  cryptonote::network_version_14
+#define HF_VERSION_BLINK                        cryptonote::network_version_14
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 

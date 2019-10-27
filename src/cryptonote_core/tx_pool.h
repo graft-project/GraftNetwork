@@ -46,11 +46,7 @@
 #include "crypto/hash.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "rpc/message_data_structs.h"
-
-namespace service_nodes
-{
-  class service_node_list;
-};
+#include "tx_blink.h"
 
 namespace cryptonote
 {
@@ -92,7 +88,7 @@ namespace cryptonote
    *   helping create a new block template by choosing transactions for it
    *
    */
-  class tx_memory_pool: boost::noncopyable
+  class tx_memory_pool
   {
   public:
     /**
@@ -102,6 +98,9 @@ namespace cryptonote
      */
     tx_memory_pool(Blockchain& bchs);
 
+    // Non-copyable
+    tx_memory_pool(const tx_memory_pool &) = delete;
+    tx_memory_pool &operator=(const tx_memory_pool &) = delete;
 
     /**
      * @copydoc add_tx(transaction&, tx_verification_context&, bool, bool, uint8_t)
@@ -129,6 +128,25 @@ namespace cryptonote
      * @return true if the transaction passes validations, otherwise false
      */
     bool add_tx(transaction &tx, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version);
+
+    /**
+     * @brief attempts to add a blink transaction to the transaction pool and blink pool.  The
+     * transaction is set for relaying if it has the required blink signatures, and not relayed
+     * otherwise.
+     *
+     * @param blink - a shared_ptr to the blink details
+     * @param tvc - the verification results
+     * @param blink_exists - will be set to true if the addition fails because the blink tx already
+     * exists
+     *
+     * @return true if the tx passes validations and has been added to tx/blink pools
+     */
+    bool add_blink(const std::shared_ptr<blink_tx> &blink, tx_verification_context& tvc, bool &blink_exists);
+
+    /**
+     * @brief accesses blink tx details if the given tx hash is a known blink tx, nullptr otherwise.
+     */
+    std::shared_ptr<blink_tx> get_blink(const crypto::hash &tx_hash) const;
 
     /**
      * @brief takes a transaction with the given hash from the pool
@@ -587,6 +605,11 @@ namespace cryptonote
     mutable std::unordered_map<crypto::hash, std::tuple<bool, tx_verification_context, uint64_t, crypto::hash>> m_input_cache;
 
     std::unordered_map<crypto::hash, transaction> m_parsed_tx_cache;
+
+    mutable std::shared_timed_mutex m_blinks_mutex;
+    // { height => { txhash => blink_tx, ... }, ... }
+    std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;
+    // TODO: clean up m_blinks once mined & immutably checkpointed
   };
 }
 

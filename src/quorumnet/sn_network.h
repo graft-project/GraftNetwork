@@ -62,19 +62,19 @@ public:
     /// return an empty string for an invalid or unknown pubkey or one without a known address.
     using LookupFunc = std::function<std::string(const std::string &pubkey)>;
 
+    enum class allow { denied, client, service_node };
     /// Callback type invoked to determine whether the given ip and pubkey are allowed to connect to
-    /// us.  This will be called in two contexts:
+    /// us as a SN, client, or not at all.
     ///
-    /// - if the connection is from another SN for quorum-related duties, the pubkey will be set
-    ///   to the verified pubkey of the remote service node.
-    /// - otherwise, for a client connection (for example, a regular node connecting to submit a
-    ///   blink transaction to a blink quorum) the pubkey will be empty.
-    ///
-    /// @param ip - the ip address of the incoming connection
+    /// @param ip - the ip address of the incoming connection; will be empty if called to attempt to
+    /// "upgrade" the permission of an existing non-SN connection.
     /// @param pubkey - the curve25519 pubkey (which is calculated from the SN ed25519 pubkey) of
     /// the connecting service node (32 byte string), or an empty string if this is a client
     /// connection without remote SN authentication.
-    using AllowFunc = std::function<bool(const std::string &ip, const std::string &pubkey)>;
+    /// @returns an `allow` enum value: `denied` if the connection is not allowed, `client` if the
+    /// connection is allowed as a client (i.e. not for SN-to-SN commands), `service_node` if the
+    /// connection is a valid SN.
+    using AllowFunc = std::function<allow(const std::string &ip, const std::string &pubkey)>;
 
     /// Function pointer to ask whether a log of the given level is wanted.  If it returns true the
     /// log message will be built and then passed to Log.
@@ -100,28 +100,23 @@ public:
     public:
         std::string command; ///< The command name
         std::vector<bt_value> data; ///< The provided command data parts, if any.
-        const std::string pubkey; ///< The originator pubkey (32 bytes), if from an authenticated service node; empty for a non-SN incoming message.
-        const std::string route; ///< Opaque routing string used to route a reply back to the correct place when `pubkey` is empty.
+        const std::string pubkey; ///< The originator pubkey (32 bytes)
+        const bool sn; ///< True if the pubkey is from a SN, meaning we can/should reconnect to it if necessary
 
         /// Constructor
-        message(SNNetwork &net, std::string command, std::string pubkey, std::string route)
-            : net{net}, command{std::move(command)}, pubkey{std::move(pubkey)}, route{std::move(route)} {
-            assert(this->pubkey.empty() ? !this->route.empty() : this->pubkey.size() == 32);
+        message(SNNetwork &net, std::string command, std::string pubkey, bool sn)
+            : net{net}, command{std::move(command)}, pubkey{std::move(pubkey)}, sn{sn} {
+            assert(this->pubkey.size() == 32);
         }
 
-        /// True if this message is from a service node (i.e. pubkey is set)
-        bool from_sn() const { return !pubkey.empty(); }
-
-        /// Sends a reply.  Arguments are forward appropriately to send() or reply_incoming().  For
-        /// SN messages (i.e.  where `from_sn()` is true) this is a "strong" reply by default in
-        /// that the proxy will establish a new connection to the SN if no longer connected.  For
-        /// non-SN messages the reply will be attempted using the available routing information, but
-        /// if the connection has already been closed the reply will be dropped.
+        /// Sends a reply.  Arguments are forward to send() but with send_option::optional{} added
+        /// if the originator is not a SN.  For SN messages (i.e.  where `sn` is true) this is a
+        /// "strong" reply by default in that the proxy will establish a new connection to the SN if
+        /// no longer connected.  For non-SN messages the reply will be attempted using the
+        /// available routing information, but if the connection has already been closed the reply
+        /// will be dropped.
         template <typename... Args>
-        void reply(const std::string &command, Args &&...args) {
-            if (from_sn()) net.send(pubkey, command, std::forward<Args>(args)...);
-            else net.reply_incoming(route, command, std::forward<Args>(args)...);
-        }
+        void reply(const std::string &command, Args &&...args);
     };
 
     /// Opaque pointer sent to the callbacks, to allow for including arbitrary state data (for
@@ -134,6 +129,9 @@ private:
 
     /// A unique id for this SNNetwork, assigned in a thread-safe manner during construction.
     const int object_id;
+
+    /// The keypair of this SN, either provided or generated during construction
+    std::string pubkey, privkey;
 
     /// The thread in which most of the intermediate work happens (handling external connections
     /// and proxying requests between them to worker threads)
@@ -156,11 +154,9 @@ private:
 
     /// The lookup function that tells us where to connect to a peer
     LookupFunc peer_lookup;
-    /// Our listening socket for public connections
-    std::shared_ptr<zmq::socket_t> listener = std::make_shared<zmq::socket_t>(context, zmq::socket_type::router);
-    /// Our listening socket for ourselves (so that we can just "connect" and talk to ourselves
-    /// without worrying about special casing it).
-    std::shared_ptr<zmq::socket_t> self_listener = std::make_shared<zmq::socket_t>(context, zmq::socket_type::router);
+    /// Our listening socket for public connections, or null for a remote-only
+    /// (TODO: change this to std::optional once we use C++17).
+    std::unique_ptr<zmq::socket_t> listener;
 
     /// Callback to see whether the incoming connection is allowed
     AllowFunc allow_connection;
@@ -173,18 +169,18 @@ private:
     /// Info about a peer's established connection to us.  Note that "established" means both
     /// connected and authenticated.
     struct peer_info {
-        /// Will be set to `listener` if we have an established incoming connection (but note that
-        /// the connection might no longer be valid) and empty otherwise.
-        std::weak_ptr<zmq::socket_t> incoming;
+        /// True if we've authenticated this peer as a service node.  (Note that new outgoing
+        /// connections are *always* expected to go to service nodes and will update this to true).
+        bool service_node = false;
 
-        /// FIXME: neither the above nor below are currently being set on an incoming connection!
+        /// Will be set to a non-empty routing prefix (which needs to be prefixed out outgoing
+        /// messages) if we have (or at least recently had) an established incoming connection with
+        /// this peer.  Will be empty if there is no incoming connection.
+        std::string incoming;
 
-        /// The routing prefix needed to reply to the connection on the incoming socket.
-        std::string incoming_route;
-
-        /// Our outgoing socket, if we have an established outgoing connection to this peer.  The
-        /// owning pointer is in `remotes`.
-        std::weak_ptr<zmq::socket_t> outgoing;
+        /// The index in `remotes` if we have an established outgoing connection to this peer, -1 if
+        /// we have no outgoing connection to this peer.
+        int outgoing = -1;
 
         /// The last time we sent or received a message (or had some other relevant activity) with
         /// this peer.  Used for closing outgoing connections that have reached an inactivity expiry
@@ -196,19 +192,17 @@ private:
 
         /// After more than this much activity we will close an idle connection
         std::chrono::milliseconds idle_expiry;
-
-        /// Returns a socket to talk to the given peer, if we have one.  If we don't, the returned
-        /// pointer will be empty.  If both outgoing and incoming connections are available the
-        /// outgoing connection is preferred.
-        std::shared_ptr<zmq::socket_t> socket();
     };
+
+    struct pk_hash { size_t operator()(const std::string &pubkey) const { size_t h; std::memcpy(&h, pubkey.data(), sizeof(h)); return h; } };
+
     /// Currently peer connections, pubkey -> peer_info
-    std::unordered_map<std::string, peer_info> peers;
+    std::unordered_map<std::string, peer_info, pk_hash> peers;
 
     /// different polling sockets the proxy handler polls: this always contains some internal
     /// sockets for inter-thread communication followed by listener socket and a pollitem for every
     /// (outgoing) remote socket in `remotes`.  This must be in a sequential vector because of zmq
-    /// requirements (otherwise it would be far nicer to not have to synchronize these two vectors).
+    /// requirements (otherwise it would be far nicer to not have to synchronize the two vectors).
     std::vector<zmq::pollitem_t> pollitems;
 
     /// Properly adds a socket to poll for input to pollitems
@@ -218,13 +212,13 @@ private:
     static constexpr size_t poll_internal_size = 3;
 
     /// The pollitems location corresponding to `remotes[0]`.
-    static constexpr size_t poll_remote_offset = poll_internal_size + 2; // +2 because we also have the incoming listener and self sockets
+    const size_t poll_remote_offset; // will be poll_internal_size + 1 for a full listener (the +1 is the listening socket); poll_internal_size for a remote-only
 
-    /// The outgoing remote connections we currently have open.  Note that they are generally
-    /// accessed via the weak_ptr inside the `peers` element.  Each element [i] here corresponds to
-    /// an the pollitem_t at pollitems[i+1+poll_internal_size].  (Ideally we'd use one structure,
-    /// but zmq requires the pollitems be in contiguous storage).
-    std::vector<std::shared_ptr<zmq::socket_t>> remotes;
+    /// The outgoing remote connections we currently have open along with the remote pubkeys.  Note
+    /// that the sockets here are generally accessed via the weak_ptr inside the `peers` element.
+    /// Each element [i] here corresponds to an the pollitem_t at pollitems[i+1+poll_internal_size].
+    /// (Ideally we'd use one structure, but zmq requires the pollitems be in contiguous storage).
+    std::vector<std::pair<std::string, zmq::socket_t>> remotes;
 
     /// Socket we listen on to receive control messages in the proxy thread. Each thread has its own
     /// internal "control" connection (returned by `get_control_socket()`) to this socket used to
@@ -254,6 +248,9 @@ private:
     /// Does the proxying work
     void proxy_loop(const std::vector<std::string> &bind);
 
+    /// Forwards an incoming message to an idle worker, removing the idle worker from the queue
+    void proxy_to_worker(size_t conn_index, std::list<zmq::message_t> &&parts);
+
     /// proxy thread command handlers for commands sent from the outer object QUIT.  This doesn't
     /// get called immediately on a QUIT command: the QUIT commands tells workers to quit, then this
     /// gets called after all works have done so.
@@ -261,11 +258,16 @@ private:
 
     /// Common connection implementation used by proxy_connect/proxy_send.  Returns the socket
     /// and, if a routing prefix is needed, the required prefix (or an empty string if not needed).
-    std::pair<std::shared_ptr<zmq::socket_t>, std::string> proxy_connect(const std::string &pubkey, const std::string &connect_hint, bool optional, std::chrono::milliseconds keep_alive);
+    /// For an optional connect that fail, returns nullptr for the socket.
+    std::pair<zmq::socket_t *, std::string> proxy_connect(const std::string &pubkey, const std::string &connect_hint, bool optional, bool incoming_only, std::chrono::milliseconds keep_alive);
 
     /// CONNECT command telling us to connect to a new pubkey.  Returns the socket (which could be
     /// existing or a new one).
-    std::pair<std::shared_ptr<zmq::socket_t>, std::string> proxy_connect(bt_dict &&data);
+    std::pair<zmq::socket_t *, std::string> proxy_connect(bt_dict &&data);
+
+    /// DISCONNECT command telling us to disconnect out remote connection to the given pubkey (if we
+    /// have one).
+    void proxy_disconnect(const std::string &pubkey);
 
     /// SEND command.  Does a connect first, if necessary.
     void proxy_send(bt_dict &&data);
@@ -284,7 +286,12 @@ private:
 
     /// Closing any idle connections that have outlived their idle time.  Note that this only
     /// affects outgoing connections; incomings connections are the responsibility of the other end.
-    void expire_idle_peers();
+    void proxy_expire_idle_peers();
+
+    /// Closes an outgoing connection immediately, updates internal variables appropriately.
+    /// Returns the next iterator (the original may or may not be removed from peers, depending on
+    /// whether or not it also has an active incoming connection).
+    decltype(peers)::iterator proxy_close_outgoing(decltype(peers)::iterator it);
 
 
     /// End of proxy-specific members
@@ -300,6 +307,9 @@ private:
     /// connections may call this and false if only authenricated SNs may invoke the command.
     static std::unordered_map<std::string, std::pair<std::function<void(SNNetwork::message &message, void *data)>, bool>> commands;
     static bool commands_mutable;
+
+    /// Starts up the proxy thread; called during construction
+    void launch_proxy_thread(const std::vector<std::string> &bind);
 
 public:
     /**
@@ -329,6 +339,17 @@ public:
     SNNetwork(std::string pubkey, std::string privkey,
             const std::vector<std::string> &bind,
             LookupFunc peer_lookup,
+            AllowFunc allow_connection,
+            WantLog want_log = [](LogLevel l) { return l >= LogLevel::warn; },
+            WriteLog logger = [](LogLevel, const char *f, int line, std::string msg) { std::cerr << f << ':' << line << ": " << msg << std::endl; },
+            unsigned int max_workers = std::thread::hardware_concurrency());
+
+    /** Constructs a SNNetwork that does not listen but can be used for connecting to remote
+     * listening service nodes, for example to submit blink transactions to service nodes.  It
+     * generates a non-persistant x25519 key pair on startup (for encrypted communication with
+     * peers).
+     */
+    SNNetwork(LookupFunc peer_lookup,
             AllowFunc allow_connection,
             WantLog want_log = [](LogLevel l) { return l >= LogLevel::warn; },
             WriteLog logger = [](LogLevel, const char *f, int line, std::string msg) { std::cerr << f << ':' << line << ": " << msg << std::endl; },
@@ -392,21 +413,15 @@ public:
     template <typename... T>
     void send(const std::string &pubkey, const std::string &cmd, const T &...opts);
 
-    /** Queue a message to be replied to the given incoming route, if still connected.  This method
-     * is typically invoked indirectly by calling `message.reply(...)` which either calls `send()`
-     * or this message, depending on the original source of the message.
-     */
-    template <typename... T>
-    void reply_incoming(const std::string &route, const std::string &cmd, const T &...opts);
-
     /** The keep-alive time for a send() that results in a new connection.  To use a longer
      * keep-alive to a host call `connect()` first with the desired keep-alive time or pass the
-     * send_options::keep_alive
+     * send_option::keep_alive
      */
     static constexpr std::chrono::milliseconds default_send_keep_alive{15000};
 
     /// The key pair this SN was created with
-    const std::string pubkey, privkey;
+    const std::string &get_pubkey() const { return pubkey; }
+    const std::string &get_privkey() const { return privkey; }
 
     /**
      * Registers a quorum command that may be invoked by authenticated SN connections but not
@@ -433,6 +448,16 @@ public:
 
 /// Namespace for options to the send() method
 namespace send_option {
+
+/// `serialized` lets you serialize once when sending the same data to many peers by constructing a
+/// single serialized option and passing it repeatedly rather than needing to reserialize on each
+/// send.
+struct serialized {
+    std::string data;
+    template <typename T>
+    serialized(const T &arg) : data{quorumnet::bt_serialize(arg)} {}
+};
+
 /// Specifies a connection hint when passed in to send().  If there is no current connection to the
 /// peer then the hint is used to save a call to the LookupFunc to get the connection location.
 /// (Note that there is no guarantee that the given hint will be used or that a LookupFunc call will
@@ -445,6 +470,10 @@ struct hint {
 /// Does a send() if we already have a connection (incoming or outgoing) with the given peer,
 /// otherwise drops the message.
 struct optional {};
+
+/// Specifies that the message should be sent only if it can be sent on an existing incoming socket,
+/// and dropped otherwise.
+struct incoming {};
 
 /// Specifies the idle timeout for the connection - if a new or existing outgoing connection is used
 /// for the send and its current idle timeout setting is less than this value then it is updated.
@@ -467,6 +496,11 @@ void apply_send_option(bt_list &parts, bt_dict &, const T &arg) {
     parts.push_back(quorumnet::bt_serialize(arg));
 }
 
+/// `serialized` specialization: lets you serialize once when sending the same data to many peers
+template <> inline void apply_send_option(bt_list &parts, bt_dict &, const send_option::serialized &serialized) {
+    parts.push_back(serialized.data);
+}
+
 /// `hint` specialization: sets the hint in the control data
 template <> inline void apply_send_option(bt_list &, bt_dict &control_data, const send_option::hint &hint) {
     control_data["hint"] = hint.connect_hint;
@@ -475,6 +509,11 @@ template <> inline void apply_send_option(bt_list &, bt_dict &control_data, cons
 /// `optional` specialization: sets the optional flag in the control data
 template <> inline void apply_send_option(bt_list &, bt_dict &control_data, const send_option::optional &) {
     control_data["optional"] = 1;
+}
+
+/// `incoming` specialization: sets the optional flag in the control data
+template <> inline void apply_send_option(bt_list &, bt_dict &control_data, const send_option::incoming &) {
+    control_data["incoming"] = 1;
 }
 
 /// `keep_alive` specialization: increases the outgoing socket idle timeout (if shorter)
@@ -507,13 +546,11 @@ void SNNetwork::send(const std::string &pubkey, const std::string &cmd, const T 
     detail::send_control(get_control_socket(), "SEND", control_data);
 }
 
-template <typename... T>
-void SNNetwork::reply_incoming(const std::string &route, const std::string &cmd, const T &...opts) {
-    bt_dict control_data = detail::send_control_data(cmd, opts...);
-    control_data["route"] = route;
-    detail::send_control(get_control_socket(), "REPLY", control_data);
+template <typename... Args>
+void SNNetwork::message::reply(const std::string &command, Args &&...args) {
+    if (sn) net.send(pubkey, command, std::forward<Args>(args)...);
+    else net.send(pubkey, command, send_option::optional{}, std::forward<Args>(args)...);
 }
-
 
 // Creates a hex string from a character sequence.
 template <typename It>
@@ -533,7 +570,9 @@ std::string as_hex(It begin, It end) {
 
 template <typename String>
 inline std::string as_hex(const String &s) {
-    return as_hex(s.begin(), s.end());
+    using std::begin;
+    using std::end;
+    return as_hex(begin(s), end(s));
 }
 
 

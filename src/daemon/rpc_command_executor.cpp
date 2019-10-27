@@ -2526,11 +2526,11 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
     }
 
     stream << "\n";
-    stream << indent2 << "IP Address & Port: ";
+    stream << indent2 << "IP Address & Ports: ";
     if (entry.public_ip == "0.0.0.0")
       stream << "(Awaiting confirmation from network)";
     else
-      stream << entry.public_ip << ":" << entry.storage_port;
+      stream << entry.public_ip << " :" << entry.storage_port << " (storage), :" << entry.quorumnet_port << " (quorumnet)";
 
     stream << "\n";
     stream << indent2 << "Storage Server Reachable: " << (entry.storage_server_reachable ? "Yes" : "No") << " (";
