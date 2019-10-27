@@ -125,9 +125,8 @@ void bt_deserialize<bt_value, void>::operator()(std::istream &is, bt_value &val)
             break;
         }
         case 'i': {
-            int64_t num;
-            bt_deserialize<int64_t>{}(is, num);
-            val = num;
+            auto read = bt_deserialize_integer(is);
+            val = read.first.i64; // We only store an i64, but can get a u64 out of it via get<uint64_t>(val)
             break;
         }
         case '0': case '1': case '2': case '3': case '4':

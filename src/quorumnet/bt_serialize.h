@@ -553,7 +553,8 @@ T bt_deserialize_cstr(const char *data, size_t len) {
 /// 
 ///     std::string encoded = "i42e";
 ///     auto val = bt_get(encoded);
-///     int v = boost::get<int>(val); // fails unless the encoded value was actually an integer
+///     int v = get_int<int>(val); // fails unless the encoded value was actually an integer that
+///                                // fits into an `int`
 ///
 inline bt_value bt_get(
 #ifdef __cpp_lib_string_view
@@ -573,7 +574,7 @@ inline bt_value bt_get(
 ///
 ///     std::string encoded = "i123456789e";
 ///     auto val = bt_get(encoded);
-///     auto v = get<uint32_t>(val); // throws if the decoded value doesn't fit in a uint32_t
+///     auto v = get_int<uint32_t>(val); // throws if the decoded value doesn't fit in a uint32_t
 template <typename IntType, std::enable_if_t<std::is_integral<IntType>::value, int> = 0>
 IntType get_int(const bt_value &v) {
     // It's highly unlikely that this code ever runs on a non-2s-complement architecture, but check
