@@ -8003,7 +8003,6 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
       local_args.erase(local_args.begin());
     }
 
-    uint32_t priority = 0;
     if (local_args.size() > 0 && parse_priority(local_args[0], priority))
       local_args.erase(local_args.begin());
 
