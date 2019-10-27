@@ -654,7 +654,7 @@ block Blockchain::pop_block_from_blockchain()
       // that might not be always true. Unlikely though, and always relaying
       // these again might cause a spike of traffic as many nodes re-relay
       // all the transactions in a popped block when a reorg happens.
-      bool r = m_tx_pool.add_tx(tx, tvc, true, true, false, version, m_service_node_list);
+      bool r = m_tx_pool.add_tx(tx, tvc, true, true, false, version);
       if (!r)
       {
         LOG_ERROR("Error returning transaction to tx_pool");
@@ -3594,7 +3594,7 @@ void Blockchain::return_tx_to_pool(std::vector<std::pair<transaction, blobdata>>
     // all the transactions in a popped block when a reorg happens.
     const size_t weight = get_transaction_weight(tx.first, tx.second.size());
     const crypto::hash tx_hash = get_transaction_hash(tx.first);
-    if (!m_tx_pool.add_tx(tx.first, tx_hash, tx.second, weight, tvc, true, true, false, version, m_service_node_list))
+    if (!m_tx_pool.add_tx(tx.first, tx_hash, tx.second, weight, tvc, true, true, false, version))
     {
       MERROR("Failed to return taken transaction with hash: " << get_transaction_hash(tx.first) << " to tx_pool");
     }
@@ -4022,7 +4022,7 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   bvc.m_added_to_main_chain = true;
   ++m_sync_counter;
 
-  m_tx_pool.on_blockchain_inc(m_service_node_list, bl);
+  m_tx_pool.on_blockchain_inc(bl);
   get_difficulty_for_next_block(); // just to cache it
   invalidate_block_template_cache();
 

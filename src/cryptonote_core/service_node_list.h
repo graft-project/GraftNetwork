@@ -310,6 +310,10 @@ namespace service_nodes
   {
   public:
     explicit service_node_list(cryptonote::Blockchain& blockchain);
+    // non-copyable:
+    service_node_list(const service_node_list &) = delete;
+    service_node_list &operator=(const service_node_list &) = delete;
+
     bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint) override;
     void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
     void init() override;

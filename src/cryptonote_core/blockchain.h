@@ -933,6 +933,11 @@ namespace cryptonote
       return *m_db;
     }
 
+    /// @brief return a reference to the service node list
+    const service_nodes::service_node_list &get_service_node_list() const { return m_service_node_list; }
+    /// @brief return a reference to the service node list
+    service_nodes::service_node_list &get_service_node_list() { return m_service_node_list; }
+
     /**
      * @brief get a number of outputs of a specific amount
      *

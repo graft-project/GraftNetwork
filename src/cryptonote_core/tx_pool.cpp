@@ -120,11 +120,12 @@ namespace cryptonote
 
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::have_duplicated_non_standard_tx(transaction const &tx, uint8_t hard_fork_version, service_nodes::service_node_list const &service_node_list) const
+  bool tx_memory_pool::have_duplicated_non_standard_tx(transaction const &tx, uint8_t hard_fork_version) const
   {
     if (tx.type == txtype::standard)
       return false;
 
+    auto &service_node_list = m_blockchain.get_service_node_list();
     if (tx.type == txtype::state_change)
     {
       tx_extra_service_node_state_change state_change;
@@ -223,7 +224,7 @@ namespace cryptonote
     return false;
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::add_tx(transaction &tx, /*const crypto::hash& tx_prefix_hash,*/ const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version, const service_nodes::service_node_list &service_node_list)
+  bool tx_memory_pool::add_tx(transaction &tx, /*const crypto::hash& tx_prefix_hash,*/ const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version)
   {
     // this should already be called with that lock, but let's make it explicit for clarity
     CRITICAL_REGION_LOCAL(m_transactions_lock);
@@ -291,7 +292,7 @@ namespace cryptonote
         tvc.m_double_spend = true;
         return false;
       }
-      if (have_duplicated_non_standard_tx(tx, version, service_node_list))
+      if (have_duplicated_non_standard_tx(tx, version))
       {
         mark_double_spend(tx);
         LOG_PRINT_L1("Transaction with id= "<< id << " already has a duplicate tx for height");
@@ -336,7 +337,7 @@ namespace cryptonote
         meta.last_relayed_time = time(NULL);
         meta.relayed = relayed;
         meta.do_not_relay = do_not_relay;
-        meta.double_spend_seen = (have_tx_keyimges_as_spent(tx) || have_duplicated_non_standard_tx(tx, version, service_node_list));
+        meta.double_spend_seen = (have_tx_keyimges_as_spent(tx) || have_duplicated_non_standard_tx(tx, version));
         meta.bf_padding = 0;
         memset(meta.padding, 0, sizeof(meta.padding));
         try
@@ -418,7 +419,7 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::add_tx(transaction &tx, tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay, uint8_t version, service_nodes::service_node_list const &service_node_list)
+  bool tx_memory_pool::add_tx(transaction &tx, tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay, uint8_t version)
   {
     crypto::hash h = null_hash;
     size_t blob_size = 0;
@@ -426,7 +427,7 @@ namespace cryptonote
     t_serializable_object_to_blob(tx, bl);
     if (bl.size() == 0 || !get_transaction_hash(tx, h))
       return false;
-    return add_tx(tx, h, bl, get_transaction_weight(tx, bl.size()), tvc, keeped_by_block, relayed, do_not_relay, version, service_node_list);
+    return add_tx(tx, h, bl, get_transaction_weight(tx, bl.size()), tvc, keeped_by_block, relayed, do_not_relay, version);
   }
   //---------------------------------------------------------------------------------
   size_t tx_memory_pool::get_txpool_weight() const
@@ -1092,7 +1093,7 @@ namespace cryptonote
     }
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::on_blockchain_inc(service_nodes::service_node_list const &service_node_list, block const &blk)
+  bool tx_memory_pool::on_blockchain_inc(block const &blk)
   {
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     m_input_cache.clear();
@@ -1110,6 +1111,7 @@ namespace cryptonote
     // Otherwise multiple state changes can queue up until they are applicable
     // and be applied on the node.
     uint64_t const block_height = cryptonote::get_block_height(blk);
+    auto &service_node_list = m_blockchain.get_service_node_list();
     for (transaction const &pool_tx : pool_txs)
     {
       tx_extra_service_node_state_change state_change;

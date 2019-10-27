@@ -605,6 +605,11 @@ namespace cryptonote
       */
      const Blockchain& get_blockchain_storage()const{return m_blockchain_storage;}
 
+     /// @brief return a reference to the service node list
+     const service_nodes::service_node_list &get_service_node_list() const { return m_service_node_list; }
+     /// @brief return a reference to the service node list
+     service_nodes::service_node_list &get_service_node_list() { return m_service_node_list; }
+
      /**
       * @copydoc tx_memory_pool::print_pool
       *
