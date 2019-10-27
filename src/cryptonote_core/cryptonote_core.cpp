@@ -1876,7 +1876,11 @@ namespace cryptonote
     {
       service_nodes::service_node_info const &info = *states[0].info;
       m_check_uptime_proof_interval.do_call([&info, this]() {
-        if (info.proof->timestamp <= static_cast<uint64_t>(time(nullptr) - UPTIME_PROOF_FREQUENCY_IN_SECONDS))
+        // This timer is not perfectly precise and can leak seconds slightly, so send the uptime
+        // proof if we are within half a tick of the target time.  (Essentially our target proof
+        // window becomes the first time this triggers in the 57.5-62.5 minute window).
+        uint64_t threshold = static_cast<uint64_t>(time(nullptr) - UPTIME_PROOF_FREQUENCY_IN_SECONDS + UPTIME_PROOF_TIMER_SECONDS/2);
+        if (info.proof->timestamp <= threshold)
         {
           if (!check_external_ping(m_last_storage_server_ping, STORAGE_SERVER_PING_LIFETIME, "the storage server"))
           {
@@ -1945,7 +1949,7 @@ namespace cryptonote
     m_block_rate_interval.do_call(boost::bind(&core::check_block_rate, this));
 
     time_t const lifetime = time(nullptr) - get_start_time();
-    if (m_service_node_keys && lifetime > DIFFICULTY_TARGET_V2) // Give us some time to connect to peers before sending uptimes
+    if (m_service_node_keys && lifetime > UPTIME_PROOF_INITIAL_DELAY_SECONDS) // Give us some time to connect to peers before sending uptimes
     {
       do_uptime_proof_call();
     }

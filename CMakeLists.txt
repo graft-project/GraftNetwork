@@ -1023,6 +1023,12 @@ if(SODIUM_LIBRARY)
   set(ZMQ_LIB "${ZMQ_LIB};${SODIUM_LIBRARY}")
 endif()
 
+option(LOKI_DEBUG_SHORT_PROOFS "Developer option to substantially reduce uptime proof intervals for local test network debugging (the result lokid will not be usable on the live networks)" OFF)
+if (LOKI_DEBUG_SHORT_PROOFS)
+  add_definitions(-DUPTIME_PROOF_BASE_MINUTE=3) # 20x faster uptime proofs
+endif()
+
+
 add_subdirectory(contrib)
 add_subdirectory(src)
 
