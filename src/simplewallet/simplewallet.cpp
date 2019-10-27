@@ -6690,7 +6690,7 @@ bool simple_wallet::sweep_main_internal(sweep_type_t sweep_type, std::vector<too
   return true;
 }
 
-bool simple_wallet::sweep_main(uint64_t below, bool locked, const std::vector<std::string> &args_, tools::wallet2::sweep_style_t sweep_style)
+bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std::vector<std::string> &args_)
 {
   auto print_usage = [below]()
   {
@@ -7013,20 +7013,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::sweep_all(const std::vector<std::string> &args_)
 {
-  std::vector<std::string> copied_args = args_;
-
-  tools::wallet2::sweep_style_t sweep_style = tools::wallet2::sweep_style_t::normal;
-  if (args_.size() > 0)
-  {
-    std::string const &last_arg = copied_args.back();
-    if (last_arg == "use_v1_tx")
-    {
-      sweep_style = tools::wallet2::sweep_style_t::use_v1_tx;
-      copied_args.erase(copied_args.end() - 1);
-    }
-  }
-
-  return sweep_main(0, false, copied_args, sweep_style);
+  return sweep_main(0, Transfer::Normal, args_);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::sweep_below(const std::vector<std::string> &args_)
