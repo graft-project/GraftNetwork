@@ -124,19 +124,28 @@ bool loki_checkpointing_alt_chain_handle_alt_blocks_at_tip::generate(std::vector
   fork.create_and_add_next_block();
   fork.add_service_node_checkpoint(fork.height(), service_nodes::CHECKPOINT_MIN_VOTES);
 
-  // NOTE: Checkpoint should cause a reorg back to checkpoint height - 1. The
-  // alt block is still in the alt db because we don't trigger a chain switch
-  // until we receive a 2nd block that confirms the alt block.
-  loki_register_callback(events, "check_alt_block_count", [&events](cryptonote::core &c, size_t ev_index)
+  // NOTE: Though we receive a checkpoint via votes, the alt block is still in
+  // the alt db because we don't trigger a chain switch until we receive a 2nd
+  // block that confirms the alt block.
+  uint64_t curr_height   = gen.height();
+  crypto::hash curr_hash = get_block_hash(gen.top().block);
+  loki_register_callback(events, "check_alt_block_count", [&events, curr_height, curr_hash](cryptonote::core &c, size_t ev_index)
   {
     DEFINE_TESTS_ERROR_CONTEXT("check_alt_block_count");
+
+    uint64_t top_height;
+    crypto::hash top_hash;
+    c.get_blockchain_top(top_height, top_hash);
+    CHECK_EQ(top_height, curr_height);
+    CHECK_EQ(top_hash, curr_hash);
     CHECK_EQ(c.get_blockchain_storage().get_alternative_blocks_count(), 1);
     return true;
   });
 
   // NOTE: We add a new block ontop that causes the alt block code path to run
   // again, and calculate that this alt chain now has 2 blocks on it with
-  // a greater cumulative difficulty, causing a chain switch at this point.
+  // now same difficulty but more checkpoints, causing a chain switch at this point.
+  gen.create_and_add_next_block();
   fork.create_and_add_next_block();
   crypto::hash expected_top_hash = cryptonote::get_block_hash(fork.top().block);
   loki_register_callback(events, "check_chain_reorged", [&events, expected_top_hash](cryptonote::core &c, size_t ev_index)
@@ -307,6 +316,7 @@ bool loki_checkpointing_alt_chain_with_increasing_service_node_checkpoints::gene
   for (auto i = 0u; i < NUM_SERVICE_NODES; ++i)
     registration_txs[i] = gen.create_and_add_registration_tx(gen.first_miner());
   gen.create_and_add_next_block(registration_txs);
+  gen.add_blocks_until_next_checkpointable_height();
 
   // NOTE: Add blocks until we get to the first height that has a checkpointing quorum AND there are service nodes in the quorum.
   int const MAX_TRIES = 16;
@@ -318,24 +328,25 @@ bool loki_checkpointing_alt_chain_with_increasing_service_node_checkpoints::gene
     if (quorum && quorum->validators.size()) break;
   }
   assert(tries != MAX_TRIES);
+  gen.add_n_blocks(service_nodes::CHECKPOINT_INTERVAL - 1);
 
   // Setup the two chains as follows, where C = checkpointed block, B = normal
   // block, the main chain should NOT reorg to the fork chain as they have the
   // same PoW-ish and equal number of checkpoints.
   // Main chain - C B B B B
   // Fork chain - B B B B C
-  loki_chain_generator fork               = gen;
-  cryptonote::checkpoint_t gen_checkpoint = gen.create_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
-  gen.create_and_add_next_block({}, &gen_checkpoint);
+  loki_chain_generator fork = gen;
+  gen.create_and_add_next_block();
+  gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   fork.create_and_add_next_block();
 
-  gen.add_blocks_until_next_checkpointable_height();
-  gen.create_and_add_next_block();
+  gen.add_n_blocks(service_nodes::CHECKPOINT_INTERVAL);
+  gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
 
-  fork.add_blocks_until_next_checkpointable_height();
-  cryptonote::checkpoint_t fork_first_checkpoint = fork.create_service_node_checkpoint(fork.height(), service_nodes::CHECKPOINT_MIN_VOTES);
-  fork.create_and_add_next_block({}, &fork_first_checkpoint);
+  fork.add_n_blocks(service_nodes::CHECKPOINT_INTERVAL);
+  fork.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
 
+  fork.add_service_node_checkpoint(fork.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   crypto::hash const gen_top_hash = cryptonote::get_block_hash(gen.top().block);
   loki_register_callback(events, "check_still_on_main_chain", [&events, gen_top_hash](cryptonote::core &c, size_t ev_index)
   {
