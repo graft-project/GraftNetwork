@@ -1472,8 +1472,7 @@ namespace cryptonote
         continue;
       }
 
-      // start using the optimal filling algorithm from v5
-      if (version >= 5)
+      if (true /* version >= 5 -- always true for Loki */)
       {
         // If we're getting lower coinbase tx, stop including more tx
         block_reward_parts reward_parts_other = {};
@@ -1489,16 +1488,6 @@ namespace cryptonote
         {
           LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
           continue;
-        }
-      }
-      else
-      {
-        // If we've exceeded the penalty free weight,
-        // stop including more tx
-        if (total_weight > median_weight)
-        {
-          LOG_PRINT_L2("  would exceed median block weight");
-          break;
         }
       }
 
