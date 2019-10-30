@@ -550,6 +550,82 @@ bool loki_core_block_reward_unpenalized::generate(std::vector<test_event_entry>&
   return true;
 }
 
+bool loki_core_fee_burning::generate(std::vector<test_event_entry>& events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+  gen.add_blocks_until_version(hard_forks.back().first);
+
+  uint8_t newest_hf = hard_forks.back().first;
+  assert(newest_hf >= cryptonote::network_version_14);
+
+  gen.add_n_blocks(60);
+  gen.add_mined_money_unlock_blocks();
+
+  using namespace cryptonote;
+  account_base dummy = gen.add_account();
+
+  static constexpr std::array<std::array<uint64_t, 3>, 3> send_fee_burn{{
+    {MK_COINS(5), MK_COINS(3), MK_COINS(1)},
+    {MK_COINS(10), MK_COINS(5), MK_COINS(2)},
+    {MK_COINS(5), MK_COINS(2), MK_COINS(1)},
+  }};
+
+  auto add_burning_tx = [&events, &gen, &dummy, newest_hf](const std::array<uint64_t, 3> &send_fee_burn) {
+    auto send = send_fee_burn[0], fee = send_fee_burn[1], burn = send_fee_burn[2];
+    transaction tx = gen.create_tx(gen.first_miner_, dummy, send, fee, false);
+    std::vector<uint8_t> burn_extra;
+    add_burned_amount_to_tx_extra(burn_extra, burn);
+    loki_tx_builder(events, tx, gen.blocks().back().block, gen.first_miner_, dummy, send, newest_hf).with_fee(fee).with_extra(burn_extra).build();
+    gen.add_tx(tx);
+    return tx;
+  };
+
+  std::vector<transaction> txs;
+  for (size_t i = 0; i < 2; i++)
+    txs.push_back(add_burning_tx(send_fee_burn[i]));
+
+  gen.create_and_add_next_block(txs);
+  auto good_hash = gen.blocks().back().block.hash;
+  uint64_t good_miner_reward;
+
+  {
+    loki_block_reward_context ctx{};
+    ctx.height = get_block_height(gen.blocks().back().block);
+    ctx.fee = send_fee_burn[0][1] + send_fee_burn[1][1] - send_fee_burn[0][2] - send_fee_burn[1][2];
+    block_reward_parts reward_parts;
+    cryptonote::get_loki_block_reward(0, 0, 1 /*already generated, needs to be >0 to avoid premine*/, newest_hf, reward_parts, ctx);
+    good_miner_reward = reward_parts.miner_reward();
+  }
+
+  txs.clear();
+  // Try to add another block with a fee that claims into the amount of the fee that must be burned
+  txs.push_back(add_burning_tx(send_fee_burn[2]));
+
+  auto bad_fee_block = gen.create_next_block(txs, nullptr, send_fee_burn[2][1] - send_fee_burn[2][2] + 2);
+  gen.add_block(bad_fee_block, false, "Invalid miner reward");
+
+  loki_register_callback(events, "check_fee_burned", [good_hash, good_miner_reward](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("check_fee_burned");
+    uint64_t top_height;
+    crypto::hash top_hash;
+    c.get_blockchain_top(top_height, top_hash);
+
+    bool orphan;
+    cryptonote::block top_block;
+    CHECK_TEST_CONDITION(c.get_block_by_hash(top_hash, top_block, &orphan));
+    CHECK_TEST_CONDITION(orphan == false);
+
+    CHECK_EQ(top_hash, good_hash);
+
+    CHECK_EQ(top_block.miner_tx.vout[0].amount, good_miner_reward);
+
+    return true;
+  });
+  return true;
+}
+
 bool loki_core_governance_batched_reward::generate(std::vector<test_event_entry>& events)
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
