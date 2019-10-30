@@ -178,6 +178,7 @@ static_assert(BLINK_MINER_FEE_MULTIPLE >= 1, "blink miner fee cannot be smaller 
 #define HF_VERSION_ED25519_KEY                  cryptonote::network_version_13_enforce_checkpoints
 #define HF_VERSION_FEE_BURNING                  cryptonote::network_version_14
 #define HF_VERSION_BLINK                        cryptonote::network_version_14
+#define HF_VERSION_FEE_BURNING                  cryptonote::network_version_14
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 
