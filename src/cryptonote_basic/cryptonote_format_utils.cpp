@@ -435,15 +435,9 @@ namespace cryptonote
       fee = tx.rct_signatures.txnFee;
       return true;
     }
-    uint64_t amount_in = 0;
-    uint64_t amount_out = 0;
-    for(auto& in: tx.vin)
-    {
-      CHECK_AND_ASSERT_MES(in.type() == typeid(txin_to_key), 0, "unexpected type id in transaction");
-      amount_in += boost::get<txin_to_key>(in).amount;
-    }
-    for(auto& o: tx.vout)
-      amount_out += o.amount;
+    uint64_t amount_in;
+    if (!get_inputs_money_amount(tx, amount_in)) return false;
+    uint64_t amount_out = get_outs_money_amount(tx);
 
     CHECK_AND_ASSERT_MES(amount_in >= amount_out, false, "transaction spend (" <<amount_in << ") more than it has (" << amount_out << ")");
     fee = amount_in - amount_out;
