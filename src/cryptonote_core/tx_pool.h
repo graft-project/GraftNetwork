@@ -70,9 +70,9 @@ namespace cryptonote
     {
       std::string ahash(a.second.data, sizeof(a.second.data));
       std::string bhash(b.second.data, sizeof(b.second.data));
-      //      prioritize      deregister             fee                   arrival time      hash
-      return std::make_tuple(!std::get<0>(a.first), -std::get<1>(a.first), std::get<2>(a.first), ahash)
-           < std::make_tuple(!std::get<0>(b.first), -std::get<1>(b.first), std::get<2>(b.first), bhash);
+      // Sort order:         non-standard txes,     fee (descending),      arrival time,         hash
+      return std::make_tuple(!std::get<0>(a.first), -std::get<1>(a.first), std::get<2>(a.first), std::move(ahash))
+           < std::make_tuple(!std::get<0>(b.first), -std::get<1>(b.first), std::get<2>(b.first), std::move(bhash));
     }
   };
 
