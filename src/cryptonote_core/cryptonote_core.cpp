@@ -1551,16 +1551,11 @@ namespace cryptonote
       return true;
     }
 
-    NOTIFY_NEW_SERVICE_NODE_VOTE::request req = {};
-    req.votes                                 = m_quorum_cop.get_relayable_votes(get_current_blockchain_height());
-    if (req.votes.size())
-    {
-      cryptonote_connection_context fake_context{};
-      if (get_protocol()->relay_service_node_votes(req, fake_context))
-      {
-        m_quorum_cop.set_votes_relayed(req.votes);
-      }
-    }
+    NOTIFY_NEW_SERVICE_NODE_VOTE::request req{};
+    req.votes = std::move(votes);
+    cryptonote_connection_context fake_context{};
+    if (get_protocol()->relay_service_node_votes(req, fake_context))
+      m_quorum_cop.set_votes_relayed(req.votes);
 
     return true;
   }
