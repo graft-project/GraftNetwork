@@ -7,6 +7,7 @@ $(package)_sha256_hash=6f504490b342a4f8a4c4a02fc9b866cbef8622d5df4e5452b46be121e
 define $(package)_set_vars
 $(package)_config_opts=--enable-static --disable-shared
 $(package)_config_opts+=--prefix=$(host_prefix)
+$(package)_config_opts_android=RANLIB=$($(package)_ranlib) AR=$($(package)_ar) CC=$($(package)_cc)
 endef
 
 define $(package)_config_cmds

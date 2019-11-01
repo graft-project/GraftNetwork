@@ -33,6 +33,8 @@ $(package)_config_opts_x86_64_linux=linux-x86_64
 $(package)_config_opts_i686_linux=linux-generic32
 $(package)_config_opts_arm_linux=linux-generic32
 $(package)_config_opts_aarch64_linux=linux-generic64
+$(package)_config_opts_arm_android=--static android-armv7 no-asm
+$(package)_config_opts_aarch64_android=--static android no-asm
 $(package)_config_opts_riscv64_linux=linux-generic64
 $(package)_config_opts_mipsel_linux=linux-generic32
 $(package)_config_opts_mips_linux=linux-generic32
@@ -44,7 +46,8 @@ endef
 
 # make reproducible - replace `time()` used in the build with a fixed timestamp:
 define $(package)_preprocess_cmds
-  sed -i.old 's/^\(my \$date = .*\) time()/\1 1575269735/' util/mkbuildinf.pl
+  sed -i.old 's/^\(my \$date = .*\) time()/\1 1575269735/' util/mkbuildinf.pl &&
+  sed -i -e "s/-mandroid //" Configure
 endef
 
 define $(package)_config_cmds
