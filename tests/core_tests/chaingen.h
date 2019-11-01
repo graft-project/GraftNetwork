@@ -1395,7 +1395,7 @@ struct loki_chain_generator
   std::unordered_map<crypto::hash, loki_blockchain_entry>            block_table_; // TODO(loki): Hmm takes a copy. But its easier to work this way, particularly for storing alt blocks
   std::vector<loki_blockchain_entry>                                 blocks_;
   mutable std::unordered_map<crypto::public_key, crypto::secret_key> service_node_keys_;
-  service_nodes::service_node_list::state_set                         state_history_;
+  service_nodes::service_node_list::state_set                        state_history_;
   uint64_t                                                           last_cull_height_ = 0;
   lns::name_system_db                                                lns_db_;
   loki_chain_generator_db                                            db_;

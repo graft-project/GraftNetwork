@@ -1171,8 +1171,8 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
 
   gen.add_blocks_until_next_checkpointable_height();
   gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
-  gen.create_and_add_next_block();
 
+  gen.create_and_add_next_block();
   loki_register_callback(events, "check_lns_entries", [&events, height_of_lns_entry, miner_key, bob_key, messenger_key, messenger_name, custom_type](cryptonote::core &c, size_t ev_index)
   {
     DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries");

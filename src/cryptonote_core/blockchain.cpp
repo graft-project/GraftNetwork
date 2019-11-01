@@ -4220,6 +4220,48 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
     }
   }
 
+  checkpoint_t immutable_checkpoint = {};
+  if (bl.major_version >= cryptonote::network_version_14_blink_lns &&
+      m_db->get_immutable_checkpoint(&immutable_checkpoint, blockchain_height))
+  {
+    static uint64_t hf14_height = m_hardfork->get_earliest_ideal_height_for_version(network_version_14_blink_lns);
+    uint64_t start_height       = std::max(m_lns_db.height(), hf14_height);
+    int64_t total_blocks = static_cast<int64_t>(immutable_checkpoint.height) - static_cast<int64_t>(start_height);
+
+    while (total_blocks > 0)
+    {
+      int64_t constexpr BLOCK_COUNT = 1000;
+      int64_t num_blocks            = (total_blocks < BLOCK_COUNT) ? total_blocks : BLOCK_COUNT;
+      total_blocks -= num_blocks;
+
+      std::vector<std::pair<cryptonote::blobdata, cryptonote::block>> blocks;
+      if (!get_blocks(start_height, static_cast<uint64_t>(num_blocks), blocks))
+      {
+        LOG_ERROR("Unable to get checkpointed historical blocks for updating LNS DB");
+        pop_block_from_blockchain();
+        return false;
+      }
+
+      for (std::pair<cryptonote::blobdata, cryptonote::block> const &pair : blocks)
+      {
+        std::vector<cryptonote::transaction> old_txs;
+        std::vector<crypto::hash> old_missed_txs;
+        if (!get_transactions(pair.second.tx_hashes, old_txs, old_missed_txs))
+        {
+          MERROR("Unable to get transactions for block for updating LNS DB: " << cryptonote::get_block_hash(pair.second));
+          pop_block_from_blockchain();
+          return false;
+        }
+
+        if (!m_lns_db.add_block(pair.second, old_txs))
+        {
+          MERROR("Unable to process block for updating LNS DB: " << cryptonote::get_block_hash(pair.second));
+          return false;
+        }
+      }
+    }
+  }
+
   TIME_MEASURE_FINISH(addblock);
 
   // TODO(loki): Temporary forking code.

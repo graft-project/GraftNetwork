@@ -126,9 +126,6 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_duplicated_non_standard_tx(transaction const &tx, uint8_t hard_fork_version) const
   {
-    if (tx.is_transfer())
-      return false;
-
     auto &service_node_list = m_blockchain.get_service_node_list();
     if (tx.type == txtype::state_change)
     {
@@ -235,24 +232,27 @@ namespace cryptonote
           continue;
 
         tx_extra_loki_name_system pool_data;
-        if (!cryptonote::get_loki_name_system_from_tx_extra(pool_tx.extra, data))
+        if (!cryptonote::get_loki_name_system_from_tx_extra(pool_tx.extra, pool_data))
         {
           LOG_PRINT_L1("Could not get acquire name service from tx: " << get_transaction_hash(tx) << ", possibly corrupt tx in the pool");
           return true;
         }
 
-        if (data.name == pool_data.name)
+        if (data.type == pool_data.type && data.name == pool_data.name)
         {
-          LOG_PRINT_L1("New TX: " << get_transaction_hash(tx) << ", has TX: " << get_transaction_hash(pool_tx) << " from the pool that is requesting to unlock the same key image already.");
+          LOG_PRINT_L1("New TX: " << get_transaction_hash(tx) << ", has TX: " << get_transaction_hash(pool_tx) << " from the pool that is requesting the same LNS entry already.");
           return true;
         }
       }
     }
     else
     {
-      // NOTE(loki): This is a developer error. If we come across this in production, be conservative and just reject
-      MERROR("Unrecognised transaction type: " << tx.type << " for tx: " <<  get_transaction_hash(tx));
-      return true;
+      if (tx.type != txtype::standard && tx.type != txtype::stake)
+      {
+        // NOTE(loki): This is a developer error. If we come across this in production, be conservative and just reject
+        MERROR("Unrecognised transaction type: " << tx.type << " for tx: " << get_transaction_hash(tx));
+        return true;
+      }
     }
 
     return false;

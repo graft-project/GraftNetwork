@@ -314,12 +314,6 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
 
   char constexpr EXPIRE_MAPPINGS_SQL[] = R"FOO(DELETE FROM "mappings" WHERE "type" = ? AND "register_height" < ?)FOO";
 
-  char constexpr DROP_TABLE_SQL[] = R"FOO(
-DROP TABLE IF EXISTS "user";
-DROP TABLE IF EXISTS "settings";
-DROP TABLE IF EXISTS "mappings";
-)FOO";
-
   char constexpr SAVE_SETTINGS_SQL[] = R"FOO(
     INSERT OR REPLACE INTO settings
     (rowid, top_height, top_hash, version)
@@ -346,15 +340,15 @@ DROP TABLE IF EXISTS "mappings";
   if (!build_default_tables(db))
     return false;
 
-  if (!sql_compile_statement(db, SAVE_USER_SQL,          loki::array_count(SAVE_USER_SQL),       &save_user_sql)    ||
-      !sql_compile_statement(db, SAVE_MAPPING_SQL,       loki::array_count(SAVE_MAPPING_SQL),    &save_mapping_sql) ||
-      !sql_compile_statement(db, SAVE_SETTINGS_SQL,      loki::array_count(SAVE_SETTINGS_SQL),   &save_settings_sql) ||
+  if (!sql_compile_statement(db, SAVE_USER_SQL,          loki::array_count(SAVE_USER_SQL),          &save_user_sql)    ||
+      !sql_compile_statement(db, SAVE_MAPPING_SQL,       loki::array_count(SAVE_MAPPING_SQL),       &save_mapping_sql) ||
+      !sql_compile_statement(db, SAVE_SETTINGS_SQL,      loki::array_count(SAVE_SETTINGS_SQL),      &save_settings_sql) ||
       !sql_compile_statement(db, FORCE_SAVE_MAPPING_SQL, loki::array_count(FORCE_SAVE_MAPPING_SQL), &force_save_mapping_sql) ||
-      !sql_compile_statement(db, GET_USER_BY_KEY_SQL,    loki::array_count(GET_USER_BY_KEY_SQL), &get_user_by_key_sql) ||
-      !sql_compile_statement(db, GET_USER_BY_ID_SQL,     loki::array_count(GET_USER_BY_ID_SQL),  &get_user_by_id_sql) ||
-      !sql_compile_statement(db, GET_MAPPING_SQL,        loki::array_count(GET_MAPPING_SQL),     &get_mapping_sql) ||
-      !sql_compile_statement(db, GET_SETTINGS_SQL,       loki::array_count(GET_SETTINGS_SQL),    &get_settings_sql) ||
-      !sql_compile_statement(db, EXPIRE_MAPPINGS_SQL,    loki::array_count(EXPIRE_MAPPINGS_SQL), &expire_mapping_sql)
+      !sql_compile_statement(db, GET_USER_BY_KEY_SQL,    loki::array_count(GET_USER_BY_KEY_SQL),    &get_user_by_key_sql) ||
+      !sql_compile_statement(db, GET_USER_BY_ID_SQL,     loki::array_count(GET_USER_BY_ID_SQL),     &get_user_by_id_sql) ||
+      !sql_compile_statement(db, GET_MAPPING_SQL,        loki::array_count(GET_MAPPING_SQL),        &get_mapping_sql) ||
+      !sql_compile_statement(db, GET_SETTINGS_SQL,       loki::array_count(GET_SETTINGS_SQL),       &get_settings_sql) ||
+      !sql_compile_statement(db, EXPIRE_MAPPINGS_SQL,    loki::array_count(EXPIRE_MAPPINGS_SQL),    &expire_mapping_sql)
       )
   {
     return false;
@@ -369,6 +363,12 @@ DROP TABLE IF EXISTS "mappings";
     }
     else
     {
+      char constexpr DROP_TABLE_SQL[] = R"FOO(
+DROP TABLE IF EXISTS "user";
+DROP TABLE IF EXISTS "settings";
+DROP TABLE IF EXISTS "mappings";
+)FOO";
+
       sqlite3_exec(db, DROP_TABLE_SQL, nullptr /*callback*/, nullptr /*callback context*/, nullptr);
       if (!build_default_tables(db)) return false;
     }
