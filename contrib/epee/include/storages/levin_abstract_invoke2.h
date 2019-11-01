@@ -120,23 +120,23 @@ namespace epee
         if( code <=0 )
         {
           LOG_PRINT_L1("Failed to invoke command " << command << " return code " << code);
-          cb(code, result_struct, context);
+          cb(code, std::move(result_struct), context);
           return false;
         }
         serialization::portable_storage stg_ret;
         if(!stg_ret.load_from_binary(buff))
         {
           LOG_ERROR("Failed to load_from_binary on command " << command);
-          cb(LEVIN_ERROR_FORMAT, result_struct, context);
+          cb(LEVIN_ERROR_FORMAT, std::move(result_struct), context);
           return false;
         }
         if (!result_struct.load(stg_ret))
         {
           LOG_ERROR("Failed to load result struct on command " << command);
-          cb(LEVIN_ERROR_FORMAT, result_struct, context);
+          cb(LEVIN_ERROR_FORMAT, std::move(result_struct), context);
           return false;
         }
-        cb(code, result_struct, context);
+        cb(code, std::move(result_struct), context);
         return true;
       }, inv_timeout);
       if( res <=0 )
