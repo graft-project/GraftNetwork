@@ -84,4 +84,7 @@ namespace epee
 
   template <class T, size_t N>
   using mlocked_arr = mlocked<std::array<T, N>>;
+
+  template <typename T> constexpr bool is_byte_spannable; // forward declaration
+  template <typename T> constexpr bool is_byte_spannable<mlocked<T>> = is_byte_spannable<T>;
 }

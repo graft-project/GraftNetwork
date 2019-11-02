@@ -1899,7 +1899,7 @@ namespace service_nodes
 
   static crypto::hash hash_uptime_proof(const cryptonote::NOTIFY_UPTIME_PROOF::request &proof, uint8_t hf_version)
   {
-    auto buf = tools::memcpy_le(proof.pubkey, proof.timestamp, proof.public_ip, proof.storage_port, proof.pubkey_ed25519, proof.qnet_port);
+    auto buf = tools::memcpy_le(proof.pubkey.data, proof.timestamp, proof.public_ip, proof.storage_port, proof.pubkey_ed25519.data, proof.qnet_port);
     size_t buf_size = buf.size();
 
     crypto::hash result;

@@ -64,7 +64,7 @@ crypto::hash blink_tx::hash(bool approved) const {
     crypto::hash tx_hash, blink_hash;
     if (!cryptonote::get_transaction_hash(tx, tx_hash))
         throw std::runtime_error("Cannot compute blink hash: tx hash is not valid");
-    auto buf = tools::memcpy_le(height, tx_hash, uint8_t{approved});
+    auto buf = tools::memcpy_le(height, tx_hash.data, uint8_t{approved});
     crypto::cn_fast_hash(buf.data(), buf.size(), blink_hash);
     return blink_hash;
 }
