@@ -44,6 +44,7 @@ set(common_sources
   password.cpp
   perf_timer.cpp
   pruning.cpp
+  random.cpp
   scoped_message_writer.cpp
   spawn.cpp
   threadpool.cpp
@@ -78,6 +79,7 @@ set(common_private_headers
   notify.h
   osrb.h
   pruning.h
+  random.h
   rpc_client.h
   scoped_message_writer.h
   unordered_containers_boost_serialization.h

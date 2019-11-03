@@ -35,6 +35,7 @@
 #include "quorumnet/sn_network.h"
 #include "quorumnet/conn_matrix.h"
 #include "cryptonote_config.h"
+#include "common/random.h"
 
 #include <shared_mutex>
 
@@ -1160,7 +1161,6 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
     cryptonote::transaction tx;
     crypto::hash tx_hash;
 
-    thread_local std::mt19937_64 rng{std::random_device{}()};
     uint64_t blink_tag = 0;
     blink_result_data *brd = nullptr;
 
@@ -1189,7 +1189,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
         } else {
             while (!brd) {
                 // Choose an unused tag randomly so that the blink tag value doesn't give anything away
-                blink_tag = rng();
+                blink_tag = tools::rng();
                 if (blink_tag == 0 || pending_blink_results.count(blink_tag) > 0) continue;
                 brd = &pending_blink_results[blink_tag];
                 brd->hash = tx_hash;
@@ -1237,7 +1237,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
         // Select 4 random (active) blink quorum SNs to send the blink to.
         std::vector<size_t> indices(remotes.size());
         std::iota(indices.begin(), indices.end(), 0);
-        std::shuffle(indices.begin(), indices.end(), rng);
+        std::shuffle(indices.begin(), indices.end(), tools::rng);
         if (indices.size() > 4)
             indices.resize(4);
         brd->remote_count = indices.size();

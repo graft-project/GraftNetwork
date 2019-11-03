@@ -266,20 +266,6 @@ namespace service_nodes
     std::vector<payout_entry> payouts;
   };
 
-  template<typename RandomIt>
-  void loki_shuffle(RandomIt begin, RandomIt end, uint64_t seed)
-  {
-    if (end <= begin + 1) return;
-    const size_t size = std::distance(begin, end);
-    std::mt19937_64 mersenne_twister(seed);
-    for (size_t i = 1; i < size; i++)
-    {
-      size_t j = (size_t)uniform_distribution_portable(mersenne_twister, i+1);
-      using std::swap;
-      swap(begin[i], begin[j]);
-    }
-  }
-
   /// Collection of keys used by a service node
   struct service_node_keys {
     /// The service node key pair used for registration-related data on the chain; is

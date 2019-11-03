@@ -45,6 +45,7 @@ extern "C" {
 #include "common/scoped_message_writer.h"
 #include "common/i18n.h"
 #include "common/util.h"
+#include "common/random.h"
 #include "blockchain.h"
 #include "service_node_quorum_cop.h"
 
@@ -1186,11 +1187,11 @@ namespace service_nodes
     // reuse the same seed for both partial shuffles, but again, that isn't an issue.
     if ((0 < sublist_size && sublist_size < list_size) && (0 < sublist_up_to && sublist_up_to < list_size)) {
       assert(sublist_size <= sublist_up_to); // Can't select N random items from M items when M < N
-      loki_shuffle(result.begin(), result.begin() + sublist_up_to, seed);
-      loki_shuffle(result.begin() + sublist_size, result.end(), seed);
+      tools::shuffle_portable(result.begin(), result.begin() + sublist_up_to, seed);
+      tools::shuffle_portable(result.begin() + sublist_size, result.end(), seed);
     }
     else {
-      loki_shuffle(result.begin(), result.end(), seed);
+      tools::shuffle_portable(result.begin(), result.end(), seed);
     }
     return result;
   }

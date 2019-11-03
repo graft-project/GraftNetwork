@@ -44,6 +44,7 @@ using namespace epee;
 #include "common/loki.h"
 #include "common/util.h"
 #include "common/perf_timer.h"
+#include "common/random.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/account.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
@@ -2913,9 +2914,7 @@ namespace cryptonote
 
       const auto limit = std::min(sn_infos.size(), static_cast<size_t>(req.limit));
 
-      static thread_local std::mt19937 mt{std::random_device{}()};
-
-      std::shuffle(sn_infos.begin(), sn_infos.end(), mt);
+      std::shuffle(sn_infos.begin(), sn_infos.end(), tools::rng);
 
       sn_infos.resize(limit);
     }
@@ -2974,17 +2973,17 @@ namespace cryptonote
         return 0;
       }
       const blob_t &blob = blocks.at(0).first;
-      const uint64_t byte_idx = service_nodes::uniform_distribution_portable(mt, blob.size());
+      const uint64_t byte_idx = tools::uniform_distribution_portable(mt, blob.size());
       uint8_t byte = blob[byte_idx];
 
       /// pick a random byte from a random transaction blob if found
       if (!txs.empty()) {
-        const uint64_t tx_idx = service_nodes::uniform_distribution_portable(mt, txs.size());
+        const uint64_t tx_idx = tools::uniform_distribution_portable(mt, txs.size());
         const blob_t &tx_blob = txs[tx_idx];
 
         /// not sure if this can be empty, so check to be safe
         if (!tx_blob.empty()) {
-          const uint64_t byte_idx = service_nodes::uniform_distribution_portable(mt, tx_blob.size());
+          const uint64_t byte_idx = tools::uniform_distribution_portable(mt, tx_blob.size());
           const uint8_t tx_byte = tx_blob[byte_idx];
           byte ^= tx_byte;
         }
