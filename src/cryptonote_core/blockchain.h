@@ -675,37 +675,27 @@ namespace cryptonote
     /**
      * @brief gets blocks based on a list of block hashes
      *
-     * @tparam t_ids_container a standard-iterable container
-     * @tparam t_blocks_container a standard-iterable container
-     * @tparam t_missed_container a standard-iterable container
-     * @param block_ids a container of block hashes for which to get the corresponding blocks
-     * @param blocks return-by-reference a container to store result blocks in
-     * @param missed_bs return-by-reference a container to store missed blocks in
+     * @param block_ids a vector of block hashes for which to get the corresponding blocks
+     * @param blocks return-by-reference a vector to store result blocks in
+     * @param missed_bs return-by-reference a vector to store missed blocks in
      *
      * @return false if an unexpected exception occurs, else true
      */
-    template<class t_ids_container, class t_blocks_container, class t_missed_container>
-    bool get_blocks(const t_ids_container& block_ids, t_blocks_container& blocks, t_missed_container& missed_bs) const;
+    bool get_blocks(const std::vector<crypto::hash>& block_ids, std::vector<std::pair<cryptonote::blobdata,block>>& blocks, std::vector<crypto::hash>& missed_bs) const;
 
     /**
      * @brief gets transactions based on a list of transaction hashes
      *
-     * @tparam t_ids_container a standard-iterable container
-     * @tparam t_tx_container a standard-iterable container
-     * @tparam t_missed_container a standard-iterable container
-     * @param txs_ids a container of hashes for which to get the corresponding transactions
-     * @param txs return-by-reference a container to store result transactions in
-     * @param missed_txs return-by-reference a container to store missed transactions in
+     * @param txs_ids a vector of hashes for which to get the corresponding transactions
+     * @param txs return-by-reference a vector to store result transactions in
+     * @param missed_txs return-by-reference a vector to store missed transactions in
      * @param pruned whether to return full or pruned blobs
      *
      * @return false if an unexpected exception occurs, else true
      */
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_transactions_blobs(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs, bool pruned = false) const;
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_split_transactions_blobs(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs) const;
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_transactions(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs) const;
+    bool get_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<blobdata>& txs, std::vector<crypto::hash>& missed_txs, bool pruned = false) const;
+    bool get_split_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<std::tuple<crypto::hash, cryptonote::blobdata, crypto::hash, cryptonote::blobdata>>& txs, std::vector<crypto::hash>& missed_txs) const;
+    bool get_transactions(const std::vector<crypto::hash>& txs_ids, std::vector<transaction>& txs, std::vector<crypto::hash>& missed_txs) const;
 
     //debug functions
 
