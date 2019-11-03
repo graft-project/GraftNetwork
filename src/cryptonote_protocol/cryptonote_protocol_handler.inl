@@ -2247,36 +2247,16 @@ skip:
 
     // no check for success, so tell core they're relayed unconditionally
     const bool pad_transactions = m_core.pad_transactions() || hide_tx_broadcast;
-    size_t bytes = pad_transactions ? 9 /* header */ + 4 /* 1 + 'txs' */ + tools::get_varint_data(arg.txs.size()).size() : 0;
     for(auto tx_blob_it = arg.txs.begin(); tx_blob_it!=arg.txs.end(); ++tx_blob_it)
     {
       m_core.on_transaction_relayed(*tx_blob_it);
-      if (pad_transactions)
-        bytes += tools::get_varint_data(tx_blob_it->size()).size() + tx_blob_it->size();
     }
 
     if (pad_transactions)
     {
       // stuff some dummy bytes in to stay safe from traffic volume analysis
-      static constexpr size_t granularity = 1024;
-      size_t padding = granularity - bytes % granularity;
-      const size_t overhead = 2 /* 1 + '_' */ + tools::get_varint_data(padding).size();
-      if (overhead > padding)
-        padding = 0;
-      else
-        padding -= overhead;
-      arg._ = std::string(padding, ' ');
-
-      std::string arg_buff;
-      epee::serialization::store_t_to_binary(arg, arg_buff);
-
-      // we probably lowballed the payload size a bit, so added a but too much. Fix this now.
-      size_t remove = arg_buff.size() % granularity;
-      if (remove > arg._.size())
-        arg._.clear();
-      else
-        arg._.resize(arg._.size() - remove);
-      // if the size of _ moved enough, we might lose byte in size encoding, we don't care
+      arg._.clear();
+      arg._.resize(std::uniform_int_distribution<size_t>{0, 1024}(tools::rng), ' ');
     }
 
     std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>> connections;
