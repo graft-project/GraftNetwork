@@ -103,7 +103,7 @@ namespace cryptonote
     tx_memory_pool &operator=(const tx_memory_pool &) = delete;
 
     /**
-     * @copydoc add_tx(transaction&, tx_verification_context&, bool, bool, uint8_t)
+     * @copydoc add_tx(transaction&, tx_verification_context&, bool, bool, bool, uint8_t)
      *
      * @param id the transaction's hash
      * @param tx_weight the transaction's weight
@@ -332,10 +332,10 @@ namespace cryptonote
      * @brief get a list of all relayable transactions and their hashes
      *
      * "relayable" in this case means:
-     *   nonzero fee
+     *   nonzero fee -or- a zero-fee SN state change tx
      *   hasn't been relayed too recently
      *   isn't old enough that relaying it is considered harmful
-     * Note a transaction can be "relayable" even if do_not_relay is true
+     *   doesn't have do_not_relay set
      *
      * @param txs return-by-reference the transactions and their hashes
      *
