@@ -1403,37 +1403,6 @@ namespace cryptonote
       ++m_cookie;
   }
   //---------------------------------------------------------------------------------
-  std::string tx_memory_pool::print_pool(bool short_format) const
-  {
-    std::stringstream ss;
-    CRITICAL_REGION_LOCAL(m_transactions_lock);
-    CRITICAL_REGION_LOCAL1(m_blockchain);
-    m_blockchain.for_all_txpool_txes([&ss, short_format](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *txblob) {
-      ss << "id: " << txid << std::endl;
-      if (!short_format) {
-        cryptonote::transaction tx;
-        if (!parse_and_validate_tx_from_blob(*txblob, tx))
-        {
-          MERROR("Failed to parse tx from txpool");
-          return true; // continue
-        }
-        ss << obj_to_json_str(tx) << std::endl;
-      }
-      ss << "blob_size: " << (short_format ? "-" : std::to_string(txblob->size())) << std::endl
-        << "weight: " << meta.weight << std::endl
-        << "fee: " << print_money(meta.fee) << std::endl
-        << "kept_by_block: " << (meta.kept_by_block ? 'T' : 'F') << std::endl
-        << "double_spend_seen: " << (meta.double_spend_seen ? 'T' : 'F') << std::endl
-        << "max_used_block_height: " << meta.max_used_block_height << std::endl
-        << "max_used_block_id: " << meta.max_used_block_id << std::endl
-        << "last_failed_height: " << meta.last_failed_height << std::endl
-        << "last_failed_id: " << meta.last_failed_id << std::endl;
-      return true;
-    }, !short_format);
-
-    return ss.str();
-  }
-  //---------------------------------------------------------------------------------
   //TODO: investigate whether boolean return is appropriate
   bool tx_memory_pool::fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version, uint64_t height)
   {

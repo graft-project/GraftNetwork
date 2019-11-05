@@ -358,15 +358,6 @@ namespace cryptonote
     size_t get_transactions_count(bool include_unrelayed_txes = true) const;
 
     /**
-     * @brief get a string containing human-readable pool information
-     *
-     * @param short_format whether to use a shortened format for the info
-     *
-     * @return the string
-     */
-    std::string print_pool(bool short_format) const;
-
-    /**
      * @brief remove transactions from the pool which are no longer valid
      *
      * With new versions of the currency, what conditions render a transaction

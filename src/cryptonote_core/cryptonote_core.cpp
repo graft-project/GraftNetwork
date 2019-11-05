@@ -1860,11 +1860,6 @@ namespace cryptonote
     return m_blockchain_storage.get_block_by_hash(h, blk, orphan);
   }
   //-----------------------------------------------------------------------------------------------
-  std::string core::print_pool(bool short_format) const
-  {
-    return m_mempool.print_pool(short_format);
-  }
-  //-----------------------------------------------------------------------------------------------
   static bool check_external_ping(time_t last_ping, time_t lifetime, const char *what)
   {
     const auto elapsed = std::time(nullptr) - last_ping;
