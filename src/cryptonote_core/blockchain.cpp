@@ -2359,6 +2359,21 @@ bool Blockchain::get_transactions_blobs(const std::vector<crypto::hash>& txs_ids
   return true;
 }
 //------------------------------------------------------------------
+std::vector<uint64_t> Blockchain::get_transactions_heights(const std::vector<crypto::hash>& txs_ids) const
+{
+  LOG_PRINT_L3("Blockchain::" << __func__);
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+
+  std::vector<uint64_t> heights(txs_ids.size(), 0);
+  for (size_t i = 0; i < txs_ids.size(); i++)
+  {
+    try {
+      heights[i] = m_db->get_tx_block_height(txs_ids[i]);
+    } catch (...) { /* ignore */ }
+  }
+  return heights;
+}
+//------------------------------------------------------------------
 size_t get_transaction_version(const cryptonote::blobdata &bd)
 {
   size_t version;
@@ -4925,6 +4940,15 @@ cryptonote::blobdata Blockchain::get_txpool_tx_blob(const crypto::hash& txid) co
 bool Blockchain::for_all_txpool_txes(std::function<bool(const crypto::hash&, const txpool_tx_meta_t&, const cryptonote::blobdata*)> f, bool include_blob, bool include_unrelayed_txes) const
 {
   return m_db->for_all_txpool_txes(f, include_blob, include_unrelayed_txes);
+}
+
+uint64_t Blockchain::get_immutable_height() const
+{
+  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  checkpoint_t checkpoint;
+  if (m_db->get_immutable_checkpoint(&checkpoint, get_current_blockchain_height()))
+    return checkpoint.height;
+  return 0;
 }
 
 void Blockchain::set_user_options(uint64_t maxthreads, bool sync_on_blocks, uint64_t sync_threshold, blockchain_db_sync_mode sync_mode, bool fast_sync)

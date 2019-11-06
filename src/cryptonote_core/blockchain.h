@@ -697,6 +697,17 @@ namespace cryptonote
     bool get_split_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<std::tuple<crypto::hash, cryptonote::blobdata, crypto::hash, cryptonote::blobdata>>& txs, std::vector<crypto::hash>& missed_txs) const;
     bool get_transactions(const std::vector<crypto::hash>& txs_ids, std::vector<transaction>& txs, std::vector<crypto::hash>& missed_txs) const;
 
+    /**
+     * @brief looks up transactions based on a list of transaction hashes and returns the block
+     * height in which they were mined, or 0 if not found on the blockchain.
+     *
+     * @param txs_ids vector of hashes to look up
+     *
+     * @return vector of the same length as txs_ids containing the heights corresponding to the
+     * given hashes, or 0 if not found.
+     */
+    std::vector<uint64_t> get_transactions_heights(const std::vector<crypto::hash>& txs_ids) const;
+
     //debug functions
 
     /**
@@ -971,6 +982,8 @@ namespace cryptonote
     bool prune_blockchain(uint32_t pruning_seed = 0);
     bool update_blockchain_pruning();
     bool check_blockchain_pruning();
+
+    uint64_t get_immutable_height() const;
 
     bool calc_batched_governance_reward(uint64_t height, uint64_t &reward) const;
 
