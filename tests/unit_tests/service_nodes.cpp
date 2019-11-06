@@ -170,7 +170,7 @@ TEST(service_nodes, vote_validation)
     cryptonote::vote_verification_context vvc = {};
     bool result = verify_vote(valid_vote, block_height, vvc, state);
     if (!result)
-      printf("%s\n", cryptonote::print_vote_verification_context(vvc, &valid_vote));
+      std::cout << cryptonote::print_vote_verification_context(vvc, &valid_vote) << std::endl;
 
     ASSERT_TRUE(result);
   }
@@ -262,7 +262,7 @@ TEST(service_nodes, tx_extra_state_change_validation)
     cryptonote::tx_verification_context tvc = {};
     bool result = service_nodes::verify_tx_state_change(valid_state_change, HEIGHT, tvc, state, hf_version);
     if (!result)
-      printf("%s\n", cryptonote::print_tx_verification_context(tvc));
+      std::cout << cryptonote::print_tx_verification_context(tvc) << std::endl;
     ASSERT_TRUE(result);
   }
 
