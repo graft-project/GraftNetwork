@@ -260,12 +260,12 @@ namespace cryptonote
   [[noreturn]] static void need_core_init() {
       throw std::logic_error("Internal error: quorumnet::init_core_callbacks() should have been called");
   }
-  void *(*quorumnet_new)(core &, tx_memory_pool &, const std::string &bind);
+  void *(*quorumnet_new)(core &, const std::string &bind);
   void (*quorumnet_delete)(void *&self);
   void (*quorumnet_relay_votes)(void *self, const std::vector<service_nodes::quorum_vote_t> &);
   std::future<std::pair<blink_result, std::string>> (*quorumnet_send_blink)(void *self, const std::string &tx_blob);
   static bool init_core_callback_stubs() {
-    quorumnet_new = [](core &, tx_memory_pool &, const std::string &) -> void * { need_core_init(); };
+    quorumnet_new = [](core &, const std::string &) -> void * { need_core_init(); };
     quorumnet_delete = [](void *&) { need_core_init(); };
     quorumnet_relay_votes = [](void *, const std::vector<service_nodes::quorum_vote_t> &) { need_core_init(); };
     quorumnet_send_blink = [](void *, const std::string &) -> std::future<std::pair<blink_result, std::string>> { need_core_init(); };
@@ -500,12 +500,6 @@ namespace cryptonote
   bool core::get_split_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<std::tuple<crypto::hash, cryptonote::blobdata, crypto::hash, cryptonote::blobdata>>& txs, std::vector<crypto::hash>& missed_txs) const
   {
     return m_blockchain_storage.get_split_transactions_blobs(txs_ids, txs, missed_txs);
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::get_txpool_backlog(std::vector<tx_backlog_entry>& backlog) const
-  {
-    m_mempool.get_transaction_backlog(backlog);
-    return true;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::get_transactions(const std::vector<crypto::hash>& txs_ids, std::vector<transaction>& txs, std::vector<crypto::hash>& missed_txs) const
@@ -866,7 +860,7 @@ namespace cryptonote
       if (listen_ip.empty())
         listen_ip = "0.0.0.0";
       std::string qnet_listen = "tcp://" + listen_ip + ":" + std::to_string(m_quorumnet_port);
-      m_quorumnet_obj = quorumnet_new(*this, m_mempool, qnet_listen);
+      m_quorumnet_obj = quorumnet_new(*this, qnet_listen);
     }
     // Otherwise we may still need quorumnet in remote-only mode, but we construct it on demand
 
@@ -1255,7 +1249,7 @@ namespace cryptonote
       assert(!m_service_node_keys);
       std::lock_guard<std::mutex> lock{m_quorumnet_init_mutex};
       if (!m_quorumnet_obj)
-        m_quorumnet_obj = quorumnet_new(*this, m_mempool, "" /* don't listen */);
+        m_quorumnet_obj = quorumnet_new(*this, "" /* don't listen */);
     }
     return quorumnet_send_blink(m_quorumnet_obj, tx_blob);
   }
@@ -1787,11 +1781,6 @@ namespace cryptonote
     return m_blockchain_storage.get_db().get_block_cumulative_difficulty(height);
   }
   //-----------------------------------------------------------------------------------------------
-  size_t core::get_pool_transactions_count() const
-  {
-    return m_mempool.get_transactions_count();
-  }
-  //-----------------------------------------------------------------------------------------------
   bool core::have_block(const crypto::hash& id) const
   {
     return m_blockchain_storage.have_block(id);
@@ -1800,44 +1789,6 @@ namespace cryptonote
   bool core::parse_tx_from_blob(transaction& tx, crypto::hash& tx_hash, const blobdata& blob) const
   {
     return parse_and_validate_tx_from_blob(blob, tx, tx_hash);
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::get_pool_transactions(std::vector<transaction>& txs, bool include_sensitive_data) const
-  {
-    m_mempool.get_transactions(txs, include_sensitive_data);
-    return true;
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::get_pool_transaction_hashes(std::vector<crypto::hash>& txs, bool include_sensitive_data) const
-  {
-    m_mempool.get_transaction_hashes(txs, include_sensitive_data);
-    return true;
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::get_pool_transaction_stats(struct txpool_stats& stats, bool include_sensitive_data) const
-  {
-    m_mempool.get_transaction_stats(stats, include_sensitive_data);
-    return true;
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::get_pool_transaction(const crypto::hash &id, cryptonote::blobdata& tx) const
-  {
-    return m_mempool.get_transaction(id, tx);
-  }  
-  //-----------------------------------------------------------------------------------------------
-  bool core::pool_has_tx(const crypto::hash &id) const
-  {
-    return m_mempool.have_tx(id);
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::get_pool_transactions_and_spent_keys_info(std::vector<tx_info>& tx_infos, std::vector<spent_key_image_info>& key_image_infos, bool include_sensitive_data) const
-  {
-    return m_mempool.get_transactions_and_spent_keys_info(tx_infos, key_image_infos, include_sensitive_data);
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::get_pool_for_rpc(std::vector<cryptonote::rpc::tx_in_pool>& tx_infos, cryptonote::rpc::key_images_with_tx_hashes& key_image_infos) const
-  {
-    return m_mempool.get_pool_for_rpc(tx_infos, key_image_infos);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::get_short_chain_history(std::list<crypto::hash>& ids) const

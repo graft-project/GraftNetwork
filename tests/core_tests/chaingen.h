@@ -637,9 +637,9 @@ public:
   {
     log_event("cryptonote::transaction");
     cryptonote::tx_verification_context tvc{};
-    size_t pool_size = m_c.get_pool_transactions_count();
+    size_t pool_size = m_c.get_pool().get_transactions_count();
     m_c.handle_incoming_tx(t_serializable_object_to_blob(tx), tvc, m_txs_keeped_by_block, false, false);
-    bool tx_added = pool_size + 1 == m_c.get_pool_transactions_count();
+    bool tx_added = pool_size + 1 == m_c.get_pool().get_transactions_count();
     bool r = m_validator.check_tx_verification_context(tvc, tx_added, m_ev_index, tx);
     CHECK_AND_NO_ASSERT_MES(r, false, "tx verification context check failed");
     return true;
@@ -656,9 +656,9 @@ public:
       tx_blobs.push_back(t_serializable_object_to_blob(tx));
       tvcs.push_back(tvc0);
     }
-    size_t pool_size = m_c.get_pool_transactions_count();
+    size_t pool_size = m_c.get_pool().get_transactions_count();
     m_c.handle_incoming_txs(tx_blobs, tvcs, m_txs_keeped_by_block, false, false);
-    size_t tx_added = m_c.get_pool_transactions_count() - pool_size;
+    size_t tx_added = m_c.get_pool().get_transactions_count() - pool_size;
     bool r = m_validator.check_tx_verification_context_array(tvcs, tx_added, m_ev_index, txs);
     CHECK_AND_NO_ASSERT_MES(r, false, "tx verification context check failed");
     return true;
@@ -731,9 +731,9 @@ public:
     log_event("serialized_transaction");
 
     cryptonote::tx_verification_context tvc{};
-    size_t pool_size = m_c.get_pool_transactions_count();
+    size_t pool_size = m_c.get_pool().get_transactions_count();
     m_c.handle_incoming_tx(sr_tx.data, tvc, m_txs_keeped_by_block, false, false);
-    bool tx_added = pool_size + 1 == m_c.get_pool_transactions_count();
+    bool tx_added = pool_size + 1 == m_c.get_pool().get_transactions_count();
 
     cryptonote::transaction tx;
     std::stringstream ss;
@@ -821,10 +821,10 @@ public:
   {
     log_event("loki_blockchain_addable<loki_transaction>");
     cryptonote::tx_verification_context tvc = {};
-    size_t pool_size                        = m_c.get_pool_transactions_count();
+    size_t pool_size                        = m_c.get_pool().get_transactions_count();
     m_c.handle_incoming_tx(t_serializable_object_to_blob(entry.data.tx), tvc, entry.data.kept_by_block, false, false);
 
-    bool added = (pool_size + 1) == m_c.get_pool_transactions_count();
+    bool added = (pool_size + 1) == m_c.get_pool().get_transactions_count();
     CHECK_AND_NO_ASSERT_MES(added == entry.can_be_added_to_blockchain, false, (entry.fail_msg.size() ? entry.fail_msg : "Failed to add transaction (no reason given)"));
     return true;
   }
@@ -849,11 +849,7 @@ inline bool replay_events_through_core_plain(cryptonote::core& cr, const std::ve
   TRY_ENTRY();
   // start with a clean pool
   std::vector<crypto::hash> pool_txs;
-  if (!cr.get_pool_transaction_hashes(pool_txs))
-  {
-    MERROR("Failed to flush txpool");
-    return false;
-  }
+  cr.get_pool().get_transaction_hashes(pool_txs);
   cr.get_blockchain_storage().flush_txes_from_pool(pool_txs);
 
   //init core here

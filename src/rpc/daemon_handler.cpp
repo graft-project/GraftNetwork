@@ -183,7 +183,7 @@ namespace rpc
     {
       std::vector<cryptonote::transaction> pool_txs;
 
-      m_core.get_pool_transactions(pool_txs);
+      m_core.get_pool().get_transactions(pool_txs);
 
       for (const auto& tx : pool_txs)
       {
@@ -459,7 +459,7 @@ namespace rpc
 
     res.info.tx_count = chain.get_total_transactions() - res.info.height; //without coinbase
 
-    res.info.tx_pool_size = m_core.get_pool_transactions_count();
+    res.info.tx_pool_size = m_core.get_pool().get_transactions_count();
 
     res.info.alt_blocks_count = chain.get_alternative_blocks_count();
 
@@ -648,7 +648,7 @@ namespace rpc
 
   void DaemonHandler::handle(const GetTransactionPool::Request& req, GetTransactionPool::Response& res)
   {
-    bool r = m_core.get_pool_for_rpc(res.transactions, res.key_images);
+    bool r = m_core.get_pool().get_pool_for_rpc(res.transactions, res.key_images);
 
     if (!r) res.status = Message::STATUS_FAILED;
     else res.status = Message::STATUS_OK;

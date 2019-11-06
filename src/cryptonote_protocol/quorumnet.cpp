@@ -68,7 +68,6 @@ using pending_signature_set = std::unordered_set<pending_signature, pending_sign
 struct SNNWrapper {
     SNNetwork snn;
     cryptonote::core &core;
-    cryptonote::tx_memory_pool &pool;
 
     // Track submitted blink txes here; unlike the blinks stored in the mempool we store these ones
     // more liberally to track submitted blinks, even if unsigned/unacceptable, while the mempool
@@ -88,8 +87,8 @@ struct SNNWrapper {
     //std::chrono::steady_clock::time_point last_blink_cleanup = std::chrono::steady_clock::now();
 
     template <typename... Args>
-    SNNWrapper(cryptonote::core &core, cryptonote::tx_memory_pool &pool, Args &&...args) :
-        snn{std::forward<Args>(args)...}, core{core}, pool{pool} {}
+    SNNWrapper(cryptonote::core &core, Args &&...args) :
+        snn{std::forward<Args>(args)...}, core{core} {}
 };
 
 template <typename T>
@@ -146,7 +145,7 @@ void snn_write_log(LogLevel level, const char *file, int line, std::string msg) 
     el::base::Writer(easylogging_level(level), file, line, ELPP_FUNC, el::base::DispatchAction::NormalLog).construct(LOKI_DEFAULT_LOG_CATEGORY) << msg;
 }
 
-void *new_snnwrapper(cryptonote::core &core, cryptonote::tx_memory_pool &pool, const std::string &bind) {
+void *new_snnwrapper(cryptonote::core &core, const std::string &bind) {
     auto keys = core.get_service_node_keys();
     auto peer_lookup = [&sn_list = core.get_service_node_list()](const std::string &x25519_pub) {
         return get_connect_string(sn_list, x25519_from_string(x25519_pub));
@@ -174,10 +173,10 @@ void *new_snnwrapper(cryptonote::core &core, cryptonote::tx_memory_pool &pool, c
     if (!keys) {
         MINFO("Starting remote-only quorumnet instance");
 
-        obj = new SNNWrapper(core, pool, peer_lookup, allow, snn_want_log, snn_write_log);
+        obj = new SNNWrapper(core, peer_lookup, allow, snn_want_log, snn_write_log);
     } else {
         MINFO("Starting quorumnet listener on " << bind << " with x25519 pubkey " << keys->pub_x25519);
-        obj = new SNNWrapper(core, pool,
+        obj = new SNNWrapper(core,
             get_data_as_string(keys->pub_x25519),
             get_data_as_string(keys->key_x25519.data),
             std::vector<std::string>{{bind}},
@@ -972,7 +971,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     // Check tx for validity
     bool already_in_mempool;
     cryptonote::tx_verification_context tvc = {};
-    bool approved = snw.pool.add_blink(btxptr, tvc, already_in_mempool);
+    bool approved = snw.core.get_pool().add_blink(btxptr, tvc, already_in_mempool);
 
     MINFO("Blink TX " << tx_hash << (approved ? " approved and added to mempool" : " rejected"));
     if (!approved)

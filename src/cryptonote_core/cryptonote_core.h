@@ -81,7 +81,7 @@ namespace cryptonote
   // other callbacks below so that the callbacks can recast it into whatever it should be.  `bind`
   // will be null if the quorumnet object is started in remote-only (non-listening) mode, which only
   // happens on-demand when running in non-SN mode.
-  extern void *(*quorumnet_new)(core &core, tx_memory_pool &pool, const std::string &bind);
+  extern void *(*quorumnet_new)(core &core, const std::string &bind);
   // Stops the quorumnet listener; is expected to delete the object and reset the pointer to nullptr.
   extern void (*quorumnet_delete)(void *&self);
   // Relays votes via quorumnet.
@@ -452,72 +452,6 @@ namespace cryptonote
       */
      void set_cryptonote_protocol(i_cryptonote_protocol* pprotocol);
 
-     /**
-      * @copydoc tx_memory_pool::have_tx
-      *
-      * @note see tx_memory_pool::have_tx
-      */
-     bool pool_has_tx(const crypto::hash &txid) const;
-
-     /**
-      * @copydoc tx_memory_pool::get_transactions
-      * @param include_unrelayed_txes include unrelayed txes in result
-      *
-      * @note see tx_memory_pool::get_transactions
-      */
-     bool get_pool_transactions(std::vector<transaction>& txs, bool include_unrelayed_txes = true) const;
-
-     /**
-      * @copydoc tx_memory_pool::get_txpool_backlog
-      *
-      * @note see tx_memory_pool::get_txpool_backlog
-      */
-     bool get_txpool_backlog(std::vector<tx_backlog_entry>& backlog) const;
-     
-     /**
-      * @copydoc tx_memory_pool::get_transactions
-      * @param include_unrelayed_txes include unrelayed txes in result
-      *
-      * @note see tx_memory_pool::get_transactions
-      */
-     bool get_pool_transaction_hashes(std::vector<crypto::hash>& txs, bool include_unrelayed_txes = true) const;
-
-     /**
-      * @copydoc tx_memory_pool::get_transactions
-      * @param include_unrelayed_txes include unrelayed txes in result
-      *
-      * @note see tx_memory_pool::get_transactions
-      */
-     bool get_pool_transaction_stats(struct txpool_stats& stats, bool include_unrelayed_txes = true) const;
-
-     /**
-      * @copydoc tx_memory_pool::get_transaction
-      *
-      * @note see tx_memory_pool::get_transaction
-      */
-     bool get_pool_transaction(const crypto::hash& id, cryptonote::blobdata& tx) const;
-
-     /**
-      * @copydoc tx_memory_pool::get_pool_transactions_and_spent_keys_info
-      * @param include_unrelayed_txes include unrelayed txes in result
-      *
-      * @note see tx_memory_pool::get_pool_transactions_and_spent_keys_info
-      */
-     bool get_pool_transactions_and_spent_keys_info(std::vector<tx_info>& tx_infos, std::vector<spent_key_image_info>& key_image_infos, bool include_unrelayed_txes = true) const;
-
-     /**
-      * @copydoc tx_memory_pool::get_pool_for_rpc
-      *
-      * @note see tx_memory_pool::get_pool_for_rpc
-      */
-     bool get_pool_for_rpc(std::vector<cryptonote::rpc::tx_in_pool>& tx_infos, cryptonote::rpc::key_images_with_tx_hashes& key_image_infos) const;
-
-     /**
-      * @copydoc tx_memory_pool::get_transactions_count
-      *
-      * @note see tx_memory_pool::get_transactions_count
-      */
-     size_t get_pool_transactions_count() const;
 
      /**
       * @copydoc Blockchain::get_total_transactions
@@ -634,12 +568,10 @@ namespace cryptonote
      /// @brief return a reference to the service node list
      service_nodes::service_node_list &get_service_node_list() { return m_service_node_list; }
 
-     /**
-      * @copydoc tx_memory_pool::print_pool
-      *
-      * @note see tx_memory_pool::print_pool
-      */
-     std::string print_pool(bool short_format) const;
+     /// @brief return a reference to the tx pool
+     const tx_memory_pool &get_pool() const { return m_mempool; }
+     /// @brief return a reference to the service node list
+     tx_memory_pool &get_pool() { return m_mempool; }
 
      /**
       * @copydoc miner::on_synchronized

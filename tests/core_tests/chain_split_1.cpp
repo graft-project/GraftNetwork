@@ -164,14 +164,14 @@ bool gen_simple_chain_split_1::generate(std::vector<test_event_entry> &events) c
 bool gen_simple_chain_split_1::check_mempool_2(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)
 {
   DEFINE_TESTS_ERROR_CONTEXT("gen_simple_chain_split_1::check_mempool_2");
-  CHECK_TEST_CONDITION(c.get_pool_transactions_count() == 2);
+  CHECK_TEST_CONDITION(c.get_pool().get_transactions_count() == 2);
   return true;
 }
 //-----------------------------------------------------------------------------------------------------
 bool gen_simple_chain_split_1::check_mempool_1(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)
 {
   DEFINE_TESTS_ERROR_CONTEXT("gen_simple_chain_split_1::check_mempool_1");
-  CHECK_TEST_CONDITION(c.get_pool_transactions_count() == 3);
+  CHECK_TEST_CONDITION(c.get_pool().get_transactions_count() == 3);
   return true;
 }
 //-----------------------------------------------------------------------------------------------------

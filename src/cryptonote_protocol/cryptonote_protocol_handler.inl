@@ -537,7 +537,7 @@ namespace cryptonote
           
           // we might already have the tx that the peer
           // sent in our pool, so don't verify again..
-          if(!m_core.pool_has_tx(tx_hash))
+          if(!m_core.get_pool().have_tx(tx_hash))
           {
             MDEBUG("Incoming tx " << tx_hash << " not in pool, adding");
             cryptonote::tx_verification_context tvc{};
@@ -595,7 +595,7 @@ namespace cryptonote
       for(auto& tx_hash: new_block.tx_hashes)
       {
         cryptonote::blobdata txblob;
-        if(m_core.get_pool_transaction(tx_hash, txblob))
+        if(m_core.get_pool().get_transaction(tx_hash, txblob))
         {
           have_tx.push_back(txblob);
         }

@@ -746,7 +746,7 @@ bool loki_core_test_deregister_preferred::generate(std::vector<test_event_entry>
   loki_register_callback(events, "check_prefer_deregisters", [&events, miner](cryptonote::core &c, size_t ev_index)
   {
     DEFINE_TESTS_ERROR_CONTEXT("check_prefer_deregisters");
-    const auto tx_count = c.get_pool_transactions_count();
+    const auto tx_count = c.get_pool().get_transactions_count();
     cryptonote::block full_blk;
     {
       cryptonote::difficulty_type diffic;
