@@ -445,7 +445,7 @@ struct output_index {
 
 typedef std::tuple<uint64_t, crypto::public_key, rct::key> get_outs_entry;
 typedef std::pair<crypto::hash, size_t> output_hasher;
-typedef boost::hash<output_hasher> output_hasher_hasher;
+struct output_hasher_hasher { size_t operator()(const output_hasher &h) const { return *reinterpret_cast<const size_t *>(h.first.data) + h.second; } };
 typedef std::map<uint64_t, std::vector<size_t> > map_output_t;
 typedef std::map<uint64_t, std::vector<output_index> > map_output_idx_t;
 typedef std::unordered_map<crypto::hash, cryptonote::block> map_block_t;
@@ -1375,7 +1375,7 @@ struct loki_chain_generator
   const loki_blockchain_entry&                         top() const { return blocks_.back(); }
   service_nodes::quorum_manager                        top_quorum() const;
   service_nodes::quorum_manager                        quorum(uint64_t height) const;
-  std::shared_ptr<const service_nodes::testing_quorum> get_testing_quorum(service_nodes::quorum_type type, uint64_t height) const;
+  std::shared_ptr<const service_nodes::quorum>         get_quorum(service_nodes::quorum_type type, uint64_t height) const;
 
   cryptonote::account_base                             add_account();
   loki_blockchain_entry                               &add_block(loki_blockchain_entry const &entry, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {});
