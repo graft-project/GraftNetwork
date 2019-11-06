@@ -557,7 +557,6 @@ namespace cryptonote
 
     // try the pool for any missing txes
     size_t found_in_pool = 0;
-    std::unordered_set<crypto::hash> pool_tx_hashes;
     std::unordered_map<crypto::hash, tx_info> per_tx_pool_tx_info;
     if (!missed_txs.empty())
     {
@@ -568,11 +567,11 @@ namespace cryptonote
       {
         // sort to match original request
         std::vector<std::tuple<crypto::hash, cryptonote::blobdata, crypto::hash, cryptonote::blobdata>> sorted_txs;
-        std::vector<tx_info>::const_iterator i;
         unsigned txs_processed = 0;
         for (const crypto::hash &h: vh)
         {
-          if (std::find(missed_txs.begin(), missed_txs.end(), h) == missed_txs.end())
+          auto missed_it = std::find(missed_txs.begin(), missed_txs.end(), h);
+          if (missed_it == missed_txs.end())
           {
             if (txs.size() == txs_processed)
             {
@@ -587,36 +586,30 @@ namespace cryptonote
             }
             sorted_txs.push_back(std::move(txs[txs_processed]));
             ++txs_processed;
+            continue;
           }
-          else if ((i = std::find_if(pool_tx_info.begin(), pool_tx_info.end(), [h](const tx_info &txi) { return epee::string_tools::pod_to_hex(h) == txi.id_hash; })) != pool_tx_info.end())
+          const std::string hash_string = epee::string_tools::pod_to_hex(h);
+          auto ptx_it = std::find_if(pool_tx_info.begin(), pool_tx_info.end(),
+              [&hash_string](const tx_info &txi) { return hash_string == txi.id_hash; });
+          if (ptx_it != pool_tx_info.end())
           {
             cryptonote::transaction tx;
-            if (!cryptonote::parse_and_validate_tx_from_blob(i->tx_blob, tx))
+            if (!cryptonote::parse_and_validate_tx_from_blob(ptx_it->tx_blob, tx))
             {
               res.status = "Failed to parse and validate tx from blob";
               return true;
             }
             std::stringstream ss;
             binary_archive<true> ba(ss);
-            bool r = const_cast<cryptonote::transaction&>(tx).serialize_base(ba);
-            if (!r)
+            if (!tx.serialize_base(ba))
             {
               res.status = "Failed to serialize transaction base";
               return true;
             }
             const cryptonote::blobdata pruned = ss.str();
-            sorted_txs.push_back(std::make_tuple(h, pruned, get_transaction_prunable_hash(tx), std::string(i->tx_blob, pruned.size())));
-            missed_txs.erase(std::find(missed_txs.begin(), missed_txs.end(), h));
-            pool_tx_hashes.insert(h);
-            const std::string hash_string = epee::string_tools::pod_to_hex(h);
-            for (const auto &ti: pool_tx_info)
-            {
-              if (ti.id_hash == hash_string)
-              {
-                per_tx_pool_tx_info.insert(std::make_pair(h, ti));
-                break;
-              }
-            }
+            sorted_txs.emplace_back(h, pruned, get_transaction_prunable_hash(tx), std::string(ptx_it->tx_blob, pruned.size()));
+            missed_txs.erase(missed_it);
+            per_tx_pool_tx_info.emplace(h, *ptx_it);
             ++found_in_pool;
           }
         }
@@ -629,7 +622,7 @@ namespace cryptonote
     std::vector<crypto::hash>::const_iterator vhi = vh.begin();
     for(auto& tx: txs)
     {
-      res.txs.push_back(COMMAND_RPC_GET_TRANSACTIONS::entry());
+      res.txs.emplace_back();
       COMMAND_RPC_GET_TRANSACTIONS::entry &e = res.txs.back();
 
       crypto::hash tx_hash = *vhi++;
@@ -695,22 +688,13 @@ namespace cryptonote
           }
         }
       }
-      e.in_pool = pool_tx_hashes.find(tx_hash) != pool_tx_hashes.end();
+      auto ptx_it = per_tx_pool_tx_info.find(tx_hash);
+      e.in_pool = ptx_it != per_tx_pool_tx_info.end();
       if (e.in_pool)
       {
         e.block_height = e.block_timestamp = std::numeric_limits<uint64_t>::max();
-        auto it = per_tx_pool_tx_info.find(tx_hash);
-        if (it != per_tx_pool_tx_info.end())
-        {
-          e.double_spend_seen = it->second.double_spend_seen;
-          e.relayed = it->second.relayed;
-        }
-        else
-        {
-          MERROR("Failed to determine pool info for " << tx_hash);
-          e.double_spend_seen = false;
-          e.relayed = false;
-        }
+        e.double_spend_seen = ptx_it->second.double_spend_seen;
+        e.relayed = ptx_it->second.relayed;
       }
       else
       {
@@ -726,7 +710,7 @@ namespace cryptonote
         res.txs_as_json.push_back(e.as_json);
 
       // output indices too if not in pool
-      if (pool_tx_hashes.find(tx_hash) == pool_tx_hashes.end())
+      if (!e.in_pool)
       {
         bool r = m_core.get_tx_outputs_gindexs(tx_hash, e.output_indices);
         if (!r)
