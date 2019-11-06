@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2019, The Monero Project
-// Copyright (c)      2018, The Loki Project
+// Copyright (c) 2018-2019, The Loki Project
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification, are
@@ -70,7 +70,6 @@ constexpr lmdb_version VERSION = lmdb_version::v5; // Increase when the DB struc
 namespace
 {
 
-#pragma pack(push, 1)
 // This MUST be identical to output_data_t, without the extra rct data at the end
 struct pre_rct_output_data_t
 {
@@ -78,7 +77,7 @@ struct pre_rct_output_data_t
   uint64_t           unlock_time;  //!< the output's unlock time (or height)
   uint64_t           height;       //!< the height of the block which created the output
 };
-#pragma pack(pop)
+static_assert(sizeof(pre_rct_output_data_t) == sizeof(crypto::public_key) + 2*sizeof(uint64_t), "pre_ct_output_data_t has unexpected padding");
 
 template <typename T>
 inline void throw0(const T &e)
@@ -323,14 +322,13 @@ typedef struct mdb_block_info_3
 
 typedef mdb_block_info_3 mdb_block_info;
 
-#pragma pack(push, 1)
 struct blk_checkpoint_header
 {
   uint64_t     height;
   crypto::hash block_hash;
   uint64_t     num_signatures;
 };
-#pragma pack(pop)
+static_assert(sizeof(blk_checkpoint_header) == 2*sizeof(uint64_t) + sizeof(crypto::hash), "blk_checkpoint_header has unexpected padding");
 
 typedef struct blk_height {
     crypto::hash bh_hash;
