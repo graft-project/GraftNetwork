@@ -130,23 +130,74 @@ namespace cryptonote
     bool add_tx(transaction &tx, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version);
 
     /**
-     * @brief attempts to add a blink transaction to the transaction pool and blink pool.  The
-     * transaction is set for relaying if it has the required blink signatures, and not relayed
-     * otherwise.
+     * @brief attempts to add a blink transaction to the transaction pool.
+     *
+     * This is only for use for new transactions that should not exist yet on the chain or mempool
+     * (and will fail if already does).  See `add_existing_blink` instead to add blink data about a
+     * transaction that already exists.  This is only meant to be called during the SN blink signing
+     * phase (and requires that the `tx` transaction be properly set to a full transaction);
+     * ordinary nodes receiving a blink tx from the network should be going through
+     * core.handle_incoming_blinks instead.
+     *
+     * Whether or not the transaction is added to the known blinks or marked for relaying depends on
+     * whether the passed-in transaction has an `.approved()` status: if it does, the transaction is
+     * set for relaying and added to the active blinks immediately; otherwise it is not added to the
+     * known blinks and will not be relayed.
+     *
+     * The transaction is *not* added to the known blinks or marked for relaying unless it is passed
+     * in with an `.approved()` status.
      *
      * @param blink - a shared_ptr to the blink details
      * @param tvc - the verification results
      * @param blink_exists - will be set to true if the addition fails because the blink tx already
      * exists
      *
-     * @return true if the tx passes validations and has been added to tx/blink pools
+     * @return true if the tx passes validations and has been added to the tx pool.
      */
-    bool add_blink(const std::shared_ptr<blink_tx> &blink, tx_verification_context& tvc, bool &blink_exists);
+    bool add_new_blink(const std::shared_ptr<blink_tx> &blink, tx_verification_context& tvc, bool &blink_exists);
 
     /**
-     * @brief accesses blink tx details if the given tx hash is a known blink tx, nullptr otherwise.
+     * @brief attempts to add blink transaction information about an existing blink transaction
+     *
+     * This method takes an approved blink_tx and records it in the known blinks data.  No check is
+     * done that the transaction actually exists on the blockchain or mempool.  It is assumed that
+     * the given shared_ptr is a new blink that is not yet shared between threads (and thus doesn't
+     * need locking): sharing is expected only after it is added to the blinks via this method.
+     *
+     * NB: this function assumes that the given blink tx is valid and approved but does *not* check
+     * it (except when compiling in debug mode).
+     *
+     * @param blink the blink_tx shared_ptr
+     * @param have_lock can be specified as true to avoid taking out a unique lock on the blinks
+     * data structure; it should only be specified if a unique lock on the blink data is already
+     * held externally, i.e. by obtaining a lock with `blink_unique_lock`.
+     *
+     * @return true if the blink data was recorded, false if the given tx was already known.
      */
-    std::shared_ptr<blink_tx> get_blink(const crypto::hash &tx_hash) const;
+    bool add_existing_blink(std::shared_ptr<blink_tx> blink, bool have_lock = false);
+
+    /**
+     * @brief accesses blink tx details if the given tx hash is a known, approved blink tx, nullptr
+     * otherwise.
+     *
+     * @param tx_hash the hash of the tx to access
+     * @param have_lock can be specified as true to avoid taking out a shared lock; it should only
+     * be specified if a shared lock on the blink data is already held externally.
+     */
+    std::shared_ptr<blink_tx> get_blink(const crypto::hash &tx_hash, bool have_lock = false) const;
+
+    /**
+     * Equivalent to `(bool) get_blink(...)`, but slightly more efficient when the blink information
+     * isn't actually needed beyond an existance test (as it avoids copying the shared_ptr).
+     */
+    bool has_blink(const crypto::hash &tx_hash, bool have_lock = false) const;
+
+    /**
+     * @brief takes a map of blink { height -> [tx_hashes] } and records any that we don't already
+     * know about (and are not before the immutable height) in the internal "m_want_blinks" to
+     * request from p2p peers.
+     */
+    void add_missing_blink_hashes(const std::map<uint64_t, std::vector<crypto::hash>> &potential);
 
     /**
      * @brief takes a transaction with the given hash from the pool
@@ -172,6 +223,16 @@ namespace cryptonote
      * @return true if the transaction is in the pool, otherwise false
      */
     bool have_tx(const crypto::hash &id) const;
+
+    /**
+     * @brief determines whether the given tx hashes are in the mempool
+     *
+     * @param hashes vector of tx hashes
+     *
+     * @return vector of the same size as `hashes` of true (1) or false (0) values.  (Not using
+     * std::vector<bool> because it is broken by design).
+     */
+    std::vector<uint8_t> have_txs(const std::vector<crypto::hash> &hashes) const;
 
     /**
      * @brief action to take when notified of a block added to the blockchain
@@ -209,6 +270,19 @@ namespace cryptonote
      * @brief unlocks the transaction pool
      */
     void unlock() const;
+
+    /**
+     * @brief obtains a unique lock on the approved blink tx pool
+     */
+    template <typename... Args>
+    auto blink_unique_lock(Args &&...args) const { return std::unique_lock<std::shared_timed_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
+
+    /**
+     * @brief obtains a shared lock on the approved blink tx pool
+     */
+    template <typename... Args>
+    auto blink_shared_lock(Args &&...args) const { return std::shared_lock<std::shared_timed_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
+
 
     // load/store operations
 
@@ -342,6 +416,16 @@ namespace cryptonote
      * @return true
      */
     bool get_relayable_transactions(std::vector<std::pair<crypto::hash, cryptonote::blobdata>>& txs) const;
+
+    /**
+     * @brief clear transactions' `do_not_relay` flags (if set) so that they can start being
+     * relayed.  (Note that it still must satisfy the other conditions of
+     * `get_relayable_transactions` to actually be relayable).
+     *
+     * @return the number of txes that were found with an active `do_not_relay` flag that was
+     * cleared.
+     */
+    int set_relayable(const std::vector<crypto::hash> &tx_hashes);
 
     /**
      * @brief tell the pool that certain transactions were just relayed
@@ -598,9 +682,15 @@ namespace cryptonote
     std::unordered_map<crypto::hash, transaction> m_parsed_tx_cache;
 
     mutable std::shared_timed_mutex m_blinks_mutex;
-    // { height => { txhash => blink_tx, ... }, ... }
+
+    // Contains blink metadata for approved blink transactions. { txhash => blink_tx, ... }.
     std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;
-    // TODO: clean up m_blinks once mined & immutably checkpointed
+
+    // Contains blink hashes that we don't have but have been told about by another node.  (The
+    // height is stored here for cleanup purposes).
+    std::unordered_map<crypto::hash, uint64_t> m_missing_blinks;
+
+    // TODO: clean up m_blinks and m_missing_blinks once mined & immutably checkpointed
   };
 }
 

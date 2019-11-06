@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2019, The Monero Project
-// Copyright (c)      2018, The Loki Project
+// Copyright (c) 2018-2019, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -8230,7 +8230,7 @@ void simple_wallet::wallet_idle_thread()
         uint64_t fetched_blocks;
         bool received_money;
         if (try_connect_to_daemon(true))
-          m_wallet->refresh(m_wallet->is_trusted_daemon(), 0, fetched_blocks, received_money, false); // don't check the pool in background mode
+          m_wallet->refresh(m_wallet->is_trusted_daemon(), 0, fetched_blocks, received_money);
       }
       catch(...) {}
       m_auto_refresh_refreshing = false;

@@ -173,10 +173,35 @@ namespace cryptonote
       * @param keeped_by_block if the transactions have been in a block
       * @param relayed whether or not the transactions were relayed to us
       * @param do_not_relay whether to prevent the transactions from being relayed
+      * @param blink_sigs the blink signature data that this tx arrived with, if any
       *
       * @return true if the transactions were accepted, false otherwise
       */
      bool handle_incoming_txs(const std::vector<blobdata>& tx_blobs, std::vector<tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
+
+     /**
+      * @brief handles received blink transaction signatures
+      *
+      * This takes a vector of blink transaction metadata (typically from a p2p peer), validates the
+      * signatures, and (if valid) records the blink status.  Blink transactions and signatures for
+      * those transactions that are already mined beyond the immutability checkpoint are ignored.
+      * Blink transactions that already have a set of valid signatures are similarly ignored (and
+      * not revalidated).
+      *
+      * NB: This method is *not* used for partially signed blink transactions during the signing
+      * process but rather only for valid, signed blinks.
+      *
+      * @param blinks vector of serializable_blink_metadata
+      * @param bad_blinks optional pointer to vector in which to store hashes of any blink tx that
+      * have invalid signature data (either invalid data, or a signature validation failure).
+      * @param missing_txs optional pointer to vector in which to store any txes that were not found
+      * on the blockchain or the mempool.
+      *
+      * @return true if there were no failures due to invalid signature data, false if there was one
+      * or more.  (Note that a true return does not indicate anything was added, and a false return
+      * does not indicate that nothing was added).
+      */
+     bool handle_incoming_blinks(const std::vector<serializable_blink_metadata> &blinks, std::vector<crypto::hash> *bad_blinks = nullptr, std::vector<crypto::hash> *missing_txs = nullptr);
 
      /**
       * @brief handles an incoming blink transaction by dispatching it to the service node network
@@ -262,9 +287,10 @@ namespace cryptonote
      virtual bool get_block_template(block& b, const crypto::hash *prev_block, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce);
 
      /**
-      * @brief called when a transaction is relayed
+      * @brief called when a transaction is relayed; return the hash of the parsed tx, or null_hash
+      * on parse failure.
       */
-     virtual void on_transaction_relayed(const cryptonote::blobdata& tx);
+     virtual crypto::hash on_transaction_relayed(const cryptonote::blobdata& tx);
 
      /**
       * @brief gets the miner instance
@@ -861,6 +887,13 @@ namespace cryptonote
      /// Time point at which the storage server and lokinet last pinged us
      std::atomic<time_t> m_last_storage_server_ping, m_last_lokinet_ping;
 
+     /**
+      * @brief attempts to relay any transactions in the mempool which need it
+      *
+      * @return true
+      */
+     bool relay_txpool_transactions();
+
    private:
 
      /**
@@ -977,13 +1010,6 @@ namespace cryptonote
       * @return true
       */
      bool check_fork_time();
-
-     /**
-      * @brief attempts to relay any transactions in the mempool which need it
-      *
-      * @return true
-      */
-     bool relay_txpool_transactions();
 
      /**
       * @brief checks DNS versions

@@ -1336,6 +1336,7 @@ static void print_pool(const std::vector<cryptonote::tx_info> &transactions, boo
       << "relayed: " << (tx_info.relayed ? boost::lexical_cast<std::string>(tx_info.last_relayed_time) + " (" + get_human_time_ago(tx_info.last_relayed_time, now) + ")" : "no") << "\n"
       << std::boolalpha
       << "do_not_relay: " << tx_info.do_not_relay << "\n"
+      << "blink: " << tx_info.blink << "\n"
       << "kept_by_block: " << tx_info.kept_by_block << "\n"
       << "double_spend_seen: " << tx_info.double_spend_seen << "\n"
       << std::noboolalpha

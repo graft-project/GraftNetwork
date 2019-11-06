@@ -470,6 +470,7 @@ namespace cryptonote
       uint64_t block_timestamp;             // Unix time at chich the block has been added to the blockchain.
       std::vector<uint64_t> output_indices; // List of transaction indexes.
       bool relayed;
+      bool blink;                           // True if this is an approved, blink transaction (only for in_pool transactions or txes in recent blocks)
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(tx_hash)
@@ -490,6 +491,7 @@ namespace cryptonote
         {
           KV_SERIALIZE(relayed)
         }
+        KV_SERIALIZE(blink)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -1457,6 +1459,7 @@ namespace cryptonote
     bool do_not_relay;                  // States if this transaction should not be relayed.
     bool double_spend_seen;             // States if this transaction has been seen as double spend.
     std::string tx_blob;                // Hexadecimal blob represnting the transaction.
+    bool blink;                         // True if this is a signed blink transaction
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(id_hash)

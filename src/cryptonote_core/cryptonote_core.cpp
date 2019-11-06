@@ -1235,13 +1235,127 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay)
   {
-    std::vector<cryptonote::blobdata> tx_blobs;
-    tx_blobs.push_back(tx_blob);
     std::vector<tx_verification_context> tvcv(1);
-    bool r = handle_incoming_txs(tx_blobs, tvcv, keeped_by_block, relayed, do_not_relay);
+    bool r = handle_incoming_txs({{tx_blob}}, tvcv, keeped_by_block, relayed, do_not_relay);
     tvc = tvcv[0];
     return r;
   }
+  //-----------------------------------------------------------------------------------------------
+  bool core::handle_incoming_blinks(const std::vector<serializable_blink_metadata> &blinks, std::vector<crypto::hash> *bad_blinks, std::vector<crypto::hash> *missing_txs)
+  {
+    std::vector<uint8_t> store_blink(blinks.size(), false);
+    size_t store_count = 0;
+    // Step 1: figure out which referenced transactions we have and want blink info for (i.e. mined
+    // but not immutable, or still in the mempool).
+    {
+      std::vector<crypto::hash> hashes;
+      hashes.reserve(blinks.size());
+      for (auto &bm : blinks)
+        hashes.emplace_back(bm.tx_hash);
+
+      // If we don't take out this mempool lock here, before the blockchain_storage, we can deadlock
+      // when we access the mempool later because it takes both locks in this order.  TODO: make this
+      // lock design stop sucking.
+      CRITICAL_REGION_LOCAL(m_mempool);
+      CRITICAL_REGION_LOCAL1(m_blockchain_storage);
+
+      auto tx_block_heights = m_blockchain_storage.get_transactions_heights(hashes);
+      auto immutable_height = m_blockchain_storage.get_immutable_height();
+      auto &db = m_blockchain_storage.get_db();
+      for (size_t i = 0; i < blinks.size(); i++) {
+        if (tx_block_heights[i])
+          store_blink[i] = tx_block_heights[i] > immutable_height;
+        else if (db.txpool_has_tx(hashes[i]))
+          store_blink[i] = true;
+        else if (missing_txs)
+          missing_txs->emplace_back(hashes[i]);
+
+        if (store_blink[i])
+          store_count++;
+      }
+    }
+
+    if (!store_count) return true;
+
+    // Step 2: filter out any transactions for which we already have a blink signature
+    {
+      auto mempool_lock = m_mempool.blink_shared_lock();
+      for (size_t i = 0; i < blinks.size(); i++)
+      {
+        if (store_blink[i] && m_mempool.get_blink(blinks[i].tx_hash, true /*have lock*/))
+        {
+          store_blink[i] = false; // Already have it, move along
+          store_count--;
+        }
+      }
+    }
+
+    if (!store_count) return true;
+
+    // Step 3: create new blink_tx objects for txes we want the blink signatures for, making sure
+    // that all the given signature data is valid and that signatures validate.  We can do all of
+    // this without a lock.
+    std::vector<std::shared_ptr<blink_tx>> new_blinks;
+    new_blinks.reserve(store_count);
+    std::unordered_map<uint64_t, std::shared_ptr<const service_nodes::quorum>> quorum_cache;
+    bool bad = false;
+    auto bad_blink = [&bad, bad_blinks](const crypto::hash &h, const char *what) {
+      MINFO("Invalid blink tx " << h << ": " << what);
+      bad = true;
+      if (bad_blinks) bad_blinks->push_back(h);
+    };
+    for (size_t i = 0; i < blinks.size(); i++)
+    {
+      if (!store_blink[i])
+        continue;
+      auto &bdata = blinks[i];
+      if (bdata.signature.size() != bdata.position.size() || bdata.signature.size() != bdata.quorum.size() ||
+          bdata.signature.size() < service_nodes::BLINK_MIN_VOTES * tools::enum_count<blink_tx::subquorum> ||
+          bdata.signature.size() > service_nodes::BLINK_SUBQUORUM_SIZE * tools::enum_count<blink_tx::subquorum> ||
+          blink_tx::quorum_height(bdata.height, blink_tx::subquorum::base) == 0 ||
+          !std::all_of(bdata.position.begin(), bdata.position.end(), [](const auto &p) { return p < service_nodes::BLINK_SUBQUORUM_SIZE; }) ||
+          !std::all_of(bdata.quorum.begin(), bdata.quorum.end(), [](const auto &qi) { return qi < tools::enum_count<blink_tx::subquorum>; })
+      ) {
+        bad_blink(bdata.tx_hash, "invalid signature data");
+        continue;
+      }
+
+      auto blink_ptr = std::make_shared<blink_tx>(bdata.height, bdata.tx_hash);
+      auto &blink = *blink_ptr;
+      std::array<const std::vector<crypto::public_key> *, tools::enum_count<blink_tx::subquorum>> validators;
+      for (uint8_t qi = 0; qi < tools::enum_count<blink_tx::subquorum>; qi++)
+      {
+        auto q_height = blink_tx::quorum_height(bdata.height, static_cast<blink_tx::subquorum>(qi));
+        auto &q = quorum_cache[q_height];
+        if (!q)
+          q = get_quorum(service_nodes::quorum_type::blink, q_height);
+        validators[qi] = &q->validators;
+      }
+
+      try {
+        for (size_t s = 0; s < bdata.signature.size(); s++)
+          blink.add_signature(static_cast<blink_tx::subquorum>(bdata.quorum[s]), bdata.position[s], true /*approved*/, bdata.signature[s],
+              validators[bdata.quorum[s]]->at(bdata.position[s]));
+      } catch (const std::exception &e) {
+        bad_blink(bdata.tx_hash, e.what());
+        continue;
+      }
+
+      new_blinks.push_back(std::move(blink_ptr));
+    }
+
+    // Finally lock the blink pool and add all the blink signature data.  It's possible that some
+    // other thread got through the above loop before us and already added some of those, but that's
+    // okay.
+    {
+      auto lock = m_mempool.blink_unique_lock();
+      for (auto &b : new_blinks)
+        m_mempool.add_existing_blink(std::move(b), true /*have lock*/);
+    }
+
+    return !bad;
+  }
+
   //-----------------------------------------------------------------------------------------------
   std::future<std::pair<blink_result, std::string>> core::handle_blink_tx(const std::string &tx_blob)
   {
@@ -1516,7 +1630,7 @@ namespace cryptonote
     return m_service_node_list.handle_uptime_proof(proof, my_uptime_proof_confirmation);
   }
   //-----------------------------------------------------------------------------------------------
-  void core::on_transaction_relayed(const cryptonote::blobdata& tx_blob)
+  crypto::hash core::on_transaction_relayed(const cryptonote::blobdata& tx_blob)
   {
     std::vector<std::pair<crypto::hash, cryptonote::blobdata>> txs;
     cryptonote::transaction tx;
@@ -1524,10 +1638,11 @@ namespace cryptonote
     if (!parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash))
     {
       LOG_ERROR("Failed to parse relayed transaction");
-      return;
+      return crypto::null_hash;
     }
     txs.push_back(std::make_pair(tx_hash, std::move(tx_blob)));
     m_mempool.set_relayed(txs);
+    return tx_hash;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::relay_service_node_votes()

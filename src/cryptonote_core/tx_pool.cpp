@@ -439,33 +439,72 @@ namespace cryptonote
     return add_tx(tx, h, bl, get_transaction_weight(tx, bl.size()), tvc, keeped_by_block, relayed, do_not_relay, version);
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::add_blink(const std::shared_ptr<blink_tx> &blink_ptr, tx_verification_context &tvc, bool &blink_exists)
+  bool tx_memory_pool::add_new_blink(const std::shared_ptr<blink_tx> &blink_ptr, tx_verification_context &tvc, bool &blink_exists)
   {
     assert((bool) blink_ptr);
-    std::unique_lock<std::shared_timed_mutex> lock(m_blinks_mutex);
+    auto lock = blink_unique_lock();
     CRITICAL_REGION_LOCAL(m_transactions_lock);
-    auto &tx = blink_ptr->tx;
+    auto &blink = *blink_ptr;
+    auto &tx = boost::get<transaction>(blink.tx); // will throw if just a hash w/o a transaction
     auto txhash = get_transaction_hash(tx);
-    auto &ptr = m_blinks[txhash];
-    blink_exists = (bool) ptr;
+
+    blink_exists = m_blinks.count(txhash);
     if (blink_exists)
       return false;
-    ptr = blink_ptr;
-    auto &blink = *ptr;
+
+    bool approved = blink.approved();
     auto hf_version = m_blockchain.get_ideal_hard_fork_version(blink.height);
-    bool ret = add_tx(tx, tvc, false /*kept_by_block*/, false /*relayed*/, true /*do_not_relay*/, hf_version);
-    if (!ret)
-      m_blinks.erase(txhash);
-    return ret;
+    bool do_not_relay = !approved; // Only relay signed blinks
+    bool result = add_tx(tx, tvc, false /*kept_by_block*/, false /*relayed*/, do_not_relay, hf_version);
+    if (result && approved)
+      m_blinks[txhash] = blink_ptr;
+    return result;
   }
   //---------------------------------------------------------------------------------
-  std::shared_ptr<blink_tx> tx_memory_pool::get_blink(const crypto::hash &tx_hash) const
+  bool tx_memory_pool::add_existing_blink(std::shared_ptr<blink_tx> blink_ptr, bool have_lock)
   {
-    std::shared_lock<std::shared_timed_mutex> lock(m_blinks_mutex);
+    assert(blink_ptr && blink_ptr->approved());
+    auto lock = have_lock ? blink_unique_lock(std::defer_lock) : blink_unique_lock();
+
+    auto &ptr = m_blinks[blink_ptr->get_txhash()];
+    if (ptr)
+      return false;
+
+    ptr = blink_ptr;
+    return true;
+  }
+  //---------------------------------------------------------------------------------
+  std::shared_ptr<blink_tx> tx_memory_pool::get_blink(const crypto::hash &tx_hash, bool have_lock) const
+  {
+    auto lock = have_lock ? blink_shared_lock(std::defer_lock) : blink_shared_lock();
     auto it = m_blinks.find(tx_hash);
     if (it != m_blinks.end())
         return it->second;
     return {};
+  }
+  //---------------------------------------------------------------------------------
+  bool tx_memory_pool::has_blink(const crypto::hash &tx_hash, bool have_lock) const
+  {
+    auto lock = have_lock ? blink_shared_lock(std::defer_lock) : blink_shared_lock();
+    return m_blinks.find(tx_hash) != m_blinks.end();
+  }
+  //---------------------------------------------------------------------------------
+  void tx_memory_pool::add_missing_blink_hashes(const std::map<uint64_t, std::vector<crypto::hash>> &from)
+  {
+    uint64_t immutable_height = m_blockchain.get_immutable_height();
+
+    std::unique_lock<std::shared_timed_mutex> lock(m_blinks_mutex);
+    for (const auto &h_txes : from) {
+      if (h_txes.first <= immutable_height)
+        continue;
+      for (const auto &hash : h_txes.second) {
+        if (!m_blinks.count(hash)) {
+          auto &h = m_missing_blinks[hash];
+          if (h_txes.first > h)
+            h = h_txes.first;
+        }
+      }
+    }
   }
   //---------------------------------------------------------------------------------
   size_t tx_memory_pool::get_txpool_weight() const
@@ -780,7 +819,7 @@ namespace cryptonote
     const uint64_t now = time(NULL);
     txs.reserve(m_blockchain.get_txpool_tx_count());
     m_blockchain.for_all_txpool_txes([this, now, &txs](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *){
-      if(!meta.do_not_relay && now - meta.last_relayed_time > get_relay_delay(now, meta.receive_time))
+      if(!meta.do_not_relay && (!meta.relayed || now - meta.last_relayed_time > get_relay_delay(now, meta.receive_time)))
       {
         // if the tx is older than half the max lifetime, we don't re-relay it, to avoid a problem
         // mentioned by smooth where nodes would flush txes at slightly different times, causing
@@ -827,22 +866,46 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------------------------
+  int tx_memory_pool::set_relayable(const std::vector<crypto::hash> &tx_hashes) {
+    int updated = 0;
+    CRITICAL_REGION_LOCAL(m_transactions_lock);
+    CRITICAL_REGION_LOCAL1(m_blockchain);
+    LockedTXN lock(m_blockchain);
+    for (auto &tx : tx_hashes)
+    {
+      try {
+        txpool_tx_meta_t meta;
+        if (m_blockchain.get_txpool_tx_meta(tx, meta) && meta.do_not_relay)
+        {
+          meta.do_not_relay = false;
+          m_blockchain.update_txpool_tx(tx, meta);
+          ++updated;
+        }
+      } catch (const std::exception &e) {
+        MERROR("Failed to upate txpool transaction metadata: " << e.what());
+      }
+    }
+    lock.commit();
+
+    return updated;
+  }
+  //---------------------------------------------------------------------------------
   void tx_memory_pool::set_relayed(const std::vector<std::pair<crypto::hash, cryptonote::blobdata>> &txs)
   {
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     CRITICAL_REGION_LOCAL1(m_blockchain);
     const time_t now = time(NULL);
     LockedTXN lock(m_blockchain);
-    for (auto it = txs.begin(); it != txs.end(); ++it)
+    for (auto &tx : txs)
     {
       try
       {
         txpool_tx_meta_t meta;
-        if (m_blockchain.get_txpool_tx_meta(it->first, meta))
+        if (m_blockchain.get_txpool_tx_meta(tx.first, meta))
         {
           meta.relayed = true;
           meta.last_relayed_time = now;
-          m_blockchain.update_txpool_tx(it->first, meta);
+          m_blockchain.update_txpool_tx(tx.first, meta);
         }
       }
       catch (const std::exception &e)
@@ -1217,12 +1280,22 @@ namespace cryptonote
     m_parsed_tx_cache.clear();
     return true;
   }
+  //------------------------------------------------------------------
+  std::vector<uint8_t> tx_memory_pool::have_txs(const std::vector<crypto::hash> &hashes) const
+  {
+    std::vector<uint8_t> result(hashes.size(), false);
+    CRITICAL_REGION_LOCAL(m_transactions_lock);
+    CRITICAL_REGION_LOCAL1(m_blockchain);
+    auto &db = m_blockchain.get_db();
+    for (size_t i = 0; i < hashes.size(); i++)
+      result[i] = db.txpool_has_tx(hashes[i]);
+
+    return result;
+  }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_tx(const crypto::hash &id) const
   {
-    CRITICAL_REGION_LOCAL(m_transactions_lock);
-    CRITICAL_REGION_LOCAL1(m_blockchain);
-    return m_blockchain.get_db().txpool_has_tx(id);
+    return have_txs({{id}})[0];
   }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_tx_keyimges_as_spent(const transaction& tx) const

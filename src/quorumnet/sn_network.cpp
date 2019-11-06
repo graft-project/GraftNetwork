@@ -438,7 +438,7 @@ void SNNetwork::worker_thread(std::string worker_id) {
             const bool &public_cmd = cmdit->second.second;
             if (!public_cmd && !msg.sn) {
                 // If they aren't valid, tell them so that they can disconnect (and attempt to reconnect later with appropriate authentication)
-                SN_LOG(warn, worker_id << " (of " << object_id << ") received quorum-only command from an non-SN authenticated remote; replying with a BYE");
+                SN_LOG(warn, worker_id << "/" << object_id << " received quorum-only command " << msg.command << " from an non-SN authenticated remote; replying with a BYE");
                 send(msg.pubkey, "BYE", send_option::incoming{});
                 detail::send_control(get_control_socket(), "DISCONNECT", {{"pubkey",msg.pubkey}});
                 continue;

@@ -52,10 +52,19 @@ public:
     /// transaction was created.
     const uint64_t height;
 
-    /// The encapsulated transaction.  Any modifications to this (including getting the tx_hash,
-    /// which gets cached!) should either take place before the object is shared, or protected by
-    /// the unique_lock.
-    transaction tx;
+    class tx_hash_visitor : public boost::static_visitor<crypto::hash> {
+    public:
+        crypto::hash operator()(const crypto::hash &h) const { return h; }
+        crypto::hash operator()(const transaction &tx) const;
+    };
+
+    /// The blink transaction *or* hash.  The transaction is present when building a blink tx for
+    /// blink quorum signing; for regular blink txes received via p2p this will contain the hash
+    /// instead.
+    boost::variant<transaction, crypto::hash> tx;
+
+    /// Returns the transaction hash
+    crypto::hash get_txhash() const { return boost::apply_visitor(tx_hash_visitor{}, tx); }
 
     class signature_verification_error : public std::runtime_error {
         using std::runtime_error::runtime_error;
@@ -64,13 +73,14 @@ public:
     // Not default constructible
     blink_tx() = delete;
 
-    /** Construct a new blink_tx from just a height; constructs a default transaction.
-    */
-    explicit blink_tx(uint64_t height) : tx{}, height{height} {
-        assert(quorum_height(subquorum::base) > 0);
-        for (auto &q : signatures_)
-            for (auto &s : q)
-                s.status = signature_status::none;
+    /// Construct a new blink_tx from just a height; constructs a default transaction.
+    explicit blink_tx(uint64_t height) : height{height} {
+        initialize();
+    }
+
+    /// Construct a new blink_tx from a height and a hash
+    explicit blink_tx(uint64_t height, const crypto::hash &txhash) : height{height}, tx{txhash} {
+        initialize();
     }
 
     /// Obtains a unique lock on this blink tx; required for any signature-mutating method unless
@@ -78,10 +88,31 @@ public:
     template <typename... Args>
     auto unique_lock(Args &&...args) { return std::unique_lock<std::shared_timed_mutex>{mutex_, std::forward<Args>(args)...}; }
 
-    /// Obtains a unique lock on this blink tx; required for any signature-dependent method unless
+    /// Obtains a shared lock on this blink tx; required for any signature-dependent method unless
     /// otherwise noted
     template <typename... Args>
     auto shared_lock(Args &&...args) { return std::shared_lock<std::shared_timed_mutex>{mutex_, std::forward<Args>(args)...}; }
+
+    /**
+     * Sets the maximum number of signatures for the given subquorum type, if the given size is less
+     * than the ideal subquorum size.  All signatures above the given count will be set to rejected.
+     * Throws a std::domain_error if the given signatures count is too large.
+     *
+     * This should only be called immediately after construction (thus not needing a lock) and only
+     * called (at most) once per subquorum.
+     *
+     * You can safely omit calling this if you only care about approvals; this only affects the
+     * result of `rejected()`.
+     */
+    void limit_signatures(subquorum q, size_t max_size);
+
+    /**
+     * Adds a signature for the given quorum and position given an already-obtained blink subquorum
+     * validator pubkey.  Returns true if the signature was accepted and stored, false if a
+     * signature was already present for the given quorum and position.  Throws a
+     * `blink_tx::signature_verification_error` if the signature fails validation.
+     */
+    bool add_signature(subquorum q, int position, bool approved, const crypto::signature &sig, const crypto::public_key &pubkey);
 
     /**
      * Adds a signature for the given quorum and position.  Returns false if a signature was already
@@ -105,15 +136,14 @@ public:
     /**
      * Returns true if this blink tx is valid for inclusion in the blockchain, that is, has the
      * required number of approval signatures in each quorum.  (Note that it is possible for a blink
-     * tx to be neither approved() nor rejected()).  You must hold a shared_lock when calling this.
+     * tx to be neither approved() nor rejected()).
      */
     bool approved() const;
 
     /**
      * Returns true if this blink tx has been definitively rejected, that is, has enough rejection
      * signatures in at least one of the quorums that it is impossible for it to become approved().
-     * (Note that it is possible for a blink tx to be neither approved() nor rejected()).  You must
-     * hold a shared_lock when calling this.
+     * (Note that it is possible for a blink tx to be neither approved() nor rejected()).
      */
     bool rejected() const;
 
@@ -142,7 +172,23 @@ public:
         crypto::signature sig;
     };
 
+    /**
+     * Fills the given blink serialization struct with the signature data.  This is designed to work
+     * directly with the components of a serializable_blink_metadata (but we don't want to have to
+     * link to cryptonote_protocol where that is defined).
+     *
+     * A shared lock should be held by the caller.
+     */
+    void fill_serialization_data(crypto::hash &tx_hash, uint64_t &height, std::vector<uint8_t> &quorum, std::vector<uint8_t> &position, std::vector<crypto::signature> &signature) const;
+
 private:
+    void initialize() {
+        assert(quorum_height(subquorum::base) > 0);
+        for (auto &q : signatures_)
+            for (auto &s : q)
+                s.status = signature_status::none;
+    }
+
     std::array<std::array<quorum_signature, service_nodes::BLINK_SUBQUORUM_SIZE>, tools::enum_count<subquorum>> signatures_;
     std::shared_timed_mutex mutex_;
 };

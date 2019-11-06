@@ -135,6 +135,21 @@ namespace cryptonote
     END_KV_SERIALIZE_MAP()
   };
 
+  struct serializable_blink_metadata {
+    crypto::hash tx_hash;
+    uint64_t height;
+    std::vector<uint8_t> quorum;
+    std::vector<uint8_t> position;
+    std::vector<crypto::signature> signature;
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE_VAL_POD_AS_BLOB_N(tx_hash, "#")
+      KV_SERIALIZE_N(height, "h")
+      KV_SERIALIZE_CONTAINER_POD_AS_BLOB_N(quorum, "q")
+      KV_SERIALIZE_CONTAINER_POD_AS_BLOB_N(position, "p")
+      KV_SERIALIZE_CONTAINER_POD_AS_BLOB_N(signature, "s")
+    END_KV_SERIALIZE_MAP()
+  };
+
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
@@ -144,11 +159,13 @@ namespace cryptonote
 
     struct request_t
     {
-      std::vector<blobdata>   txs;
+      std::vector<blobdata> txs;
+      std::vector<serializable_blink_metadata> blinks;
       std::string _; // padding
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(txs)
+        KV_SERIALIZE(blinks)
         KV_SERIALIZE(_)
       END_KV_SERIALIZE_MAP()
     };
@@ -183,13 +200,15 @@ namespace cryptonote
       std::vector<blobdata>              txs;
       std::vector<block_complete_entry>  blocks;
       std::vector<crypto::hash>          missed_ids;
-      uint64_t                         current_blockchain_height;
+      uint64_t                           current_blockchain_height;
+      std::vector<serializable_blink_metadata> blinks;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(txs)
         KV_SERIALIZE(blocks)
         KV_SERIALIZE_CONTAINER_POD_AS_BLOB(missed_ids)
         KV_SERIALIZE(current_blockchain_height)
+        KV_SERIALIZE(blinks)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
@@ -198,11 +217,21 @@ namespace cryptonote
 
   struct CORE_SYNC_DATA
   {
+    struct blink_sync_data {
+      uint64_t height;
+      std::vector<crypto::hash> hashes;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(height)
+        KV_SERIALIZE_CONTAINER_POD_AS_BLOB(hashes)
+      END_KV_SERIALIZE_MAP()
+    };
+
     uint64_t current_height;
     uint64_t cumulative_difficulty;
     crypto::hash  top_id;
     uint8_t top_version;
     uint32_t pruning_seed;
+    std::vector<blink_sync_data> blink_txs;
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(current_height)
@@ -210,6 +239,7 @@ namespace cryptonote
       KV_SERIALIZE_VAL_POD_AS_BLOB(top_id)
       KV_SERIALIZE_OPT(top_version, (uint8_t)0)
       KV_SERIALIZE_OPT(pruning_seed, (uint32_t)0)
+      KV_SERIALIZE(blink_txs)
     END_KV_SERIALIZE_MAP()
   };
 

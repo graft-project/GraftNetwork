@@ -721,6 +721,14 @@ namespace cryptonote
       }
     }
 
+    {
+      auto &pool = m_core.get_pool();
+      auto lock = pool.blink_shared_lock();
+      for (size_t i = 0; i < res.txs.size(); i++)
+        if (pool.has_blink(vh[i], true /*have lock*/))
+          res.txs[i].blink = true;
+    }
+
     for(const auto& miss_tx: missed_txs)
     {
       res.missed_tx.push_back(string_tools::pod_to_hex(miss_tx));

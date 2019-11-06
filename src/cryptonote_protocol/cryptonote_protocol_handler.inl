@@ -44,6 +44,7 @@
 #include "profile_tools.h"
 #include "net/network_throttle-detail.hpp"
 #include "common/pruning.h"
+#include "common/random.h"
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "net.cn"
@@ -296,7 +297,7 @@ namespace cryptonote
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
-  bool t_cryptonote_protocol_handler<t_core>::process_payload_sync_data(const CORE_SYNC_DATA& hshd, cryptonote_connection_context& context, bool is_inital)
+  bool t_cryptonote_protocol_handler<t_core>::process_payload_sync_data(CORE_SYNC_DATA&& hshd, cryptonote_connection_context& context, bool is_inital)
   {
     if(context.m_state == cryptonote_connection_context::state_before_handshake && !is_inital)
       return true;
@@ -335,6 +336,32 @@ namespace cryptonote
     context.m_pruning_seed = tools::make_pruning_seed(1 + (context.m_remote_address.as<epee::net_utils::ipv4_network_address>().ip()) % (1 << CRYPTONOTE_PRUNING_LOG_STRIPES), CRYPTONOTE_PRUNING_LOG_STRIPES);
     LOG_INFO_CC(context, "New connection posing as pruning seed " << epee::string_tools::to_string_hex(context.m_pruning_seed) << ", seed address " << &context.m_pruning_seed);
 #endif
+
+    // Check for any blink txes being advertised that we don't know about
+    {
+      // Do this in two passes: first pass just validates and quits on failure
+      uint64_t last_height = 0;
+      for (auto &b : hshd.blink_txs) {
+        if (b.height > last_height) {
+          last_height = b.height;
+        } else {
+          MWARNING(context << " peer sent blink tx heights out of order, which is not valid; disconnecting");
+          return false;
+        }
+
+        if (b.hashes.empty()) {
+          MWARNING(context << " peer sent invalid blink tx hash data, disconnecting");
+          return false;
+        }
+      }
+
+      // { height -> [hash, ...], ... }, extracted from the serialized [height, ...], [[hash, ...], ...] vector pair.
+      std::map<uint64_t, std::vector<crypto::hash>> blink_hashes;
+      for (auto &b : hshd.blink_txs)
+        blink_hashes.emplace_hint(blink_hashes.end(), b.height, std::move(b.hashes));
+
+      m_core.get_pool().add_missing_blink_hashes(blink_hashes);
+    }
 
     uint64_t target = m_core.get_target_blockchain_height();
     if (target == 0)
@@ -896,7 +923,7 @@ namespace cryptonote
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_notify_new_transactions(int command, NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& context)
   {
-    MLOG_P2P_MESSAGE("Received NOTIFY_NEW_TRANSACTIONS (" << arg.txs.size() << " txes)");
+    MLOG_P2P_MESSAGE("Received NOTIFY_NEW_TRANSACTIONS (" << arg.txs.size() << " txes w/ " << arg.blinks.size() << " blinks)");
     for (const auto &blob: arg.txs)
       MLOGIF_P2P_MESSAGE(cryptonote::transaction tx; crypto::hash hash; bool ret = cryptonote::parse_and_validate_tx_from_blob(blob, tx, hash);, ret, "Including transaction " << hash);
 
@@ -914,25 +941,30 @@ namespace cryptonote
 
     std::vector<cryptonote::blobdata> newtxs;
     newtxs.reserve(arg.txs.size());
+    std::vector<tx_verification_context> tvcs;
+    bool all_okay = m_core.handle_incoming_txs(arg.txs, tvcs, false /*kept by block*/, true /*relayed*/, false /*do not relay*/);
+
+    // If !all_okay we want to drop the connection, but we may still have added some incoming txs
+    // and so still need to finish handling/relaying them
     for (size_t i = 0; i < arg.txs.size(); ++i)
     {
-      cryptonote::tx_verification_context tvc{};
-      m_core.handle_incoming_tx(arg.txs[i], tvc, false, true, false);
-      if(tvc.m_verifivation_failed)
-      {
-        LOG_PRINT_CCONTEXT_L1("Tx verification failed, dropping connection");
-        drop_connection(context, false, false);
-        return 1;
-      }
-      if(tvc.m_should_be_relayed)
+      if (tvcs[i].m_should_be_relayed)
         newtxs.push_back(std::move(arg.txs[i]));
     }
     arg.txs = std::move(newtxs);
+
+    bool good_blinks = m_core.handle_incoming_blinks(arg.blinks);
 
     if(arg.txs.size())
     {
       //TODO: add announce usage here
       relay_transactions(arg, context);
+    }
+
+    if (!all_okay || !good_blinks)
+    {
+      LOG_PRINT_CCONTEXT_L1((!all_okay && !good_blinks ? "Tx and Blink" : !all_okay ? "Tx" : "Blink") << " verification(s) failed, dropping connection");
+      drop_connection(context, false, false);
     }
 
     return 1;
@@ -2245,11 +2277,34 @@ skip:
     if (hide_tx_broadcast)
       MDEBUG("Attempting to conceal origin of tx via anonymity network connection(s)");
 
-    // no check for success, so tell core they're relayed unconditionally
     const bool pad_transactions = m_core.pad_transactions() || hide_tx_broadcast;
-    for(auto tx_blob_it = arg.txs.begin(); tx_blob_it!=arg.txs.end(); ++tx_blob_it)
+
+    // no check for success, so tell core they're relayed unconditionally and snag a copy of the
+    // hash so that we can look up any associated blink data we should include.
+    std::vector<crypto::hash> relayed_txes;
+    relayed_txes.reserve(arg.txs.size());
+    for (auto &tx_blob : arg.txs)
+      relayed_txes.push_back(
+          m_core.on_transaction_relayed(tx_blob)
+      );
+
+    // Rebuild arg.blinks from blink data that we have because we don't necessarily have the same
+    // blink data that got sent to us (we may have additional blink info, or may have rejected some
+    // of the incoming blink data).
+    arg.blinks.clear();
     {
-      m_core.on_transaction_relayed(*tx_blob_it);
+      auto &pool = m_core.get_pool();
+      auto lock = pool.blink_shared_lock();
+      for (auto &hash : relayed_txes)
+      {
+        if (auto blink = pool.get_blink(hash))
+        {
+          arg.blinks.emplace_back();
+          auto &data = arg.blinks.back();
+          auto l = blink->shared_lock();
+          blink->fill_serialization_data(data.tx_hash, data.height, data.quorum, data.position, data.signature);
+        }
+      }
     }
 
     if (pad_transactions)
@@ -2266,7 +2321,7 @@ skip:
       const bool broadcast_to_peer =
         peer_id &&
         (hide_tx_broadcast != bool(current_zone == epee::net_utils::zone::public_)) &&
-	exclude_context.m_connection_id != context.m_connection_id;
+        exclude_context.m_connection_id != context.m_connection_id;
 
       if (broadcast_to_peer)
         connections.push_back({current_zone, context.m_connection_id});

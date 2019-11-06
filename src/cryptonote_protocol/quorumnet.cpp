@@ -615,12 +615,13 @@ std::string debug_known_signatures(blink_tx &btx, quorum_array &blink_quorums) {
 
 /// Processes blink signatures; called immediately upon receiving a signature if we know about the
 /// tx; otherwise signatures are stored until we learn about the tx and then processed.
-void process_blink_signatures(SNNWrapper &snw, blink_tx &btx, quorum_array &blink_quorums, uint64_t quorum_checksum, std::list<pending_signature> &&signatures,
+void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &btxptr, quorum_array &blink_quorums, uint64_t quorum_checksum, std::list<pending_signature> &&signatures,
         uint64_t reply_tag, // > 0 if we are expected to send a status update if it becomes accepted/rejected
         const std::string reply_pubkey, // who we are supposed to send the status update to
         const std::string &received_from = ""s /* x25519 of the peer that sent this, if available (to avoid trying to pointlessly relay back to them) */) {
 
-    bool already_approved = false, already_rejected = false;
+    auto &btx = *btxptr;
+
     // First check values and discard any signatures for positions we already have.
     {
         auto lock = btx.shared_lock(); // Don't take out a heavier unique lock until later when we are sure we need
@@ -644,9 +645,6 @@ void process_blink_signatures(SNNWrapper &snw, blink_tx &btx, quorum_array &blin
             }
             ++it;
         }
-
-        already_approved = btx.approved();
-        already_rejected = btx.rejected();
     }
     if (signatures.empty())
         return;
@@ -673,9 +671,12 @@ void process_blink_signatures(SNNWrapper &snw, blink_tx &btx, quorum_array &blin
     if (signatures.empty())
         return;
 
-    bool now_approved = already_approved, now_rejected = already_rejected;
+    bool became_approved = false, became_rejected = false;
     {
         auto lock = btx.unique_lock();
+
+        bool already_approved = btx.approved(),
+             already_rejected = !already_approved && btx.rejected();
 
         MTRACE("Before recording new signatures I have existing signatures: " << debug_known_signatures(btx, blink_quorums));
 
@@ -691,7 +692,7 @@ void process_blink_signatures(SNNWrapper &snw, blink_tx &btx, quorum_array &blin
             auto &validators = blink_quorums[qi]->validators;
 
             if (btx.add_prechecked_signature(subquorum, position, approval, signature)) {
-                MDEBUG("Validated and stored " << (approval ? "approval" : "rejection") << " signature for tx " << btx.tx.hash << ", subquorum " << int{qi} << ", position " << position);
+                MDEBUG("Validated and stored " << (approval ? "approval" : "rejection") << " signature for tx " << btx.get_txhash() << ", subquorum " << int{qi} << ", position " << position);
                 ++it;
             }
             else {
@@ -702,10 +703,24 @@ void process_blink_signatures(SNNWrapper &snw, blink_tx &btx, quorum_array &blin
         }
 
         if (!signatures.empty()) {
-            now_approved = btx.approved();
-            now_rejected = btx.rejected();
             MDEBUG("Updated signatures; now have signatures: " << debug_known_signatures(btx, blink_quorums));
+
+            if (!already_approved && !already_rejected) {
+                if (btx.approved()) {
+                    became_approved = true;
+                } else if (btx.rejected()) {
+                    became_rejected = true;
+                }
+            }
         }
+    }
+
+    if (became_approved) {
+        MINFO("Accumulated enough signatures for blink tx: enabling tx relay");
+        auto &pool = snw.core.get_pool();
+        pool.add_existing_blink(btxptr);
+        pool.set_relayable({{btx.get_txhash()}});
+        snw.core.relay_txpool_transactions();
     }
 
     if (signatures.empty())
@@ -735,7 +750,7 @@ void process_blink_signatures(SNNWrapper &snw, blink_tx &btx, quorum_array &blin
 
     bt_dict blink_sign_data{
         {"h", btx.height},
-        {"#", get_data_as_string(btx.tx.hash)},
+        {"#", get_data_as_string(btx.get_txhash())},
         {"q", quorum_checksum},
         {"i", std::move(i_list)},
         {"p", std::move(p_list)},
@@ -748,11 +763,11 @@ void process_blink_signatures(SNNWrapper &snw, blink_tx &btx, quorum_array &blin
     MTRACE("Done blink signature relay");
 
     if (reply_tag && !reply_pubkey.empty()) {
-        if (now_approved && !already_approved) {
-            MINFO("Blink tx is now approved; sending result back to originating node");
+        if (became_approved) {
+            MINFO("Blink tx became approved; sending result back to originating node");
             snw.snn.send(reply_pubkey, "bl_good", bt_dict{{"!", reply_tag}}, send_option::optional{});
-        } else if (now_rejected && !already_rejected) {
-            MINFO("Blink tx is now rejected; sending result back to originating node");
+        } else if (became_rejected) {
+            MINFO("Blink tx became rejected; sending result back to originating node");
             snw.snn.send(reply_pubkey, "bl_bad", bt_dict{{"!", reply_tag}}, send_option::optional{});
         }
     }
@@ -868,9 +883,6 @@ void handle_blink(SNNetwork::message &m, void *self) {
         return;
     }
 
-    auto btxptr = std::make_shared<blink_tx>(blink_height);
-    auto &btx = *btxptr;
-
     quorum_array blink_quorums;
     uint64_t checksum = get_int<uint64_t>(data.at("q"));
     try {
@@ -895,9 +907,17 @@ void handle_blink(SNNetwork::message &m, void *self) {
         return;
     }
 
+    auto btxptr = std::make_shared<blink_tx>(blink_height);
+    auto &btx = *btxptr;
+    auto &tx = boost::get<cryptonote::transaction>(btx.tx);
+    // If any quorums are too small set the extra spaces to rejected (this also checks that no
+    // quorums are too big).
+    for (size_t qi = 0; qi < blink_quorums.size(); qi++)
+        btx.limit_signatures(static_cast<blink_tx::subquorum>(qi), blink_quorums[qi]->validators.size());
+
     {
         crypto::hash tx_hash_actual;
-        if (!cryptonote::parse_and_validate_tx_from_blob(tx_data, btx.tx, tx_hash_actual)) {
+        if (!cryptonote::parse_and_validate_tx_from_blob(tx_data, tx, tx_hash_actual)) {
             MINFO("Rejecting blink tx: failed to parse transaction data");
             if (tag)
                 m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Failed to parse transaction data"}});
@@ -971,7 +991,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     // Check tx for validity
     bool already_in_mempool;
     cryptonote::tx_verification_context tvc = {};
-    bool approved = snw.core.get_pool().add_blink(btxptr, tvc, already_in_mempool);
+    bool approved = snw.core.get_pool().add_new_blink(btxptr, tvc, already_in_mempool);
 
     MINFO("Blink TX " << tx_hash << (approved ? " approved and added to mempool" : " rejected"));
     if (!approved)
@@ -990,7 +1010,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
         signatures.emplace_back(approved, qi, pinfo.my_position[qi], sig);
     }
 
-    process_blink_signatures(snw, btx, blink_quorums, checksum, std::move(signatures), tag, m.pubkey);
+    process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), tag, m.pubkey);
 }
 
 template <typename T, typename CopyValue>
@@ -1106,7 +1126,7 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
 
     auto blink_quorums = get_blink_quorums(blink_height, snw.core.get_service_node_list(), &checksum); // throws if bad quorum or checksum mismatch
 
-    uint64_t reply_tag;
+    uint64_t reply_tag = 0;
     std::string reply_pubkey;
     std::shared_ptr<blink_tx> btxptr;
     {
@@ -1133,11 +1153,10 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
         return;
     }
 
-    process_blink_signatures(snw, *btxptr, blink_quorums, checksum, std::move(signatures), reply_tag, reply_pubkey, m.pubkey);
+    process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), reply_tag, reply_pubkey, m.pubkey);
 }
 
 
-// tag -> {hash, promise, expiry}
 using blink_response = std::pair<cryptonote::blink_result, std::string>;
 struct blink_result_data {
     crypto::hash hash;
