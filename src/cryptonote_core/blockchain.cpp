@@ -2014,12 +2014,14 @@ bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NO
 
   for (auto& bl: blocks)
   {
+    auto &block_blob = bl.first;
+    auto &block = bl.second;
     std::vector<crypto::hash> missed_tx_ids;
 
     rsp.blocks.push_back(block_complete_entry());
-    block_complete_entry& e = rsp.blocks.back();
+    block_complete_entry& block_entry = rsp.blocks.back();
 
-    uint64_t const block_height  = get_block_height(bl.second);
+    uint64_t const block_height  = get_block_height(block);
     uint64_t checkpoint_interval = service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL;
     if (block_height >= earliest_height_to_sync_checkpoints_granularly)
       checkpoint_interval = service_nodes::CHECKPOINT_INTERVAL;
@@ -2030,7 +2032,7 @@ bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NO
       {
         checkpoint_t checkpoint;
         if (get_checkpoint(block_height, checkpoint))
-          e.checkpoint = t_serializable_object_to_blob(checkpoint);
+          block_entry.checkpoint = t_serializable_object_to_blob(checkpoint);
       }
       catch (const std::exception &e)
       {
@@ -2041,12 +2043,12 @@ bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NO
 
     // FIXME: s/rsp.missed_ids/missed_tx_id/ ?  Seems like rsp.missed_ids
     //        is for missed blocks, not missed transactions as well.
-    get_transactions_blobs(bl.second.tx_hashes, e.txs, missed_tx_ids);
+    get_transactions_blobs(block.tx_hashes, block_entry.txs, missed_tx_ids);
 
     if (missed_tx_ids.size() != 0)
     {
       LOG_ERROR("Error retrieving blocks, missed " << missed_tx_ids.size()
-          << " transactions for block with hash: " << get_block_hash(bl.second)
+          << " transactions for block with hash: " << get_block_hash(block)
           << std::endl
       );
 
@@ -2058,7 +2060,7 @@ bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NO
     }
 
     //pack block
-    e.block = std::move(bl.first);
+    block_entry.block = std::move(block_blob);
   }
   //get and pack other transactions, if needed
   get_transactions_blobs(arg.txs, rsp.txs, rsp.missed_ids);
