@@ -703,12 +703,10 @@ namespace cryptonote
      *
      * @return false if an unexpected exception occurs, else true
      */
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_transactions_blobs(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs, bool pruned = false) const;
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_split_transactions_blobs(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs) const;
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_transactions(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs) const;
+    bool get_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<blobdata>& txs, std::vector<crypto::hash>& missed_txs, bool pruned = false) const;
+    bool get_split_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<std::tuple<crypto::hash, cryptonote::blobdata, crypto::hash, cryptonote::blobdata>>& txs, std::vector<crypto::hash>& missed_txs) const;
+    bool get_transactions(const std::vector<crypto::hash>& txs_ids, std::vector<transaction>& txs, std::vector<crypto::hash>& missed_txs) const;
+
     /**
      * @brief looks up transactions based on a list of transaction hashes and returns the block
      * height in which they were mined, or 0 if not found on the blockchain.
@@ -993,9 +991,15 @@ namespace cryptonote
     
     uint64_t get_immutable_height() const;
 
-    void lock() const;
-    void unlock() const;
-    bool try_lock() const;
+
+    void lock();
+    void unlock();
+
+    void cancel();
+
+    /**
+     * @brief called when we see a tx originating from a block
+     *
 
     void lock();
     void unlock();
