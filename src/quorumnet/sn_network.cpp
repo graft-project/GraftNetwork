@@ -578,8 +578,6 @@ std::pair<zmq::socket_t *, std::string> SNNetwork::proxy_connect(bt_dict &&data)
     return proxy_connect(remote_pubkey, hint, optional, incoming, keep_alive);
 }
 
-constexpr std::chrono::milliseconds SNNetwork::default_send_keep_alive;
-
 // Extracts and builds the "send" part of a message for proxy_send/proxy_reply
 std::list<zmq::message_t> build_send_parts(bt_dict &data, const std::string &route) {
     std::list<zmq::message_t> parts;

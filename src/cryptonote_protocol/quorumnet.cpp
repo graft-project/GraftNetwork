@@ -104,7 +104,7 @@ crypto::x25519_public_key x25519_from_string(const std::string &pubkey) {
     return x25519_pub;
 }
 
-std::string get_connect_string(const service_node_list &sn_list, crypto::x25519_public_key x25519_pub) {
+std::string get_connect_string(const service_node_list &sn_list, const crypto::x25519_public_key &x25519_pub) {
     if (!x25519_pub) {
         MDEBUG("no connection available: pubkey is empty");
         return "";
