@@ -5766,7 +5766,7 @@ void wallet2::get_transfers(wallet2::transfer_container& incoming_transfers) con
 //------------------------------------------------------------------------------------------------------------------------------
 static void set_confirmations(transfer_view &entry, uint64_t blockchain_height, uint64_t block_reward)
 {
-  if (entry.height >= blockchain_height || (entry.height == 0 && ((entry.type != "pending") || (entry.type != "pool"))))
+  if (entry.height >= blockchain_height || (entry.height == 0 && (entry.type == "pending" || entry.type == "pool")))
     entry.confirmations = 0;
   else
     entry.confirmations = blockchain_height - entry.height;
