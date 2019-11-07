@@ -1364,7 +1364,7 @@ namespace cryptonote
       uint64_t tx_fee_amount = 0;
       for(const auto& tx: txs)
       {
-        tx_fee_amount += get_tx_fee(tx);
+        tx_fee_amount += get_tx_miner_fee(tx, b.major_version >= HF_VERSION_FEE_BURNING);
       }
       
       emission_amount += coinbase_amount - tx_fee_amount;

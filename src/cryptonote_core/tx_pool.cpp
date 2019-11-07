@@ -254,39 +254,12 @@ namespace cryptonote
       return false;
     }
 
-    // fee per kilobyte, size rounded up.
     uint64_t fee;
 
-    if (tx.version == txversion::v1)
+    if (!get_tx_miner_fee(tx, fee, version >= HF_VERSION_FEE_BURNING))
     {
-      uint64_t inputs_amount = 0;
-      if(!get_inputs_money_amount(tx, inputs_amount))
-      {
-        tvc.m_verifivation_failed = true;
-        return false;
-      }
-
-      uint64_t outputs_amount = get_outs_money_amount(tx);
-      if(outputs_amount > inputs_amount)
-      {
-        LOG_PRINT_L1("transaction use more money than it has: use " << print_money(outputs_amount) << ", have " << print_money(inputs_amount));
-        tvc.m_verifivation_failed = true;
-        tvc.m_overspend = true;
-        return false;
-      }
-      else if(outputs_amount == inputs_amount)
-      {
-        LOG_PRINT_L1("transaction fee is zero: outputs_amount == inputs_amount, rejecting.");
-        tvc.m_verifivation_failed = true;
-        tvc.m_fee_too_low = true;
-        return false;
-      }
-
-      fee = inputs_amount - outputs_amount;
-    }
-    else
-    {
-      fee = tx.rct_signatures.txnFee;
+      tvc.m_verifivation_failed = true;
+      tvc.m_fee_too_low = true;
     }
 
     if (!kept_by_block && tx.type == txtype::standard && !m_blockchain.check_fee(tx_weight, tx.vout.size(), fee))
@@ -1472,8 +1445,7 @@ namespace cryptonote
         continue;
       }
 
-      // start using the optimal filling algorithm from v5
-      if (version >= 5)
+      if (true /* version >= 5 -- always true for Loki */)
       {
         // If we're getting lower coinbase tx, stop including more tx
         block_reward_parts reward_parts_other = {};
@@ -1489,16 +1461,6 @@ namespace cryptonote
         {
           LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
           continue;
-        }
-      }
-      else
-      {
-        // If we've exceeded the penalty free weight,
-        // stop including more tx
-        if (total_weight > median_weight)
-        {
-          LOG_PRINT_L2("  would exceed median block weight");
-          break;
         }
       }
 

@@ -467,7 +467,8 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
                                         uint64_t timestamp,
                                         std::vector<uint64_t> &block_weights,
                                         const std::vector<cryptonote::transaction> &tx_list,
-                                        const service_nodes::block_winner &block_winner) const
+                                        const service_nodes::block_winner &block_winner,
+                                        uint64_t total_fee) const
 {
   assert(hf_version >= prev.block.major_version);
   uint64_t height        = get_block_height(prev.block) + 1;
@@ -478,17 +479,17 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
   blk.timestamp          = timestamp;
   blk.prev_id            = get_block_hash(prev.block);
 
-  uint64_t total_fee = 0;
+  bool calc_total_fee = total_fee == 0;
   size_t txs_weight  = 0;
   blk.tx_hashes.reserve(tx_list.size());
   for(const cryptonote::transaction &tx : tx_list)
   {
     blk.tx_hashes.push_back(get_transaction_hash(tx));
     uint64_t fee = 0;
-    bool r       = get_tx_fee(tx, fee);
+    bool r       = get_tx_miner_fee(tx, fee, blk.major_version >= HF_VERSION_FEE_BURNING);
     CHECK_AND_ASSERT_MES(r, false, "wrong transaction passed to construct_block");
-    total_fee   += fee;
     txs_weight  += get_transaction_weight(tx);
+    if (calc_total_fee) total_fee += fee;
   }
 
   // NOTE: Calculate governance
@@ -574,7 +575,7 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
   return true;
 }
 
-loki_blockchain_entry loki_chain_generator::create_next_block(const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint)
+loki_blockchain_entry loki_chain_generator::create_next_block(const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint, uint64_t total_fee)
 {
   loki_blockchain_entry result      = {};
   loki_blockchain_entry const &prev = top();
@@ -590,7 +591,8 @@ loki_blockchain_entry loki_chain_generator::create_next_block(const std::vector<
                  prev.block.timestamp + DIFFICULTY_TARGET_V2,
                  block_weights,
                  txs,
-                 winner);
+                 winner,
+                 total_fee);
     if (checkpoint)
     {
       result.checkpoint   = *checkpoint;
@@ -771,7 +773,7 @@ bool test_generator::construct_block(cryptonote::block &blk,
   for (auto& tx : tx_list)
   {
     uint64_t fee = 0;
-    bool r = get_tx_fee(tx, fee);
+    bool r = get_tx_miner_fee(tx, fee, blk.major_version >= HF_VERSION_FEE_BURNING);
     CHECK_AND_ASSERT_MES(r, false, "wrong transaction passed to construct_block");
     total_fee += fee;
     txs_weight += get_transaction_weight(tx);
