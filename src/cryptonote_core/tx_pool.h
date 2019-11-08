@@ -381,51 +381,6 @@ namespace cryptonote
      * @param bytes the max cumulative txpool weight in bytes
      */
     void set_txpool_max_weight(size_t bytes);
-
-#define CURRENT_MEMPOOL_ARCHIVE_VER    11
-#define CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER    13
-
-    /**
-     * @brief information about a single transaction
-     */
-    struct tx_details
-    {
-      transaction tx;  //!< the transaction
-      size_t blob_size;  //!< the transaction's size
-      size_t weight;  //!< the transaction's weight
-      uint64_t fee;  //!< the transaction's fee amount
-      crypto::hash max_used_block_id;  //!< the hash of the highest block referenced by an input
-      uint64_t max_used_block_height;  //!< the height of the highest block referenced by an input
-
-      //! whether or not the transaction has been in a block before
-      /*! if the transaction was returned to the pool from the blockchain
-       *  due to a reorg, then this will be true
-       */
-      bool kept_by_block;  
-
-      //! the highest block the transaction referenced when last checking it failed
-      /*! if verifying a transaction's inputs fails, it's possible this is due
-       *  to a reorg since it was created (if it used recently created outputs
-       *  as inputs).
-       */
-      uint64_t last_failed_height;  
-
-      //! the hash of the highest block the transaction referenced when last checking it failed
-      /*! if verifying a transaction's inputs fails, it's possible this is due
-       *  to a reorg since it was created (if it used recently created outputs
-       *  as inputs).
-       */
-      crypto::hash last_failed_id;
-
-      time_t receive_time;  //!< the time when the transaction entered the pool
-
-      time_t last_relayed_time;  //!< the last time the transaction was relayed to the network
-      bool relayed;  //!< whether or not the transaction has been relayed to the network
-      bool do_not_relay; //!< to avoid relay this transaction to the network
-
-      bool double_spend_seen; //!< true iff another tx was seen double spending this one
-    };
-
   private:
 
     /**
@@ -589,38 +544,3 @@ namespace cryptonote
     std::unordered_map<crypto::hash, transaction> m_parsed_tx_cache;
   };
 }
-
-namespace boost
-{
-  namespace serialization
-  {
-    template<class archive_t>
-    void serialize(archive_t & ar, cryptonote::tx_memory_pool::tx_details& td, const unsigned int version)
-    {
-      ar & td.blob_size;
-      ar & td.fee;
-      ar & td.tx;
-      ar & td.max_used_block_height;
-      ar & td.max_used_block_id;
-      ar & td.last_failed_height;
-      ar & td.last_failed_id;
-      ar & td.receive_time;
-      ar & td.last_relayed_time;
-      ar & td.relayed;
-      if (version < 11)
-        return;
-      ar & td.kept_by_block;
-      if (version < 12)
-        return;
-      ar & td.do_not_relay;
-      if (version < 13)
-        return;
-      ar & td.weight;
-    }
-  }
-}
-BOOST_CLASS_VERSION(cryptonote::tx_memory_pool, CURRENT_MEMPOOL_ARCHIVE_VER)
-BOOST_CLASS_VERSION(cryptonote::tx_memory_pool::tx_details, CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER)
-
-
-
