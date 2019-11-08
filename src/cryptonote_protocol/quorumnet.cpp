@@ -1129,29 +1129,44 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
     uint64_t reply_tag = 0;
     std::string reply_pubkey;
     std::shared_ptr<blink_tx> btxptr;
+    auto find_blink = [&]() {
+        auto height_it = snw.blinks.find(blink_height);
+        if (height_it == snw.blinks.end())
+            return;
+        auto &blinks_at_height = height_it->second;
+        auto it = blinks_at_height.find(tx_hash);
+        if (it == blinks_at_height.end())
+            return;
+        auto &b_meta = it->second;
+        btxptr = b_meta.btxptr;
+        reply_tag = b_meta.reply_tag;
+        reply_pubkey = b_meta.reply_pubkey;
+    };
+
     {
+        // Most of the time we'll already know about the blink and don't need a unique lock to
+        // extract info we need.  If we fail, we'll stash the signature to be processed when we get
+        // the blink tx itself.
         std::shared_lock<std::shared_timed_mutex> lock{snw.mutex};
-        auto bit = snw.blinks.find(blink_height);
-        if (bit != snw.blinks.end()) {
-            auto it = bit->second.find(tx_hash);
-            if (it != bit->second.end()) {
-                btxptr = it->second.btxptr;
-                reply_tag = it->second.reply_tag;
-                reply_pubkey = it->second.reply_pubkey;
-            }
+        find_blink();
+    }
+
+    if (!btxptr) {
+        std::unique_lock<std::shared_timed_mutex> lock{snw.mutex};
+        // We probably don't have it, so want to stash the signature until we received it.  There's
+        // a chance, however, that another thread processed it while we were waiting for this
+        // exclusive mutex, so check it again before we stash a delayed signature.
+        find_blink();
+        if (!btxptr) {
+            MINFO("Blink tx not found in local blink cache; delaying signature verification");
+            auto &delayed = snw.blinks[blink_height][tx_hash].pending_sigs;
+            for (auto &sig : signatures)
+                delayed.insert(std::move(sig));
+            return;
         }
     }
 
-    if (btxptr)
-        MINFO("Found blink tx in local blink cache");
-    else {
-        MINFO("Blink tx not found in local blink cache; delaying signature verification");
-        std::unique_lock<std::shared_timed_mutex> lock{snw.mutex};
-        auto &delayed = snw.blinks[blink_height][tx_hash].pending_sigs;
-        for (auto &sig : signatures)
-            delayed.insert(std::move(sig));
-        return;
-    }
+    MINFO("Found blink tx in local blink cache");
 
     process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), reply_tag, reply_pubkey, m.pubkey);
 }
