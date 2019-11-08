@@ -1204,13 +1204,13 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
         bool found = false;
         std::unique_lock<std::shared_timed_mutex> lock{pending_blink_result_mutex};
         for (auto it = pending_blink_results.begin(); it != pending_blink_results.end(); ) {
-            auto &brd = it->second;
-            if (brd.expiry >= now) {
-                try { brd.promise.set_value(std::make_pair(cryptonote::blink_result::timeout, "Blink quorum timeout")); }
+            auto &b_results = it->second;
+            if (b_results.expiry >= now) {
+                try { b_results.promise.set_value(std::make_pair(cryptonote::blink_result::timeout, "Blink quorum timeout")); }
                 catch (const std::future_error &) { /* ignore */ }
                 it = pending_blink_results.erase(it);
             } else {
-                if (!found && brd.hash == tx_hash)
+                if (!found && b_results.hash == tx_hash)
                     found = true;
                 ++it;
             }
