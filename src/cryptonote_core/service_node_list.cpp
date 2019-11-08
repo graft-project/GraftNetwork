@@ -1877,22 +1877,6 @@ namespace service_nodes
     return true;
   }
 
-  void service_node_list::get_all_service_nodes_public_keys(std::vector<crypto::public_key>& keys, bool require_active) const
-  {
-    keys.clear();
-    keys.reserve(m_state.service_nodes_infos.size());
-
-    if (require_active) {
-      for (const auto &key_info : m_state.service_nodes_infos)
-        if (key_info.second->is_active())
-          keys.push_back(key_info.first);
-    }
-    else {
-      for (const auto &key_info : m_state.service_nodes_infos)
-        keys.push_back(key_info.first);
-    }
-  }
-
   static crypto::hash hash_uptime_proof(const cryptonote::NOTIFY_UPTIME_PROOF::request &proof, uint8_t hf_version)
   {
     // NB: quorumnet_port isn't actually used or exposed yet; including it in the HF13 proof and

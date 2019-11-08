@@ -2727,22 +2727,6 @@ namespace cryptonote
     return false;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_get_all_service_nodes_keys(const COMMAND_RPC_GET_ALL_SERVICE_NODES_KEYS::request& req, COMMAND_RPC_GET_ALL_SERVICE_NODES_KEYS::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
-  {
-    std::vector<crypto::public_key> keys;
-    m_core.get_all_service_nodes_public_keys(keys, req.active_nodes_only);
-
-    res.keys.clear();
-    res.keys.resize(keys.size());
-    size_t i = 0;
-    for (const auto& key : keys)
-    {
-      std::string const hex64 = string_tools::pod_to_hex(key);
-      res.keys[i++]           = loki::hex64_to_base32z(hex64);
-    }
-    return true;
-  }
-  //------------------------------------------------------------------------------------------------------------------------------
   template<typename response>
   void core_rpc_server::fill_sn_response_entry(response &entry, const service_nodes::service_node_pubkey_info &sn_info, uint64_t current_height) {
 
@@ -2856,6 +2840,22 @@ namespace cryptonote
                                                epee::json_rpc::error&,
                                                const connection_context*)
   {
+    res.status = CORE_RPC_STATUS_OK;
+    const uint64_t height = m_core.get_current_blockchain_height();
+    res.height = height - 1;
+    res.target_height = m_core.get_target_blockchain_height();
+    res.block_hash = string_tools::pod_to_hex(m_core.get_block_id_by_height(res.height));
+    res.hardfork = m_core.get_hard_fork_version(res.height);
+
+    if (!req.if_block_not_equal.empty()) {
+      res.gave_if_not_equal = true;
+      if (req.if_block_not_equal == res.block_hash) {
+        res.unchanged = true;
+        res.fields = req.fields;
+        return true;
+      }
+    }
+
     std::vector<service_nodes::service_node_pubkey_info> sn_infos = m_core.get_service_node_list_state({});
 
     if (req.active_only) {
@@ -2880,7 +2880,6 @@ namespace cryptonote
 
     res.service_node_states.reserve(sn_infos.size());
 
-    const uint64_t height = m_core.get_current_blockchain_height();
 
     for (auto &pubkey_info : sn_infos) {
       COMMAND_RPC_GET_N_SERVICE_NODES::response::entry entry = {res.fields};
@@ -2889,12 +2888,6 @@ namespace cryptonote
 
       res.service_node_states.push_back(entry);
     }
-
-    res.status = CORE_RPC_STATUS_OK;
-    res.height = height - 1;
-    res.target_height = m_core.get_target_blockchain_height();
-    res.block_hash = string_tools::pod_to_hex(m_core.get_block_id_by_height(res.height));
-    res.hardfork = m_core.get_hard_fork_version(res.height);
 
     res.fields = req.fields;
     return true;
