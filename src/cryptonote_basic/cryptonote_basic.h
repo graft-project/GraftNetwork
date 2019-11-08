@@ -179,8 +179,8 @@ namespace cryptonote
     static char const *version_to_string(txversion v);
     static char const *type_to_string(txtype type);
 
-    static txversion get_min_version_for_hf(uint8_t hf_version, cryptonote::network_type nettype = MAINNET);
-    static txversion get_max_version_for_hf(uint8_t hf_version, cryptonote::network_type nettype = MAINNET);
+    static txversion get_min_version_for_hf(uint8_t hf_version, cryptonote::network_type nettype);
+    static txversion get_max_version_for_hf(uint8_t hf_version, cryptonote::network_type nettype);
 
     // tx information
     txversion version;
