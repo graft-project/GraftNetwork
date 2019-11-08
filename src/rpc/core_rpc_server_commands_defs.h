@@ -2630,7 +2630,7 @@ namespace cryptonote
   };
 
   LOKI_RPC_DOC_INTROSPECT
-  // Get the service node public key of the queried daemon. 
+  // Get the service node public keys of the queried daemon.
   // The daemon must be started in --service-node mode otherwise this RPC command will fail.
   struct COMMAND_RPC_GET_SERVICE_NODE_KEY
   {
@@ -2643,11 +2643,15 @@ namespace cryptonote
 
     struct response_t
     {
-      std::string service_node_pubkey; // The queried daemon's service node key.
-      std::string status;              // Generic RPC error code. "OK" is the success value.
+      std::string service_node_pubkey;         // The queried daemon's service node key.
+      std::string service_node_pubkey_ed25519; // The queried daemon's ed25519 auxiliary public key
+      std::string service_node_pubkey_x25519;  // The queried daemon's x25519 auxiliary public key
+      std::string status;                      // Generic RPC error code. "OK" is the success value.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(service_node_pubkey)
+        KV_SERIALIZE(service_node_pubkey_ed25519)
+        KV_SERIALIZE(service_node_pubkey_x25519)
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };

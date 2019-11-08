@@ -2718,6 +2718,8 @@ namespace cryptonote
     if (auto keys = m_core.get_service_node_keys())
     {
       res.service_node_pubkey = string_tools::pod_to_hex(keys->pub);
+      res.service_node_pubkey_ed25519 = string_tools::pod_to_hex(keys->pub_ed25519);
+      res.service_node_pubkey_x25519 = string_tools::pod_to_hex(keys->pub_x25519);
       res.status = CORE_RPC_STATUS_OK;
       return true;
     }
