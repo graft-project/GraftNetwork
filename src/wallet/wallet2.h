@@ -124,7 +124,7 @@ private:
   public:
     // Full wallet callbacks
     virtual void on_new_block(uint64_t height, const cryptonote::block& block) {}
-    virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index, uint64_t unlock_time) {}
+    virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index, uint64_t unlock_time, bool blink) {}
     virtual void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index) {}
     virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index) {}
     virtual void on_skip_transaction(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx) {}
@@ -258,6 +258,7 @@ private:
     uint64_t confirmations;                                    // Number of block mined since the block containing this transaction (or block height at which the transaction should be added to a block if not yet confirmed).
     uint64_t suggested_confirmations_threshold;                // Estimation of the confirmations needed for the transaction to be included in a block.
     uint64_t checkpointed;                                     // If transfer is backed by atleast 2 Service Node Checkpoints, 0 if it is not, see immutable_height in the daemon rpc call get_info
+    bool blink_mempool;                                        // True if this is an approved blink tx in the mempool
 
     // Not serialized, for internal wallet2 use
     tools::pay_type pay_type;                                  // Internal use only, not serialized
@@ -295,6 +296,7 @@ private:
       KV_SERIALIZE_OPT(confirmations, (uint64_t)0)
       KV_SERIALIZE_OPT(suggested_confirmations_threshold, (uint64_t)0)
       KV_SERIALIZE(checkpointed)
+      KV_SERIALIZE(blink_mempool)
     END_KV_SERIALIZE_MAP()
   };
 
@@ -403,6 +405,7 @@ private:
       uint64_t m_global_output_index;
       bool m_spent;
       bool m_frozen;
+      bool m_unmined_blink;
       uint64_t m_spent_height;
       crypto::key_image m_key_image; //TODO: key_image stored twice :(
       rct::key m_mask;
@@ -429,6 +432,7 @@ private:
         FIELD(m_global_output_index)
         FIELD(m_spent)
         FIELD(m_frozen)
+        FIELD(m_unmined_blink)
         FIELD(m_spent_height)
         FIELD(m_key_image)
         FIELD(m_mask)
@@ -455,6 +459,7 @@ private:
       uint64_t m_timestamp;
       pay_type m_type;
       cryptonote::subaddress_index m_subaddr_index;
+      bool m_unmined_blink;
 
       bool is_coinbase() const { return ((m_type == pay_type::miner) || (m_type == pay_type::service_node) || (m_type == pay_type::governance)); }
     };
@@ -1772,11 +1777,11 @@ private:
 
 }
 BOOST_CLASS_VERSION(tools::wallet2, 29)
-BOOST_CLASS_VERSION(tools::wallet2::transfer_details, 12)
+BOOST_CLASS_VERSION(tools::wallet2::transfer_details, 13)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_info, 1)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_info::LR, 0)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_tx_set, 1)
-BOOST_CLASS_VERSION(tools::wallet2::payment_details, 4)
+BOOST_CLASS_VERSION(tools::wallet2::payment_details, 5)
 BOOST_CLASS_VERSION(tools::wallet2::pool_payment_details, 1)
 BOOST_CLASS_VERSION(tools::wallet2::unconfirmed_transfer_details, 8)
 BOOST_CLASS_VERSION(tools::wallet2::confirmed_transfer_details, 7)
@@ -1837,6 +1842,10 @@ namespace boost
         if (ver < 12)
         {
           x.m_frozen = false;
+        }
+        if (ver < 13)
+        {
+          x.m_unmined_blink = false;
         }
     }
 
@@ -1937,6 +1946,12 @@ namespace boost
         return;
       }
       a & x.m_frozen;
+      if (ver < 13)
+      {
+        initialize_transfer_details(a, x, ver);
+        return;
+      }
+      a & x.m_unmined_blink;
     }
 
     template <class Archive>
@@ -2068,29 +2083,29 @@ namespace boost
       a & x.m_amount;
       a & x.m_block_height;
       a & x.m_unlock_time;
+
+      // Set defaults for old versions:
       if (ver < 1)
-        return;
-      a & x.m_timestamp;
+        x.m_timestamp = 0;
       if (ver < 2)
-      {
-        x.m_type = tools::pay_type::unspecified;
         x.m_subaddr_index = {};
-        return;
-      }
-      a & x.m_subaddr_index;
       if (ver < 3)
-      {
-        x.m_type = tools::pay_type::unspecified;
         x.m_fee = 0;
-        return;
-      }
-      a & x.m_fee;
       if (ver < 4)
-      {
         x.m_type = tools::pay_type::unspecified;
-        return;
-      }
+      if (ver < 5)
+        x.m_unmined_blink = false;
+
+      if (ver < 1) return;
+      a & x.m_timestamp;
+      if (ver < 2) return;
+      a & x.m_subaddr_index;
+      if (ver < 3) return;
+      a & x.m_fee;
+      if (ver < 4) return;
       a & x.m_type;
+      if (ver < 5) return;
+      a & x.m_unmined_blink;
     }
 
     template <class Archive>

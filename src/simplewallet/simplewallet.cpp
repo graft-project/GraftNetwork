@@ -4909,13 +4909,19 @@ void simple_wallet::on_new_block(uint64_t height, const cryptonote::block& block
     m_refresh_progress_reporter.update(height, false);
 }
 //----------------------------------------------------------------------------------------------------
-void simple_wallet::on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index, uint64_t unlock_time)
+void simple_wallet::on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index, uint64_t unlock_time, bool blink)
 {
-  message_writer(console_color_green, false) << "\r" <<
-    tr("Height ") << height << ", " <<
-    tr("txid ") << txid << ", " <<
-    print_money(amount) << ", " <<
-    tr("idx ") << subaddr_index;
+  {
+    auto m = message_writer(console_color_green, false);
+    m << "\r";
+    if (height == 0 && blink)
+      m << tr("Blink, ");
+    else
+      m << tr("Height ") << height << ", ";
+    m << tr("txid ") << txid << ", " <<
+      print_money(amount) << ", " <<
+      tr("idx ") << subaddr_index;
+  }
 
   const uint64_t warn_height = m_wallet->nettype() == TESTNET ? 1000000 : m_wallet->nettype() == STAGENET ? 50000 : 1650000;
   if (height >= warn_height)
@@ -7936,10 +7942,10 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
     auto formatter = boost::format("%8.8s %6.6s %8.8s %12.12s %16.16s %20.20s %s %s %14.14s %s %s - %s");
 
     message_writer(color, false) << formatter
-      % (transfer.type.size() ? transfer.type : std::to_string(transfer.height))
+      % (transfer.type.size() ? transfer.type : (transfer.height == 0 && transfer.blink_mempool) ? "blink" : std::to_string(transfer.height))
       % tools::pay_type_string(transfer.pay_type)
       % transfer.lock_msg
-      % (transfer.checkpointed ? "checkpointed" : "no")
+      % (transfer.checkpointed ? "checkpointed" : transfer.blink_mempool ? "blink" : "no")
       % tools::get_human_readable_timestamp(transfer.timestamp)
       % print_money(transfer.amount)
       % string_tools::pod_to_hex(transfer.hash)
@@ -9228,20 +9234,27 @@ bool simple_wallet::show_transfer(const std::vector<std::string> &args)
         payment_id = payment_id.substr(0,16);
       success_msg_writer() << "Incoming transaction found";
       success_msg_writer() << "txid: " << txid;
-      success_msg_writer() << "Height: " << pd.m_block_height;
+      if (pd.m_block_height == 0 && pd.m_unmined_blink)
+        success_msg_writer() << "Height: blink (not yet mined)";
+      else
+        success_msg_writer() << "Height: " << pd.m_block_height;
       success_msg_writer() << "Timestamp: " << tools::get_human_readable_timestamp(pd.m_timestamp);
       success_msg_writer() << "Amount: " << print_money(pd.m_amount);
       success_msg_writer() << "Payment ID: " << payment_id;
       if (pd.m_unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER)
       {
         uint64_t bh = std::max(pd.m_unlock_time, pd.m_block_height + CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE);
-        uint64_t last_block_reward = m_wallet->get_last_block_reward();
-        uint64_t suggested_threshold = last_block_reward ? (pd.m_amount + last_block_reward - 1) / last_block_reward : 0;
+        uint64_t suggested_threshold = 0;
+        if (!pd.m_unmined_blink)
+        {
+          uint64_t last_block_reward = m_wallet->get_last_block_reward();
+          suggested_threshold = last_block_reward ? (pd.m_amount + last_block_reward - 1) / last_block_reward : 0;
+        }
         if (bh >= last_block_height)
           success_msg_writer() << "Locked: " << (bh - last_block_height) << " blocks to unlock";
         else if (suggested_threshold > 0)
           success_msg_writer() << std::to_string(last_block_height - bh) << " confirmations (" << suggested_threshold << " suggested threshold)";
-        else
+        else if (!pd.m_unmined_blink)
           success_msg_writer() << std::to_string(last_block_height - bh) << " confirmations";
       }
       else
@@ -9253,7 +9266,7 @@ bool simple_wallet::show_transfer(const std::vector<std::string> &args)
         else
           success_msg_writer() << "locked for " << tools::get_human_readable_timespan(std::chrono::seconds(pd.m_unlock_time - threshold));
       }
-      success_msg_writer() << "Checkpointed: " << (pd.m_block_height <= m_wallet->get_immutable_height() ? "Yes" : "No");
+      success_msg_writer() << "Checkpointed: " << (pd.m_unmined_blink ? "Blink" : pd.m_block_height <= m_wallet->get_immutable_height() ? "Yes" : "No");
       success_msg_writer() << "Address index: " << pd.m_subaddr_index.minor;
       success_msg_writer() << "Note: " << m_wallet->get_tx_note(txid);
       return true;
