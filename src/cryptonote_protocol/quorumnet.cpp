@@ -1232,7 +1232,9 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
         }
     }
 
-    if (blink_tag > 0) {
+    if (!blink_tag) return future;
+
+    try {
         auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
         uint64_t height = snw.core.get_current_blockchain_height();
         uint64_t checksum;
@@ -1286,6 +1288,14 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
         for (size_t i : indices) {
             MINFO("Relaying blink tx to " << as_hex(remotes[i].first) << " @ " << remotes[i].second);
             snw.snn.send(remotes[i].first, "blink", data, send_option::hint{remotes[i].second});
+        }
+    } catch (...) {
+        std::unique_lock<std::shared_timed_mutex> lock{pending_blink_result_mutex};
+        auto it = pending_blink_results.find(blink_tag); // Look up again because `brd` might have been deleted
+        if (it != pending_blink_results.end()) {
+            try {
+                promise.set_exception(std::current_exception());
+            } catch (const std::future_error &) { /* ignore */ }
         }
     }
 

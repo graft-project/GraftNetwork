@@ -845,12 +845,17 @@ namespace cryptonote
         return true;
       }
 
-      auto result = future.get();
-      if (result.first == blink_result::accepted) {
-        res.status = CORE_RPC_STATUS_OK;
-      } else {
+      try {
+        auto result = future.get();
+        if (result.first == blink_result::accepted) {
+          res.status = CORE_RPC_STATUS_OK;
+        } else {
+          res.status = "Failed";
+          res.reason = !result.second.empty() ? result.second : result.first == blink_result::timeout ? "Blink quorum timeout" : "Transaction rejected by blink quorum";
+        }
+      } catch (const std::exception &e) {
         res.status = "Failed";
-        res.reason = !result.second.empty() ? result.second : result.first == blink_result::timeout ? "Blink quorum timeout" : "Transaction rejected by blink quorum";
+        res.reason = std::string{"Transaction failed: "} + e.what();
       }
       return true;
     }
