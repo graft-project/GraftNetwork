@@ -291,7 +291,7 @@ namespace rpc
     cryptonote_connection_context fake_context{};
     tx_verification_context tvc{};
 
-    if(!m_core.handle_incoming_tx(tx_blob, tvc, false, false, !relay) || tvc.m_verifivation_failed)
+    if(!m_core.handle_incoming_tx(tx_blob, tvc, tx_pool_options::new_tx(!relay)) || tvc.m_verifivation_failed)
     {
       if (tvc.m_verifivation_failed)
       {

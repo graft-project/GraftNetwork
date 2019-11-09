@@ -154,13 +154,11 @@ namespace cryptonote
       *
       * @param tx_blob the tx to handle
       * @param tvc metadata about the transaction's validity
-      * @param keeped_by_block if the transaction has been in a block
-      * @param relayed whether or not the transaction was relayed to us
-      * @param do_not_relay whether to prevent the transaction from being relayed
+      * @param opts tx pool options for accepting this tx
       *
       * @return true if the transaction was accepted, false otherwise
       */
-     bool handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
+     bool handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, const tx_pool_options &opts);
 
      /**
       * @brief handles a list of incoming transactions
@@ -170,14 +168,11 @@ namespace cryptonote
       *
       * @param tx_blobs the txs to handle
       * @param tvc metadata about the transactions' validity
-      * @param keeped_by_block if the transactions have been in a block
-      * @param relayed whether or not the transactions were relayed to us
-      * @param do_not_relay whether to prevent the transactions from being relayed
-      * @param blink_sigs the blink signature data that this tx arrived with, if any
+      * @param opts tx pool options for accepting this tx
       *
       * @return true if the transactions were accepted, false otherwise
       */
-     bool handle_incoming_txs(const std::vector<blobdata>& tx_blobs, std::vector<tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
+     bool handle_incoming_txs(const std::vector<blobdata>& tx_blobs, std::vector<tx_verification_context>& tvc, const tx_pool_options &opts);
 
      /**
       * @brief handles received blink transaction signatures
@@ -897,33 +892,17 @@ namespace cryptonote
    private:
 
      /**
-      * @copydoc add_new_tx(transaction&, tx_verification_context&, bool)
+      * @copydoc add_new_tx(transaction&, tx_verification_context&, const tx_pool_options&)
       *
+      * @param tx the transaction to add
       * @param tx_hash the transaction's hash
       * @param blob the transaction as a blob
       * @param tx_weight the weight of the transaction
-      * @param relayed whether or not the transaction was relayed to us
-      * @param do_not_relay whether to prevent the transaction from being relayed
-      *
-      */
-     bool add_new_tx(transaction& tx, const crypto::hash& tx_hash, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
-
-     /**
-      * @brief add a new transaction to the transaction pool
-      *
-      * Adds a new transaction to the transaction pool.
-      *
-      * @param tx the transaction to add
       * @param tvc return-by-reference metadata about the transaction's verification process
-      * @param keeped_by_block whether or not the transaction has been in a block
-      * @param relayed whether or not the transaction was relayed to us
-      * @param do_not_relay whether to prevent the transaction from being relayed
+      * @param opts the options for how to add this tx to the pool
       *
-      * @return true if the transaction is already in the transaction pool,
-      * is already in a block on the Blockchain, or is successfully added
-      * to the transaction pool
       */
-     bool add_new_tx(transaction& tx, tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
+     bool add_new_tx(transaction& tx, const crypto::hash& tx_hash, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options& opts);
 
      /**
       * @copydoc Blockchain::add_new_block
@@ -951,16 +930,16 @@ namespace cryptonote
       *                   each input has a different key image.
       *
       * @param tx the transaction to check
-      * @param keeped_by_block if the transaction has been in a block
+      * @param kept_by_block if the transaction has been in a block
       *
       * @return true if all the checks pass, otherwise false
       */
-     bool check_tx_semantic(const transaction& tx, bool keeped_by_block) const;
+     bool check_tx_semantic(const transaction& tx, bool kept_by_block) const;
      void set_semantics_failed(const crypto::hash &tx_hash);
 
-     bool handle_incoming_tx_pre(const blobdata& tx_blob, tx_verification_context& tvc, cryptonote::transaction &tx, crypto::hash &tx_hash, bool keeped_by_block, bool relayed, bool do_not_relay);
+     bool handle_incoming_tx_pre(const blobdata& tx_blob, tx_verification_context& tvc, cryptonote::transaction &tx, crypto::hash &tx_hash, const tx_pool_options &opts);
      struct tx_verification_batch_info { const cryptonote::transaction *tx; crypto::hash tx_hash; tx_verification_context &tvc; bool &result; };
-     bool handle_incoming_tx_accumulated_batch(std::vector<tx_verification_batch_info> &tx_info, bool keeped_by_block);
+     bool handle_incoming_tx_accumulated_batch(std::vector<tx_verification_batch_info> &tx_info, bool kept_by_block);
 
      /**
       * @brief act on a set of command line options given

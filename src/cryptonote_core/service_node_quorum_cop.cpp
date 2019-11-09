@@ -540,7 +540,7 @@ namespace service_nodes
             cryptonote::tx_verification_context tvc = {};
             cryptonote::blobdata const tx_blob      = cryptonote::tx_to_blob(state_change_tx);
 
-            result &= m_core.handle_incoming_tx(tx_blob, tvc, false /*keeped_by_block*/, false /*relayed*/, false /*do_not_relay*/);
+            result &= m_core.handle_incoming_tx(tx_blob, tvc, cryptonote::tx_pool_options::new_tx());
             if (!result || tvc.m_verifivation_failed)
             {
               LOG_PRINT_L1("A full state change tx for height: " << vote.block_height <<

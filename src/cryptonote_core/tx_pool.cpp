@@ -233,7 +233,7 @@ namespace cryptonote
   // to set `do_not_relay` to false and starts relaying it (other quorum members do the same).
 
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::add_tx(transaction &tx, /*const crypto::hash& tx_prefix_hash,*/ const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version)
+  bool tx_memory_pool::add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version)
   {
     // this should already be called with that lock, but let's make it explicit for clarity
     CRITICAL_REGION_LOCAL(m_transactions_lock);
@@ -249,7 +249,7 @@ namespace cryptonote
 
     // we do not accept transactions that timed out before, unless they're
     // kept_by_block
-    if (!kept_by_block && m_timed_out_transactions.find(id) != m_timed_out_transactions.end())
+    if (!opts.kept_by_block && m_timed_out_transactions.find(id) != m_timed_out_transactions.end())
     {
       // not clear if we should set that, since verifivation (sic) did not fail before, since
       // the tx was accepted before timing out.
@@ -264,23 +264,24 @@ namespace cryptonote
       return false;
     }
 
-    uint64_t fee;
+    uint64_t fee, burned;
 
-    if (!get_tx_miner_fee(tx, fee, version >= HF_VERSION_FEE_BURNING))
+    if (!get_tx_miner_fee(tx, fee, hf_version >= HF_VERSION_FEE_BURNING, &burned))
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
     }
 
-    if (!kept_by_block && tx.type == txtype::standard && !m_blockchain.check_fee(tx_weight, tx.vout.size(), fee))
+    if (!opts.kept_by_block && tx.type == txtype::standard &&
+        !m_blockchain.check_fee(tx_weight, tx.vout.size(), fee, burned, opts))
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
       return false;
     }
 
-    size_t tx_weight_limit = get_transaction_weight_limit(version);
-    if ((!kept_by_block || version >= HF_VERSION_PER_BYTE_FEE) && tx_weight > tx_weight_limit)
+    size_t tx_weight_limit = get_transaction_weight_limit(hf_version);
+    if ((!opts.kept_by_block || hf_version >= HF_VERSION_PER_BYTE_FEE) && tx_weight > tx_weight_limit)
     {
       LOG_PRINT_L1("transaction is too heavy: " << tx_weight << " bytes, maximum weight: " << tx_weight_limit);
       tvc.m_verifivation_failed = true;
@@ -291,7 +292,7 @@ namespace cryptonote
     // if the transaction came from a block popped from the chain,
     // don't check if we have its key images as spent.
     // TODO: Investigate why not?
-    if(!kept_by_block)
+    if(!opts.kept_by_block)
     {
       if(have_tx_keyimges_as_spent(tx))
       {
@@ -301,7 +302,7 @@ namespace cryptonote
         tvc.m_double_spend = true;
         return false;
       }
-      if (have_duplicated_non_standard_tx(tx, version))
+      if (have_duplicated_non_standard_tx(tx, hf_version))
       {
         mark_double_spend(tx);
         LOG_PRINT_L1("Transaction with id= "<< id << " already has a duplicate tx for height");
@@ -327,13 +328,13 @@ namespace cryptonote
     crypto::hash max_used_block_id = null_hash;
     uint64_t max_used_block_height = 0;
     cryptonote::txpool_tx_meta_t meta;
-    bool ch_inp_res = check_tx_inputs([&tx]()->cryptonote::transaction&{ return tx; }, id, max_used_block_height, max_used_block_id, tvc, kept_by_block);
+    bool ch_inp_res = check_tx_inputs([&tx]()->cryptonote::transaction&{ return tx; }, id, max_used_block_height, max_used_block_id, tvc, opts.kept_by_block);
     const bool non_standard_tx = (tx.type != txtype::standard);
     if(!ch_inp_res)
     {
       // if the transaction was valid before (kept_by_block), then it
       // may become valid again, so ignore the failed inputs check.
-      if(kept_by_block)
+      if(opts.kept_by_block)
       {
         meta.weight = tx_weight;
         meta.fee = fee;
@@ -341,12 +342,12 @@ namespace cryptonote
         meta.max_used_block_height = 0;
         meta.last_failed_height = 0;
         meta.last_failed_id = null_hash;
-        meta.kept_by_block = kept_by_block;
+        meta.kept_by_block = opts.kept_by_block;
         meta.receive_time = receive_time;
         meta.last_relayed_time = time(NULL);
-        meta.relayed = relayed;
-        meta.do_not_relay = do_not_relay;
-        meta.double_spend_seen = (have_tx_keyimges_as_spent(tx) || have_duplicated_non_standard_tx(tx, version));
+        meta.relayed = opts.relayed;
+        meta.do_not_relay = opts.do_not_relay;
+        meta.double_spend_seen = (have_tx_keyimges_as_spent(tx) || have_duplicated_non_standard_tx(tx, hf_version));
         meta.bf_padding = 0;
         memset(meta.padding, 0, sizeof(meta.padding));
         try
@@ -355,7 +356,7 @@ namespace cryptonote
           CRITICAL_REGION_LOCAL1(m_blockchain);
           LockedTXN lock(m_blockchain);
           m_blockchain.add_txpool_tx(id, blob, meta);
-          if (!insert_key_images(tx, id, kept_by_block))
+          if (!insert_key_images(tx, id, opts.kept_by_block))
             return false;
           m_txs_by_fee_and_receive_time.emplace(std::tuple<bool, double, std::time_t>(non_standard_tx, fee / (double)tx_weight, receive_time), id);
           lock.commit();
@@ -378,7 +379,7 @@ namespace cryptonote
     {
       //update transactions container
       meta.weight = tx_weight;
-      meta.kept_by_block = kept_by_block;
+      meta.kept_by_block = opts.kept_by_block;
       meta.fee = fee;
       meta.max_used_block_id = max_used_block_id;
       meta.max_used_block_height = max_used_block_height;
@@ -386,21 +387,21 @@ namespace cryptonote
       meta.last_failed_id = null_hash;
       meta.receive_time = receive_time;
       meta.last_relayed_time = time(NULL);
-      meta.relayed = relayed;
-      meta.do_not_relay = do_not_relay;
+      meta.relayed = opts.relayed;
+      meta.do_not_relay = opts.do_not_relay;
       meta.double_spend_seen = false;
       meta.bf_padding = 0;
       memset(meta.padding, 0, sizeof(meta.padding));
 
       try
       {
-        if (kept_by_block)
+        if (opts.kept_by_block)
           m_parsed_tx_cache.insert(std::make_pair(id, tx));
         CRITICAL_REGION_LOCAL1(m_blockchain);
         LockedTXN lock(m_blockchain);
         m_blockchain.remove_txpool_tx(id);
         m_blockchain.add_txpool_tx(id, blob, meta);
-        if (!insert_key_images(tx, id, kept_by_block))
+        if (!insert_key_images(tx, id, opts.kept_by_block))
           return false;
         m_txs_by_fee_and_receive_time.emplace(std::tuple<bool, double, std::time_t>(non_standard_tx, fee / (double)tx_weight, receive_time), id);
         lock.commit();
@@ -412,7 +413,7 @@ namespace cryptonote
       }
       tvc.m_added_to_pool = true;
 
-      if((meta.fee > 0 || non_standard_tx) && !do_not_relay)
+      if((meta.fee > 0 || non_standard_tx) && !opts.do_not_relay)
         tvc.m_should_be_relayed = true;
     }
 
@@ -428,7 +429,7 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::add_tx(transaction &tx, tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay, uint8_t version)
+  bool tx_memory_pool::add_tx(transaction &tx, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t version)
   {
     crypto::hash h = null_hash;
     size_t blob_size = 0;
@@ -436,7 +437,7 @@ namespace cryptonote
     t_serializable_object_to_blob(tx, bl);
     if (bl.size() == 0 || !get_transaction_hash(tx, h))
       return false;
-    return add_tx(tx, h, bl, get_transaction_weight(tx, bl.size()), tvc, keeped_by_block, relayed, do_not_relay, version);
+    return add_tx(tx, h, bl, get_transaction_weight(tx, bl.size()), tvc, opts, version);
   }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::add_new_blink(const std::shared_ptr<blink_tx> &blink_ptr, tx_verification_context &tvc, bool &blink_exists)
@@ -454,8 +455,7 @@ namespace cryptonote
 
     bool approved = blink.approved();
     auto hf_version = m_blockchain.get_ideal_hard_fork_version(blink.height);
-    bool do_not_relay = !approved; // Only relay signed blinks
-    bool result = add_tx(tx, tvc, false /*kept_by_block*/, false /*relayed*/, do_not_relay, hf_version);
+    bool result = add_tx(tx, tvc, tx_pool_options::new_blink(approved), hf_version);
     if (result && approved)
       m_blinks[txhash] = blink_ptr;
     return result;

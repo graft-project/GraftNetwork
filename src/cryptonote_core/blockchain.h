@@ -71,6 +71,7 @@ namespace cryptonote
   };
 
   class tx_memory_pool;
+  struct tx_pool_options;
   struct test_options;
 
   /** Declares ways in which the BlockchainDB backend should be told to sync
@@ -626,11 +627,14 @@ namespace cryptonote
      *
      * @param tx_weight the transaction weight
      * @param tx_outs the number of outputs created in the transaction
-     * @param fee the fee
+     * @param fee the miner tx fee (any burned component must already be removed, such as is done by
+     * get_tx_miner_fee)
+     * @param burned the amount of coin burned in this tx
+     * @param opts transaction pool options used to pass through required fee/burn amounts
      *
      * @return true if the fee is enough, false otherwise
      */
-    bool check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee) const;
+    bool check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee, uint64_t burned, const tx_pool_options &opts) const;
 
     /**
      * @brief check that a transaction's outputs conform to current standards

@@ -276,10 +276,10 @@ void do_prepare_file_names(const std::string& file_path, std::string& keys_file,
   mms_file = file_path + ".mms";
 }
 
-uint64_t calculate_fee_from_weight(byte_and_output_fees base_fees, uint64_t weight, uint64_t outputs, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
+uint64_t calculate_fee_from_weight(byte_and_output_fees base_fees, uint64_t weight, uint64_t outputs, uint64_t fee_percent, uint64_t fee_fixed, uint64_t fee_quantization_mask)
 {
-  uint64_t fee = (weight * base_fees.first + outputs * base_fees.second) * fee_multiplier;
-  fee = (fee + fee_quantization_mask - 1) / fee_quantization_mask * fee_quantization_mask;
+  uint64_t fee = (weight * base_fees.first + outputs * base_fees.second) * fee_percent / 100;
+  fee = (fee + fee_quantization_mask - 1) / fee_quantization_mask * fee_quantization_mask + fee_fixed;
   return fee;
 }
 
@@ -819,15 +819,15 @@ uint64_t estimate_tx_weight(int n_inputs, int mixin, int n_outputs, size_t extra
   return size;
 }
 
-uint64_t estimate_fee(int n_inputs, int mixin, int n_outputs, size_t extra_size, byte_and_output_fees base_fees, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
+uint64_t estimate_fee(int n_inputs, int mixin, int n_outputs, size_t extra_size, byte_and_output_fees base_fees, uint64_t fee_percent, uint64_t fee_fixed, uint64_t fee_quantization_mask)
 {
   const size_t estimated_tx_weight = estimate_tx_weight(n_inputs, mixin, n_outputs, extra_size);
-  return calculate_fee_from_weight(base_fees, estimated_tx_weight, n_outputs, fee_multiplier, fee_quantization_mask);
+  return calculate_fee_from_weight(base_fees, estimated_tx_weight, n_outputs, fee_percent, fee_fixed, fee_quantization_mask);
 }
 
-uint64_t calculate_fee(const cryptonote::transaction &tx, size_t blob_size, byte_and_output_fees base_fees, uint64_t fee_multiplier, uint64_t fee_quantization_mask)
+uint64_t calculate_fee(const cryptonote::transaction &tx, size_t blob_size, byte_and_output_fees base_fees, uint64_t fee_percent, uint64_t fee_fixed, uint64_t fee_quantization_mask)
 {
-  return calculate_fee_from_weight(base_fees, cryptonote::get_transaction_weight(tx, blob_size), tx.vout.size(), fee_multiplier, fee_quantization_mask);
+  return calculate_fee_from_weight(base_fees, cryptonote::get_transaction_weight(tx, blob_size), tx.vout.size(), fee_percent, fee_fixed, fee_quantization_mask);
 }
 
 bool get_short_payment_id(crypto::hash8 &payment_id8, const tools::wallet2::pending_tx &ptx, hw::device &hwdev)
@@ -7420,12 +7420,12 @@ bool wallet2::sign_multisig_tx_from_file(const std::string &filename, std::vecto
   return sign_multisig_tx_to_file(exported_txs, filename, txids);
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm) const
+uint64_t wallet2::get_fee_percent(uint32_t priority, int fee_algorithm) const
 {
-  static constexpr std::array<std::array<uint64_t, 4>, 3> multipliers = {{
-    {{1, 4, 20, 166}},
-    {{1, 5, 25, 1000}},
-    {{1, 5, 25, 125}},
+  static constexpr std::array<std::array<uint64_t, 4>, 3> percents = {{
+    {{100, 400, 2000, 16600}},
+    {{100, 500, 2500, 100000}},
+    {{100, 500, 2500, 12500}},
   }};
 
   if (fee_algorithm == -1)
@@ -7440,14 +7440,20 @@ uint64_t wallet2::get_fee_multiplier(uint32_t priority, int fee_algorithm) const
   if (priority == BLINK_PRIORITY)
   {
     THROW_WALLET_EXCEPTION_IF(!use_fork_rules(HF_VERSION_BLINK, 0), error::invalid_priority);
-    return BLINK_TX_FEE_MULTIPLE;
+    return BLINK_MINER_TX_FEE_PERCENT + BLINK_BURN_TX_FEE_PERCENT;
   }
 
   THROW_WALLET_EXCEPTION_IF(
-      fee_algorithm < 0 || fee_algorithm >= (int)multipliers.size() ||
-      priority < 1 || priority > multipliers[0].size(),
+      fee_algorithm < 0 || fee_algorithm >= (int)percents.size() ||
+      priority < 1 || priority > percents[0].size(),
       error::invalid_priority);
-  return multipliers[fee_algorithm][priority-1];
+  return percents[fee_algorithm][priority-1];
+}
+uint64_t wallet2::get_fixed_fee(uint32_t priority) const
+{
+  if (priority == BLINK_PRIORITY)
+    return BLINK_BURN_FIXED;
+  return 0;
 }
 //----------------------------------------------------------------------------------------------------
 byte_and_output_fees wallet2::get_dynamic_base_fee_estimate() const
@@ -7513,8 +7519,8 @@ uint32_t wallet2::adjust_priority(uint32_t priority)
     {
       // check if there's a backlog in the tx pool
       const uint64_t base_fee = get_base_fees().first;
-      const uint64_t fee_multiplier = get_fee_multiplier(1);
-      const double fee_level = fee_multiplier * base_fee;
+      const uint64_t fee_percent = get_fee_percent(1);
+      const double fee_level = base_fee * fee_percent / 100;
       // NOTE (Loki): We don't include the per-output fee here because we typically don't actually
       // know how many outputs we will need yet, but it's okay: fee_level being too low will just
       // make us a little over-cautious about using low-priority but will still work fine when the
@@ -10166,7 +10172,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 2 };
 
   const auto base_fee  = get_base_fees();
-  const uint64_t fee_multiplier = get_fee_multiplier(priority, get_fee_algorithm());
+  const uint64_t fee_percent = get_fee_percent(priority, get_fee_algorithm());
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
 
   // throw if attempting a transaction with no destinations
@@ -10199,10 +10205,12 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   // we could also check for being within FEE_PER_KB, but if the fee calculation
   // ever changes, this might be missed, so let this go through
   constexpr uint64_t num_outputs = 2;
-  uint64_t min_fee = fee_multiplier * (
+  uint64_t min_fee = (
       base_fee.first * estimate_rct_tx_size(1, fake_outs_count, num_outputs, extra.size()) +
       base_fee.second * num_outputs
-  );
+  ) * fee_percent / 100;
+
+  uint64_t fixed_fee = get_fixed_fee(priority);
 
   uint64_t balance_subtotal = 0;
   uint64_t unlocked_balance_subtotal = 0;
@@ -10211,10 +10219,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     balance_subtotal += balance_per_subaddr[index_minor];
     unlocked_balance_subtotal += unlocked_balance_per_subaddr[index_minor].first;
   }
-  THROW_WALLET_EXCEPTION_IF(needed_money + min_fee > balance_subtotal, error::not_enough_money,
+  THROW_WALLET_EXCEPTION_IF(needed_money + min_fee + fixed_fee > balance_subtotal, error::not_enough_money,
     balance_subtotal, needed_money, 0);
   // first check overall balance is enough, then unlocked one, so we throw distinct exceptions
-  THROW_WALLET_EXCEPTION_IF(needed_money + min_fee > unlocked_balance_subtotal, error::not_enough_unlocked_money,
+  THROW_WALLET_EXCEPTION_IF(needed_money + min_fee + fixed_fee > unlocked_balance_subtotal, error::not_enough_unlocked_money,
       unlocked_balance_subtotal, needed_money, 0);
 
   for (uint32_t i : subaddr_indices)
@@ -10225,7 +10233,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   const size_t tx_weight_two_rings = estimate_tx_weight(2, fake_outs_count, 2, 0);
   THROW_WALLET_EXCEPTION_IF(tx_weight_one_ring > tx_weight_two_rings, error::wallet_internal_error, "Estimated tx weight with 1 input is larger than with 2 inputs!");
   const size_t tx_weight_per_ring = tx_weight_two_rings - tx_weight_one_ring;
-  const uint64_t fractional_threshold = fee_multiplier * base_fee.first * tx_weight_per_ring;
+  const uint64_t fractional_threshold = base_fee.first * fee_percent / 100 * tx_weight_per_ring;
 
   // gather all dust and non-dust outputs belonging to specified subaddresses
   size_t num_nondust_outputs = 0;
@@ -10313,7 +10321,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   {
     // this is used to build a tx that's 1 or 2 inputs, and 2 outputs, which
     // will get us a known fee.
-    uint64_t estimated_fee = estimate_fee(2, fake_outs_count, 2, extra.size(), base_fee, fee_multiplier, fee_quantization_mask);
+    uint64_t estimated_fee = estimate_fee(2, fake_outs_count, 2, extra.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
     preferred_inputs = pick_preferred_rct_inputs(needed_money + estimated_fee, subaddr_account, subaddr_indices);
     if (!preferred_inputs.empty())
     {
@@ -10471,7 +10479,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       cryptonote::transaction test_tx;
       pending_tx test_ptx;
 
-      needed_fee = estimate_fee(tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()+1, extra.size(), base_fee, fee_multiplier, fee_quantization_mask);
+      needed_fee = estimate_fee(tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()+1, extra.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
 
       uint64_t inputs = 0, outputs = needed_fee;
       for (size_t idx: tx.selected_transfers) inputs += m_transfers[idx].amount();
@@ -10489,7 +10497,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
           test_tx, test_ptx, rct_config, is_staking_tx);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
-      needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_multiplier, fee_quantization_mask);
+      needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount + (!test_ptx.dust_added_to_fee ? test_ptx.dust : 0);
       LOG_PRINT_L2("Made a " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(available_for_fee) << " available for fee (" <<
         print_money(needed_fee) << " needed)");
@@ -10528,7 +10536,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
           transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
               test_tx, test_ptx, rct_config, is_staking_tx);
           txBlob = t_serializable_object_to_blob(test_ptx.tx);
-          needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_multiplier, fee_quantization_mask);
+          needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
           LOG_PRINT_L2("Made an attempt at a  final " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(test_ptx.fee) <<
             " fee  and " << print_money(test_ptx.change_dts.amount) << " change");
         }
@@ -10792,8 +10800,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
 
   const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 2 };
   const auto base_fee = get_base_fees();
-  const uint64_t fee_multiplier = get_fee_multiplier(priority, get_fee_algorithm());
+  const uint64_t fee_percent = get_fee_percent(priority, get_fee_algorithm());
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
+  const uint64_t fixed_fee = get_fixed_fee(priority);
 
   LOG_PRINT_L2("Starting with " << unused_transfers_indices.size() << " non-dust outputs and " << unused_dust_indices.size() << " dust outputs");
 
@@ -10818,7 +10827,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
     uint64_t fee_dust_threshold;
     {
       const uint64_t estimated_tx_weight_with_one_extra_output = estimate_tx_weight(tx.selected_transfers.size() + 1, fake_outs_count, tx.dsts.size()+1, extra.size());
-      fee_dust_threshold = calculate_fee_from_weight(base_fee, estimated_tx_weight_with_one_extra_output, outputs, fee_multiplier, fee_quantization_mask);
+      fee_dust_threshold = calculate_fee_from_weight(base_fee, estimated_tx_weight_with_one_extra_output, outputs, fee_percent, fixed_fee, fee_quantization_mask);
     }
 
     size_t idx =
@@ -10851,7 +10860,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
       cryptonote::transaction test_tx;
       pending_tx test_ptx;
 
-      needed_fee = estimate_fee(tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()+1, extra.size(), base_fee, fee_multiplier, fee_quantization_mask);
+      needed_fee = estimate_fee(tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()+1, extra.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
 
       // add N - 1 outputs for correct initial fee estimation
       for (size_t i = 0; i < ((outputs > 1) ? outputs - 1 : outputs); ++i)
@@ -10862,7 +10871,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
       transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
           test_tx, test_ptx, rct_config, is_staking_tx);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
-      needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_multiplier, fee_quantization_mask);
+      needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount;
       for (auto &dt: test_ptx.dests)
         available_for_fee += dt.amount;
@@ -10895,7 +10904,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
         transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
             test_tx, test_ptx, rct_config, is_staking_tx);
         txBlob = t_serializable_object_to_blob(test_ptx.tx);
-        needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_multiplier, fee_quantization_mask);
+        needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
         LOG_PRINT_L2("Made an attempt at a final " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(test_ptx.fee) <<
           " fee  and " << print_money(test_ptx.change_dts.amount) << " change");
       } while (needed_fee > test_ptx.fee);

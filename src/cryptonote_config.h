@@ -100,11 +100,15 @@ static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it di
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT        ((uint64_t)3000)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT_V12    ((uint64_t)240000) // Only v12 (v13 switches back)
 
-#define BLINK_MINER_FEE_MULTIPLE                        1 // The blink fee that the miner including it earns (as a multiple of the base fee)
-#define BLINK_TX_FEE_MULTIPLE                           5 // The blink fee that the sender pays (the difference between this and MINER_FEE is burned)
+// Blink fees: in total the sender must pay (MINER_TX_FEE_PERCENT + BURN_TX_FEE_PERCENT) * [minimum tx fee] + BLINK_BURN_FIXED,
+// and the miner including the tx includes MINER_TX_FEE_PERCENT * [minimum tx fee]; the rest must be left unclaimed.
+#define BLINK_MINER_TX_FEE_PERCENT                      100 // The blink miner tx fee (as a percentage of the minimum tx fee)
+#define BLINK_BURN_FIXED                                0   // A fixed amount (in atomic currency units) that the sender must burn
+#define BLINK_BURN_TX_FEE_PERCENT                       400 // A percentage of the minimum miner tx fee that the sender must burn.  (Adds to BURN_TX_FIXED)
 
-static_assert(BLINK_TX_FEE_MULTIPLE >= BLINK_MINER_FEE_MULTIPLE, "blink tx fees must be as least as large as blink miner fees");
-static_assert(BLINK_MINER_FEE_MULTIPLE >= 1, "blink miner fee cannot be smaller than the base tx fee");
+static_assert(BLINK_MINER_TX_FEE_PERCENT >= 100, "blink miner fee cannot be smaller than the base tx fee");
+static_assert(BLINK_BURN_FIXED >= 0, "fixed blink burn amount cannot be negative");
+static_assert(BLINK_BURN_TX_FEE_PERCENT >= 0, "blink burn tx percent cannot be negative");
 
 #define DIFFICULTY_TARGET_V2                            120  // seconds
 #define DIFFICULTY_WINDOW_V2                            60

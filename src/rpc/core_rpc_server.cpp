@@ -860,9 +860,8 @@ namespace cryptonote
       return true;
     }
 
-    cryptonote_connection_context fake_context{};
     tx_verification_context tvc{};
-    if(!m_core.handle_incoming_tx(tx_blob, tvc, false, false, req.do_not_relay) || tvc.m_verifivation_failed)
+    if(!m_core.handle_incoming_tx(tx_blob, tvc, tx_pool_options::new_tx(req.do_not_relay)) || tvc.m_verifivation_failed)
     {
       const vote_verification_context &vvc = tvc.m_vote_ctx;
       res.status          = "Failed";
@@ -892,6 +891,7 @@ namespace cryptonote
 
     NOTIFY_NEW_TRANSACTIONS::request r;
     r.txs.push_back(tx_blob);
+    cryptonote_connection_context fake_context{};
     m_core.get_protocol()->relay_transactions(r, fake_context);
 
     //TODO: make sure that tx has reached other nodes here, probably wait to receive reflections from other nodes

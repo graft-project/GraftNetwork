@@ -429,13 +429,20 @@ namespace cryptonote
     return get_transaction_weight(tx, blob_size);
   }
   //---------------------------------------------------------------
-  bool get_tx_miner_fee(const transaction& tx, uint64_t & fee, bool burning_enabled)
+  bool get_tx_miner_fee(const transaction& tx, uint64_t & fee, bool burning_enabled, uint64_t *burned)
   {
+    if (burned)
+      *burned = 0;
     if (tx.version >= txversion::v2_ringct)
     {
       fee = tx.rct_signatures.txnFee;
       if (burning_enabled)
-        fee -= std::min(fee, get_burned_amount_from_tx_extra(tx.extra));
+      {
+        uint64_t fee_burned = get_burned_amount_from_tx_extra(tx.extra);
+        fee -= std::min(fee, fee_burned);
+        if (burned)
+            *burned = fee_burned;
+      }
       return true;
     }
     uint64_t amount_in;

@@ -912,10 +912,15 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
           print_money(base_fee.second) % cryptonote::get_unit(cryptonote::get_default_decimal_point())).str();
 
   std::vector<uint64_t> fees;
+  std::ostringstream typical_fees;
   for (uint32_t priority = 1; priority <= 4; ++priority)
   {
-    uint64_t mult = m_wallet->get_fee_multiplier(priority);
-    fees.push_back((base_fee.first * typical_size + base_fee.second * typical_outs) * mult);
+    uint64_t pct = m_wallet->get_fee_percent(priority);
+    uint64_t fixed = m_wallet->get_fixed_fee(priority);
+    uint64_t typical_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100 + fixed;
+    fees.push_back(typical_fee);
+    if (priority > 1) typical_fees << ", ";
+    typical_fees << print_money(typical_fee) << " (" << tools::allowed_priority_strings[priority] << ")";
   }
   std::vector<std::pair<uint64_t, uint64_t>> blocks;
   try
@@ -951,6 +956,30 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
     else
       message_writer() << tr("No backlog at priority ") << priority;
   }
+
+  auto hf_version = m_wallet->get_hard_fork_version();
+  if (hf_version && *hf_version >= HF_VERSION_BLINK)
+  {
+    uint64_t pct = m_wallet->get_fee_percent(tools::wallet2::BLINK_PRIORITY);
+    uint64_t fixed = m_wallet->get_fixed_fee(tools::wallet2::BLINK_PRIORITY);
+
+    uint64_t typical_blink_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100 + fixed;
+
+    if (fixed)
+      message_writer() << (boost::format(tr("Current blink fee is %s %s per byte + %s %s per output + %s %s")) %
+          print_money(base_fee.first * pct / 100) % cryptonote::get_unit(cryptonote::get_default_decimal_point()) %
+          print_money(base_fee.second * pct / 100) % cryptonote::get_unit(cryptonote::get_default_decimal_point()) %
+          print_money(fixed) % cryptonote::get_unit(cryptonote::get_default_decimal_point())).str();
+    else
+      message_writer() << (boost::format(tr("Current blink fee is %s %s per byte + %s %s per output")) %
+          print_money(base_fee.first * pct / 100) % cryptonote::get_unit(cryptonote::get_default_decimal_point()) %
+          print_money(base_fee.second * pct / 100) % cryptonote::get_unit(cryptonote::get_default_decimal_point())).str();
+
+    typical_fees << ", " << print_money(typical_blink_fee) << " (blink)";
+  }
+
+  message_writer() << "Estimated typical small transaction fees: " << typical_fees.str();
+
   return true;
 }
 

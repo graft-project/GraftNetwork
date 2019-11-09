@@ -35,6 +35,7 @@
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/verification_context.h"
 #include "cryptonote_core/service_node_voting.h"
+#include "cryptonote_core/cryptonote_core.h"
 #include <unordered_map>
 
 namespace tests
@@ -76,8 +77,8 @@ namespace tests
     bool get_stat_info(cryptonote::core_stat_info& st_inf){return true;}
     bool have_block(const crypto::hash& id);
     void get_blockchain_top(uint64_t& height, crypto::hash& top_id);
-    bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
-    bool handle_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blobs, std::vector<cryptonote::tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
+    bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, const cryptonote::tx_pool_options &opts);
+    bool handle_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blobs, std::vector<cryptonote::tx_verification_context>& tvc, const cryptonote::tx_pool_options &opts);
     bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, cryptonote::checkpoint_t *checkpoint, bool update_miner_blocktemplate = true);
     bool handle_uptime_proof(const cryptonote::NOTIFY_UPTIME_PROOF::request &proof, bool &my_uptime_proof_confirmation);
     void pause_mine(){}

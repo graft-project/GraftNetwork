@@ -820,6 +820,14 @@ void handle_blink(SNNetwork::message &m, void *self) {
 
     auto tag = get_or<uint64_t>(data, "!", 0);
 
+    auto hf_version = snw.core.get_blockchain_storage().get_current_hard_fork_version();
+    if (hf_version < HF_VERSION_BLINK) {
+        MWARNING("Rejecting blink message: blink is not available for hardfork " << (int) hf_version);
+        if (tag)
+            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Invalid blink authorization height"}});
+        return;
+    }
+
     // verify that height is within-2 of current height
     auto blink_height = get_int<uint64_t>(data.at("h"));
     auto local_height = snw.core.get_current_blockchain_height();
@@ -989,13 +997,23 @@ void handle_blink(SNNetwork::message &m, void *self) {
     // Anything past this point always results in a success or failure signature getting sent to peers
 
     // Check tx for validity
-    bool already_in_mempool;
-    cryptonote::tx_verification_context tvc = {};
-    bool approved = snw.core.get_pool().add_new_blink(btxptr, tvc, already_in_mempool);
+    bool approved;
+    auto min = tx.get_min_version_for_hf(hf_version, snw.core.get_nettype()),
+         max = tx.get_max_version_for_hf(hf_version, snw.core.get_nettype());
+    if (tx.version < min || tx.version > max) {
+        approved = false;
+        MINFO("Blink TX " << tx_hash << " rejected because TX version " << tx.version << " invalid: TX version not between " << min << " and " << max);
+    } else {
+        uint64_t miner_fee, burned;
+        cryptonote::get_tx_miner_fee(tx, miner_fee, true /*burning enabled*/, &burned);
+        bool already_in_mempool;
+        cryptonote::tx_verification_context tvc = {};
+        approved = snw.core.get_pool().add_new_blink(btxptr, tvc, already_in_mempool);
 
-    MINFO("Blink TX " << tx_hash << (approved ? " approved and added to mempool" : " rejected"));
-    if (!approved)
-        MDEBUG("TX rejected because: " << print_tx_verification_context(tvc));
+        MINFO("Blink TX " << tx_hash << (approved ? " approved and added to mempool" : " rejected"));
+        if (!approved)
+            MDEBUG("TX rejected because: " << print_tx_verification_context(tvc));
+    }
 
     auto hash_to_sign = btx.hash(approved);
     auto &keys = *snw.core.get_service_node_keys();

@@ -74,6 +74,28 @@ namespace cryptonote
   //! container for sorting transactions by fee per unit size
   typedef std::set<tx_by_fee_and_receive_time_entry, txCompare> sorted_tx_container;
 
+  /// Argument passed into add_tx specifying different requires on the transaction
+  struct tx_pool_options {
+    bool kept_by_block = false; ///< has this transaction been in a block?
+    bool relayed = false; ///< was this transaction from the network or a local client?
+    bool do_not_relay = false; ///< to avoid relaying the transaction to the network
+    uint64_t fee_percent = 100; ///< the required miner tx fee in percent relative to the base required miner tx fee; must be >= 100.
+    uint64_t burn_fixed = 0; ///< a required minimum amount that must be burned (in atomic currency)
+    uint64_t burn_percent = 0; ///< a required amount as a percentage of the base required miner tx fee that must be burned (additive with burn_fixed, if both > 0)
+
+    static tx_pool_options from_block() { tx_pool_options o; o.kept_by_block = true; o.relayed = true; return o; }
+    static tx_pool_options from_peer() { tx_pool_options o; o.relayed = true; return o; }
+    static tx_pool_options new_tx(bool do_not_relay = false) { tx_pool_options o; o.do_not_relay = do_not_relay; return o; }
+    static tx_pool_options new_blink(bool approved) {
+      tx_pool_options o;
+      o.do_not_relay = !approved;
+      o.fee_percent = BLINK_MINER_TX_FEE_PERCENT;
+      o.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
+      o.burn_fixed = BLINK_BURN_FIXED;
+      return o;
+    }
+  };
+
   /**
    * @brief Transaction pool, handles transactions which are not part of a block
    *
@@ -103,12 +125,12 @@ namespace cryptonote
     tx_memory_pool &operator=(const tx_memory_pool &) = delete;
 
     /**
-     * @copydoc add_tx(transaction&, tx_verification_context&, bool, bool, bool, uint8_t)
+     * @copydoc add_tx(transaction&, tx_verification_context&, const tx_pool_options &, uint8_t)
      *
      * @param id the transaction's hash
      * @param tx_weight the transaction's weight
      */
-    bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version);
+    bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version);
 
     /**
      * @brief add a transaction to the transaction pool
@@ -120,14 +142,12 @@ namespace cryptonote
      *
      * @param tx the transaction to be added
      * @param tvc return-by-reference status about the transaction verification
-     * @param kept_by_block has this transaction been in a block?
-     * @param relayed was this transaction from the network or a local client?
-     * @param do_not_relay to avoid relaying the transaction to the network
-     * @param version the version used to create the transaction
+     * @param opts the options controlling how this tx will be accepted/added
+     * @param hf_version the hard fork version used to create the transaction
      *
      * @return true if the transaction passes validations, otherwise false
      */
-    bool add_tx(transaction &tx, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version);
+    bool add_tx(transaction &tx, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version);
 
     /**
      * @brief attempts to add a blink transaction to the transaction pool.

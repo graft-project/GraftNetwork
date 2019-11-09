@@ -654,7 +654,7 @@ block Blockchain::pop_block_from_blockchain()
       // that might not be always true. Unlikely though, and always relaying
       // these again might cause a spike of traffic as many nodes re-relay
       // all the transactions in a popped block when a reorg happens.
-      bool r = m_tx_pool.add_tx(tx, tvc, true, true, false, version);
+      bool r = m_tx_pool.add_tx(tx, tvc, tx_pool_options::from_block(), version);
       if (!r)
       {
         LOG_ERROR("Error returning transaction to tx_pool");
@@ -3388,13 +3388,13 @@ byte_and_output_fees Blockchain::get_dynamic_base_fee(uint64_t block_reward, siz
 }
 
 //------------------------------------------------------------------
-bool Blockchain::check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee) const
+bool Blockchain::check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee, uint64_t burned, const tx_pool_options &opts) const
 {
   const uint8_t version = get_current_hard_fork_version();
   const uint64_t blockchain_height = m_db->height();
 
   uint64_t median = m_current_block_cumul_weight_limit / 2;
-  uint64_t already_generated_coins = blockchain_height ? m_db->get_block_already_generated_coins(blockchain_height - 1) : 0;;
+  uint64_t already_generated_coins = blockchain_height ? m_db->get_block_already_generated_coins(blockchain_height - 1) : 0;
   uint64_t base_reward, base_reward_unpenalized;
   if (!get_base_block_reward(median, 1, already_generated_coins, base_reward, base_reward_unpenalized, version, blockchain_height))
     return false;
@@ -3421,10 +3421,27 @@ bool Blockchain::check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee) const
     needed_fee *= fees.first;
   }
 
-  if (fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
+  uint64_t required_percent = std::max(opts.fee_percent, uint64_t{100});
+
+  needed_fee -= needed_fee / 50; // keep a little 2% buffer on acceptance
+
+  uint64_t base_miner_fee = needed_fee;
+  needed_fee = needed_fee * required_percent / 100;
+
+  if (fee < needed_fee)
   {
     MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
     return false;
+  }
+
+  if (opts.burn_fixed || opts.burn_percent)
+  {
+    uint64_t need_burned = opts.burn_fixed + base_miner_fee * opts.burn_percent / 100;
+    if (burned < need_burned)
+    {
+      MERROR_VER("transaction burned fee is not enough: " << print_money(burned) << ", minimum fee: " << print_money(need_burned));
+      return false;
+    }
   }
   return true;
 }
@@ -3604,7 +3621,7 @@ void Blockchain::return_tx_to_pool(std::vector<std::pair<transaction, blobdata>>
     // all the transactions in a popped block when a reorg happens.
     const size_t weight = get_transaction_weight(tx.first, tx.second.size());
     const crypto::hash tx_hash = get_transaction_hash(tx.first);
-    if (!m_tx_pool.add_tx(tx.first, tx_hash, tx.second, weight, tvc, true, true, false, version))
+    if (!m_tx_pool.add_tx(tx.first, tx_hash, tx.second, weight, tvc, tx_pool_options::from_block(), version))
     {
       MERROR("Failed to return taken transaction with hash: " << get_transaction_hash(tx.first) << " to tx_pool");
     }

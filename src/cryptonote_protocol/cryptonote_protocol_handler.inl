@@ -568,7 +568,7 @@ namespace cryptonote
           {
             MDEBUG("Incoming tx " << tx_hash << " not in pool, adding");
             cryptonote::tx_verification_context tvc{};
-            if(!m_core.handle_incoming_tx(tx_blob, tvc, true, true, false) || tvc.m_verifivation_failed)
+            if(!m_core.handle_incoming_tx(tx_blob, tvc, tx_pool_options::from_block()) || tvc.m_verifivation_failed)
             {
               LOG_PRINT_CCONTEXT_L1("Block verification failed: transaction verification failed, dropping connection");
               drop_connection(context, false, false);
@@ -942,7 +942,7 @@ namespace cryptonote
     std::vector<cryptonote::blobdata> newtxs;
     newtxs.reserve(arg.txs.size());
     std::vector<tx_verification_context> tvcs;
-    bool all_okay = m_core.handle_incoming_txs(arg.txs, tvcs, false /*kept by block*/, true /*relayed*/, false /*do not relay*/);
+    bool all_okay = m_core.handle_incoming_txs(arg.txs, tvcs, tx_pool_options::from_peer());
 
     // If !all_okay we want to drop the connection, but we may still have added some incoming txs
     // and so still need to finish handling/relaying them
@@ -1319,7 +1319,7 @@ namespace cryptonote
               TIME_MEASURE_START(transactions_process_time);
               num_txs += block_entry.txs.size();
               std::vector<tx_verification_context> tvc;
-              m_core.handle_incoming_txs(block_entry.txs, tvc, true, true, false);
+              m_core.handle_incoming_txs(block_entry.txs, tvc, tx_pool_options::from_block());
               if (tvc.size() != block_entry.txs.size())
               {
                 LOG_ERROR_CCONTEXT("Internal error: tvc.size() != block_entry.txs.size()");
