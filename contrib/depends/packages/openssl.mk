@@ -3,9 +3,10 @@ $(package)_version=1.1.1d
 $(package)_download_path=https://www.openssl.org/source
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
 $(package)_sha256_hash=1e3a91bc1f9dfce01af26026f856e064eab4c8ee0a8f457b5ae30b40b8b711f2
+$(package)_patches=fix_arflags.patch
 
 define $(package)_set_vars
-$(package)_config_env=AR="$($(package)_ar)" RANLIB="$($(package)_ranlib)" CC="$($(package)_cc)"
+$(package)_config_env=AR="$($(package)_ar)" ARFLAGS=$($(package)_arflags) RANLIB="$($(package)_ranlib)" CC="$($(package)_cc)"
 $(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)/etc/openssl
 $(package)_config_opts+=no-capieng
 $(package)_config_opts+=no-dso
@@ -49,7 +50,8 @@ endef
 # make reproducible - replace `time()` used in the build with a fixed timestamp:
 define $(package)_preprocess_cmds
   sed -i.old 's/^\(my \$date = .*\) time()/\1 1575269735/' util/mkbuildinf.pl &&
-  sed -i -e "s/-mandroid //" Configure
+  sed -i -e "s/-mandroid //" Configure && \
+  patch < $($(package)_patch_dir)/fix_arflags.patch
 endef
 
 define $(package)_config_cmds
