@@ -183,21 +183,10 @@ struct txpool_tx_meta_t
 /**
  * @brief A base class for BlockchainDB exceptions
  */
-class DB_EXCEPTION : public std::exception
+class DB_EXCEPTION : public std::runtime_error
 {
-  private:
-    std::string m;
-
-  protected:
-    DB_EXCEPTION(const char *s) : m(s) { }
-
   public:
-    virtual ~DB_EXCEPTION() { }
-
-    const char* what() const throw()
-    {
-      return m.c_str();
-    }
+    using std::runtime_error::runtime_error;
 };
 
 /**
@@ -206,8 +195,8 @@ class DB_EXCEPTION : public std::exception
 class DB_ERROR : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     DB_ERROR() : DB_EXCEPTION("Generic DB Error") { }
-    DB_ERROR(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -216,8 +205,8 @@ class DB_ERROR : public DB_EXCEPTION
 class DB_ERROR_TXN_START : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     DB_ERROR_TXN_START() : DB_EXCEPTION("DB Error in starting txn") { }
-    DB_ERROR_TXN_START(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -226,8 +215,8 @@ class DB_ERROR_TXN_START : public DB_EXCEPTION
 class DB_OPEN_FAILURE : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     DB_OPEN_FAILURE() : DB_EXCEPTION("Failed to open the db") { }
-    DB_OPEN_FAILURE(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -236,8 +225,8 @@ class DB_OPEN_FAILURE : public DB_EXCEPTION
 class DB_CREATE_FAILURE : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     DB_CREATE_FAILURE() : DB_EXCEPTION("Failed to create the db") { }
-    DB_CREATE_FAILURE(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -246,8 +235,8 @@ class DB_CREATE_FAILURE : public DB_EXCEPTION
 class DB_SYNC_FAILURE : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     DB_SYNC_FAILURE() : DB_EXCEPTION("Failed to sync the db") { }
-    DB_SYNC_FAILURE(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -256,8 +245,8 @@ class DB_SYNC_FAILURE : public DB_EXCEPTION
 class BLOCK_DNE : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     BLOCK_DNE() : DB_EXCEPTION("The block requested does not exist") { }
-    BLOCK_DNE(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -266,8 +255,8 @@ class BLOCK_DNE : public DB_EXCEPTION
 class BLOCK_PARENT_DNE : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     BLOCK_PARENT_DNE() : DB_EXCEPTION("The parent of the block does not exist") { }
-    BLOCK_PARENT_DNE(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -276,8 +265,8 @@ class BLOCK_PARENT_DNE : public DB_EXCEPTION
 class BLOCK_EXISTS : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     BLOCK_EXISTS() : DB_EXCEPTION("The block to be added already exists!") { }
-    BLOCK_EXISTS(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -286,8 +275,8 @@ class BLOCK_EXISTS : public DB_EXCEPTION
 class BLOCK_INVALID : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     BLOCK_INVALID() : DB_EXCEPTION("The block to be added did not pass validation!") { }
-    BLOCK_INVALID(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -296,8 +285,8 @@ class BLOCK_INVALID : public DB_EXCEPTION
 class TX_DNE : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     TX_DNE() : DB_EXCEPTION("The transaction requested does not exist") { }
-    TX_DNE(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -306,8 +295,8 @@ class TX_DNE : public DB_EXCEPTION
 class TX_EXISTS : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     TX_EXISTS() : DB_EXCEPTION("The transaction to be added already exists!") { }
-    TX_EXISTS(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -316,8 +305,8 @@ class TX_EXISTS : public DB_EXCEPTION
 class OUTPUT_DNE : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     OUTPUT_DNE() : DB_EXCEPTION("The output requested does not exist!") { }
-    OUTPUT_DNE(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -326,8 +315,8 @@ class OUTPUT_DNE : public DB_EXCEPTION
 class OUTPUT_EXISTS : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     OUTPUT_EXISTS() : DB_EXCEPTION("The output to be added already exists!") { }
-    OUTPUT_EXISTS(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /**
@@ -336,8 +325,8 @@ class OUTPUT_EXISTS : public DB_EXCEPTION
 class KEY_IMAGE_EXISTS : public DB_EXCEPTION
 {
   public:
+    using DB_EXCEPTION::DB_EXCEPTION;
     KEY_IMAGE_EXISTS() : DB_EXCEPTION("The spent key image to be added already exists!") { }
-    KEY_IMAGE_EXISTS(const char* s) : DB_EXCEPTION(s) { }
 };
 
 /***********************************
