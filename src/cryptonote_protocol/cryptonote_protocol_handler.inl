@@ -139,7 +139,6 @@ namespace cryptonote
       NOTIFY_REQUEST_CHAIN::request r{};
       context.m_needed_objects.clear();
       m_core.get_short_chain_history(r.block_ids);
-      handler_request_blocks_history( r.block_ids ); // change the limit(?), sleep(?)
       MLOG_P2P_MESSAGE("-->>NOTIFY_REQUEST_CHAIN: m_block_ids.size()=" << r.block_ids.size() );
       post_notify<NOTIFY_REQUEST_CHAIN>(r, context);
       MLOG_PEER_STATE("requesting chain");
@@ -720,7 +719,6 @@ namespace cryptonote
           context.m_state = cryptonote_connection_context::state_synchronizing;
           NOTIFY_REQUEST_CHAIN::request r{};
           m_core.get_short_chain_history(r.block_ids);
-          handler_request_blocks_history( r.block_ids ); // change the limit(?), sleep(?)
           MLOG_P2P_MESSAGE("-->>NOTIFY_REQUEST_CHAIN: m_block_ids.size()=" << r.block_ids.size() );
           post_notify<NOTIFY_REQUEST_CHAIN>(r, context);
           MLOG_PEER_STATE("requesting chain");
@@ -995,25 +993,10 @@ namespace cryptonote
     MLOG_P2P_MESSAGE("-->>NOTIFY_RESPONSE_GET_OBJECTS: blocks.size()=" << rsp.blocks.size() << ", txs.size()=" << rsp.txs.size()
                             << ", rsp.m_current_blockchain_height=" << rsp.current_blockchain_height << ", missed_ids.size()=" << rsp.missed_ids.size());
     post_notify<NOTIFY_RESPONSE_GET_OBJECTS>(rsp, context);
-    //handler_response_blocks_now(sizeof(rsp)); // XXX
-    //handler_response_blocks_now(200);
     return 1;
   }
   //------------------------------------------------------------------------------------------------------------------------
 
-
-  template<class t_core>
-  double t_cryptonote_protocol_handler<t_core>::get_avg_block_size()
-  {
-    CRITICAL_REGION_LOCAL(m_buffer_mutex);
-    if (m_avg_buffer.empty()) {
-      MWARNING("m_avg_buffer.size() == 0");
-      return 500;
-    }
-    double avg = 0;
-    for (const auto &element : m_avg_buffer) avg += element;
-    return avg / m_avg_buffer.size();
-  }
 
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_response_get_objects(int command, NOTIFY_RESPONSE_GET_OBJECTS::request& arg, cryptonote_connection_context& context)
@@ -1046,13 +1029,6 @@ namespace cryptonote
     ++m_sync_spans_downloaded;
     m_sync_download_objects_size += size;
     MDEBUG(context << " downloaded " << size << " bytes worth of blocks");
-
-    /*using namespace boost::chrono;
-      auto point = steady_clock::now();
-      auto time_from_epoh = point.time_since_epoch();
-      auto sec = duration_cast< seconds >( time_from_epoh ).count();*/
-
-    //epee::net_utils::network_throttle_manager::get_global_throttle_inreq().logger_handle_net("log/dr-loki/net/req-all.data", sec, get_avg_block_size());
 
     if(context.m_last_response_height > arg.current_blockchain_height)
     {
@@ -1986,7 +1962,6 @@ skip:
         context.m_last_request_time = boost::posix_time::microsec_clock::universal_time();
         MLOG_P2P_MESSAGE("-->>NOTIFY_REQUEST_GET_OBJECTS: blocks.size()=" << req.blocks.size() << ", txs.size()=" << req.txs.size()
             << "requested blocks count=" << count << " / " << count_limit << " from " << span.first << ", first hash " << req.blocks.front());
-        //epee::net_utils::network_throttle_manager::get_global_throttle_inreq().logger_handle_net("log/dr-loki/net/req-all.data", sec, get_avg_block_size());
 
         post_notify<NOTIFY_REQUEST_GET_OBJECTS>(req, context);
         MLOG_PEER_STATE("requesting objects");
@@ -2058,13 +2033,6 @@ skip:
         if (context.m_last_known_hash != crypto::null_hash && r.block_ids.front() != context.m_last_known_hash)
           r.block_ids.push_front(context.m_last_known_hash);
       }
-
-      handler_request_blocks_history( r.block_ids ); // change the limit(?), sleep(?)
-
-      //std::string blob; // for calculate size of request
-      //epee::serialization::store_t_to_binary(r, blob);
-      //epee::net_utils::network_throttle_manager::get_global_throttle_inreq().logger_handle_net("log/dr-loki/net/req-all.data", sec, get_avg_block_size());
-      //LOG_PRINT_CCONTEXT_L1("r = " << 200);
 
       context.m_last_request_time = boost::posix_time::microsec_clock::universal_time();
       MLOG_P2P_MESSAGE("-->>NOTIFY_REQUEST_CHAIN: m_block_ids.size()=" << r.block_ids.size() << ", start_from_current_chain " << start_from_current_chain);

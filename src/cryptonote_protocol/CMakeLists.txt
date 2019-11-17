@@ -31,7 +31,6 @@ project (loki CXX)
 
 set(cryptonote_protocol_sources
   block_queue.cpp
-  cryptonote_protocol_handler-base.cpp
   cryptonote_protocol_handler.inl
   quorumnet.cpp
 )

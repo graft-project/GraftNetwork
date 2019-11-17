@@ -58,23 +58,8 @@ DISABLE_VS_WARNINGS(4355)
 namespace cryptonote
 {
 
-  class cryptonote_protocol_handler_base_pimpl;
-  class cryptonote_protocol_handler_base {
-    private:
-      std::unique_ptr<cryptonote_protocol_handler_base_pimpl> mI;
-
-    public:
-      cryptonote_protocol_handler_base();
-      virtual ~cryptonote_protocol_handler_base();
-      void handler_request_blocks_history(std::list<crypto::hash>& ids); // before asking for list of objects, we can change the list still
-      void handler_response_blocks_now(size_t packet_size);
-
-      virtual double get_avg_block_size() = 0;
-      virtual double estimate_one_block_size() noexcept; // for estimating size of blocks to download
-  };
-
   template<class t_core>
-  class t_cryptonote_protocol_handler:  public i_cryptonote_protocol, cryptonote_protocol_handler_base
+  class t_cryptonote_protocol_handler:  public i_cryptonote_protocol
   {
   public:
     typedef cryptonote_connection_context connection_context;
@@ -197,7 +182,6 @@ namespace cryptonote
     size_t m_block_download_max_size;
 
     boost::mutex m_buffer_mutex;
-    double get_avg_block_size();
     boost::circular_buffer<size_t> m_avg_buffer = boost::circular_buffer<size_t>(10);
 
     template<class t_parameter>
@@ -206,7 +190,6 @@ namespace cryptonote
         LOG_PRINT_L2("[" << epee::net_utils::print_connection_context_short(context) << "] post " << typeid(t_parameter).name() << " -->");
         std::string blob;
         epee::serialization::store_t_to_binary(arg, blob);
-        //handler_response_blocks_now(blob.size()); // XXX
         return m_p2p->invoke_notify_to_peer(t_parameter::ID, epee::strspan<uint8_t>(blob), context);
       }
   };
