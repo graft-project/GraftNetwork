@@ -249,7 +249,7 @@ namespace cryptonote
 
     struct request_t
     {
-      std::list<crypto::hash> block_ids; /*IDs of the first 10 blocks are sequential, next goes with pow(2,n) offset, like 2, 4, 8, 16, 32, 64 and so on, and the last one is always genesis block */
+      std::list<crypto::hash> block_ids; // IDs of blocks at linear then exponential drop off, ending in genesis block; see blockchain.cpp for details
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_CONTAINER_POD_AS_BLOB(block_ids)

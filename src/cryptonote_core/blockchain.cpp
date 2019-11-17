@@ -713,58 +713,30 @@ crypto::hash Blockchain::get_tail_id() const
   return m_db->top_block_hash();
 }
 //------------------------------------------------------------------
-/*TODO: this function was...poorly written.  As such, I'm not entirely
- *      certain on what it was supposed to be doing.  Need to look into this,
- *      but it doesn't seem terribly important just yet.
+/* Builds a list of block hashes representing certain blocks from the blockchain in reverse
+ * chronological order; used when synchronizing to verify that a peer's chain matches ours.
  *
- * puts into list <ids> a list of hashes representing certain blocks
- * from the blockchain in reverse chronological order
- *
- * the blocks chosen, at the time of this writing, are:
- *   the most recent 11
- *   powers of 2 less recent from there, so 13, 17, 25, etc...
- *
+ * The blocks chosen for height H, are:
+ *   - the most recent 11 (H-1, H-2, ..., H-10, H-11)
+ *   - base-2 exponential drop off from there, so: H-13, H-17, H-25, etc... (going down to, at smallest, height 1)
+ *   - the genesis block (height 0)
  */
-bool Blockchain::get_short_chain_history(std::list<crypto::hash>& ids) const
+void Blockchain::get_short_chain_history(std::list<crypto::hash>& ids) const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
-  uint64_t i = 0;
-  uint64_t current_multiplier = 1;
   uint64_t sz = m_db->height();
-
   if(!sz)
-    return true;
+    return;
 
   db_rtxn_guard rtxn_guard(m_db);
-  bool genesis_included = false;
-  uint64_t current_back_offset = 1;
-  while(current_back_offset < sz)
+  for (uint64_t i = 0, decr = 1, offset = 1; offset < sz; ++i)
   {
-    ids.push_back(m_db->get_block_hash_from_height(sz - current_back_offset));
-
-    if(sz-current_back_offset == 0)
-    {
-      genesis_included = true;
-    }
-    if(i < 10)
-    {
-      ++current_back_offset;
-    }
-    else
-    {
-      current_multiplier *= 2;
-      current_back_offset += current_multiplier;
-    }
-    ++i;
+    ids.push_back(m_db->get_block_hash_from_height(sz - offset));
+    if (i >= 10) decr *= 2;
+    offset += decr;
   }
-
-  if (!genesis_included)
-  {
-    ids.push_back(m_db->get_block_hash_from_height(0));
-  }
-
-  return true;
+  ids.push_back(m_db->get_block_hash_from_height(0));
 }
 //------------------------------------------------------------------
 crypto::hash Blockchain::get_block_id_by_height(uint64_t height) const

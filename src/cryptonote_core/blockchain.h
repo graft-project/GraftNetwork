@@ -377,20 +377,18 @@ namespace cryptonote
     size_t get_total_transactions() const;
 
     /**
-     * @brief gets the hashes for a subset of the blockchain
+     * @brief gets the hashes for a sample of the blockchain
      *
-     * puts into list <ids> a list of hashes representing certain blocks
-     * from the blockchain in reverse chronological order
+     * Builds a list of hashes representing certain blocks from the blockchain in reverse
+     * chronological order for comparison of chains when synchronizing.  The sampled blocks include
+     * the most recent blocks, then drops off exponentially back to the genesis block.
      *
-     * the blocks chosen, at the time of this writing, are:
-     *   the most recent 11
-     *   powers of 2 less recent from there, so 13, 17, 25, etc...
-     *
-     * @param ids return-by-reference list to put the resulting hashes in
-     *
-     * @return true
+     * Specifically the blocks chosen for height H, are:
+     *   - the most recent 11 (H-1, H-2, ..., H-10, H-11)
+     *   - base-2 exponential drop off from there, so: H-13, H-17, H-25, etc... (going down to, at smallest, height 1)
+     *   - the genesis block (height 0)
      */
-    bool get_short_chain_history(std::list<crypto::hash>& ids) const;
+    void get_short_chain_history(std::list<crypto::hash>& ids) const;
 
     /**
      * @brief get recent block hashes for a foreign chain
