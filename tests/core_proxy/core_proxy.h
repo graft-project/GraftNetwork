@@ -85,7 +85,7 @@ namespace tests
     void resume_mine(){}
     bool on_idle(){return true;}
     bool find_blockchain_supplement(const std::list<crypto::hash>& qblock_ids, cryptonote::NOTIFY_RESPONSE_CHAIN_ENTRY::request& resp){return true;}
-    bool handle_get_objects(cryptonote::NOTIFY_REQUEST_GET_OBJECTS::request& arg, cryptonote::NOTIFY_RESPONSE_GET_OBJECTS::request& rsp, cryptonote::cryptonote_connection_context& context){return true;}
+    bool handle_get_blocks(cryptonote::NOTIFY_REQUEST_GET_BLOCKS::request& arg, cryptonote::NOTIFY_RESPONSE_GET_BLOCKS::request& rsp, cryptonote::cryptonote_connection_context& context){return true;}
     cryptonote::Blockchain &get_blockchain_storage() { throw std::runtime_error("Called invalid member function: please never call get_blockchain_storage on the TESTING class proxy_core."); }
     bool get_test_drop_download() {return true;}
     bool get_test_drop_download_height() {return true;}
@@ -121,6 +121,9 @@ namespace tests
       std::shared_ptr<cryptonote::blink_tx> get_blink(crypto::hash &) { return nullptr; }
       bool get_transaction(const crypto::hash& id, cryptonote::blobdata& tx_blob) const { return false; }
       bool have_tx(const crypto::hash &txid) const { return false; }
+      std::map<uint64_t, crypto::hash> get_blink_checksums() const { return {}; }
+      std::vector<crypto::hash> get_mined_blinks(const std::set<uint64_t> &) const { return {}; }
+      void keep_missing(std::vector<crypto::hash> &tx_hashes) const {}
     };
     fake_pool &get_pool() { return m_pool; }
 

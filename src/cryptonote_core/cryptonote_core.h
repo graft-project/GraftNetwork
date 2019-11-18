@@ -120,14 +120,6 @@ namespace cryptonote
      core(const core &) = delete;
      core &operator=(const core &) = delete;
 
-    /**
-     * @copydoc Blockchain::handle_get_objects
-     *
-     * @note see Blockchain::handle_get_objects()
-     * @param context connection context associated with the request
-     */
-     bool handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NOTIFY_RESPONSE_GET_OBJECTS::request& rsp, cryptonote_connection_context& context);
-
      /**
       * @brief calls various idle routines
       *
@@ -487,13 +479,6 @@ namespace cryptonote
       * @note see Blockchain::have_block
       */
      bool have_block(const crypto::hash& id) const;
-
-     /**
-      * @copydoc Blockchain::get_short_chain_history
-      *
-      * @note see Blockchain::get_short_chain_history
-      */
-     bool get_short_chain_history(std::list<crypto::hash>& ids) const;
 
      /**
       * @copydoc Blockchain::find_blockchain_supplement(const std::list<crypto::hash>&, NOTIFY_RESPONSE_CHAIN_ENTRY::request&) const

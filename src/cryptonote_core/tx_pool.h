@@ -213,11 +213,35 @@ namespace cryptonote
     bool has_blink(const crypto::hash &tx_hash, bool have_lock = false) const;
 
     /**
-     * @brief takes a map of blink { height -> [tx_hashes] } and records any that we don't already
-     * know about (and are not before the immutable height) in the internal "m_want_blinks" to
-     * request from p2p peers.
+     * @brief modifies a vector of blink hashes to remove any that are known valid blink txes
+     *
+     * @param txs the tx hashes to check
      */
-    void add_missing_blink_hashes(const std::map<uint64_t, std::vector<crypto::hash>> &potential);
+    void keep_missing(std::vector<crypto::hash> &tx_hashes) const;
+
+    /**
+     * @brief returns checksums of blink txes included in recently mined blocks and in the mempool
+     *
+     * The returned map consists of height => hashsum pairs where the height is the height in which
+     * the blink transactions were mined and the hashsum is a checksum of all the blink txes mined
+     * at that height.  Unmined mempool blink txes are included at a height of 0.  Only heights
+     * since the immutable checkpoint block are included.  Any block height (including the special
+     * "0" height) that has no blink tx in it is not included.
+     */
+    std::map<uint64_t, crypto::hash> get_blink_checksums() const;
+
+    /**
+     * @brief returns the hashes of any non-immutable blink transactions mined in the given heights.
+     * A height of 0 is allowed: it indicates blinks in the mempool.
+     *
+     * Note that this returned hashes by MINED HEIGHTS, not BLINK HEIGHTS where are a different
+     * concept.
+     *
+     * @param set of heights
+     *
+     * @return vector of hashes
+     */
+    std::vector<crypto::hash> get_mined_blinks(const std::set<uint64_t> &heights) const;
 
     /**
      * @brief takes a transaction with the given hash from the pool
@@ -706,9 +730,12 @@ namespace cryptonote
     // Contains blink metadata for approved blink transactions. { txhash => blink_tx, ... }.
     std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;
 
-    // Contains blink hashes that we don't have but have been told about by another node.  (The
-    // height is stored here for cleanup purposes).
+    // Contains blink hashes that we don't have but have been told about by another node.  The value
+    // is the height at which the tx was mined onto the blockchain, or 0 for mempool txes.
     std::unordered_map<crypto::hash, uint64_t> m_missing_blinks;
+
+    // Helper method: retrieves hashes and mined heights; mempool blinks get height 0
+    std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> get_blink_hashes_and_mined_heights() const;
 
     // TODO: clean up m_blinks and m_missing_blinks once mined & immutably checkpointed
   };

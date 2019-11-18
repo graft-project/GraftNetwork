@@ -1969,10 +1969,12 @@ bool Blockchain::get_blocks(uint64_t start_offset, size_t count, std::vector<std
 //FIXME: This function appears to want to return false if any transactions
 //       that belong with blocks are missing, but not if blocks themselves
 //       are missing.
-bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NOTIFY_RESPONSE_GET_OBJECTS::request& rsp)
+bool Blockchain::handle_get_blocks(NOTIFY_REQUEST_GET_BLOCKS::request& arg, NOTIFY_RESPONSE_GET_BLOCKS::request& rsp)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
-  CRITICAL_REGION_LOCAL(m_blockchain_lock);
+  std::unique_lock<decltype(m_blockchain_lock)> blockchain_lock{m_blockchain_lock, std::defer_lock};
+  auto blink_lock = m_tx_pool.blink_shared_lock(std::defer_lock);
+  std::lock(blockchain_lock, blink_lock);
   db_rtxn_guard rtxn_guard (m_db);
   rsp.current_blockchain_height = get_current_blockchain_height();
   std::vector<std::pair<cryptonote::blobdata,block>> blocks;
@@ -1988,7 +1990,6 @@ bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NO
   {
     auto &block_blob = bl.first;
     auto &block = bl.second;
-    std::vector<crypto::hash> missed_tx_ids;
 
     rsp.blocks.push_back(block_complete_entry());
     block_complete_entry& block_entry = rsp.blocks.back();
@@ -2015,7 +2016,18 @@ bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NO
 
     // FIXME: s/rsp.missed_ids/missed_tx_id/ ?  Seems like rsp.missed_ids
     //        is for missed blocks, not missed transactions as well.
+    std::vector<crypto::hash> missed_tx_ids;
     get_transactions_blobs(block.tx_hashes, block_entry.txs, missed_tx_ids);
+
+    for (auto &h : block.tx_hashes)
+    {
+      if (auto blink = m_tx_pool.get_blink(h))
+      {
+        auto l = blink->shared_lock();
+        block_entry.blinks.emplace_back();
+        blink->fill_serialization_data(block_entry.blinks.back());
+      }
+    }
 
     if (missed_tx_ids.size() != 0)
     {
@@ -2024,9 +2036,6 @@ bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NO
           << std::endl
       );
 
-      // append missed transaction hashes to response missed_ids field,
-      // as done below if any standalone transactions were requested
-      // and missed.
       rsp.missed_ids.insert(rsp.missed_ids.end(), missed_tx_ids.begin(), missed_tx_ids.end());
       return false;
     }
@@ -2034,8 +2043,38 @@ bool Blockchain::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NO
     //pack block
     block_entry.block = std::move(block_blob);
   }
-  //get and pack other transactions, if needed
-  get_transactions_blobs(arg.txs, rsp.txs, rsp.missed_ids);
+
+  return true;
+}
+//------------------------------------------------------------------
+bool Blockchain::handle_get_txs(NOTIFY_REQUEST_GET_TXS::request& arg, NOTIFY_NEW_TRANSACTIONS::request& rsp)
+{
+  LOG_PRINT_L3("Blockchain::" << __func__);
+  std::unique_lock<decltype(m_blockchain_lock)> blockchain_lock{m_blockchain_lock, std::defer_lock};
+  auto blink_lock = m_tx_pool.blink_shared_lock(std::defer_lock);
+  std::lock(blockchain_lock, blink_lock);
+  db_rtxn_guard rtxn_guard (m_db);
+  std::vector<std::pair<cryptonote::blobdata,block>> blocks;
+  std::vector<crypto::hash> ignore_missed;
+
+  get_transactions_blobs(arg.txs, rsp.txs, ignore_missed);
+
+  if (!ignore_missed.empty()) {
+    // Somewhat unusual (since this is used for blinks, and they select the ids from a tx list we
+    // sent them), but perhaps a flush could have caused this so not an error.
+    MINFO("Peer requested one or more txes that we don't have");
+    ignore_missed.clear();
+  }
+
+  for (auto &h : arg.txs)
+  {
+    if (auto blink = m_tx_pool.get_blink(h))
+    {
+      rsp.blinks.emplace_back();
+      auto l = blink->shared_lock();
+      blink->fill_serialization_data(rsp.blinks.back());
+    }
+  }
 
   return true;
 }

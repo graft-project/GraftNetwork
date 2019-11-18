@@ -1183,6 +1183,8 @@ namespace cryptonote
       if (!results[i].res)
         continue;
 
+      if (tx_hashes) (*tx_hashes)[i] = results[i].hash;
+
       if(m_mempool.have_tx(results[i].hash))
       {
         LOG_PRINT_L2("tx " << results[i].hash << "already have transaction in tx_pool");
@@ -1891,16 +1893,6 @@ namespace cryptonote
   bool core::parse_tx_from_blob(transaction& tx, crypto::hash& tx_hash, const blobdata& blob) const
   {
     return parse_and_validate_tx_from_blob(blob, tx, tx_hash);
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::get_short_chain_history(std::list<crypto::hash>& ids) const
-  {
-    return m_blockchain_storage.get_short_chain_history(ids);
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NOTIFY_RESPONSE_GET_OBJECTS::request& rsp, cryptonote_connection_context& context)
-  {
-    return m_blockchain_storage.handle_get_objects(arg, rsp);
   }
   //-----------------------------------------------------------------------------------------------
   crypto::hash core::get_block_id_by_height(uint64_t height) const

@@ -181,6 +181,10 @@ public:
      */
     void fill_serialization_data(crypto::hash &tx_hash, uint64_t &height, std::vector<uint8_t> &quorum, std::vector<uint8_t> &position, std::vector<crypto::signature> &signature) const;
 
+    /// Wrapper around the above that can be called with a serializable_blink_metadata
+    template <typename T>
+    void fill_serialization_data(T &data) const { fill_serialization_data(data.tx_hash, data.height, data.quorum, data.position, data.signature); }
+
 private:
     void initialize() {
         assert(quorum_height(subquorum::base) > 0);

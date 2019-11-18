@@ -488,24 +488,91 @@ namespace cryptonote
     auto lock = have_lock ? blink_shared_lock(std::defer_lock) : blink_shared_lock();
     return m_blinks.find(tx_hash) != m_blinks.end();
   }
-  //---------------------------------------------------------------------------------
-  void tx_memory_pool::add_missing_blink_hashes(const std::map<uint64_t, std::vector<crypto::hash>> &from)
-  {
-    uint64_t immutable_height = m_blockchain.get_immutable_height();
 
-    std::unique_lock<std::shared_timed_mutex> lock(m_blinks_mutex);
-    for (const auto &h_txes : from) {
-      if (h_txes.first <= immutable_height)
-        continue;
-      for (const auto &hash : h_txes.second) {
-        if (!m_blinks.count(hash)) {
-          auto &h = m_missing_blinks[hash];
-          if (h_txes.first > h)
-            h = h_txes.first;
-        }
+  void tx_memory_pool::keep_missing(std::vector<crypto::hash> &tx_hashes) const
+  {
+    auto lock = blink_shared_lock();
+    tx_hashes.erase(
+        std::remove_if(tx_hashes.begin(), tx_hashes.end(),
+          [this](const crypto::hash &tx_hash) { return m_blinks.count(tx_hash) > 0; }),
+        tx_hashes.end());
+  }
+
+  constexpr size_t SIZE_TS_IN_HASH = sizeof(crypto::hash) / sizeof(size_t);
+  static_assert(SIZE_TS_IN_HASH * sizeof(size_t) == sizeof(crypto::hash) && alignof(crypto::hash) >= alignof(size_t),
+      "Expected crypto::hash size/alignment not satisfied");
+
+  static void hash_xor(crypto::hash &checksum, const crypto::hash &x) {
+    size_t (&cs)[SIZE_TS_IN_HASH] = reinterpret_cast<size_t (&)[SIZE_TS_IN_HASH]>(checksum);
+    const size_t (&xs)[SIZE_TS_IN_HASH] = reinterpret_cast<const size_t (&)[SIZE_TS_IN_HASH]>(x);
+    for (size_t i = 0; i < SIZE_TS_IN_HASH; ++i)
+      cs[i] ^= xs[i];
+  }
+
+  std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> tx_memory_pool::get_blink_hashes_and_mined_heights() const
+  {
+    std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> hnh;
+    {
+      auto lock = blink_shared_lock();
+      if (!m_blinks.empty())
+      {
+        hnh.first.reserve(m_blinks.size());
+        for (auto &b : m_blinks)
+          hnh.first.push_back(b.first);
       }
     }
+
+    hnh.second = m_blockchain.get_db().get_tx_block_heights(hnh.first);
+    for (auto &h : hnh.second)
+      if (h == std::numeric_limits<uint64_t>::max())
+        h = 0;
+
+    return hnh;
   }
+
+  std::map<uint64_t, crypto::hash> tx_memory_pool::get_blink_checksums() const
+  {
+    std::map<uint64_t, crypto::hash> result;
+    const uint64_t immutable_height = m_blockchain.get_immutable_height();
+
+    auto hnh = get_blink_hashes_and_mined_heights();
+    auto &hashes = hnh.first;
+    auto &heights = hnh.second;
+
+    for (size_t i = 0; i < hashes.size(); i++)
+    {
+      if (0 < heights[i] && heights[i] < immutable_height)
+        continue;
+
+      auto it = result.lower_bound(heights[i]);
+      if (it == result.end() || it->first != heights[i])
+        result.emplace_hint(it, heights[i], hashes[i]);
+      else
+        hash_xor(it->second, hashes[i]);
+    }
+    return result;
+  }
+
+  //---------------------------------------------------------------------------------
+  std::vector<crypto::hash> tx_memory_pool::get_mined_blinks(const std::set<uint64_t> &want_heights) const
+  {
+    const uint64_t immutable_height = m_blockchain.get_immutable_height();
+
+    std::vector<crypto::hash> result;
+    auto hnh = get_blink_hashes_and_mined_heights();
+    auto &hashes = hnh.first;
+    auto &heights = hnh.second;
+    for (size_t i = 0; i < heights.size(); i++)
+    {
+      if (0 < heights[i] && heights[i] < immutable_height)
+        continue;
+
+      if (want_heights.count(heights[i]))
+        result.push_back(hashes[i]);
+    }
+    return result;
+  }
+
   //---------------------------------------------------------------------------------
   size_t tx_memory_pool::get_txpool_weight() const
   {

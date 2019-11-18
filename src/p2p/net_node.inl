@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2019, The Monero Project
-// Copyright (c)      2018, The Loki Project
+// Copyright (c)      2019, The Loki Project
 //
 // All rights reserved.
 //
@@ -1779,6 +1779,11 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::peer_sync_idle_maker()
   {
+    // TODO: this sync code is rather dumb: every 60s we trigger a sync with every connected peer
+    // all at once which results in a sudden spike of activity every 60s then not much in between.
+    // This really should be spaced out, i.e. the 60s sync timing should apply per peer, not
+    // globally.
+
     MDEBUG("STARTED PEERLIST IDLE HANDSHAKE");
     typedef std::list<std::pair<epee::net_utils::connection_context_base, peerid_type> > local_connects_type;
     local_connects_type cncts;

@@ -455,18 +455,30 @@ namespace cryptonote
     bool find_blockchain_supplement(const uint64_t req_start_block, const std::list<crypto::hash>& qblock_ids, std::vector<std::pair<std::pair<cryptonote::blobdata, crypto::hash>, std::vector<std::pair<crypto::hash, cryptonote::blobdata> > > >& blocks, uint64_t& total_height, uint64_t& start_height, bool pruned, bool get_miner_tx_hash, size_t max_count) const;
 
     /**
-     * @brief retrieves a set of blocks and their transactions, and possibly other transactions
+     * @brief retrieves a set of blocks and their transactions
      *
-     * the request object encapsulates a list of block hashes and a (possibly empty) list of
-     * transaction hashes.  for each block hash, the block is fetched along with all of that
-     * block's transactions.  Any transactions requested separately are fetched afterwards.
+     * the request object encapsulates a list of block hashes.  for each block hash, the block is
+     * fetched along with all of that block's transactions.
      *
      * @param arg the request
      * @param rsp return-by-reference the response to fill in
      *
      * @return true unless any blocks or transactions are missing
      */
-    bool handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NOTIFY_RESPONSE_GET_OBJECTS::request& rsp);
+    bool handle_get_blocks(NOTIFY_REQUEST_GET_BLOCKS::request& arg, NOTIFY_RESPONSE_GET_BLOCKS::request& rsp);
+
+    /**
+     * @brief retrieves a set of transactions
+     *
+     * The request object encapsulates a list of tx hashes which are fetched and stored in the
+     * response object.
+     *
+     * @param arg the request
+     * @param rsp return-by-reference the response to fill in
+     *
+     * @return true unless any transactions are missing
+     */
+    bool handle_get_txs(NOTIFY_REQUEST_GET_TXS::request& arg, NOTIFY_NEW_TRANSACTIONS::request& rsp);
 
     /**
      * @brief get number of outputs of an amount past the minimum spendable age

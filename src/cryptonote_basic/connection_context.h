@@ -55,6 +55,8 @@ namespace cryptonote
     state m_state;
     std::vector<crypto::hash> m_needed_objects;
     std::unordered_set<crypto::hash> m_requested_objects;
+    std::map<uint64_t, std::pair<crypto::hash, bool>> m_blink_state; // HEIGHT => {CHECKSUM, NEEDED}
+    bool m_need_blink_sync;
     uint64_t m_remote_blockchain_height;
     uint64_t m_last_response_height;
     boost::posix_time::ptime m_last_request_time;
