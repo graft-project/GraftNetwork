@@ -1183,8 +1183,6 @@ namespace cryptonote
       if (!results[i].res)
         continue;
 
-      if (tx_hashes) (*tx_hashes)[i] = results[i].hash;
-
       if(m_mempool.have_tx(results[i].hash))
       {
         LOG_PRINT_L2("tx " << results[i].hash << "already have transaction in tx_pool");
@@ -1245,6 +1243,9 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::handle_incoming_blinks(const std::vector<serializable_blink_metadata> &blinks, std::vector<crypto::hash> *bad_blinks, std::vector<crypto::hash> *missing_txs)
   {
+    if (m_blockchain_storage.get_current_hard_fork_version() < HF_VERSION_BLINK)
+      return true;
+
     std::vector<uint8_t> store_blink(blinks.size(), false);
     size_t store_count = 0;
     // Step 1: figure out which referenced transactions we have and want blink info for (i.e. mined

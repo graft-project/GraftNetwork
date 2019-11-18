@@ -378,6 +378,7 @@ namespace cryptonote
 
     context.m_need_blink_sync = false;
     // Check for any blink txes being advertised that we don't know about
+    if (m_core.get_blockchain_storage().get_current_hard_fork_version() >= HF_VERSION_BLINK)
     {
       if (hshd.blink_blocks.size() != hshd.blink_hash.size())
       {
@@ -2414,6 +2415,7 @@ skip:
     // blink data that got sent to us (we may have additional blink info, or may have rejected some
     // of the incoming blink data).
     arg.blinks.clear();
+    if (m_core.get_blockchain_storage().get_current_hard_fork_version() >= HF_VERSION_BLINK)
     {
       auto &pool = m_core.get_pool();
       auto lock = pool.blink_shared_lock();

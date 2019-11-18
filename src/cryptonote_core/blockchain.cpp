@@ -1974,7 +1974,15 @@ bool Blockchain::handle_get_blocks(NOTIFY_REQUEST_GET_BLOCKS::request& arg, NOTI
   LOG_PRINT_L3("Blockchain::" << __func__);
   std::unique_lock<decltype(m_blockchain_lock)> blockchain_lock{m_blockchain_lock, std::defer_lock};
   auto blink_lock = m_tx_pool.blink_shared_lock(std::defer_lock);
-  std::lock(blockchain_lock, blink_lock);
+  bool blink_enabled = false;
+  if (get_current_hard_fork_version() >= HF_VERSION_BLINK)
+  {
+    blink_enabled = true;
+    std::lock(blockchain_lock, blink_lock);
+  }
+  else
+    blockchain_lock.lock();
+
   db_rtxn_guard rtxn_guard (m_db);
   rsp.current_blockchain_height = get_current_blockchain_height();
   std::vector<std::pair<cryptonote::blobdata,block>> blocks;
@@ -2019,13 +2027,16 @@ bool Blockchain::handle_get_blocks(NOTIFY_REQUEST_GET_BLOCKS::request& arg, NOTI
     std::vector<crypto::hash> missed_tx_ids;
     get_transactions_blobs(block.tx_hashes, block_entry.txs, missed_tx_ids);
 
-    for (auto &h : block.tx_hashes)
+    if (blink_enabled)
     {
-      if (auto blink = m_tx_pool.get_blink(h))
+      for (auto &h : block.tx_hashes)
       {
-        auto l = blink->shared_lock();
-        block_entry.blinks.emplace_back();
-        blink->fill_serialization_data(block_entry.blinks.back());
+        if (auto blink = m_tx_pool.get_blink(h))
+        {
+          auto l = blink->shared_lock();
+          block_entry.blinks.emplace_back();
+          blink->fill_serialization_data(block_entry.blinks.back());
+        }
       }
     }
 
@@ -2052,7 +2063,15 @@ bool Blockchain::handle_get_txs(NOTIFY_REQUEST_GET_TXS::request& arg, NOTIFY_NEW
   LOG_PRINT_L3("Blockchain::" << __func__);
   std::unique_lock<decltype(m_blockchain_lock)> blockchain_lock{m_blockchain_lock, std::defer_lock};
   auto blink_lock = m_tx_pool.blink_shared_lock(std::defer_lock);
-  std::lock(blockchain_lock, blink_lock);
+  bool blink_enabled = false;
+  if (get_current_hard_fork_version() >= HF_VERSION_BLINK)
+  {
+    blink_enabled = true;
+    std::lock(blockchain_lock, blink_lock);
+  }
+  else
+    blockchain_lock.lock();
+
   db_rtxn_guard rtxn_guard (m_db);
   std::vector<std::pair<cryptonote::blobdata,block>> blocks;
   std::vector<crypto::hash> ignore_missed;
@@ -2066,13 +2085,16 @@ bool Blockchain::handle_get_txs(NOTIFY_REQUEST_GET_TXS::request& arg, NOTIFY_NEW
     ignore_missed.clear();
   }
 
-  for (auto &h : arg.txs)
+  if (blink_enabled)
   {
-    if (auto blink = m_tx_pool.get_blink(h))
+    for (auto &h : arg.txs)
     {
-      rsp.blinks.emplace_back();
-      auto l = blink->shared_lock();
-      blink->fill_serialization_data(rsp.blinks.back());
+      if (auto blink = m_tx_pool.get_blink(h))
+      {
+        rsp.blinks.emplace_back();
+        auto l = blink->shared_lock();
+        blink->fill_serialization_data(rsp.blinks.back());
+      }
     }
   }
 
