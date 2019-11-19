@@ -3144,27 +3144,29 @@ std::vector<transaction> BlockchainLMDB::get_tx_list(const std::vector<crypto::h
   return v;
 }
 
-uint64_t BlockchainLMDB::get_tx_block_height(const crypto::hash& h) const
+std::vector<uint64_t> BlockchainLMDB::get_tx_block_heights(const std::vector<crypto::hash>& hs) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
+  std::vector<uint64_t> result;
+  result.reserve(hs.size());
 
   TXN_PREFIX_RDONLY();
   RCURSOR(tx_indices);
 
-  MDB_val_set(v, h);
-  auto get_result = mdb_cursor_get(m_cur_tx_indices, (MDB_val *)&zerokval, &v, MDB_GET_BOTH);
-  if (get_result == MDB_NOTFOUND)
+  for (const auto &h : hs)
   {
-    throw1(TX_DNE(std::string("tx_data_t with hash ").append(epee::string_tools::pod_to_hex(h)).append(" not found in db").c_str()));
+    MDB_val_set(v, h);
+    auto get_result = mdb_cursor_get(m_cur_tx_indices, (MDB_val *)&zerokval, &v, MDB_GET_BOTH);
+    if (get_result == MDB_NOTFOUND)
+      result.push_back(std::numeric_limits<uint64_t>::max());
+    else if (get_result)
+      throw0(DB_ERROR(lmdb_error("DB error attempting to fetch tx height from hash", get_result)));
+    else
+      result.push_back(reinterpret_cast<txindex *>(v.mv_data)->data.block_id);
   }
-  else if (get_result)
-    throw0(DB_ERROR(lmdb_error("DB error attempting to fetch tx height from hash", get_result).c_str()));
-
-  txindex *tip = (txindex *)v.mv_data;
-  uint64_t ret = tip->data.block_id;
   TXN_POSTFIX_RDONLY();
-  return ret;
+  return result;
 }
 
 uint64_t BlockchainLMDB::get_num_outputs(const uint64_t& amount) const

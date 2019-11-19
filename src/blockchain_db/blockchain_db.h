@@ -1335,16 +1335,30 @@ public:
   /**
    * @brief fetches the height of a transaction's block
    *
-   * The subclass should attempt to return the height of the block containing
-   * the transaction with the given hash.
+   * This is a simple wrapper around calling get_tx_block_heights
+   * with a single transaction and converts a not-found height value
+   * to a TX_DNE exception.
    *
-   * If the transaction cannot be found, the subclass should throw TX_DNE.
+   * Not virtual: subclasses should override get_tx_block_heights instead.
    *
    * @param h the hash of the transaction
    *
    * @return the height of the transaction's block
    */
-  virtual uint64_t get_tx_block_height(const crypto::hash& h) const = 0;
+  uint64_t get_tx_block_height(const crypto::hash& h) const;
+
+  /**
+   * @brief fetches the height of multiple transactions' blocks
+   *
+   * Any transactions not found in the database will have a value of
+   * std::numeric_limits<uint64_t>::max() set (unlike get_tx_block_height,
+   * which throws TX_DNE).
+   *
+   * @param h vector of hashes of the desired transactions
+   *
+   * @return vector of heights corresponding to each hash, or (uint64_t)-1 if not found
+   */
+  virtual std::vector<uint64_t> get_tx_block_heights(const std::vector<crypto::hash> &h) const = 0;
 
   // returns the total number of outputs of amount <amount>
   /**
