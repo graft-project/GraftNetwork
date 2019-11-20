@@ -1185,7 +1185,7 @@ namespace cryptonote
 
       if(m_mempool.have_tx(results[i].hash))
       {
-        LOG_PRINT_L2("tx " << results[i].hash << "already have transaction in tx_pool");
+        LOG_PRINT_L2("tx " << results[i].hash << " already have transaction in tx_pool");
         results[i].already_have = true;
       }
       else if(m_blockchain_storage.have_tx(results[i].hash))
@@ -1274,6 +1274,7 @@ namespace cryptonote
       }
     }
 
+    MDEBUG("Accepted " << store_count << " of " << blinks.size() << " incoming blink states as uncheckpointed or in the mempool");
     if (!store_count) return true;
 
     // Step 2: filter out any transactions for which we already have a blink signature
@@ -1283,12 +1284,14 @@ namespace cryptonote
       {
         if (store_blink[i] && m_mempool.has_blink(blinks[i].tx_hash, true /*have lock*/))
         {
+          MDEBUG("Ignoring blink data for " << blinks[i].tx_hash << ": already have blink signatures");
           store_blink[i] = false; // Already have it, move along
           store_count--;
         }
       }
     }
 
+    MDEBUG("Need blink data for " << store_count << " of " << blinks.size() << " incoming blinks");
     if (!store_count) return true;
 
     // Step 3: create new blink_tx objects for txes we want the blink signatures for, making sure
@@ -1298,7 +1301,7 @@ namespace cryptonote
     new_blinks.reserve(store_count);
     std::unordered_map<uint64_t, std::shared_ptr<const service_nodes::quorum>> quorum_cache;
     bool bad = false;
-    auto bad_blink = [&bad, bad_blinks](const crypto::hash &h, const char *what) {
+    auto bad_blink = [&bad, bad_blinks](const crypto::hash &h, const auto &what) {
       MINFO("Invalid blink tx " << h << ": " << what);
       bad = true;
       if (bad_blinks) bad_blinks->push_back(h);
@@ -1308,12 +1311,15 @@ namespace cryptonote
       if (!store_blink[i])
         continue;
       auto &bdata = blinks[i];
-      if (bdata.signature.size() != bdata.position.size() || bdata.signature.size() != bdata.quorum.size() ||
-          bdata.signature.size() < service_nodes::BLINK_MIN_VOTES * tools::enum_count<blink_tx::subquorum> ||
-          bdata.signature.size() > service_nodes::BLINK_SUBQUORUM_SIZE * tools::enum_count<blink_tx::subquorum> ||
-          blink_tx::quorum_height(bdata.height, blink_tx::subquorum::base) == 0 ||
-          !std::all_of(bdata.position.begin(), bdata.position.end(), [](const auto &p) { return p < service_nodes::BLINK_SUBQUORUM_SIZE; }) ||
-          !std::all_of(bdata.quorum.begin(), bdata.quorum.end(), [](const auto &qi) { return qi < tools::enum_count<blink_tx::subquorum>; })
+      // Data structure checks (we have more stringent checks for validity later, but if these fail
+      // now then the data doesn't just fail to validate, it is invalid).
+      if (bdata.signature.size() != bdata.position.size() ||  // Each signature must have an associated quorum position
+          bdata.signature.size() != bdata.quorum.size()   ||  // and quorum index
+          bdata.signature.size() < service_nodes::BLINK_MIN_VOTES * tools::enum_count<blink_tx::subquorum> || // too few signatures for possible validity
+          bdata.signature.size() > service_nodes::BLINK_SUBQUORUM_SIZE * tools::enum_count<blink_tx::subquorum> || // too many signatures
+          blink_tx::quorum_height(bdata.height, blink_tx::subquorum::base) == 0 || // Height is too early (no blink quorum height)
+          std::any_of(bdata.position.begin(), bdata.position.end(), [](const auto &p) { return p >= service_nodes::BLINK_SUBQUORUM_SIZE; }) || // invalid position
+          std::any_of(bdata.quorum.begin(), bdata.quorum.end(), [](const auto &qi) { return qi >= tools::enum_count<blink_tx::subquorum>; }) // invalid quorum index
       ) {
         bad_blink(bdata.tx_hash, "invalid signature data");
         continue;
@@ -1331,12 +1337,29 @@ namespace cryptonote
         validators[qi] = &q->validators;
       }
 
-      try {
-        for (size_t s = 0; s < bdata.signature.size(); s++)
+      std::vector<std::pair<size_t, std::string>> failures;
+      for (size_t s = 0; s < bdata.signature.size(); s++)
+      {
+        try {
           blink.add_signature(static_cast<blink_tx::subquorum>(bdata.quorum[s]), bdata.position[s], true /*approved*/, bdata.signature[s],
               validators[bdata.quorum[s]]->at(bdata.position[s]));
-      } catch (const std::exception &e) {
-        bad_blink(bdata.tx_hash, e.what());
+        } catch (const std::exception &e) {
+          failures.emplace_back(s, e.what());
+        }
+      }
+      if (blink.approved())
+      {
+        MINFO("Blink tx " << bdata.tx_hash << " blink signatures approved with " << failures.size() << " signature validation failures");
+        for (auto &f : failures)
+          MDEBUG("- failure for quorum " << int(bdata.quorum[f.first]) << ", position " << int(bdata.position[f.first]) << ": " << f.second);
+      }
+      else
+      {
+        std::ostringstream os;
+        os << "Blink validation failed:";
+        for (auto &f : failures)
+          os << " [" << int(bdata.quorum[f.first]) << ":" << int(bdata.position[f.first]) << "]: " << f.second;
+        bad_blink(bdata.tx_hash, os.str());
         continue;
       }
 
@@ -1346,11 +1369,15 @@ namespace cryptonote
     // Finally lock the blink pool and add all the blink signature data.  It's possible that some
     // other thread got through the above loop before us and already added some of those, but that's
     // okay.
+    int added = 0;
     {
       auto lock = m_mempool.blink_unique_lock();
       for (auto &b : new_blinks)
-        m_mempool.add_existing_blink(std::move(b), true /*have lock*/);
+        if (m_mempool.add_existing_blink(std::move(b), true /*have lock*/))
+          added++;
     }
+
+    MINFO("Added signature info for " << added << " blinks, " << (new_blinks.size() - added) << " already present");
 
     return !bad;
   }
@@ -1567,7 +1594,7 @@ namespace cryptonote
   {
     if(m_mempool.have_tx(tx_hash))
     {
-      LOG_PRINT_L2("tx " << tx_hash << "already have transaction in tx_pool");
+      LOG_PRINT_L2("tx " << tx_hash << " already have transaction in tx_pool");
       return true;
     }
 

@@ -447,6 +447,17 @@ namespace cryptonote
     bool get_transaction(const crypto::hash& h, cryptonote::blobdata& txblob) const;
 
     /**
+     * @brief get specific transactions from the pool
+     *
+     * @param hashes - tx hashes of desired transactions
+     * @param txblobs - vector of blobdata (i.e. std::strings) to which found blobs should be
+     * appended.  The vector is *not* cleared of existing values.
+     *
+     * @return number of transactions added to txblobs
+     */
+    int find_transactions(const std::vector<crypto::hash> &tx_hashes, std::vector<cryptonote::blobdata> &txblobs) const;
+
+    /**
      * @brief get a list of all relayable transactions and their hashes
      *
      * "relayable" in this case means:

@@ -2073,17 +2073,13 @@ bool Blockchain::handle_get_txs(NOTIFY_REQUEST_GET_TXS::request& arg, NOTIFY_NEW
     blockchain_lock.lock();
 
   db_rtxn_guard rtxn_guard (m_db);
-  std::vector<std::pair<cryptonote::blobdata,block>> blocks;
-  std::vector<crypto::hash> ignore_missed;
+  std::vector<crypto::hash> missed;
 
-  get_transactions_blobs(arg.txs, rsp.txs, ignore_missed);
+  // First check the blockchain for any txs:
+  get_transactions_blobs(arg.txs, rsp.txs, missed);
 
-  if (!ignore_missed.empty()) {
-    // Somewhat unusual (since this is used for blinks, and they select the ids from a tx list we
-    // sent them), but perhaps a flush could have caused this so not an error.
-    MINFO("Peer requested one or more txes that we don't have");
-    ignore_missed.clear();
-  }
+  // Look for any missed txes in the mempool:
+  m_tx_pool.find_transactions(missed, rsp.txs);
 
   if (blink_enabled)
   {
@@ -2431,7 +2427,7 @@ bool Blockchain::get_split_transactions_blobs(const std::vector<crypto::hash>& t
       cryptonote::blobdata tx;
       if (m_db->get_pruned_tx_blob(tx_hash, tx))
       {
-        txs.push_back(std::make_tuple(tx_hash, std::move(tx), crypto::null_hash, cryptonote::blobdata()));
+        txs.emplace_back(tx_hash, std::move(tx), crypto::null_hash, cryptonote::blobdata());
         if (!is_v1_tx(std::get<1>(txs.back())) && !m_db->get_prunable_tx_hash(tx_hash, std::get<2>(txs.back())))
         {
           MERROR("Prunable data hash not found for " << tx_hash);

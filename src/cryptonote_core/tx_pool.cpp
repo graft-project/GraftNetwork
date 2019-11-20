@@ -1117,10 +1117,13 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL1(m_blockchain);
     tx_infos.reserve(m_blockchain.get_txpool_tx_count());
     key_image_infos.reserve(m_blockchain.get_txpool_tx_count());
-    m_blockchain.for_all_txpool_txes([&tx_infos, key_image_infos, include_sensitive_data](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd){
-      tx_info txi;
-      txi.id_hash = epee::string_tools::pod_to_hex(txid);
-      txi.tx_blob = *bd;
+
+    bool blink_enabled = m_blockchain.get_current_hard_fork_version() >= HF_VERSION_BLINK;
+    auto blink_lock = blink_shared_lock(std::defer_lock);
+    if (blink_enabled)
+      blink_lock.lock();
+
+    m_blockchain.for_all_txpool_txes([&tx_infos, this, blink_enabled, include_sensitive_data](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd){
       transaction tx;
       if (!parse_and_validate_tx_from_blob(*bd, tx))
       {
@@ -1128,6 +1131,10 @@ namespace cryptonote
         // continue
         return true;
       }
+      tx_infos.emplace_back();
+      tx_info &txi = tx_infos.back();
+      txi.id_hash = epee::string_tools::pod_to_hex(txid);
+      txi.tx_blob = *bd;
       tx.set_hash(txid);
       txi.tx_json = obj_to_json_str(tx);
       txi.blob_size = bd->size();
@@ -1145,7 +1152,7 @@ namespace cryptonote
       txi.last_relayed_time = include_sensitive_data ? meta.last_relayed_time : 0;
       txi.do_not_relay = meta.do_not_relay;
       txi.double_spend_seen = meta.double_spend_seen;
-      tx_infos.push_back(std::move(txi));
+      txi.blink = blink_enabled && has_blink(txid, true /*have lock*/);
       return true;
     }, true, include_sensitive_data);
 
@@ -1247,18 +1254,36 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::get_transaction(const crypto::hash& id, cryptonote::blobdata& txblob) const
+  int tx_memory_pool::find_transactions(const std::vector<crypto::hash> &tx_hashes, std::vector<cryptonote::blobdata> &txblobs) const
   {
+    if (tx_hashes.empty())
+      return 0;
+    txblobs.reserve(txblobs.size() + tx_hashes.size());
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     CRITICAL_REGION_LOCAL1(m_blockchain);
-    try
+    int added = 0;
+    for (auto &id : tx_hashes)
     {
-      return m_blockchain.get_txpool_tx_blob(id, txblob);
+      try
+      {
+        cryptonote::blobdata txblob;
+        m_blockchain.get_txpool_tx_blob(id, txblob);
+        txblobs.push_back(std::move(txblob));
+        ++added;
+      }
+      catch (...) { /* ignore */ }
     }
-    catch (const std::exception &e)
-    {
+    return added;
+  }
+  //---------------------------------------------------------------------------------
+  bool tx_memory_pool::get_transaction(const crypto::hash& id, cryptonote::blobdata& txblob) const
+  {
+    std::vector<cryptonote::blobdata> found;
+    find_transactions({{id}}, found);
+    if (found.empty())
       return false;
-    }
+    txblob = std::move(found[0]);
+    return true;
   }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::on_blockchain_inc(block const &blk)

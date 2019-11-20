@@ -556,13 +556,14 @@ namespace cryptonote
     LOG_PRINT_L2("Found " << txs.size() << "/" << vh.size() << " transactions on the blockchain");
 
     // try the pool for any missing txes
+    auto &pool = m_core.get_pool();
     size_t found_in_pool = 0;
     std::unordered_map<crypto::hash, tx_info> per_tx_pool_tx_info;
     if (!missed_txs.empty())
     {
       std::vector<tx_info> pool_tx_info;
       std::vector<spent_key_image_info> pool_key_image_info;
-      bool r = m_core.get_pool().get_transactions_and_spent_keys_info(pool_tx_info, pool_key_image_info);
+      bool r = pool.get_transactions_and_spent_keys_info(pool_tx_info, pool_key_image_info);
       if(r)
       {
         // sort to match original request
@@ -617,6 +618,10 @@ namespace cryptonote
       }
       LOG_PRINT_L2("Found " << found_in_pool << "/" << vh.size() << " transactions in the pool");
     }
+
+    bool blink_enabled = m_core.get_blockchain_storage().get_current_hard_fork_version() >= HF_VERSION_BLINK;
+    uint64_t immutable_height = m_core.get_blockchain_storage().get_immutable_height();
+    auto pool_lock = pool.blink_shared_lock(std::defer_lock); // Defer until/unless we actually need it
 
     std::vector<std::string>::const_iterator txhi = req.txs_hashes.begin();
     std::vector<crypto::hash>::const_iterator vhi = vh.begin();
@@ -702,6 +707,13 @@ namespace cryptonote
         e.block_timestamp = m_core.get_blockchain_storage().get_db().get_block_timestamp(e.block_height);
         e.double_spend_seen = false;
         e.relayed = false;
+        if (e.block_height > immutable_height)
+        {
+          if (!pool_lock) pool_lock.lock();
+          e.blink = pool.has_blink(tx_hash, true /*have lock*/);
+        }
+        else
+          e.blink = false;
       }
 
       // fill up old style responses too, in case an old wallet asks
@@ -719,15 +731,6 @@ namespace cryptonote
           return false;
         }
       }
-    }
-
-    if (m_core.get_blockchain_storage().get_current_hard_fork_version() >= HF_VERSION_BLINK)
-    {
-      auto &pool = m_core.get_pool();
-      auto lock = pool.blink_shared_lock();
-      for (size_t i = 0; i < res.txs.size(); i++)
-        if (pool.has_blink(vh[i], true /*have lock*/))
-          res.txs[i].blink = true;
     }
 
     for(const auto& miss_tx: missed_txs)

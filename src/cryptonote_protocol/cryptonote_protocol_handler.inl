@@ -156,7 +156,8 @@ namespace cryptonote
       auto curr_height = m_core.get_current_blockchain_height();
       auto my_blink_hashes = m_core.get_pool().get_blink_checksums();
       const uint64_t immutable_height = m_core.get_blockchain_storage().get_immutable_height();
-      context.m_blink_state.erase(context.m_blink_state.begin(), context.m_blink_state.lower_bound(immutable_height));
+      // Delete any irrelevant heights > 0 (the mempool) and <= the immutable height
+      context.m_blink_state.erase(context.m_blink_state.lower_bound(1), context.m_blink_state.lower_bound(immutable_height + 1));
 
       // m_blink_state: HEIGHT => {CHECKSUM, NEEDED}
       for (auto &i : context.m_blink_state)
@@ -397,9 +398,11 @@ namespace cryptonote
       // that height.
 
       const uint64_t immutable_height = m_core.get_blockchain_storage().get_immutable_height();
-      context.m_blink_state.erase(context.m_blink_state.begin(), context.m_blink_state.lower_bound(immutable_height));
+      // Delete any irrelevant heights > 0 (the mempool) and <= the immutable height
+      context.m_blink_state.erase(context.m_blink_state.lower_bound(1), context.m_blink_state.lower_bound(immutable_height + 1));
       auto our_blink_hashes = m_core.get_pool().get_blink_checksums();
       uint64_t last_height;
+      MDEBUG("Peer sent " << hshd.blink_blocks.size() << " blink hashes");
       for (size_t i = 0; i < hshd.blink_blocks.size(); i++) {
         auto &height = hshd.blink_blocks[i];
         if (i == 0 || height > last_height)
@@ -427,7 +430,7 @@ namespace cryptonote
 
         auto ctx_it = context.m_blink_state.lower_bound(height);
         if (ctx_it == context.m_blink_state.end() || ctx_it->first != height) // Height not found in peer context
-          ctx_it = context.m_blink_state.emplace_hint(ctx_it, height, std::make_pair(hash, true));
+          context.m_blink_state.emplace_hint(ctx_it, height, std::make_pair(hash, true));
         else if (ctx_it->second.first != hash) // Hash changed, update and request
         {
           ctx_it->second.first = hash;
@@ -516,6 +519,14 @@ namespace cryptonote
     hshd.cumulative_difficulty = m_core.get_block_cumulative_difficulty(hshd.current_height);
     hshd.current_height +=1;
     hshd.pruning_seed = m_core.get_blockchain_pruning_seed();
+    auto our_blink_hashes = m_core.get_pool().get_blink_checksums();
+    hshd.blink_blocks.reserve(our_blink_hashes.size());
+    hshd.blink_hash.reserve(our_blink_hashes.size());
+    for (auto &h : our_blink_hashes)
+    {
+        hshd.blink_blocks.push_back(h.first);
+        hshd.blink_hash.push_back(h.second);
+    }
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------
