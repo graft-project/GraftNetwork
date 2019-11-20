@@ -1004,8 +1004,6 @@ void handle_blink(SNNetwork::message &m, void *self) {
         approved = false;
         MINFO("Blink TX " << tx_hash << " rejected because TX version " << tx.version << " invalid: TX version not between " << min << " and " << max);
     } else {
-        uint64_t miner_fee, burned;
-        cryptonote::get_tx_miner_fee(tx, miner_fee, true /*burning enabled*/, &burned);
         bool already_in_mempool;
         cryptonote::tx_verification_context tvc = {};
         approved = snw.core.get_pool().add_new_blink(btxptr, tvc, already_in_mempool);
