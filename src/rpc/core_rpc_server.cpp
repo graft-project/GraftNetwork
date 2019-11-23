@@ -695,6 +695,7 @@ namespace cryptonote
       }
       auto ptx_it = per_tx_pool_tx_info.find(tx_hash);
       e.in_pool = ptx_it != per_tx_pool_tx_info.end();
+      bool might_be_blink = blink_enabled;
       if (e.in_pool)
       {
         e.block_height = e.block_timestamp = std::numeric_limits<uint64_t>::max();
@@ -707,13 +708,14 @@ namespace cryptonote
         e.block_timestamp = m_core.get_blockchain_storage().get_db().get_block_timestamp(e.block_height);
         e.double_spend_seen = false;
         e.relayed = false;
-        if (e.block_height > immutable_height)
-        {
-          if (!pool_lock) pool_lock.lock();
-          e.blink = pool.has_blink(tx_hash, true /*have lock*/);
-        }
-        else
-          e.blink = false;
+        if (e.block_height <= immutable_height)
+            might_be_blink = false;
+      }
+
+      if (might_be_blink)
+      {
+        if (!pool_lock) pool_lock.lock();
+        e.blink = pool.has_blink(tx_hash, true /*have lock*/);
       }
 
       // fill up old style responses too, in case an old wallet asks
