@@ -613,45 +613,60 @@ namespace cryptonote
     m_txpool_max_weight = bytes;
   }
   //---------------------------------------------------------------------------------
+  bool tx_memory_pool::remove_tx(const crypto::hash &txid, const txpool_tx_meta_t *meta, const sorted_tx_container::iterator *stc_it)
+  {
+    const auto it = stc_it ? *stc_it : find_tx_in_sorted_container(txid);
+    if (it == m_txs_by_fee_and_receive_time.end())
+    {
+      MERROR("Failed to find tx in txpool sorted list");
+      return false;
+    }
+
+    cryptonote::blobdata tx_blob = m_blockchain.get_txpool_tx_blob(txid);
+    cryptonote::transaction_prefix tx;
+    if (!parse_and_validate_tx_prefix_from_blob(tx_blob, tx))
+    {
+      MERROR("Failed to parse tx from txpool");
+      return false;
+    }
+
+    txpool_tx_meta_t lookup_meta;
+    if (!meta)
+    {
+      if (m_blockchain.get_txpool_tx_meta(txid, lookup_meta))
+        meta = &lookup_meta;
+      else
+      {
+        MERROR("Failed to find tx in txpool");
+        return false;
+      }
+    }
+
+    // remove first, in case this throws, so key images aren't removed
+    const uint64_t tx_fee = std::get<1>(it->first);
+    MINFO("Removing tx " << txid << " from txpool: weight: " << meta->weight << ", fee/byte: " << tx_fee);
+    m_blockchain.remove_txpool_tx(txid);
+    m_txpool_weight -= meta->weight;
+    remove_transaction_keyimages(tx, txid);
+    MINFO("Removing tx " << txid << " from txpool: weight: " << meta->weight << ", fee/byte: " << tx_fee);
+    m_txs_by_fee_and_receive_time.erase(it);
+
+    return true;
+  }
+  //---------------------------------------------------------------------------------
   void tx_memory_pool::prune(size_t bytes)
   {
-    CRITICAL_REGION_LOCAL(m_transactions_lock);
+    std::unique_lock<tx_memory_pool> tx_lock{*this, std::defer_lock};
+    std::unique_lock<Blockchain> bc_lock{m_blockchain, std::defer_lock};
+    std::lock(tx_lock, bc_lock);
     if (bytes == 0)
       bytes = m_txpool_max_weight;
-    CRITICAL_REGION_LOCAL1(m_blockchain);
     LockedTXN lock(m_blockchain);
     bool changed = false;
 
-    auto prune_tx = [this](sorted_tx_container::iterator &it, crypto::hash const &txid, txpool_tx_meta_t const &meta, bool &changed)
-    {
-      cryptonote::blobdata tx_blob = m_blockchain.get_txpool_tx_blob(txid);
-      cryptonote::transaction_prefix tx;
-      if (!parse_and_validate_tx_prefix_from_blob(tx_blob, tx))
-      {
-        return false;
-      }
-
-      // remove first, in case this throws, so key images aren't removed
-      const uint64_t tx_fee = std::get<1>(it->first);
-      MINFO("Pruning tx " << txid << " from txpool: weight: " << meta.weight << ", fee/byte: " << tx_fee);
-      m_blockchain.remove_txpool_tx(txid);
-      m_txpool_weight -= meta.weight;
-      remove_transaction_keyimages(tx, txid);
-      MINFO("Pruned tx " << txid << " from txpool: weight: " << meta.weight << ", fee/byte: " << tx_fee);
-      it = m_txs_by_fee_and_receive_time.erase(it);
-      changed = true;
-
-      return true;
-    };
-
-    for (auto it = m_txs_by_fee_and_receive_time.begin(); it != m_txs_by_fee_and_receive_time.end(); )
-    {
-      const bool is_standard_tx = !std::get<0>(it->first);
-      const time_t receive_time = std::get<2>(it->first);
-
-      if (is_standard_tx || receive_time >= time(nullptr) - MEMPOOL_PRUNE_NON_STANDARD_TX_LIFETIME)
-        break;
-
+    // Tries checking conditions for pruning and, if appropriate, removing the tx.
+    // Returns false on failure, true for no prune wanted or a successful prune.
+    auto try_pruning = [this, &changed](auto &it, bool forward) -> bool {
       try
       {
         const crypto::hash &txid = it->second;
@@ -659,63 +674,49 @@ namespace cryptonote
         if (!m_blockchain.get_txpool_tx_meta(txid, meta))
         {
           MERROR("Failed to find tx in txpool");
-          return;
+          return false;
         }
+        auto del_it = forward ? it++ : it--;
+
         // don't prune the kept_by_block ones, they're likely added because we're adding a block with those
         if (meta.kept_by_block)
-        {
-          it++;
-          continue;
-        }
+          return true;
 
-        if (!prune_tx(it, txid, meta, changed))
+        if (remove_tx(txid, &meta, &del_it))
         {
-          MERROR("Failed to parse tx from txpool");
-          return;
+          changed = true;
+          return true;
         }
+        return false;
       }
       catch (const std::exception &e)
       {
         MERROR("Error while pruning txpool: " << e.what());
-        return;
+        return false;
       }
+    };
+
+    const auto unexpired = std::time(nullptr) - MEMPOOL_PRUNE_NON_STANDARD_TX_LIFETIME;
+    for (auto it = m_txs_by_fee_and_receive_time.begin(); it != m_txs_by_fee_and_receive_time.end(); )
+    {
+      const bool is_standard_tx = !std::get<0>(it->first);
+      const time_t receive_time = std::get<2>(it->first);
+
+      if (is_standard_tx || receive_time >= unexpired)
+        break;
+
+      if (!try_pruning(it, true /*forward*/))
+        return;
     }
 
     // this will never remove the first one, but we don't care
     auto it = m_txs_by_fee_and_receive_time.end();
     if (it != m_txs_by_fee_and_receive_time.begin())
       it = std::prev(it);
-    while (it != m_txs_by_fee_and_receive_time.begin())
+    while (m_txpool_weight <= bytes && it != m_txs_by_fee_and_receive_time.begin())
     {
-      if (m_txpool_weight <= bytes)
-        break;
-      try
-      {
-        const crypto::hash &txid = it->second;
-        txpool_tx_meta_t meta;
-        if (!m_blockchain.get_txpool_tx_meta(txid, meta))
-        {
-          MERROR("Failed to find tx in txpool");
-          return;
-        }
-        // don't prune the kept_by_block ones, they're likely added because we're adding a block with those
-        if (meta.kept_by_block)
-        {
-          --it;
-          continue;
-        }
-
-        if (!prune_tx(it, txid, meta, changed))
-        {
-          MERROR("Failed to parse tx from txpool");
-          return;
-        }
-      }
-      catch (const std::exception &e)
-      {
-        MERROR("Error while pruning txpool: " << e.what());
+      if (!try_pruning(it, false /*forward*/))
         return;
-      }
     }
     lock.commit();
     if (changed)
@@ -1434,16 +1435,6 @@ namespace cryptonote
   {
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     return m_spent_key_images.end() != m_spent_key_images.find(key_im);
-  }
-  //---------------------------------------------------------------------------------
-  void tx_memory_pool::lock() const
-  {
-    m_transactions_lock.lock();
-  }
-  //---------------------------------------------------------------------------------
-  void tx_memory_pool::unlock() const
-  {
-    m_transactions_lock.unlock();
   }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::check_tx_inputs(const std::function<cryptonote::transaction&(void)> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block) const

@@ -306,12 +306,17 @@ namespace cryptonote
     /**
      * @brief locks the transaction pool
      */
-    void lock() const;
+    void lock() const { m_transactions_lock.lock(); }
 
     /**
      * @brief unlocks the transaction pool
      */
-    void unlock() const;
+    void unlock() const { m_transactions_lock.unlock(); }
+
+    /**
+     * @briefs does a non-blocking attempt to lock the transaction pool
+     */
+    bool try_lock() const { return m_transactions_lock.try_lock(); }
 
     /**
      * @brief obtains a unique lock on the approved blink tx pool
@@ -675,6 +680,23 @@ namespace cryptonote
     void mark_double_spend(const transaction &tx);
 
     /**
+     * @brief remove a transaction from the mempool
+     *
+     * This is called when pruning the mempool to reduce its size, and when deleting transactions
+     * from the mempool because of a conflicting blink transaction arriving.  Transactions lock and
+     * blockchain lock must be held by the caller.
+     *
+     * @param txid the transaction id to remove
+     * @param meta optional pointer to txpool_tx_meta_t; will be looked up if omitted
+     * @param stc_it an optional iterator to the tx's entry in m_txs_by_fee_and_receive_time to save
+     * a (linear) scan to find it when already available.  The given iterator will be invalidated if
+     * removed.
+     *
+     * @return true if the transaction was removed, false on failure.
+     */
+    bool remove_tx(const crypto::hash &txid, const txpool_tx_meta_t *meta = nullptr, const sorted_tx_container::iterator *stc_it = nullptr);
+
+    /**
      * @brief prune lowest fee/byte txes till we're not above bytes
      *
      * if bytes is 0, use m_txpool_max_weight
@@ -692,7 +714,7 @@ namespace cryptonote
      */
     typedef std::unordered_map<crypto::key_image, std::unordered_set<crypto::hash> > key_images_container;
 
-    mutable epee::critical_section m_transactions_lock;  //!< lock for the pool
+    mutable boost::recursive_mutex m_transactions_lock;  //!< mutex for the pool
 
     //! container for spent key images from the transactions in the pool
     key_images_container m_spent_key_images;  

@@ -1001,8 +1001,9 @@ namespace cryptonote
 
     bool calc_batched_governance_reward(uint64_t height, uint64_t &reward) const;
 
-    void lock();
-    void unlock();
+    void lock() { m_blockchain_lock.lock(); }
+    void unlock() { m_blockchain_lock.unlock(); }
+    bool try_lock() { return m_blockchain_lock.try_lock(); }
 
     void cancel();
 
@@ -1051,7 +1052,7 @@ namespace cryptonote
     tx_memory_pool& m_tx_pool;
     service_nodes::service_node_list& m_service_node_list;
 
-    mutable epee::critical_section m_blockchain_lock; // TODO: add here reader/writer lock
+    mutable boost::recursive_mutex m_blockchain_lock; // TODO: add here reader/writer lock
 
     // main chain
     size_t m_current_block_cumul_weight_limit;
