@@ -2325,10 +2325,10 @@ skip:
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_RESPONSE_BLOCK_BLINKS: txs.size()=" << arg.txs.size());
 
-    m_core.get_pool().keep_missing(arg.txs);
+    m_core.get_pool().keep_missing_blinks(arg.txs);
     if (arg.txs.empty())
     {
-      MDEBUG("NOTIFY_RESPONSE_BLOCKS_BLINKS included only no blink txes we didn't already know about");
+      MDEBUG("NOTIFY_RESPONSE_BLOCKS_BLINKS included only blink txes we already knew about");
       return 1;
     }
 

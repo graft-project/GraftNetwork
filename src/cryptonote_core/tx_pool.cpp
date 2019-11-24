@@ -489,7 +489,7 @@ namespace cryptonote
     return m_blinks.find(tx_hash) != m_blinks.end();
   }
 
-  void tx_memory_pool::keep_missing(std::vector<crypto::hash> &tx_hashes) const
+  void tx_memory_pool::keep_missing_blinks(std::vector<crypto::hash> &tx_hashes) const
   {
     auto lock = blink_shared_lock();
     tx_hashes.erase(

@@ -215,7 +215,7 @@ namespace cryptonote
      *
      * @param txs the tx hashes to check
      */
-    void keep_missing(std::vector<crypto::hash> &tx_hashes) const;
+    void keep_missing_blinks(std::vector<crypto::hash> &tx_hashes) const;
 
     /**
      * @brief returns checksums of blink txes included in recently mined blocks and in the mempool
