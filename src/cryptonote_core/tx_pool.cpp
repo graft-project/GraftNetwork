@@ -443,21 +443,33 @@ namespace cryptonote
   bool tx_memory_pool::add_new_blink(const std::shared_ptr<blink_tx> &blink_ptr, tx_verification_context &tvc, bool &blink_exists)
   {
     assert((bool) blink_ptr);
-    auto lock = blink_unique_lock();
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     auto &blink = *blink_ptr;
     auto &tx = boost::get<transaction>(blink.tx); // will throw if just a hash w/o a transaction
     auto txhash = get_transaction_hash(tx);
 
-    blink_exists = m_blinks.count(txhash);
-    if (blink_exists)
-      return false;
+    {
+      auto lock = blink_shared_lock();
+      blink_exists = m_blinks.count(txhash);
+      if (blink_exists)
+        return false;
+    }
 
     bool approved = blink.approved();
     auto hf_version = m_blockchain.get_ideal_hard_fork_version(blink.height);
     bool result = add_tx(tx, tvc, tx_pool_options::new_blink(approved), hf_version);
     if (result && approved)
+    {
+      auto lock = blink_unique_lock();
       m_blinks[txhash] = blink_ptr;
+    }
+    else if (!result)
+    {
+      // Adding failed, but might have failed because another thread inserted it, so check again for
+      // existence of the blink
+      auto lock = blink_shared_lock();
+      blink_exists = m_blinks.count(txhash);
+    }
     return result;
   }
   //---------------------------------------------------------------------------------
@@ -656,9 +668,10 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   void tx_memory_pool::prune(size_t bytes)
   {
+    auto blink_lock = blink_shared_lock(std::defer_lock);
     std::unique_lock<tx_memory_pool> tx_lock{*this, std::defer_lock};
     std::unique_lock<Blockchain> bc_lock{m_blockchain, std::defer_lock};
-    std::lock(tx_lock, bc_lock);
+    std::lock(blink_lock, tx_lock, bc_lock);
     if (bytes == 0)
       bytes = m_txpool_max_weight;
     LockedTXN lock(m_blockchain);
@@ -679,7 +692,8 @@ namespace cryptonote
         auto del_it = forward ? it++ : it--;
 
         // don't prune the kept_by_block ones, they're likely added because we're adding a block with those
-        if (meta.kept_by_block)
+        // don't prune blink txes
+        if (meta.kept_by_block || has_blink(txid, true /*have lock*/))
           return true;
 
         if (remove_tx(txid, &meta, &del_it))
