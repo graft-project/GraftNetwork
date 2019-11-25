@@ -1037,34 +1037,39 @@ namespace cryptonote
       else
         bad_blinks = true;
 
-    const auto txpool_opts = tx_pool_options::from_peer();
-    auto parsed_txs = m_core.parse_incoming_txs(arg.txs, txpool_opts);
-    for (auto &txi : parsed_txs)
-      if (blink_approved.count(txi.tx_hash))
-        txi.approved_blink = true;
-
-    bool all_okay = m_core.handle_incoming_txs(parsed_txs, txpool_opts);
-
-    // Even if !all_okay (which means we want to drop the connection) we may still have added some
-    // incoming txs and so still need to finish handling/relaying them
-    std::vector<cryptonote::blobdata> newtxs;
-    newtxs.reserve(arg.txs.size());
-    auto &unknown_txs = parsed_blinks.second;
-    for (size_t i = 0; i < arg.txs.size(); ++i)
+    bool all_okay;
     {
-      if (parsed_txs[i].tvc.m_should_be_relayed)
-        newtxs.push_back(std::move(arg.txs[i]));
+      auto lock = m_core.incoming_tx_lock();
 
-      if (parsed_txs[i].tvc.m_added_to_pool)
-        unknown_txs.erase(parsed_txs[i].tx_hash);
+      const auto txpool_opts = tx_pool_options::from_peer();
+      auto parsed_txs = m_core.parse_incoming_txs(arg.txs, txpool_opts);
+      for (auto &txi : parsed_txs)
+        if (blink_approved.count(txi.tx_hash))
+          txi.approved_blink = true;
+
+      all_okay = m_core.handle_parsed_txs(parsed_txs, txpool_opts);
+
+      // Even if !all_okay (which means we want to drop the connection) we may still have added some
+      // incoming txs and so still need to finish handling/relaying them
+      std::vector<cryptonote::blobdata> newtxs;
+      newtxs.reserve(arg.txs.size());
+      auto &unknown_txs = parsed_blinks.second;
+      for (size_t i = 0; i < arg.txs.size(); ++i)
+      {
+        if (parsed_txs[i].tvc.m_should_be_relayed)
+          newtxs.push_back(std::move(arg.txs[i]));
+
+        if (parsed_txs[i].tvc.m_added_to_pool)
+          unknown_txs.erase(parsed_txs[i].tx_hash);
+      }
+      arg.txs = std::move(newtxs);
+
+      // Attempt to add any blinks signatures we received, but with unknown txs removed (where unknown
+      // means previously unknown and didn't just get added to the mempool).  (Don't bother worrying
+      // about approved because add_blinks() already does that).
+      blinks.erase(std::remove_if(blinks.begin(), blinks.end(), [&](const auto &b) { return unknown_txs.count(b->get_txhash()) > 0; }), blinks.end());
+      m_core.add_blinks(blinks);
     }
-    arg.txs = std::move(newtxs);
-
-    // Attempt to add any blinks signatures we received, but with unknown txs removed (where unknown
-    // means previously unknown and didn't just get added to the mempool).  (Don't bother worrying
-    // about approved because add_blinks() already does that).
-    blinks.erase(std::remove_if(blinks.begin(), blinks.end(), [&](const auto &b) { return unknown_txs.count(b->get_txhash()) > 0; }), blinks.end());
-    m_core.add_blinks(blinks);
 
     // If this is a response to a request for txes that we sent (.requested) then don't relay this
     // on to our peers because they probably already have it: we just missed it somehow.
@@ -1411,9 +1416,7 @@ namespace cryptonote
               // process transactions
               TIME_MEASURE_START(transactions_process_time);
               num_txs += block_entry.txs.size();
-              auto opts = tx_pool_options::from_block();
-              auto parsed_txs = m_core.parse_incoming_txs(block_entry.txs, opts);
-              m_core.handle_incoming_txs(parsed_txs, opts);
+              auto parsed_txs = m_core.handle_incoming_txs(block_entry.txs, tx_pool_options::from_block());
 
               for (size_t i = 0; i < parsed_txs.size(); ++i)
               {

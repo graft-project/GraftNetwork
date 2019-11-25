@@ -148,14 +148,14 @@ namespace cryptonote
       * @param tvc metadata about the transaction's validity
       * @param opts tx pool options for accepting this tx
       *
-      * @return true if the transaction was accepted, false otherwise
+      * @return true if the transaction was accepted (or already exists), false otherwise
       */
      bool handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, const tx_pool_options &opts);
 
      /**
       * Returned type of parse_incoming_txs() that provides details about which transactions failed
-      * and why.  This is passed on to handle_incoming_txs() (potentially after modification such as
-      * setting `blink`) to handle_incoming_txs() to actually insert the transactions.
+      * and why.  This is passed on to handle_parsed_txs() (potentially after modification such as
+      * setting `approved_blink`) to handle_parsed_txs() to actually insert the transactions.
       */
      struct tx_verification_batch_info {
        tx_verification_context tvc{}; // Verification information
@@ -163,7 +163,7 @@ namespace cryptonote
        bool result = false; // Indicates that the transaction was parsed and passed some basic checks
        bool already_have = false; // Indicates that the tx was found to already exist (in mempool or blockchain)
        bool approved_blink = false; // Can be set between the parse and handle calls to make this a blink tx (that replaces conflicting non-blink txes)
-       const blobdata *blob = nullptr;
+       const blobdata *blob = nullptr; // Will be set to a pointer to the incoming blobdata (i.e. string). caller must keep it alive!
        crypto::hash tx_hash; // The transaction hash (only set if `parsed`)
        transaction tx; // The parsed transaction (only set if `parsed`)
      };
@@ -175,15 +175,15 @@ namespace cryptonote
       * @brief parses a list of incoming transactions
       *
       * Parses incoming transactions and checks them for structural validity and whether they are
-      * already seen.  The result is intended to be passed onto handle_incoming_txs (possibly with a
+      * already seen.  The result is intended to be passed onto handle_parsed_txs (possibly with a
       * remove_conflicting_txs() first).
       *
       * m_incoming_tx_lock must already be held (i.e. via incoming_tx_lock()), and should be held
-      * until the returned value is passed on to handle_incoming_txs.
+      * until the returned value is passed on to handle_parsed_txs.
       *
       * @param tx_blobs the txs to parse.  References to these blobs are stored inside the returned
-      * vector: the caller must ensure the blobs persist until the returned vector is passed off to
-      * handle_incoming_txs()!
+      * vector: THE CALLER MUST ENSURE THE BLOBS PERSIST UNTIL THE RETURNED VECTOR IS PASSED OFF TO
+      * HANDLE_INCOMING_TXS()!
       *
       * @return vector of tx_verification_batch_info structs for the given transactions.
       */
@@ -215,7 +215,20 @@ namespace cryptonote
       * @return false if any transactions failed verification, true otherwise.  (To determine which
       * ones failed check the `tvc` values).
       */
-     bool handle_incoming_txs(std::vector<tx_verification_batch_info> &parsed_txs, const tx_pool_options &opts, uint64_t *blink_rollback_height = nullptr);
+     bool handle_parsed_txs(std::vector<tx_verification_batch_info> &parsed_txs, const tx_pool_options &opts, uint64_t *blink_rollback_height = nullptr);
+
+     /**
+      * Wrapper that does a parse + handle when nothing is needed between the parsing the handling.
+      *
+      * Both operations are performed under the required incoming transaction lock.
+      *
+      * @param tx_blobs see parse_incoming_txs
+      * @param opts tx pool options for accepting these transactions
+      *
+      * @return vector of parsed transactions information with individual transactions results
+      * available via the .tvc element members.
+      */
+     std::vector<tx_verification_batch_info> handle_incoming_txs(const std::vector<blobdata>& tx_blobs, const tx_pool_options &opts);
 
      /**
       * @brief parses and filters received blink transaction signatures

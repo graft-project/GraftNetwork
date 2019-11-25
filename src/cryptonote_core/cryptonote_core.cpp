@@ -1145,8 +1145,8 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   std::vector<core::tx_verification_batch_info> core::parse_incoming_txs(const std::vector<blobdata>& tx_blobs, const tx_pool_options &opts)
   {
-    CRITICAL_REGION_LOCAL(m_incoming_tx_lock);
-
+    // Caller needs to do this around both this *and* handle_parsed_txs
+    //auto lock = incoming_tx_lock();
     std::vector<tx_verification_batch_info> tx_info(tx_blobs.size());
 
     tools::threadpool& tpool = tools::threadpool::getInstance();
@@ -1188,9 +1188,11 @@ namespace cryptonote
     return tx_info;
   }
 
-  bool core::handle_incoming_txs(std::vector<tx_verification_batch_info> &parsed_txs, const tx_pool_options &opts,
+  bool core::handle_parsed_txs(std::vector<tx_verification_batch_info> &parsed_txs, const tx_pool_options &opts,
       uint64_t *blink_rollback_height)
   {
+    // Caller needs to do this around both this *and* parse_incoming_txs
+    //auto lock = incoming_tx_lock();
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
     bool ok = true;
     if (blink_rollback_height)
@@ -1232,12 +1234,21 @@ namespace cryptonote
     return ok;
   }
   //-----------------------------------------------------------------------------------------------
+  std::vector<core::tx_verification_batch_info> core::handle_incoming_txs(const std::vector<blobdata>& tx_blobs, const tx_pool_options &opts)
+  {
+    auto lock = incoming_tx_lock();
+    auto parsed = parse_incoming_txs(tx_blobs, opts);
+    handle_parsed_txs(parsed, opts);
+    return parsed;
+  }
+  //-----------------------------------------------------------------------------------------------
   bool core::handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, const tx_pool_options &opts)
   {
-    auto parsed = parse_incoming_txs({{tx_blob}}, opts);
-    bool result = handle_incoming_txs(parsed, opts);
+    const std::vector<cryptonote::blobdata> tx_blobs{{tx_blob}};
+    auto parsed = handle_incoming_txs(tx_blobs, opts);
+    parsed[0].blob = &tx_blob; // Update pointer to the input rather than the copy in case the caller wants to use it for some reason
     tvc = parsed[0].tvc;
-    return result;
+    return parsed[0].result && (parsed[0].already_have || tvc.m_added_to_pool);
   }
   //-----------------------------------------------------------------------------------------------
   std::pair<std::vector<std::shared_ptr<blink_tx>>, std::unordered_set<crypto::hash>>
