@@ -1027,21 +1027,44 @@ namespace cryptonote
       return 1;
     }
 
+    bool bad_blinks = false;
+    auto parsed_blinks = m_core.parse_incoming_blinks(arg.blinks);
+    auto &blinks = parsed_blinks.first;
+    std::unordered_set<crypto::hash> blink_approved;
+    for (auto &b : blinks)
+      if (b->approved())
+        blink_approved.insert(b->get_txhash());
+      else
+        bad_blinks = true;
+
+    const auto txpool_opts = tx_pool_options::from_peer();
+    auto parsed_txs = m_core.parse_incoming_txs(arg.txs, txpool_opts);
+    for (auto &txi : parsed_txs)
+      if (blink_approved.count(txi.tx_hash))
+        txi.approved_blink = true;
+
+    bool all_okay = m_core.handle_incoming_txs(parsed_txs, txpool_opts);
+
+    // Even if !all_okay (which means we want to drop the connection) we may still have added some
+    // incoming txs and so still need to finish handling/relaying them
     std::vector<cryptonote::blobdata> newtxs;
     newtxs.reserve(arg.txs.size());
-    std::vector<tx_verification_context> tvcs;
-    bool all_okay = m_core.handle_incoming_txs(arg.txs, tvcs, tx_pool_options::from_peer());
-
-    // If !all_okay we want to drop the connection, but we may still have added some incoming txs
-    // and so still need to finish handling/relaying them
+    auto &unknown_txs = parsed_blinks.second;
     for (size_t i = 0; i < arg.txs.size(); ++i)
     {
-      if (tvcs[i].m_should_be_relayed)
+      if (parsed_txs[i].tvc.m_should_be_relayed)
         newtxs.push_back(std::move(arg.txs[i]));
+
+      if (parsed_txs[i].tvc.m_added_to_pool)
+        unknown_txs.erase(parsed_txs[i].tx_hash);
     }
     arg.txs = std::move(newtxs);
 
-    bool good_blinks = m_core.handle_incoming_blinks(arg.blinks);
+    // Attempt to add any blinks signatures we received, but with unknown txs removed (where unknown
+    // means previously unknown and didn't just get added to the mempool).  (Don't bother worrying
+    // about approved because add_blinks() already does that).
+    blinks.erase(std::remove_if(blinks.begin(), blinks.end(), [&](const auto &b) { return unknown_txs.count(b->get_txhash()) > 0; }), blinks.end());
+    m_core.add_blinks(blinks);
 
     // If this is a response to a request for txes that we sent (.requested) then don't relay this
     // on to our peers because they probably already have it: we just missed it somehow.
@@ -1051,9 +1074,9 @@ namespace cryptonote
       relay_transactions(arg, context);
     }
 
-    if (!all_okay || !good_blinks)
+    if (!all_okay || bad_blinks)
     {
-      LOG_PRINT_CCONTEXT_L1((!all_okay && !good_blinks ? "Tx and Blink" : !all_okay ? "Tx" : "Blink") << " verification(s) failed, dropping connection");
+      LOG_PRINT_CCONTEXT_L1((!all_okay && bad_blinks ? "Tx and Blink" : !all_okay ? "Tx" : "Blink") << " verification(s) failed, dropping connection");
       drop_connection(context, false, false);
     }
 
@@ -1388,22 +1411,17 @@ namespace cryptonote
               // process transactions
               TIME_MEASURE_START(transactions_process_time);
               num_txs += block_entry.txs.size();
-              std::vector<tx_verification_context> tvc;
-              m_core.handle_incoming_txs(block_entry.txs, tvc, tx_pool_options::from_block());
-              if (tvc.size() != block_entry.txs.size())
-              {
-                LOG_ERROR_CCONTEXT("Internal error: tvc.size() != block_entry.txs.size()");
-                return 1;
-              }
+              auto opts = tx_pool_options::from_block();
+              auto parsed_txs = m_core.parse_incoming_txs(block_entry.txs, opts);
+              m_core.handle_incoming_txs(parsed_txs, opts);
 
-              std::vector<blobdata>::const_iterator it = block_entry.txs.begin();
-              for (size_t i = 0; i < tvc.size(); ++i, ++it)
+              for (size_t i = 0; i < parsed_txs.size(); ++i)
               {
-                if(tvc[i].m_verifivation_failed)
+                if (parsed_txs[i].tvc.m_verifivation_failed)
                 {
                   if (!m_p2p->for_connection(span_connection_id, [&](cryptonote_connection_context& context, nodetool::peerid_type peer_id, uint32_t f)->bool{
                     cryptonote::transaction tx;
-                    parse_and_validate_tx_from_blob(*it, tx); // must succeed if we got here
+                    parse_and_validate_tx_from_blob(block_entry.txs[i], tx); // must succeed if we got here
                     LOG_ERROR_CCONTEXT("transaction verification failed on NOTIFY_RESPONSE_GET_BLOCKS, tx_id = "
                         << epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx)) << ", dropping connection");
                     drop_connection(context, false, true);

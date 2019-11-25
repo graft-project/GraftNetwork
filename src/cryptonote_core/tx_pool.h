@@ -77,6 +77,7 @@ namespace cryptonote
     bool kept_by_block = false; ///< has this transaction been in a block?
     bool relayed = false; ///< was this transaction from the network or a local client?
     bool do_not_relay = false; ///< to avoid relaying the transaction to the network
+    bool approved_blink = false; ///< signals that this is a blink tx and so should be accepted even if it conflicts with mempool or recent txes in non-immutable block; typically specified indirectly (via core.handle_incoming_txs())
     uint64_t fee_percent = 100; ///< the required miner tx fee in percent relative to the base required miner tx fee; must be >= 100.
     uint64_t burn_fixed = 0; ///< a required minimum amount that must be burned (in atomic currency)
     uint64_t burn_percent = 0; ///< a required amount as a percentage of the base required miner tx fee that must be burned (additive with burn_fixed, if both > 0)
@@ -127,8 +128,11 @@ namespace cryptonote
      *
      * @param id the transaction's hash
      * @param tx_weight the transaction's weight
+     * @param blink_rollback_height if tx is a blink that conflicts with a recent (non-immutable)
+     * block tx then set this pointer to the last height that doesn't conflict (unless already set
+     * to some lower, non-zero height).
      */
-    bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version);
+    bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version, uint64_t *blink_rollback_height = nullptr);
 
     /**
      * @brief add a transaction to the transaction pool
@@ -190,7 +194,7 @@ namespace cryptonote
      * data structure; it should only be specified if a unique lock on the blink data is already
      * held externally, i.e. by obtaining a lock with `blink_unique_lock`.
      *
-     * @return true if the blink data was recorded, false if the given tx was already known.
+     * @return true if the blink data was recorded, false if the given blink was already known.
      */
     bool add_existing_blink(std::shared_ptr<blink_tx> blink, bool have_lock = false);
 
@@ -211,7 +215,7 @@ namespace cryptonote
     bool has_blink(const crypto::hash &tx_hash, bool have_lock = false) const;
 
     /**
-     * @brief modifies a vector of blink hashes to remove any that are known valid blink txes
+     * @brief modifies a vector of tx hashes to remove any that have known valid blink signatures
      *
      * @param txs the tx hashes to check
      */
@@ -623,10 +627,11 @@ namespace cryptonote
      * @note see tx_pool::have_tx_keyimg_as_spent
      *
      * @param tx the transaction to check spent key images of
+     * @param found if specified, append the hashes of all conflicting mempool txes here
      *
      * @return true if any spent key images are present in the pool, otherwise false
      */
-    bool have_tx_keyimges_as_spent(const transaction& tx) const;
+    bool have_tx_keyimges_as_spent(const transaction& tx, std::vector<crypto::hash> *conflicting = nullptr) const;
 
     /**
      * @brief forget a transaction's spent key images
@@ -699,9 +704,35 @@ namespace cryptonote
     /**
      * @brief prune lowest fee/byte txes till we're not above bytes
      *
-     * if bytes is 0, use m_txpool_max_weight
+     * @param skip don't prune the given ID this time (because it was just added)
      */
-    void prune(size_t bytes = 0);
+    void prune(const crypto::hash &skip);
+
+    /**
+     * @brief Attempt to add a blink tx "by force", removing conflicting non-blink txs
+     *
+     * The given transactions are removed from the mempool, if possible, to make way for this blink
+     * transactions.  In order for any removal to happen, all the conflicting txes must be non-blink
+     * transactions, and must either:
+     * - be a mempool transaction
+     * - be a mined, non-blink transaction in the recent (mutable) section of the chain
+     *
+     * If all conflicting txs satisfy the above then conflicting mempool txs are removed and the
+     * blink_rollback_height pointer is updated to the required rollback height to eject any mined
+     * txs (if not already at that height or lower).  True is returned.
+     *
+     * If any txs are found that do not satisfy the above then nothing is removed and false is
+     * returned.
+     *
+     * @param the id of the incoming blink tx
+     * @param conflict_txs vector of conflicting transaction hashes that are preventing the blink tx
+     * @param blink_rollback_height a pointer to update to the new required height if a chain
+     * rollback is needed for the blink tx
+     *
+     * @return true if the conflicting transactions have been removed (and/or the rollback height
+     * set), false if tx removal and/or rollback are insufficient to eliminate conflicting txes.
+     */
+    bool remove_blink_conflicts(const crypto::hash &id, const std::vector<crypto::hash> &conflict_txs, uint64_t *blink_rollback_height);
 
     //TODO: confirm the below comments and investigate whether or not this
     //      is the desired behavior

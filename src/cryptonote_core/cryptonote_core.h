@@ -153,42 +153,105 @@ namespace cryptonote
      bool handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, const tx_pool_options &opts);
 
      /**
-      * @brief handles a list of incoming transactions
-      *
-      * Parses incoming transactions and, if nothing is obviously wrong,
-      * passes them along to the transaction pool
-      *
-      * @param tx_blobs the txs to handle
-      * @param tvc metadata about the transactions' validity
-      * @param opts tx pool options for accepting this tx
-      *
-      * @return true if the transactions were accepted, false otherwise
+      * Returned type of parse_incoming_txs() that provides details about which transactions failed
+      * and why.  This is passed on to handle_incoming_txs() (potentially after modification such as
+      * setting `blink`) to handle_incoming_txs() to actually insert the transactions.
       */
-     bool handle_incoming_txs(const std::vector<blobdata>& tx_blobs, std::vector<tx_verification_context>& tvc, const tx_pool_options &opts);
+     struct tx_verification_batch_info {
+       tx_verification_context tvc{}; // Verification information
+       bool parsed = false; // Will be true if we were able to at least parse the transaction
+       bool result = false; // Indicates that the transaction was parsed and passed some basic checks
+       bool already_have = false; // Indicates that the tx was found to already exist (in mempool or blockchain)
+       bool approved_blink = false; // Can be set between the parse and handle calls to make this a blink tx (that replaces conflicting non-blink txes)
+       const blobdata *blob = nullptr;
+       crypto::hash tx_hash; // The transaction hash (only set if `parsed`)
+       transaction tx; // The parsed transaction (only set if `parsed`)
+     };
+
+     /// Returns an RAII unique lock holding the incoming tx mutex.
+     auto incoming_tx_lock() { return std::unique_lock<boost::recursive_mutex>{m_incoming_tx_lock}; }
 
      /**
-      * @brief handles received blink transaction signatures
+      * @brief parses a list of incoming transactions
       *
-      * This takes a vector of blink transaction metadata (typically from a p2p peer), validates the
-      * signatures, and (if valid) records the blink status.  Blink transactions and signatures for
-      * those transactions that are already mined beyond the immutability checkpoint are ignored.
-      * Blink transactions that already have a set of valid signatures are similarly ignored (and
-      * not revalidated).
+      * Parses incoming transactions and checks them for structural validity and whether they are
+      * already seen.  The result is intended to be passed onto handle_incoming_txs (possibly with a
+      * remove_conflicting_txs() first).
       *
-      * NB: This method is *not* used for partially signed blink transactions during the signing
-      * process but rather only for valid, signed blinks.
+      * m_incoming_tx_lock must already be held (i.e. via incoming_tx_lock()), and should be held
+      * until the returned value is passed on to handle_incoming_txs.
+      *
+      * @param tx_blobs the txs to parse.  References to these blobs are stored inside the returned
+      * vector: the caller must ensure the blobs persist until the returned vector is passed off to
+      * handle_incoming_txs()!
+      *
+      * @return vector of tx_verification_batch_info structs for the given transactions.
+      */
+     std::vector<tx_verification_batch_info> parse_incoming_txs(const std::vector<blobdata>& tx_blobs, const tx_pool_options &opts);
+
+     /**
+      * @brief handles parsed incoming transactions
+      *
+      * Takes parsed incoming tx info (as returned by parse_incoming_txs) and attempts to insert any
+      * valid, not-already-seen transactions into the mempool.  Returns the indices of any
+      * transactions that failed insertion.
+      *
+      * m_incoming_tx_lock should already be held (i.e. via incoming_tx_lock()) from before the call to
+      * parse_incoming_txs.
+      *
+      * @param tx_info the parsed transaction information to insert; transactions that have already
+      * been detected as failed (`!info.result`) are not inserted but still treated as failures for
+      * the return value.  Already existing txs (`info.already_have`) are ignored without triggering
+      * a failure return.  `tvc` subelements in this vector are updated when insertion into the pool
+      * is attempted (see tx_memory_pool::add_tx).
+      *
+      * @param opts tx pool options for accepting these transactions
+      *
+      * @param blink_rollback_height pointer to a uint64_t value to set to a rollback height *if*
+      * one of the incoming transactions is tagged as a blink tx and that tx conflicts with a
+      * recently mined, but not yet immutable block.  *Required* for blink handling (of tx_info
+      * values with `.approved_blink` set) to be done.
+      *
+      * @return false if any transactions failed verification, true otherwise.  (To determine which
+      * ones failed check the `tvc` values).
+      */
+     bool handle_incoming_txs(std::vector<tx_verification_batch_info> &parsed_txs, const tx_pool_options &opts, uint64_t *blink_rollback_height = nullptr);
+
+     /**
+      * @brief parses and filters received blink transaction signatures
+      *
+      * This takes a vector of blink transaction metadata (typically from a p2p peer) and returns a
+      * vector of blink_txs with signatures applied for any transactions that do not already have
+      * stored blink signatures and can have applicable blink signatures (i.e. not in an immutable
+      * mined block).
+      *
+      * Note that this does not verify that enough valid signatures are present: the caller should
+      * check `->approved()` on the return blinks to validate blink with valid signature sets.
       *
       * @param blinks vector of serializable_blink_metadata
-      * @param bad_blinks optional pointer to vector in which to store hashes of any blink tx that
-      * have invalid signature data (either invalid data, or a signature validation failure).
-      * @param missing_txs optional pointer to vector in which to store any txes that were not found
-      * on the blockchain or the mempool.
       *
-      * @return true if there were no failures due to invalid signature data, false if there was one
-      * or more.  (Note that a true return does not indicate anything was added, and a false return
-      * does not indicate that nothing was added).
+      * @return pair: `.first` is a vector of blink_tx shared pointers of any blink info that isn't
+      * already stored and isn't for a known, immutable transaction.  `.second` is an unordered_set
+      * of unknown (i.e.  neither on the chain or in the pool) transaction hashes.  Returns empty
+      * containers if blinks are not yet enabled on the blockchain.
       */
-     bool handle_incoming_blinks(const std::vector<serializable_blink_metadata> &blinks, std::vector<crypto::hash> *bad_blinks = nullptr, std::vector<crypto::hash> *missing_txs = nullptr);
+     std::pair<std::vector<std::shared_ptr<blink_tx>>, std::unordered_set<crypto::hash>>
+     parse_incoming_blinks(const std::vector<serializable_blink_metadata> &blinks);
+
+     /**
+      * @brief adds incoming blinks into the blink pool.
+      *
+      * This is for use with mempool txes or txes in recently mined blocks, though this is not
+      * checked.  In the given input, only blinks with `approved()` status will be added; any
+      * without full approval will be skipped.  Any blinks that are already stored will also be
+      * skipped.  Typically this is used after `parse_incoming_blinks`.
+      *
+      * @param blinks vector of blinks, typically from parse_incoming_blinks.
+      *
+      * @return the number of blinks that were added.  Note that 0 is *not* an error value: it is
+      * possible for no blinks to be added if all already exist.
+      */
+     int add_blinks(const std::vector<std::shared_ptr<blink_tx>> &blinks);
 
      /**
       * @brief handles an incoming blink transaction by dispatching it to the service node network
@@ -877,19 +940,6 @@ namespace cryptonote
    private:
 
      /**
-      * @copydoc add_new_tx(transaction&, tx_verification_context&, const tx_pool_options&)
-      *
-      * @param tx the transaction to add
-      * @param tx_hash the transaction's hash
-      * @param blob the transaction as a blob
-      * @param tx_weight the weight of the transaction
-      * @param tvc return-by-reference metadata about the transaction's verification process
-      * @param opts the options for how to add this tx to the pool
-      *
-      */
-     bool add_new_tx(transaction& tx, const crypto::hash& tx_hash, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options& opts);
-
-     /**
       * @copydoc Blockchain::add_new_block
       *
       * @note see Blockchain::add_new_block
@@ -922,9 +972,8 @@ namespace cryptonote
      bool check_tx_semantic(const transaction& tx, bool kept_by_block) const;
      void set_semantics_failed(const crypto::hash &tx_hash);
 
-     bool handle_incoming_tx_pre(const blobdata& tx_blob, tx_verification_context& tvc, cryptonote::transaction &tx, crypto::hash &tx_hash, const tx_pool_options &opts);
-     struct tx_verification_batch_info { const cryptonote::transaction *tx; crypto::hash tx_hash; tx_verification_context &tvc; bool &result; };
-     bool handle_incoming_tx_accumulated_batch(std::vector<tx_verification_batch_info> &tx_info, bool kept_by_block);
+     void parse_incoming_tx_pre(tx_verification_batch_info &tx_info);
+     void parse_incoming_tx_accumulated_batch(std::vector<tx_verification_batch_info> &tx_info, bool kept_by_block);
 
      /**
       * @brief act on a set of command line options given
@@ -1020,7 +1069,7 @@ namespace cryptonote
 
      i_cryptonote_protocol* m_pprotocol; //!< cryptonote protocol instance
 
-     epee::critical_section m_incoming_tx_lock; //!< incoming transaction lock
+     boost::recursive_mutex m_incoming_tx_lock; //!< incoming transaction lock
 
      //m_miner and m_miner_addres are probably temporary here
      miner m_miner; //!< miner instance

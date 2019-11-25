@@ -233,7 +233,8 @@ namespace cryptonote
   // to set `do_not_relay` to false and starts relaying it (other quorum members do the same).
 
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version)
+  bool tx_memory_pool::add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version,
+      uint64_t *blink_rollback_height)
   {
     // this should already be called with that lock, but let's make it explicit for clarity
     CRITICAL_REGION_LOCAL(m_transactions_lock);
@@ -268,8 +269,12 @@ namespace cryptonote
 
     if (!get_tx_miner_fee(tx, fee, hf_version >= HF_VERSION_FEE_BURNING, &burned))
     {
+      // This code is a bit convoluted: the above sets `fee`, and returns false for a pre-ringct tx
+      // with a too-low fee, but for ringct (v2+) txes it just sets `fee` but doesn't check it and
+      // always returns true: the actual v2 tx fee amount gets tested in the check_fee call below
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
+      return false;
     }
 
     if (!opts.kept_by_block && tx.type == txtype::standard &&
@@ -289,18 +294,44 @@ namespace cryptonote
       return false;
     }
 
-    // if the transaction came from a block popped from the chain,
-    // don't check if we have its key images as spent.
-    // TODO: Investigate why not?
-    if(!opts.kept_by_block)
     {
-      if(have_tx_keyimges_as_spent(tx))
+      std::vector<crypto::hash> conflict_txs;
+      bool double_spend = have_tx_keyimges_as_spent(tx, opts.approved_blink ? &conflict_txs : nullptr);
+      if (double_spend)
       {
-        mark_double_spend(tx);
-        LOG_PRINT_L1("Transaction with id= "<< id << " used already spent key images");
-        tvc.m_verifivation_failed = true;
-        tvc.m_double_spend = true;
-        return false;
+        if (opts.kept_by_block)
+        {
+          // The tx came from a block popped from the chain; we keep it around even if the key
+          // images are spent so that we notice the double spend *unless* the tx is conflicting with
+          // one or more blink txs, in which case we drop it because it can never be accepted.
+          double_spend = false;
+          for (const auto &tx_hash : conflict_txs)
+          {
+            if (m_blinks.count(tx_hash))
+            {
+              // Warn on this because it should be impossible in normal operations and so is almost certainly malicious
+              MWARNING("Not re-adding popped tx " << tx_hash << " to the mempool: it conflicts with blink tx " << tx_hash);
+              double_spend = true;
+              break;
+            }
+          }
+        }
+        else if (opts.approved_blink)
+        {
+          if (remove_blink_conflicts(id, conflict_txs, blink_rollback_height))
+            double_spend = false;
+          else
+            MERROR("Blink error: incoming blink tx cannot be accepted as it conflicts with checkpointed txs");
+        }
+
+        if (double_spend)
+        {
+          mark_double_spend(tx);
+          LOG_PRINT_L1("Transaction with id= "<< id << " used already spent key images");
+          tvc.m_verifivation_failed = true;
+          tvc.m_double_spend = true;
+          return false;
+        }
       }
       if (have_duplicated_non_standard_tx(tx, hf_version))
       {
@@ -424,7 +455,7 @@ namespace cryptonote
 
     MINFO("Transaction added to pool: txid " << id << " weight: " << tx_weight << " fee/byte: " << (fee / (double)tx_weight));
 
-    prune(m_txpool_max_weight);
+    prune(id);
 
     return true;
   }
@@ -609,6 +640,66 @@ namespace cryptonote
   }
 
   //---------------------------------------------------------------------------------
+  bool tx_memory_pool::remove_blink_conflicts(const crypto::hash &id, const std::vector<crypto::hash> &conflict_txs, uint64_t *blink_rollback_height)
+  {
+    auto lock = blink_shared_lock();
+    // Since this is a signed blink tx, we want to see if we can eject any existing mempool
+    // txes to make room.
+
+    // First check to see if any of the conflicting txes is itself an approved blink as a
+    // safety check (it shouldn't be possible if the network is functioning properly).
+    for (const auto &tx_hash : conflict_txs)
+    {
+      if (m_blinks.count(tx_hash))
+      {
+        MERROR("Blink error: incoming blink tx " << id << " conflicts with another blink tx " << tx_hash);
+        return false;
+      }
+    }
+
+    uint64_t rollback_height_needed = blink_rollback_height ? *blink_rollback_height : 0;
+    std::vector<crypto::hash> mempool_txs;
+
+    // Next make sure none of the conflicting txes are mined in immutable blocks
+    auto immutable_height = m_blockchain.get_immutable_height();
+    auto heights = m_blockchain.get_transactions_heights(conflict_txs);
+    for (size_t i = 0; i < heights.size(); ++i)
+    {
+      if (!heights[i])
+      {
+        mempool_txs.push_back(conflict_txs[i]);
+      }
+      else if (heights[i] > immutable_height && blink_rollback_height)
+      {
+        if (rollback_height_needed == 0 || rollback_height_needed > heights[i] - 1)
+          rollback_height_needed = heights[i] - 1;
+        // else already set to something at least as early as this tx
+      }
+      else
+        return false;
+    }
+
+    if (!mempool_txs.empty())
+    {
+      std::unique_lock<Blockchain> lock_bc{m_blockchain};
+      for (auto &tx : mempool_txs)
+      {
+        MWARNING("Removing conflicting tx " << tx << " from mempool for incoming blink tx " << id);
+        if (!remove_tx(tx))
+        {
+          MERROR("Internal error: Unable to clear conflicting tx " << tx << " from mempool for incoming blink tx " << id);
+          return false;
+        }
+      }
+    }
+
+    if (blink_rollback_height && rollback_height_needed < *blink_rollback_height)
+      *blink_rollback_height = rollback_height_needed;
+
+    return true;
+  }
+
+  //---------------------------------------------------------------------------------
   size_t tx_memory_pool::get_txpool_weight() const
   {
     CRITICAL_REGION_LOCAL(m_transactions_lock);
@@ -662,20 +753,19 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------------------------
-  void tx_memory_pool::prune(size_t bytes)
+  void tx_memory_pool::prune(const crypto::hash &skip)
   {
     auto blink_lock = blink_shared_lock(std::defer_lock);
     std::unique_lock<tx_memory_pool> tx_lock{*this, std::defer_lock};
     std::unique_lock<Blockchain> bc_lock{m_blockchain, std::defer_lock};
     std::lock(blink_lock, tx_lock, bc_lock);
-    if (bytes == 0)
-      bytes = m_txpool_max_weight;
+    size_t bytes = m_txpool_max_weight;
     LockedTXN lock(m_blockchain);
     bool changed = false;
 
     // Tries checking conditions for pruning and, if appropriate, removing the tx.
     // Returns false on failure, true for no prune wanted or a successful prune.
-    auto try_pruning = [this, &changed](auto &it, bool forward) -> bool {
+    auto try_pruning = [this, &skip, &changed](auto &it, bool forward) -> bool {
       try
       {
         const crypto::hash &txid = it->second;
@@ -689,7 +779,8 @@ namespace cryptonote
 
         // don't prune the kept_by_block ones, they're likely added because we're adding a block with those
         // don't prune blink txes
-        if (meta.kept_by_block || has_blink(txid, true /*have lock*/))
+        // don't prune the one we just added
+        if (meta.kept_by_block || has_blink(txid, true /*have lock*/) || txid == skip)
           return true;
 
         if (remove_tx(txid, &meta, &del_it))
@@ -1428,17 +1519,24 @@ namespace cryptonote
     return have_txs({{id}})[0];
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::have_tx_keyimges_as_spent(const transaction& tx) const
+  bool tx_memory_pool::have_tx_keyimges_as_spent(const transaction& tx, std::vector<crypto::hash> *conflicting) const
   {
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     CRITICAL_REGION_LOCAL1(m_blockchain);
+    bool ret = false;
     for(const auto& in: tx.vin)
     {
       CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, tokey_in, true);//should never fail
-      if(have_tx_keyimg_as_spent(tokey_in.k_image))
-         return true;
+      auto it = m_spent_key_images.find(tokey_in.k_image);
+      if (it != m_spent_key_images.end())
+      {
+        if (!conflicting)
+          return true;
+        ret = true;
+        conflicting->insert(conflicting->end(), it->second.begin(), it->second.end());
+      }
     }
-    return false;
+    return ret;
   }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_tx_keyimg_as_spent(const crypto::key_image& key_im) const

@@ -995,41 +995,36 @@ namespace cryptonote
     return false;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_incoming_tx_pre(const blobdata& tx_blob, tx_verification_context& tvc, cryptonote::transaction &tx, crypto::hash &tx_hash, const tx_pool_options &opts)
+  void core::parse_incoming_tx_pre(tx_verification_batch_info &tx_info)
   {
-    tvc = {};
-
-    if(tx_blob.size() > get_max_tx_size())
+    if(tx_info.blob->size() > get_max_tx_size())
     {
-      LOG_PRINT_L1("WRONG TRANSACTION BLOB, too big size " << tx_blob.size() << ", rejected");
-      tvc.m_verifivation_failed = true;
-      tvc.m_too_big = true;
-      return false;
+      LOG_PRINT_L1("WRONG TRANSACTION BLOB, too big size " << tx_info.blob->size() << ", rejected");
+      tx_info.tvc.m_verifivation_failed = true;
+      tx_info.tvc.m_too_big = true;
+      return;
     }
 
-    tx_hash = crypto::null_hash;
-
-    if(!parse_tx_from_blob(tx, tx_hash, tx_blob))
+    tx_info.parsed = parse_tx_from_blob(tx_info.tx, tx_info.tx_hash, *tx_info.blob);
+    if(!tx_info.parsed)
     {
       LOG_PRINT_L1("WRONG TRANSACTION BLOB, Failed to parse, rejected");
-      tvc.m_verifivation_failed = true;
-      return false;
+      tx_info.tvc.m_verifivation_failed = true;
+      return;
     }
     //std::cout << "!"<< tx.vin.size() << std::endl;
 
-    bad_semantics_txes_lock.lock();
+    std::lock_guard<boost::mutex> lock(bad_semantics_txes_lock);
     for (int idx = 0; idx < 2; ++idx)
     {
-      if (bad_semantics_txes[idx].find(tx_hash) != bad_semantics_txes[idx].end())
+      if (bad_semantics_txes[idx].find(tx_info.tx_hash) != bad_semantics_txes[idx].end())
       {
-        bad_semantics_txes_lock.unlock();
         LOG_PRINT_L1("Transaction already seen with bad semantics, rejected");
-        tvc.m_verifivation_failed = true;
-        return false;
+        tx_info.tvc.m_verifivation_failed = true;
+        return;
       }
     }
-    bad_semantics_txes_lock.unlock();
-    return true;
+    tx_info.result = true;
   }
   //-----------------------------------------------------------------------------------------------
   void core::set_semantics_failed(const crypto::hash &tx_hash)
@@ -1055,19 +1050,21 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_incoming_tx_accumulated_batch(std::vector<tx_verification_batch_info> &tx_info, bool keeped_by_block)
+  void core::parse_incoming_tx_accumulated_batch(std::vector<tx_verification_batch_info> &tx_info, bool kept_by_block)
   {
-    bool ret = true;
-    if (keeped_by_block && get_blockchain_storage().is_within_compiled_block_hash_area())
+    if (kept_by_block && get_blockchain_storage().is_within_compiled_block_hash_area())
     {
-      MTRACE("Skipping semantics check for tx kept by block in embedded hash area");
-      return true;
+      MTRACE("Skipping semantics check for txs kept by block in embedded hash area");
+      return;
     }
 
     std::vector<const rct::rctSig*> rvv;
     for (size_t n = 0; n < tx_info.size(); ++n)
     {
-      if (!check_tx_semantic(*tx_info[n].tx, keeped_by_block))
+      if (!tx_info[n].result || tx_info[n].already_have)
+        continue;
+
+      if (!check_tx_semantic(tx_info[n].tx, kept_by_block))
       {
         set_semantics_failed(tx_info[n].tx_hash);
         tx_info[n].tvc.m_verifivation_failed = true;
@@ -1075,9 +1072,9 @@ namespace cryptonote
         continue;
       }
 
-      if (tx_info[n].tx->type != txtype::standard)
+      if (tx_info[n].tx.type != txtype::standard)
         continue;
-      const rct::rctSig &rv = tx_info[n].tx->rct_signatures;
+      const rct::rctSig &rv = tx_info[n].tx.rct_signatures;
       switch (rv.type) {
         case rct::RCTTypeNull:
           // coinbase should not come here, so we reject for all other types
@@ -1129,15 +1126,14 @@ namespace cryptonote
     if (!rvv.empty() && !rct::verRctSemanticsSimple(rvv))
     {
       LOG_PRINT_L1("One transaction among this group has bad semantics, verifying one at a time");
-      ret = false;
       const bool assumed_bad = rvv.size() == 1; // if there's only one tx, it must be the bad one
       for (size_t n = 0; n < tx_info.size(); ++n)
       {
-        if (!tx_info[n].result)
+        if (!tx_info[n].result || tx_info[n].already_have)
           continue;
-        if (tx_info[n].tx->rct_signatures.type != rct::RCTTypeBulletproof && tx_info[n].tx->rct_signatures.type != rct::RCTTypeBulletproof2)
+        if (tx_info[n].tx.rct_signatures.type != rct::RCTTypeBulletproof && tx_info[n].tx.rct_signatures.type != rct::RCTTypeBulletproof2)
           continue;
-        if (assumed_bad || !rct::verRctSemanticsSimple(tx_info[n].tx->rct_signatures))
+        if (assumed_bad || !rct::verRctSemanticsSimple(tx_info[n].tx.rct_signatures))
         {
           set_semantics_failed(tx_info[n].tx_hash);
           tx_info[n].tvc.m_verifivation_failed = true;
@@ -1145,111 +1141,122 @@ namespace cryptonote
         }
       }
     }
-
-    return ret;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_incoming_txs(const std::vector<blobdata>& tx_blobs, std::vector<tx_verification_context>& tvc, const tx_pool_options& opts)
+  std::vector<core::tx_verification_batch_info> core::parse_incoming_txs(const std::vector<blobdata>& tx_blobs, const tx_pool_options &opts)
   {
-    TRY_ENTRY();
     CRITICAL_REGION_LOCAL(m_incoming_tx_lock);
 
-    struct result { bool res; bool already_have; cryptonote::transaction tx; crypto::hash hash; };
-    std::vector<result> results(tx_blobs.size());
+    std::vector<tx_verification_batch_info> tx_info(tx_blobs.size());
 
-    tvc.resize(tx_blobs.size());
     tools::threadpool& tpool = tools::threadpool::getInstance();
     tools::threadpool::waiter waiter;
-    std::vector<blobdata>::const_iterator it = tx_blobs.begin();
-    for (size_t i = 0; i < tx_blobs.size(); i++, ++it) {
-      tpool.submit(&waiter, [&, i, it] {
+    for (size_t i = 0; i < tx_blobs.size(); i++) {
+      tx_info[i].blob = &tx_blobs[i];
+      tpool.submit(&waiter, [this, &info = tx_info[i]] {
         try
         {
-          results[i].res = handle_incoming_tx_pre(*it, tvc[i], results[i].tx, results[i].hash, opts);
+          parse_incoming_tx_pre(info);
         }
         catch (const std::exception &e)
         {
           MERROR_VER("Exception in handle_incoming_tx_pre: " << e.what());
-          tvc[i].m_verifivation_failed = true;
-          results[i].res = false;
+          info.tvc.m_verifivation_failed = true;
         }
       });
     }
     waiter.wait(&tpool);
 
-    std::vector<tx_verification_batch_info> tx_info;
-    tx_info.reserve(tx_blobs.size());
-    for (size_t i = 0; i < tx_blobs.size(); i++) {
-      if (!results[i].res)
+    for (auto &info : tx_info) {
+      if (!info.result)
         continue;
 
-      if(m_mempool.have_tx(results[i].hash))
+      if(m_mempool.have_tx(info.tx_hash))
       {
-        LOG_PRINT_L2("tx " << results[i].hash << " already have transaction in tx_pool");
-        results[i].already_have = true;
+        LOG_PRINT_L2("tx " << info.tx_hash << " already have transaction in tx_pool");
+        info.already_have = true;
       }
-      else if(m_blockchain_storage.have_tx(results[i].hash))
+      else if(m_blockchain_storage.have_tx(info.tx_hash))
       {
-        LOG_PRINT_L2("tx " << results[i].hash << " already have transaction in blockchain");
-        results[i].already_have = true;
+        LOG_PRINT_L2("tx " << info.tx_hash << " already have transaction in blockchain");
+        info.already_have = true;
       }
-
-      if (results[i].already_have) continue;
-      tx_info.push_back({&results[i].tx, results[i].hash, tvc[i], results[i].res});
     }
 
-    if (!tx_info.empty())
-      handle_incoming_tx_accumulated_batch(tx_info, opts.kept_by_block);
+    parse_incoming_tx_accumulated_batch(tx_info, opts.kept_by_block);
 
+    return tx_info;
+  }
+
+  bool core::handle_incoming_txs(std::vector<tx_verification_batch_info> &parsed_txs, const tx_pool_options &opts,
+      uint64_t *blink_rollback_height)
+  {
+    uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
     bool ok = true;
-    it = tx_blobs.begin();
-    for (size_t i = 0; i < tx_blobs.size(); i++, ++it) {
-      if (!results[i].res)
+    if (blink_rollback_height)
+      *blink_rollback_height = 0;
+    tx_pool_options tx_opts;
+    for (size_t i = 0; i < parsed_txs.size(); i++) {
+      auto &info = parsed_txs[i];
+      if (!info.result)
       {
-        ok = false;
+        ok = false; // Propagate failures (so this can be chained with parse_incoming_txs without an intermediate check)
         continue;
       }
       if (opts.kept_by_block)
-        get_blockchain_storage().on_new_tx_from_block(results[i].tx);
-      if (results[i].already_have)
-        continue;
+        get_blockchain_storage().on_new_tx_from_block(info.tx);
+      if (info.already_have)
+        continue; // Not a failure
 
-      const size_t weight = get_transaction_weight(results[i].tx, it->size());
-      ok &= add_new_tx(results[i].tx, results[i].hash, tx_blobs[i], weight, tvc[i], opts);
-      if(tvc[i].m_verifivation_failed)
+      const size_t weight = get_transaction_weight(info.tx, info.blob->size());
+      const tx_pool_options *local_opts = &opts;
+      if (blink_rollback_height && info.approved_blink)
       {
-        MERROR_VER("Transaction verification failed: " << results[i].hash);
+        // If this is an approved blink then pass a copy of the options with the flag added
+        tx_opts = opts;
+        tx_opts.approved_blink = true;
+        local_opts = &tx_opts;
       }
-      else if(tvc[i].m_verifivation_impossible)
+      if (m_mempool.add_tx(info.tx, info.tx_hash, *info.blob, weight, info.tvc, *local_opts, version, blink_rollback_height))
+        MDEBUG("tx added: " << info.tx_hash);
+      else
       {
-        MERROR_VER("Transaction verification impossible: " << results[i].hash);
+        ok = false;
+        if (info.tvc.m_verifivation_failed)
+          MERROR_VER("Transaction verification failed: " << info.tx_hash);
+        else if (info.tvc.m_verifivation_impossible)
+          MERROR_VER("Transaction verification impossible: " << info.tx_hash);
       }
-
-      if(tvc[i].m_added_to_pool)
-        MDEBUG("tx added: " << results[i].hash);
     }
-    return ok;
 
-    CATCH_ENTRY_L0("core::handle_incoming_txs()", false);
+    return ok;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, const tx_pool_options &opts)
   {
-    std::vector<tx_verification_context> tvcv(1);
-    bool r = handle_incoming_txs({{tx_blob}}, tvcv, opts);
-    tvc = tvcv[0];
-    return r;
+    auto parsed = parse_incoming_txs({{tx_blob}}, opts);
+    bool result = handle_incoming_txs(parsed, opts);
+    tvc = parsed[0].tvc;
+    return result;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_incoming_blinks(const std::vector<serializable_blink_metadata> &blinks, std::vector<crypto::hash> *bad_blinks, std::vector<crypto::hash> *missing_txs)
+  std::pair<std::vector<std::shared_ptr<blink_tx>>, std::unordered_set<crypto::hash>>
+  core::parse_incoming_blinks(const std::vector<serializable_blink_metadata> &blinks)
   {
-    if (m_blockchain_storage.get_current_hard_fork_version() < HF_VERSION_BLINK)
-      return true;
+    std::pair<std::vector<std::shared_ptr<blink_tx>>, std::unordered_set<crypto::hash>> results;
+    auto &new_blinks = results.first;
+    auto &missing_txs = results.second;
 
-    std::vector<uint8_t> store_blink(blinks.size(), false);
-    size_t store_count = 0;
-    // Step 1: figure out which referenced transactions we have and want blink info for (i.e. mined
-    // but not immutable, or still in the mempool).
+    if (m_blockchain_storage.get_current_hard_fork_version() < HF_VERSION_BLINK)
+      return results;
+
+    std::vector<uint8_t> want(blinks.size(), false); // Really bools, but std::vector<bool> is broken.
+    size_t want_count = 0;
+    // Step 1: figure out which referenced transactions we want to keep:
+    // - unknown tx (typically an incoming blink)
+    // - in mempool without blink sigs (it's possible to get the tx before the blink signatures)
+    // - in a recent, still-mutable block with blink sigs (can happen when syncing blocks before
+    // retrieving blink signatures)
     {
       std::vector<crypto::hash> hashes;
       hashes.reserve(blinks.size());
@@ -1262,57 +1269,49 @@ namespace cryptonote
       auto immutable_height = m_blockchain_storage.get_immutable_height();
       auto &db = m_blockchain_storage.get_db();
       for (size_t i = 0; i < blinks.size(); i++) {
-        if (tx_block_heights[i])
-          store_blink[i] = tx_block_heights[i] > immutable_height;
-        else if (db.txpool_has_tx(hashes[i]))
-          store_blink[i] = true;
-        else if (missing_txs)
-          missing_txs->emplace_back(hashes[i]);
-
-        if (store_blink[i])
-          store_count++;
+        if (tx_block_heights[i] == 0 /*mempool or unknown*/ || tx_block_heights[i] > immutable_height /*mined but not yet immutable*/)
+        {
+          want[i] = true;
+          want_count++;
+        }
       }
     }
 
-    MDEBUG("Accepted " << store_count << " of " << blinks.size() << " incoming blink states as uncheckpointed or in the mempool");
-    if (!store_count) return true;
+    MDEBUG("Want " << want_count << " of " << blinks.size() << " incoming blink signature sets after filtering out immutable txes");
+    if (!want_count) return results;
 
     // Step 2: filter out any transactions for which we already have a blink signature
     {
       auto mempool_lock = m_mempool.blink_shared_lock();
       for (size_t i = 0; i < blinks.size(); i++)
       {
-        if (store_blink[i] && m_mempool.has_blink(blinks[i].tx_hash, true /*have lock*/))
+        if (want[i] && m_mempool.has_blink(blinks[i].tx_hash, true /*have lock*/))
         {
           MDEBUG("Ignoring blink data for " << blinks[i].tx_hash << ": already have blink signatures");
-          store_blink[i] = false; // Already have it, move along
-          store_count--;
+          want[i] = false; // Already have it, move along
+          want_count--;
         }
       }
     }
 
-    MDEBUG("Need blink data for " << store_count << " of " << blinks.size() << " incoming blinks");
-    if (!store_count) return true;
+    MDEBUG("Want " << want_count << " of " << blinks.size() << " incoming blink signature sets after filtering out existing blink sigs");
+    if (!want_count) return results;
 
-    // Step 3: create new blink_tx objects for txes we want the blink signatures for, making sure
-    // that all the given signature data is valid and that signatures validate.  We can do all of
-    // this without a lock.
-    std::vector<std::shared_ptr<blink_tx>> new_blinks;
-    new_blinks.reserve(store_count);
+    // Step 3: create new blink_tx objects for txes and add the blink signatures.  We can do all of
+    // this without a lock since these are (for now) just local instances.
+    new_blinks.reserve(want_count);
+
     std::unordered_map<uint64_t, std::shared_ptr<const service_nodes::quorum>> quorum_cache;
-    bool bad = false;
-    auto bad_blink = [&bad, bad_blinks](const crypto::hash &h, const auto &what) {
-      MINFO("Invalid blink tx " << h << ": " << what);
-      bad = true;
-      if (bad_blinks) bad_blinks->push_back(h);
-    };
     for (size_t i = 0; i < blinks.size(); i++)
     {
-      if (!store_blink[i])
+      if (!want[i])
         continue;
       auto &bdata = blinks[i];
+      new_blinks.push_back(std::make_shared<blink_tx>(bdata.height, bdata.tx_hash));
+      auto &blink = *new_blinks.back();
+
       // Data structure checks (we have more stringent checks for validity later, but if these fail
-      // now then the data doesn't just fail to validate, it is invalid).
+      // now then there's no point of even trying to do signature validation.
       if (bdata.signature.size() != bdata.position.size() ||  // Each signature must have an associated quorum position
           bdata.signature.size() != bdata.quorum.size()   ||  // and quorum index
           bdata.signature.size() < service_nodes::BLINK_MIN_VOTES * tools::enum_count<blink_tx::subquorum> || // too few signatures for possible validity
@@ -1321,16 +1320,14 @@ namespace cryptonote
           std::any_of(bdata.position.begin(), bdata.position.end(), [](const auto &p) { return p >= service_nodes::BLINK_SUBQUORUM_SIZE; }) || // invalid position
           std::any_of(bdata.quorum.begin(), bdata.quorum.end(), [](const auto &qi) { return qi >= tools::enum_count<blink_tx::subquorum>; }) // invalid quorum index
       ) {
-        bad_blink(bdata.tx_hash, "invalid signature data");
+        MINFO("Invalid blink tx " << bdata.tx_hash << ": invalid signature data");
         continue;
       }
 
-      auto blink_ptr = std::make_shared<blink_tx>(bdata.height, bdata.tx_hash);
-      auto &blink = *blink_ptr;
       std::array<const std::vector<crypto::public_key> *, tools::enum_count<blink_tx::subquorum>> validators;
       for (uint8_t qi = 0; qi < tools::enum_count<blink_tx::subquorum>; qi++)
       {
-        auto q_height = blink_tx::quorum_height(bdata.height, static_cast<blink_tx::subquorum>(qi));
+        auto q_height = blink.quorum_height(static_cast<blink_tx::subquorum>(qi));
         auto &q = quorum_cache[q_height];
         if (!q)
           q = get_quorum(service_nodes::quorum_type::blink, q_height);
@@ -1359,27 +1356,30 @@ namespace cryptonote
         os << "Blink validation failed:";
         for (auto &f : failures)
           os << " [" << int(bdata.quorum[f.first]) << ":" << int(bdata.position[f.first]) << "]: " << f.second;
-        bad_blink(bdata.tx_hash, os.str());
+        MINFO("Invalid blink tx " << bdata.tx_hash << ": " << os.str());
         continue;
       }
-
-      new_blinks.push_back(std::move(blink_ptr));
     }
 
-    // Finally lock the blink pool and add all the blink signature data.  It's possible that some
-    // other thread got through the above loop before us and already added some of those, but that's
-    // okay.
+    return results;
+  }
+
+  int core::add_blinks(const std::vector<std::shared_ptr<blink_tx>> &blinks)
+  {
     int added = 0;
-    {
-      auto lock = m_mempool.blink_unique_lock();
-      for (auto &b : new_blinks)
-        if (m_mempool.add_existing_blink(std::move(b), true /*have lock*/))
+    if (blinks.empty())
+      return added;
+
+    auto lock = m_mempool.blink_unique_lock();
+
+    for (auto &b : blinks)
+      if (b->approved())
+        if (m_mempool.add_existing_blink(b, true /*have lock*/))
           added++;
-    }
 
-    MINFO("Added signature info for " << added << " blinks, " << (new_blinks.size() - added) << " already present");
+    MINFO("Added blink signatures for " << added << " blinks");
 
-    return !bad;
+    return added;
   }
 
   //-----------------------------------------------------------------------------------------------
@@ -1588,24 +1588,6 @@ namespace cryptonote
   size_t core::get_blockchain_total_transactions() const
   {
     return m_blockchain_storage.get_total_transactions();
-  }
-  //-----------------------------------------------------------------------------------------------
-  bool core::add_new_tx(transaction& tx, const crypto::hash& tx_hash, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options& opts)
-  {
-    if(m_mempool.have_tx(tx_hash))
-    {
-      LOG_PRINT_L2("tx " << tx_hash << " already have transaction in tx_pool");
-      return true;
-    }
-
-    if(m_blockchain_storage.have_tx(tx_hash))
-    {
-      LOG_PRINT_L2("tx " << tx_hash << " already have transaction in blockchain");
-      return true;
-    }
-
-    uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
-    return m_mempool.add_tx(tx, tx_hash, blob, tx_weight, tvc, opts, version);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::relay_txpool_transactions()
