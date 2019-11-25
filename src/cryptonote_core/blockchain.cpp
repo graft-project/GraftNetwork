@@ -2393,13 +2393,11 @@ std::vector<uint64_t> Blockchain::get_transactions_heights(const std::vector<cry
   LOG_PRINT_L3("Blockchain::" << __func__);
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
 
-  std::vector<uint64_t> heights(txs_ids.size(), 0);
-  for (size_t i = 0; i < txs_ids.size(); i++)
-  {
-    try {
-      heights[i] = m_db->get_tx_block_height(txs_ids[i]);
-    } catch (...) { /* ignore */ }
-  }
+  auto heights = m_db->get_tx_block_heights(txs_ids);
+  for (auto &h : heights)
+    if (h == std::numeric_limits<uint64_t>::max())
+      h = 0;
+
   return heights;
 }
 //------------------------------------------------------------------

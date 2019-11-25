@@ -536,11 +536,7 @@ namespace cryptonote
       }
     }
 
-    heights = m_blockchain.get_db().get_tx_block_heights(hashes);
-    for (auto &h : heights)
-      if (h == std::numeric_limits<uint64_t>::max())
-        h = 0;
-
+    heights = m_blockchain.get_transactions_heights(hashes);
 
     // Filter out (and delete from the blink pool) any blinks that are in immutable blocks
     const uint64_t immutable_height = m_blockchain.get_immutable_height();
