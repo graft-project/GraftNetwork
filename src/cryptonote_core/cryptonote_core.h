@@ -892,8 +892,9 @@ namespace cryptonote
       */
      bool set_storage_server_peer_reachable(crypto::public_key const &pubkey, bool value);
 
-     /// Time point at which the storage server last pinged us
-     std::atomic<time_t> m_last_storage_server_ping;
+     /// Time point at which the storage server and lokinet last pinged us
+     std::atomic<time_t> m_last_storage_server_ping, m_last_lokinet_ping;
+
    private:
 
      /**

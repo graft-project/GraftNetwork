@@ -3019,29 +3019,44 @@ namespace cryptonote
 
     return true;
   }
+
+  namespace {
+    struct version_printer { const std::array<int, 3> &v; };
+    std::ostream &operator<<(std::ostream &o, const version_printer &vp) { return o << vp.v[0] << '.' << vp.v[1] << '.' << vp.v[2]; }
+
+    template <typename Response>
+    bool handle_ping(const std::array<int, 3> &cur_version, const std::array<int, 3> &required, const char *name, std::atomic<std::time_t> &update, Response &res)
+    {
+      if (cur_version < required) {
+        std::ostringstream status;
+        status << "Outdated " << name << ". Current: " << version_printer{cur_version} << " Required: " << version_printer{required};
+        res.status = status.str();
+        MERROR(res.status);
+      } else {
+        MDEBUG("Accepted ping from " << name << " " << version_printer{cur_version});
+        update = std::time(nullptr);
+        res.status = "OK";
+      }
+      return true;
+    }
+  }
+
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_storage_server_ping(const COMMAND_RPC_STORAGE_SERVER_PING::request& req,
                                                COMMAND_RPC_STORAGE_SERVER_PING::response& res,
                                                epee::json_rpc::error&,
                                                const connection_context*)
   {
-
-    const std::array<int, 3> cur_version = { req.version_major, req.version_minor, req.version_patch };
-
-    if (cur_version < service_nodes::MIN_STORAGE_SERVER_VERSION) {
-      std::stringstream status;
-      status << "Outdated Storage Server. ";
-      status << "Current: " << req.version_major << "." << req.version_minor << "." << req.version_patch << ". ";
-      status << "Required: " << service_nodes::MIN_STORAGE_SERVER_VERSION[0] << "."
-             << service_nodes::MIN_STORAGE_SERVER_VERSION[1] << "." << service_nodes::MIN_STORAGE_SERVER_VERSION[2];
-      res.status = status.str();
-      MERROR(status.str());
-    } else {
-      m_core.m_last_storage_server_ping = time(nullptr);
-      res.status = "OK";
-    }
-
-    return true;
+    return handle_ping({req.version_major, req.version_minor, req.version_patch}, service_nodes::MIN_STORAGE_SERVER_VERSION,
+        "Storage Server", m_core.m_last_storage_server_ping, res);
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_lokinet_ping(const COMMAND_RPC_LOKINET_PING::request& req,
+                                        COMMAND_RPC_LOKINET_PING::response& res,
+                                        epee::json_rpc::error&,
+                                        const connection_context*)
+  {
+    return handle_ping(req.version, service_nodes::MIN_LOKINET_VERSION, "Lokinet", m_core.m_last_lokinet_ping, res);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_staking_requirement(const COMMAND_RPC_GET_STAKING_REQUIREMENT::request& req, COMMAND_RPC_GET_STAKING_REQUIREMENT::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)

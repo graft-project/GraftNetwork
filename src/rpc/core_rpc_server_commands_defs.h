@@ -3113,6 +3113,26 @@ namespace cryptonote
   };
 
   LOKI_RPC_DOC_INTROSPECT
+  struct COMMAND_RPC_LOKINET_PING
+  {
+    struct request
+    {
+      std::array<int, 3> version; // Lokinet version
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(version);
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::string status; // Generic RPC error code. "OK" is the success value.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
   // Get the required amount of Loki to become a Service Node at the queried height. 
   // For stagenet and testnet values, ensure the daemon is started with the 
   // `--stagenet` or `--testnet` flags respectively.
