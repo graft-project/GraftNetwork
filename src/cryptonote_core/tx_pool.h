@@ -741,14 +741,10 @@ namespace cryptonote
     // Contains blink metadata for approved blink transactions. { txhash => blink_tx, ... }.
     std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;
 
-    // Contains blink hashes that we don't have but have been told about by another node.  The value
-    // is the height at which the tx was mined onto the blockchain, or 0 for mempool txes.
-    std::unordered_map<crypto::hash, uint64_t> m_missing_blinks;
-
     // Helper method: retrieves hashes and mined heights; mempool blinks get height 0
     std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> get_blink_hashes_and_mined_heights() const;
 
-    // TODO: clean up m_blinks and m_missing_blinks once mined & immutably checkpointed
+    // TODO: clean up m_blinks once mined & immutably checkpointed
   };
 }
 
