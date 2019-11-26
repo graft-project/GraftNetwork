@@ -2032,12 +2032,12 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           THROW_WALLET_EXCEPTION_IF(iter == tx_money_got_in_outs.end(), error::wallet_internal_error, "Could not find the output we just added, this should never happen");
           tx_money_got_in_outs.erase(iter);
         }
-        else if (transfer.m_spent || m_transfers[kit->second].amount() >= tx_scan_info[o].amount)
+        else if (transfer.m_spent || transfer.amount() >= tx_scan_info[o].amount)
         {
           LOG_ERROR("Public key " << epee::string_tools::pod_to_hex(kit->first)
               << " from received " << print_money(tx_scan_info[o].amount) << " output already exists with "
-              << (m_transfers[kit->second].m_spent ? "spent" : "unspent") << " "
-              << print_money(m_transfers[kit->second].amount()) << " in tx " << m_transfers[kit->second].m_txid << ", received output ignored");
+              << (transfer.m_spent ? "spent" : "unspent") << " "
+              << print_money(transfer.amount()) << " in tx " << transfer.m_txid << ", received output ignored");
 
           auto iter = std::find_if(
               tx_money_got_in_outs.begin(),

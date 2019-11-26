@@ -1253,11 +1253,7 @@ namespace cryptonote
       for (auto &bm : blinks)
         hashes.emplace_back(bm.tx_hash);
 
-      // If we don't take out this mempool lock here, before the blockchain_storage, we can deadlock
-      // when we access the mempool later because it takes both locks in this order.  TODO: make this
-      // lock design stop sucking.
-      CRITICAL_REGION_LOCAL(m_mempool);
-      CRITICAL_REGION_LOCAL1(m_blockchain_storage);
+      std::unique_lock<Blockchain> lock(m_blockchain_storage);
 
       auto tx_block_heights = m_blockchain_storage.get_transactions_heights(hashes);
       auto immutable_height = m_blockchain_storage.get_immutable_height();
@@ -1282,7 +1278,7 @@ namespace cryptonote
       auto mempool_lock = m_mempool.blink_shared_lock();
       for (size_t i = 0; i < blinks.size(); i++)
       {
-        if (store_blink[i] && m_mempool.get_blink(blinks[i].tx_hash, true /*have lock*/))
+        if (store_blink[i] && m_mempool.has_blink(blinks[i].tx_hash, true /*have lock*/))
         {
           store_blink[i] = false; // Already have it, move along
           store_count--;

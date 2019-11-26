@@ -1294,7 +1294,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
         auto it = pending_blink_results.find(blink_tag); // Look up again because `brd` might have been deleted
         if (it != pending_blink_results.end()) {
             try {
-                promise.set_exception(std::current_exception());
+                it->second.promise.set_exception(std::current_exception());
             } catch (const std::future_error &) { /* ignore */ }
         }
     }
