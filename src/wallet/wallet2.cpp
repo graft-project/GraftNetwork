@@ -7449,6 +7449,7 @@ uint64_t wallet2::get_fee_percent(uint32_t priority, int fee_algorithm) const
       error::invalid_priority);
   return percents[fee_algorithm][priority-1];
 }
+//----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_fixed_fee(uint32_t priority) const
 {
   if (priority == BLINK_PRIORITY)
@@ -8054,7 +8055,9 @@ wallet2::stake_result wallet2::create_stake_tx(const crypto::public_key& service
       return result;
     }
 
-    auto ptx_vector  = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_at_block, priority, extra, subaddr_account, subaddr_indices, true);
+    loki_construct_tx_params tx_params;
+    tx_params.v3_is_staking_tx = true;
+    auto ptx_vector  = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_at_block, priority, extra, subaddr_account, subaddr_indices, tx_params);
     if (ptx_vector.size() == 1)
     {
       result.status = stake_result_status::success;
@@ -8290,7 +8293,9 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
       cryptonote::address_parse_info dest = {};
       dest.address                        = address;
 
-      auto ptx_vector = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, subaddr_account, subaddr_indices, true);
+      loki_construct_tx_params tx_params;
+      tx_params.v3_is_staking_tx = true;
+      auto ptx_vector = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, subaddr_account, subaddr_indices, tx_params);
       if (ptx_vector.size() == 1)
       {
         result.status = register_service_node_result_status::success;
@@ -9212,7 +9217,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
 
 void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
   std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
-  uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, const rct::RCTConfig &rct_config, bool is_staking_tx)
+  uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, const rct::RCTConfig &rct_config, const loki_construct_tx_params &tx_params)
 {
   using namespace cryptonote;
   // throw if attempting a transaction with no destinations
@@ -9401,11 +9406,6 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
   LOG_PRINT_L2("constructing tx");
   auto sources_copy = sources;
 
-  boost::optional<uint8_t> hf_version = get_hard_fork_version();
-  THROW_WALLET_EXCEPTION_IF(!hf_version, error::get_hard_fork_version_error, "Failed to query current hard fork version");
-
-  loki_construct_tx_params tx_params(*hf_version);
-  tx_params.v3_is_staking_tx = is_staking_tx;
   bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sources, splitted_dsts, change_dts, extra, tx, unlock_time, tx_key, additional_tx_keys, rct_config, m_multisig ? &msout : NULL, tx_params);
 
   LOG_PRINT_L2("constructed tx, r="<<r);
@@ -10095,6 +10095,32 @@ bool wallet2::light_wallet_key_image_is_ours(const crypto::key_image& key_image,
   return key_image == calculated_key_image;
 }
 
+// Before we have the final fee we can't determine the amount to burn, so we stick in this
+// placeholder then go back once we know the fee and replace it.  This value (~4398 LOKI) was chosen
+// because it's unlikely to ever be needed to be burned in a single transaction, and is the maximum
+// encoded value we can store in 6 bytes (tx extra integers are encoded 7 bits per byte -- see
+// common/varint.h).  7 bytes is likely just wasteful (we don't need more than 4400 LOKI burned at a
+// time), and 5 bytes (max 34.3 LOKI) might conceivable not be enough.
+static constexpr uint64_t BURN_FEE_PLACEHOLDER = (1ULL << (6*7)) - 1;
+
+
+static void fixup_burn_fee(std::vector<uint8_t> &extra, const cryptonote::loki_construct_tx_params &loki_tx_params, uint64_t fee, uint64_t fixed_fee, uint64_t fee_percent)
+{
+  uint64_t burn = loki_tx_params.burn_fixed;
+  THROW_WALLET_EXCEPTION_IF(fee < fixed_fee, error::wallet_internal_error, "wallet tx construction didn't set fees properly");
+  if (loki_tx_params.burn_percent)
+  {
+    uint64_t variable = fee - fixed_fee;
+    burn += variable * loki_tx_params.burn_percent / fee_percent;
+  }
+  THROW_WALLET_EXCEPTION_IF(burn > BURN_FEE_PLACEHOLDER, error::wallet_internal_error, "attempt to burn a larger amount than is internally supported");
+
+  bool r = remove_field_from_tx_extra(extra, typeid(tx_extra_burn));
+  r &= add_burned_amount_to_tx_extra(extra, burn);
+  THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "wallet tx construction invalid: could not replace burn amount");
+}
+
+
 // Another implementation of transaction creation that is hopefully better
 // While there is anything left to pay, it goes through random outputs and tries
 // to fill the next destination/amount. If it fully fills it, it will use the
@@ -10110,7 +10136,7 @@ bool wallet2::light_wallet_key_image_is_ours(const crypto::key_image& key_image,
 // This system allows for sending (almost) the entire balance, since it does
 // not generate spurious change in all txes, thus decreasing the instantaneous
 // usable balance.
-std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, bool is_staking_tx)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, loki_construct_tx_params loki_tx_params)
 {
   //ensure device is let in NONE mode in any case
   hw::device &hwdev = m_account.get_device();
@@ -10173,7 +10199,23 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
 
   const auto base_fee  = get_base_fees();
   const uint64_t fee_percent = get_fee_percent(priority, get_fee_algorithm());
+  const uint64_t fixed_fee = get_fixed_fee(priority);
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
+
+  boost::optional<uint8_t> hf_version = get_hard_fork_version();
+  THROW_WALLET_EXCEPTION_IF(!hf_version, error::get_hard_fork_version_error, "Failed to query current hard fork version");
+  loki_tx_params.set_hf_version(*hf_version);
+
+  const bool need_burn_fixup =
+    (loki_tx_params.burning_permitted && (loki_tx_params.burn_fixed || loki_tx_params.burn_percent));
+  std::vector<uint8_t> extra_plus; // Copy and modified from input, if needed
+  const std::vector<uint8_t> &extra = need_burn_fixup ? extra_plus : extra_base;
+  if (need_burn_fixup)
+  {
+    extra_plus = extra_base;
+    add_burned_amount_to_tx_extra(extra_plus, BURN_FEE_PLACEHOLDER);
+    THROW_WALLET_EXCEPTION_IF(loki_tx_params.burn_fixed > fixed_fee || loki_tx_params.burn_percent > fee_percent, error::wallet_internal_error, "invalid burn fees: cannot burn more than the tx fee");
+  }
 
   // throw if attempting a transaction with no destinations
   THROW_WALLET_EXCEPTION_IF(dsts.empty(), error::zero_destination);
@@ -10209,8 +10251,6 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       base_fee.first * estimate_rct_tx_size(1, fake_outs_count, num_outputs, extra.size()) +
       base_fee.second * num_outputs
   ) * fee_percent / 100;
-
-  uint64_t fixed_fee = get_fixed_fee(priority);
 
   uint64_t balance_subtotal = 0;
   uint64_t unlocked_balance_subtotal = 0;
@@ -10495,7 +10535,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       LOG_PRINT_L2("Trying to create a tx now, with " << tx.dsts.size() << " outputs and " <<
         tx.selected_transfers.size() << " inputs");
       transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
-          test_tx, test_ptx, rct_config, is_staking_tx);
+          test_tx, test_ptx, rct_config, loki_tx_params);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
       needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount + (!test_ptx.dust_added_to_fee ? test_ptx.dust : 0);
@@ -10534,7 +10574,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         LOG_PRINT_L2("We made a tx, adjusting fee and saving it, we need " << print_money(needed_fee) << " and we have " << print_money(test_ptx.fee));
         while (needed_fee > test_ptx.fee) {
           transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
-              test_tx, test_ptx, rct_config, is_staking_tx);
+              test_tx, test_ptx, rct_config, loki_tx_params);
           txBlob = t_serializable_object_to_blob(test_ptx.tx);
           needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
           LOG_PRINT_L2("Made an attempt at a  final " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(test_ptx.fee) <<
@@ -10589,9 +10629,11 @@ skip_tx:
     " total fee, " << print_money(accumulated_change) << " total change");
 
   hwdev.set_mode(hw::device::TRANSACTION_CREATE_REAL);
-  for (std::vector<TX>::iterator i = txes.begin(); i != txes.end(); ++i)
+  for (auto &tx : txes)
   {
-    TX &tx = *i;
+    if (need_burn_fixup)
+      fixup_burn_fee(extra_plus, loki_tx_params, tx.needed_fee, fixed_fee, fee_percent);
+
     cryptonote::transaction test_tx;
     pending_tx test_ptx;
     transfer_selected_rct(  tx.dsts,                    /* NOMOD std::vector<cryptonote::tx_destination_entry> dsts,*/
@@ -10604,7 +10646,7 @@ skip_tx:
                             test_tx,                    /* OUT   cryptonote::transaction& tx, */
                             test_ptx,                   /* OUT   cryptonote::transaction& tx, */
                             rct_config,
-                            is_staking_tx);
+                            loki_tx_params);
     auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
     tx.tx = test_tx;
     tx.ptx = test_ptx;
@@ -10698,7 +10740,7 @@ bool wallet2::sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, s
   return true;
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, bool is_staking_tx)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, const loki_construct_tx_params &loki_tx_params)
 {
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
@@ -10751,10 +10793,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below
     }
   }
 
-  return create_transactions_from(address, is_subaddress, outputs, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra, is_staking_tx);
+  return create_transactions_from(address, is_subaddress, outputs, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra, loki_tx_params);
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypto::key_image &ki, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypto::key_image &ki, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, const loki_construct_tx_params &loki_tx_params)
 {
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
@@ -10771,10 +10813,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypt
       break;
     }
   }
-  return create_transactions_from(address, is_subaddress, outputs, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra);
+  return create_transactions_from(address, is_subaddress, outputs, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra, loki_tx_params);
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, bool is_staking_tx)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, loki_construct_tx_params loki_tx_params)
 {
   //ensure device is let in NONE mode in any case
   hw::device &hwdev = m_account.get_device();
@@ -10803,6 +10845,21 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
   const uint64_t fee_percent = get_fee_percent(priority, get_fee_algorithm());
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
   const uint64_t fixed_fee = get_fixed_fee(priority);
+
+  boost::optional<uint8_t> hf_version = get_hard_fork_version();
+  THROW_WALLET_EXCEPTION_IF(!hf_version, error::get_hard_fork_version_error, "Failed to query current hard fork version");
+  loki_tx_params.set_hf_version(*hf_version);
+
+  const bool need_burn_fixup =
+    (loki_tx_params.burning_permitted && (loki_tx_params.burn_fixed || loki_tx_params.burn_percent));
+  std::vector<uint8_t> extra_plus; // Copy and modified from input, if needed
+  const std::vector<uint8_t> &extra = need_burn_fixup ? extra_plus : extra_base;
+  if (need_burn_fixup)
+  {
+    extra_plus = extra_base;
+    add_burned_amount_to_tx_extra(extra_plus, BURN_FEE_PLACEHOLDER);
+    THROW_WALLET_EXCEPTION_IF(loki_tx_params.burn_fixed > fixed_fee || loki_tx_params.burn_percent > fee_percent, error::wallet_internal_error, "invalid burn fees: cannot burn more than the tx fee");
+  }
 
   LOG_PRINT_L2("Starting with " << unused_transfers_indices.size() << " non-dust outputs and " << unused_dust_indices.size() << " dust outputs");
 
@@ -10869,7 +10926,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
       LOG_PRINT_L2("Trying to create a tx now, with " << tx.dsts.size() << " destinations and " <<
         tx.selected_transfers.size() << " outputs");
       transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
-          test_tx, test_ptx, rct_config, is_staking_tx);
+          test_tx, test_ptx, rct_config, loki_tx_params);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
       needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount;
@@ -10902,7 +10959,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
           dt.amount = dt_amount + dt_residue;
         }
         transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
-            test_tx, test_ptx, rct_config, is_staking_tx);
+            test_tx, test_ptx, rct_config, loki_tx_params);
         txBlob = t_serializable_object_to_blob(test_ptx.tx);
         needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
         LOG_PRINT_L2("Made an attempt at a final " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(test_ptx.fee) <<
@@ -10931,12 +10988,14 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
     " total fee, " << print_money(accumulated_change) << " total change");
  
   hwdev.set_mode(hw::device::TRANSACTION_CREATE_REAL);
-  for (std::vector<TX>::iterator i = txes.begin(); i != txes.end(); ++i)
+  for (auto &tx : txes)
   {
-    TX &tx = *i;
+    if (need_burn_fixup)
+      fixup_burn_fee(extra_plus, loki_tx_params, tx.needed_fee, fixed_fee, fee_percent);
+
     cryptonote::transaction test_tx;
     pending_tx test_ptx;
-    transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, tx.outs, unlock_time, tx.needed_fee, extra, test_tx, test_ptx, rct_config, is_staking_tx);
+    transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, tx.outs, unlock_time, tx.needed_fee, extra, test_tx, test_ptx, rct_config, loki_tx_params);
     auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
     tx.tx = test_tx;
     tx.ptx = test_ptx;
@@ -11207,7 +11266,7 @@ std::vector<wallet2::pending_tx> wallet2::create_unmixable_sweep_transactions()
       unmixable_transfer_outputs.push_back(n);
   }
 
-  return create_transactions_from(m_account_public_address, false, 1, unmixable_transfer_outputs, unmixable_dust_outputs, 0 /*fake_outs_count */, 0 /* unlock_time */, 1 /*priority */, std::vector<uint8_t>());
+  return create_transactions_from(m_account_public_address, false, 1, unmixable_transfer_outputs, unmixable_dust_outputs, 0 /*fake_outs_count */, 0 /* unlock_time */, 1 /*priority */, std::vector<uint8_t>{}, loki_construct_tx_params{});
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::discard_unmixable_outputs()
