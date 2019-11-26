@@ -2654,7 +2654,7 @@ namespace cryptonote
   };
 
   LOKI_RPC_DOC_INTROSPECT
-  // Get the service node public key of the queried daemon. 
+  // Get the service node public keys of the queried daemon, encoded in hex.
   // The daemon must be started in --service-node mode otherwise this RPC command will fail.
   struct COMMAND_RPC_GET_SERVICE_NODE_KEY
   {
@@ -2667,11 +2667,45 @@ namespace cryptonote
 
     struct response_t
     {
-      std::string service_node_pubkey; // The queried daemon's service node key.
-      std::string status;              // Generic RPC error code. "OK" is the success value.
+      std::string service_node_pubkey;         // The queried daemon's service node public key.
+      std::string service_node_ed25519_pubkey; // The daemon's service node ed25519 public key.
+      std::string service_node_x25519_pubkey;  // The daemon's service node x25519 public key.
+      std::string status;                      // Generic RPC error code. "OK" is the success value.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(service_node_pubkey)
+        KV_SERIALIZE(service_node_ed25519_pubkey)
+        KV_SERIALIZE(service_node_x25519_pubkey)
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Get the service node private keys of the queried daemon, encoded in hex.  Do not ever share
+  // these keys: they would allow someone to impersonate your service node.
+  // The daemon must be started in --service-node mode otherwise this RPC command will fail.
+  struct COMMAND_RPC_GET_SERVICE_NODE_PRIVKEY
+  {
+    struct request_t
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string service_node_privkey;         // The queried daemon's service node private key.
+      std::string service_node_ed25519_privkey; // The daemon's service node ed25519 private key (note that this is in sodium's format, which consists of the private and public keys concatenated together)
+      std::string service_node_x25519_privkey;  // The daemon's service node x25519 private key.
+      std::string status;                       // Generic RPC error code. "OK" is the success value.
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(service_node_privkey)
+        KV_SERIALIZE(service_node_ed25519_privkey)
+        KV_SERIALIZE(service_node_x25519_privkey)
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };

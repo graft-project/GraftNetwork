@@ -2718,6 +2718,26 @@ namespace cryptonote
     if (auto keys = m_core.get_service_node_keys())
     {
       res.service_node_pubkey = string_tools::pod_to_hex(keys->pub);
+      res.service_node_ed25519_pubkey = string_tools::pod_to_hex(keys->pub_ed25519);
+      res.service_node_x25519_pubkey = string_tools::pod_to_hex(keys->pub_x25519);
+      res.status = CORE_RPC_STATUS_OK;
+      return true;
+    }
+
+    error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
+    error_resp.message = "Daemon queried is not a service node or did not launch with --service-node";
+    return false;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_service_node_privkey(const COMMAND_RPC_GET_SERVICE_NODE_PRIVKEY::request& req, COMMAND_RPC_GET_SERVICE_NODE_PRIVKEY::response& res, epee::json_rpc::error &error_resp, const connection_context *ctx)
+  {
+    PERF_TIMER(on_get_service_node_key);
+
+    if (auto keys = m_core.get_service_node_keys())
+    {
+      res.service_node_privkey = string_tools::pod_to_hex(keys->key.data);
+      res.service_node_ed25519_privkey = string_tools::pod_to_hex(keys->key_ed25519.data);
+      res.service_node_x25519_privkey = string_tools::pod_to_hex(keys->key_x25519.data);
       res.status = CORE_RPC_STATUS_OK;
       return true;
     }
