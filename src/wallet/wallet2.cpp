@@ -1927,10 +1927,12 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
             + "got " + (kit == m_pub_keys.end() ? "<none>" : boost::lexical_cast<std::string>(kit->second))
             + ", m_transfers.size() is " + boost::lexical_cast<std::string>(m_transfers.size()));
 
+        bool process_transaction = !pool || blink;
+        bool unmined_blink       = pool && blink;
         if (kit == m_pub_keys.end())
         {
           uint64_t amount = tx.vout[o].amount ? tx.vout[o].amount : tx_scan_info[o].amount;
-          if (!pool || blink)
+          if (process_transaction)
           {
             pk_to_unlock_times[tx_scan_info[o].in_ephemeral.pub] = tx_scan_info[o].unlock_time;
 
@@ -1938,8 +1940,8 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
             transfer_details& td = m_transfers.back();
             td.m_block_height = height; // NB: will be zero for a blink; we update when the blink tx gets mined
             td.m_internal_output_index = o;
-            td.m_global_output_index = pool ? 0 : o_indices[o]; // blink tx doesn't have this; will get updated when it gets into a block
-            td.m_unmined_blink = pool && blink;
+            td.m_global_output_index = unmined_blink ? 0 : o_indices[o]; // blink tx doesn't have this; will get updated when it gets into a block
+            td.m_unmined_blink = unmined_blink;
             td.m_tx = (const cryptonote::transaction_prefix&)tx;
             td.m_txid = txid;
             td.m_key_image = tx_scan_info[o].ki;
@@ -2005,19 +2007,42 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           notify = true;
           continue;
         }
+
+        // NOTE: Pre-existing transfer already exists for the output
         auto &transfer = m_transfers[kit->second];
-        if (transfer.m_unmined_blink && !pool && transfer.amount() == tx_scan_info[o].amount)
+        THROW_WALLET_EXCEPTION_IF(blink && transfer.m_unmined_blink,
+                                  error::wallet_internal_error,
+                                  "Sanity check failed: A blink tx replacing an pre-existing wallet tx should not be possible; when a "
+                                  "transaction is mined blink metadata is dropped and the TX should just be a normal TX");
+        THROW_WALLET_EXCEPTION_IF(pool && transfer.m_unmined_blink,
+                                  error::wallet_internal_error,
+                                  "Sanity check failed: An output replacing a unmined blink output must not be from the pool.");
+
+        if (transfer.m_spent || transfer.amount() >= tx_scan_info[o].amount)
         {
-          MINFO("Public key " << epee::string_tools::pod_to_hex(kit->first)
-              << " of blink tx " << transfer.m_txid << " (for " << print_money(tx_scan_info[o].amount) << ")"
-              << " status updated: now mined in block " << height);
+          if (transfer.amount() > tx_scan_info[o].amount)
+          {
+            LOG_ERROR("Public key " << epee::string_tools::pod_to_hex(kit->first)
+                << " from received " << print_money(tx_scan_info[o].amount) << " output already exists with "
+                << (transfer.m_spent ? "spent" : "unspent") << " "
+                << print_money(transfer.amount()) << " in tx " << transfer.m_txid << ", received output ignored");
+          }
 
-          blink_got_mined = true;
+          if (transfer.m_unmined_blink)
+          {
+            blink_got_mined = true;
+            THROW_WALLET_EXCEPTION_IF(transfer.amount() != tx_scan_info[o].amount, error::wallet_internal_error, "A blink should credit the amount exactly as we recorded it when it arrived in the mempool");
+            THROW_WALLET_EXCEPTION_IF(transfer.m_spent, error::wallet_internal_error, "Blink can not be spent before it is mined, this should never happen");
 
-          // We previous had this as a blink, but now it's been mined so update the tx status with the height and output index
-          transfer.m_block_height = height;
-          transfer.m_global_output_index = o_indices[o];
-          transfer.m_unmined_blink = false;
+            MINFO("Public key " << epee::string_tools::pod_to_hex(kit->first)
+                << " of blink tx " << transfer.m_txid << " (for " << print_money(tx_scan_info[o].amount) << ")"
+                << " status updated: now mined in block " << height);
+
+            // We previous had this as a blink, but now it's been mined so update the tx status with the height and output index
+            transfer.m_block_height = height;
+            transfer.m_global_output_index = o_indices[o];
+            transfer.m_unmined_blink = false;
+          }
 
           auto iter = std::find_if(
               tx_money_got_in_outs.begin(),
@@ -2112,11 +2137,12 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
 
           uint64_t amount = tx.vout[o].amount ? tx.vout[o].amount : tx_scan_info[o].amount;
           uint64_t extra_amount = amount - transfer.amount();
-          if (!pool || blink)
+          if (process_transaction)
           {
             transfer.m_block_height = height;
             transfer.m_internal_output_index = o;
-            transfer.m_global_output_index = pool ? 0 : o_indices[o]; // blink tx doesn't have this; will get updated when it gets into a block
+            transfer.m_global_output_index = unmined_blink ? 0 : o_indices[o]; // blink tx doesn't have this; will get updated when it gets into a block
+            transfer.m_unmined_blink = unmined_blink;
             transfer.m_tx = (const cryptonote::transaction_prefix&)tx;
             transfer.m_txid = txid;
             transfer.m_amount = amount;
