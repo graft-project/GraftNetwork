@@ -759,7 +759,6 @@ namespace cryptonote
     std::unique_lock<tx_memory_pool> tx_lock{*this, std::defer_lock};
     std::unique_lock<Blockchain> bc_lock{m_blockchain, std::defer_lock};
     std::lock(blink_lock, tx_lock, bc_lock);
-    size_t bytes = m_txpool_max_weight;
     LockedTXN lock(m_blockchain);
     bool changed = false;
 
@@ -814,7 +813,7 @@ namespace cryptonote
     auto it = m_txs_by_fee_and_receive_time.end();
     if (it != m_txs_by_fee_and_receive_time.begin())
       it = std::prev(it);
-    while (m_txpool_weight <= bytes && it != m_txs_by_fee_and_receive_time.begin())
+    while (m_txpool_weight > m_txpool_max_weight && it != m_txs_by_fee_and_receive_time.begin())
     {
       if (!try_pruning(it, false /*forward*/))
         return;
@@ -822,8 +821,8 @@ namespace cryptonote
     lock.commit();
     if (changed)
       ++m_cookie;
-    if (m_txpool_weight > bytes)
-      MINFO("Pool weight after pruning is larger than limit: " << m_txpool_weight << "/" << bytes);
+    if (m_txpool_weight > m_txpool_max_weight)
+      MINFO("Pool weight after pruning is still larger than limit: " << m_txpool_weight << "/" << m_txpool_max_weight);
   }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::insert_key_images(const transaction_prefix &tx, const crypto::hash &id, bool kept_by_block)
