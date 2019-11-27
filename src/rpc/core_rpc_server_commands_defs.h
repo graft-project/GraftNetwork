@@ -2915,16 +2915,17 @@ namespace cryptonote
 
     struct request_t
     {
-      uint32_t limit;
-      bool active_only;
+      uint32_t limit; // If non-zero, select a random sample (in random order) of the given number of service nodes to return from the full list.
+      bool active_only; // If true, only include results for active (fully staked, not decommissioned) service nodes.
       requested_fields_t fields;
-      std::string if_block_not_equal;
+
+      std::string poll_block_hash; // If specified this changes the behaviour to only return service node records if the block hash is *not* equal to the given hash; otherwise it omits the records and instead sets `"unchanged": true` in the response. This is primarily used to poll for new results where the requested results only change with new blocks.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(limit)
         KV_SERIALIZE(active_only)
         KV_SERIALIZE(fields)
-        KV_SERIALIZE(if_block_not_equal)
+        KV_SERIALIZE(poll_block_hash)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
@@ -3007,14 +3008,14 @@ namespace cryptonote
         END_KV_SERIALIZE_MAP()
       };
 
-      requested_fields_t fields;
-      bool gave_if_not_equal;
+      requested_fields_t fields; // @NoLokiRPCDocGen Internal use only, not serialized
+      bool polling_mode;         // @NoLokiRPCDocGen Internal use only, not serialized
 
       std::vector<entry> service_node_states; // Array of service node registration information
       uint64_t    height;                     // Current block's height.
       uint64_t    target_height;              // Blockchain's target height.
       std::string block_hash;                 // Current block's hash.
-      bool        unchanged;                  // Will be true (and `service_node_states` omitted) if you gave the current block hash to if_block_not_equal
+      bool        unchanged;                  // Will be true (and `service_node_states` omitted) if you gave the current block hash to poll_block_hash
       uint8_t     hardfork;                   // Current hardfork version.
       std::string status;                     // Generic RPC error code. "OK" is the success value.
 
@@ -3029,13 +3030,13 @@ namespace cryptonote
         if (this_ref.fields.target_height) {
           KV_SERIALIZE(target_height)
         }
-        if (this_ref.fields.block_hash || (this_ref.gave_if_not_equal && !this_ref.unchanged)) {
+        if (this_ref.fields.block_hash || (this_ref.polling_mode && !this_ref.unchanged)) {
           KV_SERIALIZE(block_hash)
         }
         if (this_ref.fields.hardfork) {
           KV_SERIALIZE(hardfork)
         }
-        if (this_ref.gave_if_not_equal) {
+        if (this_ref.polling_mode) {
           KV_SERIALIZE(unchanged);
         }
       END_KV_SERIALIZE_MAP()

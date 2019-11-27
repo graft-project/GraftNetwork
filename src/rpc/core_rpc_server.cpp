@@ -2849,9 +2849,9 @@ namespace cryptonote
     res.block_hash = string_tools::pod_to_hex(m_core.get_block_id_by_height(res.height));
     res.hardfork = m_core.get_hard_fork_version(res.height);
 
-    if (!req.if_block_not_equal.empty()) {
-      res.gave_if_not_equal = true;
-      if (req.if_block_not_equal == res.block_hash) {
+    if (!req.poll_block_hash.empty()) {
+      res.polling_mode = true;
+      if (req.poll_block_hash == res.block_hash) {
         res.unchanged = true;
         res.fields = req.fields;
         return true;
