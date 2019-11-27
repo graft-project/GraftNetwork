@@ -258,6 +258,7 @@ namespace cryptonote
               m_nettype(UNDEFINED),
               m_update_available(false),
               m_last_storage_server_ping(0),
+              m_last_lokinet_ping(0),
               m_pad_transactions(false)
   {
     m_checkpoints_updating.clear();
@@ -1792,13 +1793,13 @@ namespace cryptonote
     return m_mempool.print_pool(short_format);
   }
   //-----------------------------------------------------------------------------------------------
-  static bool check_storage_server_ping(time_t last_time_storage_server_pinged)
+  static bool check_external_ping(time_t last_ping, time_t lifetime, const char *what)
   {
-    const auto elapsed = std::time(nullptr) - last_time_storage_server_pinged;
-    if (elapsed > STORAGE_SERVER_PING_LIFETIME)
+    const auto elapsed = std::time(nullptr) - last_ping;
+    if (elapsed > lifetime)
     {
-      MWARNING("Have not heard from the storage server " <<
-              (!last_time_storage_server_pinged ? "since starting" :
+      MWARNING("Have not heard from " << what << " " <<
+              (!last_ping ? "since starting" :
                "for more than " + tools::get_human_readable_timespan(std::chrono::seconds(elapsed))));
       return false;
     }
@@ -1816,12 +1817,29 @@ namespace cryptonote
       m_check_uptime_proof_interval.do_call([&info, this]() {
         if (info.proof->timestamp <= static_cast<uint64_t>(time(nullptr) - UPTIME_PROOF_FREQUENCY_IN_SECONDS))
         {
-          if (!check_storage_server_ping(m_last_storage_server_ping))
+          if (!check_external_ping(m_last_storage_server_ping, STORAGE_SERVER_PING_LIFETIME, "the storage server"))
           {
             MGINFO_RED(
                 "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
                 "is running! It is required to run alongside the Loki daemon");
             return true;
+          }
+          uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
+          if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
+          {
+            if (hf_version >= cryptonote::network_version_14)
+            {
+              MGINFO_RED(
+                  "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "
+                  "is running! It is required to run alongside the Loki daemon");
+              return true;
+            }
+            else
+            {
+              MGINFO_RED(
+                  "Have not heard from lokinet recently. Make sure that it is running! "
+                  "It is required to run alongside the Loki daemon after hard fork 14");
+            }
           }
 
           this->submit_uptime_proof();
@@ -2218,11 +2236,6 @@ namespace cryptonote
   bool core::prune_blockchain(uint32_t pruning_seed)
   {
     return get_blockchain_storage().prune_blockchain(pruning_seed);
-  }
-  //-----------------------------------------------------------------------------------------------
-  void core::get_all_service_nodes_public_keys(std::vector<crypto::public_key>& keys, bool active_nodes_only) const
-  {
-    m_service_node_list.get_all_service_nodes_public_keys(keys, active_nodes_only);
   }
   //-----------------------------------------------------------------------------------------------
   std::time_t core::get_start_time() const

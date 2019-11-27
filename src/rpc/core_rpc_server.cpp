@@ -2718,6 +2718,8 @@ namespace cryptonote
     if (auto keys = m_core.get_service_node_keys())
     {
       res.service_node_pubkey = string_tools::pod_to_hex(keys->pub);
+      res.service_node_ed25519_pubkey = string_tools::pod_to_hex(keys->pub_ed25519);
+      res.service_node_x25519_pubkey = string_tools::pod_to_hex(keys->pub_x25519);
       res.status = CORE_RPC_STATUS_OK;
       return true;
     }
@@ -2727,20 +2729,22 @@ namespace cryptonote
     return false;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_get_all_service_nodes_keys(const COMMAND_RPC_GET_ALL_SERVICE_NODES_KEYS::request& req, COMMAND_RPC_GET_ALL_SERVICE_NODES_KEYS::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
+  bool core_rpc_server::on_get_service_node_privkey(const COMMAND_RPC_GET_SERVICE_NODE_PRIVKEY::request& req, COMMAND_RPC_GET_SERVICE_NODE_PRIVKEY::response& res, epee::json_rpc::error &error_resp, const connection_context *ctx)
   {
-    std::vector<crypto::public_key> keys;
-    m_core.get_all_service_nodes_public_keys(keys, req.active_nodes_only);
+    PERF_TIMER(on_get_service_node_key);
 
-    res.keys.clear();
-    res.keys.resize(keys.size());
-    size_t i = 0;
-    for (const auto& key : keys)
+    if (auto keys = m_core.get_service_node_keys())
     {
-      std::string const hex64 = string_tools::pod_to_hex(key);
-      res.keys[i++]           = loki::hex64_to_base32z(hex64);
+      res.service_node_privkey = string_tools::pod_to_hex(keys->key.data);
+      res.service_node_ed25519_privkey = string_tools::pod_to_hex(keys->key_ed25519.data);
+      res.service_node_x25519_privkey = string_tools::pod_to_hex(keys->key_x25519.data);
+      res.status = CORE_RPC_STATUS_OK;
+      return true;
     }
-    return true;
+
+    error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
+    error_resp.message = "Daemon queried is not a service node or did not launch with --service-node";
+    return false;
   }
   //------------------------------------------------------------------------------------------------------------------------------
   template<typename response>
@@ -2856,6 +2860,22 @@ namespace cryptonote
                                                epee::json_rpc::error&,
                                                const connection_context*)
   {
+    res.status = CORE_RPC_STATUS_OK;
+    const uint64_t height = m_core.get_current_blockchain_height();
+    res.height = height - 1;
+    res.target_height = m_core.get_target_blockchain_height();
+    res.block_hash = string_tools::pod_to_hex(m_core.get_block_id_by_height(res.height));
+    res.hardfork = m_core.get_hard_fork_version(res.height);
+
+    if (!req.poll_block_hash.empty()) {
+      res.polling_mode = true;
+      if (req.poll_block_hash == res.block_hash) {
+        res.unchanged = true;
+        res.fields = req.fields;
+        return true;
+      }
+    }
+
     std::vector<service_nodes::service_node_pubkey_info> sn_infos = m_core.get_service_node_list_state({});
 
     if (req.active_only) {
@@ -2880,7 +2900,6 @@ namespace cryptonote
 
     res.service_node_states.reserve(sn_infos.size());
 
-    const uint64_t height = m_core.get_current_blockchain_height();
 
     for (auto &pubkey_info : sn_infos) {
       COMMAND_RPC_GET_N_SERVICE_NODES::response::entry entry = {res.fields};
@@ -2889,12 +2908,6 @@ namespace cryptonote
 
       res.service_node_states.push_back(entry);
     }
-
-    res.status = CORE_RPC_STATUS_OK;
-    res.height = height - 1;
-    res.target_height = m_core.get_target_blockchain_height();
-    res.block_hash = string_tools::pod_to_hex(m_core.get_block_id_by_height(res.height));
-    res.hardfork = m_core.get_hard_fork_version(res.height);
 
     res.fields = req.fields;
     return true;
@@ -2999,29 +3012,44 @@ namespace cryptonote
 
     return true;
   }
+
+  namespace {
+    struct version_printer { const std::array<int, 3> &v; };
+    std::ostream &operator<<(std::ostream &o, const version_printer &vp) { return o << vp.v[0] << '.' << vp.v[1] << '.' << vp.v[2]; }
+
+    template <typename Response>
+    bool handle_ping(const std::array<int, 3> &cur_version, const std::array<int, 3> &required, const char *name, std::atomic<std::time_t> &update, Response &res)
+    {
+      if (cur_version < required) {
+        std::ostringstream status;
+        status << "Outdated " << name << ". Current: " << version_printer{cur_version} << " Required: " << version_printer{required};
+        res.status = status.str();
+        MERROR(res.status);
+      } else {
+        MDEBUG("Accepted ping from " << name << " " << version_printer{cur_version});
+        update = std::time(nullptr);
+        res.status = "OK";
+      }
+      return true;
+    }
+  }
+
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_storage_server_ping(const COMMAND_RPC_STORAGE_SERVER_PING::request& req,
                                                COMMAND_RPC_STORAGE_SERVER_PING::response& res,
                                                epee::json_rpc::error&,
                                                const connection_context*)
   {
-
-    const std::array<int, 3> cur_version = { req.version_major, req.version_minor, req.version_patch };
-
-    if (cur_version < service_nodes::MIN_STORAGE_SERVER_VERSION) {
-      std::stringstream status;
-      status << "Outdated Storage Server. ";
-      status << "Current: " << req.version_major << "." << req.version_minor << "." << req.version_patch << ". ";
-      status << "Required: " << service_nodes::MIN_STORAGE_SERVER_VERSION[0] << "."
-             << service_nodes::MIN_STORAGE_SERVER_VERSION[1] << "." << service_nodes::MIN_STORAGE_SERVER_VERSION[2];
-      res.status = status.str();
-      MERROR(status.str());
-    } else {
-      m_core.m_last_storage_server_ping = time(nullptr);
-      res.status = "OK";
-    }
-
-    return true;
+    return handle_ping({req.version_major, req.version_minor, req.version_patch}, service_nodes::MIN_STORAGE_SERVER_VERSION,
+        "Storage Server", m_core.m_last_storage_server_ping, res);
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_lokinet_ping(const COMMAND_RPC_LOKINET_PING::request& req,
+                                        COMMAND_RPC_LOKINET_PING::response& res,
+                                        epee::json_rpc::error&,
+                                        const connection_context*)
+  {
+    return handle_ping(req.version, service_nodes::MIN_LOKINET_VERSION, "Lokinet", m_core.m_last_lokinet_ping, res);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_staking_requirement(const COMMAND_RPC_GET_STAKING_REQUIREMENT::request& req, COMMAND_RPC_GET_STAKING_REQUIREMENT::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)

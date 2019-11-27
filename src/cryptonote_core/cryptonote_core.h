@@ -831,14 +831,6 @@ namespace cryptonote
      std::shared_ptr<const service_node_keys> get_service_node_keys() const;
 
      /**
-      * @brief Get the public key of every service node.
-      *
-      * @param keys The container in which to return the keys
-      * @param active_nodes_only Only return nodes that are funded and actively working (i.e. not decommissioned) on the network
-      */
-     void get_all_service_nodes_public_keys(std::vector<crypto::public_key>& keys, bool active_nodes_only) const;
-
-     /**
       * @brief attempts to submit an uptime proof to the network, if this is running in service node mode
       *
       * @return true
@@ -892,8 +884,9 @@ namespace cryptonote
       */
      bool set_storage_server_peer_reachable(crypto::public_key const &pubkey, bool value);
 
-     /// Time point at which the storage server last pinged us
-     std::atomic<time_t> m_last_storage_server_ping;
+     /// Time point at which the storage server and lokinet last pinged us
+     std::atomic<time_t> m_last_storage_server_ping, m_last_lokinet_ping;
+
    private:
 
      /**
