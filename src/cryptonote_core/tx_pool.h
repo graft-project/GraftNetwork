@@ -739,12 +739,12 @@ namespace cryptonote
     mutable std::shared_timed_mutex m_blinks_mutex;
 
     // Contains blink metadata for approved blink transactions. { txhash => blink_tx, ... }.
-    std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;
+    mutable std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;
 
-    // Helper method: retrieves hashes and mined heights; mempool blinks get height 0
+    // Helper method: retrieves hashes and mined heights of blink txes since the immutable block;
+    // mempool blinks are included with a height of 0.  Also takes care of cleaning up any blinks
+    // that have become immutable.
     std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> get_blink_hashes_and_mined_heights() const;
-
-    // TODO: clean up m_blinks once mined & immutably checkpointed
   };
 }
 

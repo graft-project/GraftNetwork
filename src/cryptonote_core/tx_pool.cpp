@@ -512,20 +512,55 @@ namespace cryptonote
   std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> tx_memory_pool::get_blink_hashes_and_mined_heights() const
   {
     std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> hnh;
+    auto &hashes = hnh.first;
+    auto &heights = hnh.second;
     {
       auto lock = blink_shared_lock();
       if (!m_blinks.empty())
       {
-        hnh.first.reserve(m_blinks.size());
+        hashes.reserve(m_blinks.size());
         for (auto &b : m_blinks)
-          hnh.first.push_back(b.first);
+          hashes.push_back(b.first);
       }
     }
 
-    hnh.second = m_blockchain.get_db().get_tx_block_heights(hnh.first);
-    for (auto &h : hnh.second)
+    heights = m_blockchain.get_db().get_tx_block_heights(hashes);
+    for (auto &h : heights)
       if (h == std::numeric_limits<uint64_t>::max())
         h = 0;
+
+
+    // Filter out (and delete from the blink pool) any blinks that are in immutable blocks
+    const uint64_t immutable_height = m_blockchain.get_immutable_height();
+    size_t next_good = 0;
+    for (size_t i = 0; i < hashes.size(); i++)
+    {
+      if (heights[i] > immutable_height)
+      {
+        if (heights[i] == std::numeric_limits<uint64_t>::max()) // unmined mempool blink
+          heights[i] = 0;
+
+        // Swap elements into the "good" part of the list so that when we're we'll have divided the
+        // vector into [0, ..., next_good-1] elements containing the parts we want to return, and
+        // [next_good, ...] containing the elements to remove from blink storage.
+        if (i != next_good)
+        {
+          using std::swap;
+          swap(heights[i], heights[next_good]);
+          swap(hashes[i], hashes[next_good]);
+        }
+        next_good++;
+      }
+    }
+
+    if (next_good < hashes.size())
+    {
+      auto lock = blink_unique_lock();
+      for (size_t i = next_good; i < hashes.size(); i++)
+        m_blinks.erase(hashes[i]);
+    }
+    hashes.resize(next_good);
+    heights.resize(next_good);
 
     return hnh;
   }
@@ -533,7 +568,6 @@ namespace cryptonote
   std::map<uint64_t, crypto::hash> tx_memory_pool::get_blink_checksums() const
   {
     std::map<uint64_t, crypto::hash> result;
-    const uint64_t immutable_height = m_blockchain.get_immutable_height();
 
     auto hnh = get_blink_hashes_and_mined_heights();
     auto &hashes = hnh.first;
@@ -541,9 +575,6 @@ namespace cryptonote
 
     for (size_t i = 0; i < hashes.size(); i++)
     {
-      if (0 < heights[i] && heights[i] < immutable_height)
-        continue;
-
       auto it = result.lower_bound(heights[i]);
       if (it == result.end() || it->first != heights[i])
         result.emplace_hint(it, heights[i], hashes[i]);
@@ -556,7 +587,6 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   std::vector<crypto::hash> tx_memory_pool::get_mined_blinks(const std::set<uint64_t> &want_heights) const
   {
-    const uint64_t immutable_height = m_blockchain.get_immutable_height();
 
     std::vector<crypto::hash> result;
     auto hnh = get_blink_hashes_and_mined_heights();
@@ -564,9 +594,6 @@ namespace cryptonote
     auto &heights = hnh.second;
     for (size_t i = 0; i < heights.size(); i++)
     {
-      if (0 < heights[i] && heights[i] < immutable_height)
-        continue;
-
       if (want_heights.count(heights[i]))
         result.push_back(hashes[i]);
     }
