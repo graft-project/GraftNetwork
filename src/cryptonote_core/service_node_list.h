@@ -336,8 +336,6 @@ namespace service_nodes
     void set_quorum_history_storage(uint64_t hist_size); // 0 = none (default), 1 = unlimited, N = # of blocks
     bool store();
 
-    void get_all_service_nodes_public_keys(std::vector<crypto::public_key>& keys, bool require_active) const;
-
     /// Record public ip and storage port and add them to the service node list
     cryptonote::NOTIFY_UPTIME_PROOF::request generate_uptime_proof(const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port) const;
     bool handle_uptime_proof        (cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool &my_uptime_proof_confirmation);

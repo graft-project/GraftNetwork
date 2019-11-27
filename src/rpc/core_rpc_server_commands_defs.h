@@ -889,30 +889,6 @@ namespace cryptonote
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
-  //-----------------------------------------------
-  LOKI_RPC_DOC_INTROSPECT
-  // Retrieve all Service Node Keys.
-  struct COMMAND_RPC_GET_ALL_SERVICE_NODES_KEYS
-  {
-    struct request_t
-    {
-      bool active_nodes_only; // Return keys for service nodes if they are funded and working on the network
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_OPT(active_nodes_only, (bool)true)
-      END_KV_SERIALIZE_MAP()
-    };
-    typedef epee::misc_utils::struct_init<request_t> request;
-
-    struct response_t
-    {
-      std::vector<std::string> keys; // Returns as base32z of the hex key, for Lokinet internal usage
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(keys)
-      END_KV_SERIALIZE_MAP()
-    };
-    typedef epee::misc_utils::struct_init<response_t> response;
-  };
-
   LOKI_RPC_DOC_INTROSPECT
   // Stop mining on the daemon.
   struct COMMAND_RPC_STOP_MINING
@@ -2668,8 +2644,8 @@ namespace cryptonote
     struct response_t
     {
       std::string service_node_pubkey;         // The queried daemon's service node public key.
-      std::string service_node_ed25519_pubkey; // The daemon's service node ed25519 public key.
-      std::string service_node_x25519_pubkey;  // The daemon's service node x25519 public key.
+      std::string service_node_ed25519_pubkey; // The daemon's service node ed25519 auxiliary public key.
+      std::string service_node_x25519_pubkey;  // The daemon's service node x25519 auxiliary public key.
       std::string status;                      // Generic RPC error code. "OK" is the success value.
 
       BEGIN_KV_SERIALIZE_MAP()
@@ -2880,7 +2856,7 @@ namespace cryptonote
   if (this_ref.requested_fields.var || !this_ref.requested_fields.explicitly_set) KV_SERIALIZE(var)
 
   LOKI_RPC_DOC_INTROSPECT
-  // Get information on a random subset of Service Nodes.
+  // Get information on a all (or optionally a random subset) of Service Nodes.
   struct COMMAND_RPC_GET_N_SERVICE_NODES
   {
 
@@ -2969,14 +2945,17 @@ namespace cryptonote
 
     struct request_t
     {
-      uint32_t limit;
-      bool active_only;
+      uint32_t limit; // If non-zero, select a random sample (in random order) of the given number of service nodes to return from the full list.
+      bool active_only; // If true, only include results for active (fully staked, not decommissioned) service nodes.
       requested_fields_t fields;
+
+      std::string poll_block_hash; // If specified this changes the behaviour to only return service node records if the block hash is *not* equal to the given hash; otherwise it omits the records and instead sets `"unchanged": true` in the response. This is primarily used to poll for new results where the requested results only change with new blocks.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(limit)
         KV_SERIALIZE(active_only)
         KV_SERIALIZE(fields)
+        KV_SERIALIZE(poll_block_hash)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
@@ -3059,17 +3038,21 @@ namespace cryptonote
         END_KV_SERIALIZE_MAP()
       };
 
-      requested_fields_t fields;
+      requested_fields_t fields; // @NoLokiRPCDocGen Internal use only, not serialized
+      bool polling_mode;         // @NoLokiRPCDocGen Internal use only, not serialized
 
       std::vector<entry> service_node_states; // Array of service node registration information
       uint64_t    height;                     // Current block's height.
       uint64_t    target_height;              // Blockchain's target height.
       std::string block_hash;                 // Current block's hash.
+      bool        unchanged;                  // Will be true (and `service_node_states` omitted) if you gave the current block hash to poll_block_hash
       uint8_t     hardfork;                   // Current hardfork version.
       std::string status;                     // Generic RPC error code. "OK" is the success value.
 
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(service_node_states)
+        if (!this_ref.unchanged) {
+          KV_SERIALIZE(service_node_states)
+        }
         KV_SERIALIZE(status)
         if (this_ref.fields.height) {
           KV_SERIALIZE(height)
@@ -3077,11 +3060,14 @@ namespace cryptonote
         if (this_ref.fields.target_height) {
           KV_SERIALIZE(target_height)
         }
-        if (this_ref.fields.block_hash) {
+        if (this_ref.fields.block_hash || (this_ref.polling_mode && !this_ref.unchanged)) {
           KV_SERIALIZE(block_hash)
         }
         if (this_ref.fields.hardfork) {
           KV_SERIALIZE(hardfork)
+        }
+        if (this_ref.polling_mode) {
+          KV_SERIALIZE(unchanged);
         }
       END_KV_SERIALIZE_MAP()
     };
