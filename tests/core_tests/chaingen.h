@@ -651,17 +651,16 @@ public:
   {
     log_event("cryptonote::transaction");
     std::vector<cryptonote::blobdata> tx_blobs;
-    std::vector<cryptonote::tx_verification_context> tvcs;
-     cryptonote::tx_verification_context tvc0{};
     for (const auto &tx: txs)
-    {
       tx_blobs.push_back(t_serializable_object_to_blob(tx));
-      tvcs.push_back(tvc0);
-    }
     size_t pool_size = m_c.get_pool().get_transactions_count();
     cryptonote::tx_pool_options opts;
     opts.kept_by_block = m_txs_keeped_by_block;
-    m_c.handle_incoming_txs(tx_blobs, tvcs, opts);
+    auto parsed = m_c.handle_incoming_txs(tx_blobs, opts);
+    std::vector<cryptonote::tx_verification_context> tvcs;
+    tvcs.reserve(parsed.size());
+    for (auto &i : parsed)
+        tvcs.push_back(i.tvc);
     size_t tx_added = m_c.get_pool().get_transactions_count() - pool_size;
     bool r = m_validator.check_tx_verification_context_array(tvcs, tx_added, m_ev_index, txs);
     CHECK_AND_NO_ASSERT_MES(r, false, "tx verification context check failed");

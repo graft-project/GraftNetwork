@@ -53,8 +53,12 @@ public:
   bool get_stat_info(cryptonote::core_stat_info& st_inf) const {return true;}
   bool have_block(const crypto::hash& id) const {return true;}
   void get_blockchain_top(uint64_t& height, crypto::hash& top_id)const{height=0;top_id=crypto::null_hash;}
-  bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, const cryptonote::tx_pool_options&) { return true; }
-  bool handle_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blob, std::vector<cryptonote::tx_verification_context>& tvc, const cryptonote::tx_pool_options&) { return true; }
+  std::vector<cryptonote::core::tx_verification_batch_info> parse_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blobs, const cryptonote::tx_pool_options &opts) { return {}; }
+  bool handle_parsed_txs(std::vector<cryptonote::core::tx_verification_batch_info> &parsed_txs, const cryptonote::tx_pool_options &opts, uint64_t *blink_rollback_height = nullptr) { if (blink_rollback_height) *blink_rollback_height = 0; return true; }
+  std::vector<cryptonote::core::tx_verification_batch_info> handle_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blobs, const cryptonote::tx_pool_options &opts) { return {}; }
+  bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, const cryptonote::tx_pool_options &opts) { return true; }
+  std::pair<std::vector<std::shared_ptr<cryptonote::blink_tx>>, std::unordered_set<crypto::hash>> parse_incoming_blinks(const std::vector<cryptonote::serializable_blink_metadata> &blinks) { return {}; }
+  int add_blinks(const std::vector<std::shared_ptr<cryptonote::blink_tx>> &blinks) { return 0; }
   bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, cryptonote::checkpoint_t const *checkpoint, bool update_miner_blocktemplate = true) { return true; }
   bool handle_uptime_proof(const cryptonote::NOTIFY_UPTIME_PROOF::request &proof, bool &my_uptime_proof_confirmation) { return false; }
   void pause_mine(){}
@@ -90,6 +94,9 @@ public:
 
   bool handle_incoming_blinks(const std::vector<cryptonote::serializable_blink_metadata> &blinks, std::vector<crypto::hash> *bad_blinks = nullptr, std::vector<crypto::hash> *missing_txs = nullptr) { return true; }
 
+  struct fake_lock { ~fake_lock() { /* avoid unused variable warning by having a destructor */ } };
+  fake_lock incoming_tx_lock() { return {}; }
+
   class fake_pool {
   public:
       void add_missing_blink_hashes(const std::map<uint64_t, std::vector<crypto::hash>> &potential) {}
@@ -100,7 +107,7 @@ public:
       bool have_tx(const crypto::hash &txid) const { return false; }
       std::map<uint64_t, crypto::hash> get_blink_checksums() const { return {}; }
       std::vector<crypto::hash> get_mined_blinks(const std::set<uint64_t> &) const { return {}; }
-      void keep_missing(std::vector<crypto::hash> &tx_hashes) const {}
+      void keep_missing_blinks(std::vector<crypto::hash> &tx_hashes) const {}
   };
   fake_pool &get_pool() { return m_pool; }
 
