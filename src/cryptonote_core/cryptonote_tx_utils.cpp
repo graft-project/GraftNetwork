@@ -469,6 +469,11 @@ namespace cryptonote
       tx.unlock_time = unlock_time;
     }
 
+    if (tx_params.burn_percent)
+    {
+      LOG_ERROR("cannot construct tx: internal error: burn percent must be converted to fixed burn amount in the wallet");
+      return false;
+    }
 
     tx.extra = extra;
     crypto::public_key txkey_pub;
@@ -879,6 +884,21 @@ namespace cryptonote
       // fee
       if (!use_simple_rct && amount_in > amount_out)
         outamounts.push_back(amount_in - amount_out);
+
+      if (tx_params.burn_fixed)
+      {
+        if (amount_in < amount_out + tx_params.burn_fixed)
+        {
+          LOG_ERROR("invalid burn amount: tx does not have enough unspent funds available");
+          return false;
+        }
+        remove_field_from_tx_extra(tx.extra, typeid(tx_extra_burn)); // doesn't have to be present (but the wallet puts a dummy here as a safety to avoid growing the tx)
+        if (!add_burned_amount_to_tx_extra(tx.extra, tx_params.burn_fixed))
+        {
+          LOG_ERROR("failed to add burn amount to tx extra");
+          return false;
+        }
+      }
 
       // zero out all amounts to mask rct outputs, real amounts are now encrypted
       for (size_t i = 0; i < tx.vin.size(); ++i)

@@ -916,8 +916,7 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
   for (uint32_t priority = 1; priority <= 4; ++priority)
   {
     uint64_t pct = m_wallet->get_fee_percent(priority);
-    uint64_t fixed = m_wallet->get_fixed_fee(priority);
-    uint64_t typical_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100 + fixed;
+    uint64_t typical_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100;
     fees.push_back(typical_fee);
     if (priority > 1) typical_fees << ", ";
     typical_fees << print_money(typical_fee) << " (" << tools::allowed_priority_strings[priority] << ")";
@@ -961,7 +960,7 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
   if (hf_version && *hf_version >= HF_VERSION_BLINK)
   {
     uint64_t pct = m_wallet->get_fee_percent(tools::wallet2::BLINK_PRIORITY);
-    uint64_t fixed = m_wallet->get_fixed_fee(tools::wallet2::BLINK_PRIORITY);
+    uint64_t fixed = BLINK_BURN_FIXED;
 
     uint64_t typical_blink_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100 + fixed;
 
@@ -5852,12 +5851,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
       unlock_block = bc_height + locked_blocks;
     }
 
-    loki_construct_tx_params tx_params;
-    if (priority == tools::wallet2::BLINK_PRIORITY)
-    {
-      tx_params.burn_fixed = BLINK_BURN_FIXED;
-      tx_params.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
-    }
+    loki_construct_tx_params tx_params = tools::wallet2::construct_params(priority);
 
     ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block, priority, extra, m_current_subaddress_account, subaddr_indices, tx_params);
 
@@ -6901,12 +6895,7 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
   SCOPED_WALLET_UNLOCK();
   try
   {
-    loki_construct_tx_params tx_params;
-    if (priority == tools::wallet2::BLINK_PRIORITY)
-    {
-      tx_params.burn_fixed = BLINK_BURN_FIXED;
-      tx_params.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
-    }
+    loki_construct_tx_params tx_params = tools::wallet2::construct_params(priority);
 
     auto ptx_vector = m_wallet->create_transactions_all(below, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block /* unlock_time */, priority, extra, m_current_subaddress_account, subaddr_indices, tx_params);
     sweep_main_internal(sweep_type_t::all_or_below, ptx_vector, info, priority == tools::wallet2::BLINK_PRIORITY);
@@ -7042,12 +7031,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
 
   try
   {
-    loki_construct_tx_params tx_params;
-    if (priority == tools::wallet2::BLINK_PRIORITY)
-    {
-      tx_params.burn_fixed = BLINK_BURN_FIXED;
-      tx_params.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
-    }
+    loki_construct_tx_params tx_params = tools::wallet2::construct_params(priority);
 
     // figure out what tx will be necessary
     auto ptx_vector = m_wallet->create_transactions_single(ki, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, tx_params);

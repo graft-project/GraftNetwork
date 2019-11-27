@@ -1353,11 +1353,14 @@ private:
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees);
 
     uint64_t get_fee_percent(uint32_t priority, int fee_algorithm = -1) const;
-    uint64_t get_fixed_fee(uint32_t priority) const;
     cryptonote::byte_and_output_fees get_base_fees() const;
     uint64_t get_fee_quantization_mask() const;
     uint64_t adjust_mixin(uint64_t mixin) const;
     uint32_t adjust_priority(uint32_t priority);
+
+    // Shortcut to set up construction parameters; the returned object is default constructed unless
+    // priority is blink in which case the burn values are set appropriately.
+    static cryptonote::loki_construct_tx_params construct_params(uint32_t priority);
 
     bool is_unattended() const { return m_unattended; }
 

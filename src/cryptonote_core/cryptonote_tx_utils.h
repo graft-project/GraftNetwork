@@ -178,10 +178,10 @@ namespace cryptonote
     // Note that the percentage is relative to the minimal base tx fee, *not* the actual tx fee.
     //
     // For example if the base tx fee is 0.5, the priority sets the fee to 500%, the fixed burn
-    // amount is 0.1, and the percentage burn is 300% then the tx overall fee will be 2.5, and the
-    // burn amount will be 0.1 + 3(0.5) = 1.6 (and thus the miner tx coinbase amount will be 0.9).
-    // (See also wallet2's get_fixed_fee, get_fee_percent, and the *_burned versions which need to
-    // return values large enough to allow these amounts to be burned).
+    // amount is 0.1, and the percentage burn is 300% then the tx overall fee will be 0.1+2.5=2.6,
+    // and the burn amount will be 0.1+3(0.5)=1.6 (and thus the miner tx coinbase amount will be
+    // 1.0).  (See also wallet2's get_fee_percent which needs to return a value large enough to
+    // allow these amounts to be burned).
     uint64_t            burn_fixed = 0; // atomic units
     uint64_t            burn_percent = 0; // 123 = 1.23x base fee.
 
