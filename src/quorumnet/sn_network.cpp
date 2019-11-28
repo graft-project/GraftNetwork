@@ -368,7 +368,11 @@ void SNNetwork::spawn_worker(std::string id) {
 
 void SNNetwork::worker_thread(std::string worker_id) {
     zmq::socket_t sock{context, zmq::socket_type::dealer};
+#if ZMQ_VERSION >= ZMQ_MAKE_VERSION (4, 3, 0)
     sock.setsockopt(ZMQ_ROUTING_ID, worker_id.data(), worker_id.size());
+#else
+    sock.setsockopt(ZMQ_IDENTITY, worker_id.data(), worker_id.size());
+#endif
     SN_LOG(debug, "New worker thread " << worker_id << " started");
     sock.connect(SN_ADDR_WORKERS);
 
@@ -546,7 +550,6 @@ SNNetwork::proxy_connect(const std::string &remote, const std::string &connect_h
     socket.setsockopt(ZMQ_CURVE_SECRETKEY, privkey.data(), privkey.size());
     socket.setsockopt(ZMQ_HANDSHAKE_IVL, SN_HANDSHAKE_TIME);
     socket.setsockopt<int64_t>(ZMQ_MAXMSGSIZE, SN_ZMQ_MAX_MSG_SIZE);
-    // FIXME - do this?
 #if ZMQ_VERSION >= ZMQ_MAKE_VERSION (4, 3, 0)
     socket.setsockopt(ZMQ_ROUTING_ID, pubkey.data(), pubkey.size());
 #else
