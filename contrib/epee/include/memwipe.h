@@ -32,6 +32,7 @@
 
 #ifdef __cplusplus
 #include <array>
+#include "span.h"
 
 extern "C" {
 #endif
@@ -78,7 +79,6 @@ namespace tools {
 } // namespace tools
 
 namespace epee {
-  template <typename T> constexpr bool is_byte_spannable; // forward declaration
   template <typename T> constexpr bool is_byte_spannable<tools::scrubbed<T>> = is_byte_spannable<T>;
 }
 
