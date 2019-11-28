@@ -1246,10 +1246,10 @@ class loki_tx_builder {
   uint64_t m_fee;
   uint64_t m_unlock_time;
   std::vector<uint8_t> m_extra;
+  cryptonote::loki_construct_tx_params m_tx_params;
 
   /// optional fields
   bool m_per_output_unlock = false;
-  bool m_is_staking        = false;
 
   /// this makes sure we didn't forget to build it
   bool m_finished = false;
@@ -1284,7 +1284,7 @@ public:
   }
 
   loki_tx_builder&& is_staking(bool val) {
-    m_is_staking = val;
+    m_tx_params.v3_is_staking_tx = val;
     return std::move(*this);
   }
 
@@ -1320,7 +1320,7 @@ public:
 
     cryptonote::tx_destination_entry change_addr{ change_amount, m_from.get_keys().m_account_address, false /*is_subaddr*/ };
     bool result = cryptonote::construct_tx(
-      m_from.get_keys(), sources, destinations, change_addr, m_extra, m_tx, m_unlock_time, m_hf_version, m_is_staking);
+      m_from.get_keys(), sources, destinations, change_addr, m_extra, m_tx, m_unlock_time, m_hf_version, m_tx_params);
     return result;
   }
 };
