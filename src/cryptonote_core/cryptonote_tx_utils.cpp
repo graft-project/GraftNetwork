@@ -242,7 +242,7 @@ namespace cryptonote
     tx.extra.clear();
     tx.output_unlock_times.clear();
     tx.type    = txtype::standard;
-    tx.version = transaction::get_min_version_for_hf(hard_fork_version, nettype);
+    tx.version = transaction::get_max_version_for_hf(hard_fork_version);
 
     const crypto::public_key &service_node_key                        = miner_tx_context.block_winner.key;
     const std::vector<service_nodes::payout_entry> &service_node_info = miner_tx_context.block_winner.payouts;
@@ -459,15 +459,10 @@ namespace cryptonote
       msout->c.clear();
     }
 
-    if (tx_params.v4_allow_tx_types)
-      tx.version = txversion::v4_tx_types;
-    else if (tx_params.v3_per_output_unlock)
-      tx.version = txversion::v3_per_output_unlock_times;
-    else
-    {
-      tx.version     = tx_params.v2_rct ? txversion::v2_ringct : txversion::v1;
+    tx.version = transaction::get_max_version_for_hf(tx_params.hf_version);
+    tx.type    = tx_params.tx_type;
+    if (tx.version <= txversion::v2_ringct)
       tx.unlock_time = unlock_time;
-    }
 
     if (tx_params.burn_percent)
     {
@@ -475,10 +470,16 @@ namespace cryptonote
       return false;
     }
 
+    if (tx_params.burn_fixed && tx_params.hf_version <= cryptonote::network_version_13_enforce_checkpoints)
+    {
+      LOG_ERROR("cannot construct tx: burn can not be specified before hard fork 14");
+      return false;
+    }
+
     tx.extra = extra;
     crypto::public_key txkey_pub;
 
-    if (tx_params.v3_is_staking_tx)
+    if (tx.type == txtype::stake)
       add_tx_secret_key_to_tx_extra(tx.extra, tx_key);
 
     // if we have a stealth payment id, find it and encrypt it with the tx key now
@@ -689,7 +690,7 @@ namespace cryptonote
         }
       }
 
-      if (tx_params.v3_is_staking_tx)
+      if (tx.type == txtype::stake)
       {
         CHECK_AND_ASSERT_MES(dst_entr.addr == sender_account_keys.m_account_address, false, "A staking contribution must return back to the original sendee otherwise the pre-calculated key image is incorrect");
         CHECK_AND_ASSERT_MES(dst_entr.is_subaddress == false, false, "Staking back to a subaddress is not allowed"); // TODO(loki): Maybe one day, revisit this
@@ -723,10 +724,13 @@ namespace cryptonote
     }
     CHECK_AND_ASSERT_MES(additional_tx_public_keys.size() == additional_tx_keys.size(), false, "Internal error creating additional public keys");
 
-    if (tx_params.v3_is_staking_tx)
+    if (tx.type == txtype::stake)
     {
       CHECK_AND_ASSERT_MES(key_image_proofs.proofs.size() >= 1, false, "No key image proofs were generated for staking tx");
       add_tx_key_image_proofs_to_tx_extra(tx.extra, key_image_proofs);
+
+      if (tx_params.hf_version <= cryptonote::network_version_13_enforce_checkpoints)
+        tx.type = txtype::standard;
     }
 
     remove_field_from_tx_extra(tx.extra, typeid(tx_extra_additional_pub_keys));
@@ -951,7 +955,7 @@ namespace cryptonote
     return r;
   }
   //---------------------------------------------------------------
-  bool construct_tx(const account_keys& sender_account_keys, std::vector<tx_source_entry> &sources, const std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::tx_destination_entry>& change_addr, const std::vector<uint8_t> &extra, transaction& tx, uint64_t unlock_time, uint8_t hf_version, const loki_construct_tx_params &tx_params)
+  bool construct_tx(const account_keys& sender_account_keys, std::vector<tx_source_entry> &sources, const std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::tx_destination_entry>& change_addr, const std::vector<uint8_t> &extra, transaction& tx, uint64_t unlock_time, const loki_construct_tx_params &tx_params)
   {
      std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
      subaddresses[sender_account_keys.m_account_address.m_spend_public_key] = {0,0};
@@ -960,8 +964,8 @@ namespace cryptonote
      std::vector<tx_destination_entry> destinations_copy = destinations;
 
      rct::RCTConfig rct_config    = {};
-     rct_config.range_proof_type  = (hf_version < network_version_10_bulletproofs) ?  rct::RangeProofBorromean : rct::RangeProofPaddedBulletproof;
-     rct_config.bp_version        = (hf_version < HF_VERSION_SMALLER_BP) ? 1 : 0;
+     rct_config.range_proof_type  = (tx_params.hf_version < network_version_10_bulletproofs) ?  rct::RangeProofBorromean : rct::RangeProofPaddedBulletproof;
+     rct_config.bp_version        = (tx_params.hf_version < HF_VERSION_SMALLER_BP) ? 1 : 0;
 
      return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, unlock_time, tx_key, additional_tx_keys, rct_config, NULL, tx_params);
   }

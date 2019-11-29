@@ -568,7 +568,7 @@ bool loki_core_fee_burning::generate(std::vector<test_event_entry>& events)
   gen.add_blocks_until_version(hard_forks.back().first);
 
   uint8_t newest_hf = hard_forks.back().first;
-  assert(newest_hf >= cryptonote::network_version_14);
+  assert(newest_hf >= cryptonote::network_version_14_blink_lns);
 
   gen.add_n_blocks(60);
   gen.add_mined_money_unlock_blocks();

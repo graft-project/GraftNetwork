@@ -125,7 +125,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_duplicated_non_standard_tx(transaction const &tx, uint8_t hard_fork_version) const
   {
-    if (tx.type == txtype::standard)
+    if (tx.is_transfer())
       return false;
 
     auto &service_node_list = m_blockchain.get_service_node_list();
@@ -277,8 +277,7 @@ namespace cryptonote
       return false;
     }
 
-    if (!opts.kept_by_block && tx.type == txtype::standard &&
-        !m_blockchain.check_fee(tx_weight, tx.vout.size(), fee, burned, opts))
+    if (!opts.kept_by_block && tx.is_transfer() && !m_blockchain.check_fee(tx_weight, tx.vout.size(), fee, burned, opts))
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
@@ -360,7 +359,7 @@ namespace cryptonote
     uint64_t max_used_block_height = 0;
     cryptonote::txpool_tx_meta_t meta;
     bool ch_inp_res = check_tx_inputs([&tx]()->cryptonote::transaction&{ return tx; }, id, max_used_block_height, max_used_block_id, tvc, opts.kept_by_block);
-    const bool non_standard_tx = (tx.type != txtype::standard);
+    const bool non_standard_tx = !tx.is_transfer();
     if(!ch_inp_res)
     {
       // if the transaction was valid before (kept_by_block), then it
@@ -1915,7 +1914,7 @@ namespace cryptonote
           return false;
         }
 
-        const bool non_standard_tx = (tx.type != txtype::standard);
+        const bool non_standard_tx = !tx.is_transfer();
         m_txs_by_fee_and_receive_time.emplace(std::tuple<bool, double, time_t>(non_standard_tx, meta.fee / (double)meta.weight, meta.receive_time), txid);
         m_txpool_weight += meta.weight;
         return true;

@@ -162,7 +162,7 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
     }
 
     loki_construct_tx_params tx_params;
-    tx_params.set_hf_version(generator.m_hf_version);
+    tx_params.hf_version = generator.m_hf_version;
     if (!cryptonote::construct_tx_and_get_tx_key(
         from.get_keys(),
         subaddresses,

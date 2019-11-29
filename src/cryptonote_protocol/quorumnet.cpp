@@ -998,8 +998,8 @@ void handle_blink(SNNetwork::message &m, void *self) {
 
     // Check tx for validity
     bool approved;
-    auto min = tx.get_min_version_for_hf(hf_version, snw.core.get_nettype()),
-         max = tx.get_max_version_for_hf(hf_version, snw.core.get_nettype());
+    auto min = tx.get_min_version_for_hf(hf_version),
+         max = tx.get_max_version_for_hf(hf_version);
     if (tx.version < min || tx.version > max) {
         approved = false;
         MINFO("Blink TX " << tx_hash << " rejected because TX version " << tx.version << " invalid: TX version not between " << min << " and " << max);
