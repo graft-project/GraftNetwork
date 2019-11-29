@@ -3932,18 +3932,12 @@ static checkpoint_t convert_mdb_val_to_checkpoint(MDB_val const value)
   auto const *signatures =
       reinterpret_cast<service_nodes::voter_to_signature *>(static_cast<uint8_t *>(value.mv_data) + sizeof(*header));
 
-  boost::endian::little_to_native_inplace(header->height);
-  boost::endian::little_to_native_inplace(header->num_signatures);
+  auto num_sigs = boost::endian::little_to_native(header->num_signatures);
 
-  result.height     = header->height;
-  result.type       = (header->num_signatures > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
+  result.height     = boost::endian::little_to_native(header->height);
+  result.type       = (num_sigs > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
   result.block_hash = header->block_hash;
-  result.signatures.reserve(header->num_signatures);
-  for (size_t i = 0; i < header->num_signatures; ++i)
-  {
-    service_nodes::voter_to_signature const *signature = signatures + i;
-    result.signatures.push_back(*signature);
-  }
+  result.signatures.insert(result.signatures.end(), signatures, signatures + num_sigs);
 
   return result;
 }
