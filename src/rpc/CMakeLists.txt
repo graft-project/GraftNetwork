@@ -32,8 +32,7 @@ set(rpc_base_sources
 
 set(rpc_sources
   core_rpc_server.cpp
-  rpc_handler.cpp
-  instanciations)
+  rpc_handler.cpp)
 
 set(daemon_messages_sources
   message.cpp
