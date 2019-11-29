@@ -106,9 +106,9 @@ service_nodes::quorum_manager loki_chain_generator::quorum(uint64_t height) cons
   return result;
 }
 
-std::shared_ptr<const service_nodes::testing_quorum> loki_chain_generator::get_testing_quorum(service_nodes::quorum_type type, uint64_t height) const
+std::shared_ptr<const service_nodes::quorum> loki_chain_generator::get_quorum(service_nodes::quorum_type type, uint64_t height) const
 {
-  // TODO(loki): Bad copy pasta from get_testing_quorum, if it ever changes at the source this will break :<
+  // TODO(loki): Bad copy pasta from get_quorum, if it ever changes at the source this will break :<
   if (type == service_nodes::quorum_type::checkpointing)
   {
     assert(height >= service_nodes::REORG_SAFETY_BUFFER_BLOCKS_POST_HF12);
@@ -117,7 +117,7 @@ std::shared_ptr<const service_nodes::testing_quorum> loki_chain_generator::get_t
 
   assert(height > 0 && height < blocks_.size());
   service_nodes::quorum_manager manager = blocks_[height].service_node_state.quorums;
-  std::shared_ptr<const service_nodes::testing_quorum> result = manager.get(type);
+  std::shared_ptr<const service_nodes::quorum> result = manager.get(type);
   return result;
 }
 
@@ -362,7 +362,7 @@ cryptonote::transaction loki_chain_generator::create_state_change_tx(service_nod
 cryptonote::checkpoint_t loki_chain_generator::create_service_node_checkpoint(uint64_t block_height, size_t num_votes) const
 {
   assert(block_height % service_nodes::CHECKPOINT_INTERVAL == 0);
-  service_nodes::testing_quorum const &quorum = *get_testing_quorum(service_nodes::quorum_type::checkpointing, block_height);
+  service_nodes::quorum const &quorum = *get_quorum(service_nodes::quorum_type::checkpointing, block_height);
   assert(num_votes < quorum.validators.size());
 
   loki_blockchain_entry const &entry = blocks_[block_height];

@@ -134,7 +134,7 @@ TEST(service_nodes, staking_requirement)
 static bool verify_vote(service_nodes::quorum_vote_t const &vote,
                         uint64_t latest_height,
                         cryptonote::vote_verification_context &vvc,
-                        service_nodes::testing_quorum const &quorum)
+                        service_nodes::quorum const &quorum)
 {
   bool result = service_nodes::verify_vote_age(vote, latest_height, vvc);
   result &= service_nodes::verify_vote_signature(cryptonote::network_version_count - 1, vote, vvc, quorum);
@@ -151,7 +151,7 @@ TEST(service_nodes, vote_validation)
   voter_keys.pub = service_node_voter.pub;
   voter_keys.key = service_node_voter.sec;
 
-  service_nodes::testing_quorum state = {};
+  service_nodes::quorum state = {};
   {
     state.validators.resize(10);
     state.workers.resize(state.validators.size());
@@ -170,7 +170,7 @@ TEST(service_nodes, vote_validation)
     cryptonote::vote_verification_context vvc = {};
     bool result = verify_vote(valid_vote, block_height, vvc, state);
     if (!result)
-      printf("%s\n", cryptonote::print_vote_verification_context(vvc, &valid_vote));
+      std::cout << cryptonote::print_vote_verification_context(vvc, &valid_vote) << std::endl;
 
     ASSERT_TRUE(result);
   }
@@ -228,7 +228,7 @@ TEST(service_nodes, tx_extra_state_change_validation)
   // Generate a quorum and the voter
   std::array<service_nodes::service_node_keys, 10> voters = {};
 
-  service_nodes::testing_quorum state = {};
+  service_nodes::quorum state = {};
   {
     state.validators.resize(voters.size());
     state.workers.resize(voters.size());
@@ -262,7 +262,7 @@ TEST(service_nodes, tx_extra_state_change_validation)
     cryptonote::tx_verification_context tvc = {};
     bool result = service_nodes::verify_tx_state_change(valid_state_change, HEIGHT, tvc, state, hf_version);
     if (!result)
-      printf("%s\n", cryptonote::print_tx_verification_context(tvc));
+      std::cout << cryptonote::print_tx_verification_context(tvc) << std::endl;
     ASSERT_TRUE(result);
   }
 

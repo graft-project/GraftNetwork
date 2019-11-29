@@ -45,6 +45,7 @@ extern "C" {
 #include "common/scoped_message_writer.h"
 #include "common/i18n.h"
 #include "common/util.h"
+#include "common/random.h"
 #include "blockchain.h"
 #include "service_node_quorum_cop.h"
 
@@ -67,6 +68,8 @@ namespace service_nodes
   static uint64_t short_term_state_cull_height(uint8_t hf_version, cryptonote::BlockchainDB const *db, uint64_t block_height)
   {
     size_t constexpr DEFAULT_SHORT_TERM_STATE_HISTORY = 6 * STATE_CHANGE_TX_LIFETIME_IN_BLOCKS;
+    static_assert(DEFAULT_SHORT_TERM_STATE_HISTORY >= BLOCKS_EXPECTED_IN_HOURS(12), // Arbitrary, but raises a compilation failure if it gets shortened.
+        "not enough short term state storage for blink quorum retrieval!");
     uint64_t result =
         (block_height < DEFAULT_SHORT_TERM_STATE_HISTORY) ? 0 : block_height - DEFAULT_SHORT_TERM_STATE_HISTORY;
 
@@ -81,14 +84,15 @@ namespace service_nodes
   }
 
   static constexpr service_node_info::version_t get_min_service_node_info_version_for_hf(uint8_t hf_version)
-   {
-    return hf_version < cryptonote::network_version_13_enforce_checkpoints
-      ? service_node_info::version_t::v1_add_registration_hf_version
-      : service_node_info::version_t::v2_ed25519;
-   }
+  {
+    return hf_version < cryptonote::network_version_14
+      ? service_node_info::version_t::v2_ed25519
+      : service_node_info::version_t::v3_quorumnet;
+  }
 
   service_node_list::service_node_list(cryptonote::Blockchain &blockchain)
-  : m_blockchain(blockchain)
+  : m_blockchain(blockchain) // Warning: don't touch `blockchain`, it gets initialized *after* us
+  , m_service_node_keys(nullptr)
   , m_db(nullptr)
   , m_store_quorum_history(0)
   , m_state_added_to_archive(false)
@@ -209,7 +213,7 @@ namespace service_nodes
     return sort_and_filter(service_nodes_infos, [](const service_node_info &info) { return info.is_decommissioned() && info.is_fully_funded(); }, /*reserve=*/ false);
   }
 
-  std::shared_ptr<const testing_quorum> service_node_list::get_testing_quorum(quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const testing_quorum>> *alt_quorums) const
+  std::shared_ptr<const quorum> service_node_list::get_quorum(quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const quorum>> *alt_quorums) const
   {
     height = offset_testing_quorum_height(type, height);
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
@@ -251,17 +255,17 @@ namespace service_nodes
         state_t const &alt_state = hash_to_state.second;
         if (alt_state.height == height)
         {
-          std::shared_ptr<const testing_quorum> alt_result = alt_state.quorums.get(type);
+          std::shared_ptr<const quorum> alt_result = alt_state.quorums.get(type);
           if (alt_result) alt_quorums->push_back(alt_result);
         }
       }
     }
 
-    std::shared_ptr<const testing_quorum> result = quorums->get(type);
+    std::shared_ptr<const quorum> result = quorums->get(type);
     return result;
   }
 
-  static bool get_pubkey_from_quorum(testing_quorum const &quorum, quorum_group group, size_t quorum_index, crypto::public_key &key)
+  static bool get_pubkey_from_quorum(quorum const &quorum, quorum_group group, size_t quorum_index, crypto::public_key &key)
   {
     std::vector<crypto::public_key> const *array = nullptr;
     if      (group == quorum_group::validator) array = &quorum.validators;
@@ -284,7 +288,7 @@ namespace service_nodes
 
   bool service_node_list::get_quorum_pubkey(quorum_type type, quorum_group group, uint64_t height, size_t quorum_index, crypto::public_key &key) const
   {
-    std::shared_ptr<const testing_quorum> quorum = get_testing_quorum(type, height);
+    std::shared_ptr<const quorum> quorum = get_quorum(type, height);
     if (!quorum)
     {
       LOG_PRINT_L1("Quorum for height: " << height << ", was not stored by the daemon");
@@ -327,10 +331,10 @@ namespace service_nodes
     m_db = db;
   }
 
-  void service_node_list::set_my_service_node_keys(std::shared_ptr<const service_node_keys> keys)
+  void service_node_list::set_my_service_node_keys(const service_node_keys *keys)
   {
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
-    m_service_node_keys = std::move(keys);
+    m_service_node_keys = keys;
   }
 
   void service_node_list::set_quorum_history_storage(uint64_t hist_size) {
@@ -461,7 +465,7 @@ namespace service_nodes
                                                            cryptonote::network_type nettype,
                                                            const cryptonote::block &block,
                                                            const cryptonote::transaction &tx,
-                                                           const keys_ptr &my_keys)
+                                                           const service_node_keys *my_keys)
   {
     if (tx.type != cryptonote::txtype::state_change)
       return false;
@@ -920,7 +924,7 @@ namespace service_nodes
     return true;
   }
 
-  bool service_node_list::state_t::process_registration_tx(cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, uint32_t index, const keys_ptr &my_keys)
+  bool service_node_list::state_t::process_registration_tx(cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, uint32_t index, const service_node_keys *my_keys)
   {
     uint8_t const hf_version       = block.major_version;
     uint64_t const block_timestamp = block.timestamp;
@@ -1132,7 +1136,7 @@ namespace service_nodes
 
     if (block.major_version >= cryptonote::network_version_13_enforce_checkpoints && checkpoint)
     {
-      std::shared_ptr<const testing_quorum> quorum = get_testing_quorum(quorum_type::checkpointing, checkpoint->height);
+      std::shared_ptr<const quorum> quorum = get_quorum(quorum_type::checkpointing, checkpoint->height);
       if (!quorum)
       {
         LOG_PRINT_L1("Failed to get testing quorum checkpoint for block: " << cryptonote::get_block_hash(block));
@@ -1183,11 +1187,11 @@ namespace service_nodes
     // reuse the same seed for both partial shuffles, but again, that isn't an issue.
     if ((0 < sublist_size && sublist_size < list_size) && (0 < sublist_up_to && sublist_up_to < list_size)) {
       assert(sublist_size <= sublist_up_to); // Can't select N random items from M items when M < N
-      loki_shuffle(result.begin(), result.begin() + sublist_up_to, seed);
-      loki_shuffle(result.begin() + sublist_size, result.end(), seed);
+      tools::shuffle_portable(result.begin(), result.begin() + sublist_up_to, seed);
+      tools::shuffle_portable(result.begin() + sublist_size, result.end(), seed);
     }
     else {
-      loki_shuffle(result.begin(), result.end(), seed);
+      tools::shuffle_portable(result.begin(), result.end(), seed);
     }
     return result;
   }
@@ -1211,7 +1215,7 @@ namespace service_nodes
     {
       auto type             = static_cast<quorum_type>(type_int);
       size_t num_validators = 0, num_workers = 0;
-      auto quorum           = std::make_shared<testing_quorum>();
+      auto quorum           = std::make_shared<service_nodes::quorum>();
       std::vector<size_t> pub_keys_indexes;
 
       if (type == quorum_type::obligations)
@@ -1245,6 +1249,32 @@ namespace service_nodes
           num_validators   = std::min(pub_keys_indexes.size(), CHECKPOINT_QUORUM_SIZE);
         }
         result.checkpointing = quorum;
+      }
+      else if (type == quorum_type::blink)
+      {
+        if (state.height % BLINK_QUORUM_INTERVAL != 0)
+          continue;
+
+        // Further filter the active SN list for the blink quorum to only include SNs that are not
+        // scheduled to finish unlocking between the quorum height and a few blocks after the
+        // associated blink height.
+        active_snode_list.erase(std::remove_if(active_snode_list.begin(), active_snode_list.end(),
+            [active_until = state.height + BLINK_EXPIRY_BUFFER](auto &info) {
+              auto ruh = info.second->requested_unlock_height;
+              return ruh != KEY_IMAGE_AWAITING_UNLOCK_HEIGHT && ruh <= active_until;
+            }),
+            active_snode_list.end()
+        );
+        size_t total_nodes = active_snode_list.size();
+
+        if (total_nodes >= BLINK_MIN_VOTES)
+        {
+          pub_keys_indexes = generate_shuffled_service_node_index_list(total_nodes, state.block_hash, type);
+          num_validators = std::min<size_t>(pub_keys_indexes.size(), BLINK_SUBQUORUM_SIZE);
+        }
+        // Otherwise leave empty to signal that there aren't enough SNs to form a usable quorum (to
+        // distinguish it from an invalid height, which gets left as a nullptr)
+        result.blink = quorum;
       }
       else
       {
@@ -1280,7 +1310,7 @@ namespace service_nodes
                                                      std::unordered_map<crypto::hash, state_t> const &alt_states,
                                                      const cryptonote::block &block,
                                                      const std::vector<cryptonote::transaction> &txs,
-                                                     const keys_ptr &my_keys)
+                                                     const service_node_keys *my_keys)
   {
     ++height;
     bool need_swarm_update = false;
@@ -1734,15 +1764,15 @@ namespace service_nodes
 
     if (checkpoint)
     {
-      std::vector<std::shared_ptr<const service_nodes::testing_quorum>> alt_quorums;
-      std::shared_ptr<const testing_quorum> quorum = get_testing_quorum(quorum_type::checkpointing, checkpoint->height, false, &alt_quorums);
+      std::vector<std::shared_ptr<const service_nodes::quorum>> alt_quorums;
+      std::shared_ptr<const quorum> quorum = get_quorum(quorum_type::checkpointing, checkpoint->height, false, &alt_quorums);
       if (!quorum)
         return false;
 
       if (!service_nodes::verify_checkpoint(block.major_version, *checkpoint, *quorum))
       {
         bool verified_on_alt_quorum = false;
-        for (std::shared_ptr<const service_nodes::testing_quorum> alt_quorum : alt_quorums)
+        for (std::shared_ptr<const service_nodes::quorum> alt_quorum : alt_quorums)
         {
           if (service_nodes::verify_checkpoint(block.major_version, *checkpoint, *alt_quorum))
           {
@@ -1870,13 +1900,8 @@ namespace service_nodes
 
   static crypto::hash hash_uptime_proof(const cryptonote::NOTIFY_UPTIME_PROOF::request &proof, uint8_t hf_version)
   {
-    // NB: quorumnet_port isn't actually used or exposed yet; including it in the HF13 proof and
-    // hash, however, allows HF14 nodes start broadcasting it to the network immediately (rather
-    // than waiting for the fork) so that they are immediately accessible at the HF14 fork.
-    auto buf = tools::memcpy_le(proof.pubkey, proof.timestamp, proof.public_ip, proof.storage_port, proof.pubkey_ed25519, proof.qnet_port);
+    auto buf = tools::memcpy_le(proof.pubkey.data, proof.timestamp, proof.public_ip, proof.storage_port, proof.pubkey_ed25519.data, proof.qnet_port);
     size_t buf_size = buf.size();
-    if (hf_version < HF_VERSION_ED25519_KEY) // TODO - can be removed post-HF13
-      buf_size -= (sizeof(proof.pubkey_ed25519) + sizeof(proof.qnet_port));
 
     crypto::hash result;
     crypto::cn_fast_hash(buf.data(), buf_size, result);
@@ -1884,17 +1909,15 @@ namespace service_nodes
   }
 
   cryptonote::NOTIFY_UPTIME_PROOF::request service_node_list::generate_uptime_proof(
-      const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port) const
+      const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port, uint16_t quorumnet_port) const
   {
     cryptonote::NOTIFY_UPTIME_PROOF::request result = {};
-    result.snode_version_major                      = static_cast<uint16_t>(LOKI_VERSION_MAJOR);
-    result.snode_version_minor                      = static_cast<uint16_t>(LOKI_VERSION_MINOR);
-    result.snode_version_patch                      = static_cast<uint16_t>(LOKI_VERSION_PATCH);
+    result.snode_version                            = LOKI_VERSION;
     result.timestamp                                = time(nullptr);
     result.pubkey                                   = keys.pub;
     result.public_ip                                = public_ip;
     result.storage_port                             = storage_port;
-    result.qnet_port                                = 0; // Reserved for HF14
+    result.qnet_port                                = quorumnet_port;
     result.pubkey_ed25519                           = keys.pub_ed25519;
 
     crypto::hash hash = hash_uptime_proof(result, m_blockchain.get_current_hard_fork_version());
@@ -1920,13 +1943,12 @@ namespace service_nodes
   struct proof_version
   {
     uint8_t hardfork;
-    uint16_t major;
-    uint16_t minor;
+    std::array<uint16_t, 3> version;
   };
 
   static constexpr proof_version hf_min_loki_versions[] = {
-    {cryptonote::network_version_13_enforce_checkpoints,  5 /*major*/, 1 /*minor*/},
-    {cryptonote::network_version_12_checkpointing,        4 /*major*/, 0 /*minor*/},
+    {cryptonote::network_version_13_enforce_checkpoints,  {5,1,0}},
+    {cryptonote::network_version_12_checkpointing,        {4,0,3}},
   };
 
   void service_node_info::derive_x25519_pubkey_from_ed25519() {
@@ -1949,16 +1971,8 @@ namespace service_nodes
       REJECT_PROOF("timestamp is too far from now");
 
     for (auto &min : hf_min_loki_versions)
-    {
-      if (hf_version >= min.hardfork)
-      {
-        if (proof.snode_version_major < min.major ||
-            (proof.snode_version_major == min.major && proof.snode_version_minor < min.minor))
-        {
-          REJECT_PROOF("v" << min.major << "." << min.minor << "+ loki version is required for v" << std::to_string(hf_version) << "+ network proofs");
-        }
-      }
-    }
+      if (hf_version >= min.hardfork && proof.snode_version < min.version)
+        REJECT_PROOF("v" << min.version[0] << "." << min.version[1] << "." << min.version[2] << "+ loki version is required for v" << std::to_string(hf_version) << "+ network proofs");
 
     if (!debug_allow_local_ips && !epee::net_utils::is_ip_public(proof.public_ip))
       REJECT_PROOF("public_ip is not actually public");
@@ -1974,8 +1988,6 @@ namespace service_nodes
     crypto::x25519_public_key derived_x25519_pubkey = crypto::x25519_public_key::null();
     if (hf_version >= HF_VERSION_ED25519_KEY)
     {
-      if (!debug_allow_local_ips && !epee::net_utils::is_ip_public(proof.public_ip)) return false; // Sanity check; we do the same on lokid startup
-
       if (!proof.pubkey_ed25519)
         REJECT_PROOF("required ed25519 auxiliary pubkey " << epee::string_tools::pod_to_hex(proof.pubkey_ed25519) << " not included in proof");
 
@@ -1985,6 +1997,9 @@ namespace service_nodes
       if (0 != crypto_sign_ed25519_pk_to_curve25519(derived_x25519_pubkey.data, proof.pubkey_ed25519.data)
           || !derived_x25519_pubkey)
         REJECT_PROOF("invalid ed25519 pubkey included in proof (x25519 derivation failed)");
+
+      if (proof.qnet_port == 0)
+        REJECT_PROOF("invalid quorumnet port in uptime proof");
     }
 
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
@@ -2009,9 +2024,7 @@ namespace service_nodes
     }
 
     iproof.update_timestamp(now);
-    iproof.version_major = proof.snode_version_major;
-    iproof.version_minor = proof.snode_version_minor;
-    iproof.version_patch = proof.snode_version_patch;
+    iproof.version       = proof.snode_version;
     iproof.public_ip     = proof.public_ip;
     iproof.storage_port  = proof.storage_port;
 
@@ -2025,6 +2038,7 @@ namespace service_nodes
         m_x25519_map_last_pruned = now;
       }
 
+      iproof.quorumnet_port = proof.qnet_port;
       iproof.pubkey_ed25519 = proof.pubkey_ed25519;
       if (iproof.pubkey_x25519 && iproof.pubkey_x25519 != derived_x25519_pubkey)
         m_x25519_to_pub.erase(iproof.pubkey_x25519);
@@ -2095,17 +2109,11 @@ namespace service_nodes
   static quorum_manager quorum_for_serialization_to_quorum_manager(service_node_list::quorum_for_serialization const &source)
   {
     quorum_manager result = {};
-    {
-      auto quorum        = std::make_shared<testing_quorum>(source.quorums[static_cast<uint8_t>(quorum_type::obligations)]);
-      result.obligations = quorum;
-    }
+    result.obligations = std::make_shared<quorum>(source.quorums[static_cast<uint8_t>(quorum_type::obligations)]);
 
     // Don't load any checkpoints that shouldn't exist (see the comment in generate_quorums as to why the `+BUFFER` term is here).
     if ((source.height + REORG_SAFETY_BUFFER_BLOCKS_POST_HF12) % CHECKPOINT_INTERVAL == 0)
-    {
-      auto quorum = std::make_shared<testing_quorum>(source.quorums[static_cast<uint8_t>(quorum_type::checkpointing)]);
-      result.checkpointing = quorum;
-    }
+      result.checkpointing = std::make_shared<quorum>(source.quorums[static_cast<uint8_t>(quorum_type::checkpointing)]);
 
     return result;
   }
@@ -2128,10 +2136,10 @@ namespace service_nodes
         info.version = version_t::v1_add_registration_hf_version;
         info.registration_hf_version = blockchain.get_hard_fork_version(pubkey_info.info->registration_height);
       }
-      if (info.version < version_t::v2_ed25519)
+      if (info.version < version_t::v3_quorumnet)
       {
         // Nothing to do here (the missing data only comes in via uptime proof).
-        info.version = version_t::v2_ed25519;
+        info.version = version_t::v3_quorumnet;
       }
       // Make sure we handled any future state version upgrades:
       assert(info.version == static_cast<version_t>(static_cast<uint8_t>(version_t::count) - 1));

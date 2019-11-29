@@ -179,8 +179,8 @@ namespace cryptonote
     static char const *version_to_string(txversion v);
     static char const *type_to_string(txtype type);
 
-    static txversion get_min_version_for_hf(uint8_t hf_version, cryptonote::network_type nettype = MAINNET);
-    static txversion get_max_version_for_hf(uint8_t hf_version, cryptonote::network_type nettype = MAINNET);
+    static txversion get_min_version_for_hf(uint8_t hf_version, cryptonote::network_type nettype);
+    static txversion get_max_version_for_hf(uint8_t hf_version, cryptonote::network_type nettype);
 
     // tx information
     txversion version;
@@ -460,6 +460,8 @@ namespace cryptonote
     block(): block_header(), hash_valid(false) {}
     block(const block &b): block_header(b), hash_valid(false), miner_tx(b.miner_tx), tx_hashes(b.tx_hashes) { if (b.is_hash_valid()) { hash = b.hash; set_hash_valid(true); } }
     block &operator=(const block &b) { block_header::operator=(b); hash_valid = false; miner_tx = b.miner_tx; tx_hashes = b.tx_hashes; if (b.is_hash_valid()) { hash = b.hash; set_hash_valid(true); } return *this; }
+    block(block &&b) = default;
+    block &operator=(block &&b) = default;
     void invalidate_hashes() { set_hash_valid(false); }
     bool is_hash_valid() const { return hash_valid.load(std::memory_order_acquire); }
     void set_hash_valid(bool v) const { hash_valid.store(v,std::memory_order_release); }

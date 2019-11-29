@@ -185,7 +185,7 @@ namespace service_nodes
     return m_vote_pool.get_relayable_votes(current_height);
   }
 
-  static int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, crypto::public_key const &my_pubkey)
+  int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, crypto::public_key const &my_pubkey)
   {
     int result = -1;
     auto it = std::find(group.begin(), group.end(), my_pubkey);
@@ -253,15 +253,14 @@ namespace service_nodes
             // don't vote for the first 2 hours so this is purely cosmetic
             if (obligations_height_hf_version >= cryptonote::network_version_12_checkpointing)
             {
-              service_nodes::quorum_type checkpoint_type   = quorum_type::checkpointing;
-              std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(checkpoint_type, m_obligations_height);
+              auto quorum = m_core.get_quorum(quorum_type::checkpointing, m_obligations_height);
               std::vector<cryptonote::block> blocks;
               if (quorum && m_core.get_blocks(m_obligations_height, 1, blocks))
               {
                 cryptonote::block const &block = blocks[0];
                 if (start_time < static_cast<ptrdiff_t>(block.timestamp)) // NOTE: If we started up before receiving the block, we likely have the voting information, if not we probably don't.
                 {
-                  uint64_t quorum_height = offset_testing_quorum_height(checkpoint_type, m_obligations_height);
+                  uint64_t quorum_height = offset_testing_quorum_height(quorum_type::checkpointing, m_obligations_height);
                   for (size_t index_in_quorum = 0; index_in_quorum < quorum->validators.size(); index_in_quorum++)
                   {
                     crypto::public_key const &key = quorum->validators[index_in_quorum];
@@ -282,7 +281,7 @@ namespace service_nodes
             if (!my_keys)
               continue;
 
-            std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(quorum_type::obligations, m_obligations_height);
+            auto quorum = m_core.get_quorum(quorum_type::obligations, m_obligations_height);
             if (!quorum)
             {
               // TODO(loki): Fatal error
@@ -437,7 +436,7 @@ namespace service_nodes
               if (m_last_checkpointed_height < REORG_SAFETY_BUFFER_BLOCKS)
                 continue;
 
-              const std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(quorum_type::checkpointing, m_last_checkpointed_height);
+              auto quorum = m_core.get_quorum(quorum_type::checkpointing, m_last_checkpointed_height);
               if (!quorum)
               {
                 // TODO(loki): Fatal error
@@ -460,6 +459,9 @@ namespace service_nodes
           }
         }
         break;
+
+        case quorum_type::blink:
+        break;
       }
     }
   }
@@ -479,7 +481,7 @@ namespace service_nodes
     if (!verify_vote_age(vote, m_core.get_current_blockchain_height(), vvc))
       return false;
 
-    std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(vote.type, vote.block_height);
+    std::shared_ptr<const quorum> quorum = m_core.get_quorum(vote.type, vote.block_height);
     if (!quorum)
     {
       vvc.m_invalid_block_height = true;
@@ -538,7 +540,7 @@ namespace service_nodes
             cryptonote::tx_verification_context tvc = {};
             cryptonote::blobdata const tx_blob      = cryptonote::tx_to_blob(state_change_tx);
 
-            result &= m_core.handle_incoming_tx(tx_blob, tvc, false /*keeped_by_block*/, false /*relayed*/, false /*do_not_relay*/);
+            result &= m_core.handle_incoming_tx(tx_blob, tvc, cryptonote::tx_pool_options::new_tx());
             if (!result || tvc.m_verifivation_failed)
             {
               LOG_PRINT_L1("A full state change tx for height: " << vote.block_height <<
@@ -669,4 +671,29 @@ namespace service_nodes
 
     return credit;
   }
+
+  uint64_t quorum_checksum(const std::vector<crypto::public_key> &pubkeys, size_t offset) {
+    constexpr size_t KEY_BYTES = sizeof(crypto::public_key);
+
+    // Calculate a checksum by reading bytes 0-7 from the first pubkey as a little-endian uint64_t,
+    // then reading 1-8 from the second pubkey, 2-9 from the third, and so on, and adding all the
+    // uint64_t values together.  If we get to 25 we wrap the read around the end and keep going.
+    uint64_t sum = 0;
+    alignas(uint64_t) std::array<char, sizeof(uint64_t)> local;
+    for (auto &pk : pubkeys) {
+      offset %= KEY_BYTES;
+      auto *pkdata = reinterpret_cast<const char *>(&pk);
+      if (offset <= KEY_BYTES - sizeof(uint64_t))
+        std::memcpy(local.data(), pkdata + offset, sizeof(uint64_t));
+      else {
+        size_t prewrap = KEY_BYTES - offset;
+        std::memcpy(local.data(), pkdata + offset, prewrap);
+        std::memcpy(local.data() + prewrap, pkdata, sizeof(uint64_t) - prewrap);
+      }
+      sum += boost::endian::little_to_native(*reinterpret_cast<uint64_t *>(local.data()));
+      ++offset;
+    }
+    return sum;
+  }
+
 }

@@ -661,7 +661,7 @@ bool gen_block_invalid_binary_format::check_all_blocks_purged(cryptonote::core& 
 {
   DEFINE_TESTS_ERROR_CONTEXT("gen_block_invalid_binary_format::check_all_blocks_purged");
 
-  CHECK_EQ(1, c.get_pool_transactions_count());
+  CHECK_EQ(1, c.get_pool().get_transactions_count());
   CHECK_EQ(m_corrupt_blocks_begin_idx - 2, c.get_current_blockchain_height());
 
   return true;

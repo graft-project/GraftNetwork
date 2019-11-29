@@ -135,7 +135,6 @@ namespace epee
 
 
     typedef  boost::make_recursive_variant<
-      array_entry_t<section>, 
       array_entry_t<uint64_t>, 
       array_entry_t<uint32_t>, 
       array_entry_t<uint16_t>, 

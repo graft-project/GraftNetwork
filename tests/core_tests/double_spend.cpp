@@ -80,7 +80,7 @@ bool gen_double_spend_in_different_chains::check_double_spend(cryptonote::core& 
   //CHECK_EQ(expected_blockchain_height, blocks.size());
   if (expected_blockchain_height != blocks.size()) LOG_ERROR ("oops");
 
-  CHECK_EQ(1, c.get_pool_transactions_count());
+  CHECK_EQ(1, c.get_pool().get_transactions_count());
   CHECK_EQ(1, c.get_alternative_blocks_count());
 
   cryptonote::account_base bob_account = boost::get<cryptonote::account_base>(events[1]);

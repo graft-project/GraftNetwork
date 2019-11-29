@@ -44,6 +44,7 @@ using namespace epee;
 #include "common/loki.h"
 #include "common/util.h"
 #include "common/perf_timer.h"
+#include "common/random.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/account.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
@@ -213,7 +214,7 @@ namespace cryptonote
     res.difficulty = m_core.get_blockchain_storage().get_difficulty_for_next_block();
     res.target = m_core.get_blockchain_storage().get_difficulty_target();
     res.tx_count = m_core.get_blockchain_storage().get_total_transactions() - res.height; //without coinbase
-    res.tx_pool_size = m_core.get_pool_transactions_count();
+    res.tx_pool_size = m_core.get_pool().get_transactions_count();
     res.alt_blocks_count = restricted ? 0 : m_core.get_blockchain_storage().get_alternative_blocks_count();
     uint64_t total_conn = restricted ? 0 : m_p2p.get_public_connections_count();
     res.outgoing_connections_count = restricted ? 0 : m_p2p.get_public_outgoing_connections_count();
@@ -257,7 +258,7 @@ namespace cryptonote
     if (restricted)
       res.database_size = round_up(res.database_size, 5ull* 1024 * 1024 * 1024);
     res.update_available = restricted ? false : m_core.is_update_available();
-    res.version = restricted ? "" : LOKI_VERSION;
+    res.version = restricted ? std::to_string(LOKI_VERSION[0]) : LOKI_VERSION_STR;
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -555,23 +556,23 @@ namespace cryptonote
     LOG_PRINT_L2("Found " << txs.size() << "/" << vh.size() << " transactions on the blockchain");
 
     // try the pool for any missing txes
+    auto &pool = m_core.get_pool();
     size_t found_in_pool = 0;
-    std::unordered_set<crypto::hash> pool_tx_hashes;
     std::unordered_map<crypto::hash, tx_info> per_tx_pool_tx_info;
     if (!missed_txs.empty())
     {
       std::vector<tx_info> pool_tx_info;
       std::vector<spent_key_image_info> pool_key_image_info;
-      bool r = m_core.get_pool_transactions_and_spent_keys_info(pool_tx_info, pool_key_image_info);
+      bool r = pool.get_transactions_and_spent_keys_info(pool_tx_info, pool_key_image_info);
       if(r)
       {
         // sort to match original request
         std::vector<std::tuple<crypto::hash, cryptonote::blobdata, crypto::hash, cryptonote::blobdata>> sorted_txs;
-        std::vector<tx_info>::const_iterator i;
         unsigned txs_processed = 0;
         for (const crypto::hash &h: vh)
         {
-          if (std::find(missed_txs.begin(), missed_txs.end(), h) == missed_txs.end())
+          auto missed_it = std::find(missed_txs.begin(), missed_txs.end(), h);
+          if (missed_it == missed_txs.end())
           {
             if (txs.size() == txs_processed)
             {
@@ -586,36 +587,30 @@ namespace cryptonote
             }
             sorted_txs.push_back(std::move(txs[txs_processed]));
             ++txs_processed;
+            continue;
           }
-          else if ((i = std::find_if(pool_tx_info.begin(), pool_tx_info.end(), [h](const tx_info &txi) { return epee::string_tools::pod_to_hex(h) == txi.id_hash; })) != pool_tx_info.end())
+          const std::string hash_string = epee::string_tools::pod_to_hex(h);
+          auto ptx_it = std::find_if(pool_tx_info.begin(), pool_tx_info.end(),
+              [&hash_string](const tx_info &txi) { return hash_string == txi.id_hash; });
+          if (ptx_it != pool_tx_info.end())
           {
             cryptonote::transaction tx;
-            if (!cryptonote::parse_and_validate_tx_from_blob(i->tx_blob, tx))
+            if (!cryptonote::parse_and_validate_tx_from_blob(ptx_it->tx_blob, tx))
             {
               res.status = "Failed to parse and validate tx from blob";
               return true;
             }
             std::stringstream ss;
             binary_archive<true> ba(ss);
-            bool r = const_cast<cryptonote::transaction&>(tx).serialize_base(ba);
-            if (!r)
+            if (!tx.serialize_base(ba))
             {
               res.status = "Failed to serialize transaction base";
               return true;
             }
             const cryptonote::blobdata pruned = ss.str();
-            sorted_txs.push_back(std::make_tuple(h, pruned, get_transaction_prunable_hash(tx), std::string(i->tx_blob, pruned.size())));
-            missed_txs.erase(std::find(missed_txs.begin(), missed_txs.end(), h));
-            pool_tx_hashes.insert(h);
-            const std::string hash_string = epee::string_tools::pod_to_hex(h);
-            for (const auto &ti: pool_tx_info)
-            {
-              if (ti.id_hash == hash_string)
-              {
-                per_tx_pool_tx_info.insert(std::make_pair(h, ti));
-                break;
-              }
-            }
+            sorted_txs.emplace_back(h, pruned, get_transaction_prunable_hash(tx), std::string(ptx_it->tx_blob, pruned.size()));
+            missed_txs.erase(missed_it);
+            per_tx_pool_tx_info.emplace(h, *ptx_it);
             ++found_in_pool;
           }
         }
@@ -624,11 +619,15 @@ namespace cryptonote
       LOG_PRINT_L2("Found " << found_in_pool << "/" << vh.size() << " transactions in the pool");
     }
 
+    bool blink_enabled = m_core.get_blockchain_storage().get_current_hard_fork_version() >= HF_VERSION_BLINK;
+    uint64_t immutable_height = m_core.get_blockchain_storage().get_immutable_height();
+    auto pool_lock = pool.blink_shared_lock(std::defer_lock); // Defer until/unless we actually need it
+
     std::vector<std::string>::const_iterator txhi = req.txs_hashes.begin();
     std::vector<crypto::hash>::const_iterator vhi = vh.begin();
     for(auto& tx: txs)
     {
-      res.txs.push_back(COMMAND_RPC_GET_TRANSACTIONS::entry());
+      res.txs.emplace_back();
       COMMAND_RPC_GET_TRANSACTIONS::entry &e = res.txs.back();
 
       crypto::hash tx_hash = *vhi++;
@@ -694,22 +693,14 @@ namespace cryptonote
           }
         }
       }
-      e.in_pool = pool_tx_hashes.find(tx_hash) != pool_tx_hashes.end();
+      auto ptx_it = per_tx_pool_tx_info.find(tx_hash);
+      e.in_pool = ptx_it != per_tx_pool_tx_info.end();
+      bool might_be_blink = blink_enabled;
       if (e.in_pool)
       {
         e.block_height = e.block_timestamp = std::numeric_limits<uint64_t>::max();
-        auto it = per_tx_pool_tx_info.find(tx_hash);
-        if (it != per_tx_pool_tx_info.end())
-        {
-          e.double_spend_seen = it->second.double_spend_seen;
-          e.relayed = it->second.relayed;
-        }
-        else
-        {
-          MERROR("Failed to determine pool info for " << tx_hash);
-          e.double_spend_seen = false;
-          e.relayed = false;
-        }
+        e.double_spend_seen = ptx_it->second.double_spend_seen;
+        e.relayed = ptx_it->second.relayed;
       }
       else
       {
@@ -717,6 +708,14 @@ namespace cryptonote
         e.block_timestamp = m_core.get_blockchain_storage().get_db().get_block_timestamp(e.block_height);
         e.double_spend_seen = false;
         e.relayed = false;
+        if (e.block_height <= immutable_height)
+            might_be_blink = false;
+      }
+
+      if (might_be_blink)
+      {
+        if (!pool_lock) pool_lock.lock();
+        e.blink = pool.has_blink(tx_hash, true /*have lock*/);
       }
 
       // fill up old style responses too, in case an old wallet asks
@@ -725,7 +724,7 @@ namespace cryptonote
         res.txs_as_json.push_back(e.as_json);
 
       // output indices too if not in pool
-      if (pool_tx_hashes.find(tx_hash) == pool_tx_hashes.end())
+      if (!e.in_pool)
       {
         bool r = m_core.get_tx_outputs_gindexs(tx_hash, e.output_indices);
         if (!r)
@@ -784,7 +783,7 @@ namespace cryptonote
     // check the pool too
     std::vector<cryptonote::tx_info> txs;
     std::vector<cryptonote::spent_key_image_info> ki;
-    r = m_core.get_pool_transactions_and_spent_keys_info(txs, ki, !request_has_rpc_origin || !restricted);
+    r = m_core.get_pool().get_transactions_and_spent_keys_info(txs, ki, !request_has_rpc_origin || !restricted);
     if(!r)
     {
       res.status = "Failed";
@@ -841,9 +840,34 @@ namespace cryptonote
     }
     res.sanity_check_failed = false;
 
-    cryptonote_connection_context fake_context{};
+    if (req.blink)
+    {
+      using namespace std::chrono_literals;
+      auto future = m_core.handle_blink_tx(tx_blob);
+      auto status = future.wait_for(10s);
+      if (status != std::future_status::ready) {
+        res.status = "Failed";
+        res.reason = "Blink quorum timeout";
+        return true;
+      }
+
+      try {
+        auto result = future.get();
+        if (result.first == blink_result::accepted) {
+          res.status = CORE_RPC_STATUS_OK;
+        } else {
+          res.status = "Failed";
+          res.reason = !result.second.empty() ? result.second : result.first == blink_result::timeout ? "Blink quorum timeout" : "Transaction rejected by blink quorum";
+        }
+      } catch (const std::exception &e) {
+        res.status = "Failed";
+        res.reason = std::string{"Transaction failed: "} + e.what();
+      }
+      return true;
+    }
+
     tx_verification_context tvc{};
-    if(!m_core.handle_incoming_tx(tx_blob, tvc, false, false, req.do_not_relay) || tvc.m_verifivation_failed)
+    if(!m_core.handle_incoming_tx(tx_blob, tvc, tx_pool_options::new_tx(req.do_not_relay)) || tvc.m_verifivation_failed)
     {
       const vote_verification_context &vvc = tvc.m_vote_ctx;
       res.status          = "Failed";
@@ -873,6 +897,7 @@ namespace cryptonote
 
     NOTIFY_NEW_TRANSACTIONS::request r;
     r.txs.push_back(tx_blob);
+    cryptonote_connection_context fake_context{};
     m_core.get_protocol()->relay_transactions(r, fake_context);
 
     //TODO: make sure that tx has reached other nodes here, probably wait to receive reflections from other nodes
@@ -1083,7 +1108,7 @@ namespace cryptonote
 
     const bool restricted = m_restricted && ctx;
     const bool request_has_rpc_origin = ctx != NULL;
-    m_core.get_pool_transactions_and_spent_keys_info(res.transactions, res.spent_key_images, !request_has_rpc_origin || !restricted);
+    m_core.get_pool().get_transactions_and_spent_keys_info(res.transactions, res.spent_key_images, !request_has_rpc_origin || !restricted);
     for (tx_info& txi : res.transactions)
       txi.tx_blob = epee::string_tools::buff_to_hex_nodelimer(txi.tx_blob);
     res.status = CORE_RPC_STATUS_OK;
@@ -1099,7 +1124,7 @@ namespace cryptonote
 
     const bool restricted = m_restricted && ctx;
     const bool request_has_rpc_origin = ctx != NULL;
-    m_core.get_pool_transaction_hashes(res.tx_hashes, !request_has_rpc_origin || !restricted);
+    m_core.get_pool().get_transaction_hashes(res.tx_hashes, !request_has_rpc_origin || !restricted);
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -1114,7 +1139,7 @@ namespace cryptonote
     const bool restricted = m_restricted && ctx;
     const bool request_has_rpc_origin = ctx != NULL;
     std::vector<crypto::hash> tx_hashes;
-    m_core.get_pool_transaction_hashes(tx_hashes, !request_has_rpc_origin || !restricted);
+    m_core.get_pool().get_transaction_hashes(tx_hashes, !request_has_rpc_origin || !restricted);
     res.tx_hashes.reserve(tx_hashes.size());
     for (const crypto::hash &tx_hash: tx_hashes)
       res.tx_hashes.push_back(epee::string_tools::pod_to_hex(tx_hash));
@@ -1131,7 +1156,7 @@ namespace cryptonote
 
     const bool restricted = m_restricted && ctx;
     const bool request_has_rpc_origin = ctx != NULL;
-    m_core.get_pool_transaction_stats(res.pool_stats, !request_has_rpc_origin || !restricted);
+    m_core.get_pool().get_transaction_stats(res.pool_stats, !request_has_rpc_origin || !restricted);
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -1940,12 +1965,7 @@ namespace cryptonote
     if (req.txids.empty())
     {
       std::vector<transaction> pool_txs;
-      bool r = m_core.get_pool_transactions(pool_txs);
-      if (!r)
-      {
-        res.status = "Failed to get txpool contents";
-        return true;
-      }
+      m_core.get_pool().get_transactions(pool_txs);
       for (const auto &tx: pool_txs)
       {
         txids.push_back(cryptonote::get_transaction_hash(tx));
@@ -2191,7 +2211,7 @@ namespace cryptonote
       res.status = "Error checking for updates";
       return true;
     }
-    if (tools::vercmp(version.c_str(), LOKI_VERSION) <= 0)
+    if (tools::vercmp(version.c_str(), LOKI_VERSION_STR) <= 0)
     {
       res.update = false;
       res.status = CORE_RPC_STATUS_OK;
@@ -2293,7 +2313,7 @@ namespace cryptonote
       crypto::hash txid = *reinterpret_cast<const crypto::hash*>(txid_data.data());
 
       cryptonote::blobdata txblob;
-      bool r = m_core.get_pool_transaction(txid, txblob);
+      bool r = m_core.get_pool().get_transaction(txid, txblob);
       if (r)
       {
         cryptonote_connection_context fake_context{};
@@ -2356,13 +2376,7 @@ namespace cryptonote
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG>(invoke_http_mode::JON_RPC, "get_txpool_backlog", req, res, r))
       return r;
 
-    if (!m_core.get_txpool_backlog(res.backlog))
-    {
-      error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-      error_resp.message = "Failed to get txpool backlog";
-      return false;
-    }
-
+    m_core.get_pool().get_transaction_backlog(res.backlog);
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -2512,8 +2526,8 @@ namespace cryptonote
   {
     PERF_TIMER(on_get_quorum_state);
 
-    if (req.quorum_type >= (decltype(req.quorum_type))service_nodes::quorum_type::count &&
-        req.quorum_type != (decltype(req.quorum_type))service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value)
+    if (req.quorum_type >= tools::enum_count<service_nodes::quorum_type> &&
+        req.quorum_type != COMMAND_RPC_GET_QUORUM_STATE::ALL_QUORUMS_SENTINEL_VALUE)
     {
       error_resp.code    = CORE_RPC_ERROR_CODE_WRONG_PARAM;
       error_resp.message = "Quorum type specifies an invalid value: ";
@@ -2576,7 +2590,7 @@ namespace cryptonote
         auto start_quorum_iterator = static_cast<service_nodes::quorum_type>(0);
         auto end_quorum_iterator   = service_nodes::max_quorum_type_for_hf(hf_version);
 
-        if (req.quorum_type != (decltype(req.quorum_type))service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value)
+        if (req.quorum_type != COMMAND_RPC_GET_QUORUM_STATE::ALL_QUORUMS_SENTINEL_VALUE)
         {
           start_quorum_iterator = static_cast<service_nodes::quorum_type>(req.quorum_type);
           end_quorum_iterator   = start_quorum_iterator;
@@ -2585,7 +2599,7 @@ namespace cryptonote
         for (int quorum_int = (int)start_quorum_iterator; quorum_int <= (int)end_quorum_iterator; quorum_int++)
         {
           auto type = static_cast<service_nodes::quorum_type>(quorum_int);
-          if (std::shared_ptr<const service_nodes::testing_quorum> quorum = m_core.get_testing_quorum(type, height, true /*include_old*/))
+          if (std::shared_ptr<const service_nodes::quorum> quorum = m_core.get_quorum(type, height, true /*include_old*/))
           {
             COMMAND_RPC_GET_QUORUM_STATE::quorum_for_height entry = {};
             entry.height                                          = height;
@@ -2762,12 +2776,13 @@ namespace cryptonote
         ? (info.is_decommissioned() ? info.last_decommission_height : info.active_since_height) : info.last_reward_block_height;
     entry.earned_downtime_blocks        = service_nodes::quorum_cop::calculate_decommission_credit(info, current_height);
     entry.decommission_count            = info.decommission_count;
-    entry.service_node_version          = {info.proof->version_major, info.proof->version_minor, info.proof->version_patch};
+    entry.service_node_version          = info.proof->version;
     entry.public_ip                     = string_tools::get_ip_string_from_int32(info.proof->public_ip);
     entry.storage_port                  = info.proof->storage_port;
     entry.storage_server_reachable      = info.proof->storage_server_reachable;
     entry.pubkey_ed25519                = info.proof->pubkey_ed25519 ? string_tools::pod_to_hex(info.proof->pubkey_ed25519) : "";
     entry.pubkey_x25519                 = info.proof->pubkey_x25519 ? string_tools::pod_to_hex(info.proof->pubkey_x25519) : "";
+    entry.quorumnet_port                = info.proof->quorumnet_port;
 
     entry.contributors.reserve(info.contributors.size());
 
@@ -2803,9 +2818,9 @@ namespace cryptonote
     entry.last_uptime_proof                  = info.proof->timestamp;
     entry.storage_server_reachable           = info.proof->storage_server_reachable;
     entry.storage_server_reachable_timestamp = info.proof->storage_server_reachable_timestamp;
-    entry.version_major                      = info.proof->version_major;
-    entry.version_minor                      = info.proof->version_minor;
-    entry.version_patch                      = info.proof->version_patch;
+    entry.version_major                      = info.proof->version[0];
+    entry.version_minor                      = info.proof->version[1];
+    entry.version_patch                      = info.proof->version[2];
     entry.votes = std::vector<service_nodes::checkpoint_vote_record>(info.proof->votes.begin(), info.proof->votes.end());
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -2891,9 +2906,7 @@ namespace cryptonote
 
       const auto limit = std::min(sn_infos.size(), static_cast<size_t>(req.limit));
 
-      static thread_local std::mt19937 mt{std::random_device{}()};
-
-      std::shuffle(sn_infos.begin(), sn_infos.end(), mt);
+      std::shuffle(sn_infos.begin(), sn_infos.end(), tools::rng);
 
       sn_infos.resize(limit);
     }
@@ -2952,17 +2965,17 @@ namespace cryptonote
         return 0;
       }
       const blob_t &blob = blocks.at(0).first;
-      const uint64_t byte_idx = service_nodes::uniform_distribution_portable(mt, blob.size());
+      const uint64_t byte_idx = tools::uniform_distribution_portable(mt, blob.size());
       uint8_t byte = blob[byte_idx];
 
       /// pick a random byte from a random transaction blob if found
       if (!txs.empty()) {
-        const uint64_t tx_idx = service_nodes::uniform_distribution_portable(mt, txs.size());
+        const uint64_t tx_idx = tools::uniform_distribution_portable(mt, txs.size());
         const blob_t &tx_blob = txs[tx_idx];
 
         /// not sure if this can be empty, so check to be safe
         if (!tx_blob.empty()) {
-          const uint64_t byte_idx = service_nodes::uniform_distribution_portable(mt, tx_blob.size());
+          const uint64_t byte_idx = tools::uniform_distribution_portable(mt, tx_blob.size());
           const uint8_t tx_byte = tx_blob[byte_idx];
           byte ^= tx_byte;
         }

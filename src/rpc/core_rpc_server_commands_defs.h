@@ -341,11 +341,13 @@ namespace cryptonote
         std::string address;
         std::string view_key;
         std::string tx;
+        bool blink;
 
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(address)
           KV_SERIALIZE(view_key)
           KV_SERIALIZE(tx)
+          KV_SERIALIZE_OPT(blink, false)
         END_KV_SERIALIZE_MAP()
       };
       typedef epee::misc_utils::struct_init<request_t> request;
@@ -468,6 +470,7 @@ namespace cryptonote
       uint64_t block_timestamp;             // Unix time at chich the block has been added to the blockchain.
       std::vector<uint64_t> output_indices; // List of transaction indexes.
       bool relayed;
+      bool blink;                           // True if this is an approved, blink transaction (only for in_pool transactions or txes in recent blocks)
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(tx_hash)
@@ -488,6 +491,7 @@ namespace cryptonote
         {
           KV_SERIALIZE(relayed)
         }
+        KV_SERIALIZE(blink)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -699,13 +703,15 @@ namespace cryptonote
     struct request_t
     {
       std::string tx_as_hex; // Full transaction information as hexidecimal string.
-      bool do_not_relay;     // (Optional: Default false) Stop relaying transaction to other nodes.
+      bool do_not_relay;     // (Optional: Default false) Stop relaying transaction to other nodes.  Ignored if `blink` is true.
       bool do_sanity_checks; // (Optional: Default true) Verify TX params have sane values.
+      bool blink;            // (Optional: Default false) Submit this as a blink tx rather than into the mempool.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(tx_as_hex)
         KV_SERIALIZE_OPT(do_not_relay, false)
         KV_SERIALIZE_OPT(do_sanity_checks, true)
+        KV_SERIALIZE_OPT(blink, false)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
@@ -1453,6 +1459,7 @@ namespace cryptonote
     bool do_not_relay;                  // States if this transaction should not be relayed.
     bool double_spend_seen;             // States if this transaction has been seen as double spend.
     std::string tx_blob;                // Hexadecimal blob represnting the transaction.
+    bool blink;                         // True if this is a signed blink transaction
 
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(id_hash)
@@ -2495,6 +2502,7 @@ namespace cryptonote
   struct COMMAND_RPC_GET_QUORUM_STATE
   {
     static constexpr uint64_t HEIGHT_SENTINEL_VALUE = UINT64_MAX;
+    static constexpr uint8_t ALL_QUORUMS_SENTINEL_VALUE = 255;
     struct request_t
     {
       uint64_t start_height; // (Optional): Start height, omit both start and end height to request the latest quorum
@@ -2504,7 +2512,7 @@ namespace cryptonote
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE_OPT(start_height, HEIGHT_SENTINEL_VALUE)
         KV_SERIALIZE_OPT(end_height, HEIGHT_SENTINEL_VALUE)
-        KV_SERIALIZE_OPT(quorum_type, (uint8_t)service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value)
+        KV_SERIALIZE_OPT(quorum_type, ALL_QUORUMS_SENTINEL_VALUE)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
@@ -2776,7 +2784,7 @@ namespace cryptonote
         uint64_t                              state_height;                  // If active: the state at which registration was completed; if decommissioned: the decommissioning height; if awaiting: the last contribution (or registration) height
         uint32_t                              decommission_count;            // The number of times the Service Node has been decommissioned since registration
         int64_t                               earned_downtime_blocks;        // The number of blocks earned towards decommissioning, or the number of blocks remaining until deregistration if currently decommissioned
-        std::vector<uint16_t>                 service_node_version;          // The major, minor, patch version of the Service Node respectively.
+        std::array<uint16_t, 3>               service_node_version;          // The major, minor, patch version of the Service Node respectively.
         std::vector<service_node_contributor> contributors;                  // Array of contributors, contributing to this Service Node.
         uint64_t                              total_contributed;             // The total amount of Loki in atomic units contributed to this Service Node.
         uint64_t                              total_reserved;                // The total amount of Loki in atomic units reserved in this Service Node.
@@ -2786,6 +2794,7 @@ namespace cryptonote
         std::string                           operator_address;              // The wallet address of the operator to which the operator cut of the staking reward is sent to.
         std::string                           public_ip;                     // The public ip address of the service node
         uint16_t                              storage_port;                  // The port number associated with the storage server
+        uint16_t                              quorumnet_port;                // The port for direct SN-to-SN communication
         std::string                           pubkey_ed25519;                // The service node's ed25519 public key for auxiliary services
         std::string                           pubkey_x25519;                 // The service node's x25519 public key for auxiliary services
 
@@ -2821,6 +2830,7 @@ namespace cryptonote
             KV_SERIALIZE(operator_address)
             KV_SERIALIZE(public_ip)
             KV_SERIALIZE(storage_port)
+            KV_SERIALIZE(quorumnet_port)
             KV_SERIALIZE(pubkey_ed25519)
             KV_SERIALIZE(pubkey_x25519)
 
@@ -2888,6 +2898,7 @@ namespace cryptonote
       bool operator_address;
       bool public_ip;
       bool storage_port;
+      bool quorumnet_port;
       bool pubkey_ed25519;
       bool pubkey_x25519;
 
@@ -2926,6 +2937,7 @@ namespace cryptonote
         KV_SERIALIZE_OPT2(operator_address, false)
         KV_SERIALIZE_OPT2(public_ip, false)
         KV_SERIALIZE_OPT2(storage_port, false)
+        KV_SERIALIZE_OPT2(quorumnet_port, false)
         KV_SERIALIZE_OPT2(pubkey_ed25519, false)
         KV_SERIALIZE_OPT2(pubkey_x25519, false)
         KV_SERIALIZE_OPT2(block_hash, false)
@@ -2981,7 +2993,7 @@ namespace cryptonote
         uint64_t                              state_height;                  // If active: the state at which registration was completed; if decommissioned: the decommissioning height; if awaiting: the last contribution (or registration) height
         uint32_t                              decommission_count;            // The number of times the Service Node has been decommissioned since registration
         int64_t                               earned_downtime_blocks;        // The number of blocks earned towards decommissioning, or the number of blocks remaining until deregistration if currently decommissioned
-        std::vector<uint16_t>                 service_node_version;          // The major, minor, patch version of the Service Node respectively.
+        std::array<uint16_t, 3>               service_node_version;          // The major, minor, patch version of the Service Node respectively.
         std::vector<service_node_contributor> contributors;                  // Array of contributors, contributing to this Service Node.
         uint64_t                              total_contributed;             // The total amount of Loki in atomic units contributed to this Service Node.
         uint64_t                              total_reserved;                // The total amount of Loki in atomic units reserved in this Service Node.
@@ -2991,6 +3003,7 @@ namespace cryptonote
         std::string                           operator_address;              // The wallet address of the operator to which the operator cut of the staking reward is sent to.
         std::string                           public_ip;                     // The public ip address of the service node
         uint16_t                              storage_port;                  // The port number associated with the storage server
+        uint16_t                              quorumnet_port;                // The port for direct SN-to-SN communication
         std::string                           pubkey_ed25519;                // The service node's ed25519 public key for auxiliary services
         std::string                           pubkey_x25519;                 // The service node's x25519 public key for auxiliary services
 
@@ -3025,6 +3038,7 @@ namespace cryptonote
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(operator_address);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(public_ip);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(storage_port);
+          KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(quorumnet_port);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(pubkey_ed25519);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(pubkey_x25519);
 

@@ -997,7 +997,7 @@ bool t_rpc_command_executor::print_quorum_state(uint64_t start_height, uint64_t 
 
   req.start_height = start_height;
   req.end_height   = end_height;
-  req.quorum_type  = (decltype(req.quorum_type))service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value;
+  req.quorum_type  = cryptonote::COMMAND_RPC_GET_QUORUM_STATE::ALL_QUORUMS_SENTINEL_VALUE;
 
   std::string fail_message = "Unsuccessful";
 
@@ -1312,6 +1312,41 @@ bool t_rpc_command_executor::is_key_image_spent(const crypto::key_image &ki) {
   return true;
 }
 
+static void print_pool(const std::vector<cryptonote::tx_info> &transactions, bool include_json) {
+  if (transactions.empty())
+  {
+    tools::msg_writer() << "Pool is empty" << std::endl;
+    return;
+  }
+  const time_t now = time(NULL);
+  tools::msg_writer() << "Transactions:";
+  for (auto &tx_info : transactions)
+  {
+    auto w = tools::msg_writer();
+    w << "id: " << tx_info.id_hash << "\n";
+    if (include_json) w << tx_info.tx_json << "\n";
+    w << "blob_size: " << tx_info.blob_size << "\n"
+      << "weight: " << tx_info.weight << "\n"
+      << "fee: " << cryptonote::print_money(tx_info.fee) << "\n"
+      /// NB(Loki): in v13 we have min_fee = per_out*outs + per_byte*bytes, only the total fee/byte matters for
+      /// the purpose of building a block template from the pool, so we still print the overall fee / byte here.
+      /// (we can't back out the individual per_out and per_byte that got used anyway).
+      << "fee/byte: " << cryptonote::print_money(tx_info.fee / (double)tx_info.weight) << "\n"
+      << "receive_time: " << tx_info.receive_time << " (" << get_human_time_ago(tx_info.receive_time, now) << ")\n"
+      << "relayed: " << (tx_info.relayed ? boost::lexical_cast<std::string>(tx_info.last_relayed_time) + " (" + get_human_time_ago(tx_info.last_relayed_time, now) + ")" : "no") << "\n"
+      << std::boolalpha
+      << "do_not_relay: " << tx_info.do_not_relay << "\n"
+      << "blink: " << tx_info.blink << "\n"
+      << "kept_by_block: " << tx_info.kept_by_block << "\n"
+      << "double_spend_seen: " << tx_info.double_spend_seen << "\n"
+      << std::noboolalpha
+      << "max_used_block_height: " << tx_info.max_used_block_height << "\n"
+      << "max_used_block_id: " << tx_info.max_used_block_id_hash << "\n"
+      << "last_failed_height: " << tx_info.last_failed_height << "\n"
+      << "last_failed_id: " << tx_info.last_failed_id_hash << "\n";
+  }
+}
+
 bool t_rpc_command_executor::print_transaction_pool_long() {
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL::request req;
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL::response res;
@@ -1334,41 +1369,14 @@ bool t_rpc_command_executor::print_transaction_pool_long() {
     }
   }
 
-  if (res.transactions.empty() && res.spent_key_images.empty())
+  print_pool(res.transactions, true);
+
+  if (res.spent_key_images.empty())
   {
-    tools::msg_writer() << "Pool is empty" << std::endl;
-  }
-  if (! res.transactions.empty())
-  {
-    const time_t now = time(NULL);
-    tools::msg_writer() << "Transactions: ";
-    for (auto & tx_info : res.transactions)
-    {
-      tools::msg_writer() << "id: " << tx_info.id_hash << std::endl
-                          << tx_info.tx_json << std::endl
-                          << "blob_size: " << tx_info.blob_size << std::endl
-                          << "weight: " << tx_info.weight << std::endl
-                          << "fee: " << cryptonote::print_money(tx_info.fee) << std::endl
-                          /// NB(Loki): in v13 we have min_fee = per_out*outs + per_byte*bytes, only the total fee/byte matters for
-                          /// the purpose of building a block template from the pool, so we still print the overall fee / byte here.
-                          /// (we can't back out the individual per_out and per_byte that got used anyway).
-                          << "fee/byte: " << cryptonote::print_money(tx_info.fee / (double)tx_info.weight) << std::endl
-                          << "receive_time: " << tx_info.receive_time << " (" << get_human_time_ago(tx_info.receive_time, now) << ")" << std::endl
-                          << "relayed: " << [&](const cryptonote::tx_info &tx_info)->std::string { if (!tx_info.relayed) return "no"; return boost::lexical_cast<std::string>(tx_info.last_relayed_time) + " (" + get_human_time_ago(tx_info.last_relayed_time, now) + ")"; } (tx_info) << std::endl
-                          << "do_not_relay: " << (tx_info.do_not_relay ? 'T' : 'F')  << std::endl
-                          << "kept_by_block: " << (tx_info.kept_by_block ? 'T' : 'F') << std::endl
-                          << "double_spend_seen: " << (tx_info.double_spend_seen ? 'T' : 'F')  << std::endl
-                          << "max_used_block_height: " << tx_info.max_used_block_height << std::endl
-                          << "max_used_block_id: " << tx_info.max_used_block_id_hash << std::endl
-                          << "last_failed_height: " << tx_info.last_failed_height << std::endl
-                          << "last_failed_id: " << tx_info.last_failed_id_hash << std::endl;
-    }
-    if (res.spent_key_images.empty())
-    {
+    if (! res.transactions.empty())
       tools::msg_writer() << "WARNING: Inconsistent pool state - no spent key images";
-    }
   }
-  if (! res.spent_key_images.empty())
+  else
   {
     tools::msg_writer() << ""; // one newline
     tools::msg_writer() << "Spent key images: ";
@@ -1423,31 +1431,7 @@ bool t_rpc_command_executor::print_transaction_pool_short() {
     }
   }
 
-  if (res.transactions.empty())
-  {
-    tools::msg_writer() << "Pool is empty" << std::endl;
-  }
-  else
-  {
-    const time_t now = time(NULL);
-    for (auto & tx_info : res.transactions)
-    {
-      tools::msg_writer() << "id: " << tx_info.id_hash << std::endl
-                          << "blob_size: " << tx_info.blob_size << std::endl
-                          << "weight: " << tx_info.weight << std::endl
-                          << "fee: " << cryptonote::print_money(tx_info.fee) << std::endl
-                          << "fee/byte: " << cryptonote::print_money(tx_info.fee / (double)tx_info.weight) << std::endl
-                          << "receive_time: " << tx_info.receive_time << " (" << get_human_time_ago(tx_info.receive_time, now) << ")" << std::endl
-                          << "relayed: " << [&](const cryptonote::tx_info &tx_info)->std::string { if (!tx_info.relayed) return "no"; return boost::lexical_cast<std::string>(tx_info.last_relayed_time) + " (" + get_human_time_ago(tx_info.last_relayed_time, now) + ")"; } (tx_info) << std::endl
-                          << "do_not_relay: " << (tx_info.do_not_relay ? 'T' : 'F')  << std::endl
-                          << "kept_by_block: " << (tx_info.kept_by_block ? 'T' : 'F') << std::endl
-                          << "double_spend_seen: " << (tx_info.double_spend_seen ? 'T' : 'F') << std::endl
-                          << "max_used_block_height: " << tx_info.max_used_block_height << std::endl
-                          << "max_used_block_id: " << tx_info.max_used_block_id_hash << std::endl
-                          << "last_failed_height: " << tx_info.last_failed_height << std::endl
-                          << "last_failed_id: " << tx_info.last_failed_id_hash << std::endl;
-    }
-  }
+  print_pool(res.transactions, false);
 
   return true;
 }
@@ -2526,11 +2510,11 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
     }
 
     stream << "\n";
-    stream << indent2 << "IP Address & Port: ";
+    stream << indent2 << "IP Address & Ports: ";
     if (entry.public_ip == "0.0.0.0")
       stream << "(Awaiting confirmation from network)";
     else
-      stream << entry.public_ip << ":" << entry.storage_port;
+      stream << entry.public_ip << " :" << entry.storage_port << " (storage), :" << entry.quorumnet_port << " (quorumnet)";
 
     stream << "\n";
     stream << indent2 << "Storage Server Reachable: " << (entry.storage_server_reachable ? "Yes" : "No") << " (";

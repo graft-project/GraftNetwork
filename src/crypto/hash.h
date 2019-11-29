@@ -44,7 +44,7 @@ namespace crypto {
 #include "hash-ops.h"
   }
 
-  struct hash {
+  struct alignas(size_t) hash {
     char data[HASH_SIZE];
   };
   struct hash8 {
@@ -121,5 +121,6 @@ namespace crypto {
   const static crypto::hash8 null_hash8 = {};
 }
 
+EPEE_TYPE_IS_SPANNABLE(crypto::hash)
 CRYPTO_MAKE_HASHABLE(hash)
 CRYPTO_MAKE_COMPARABLE(hash8)

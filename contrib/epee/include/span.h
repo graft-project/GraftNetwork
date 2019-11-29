@@ -134,16 +134,24 @@ namespace epee
   }
 
   template<typename T>
-  constexpr bool has_padding() noexcept
-  {
-    return !std::is_standard_layout<T>() || alignof(T) != 1;
-  }
+  constexpr bool is_byte_spannable =
+#   ifdef __cpp_lib_has_unique_object_representations
+      // This is exactly what we're after, but it isn't available (or even easily implemented) until C++17
+      std::has_unique_object_representations<T>::value;
+#     define EPEE_TYPE_IS_SPANNABLE(T) // Does nothing in C++17: we don't need help.
+#   else
+      // Poor man's implementation: this returns in false positives for classes that *don't* have
+      // padding yet don't have alignment of 1.  Those types have to specialize this thing (using
+      // the macro above to detect when the specialization is needed).
+      std::is_trivially_copyable<T>() && alignof(T) == 1;
+#     define EPEE_TYPE_IS_SPANNABLE(T) namespace epee { template <> constexpr bool is_byte_spannable<T> = std::is_trivially_copyable<T>(); }
+#   endif
 
   //! \return Cast data from `src` as `span<const std::uint8_t>`.
   template<typename T>
   span<const std::uint8_t> to_byte_span(const span<const T> src) noexcept
   {
-    static_assert(!has_padding<T>(), "source type may have padding");
+    static_assert(is_byte_spannable<T>, "source type may have padding");
     return {reinterpret_cast<const std::uint8_t*>(src.data()), src.size_bytes()}; 
   }
 
@@ -151,8 +159,8 @@ namespace epee
   template<typename T>
   span<const std::uint8_t> as_byte_span(const T& src) noexcept
   {
-    static_assert(!std::is_empty<T>(), "empty types will not work -> sizeof == 1");
-    static_assert(!has_padding<T>(), "source type may have padding");
+    static_assert(!std::is_empty<T>(), "empty types cannot be converted to a byte span");
+    static_assert(is_byte_spannable<T>, "source type may have padding");
     return {reinterpret_cast<const std::uint8_t*>(std::addressof(src)), sizeof(T)};
   }
 
@@ -160,8 +168,8 @@ namespace epee
   template<typename T>
   span<std::uint8_t> as_mut_byte_span(T& src) noexcept
   {
-    static_assert(!std::is_empty<T>(), "empty types will not work -> sizeof == 1");
-    static_assert(!has_padding<T>(), "source type may have padding");
+    static_assert(!std::is_empty<T>(), "empty types cannot be converted to a byte span");
+    static_assert(is_byte_spannable<T>, "source type may have padding");
     return {reinterpret_cast<std::uint8_t*>(std::addressof(src)), sizeof(T)};
   }
 

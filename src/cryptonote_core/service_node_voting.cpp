@@ -103,7 +103,7 @@ namespace service_nodes
     return result;
   }
 
-  static bool bounds_check_worker_index(service_nodes::testing_quorum const &quorum, uint32_t worker_index, cryptonote::vote_verification_context *vvc)
+  static bool bounds_check_worker_index(service_nodes::quorum const &quorum, uint32_t worker_index, cryptonote::vote_verification_context *vvc)
   {
     if (worker_index >= quorum.workers.size())
     {
@@ -114,7 +114,7 @@ namespace service_nodes
     return true;
   }
 
-  static bool bounds_check_validator_index(service_nodes::testing_quorum const &quorum, uint32_t validator_index, cryptonote::vote_verification_context *vvc)
+  static bool bounds_check_validator_index(service_nodes::quorum const &quorum, uint32_t validator_index, cryptonote::vote_verification_context *vvc)
   {
     if (validator_index >= quorum.validators.size())
     {
@@ -133,7 +133,7 @@ namespace service_nodes
   bool verify_tx_state_change(const cryptonote::tx_extra_service_node_state_change &state_change,
                               uint64_t latest_height,
                               cryptonote::tx_verification_context &tvc,
-                              const service_nodes::testing_quorum &quorum,
+                              const service_nodes::quorum &quorum,
                               const uint8_t hf_version)
   {
     auto &vvc = tvc.m_vote_ctx;
@@ -232,7 +232,7 @@ namespace service_nodes
     return true;
   }
 
-  bool verify_checkpoint(uint8_t hf_version, cryptonote::checkpoint_t const &checkpoint, service_nodes::testing_quorum const &quorum)
+  bool verify_checkpoint(uint8_t hf_version, cryptonote::checkpoint_t const &checkpoint, service_nodes::quorum const &quorum)
   {
     if (checkpoint.type == cryptonote::checkpoint_type::service_node)
     {
@@ -359,10 +359,10 @@ namespace service_nodes
     return result;
   }
 
-  bool verify_vote_signature(uint8_t hf_version, const quorum_vote_t &vote, cryptonote::vote_verification_context &vvc, const service_nodes::testing_quorum &quorum)
+  bool verify_vote_signature(uint8_t hf_version, const quorum_vote_t &vote, cryptonote::vote_verification_context &vvc, const service_nodes::quorum &quorum)
   {
     bool result = true;
-    if (vote.type >= quorum_type::count)
+    if (vote.type >= quorum_type::_count)
     {
       vvc.m_invalid_vote_type = true;
       result = false;

@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2019, The Monero Project
-// Copyright (c)      2018, The Loki Project
+// Copyright (c) 2018-2019, The Loki Project
 //
 // All rights reserved.
 //
@@ -984,7 +984,7 @@ namespace nodetool
     std::atomic<bool> hsh_result(false);
 
     bool r = epee::net_utils::async_invoke_remote_command2<typename COMMAND_HANDSHAKE::response>(context_.m_connection_id, COMMAND_HANDSHAKE::ID, arg, zone.m_net_server.get_config_object(),
-      [this, &pi, &ev, &hsh_result, &just_take_peerlist, &context_](int code, const typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context)
+      [this, &pi, &ev, &hsh_result, &just_take_peerlist, &context_](int code, typename COMMAND_HANDSHAKE::response&& rsp, p2p_connection_context& context)
     {
       epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ev.raise();});
 
@@ -1009,7 +1009,7 @@ namespace nodetool
       hsh_result = true;
       if(!just_take_peerlist)
       {
-        if(!m_payload_handler.process_payload_sync_data(rsp.payload_data, context, true))
+        if(!m_payload_handler.process_payload_sync_data(std::move(rsp.payload_data), context, true))
         {
           LOG_WARNING_CC(context, "COMMAND_HANDSHAKE invoked, but process_payload_sync_data returned false, dropping connection.");
           hsh_result = false;
@@ -1068,7 +1068,7 @@ namespace nodetool
 
     network_zone& zone = m_network_zones.at(context_.m_remote_address.get_zone());
     bool r = epee::net_utils::async_invoke_remote_command2<typename COMMAND_TIMED_SYNC::response>(context_.m_connection_id, COMMAND_TIMED_SYNC::ID, arg, zone.m_net_server.get_config_object(),
-      [this](int code, const typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context)
+      [this](int code, typename COMMAND_TIMED_SYNC::response&& rsp, p2p_connection_context& context)
     {
       context.m_in_timedsync = false;
       if(code < 0)
@@ -1085,7 +1085,7 @@ namespace nodetool
       }
       if(!context.m_is_income)
         m_network_zones.at(context.m_remote_address.get_zone()).m_peerlist.set_peer_just_seen(context.peer_id, context.m_remote_address, context.m_pruning_seed, context.m_rpc_port);
-      if (!m_payload_handler.process_payload_sync_data(rsp.payload_data, context, false))
+      if (!m_payload_handler.process_payload_sync_data(std::move(rsp.payload_data), context, false))
       {
         m_network_zones.at(context.m_remote_address.get_zone()).m_net_server.get_config_object().close(context.m_connection_id );
       }
@@ -1779,6 +1779,11 @@ namespace nodetool
   template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::peer_sync_idle_maker()
   {
+    // TODO: this sync code is rather dumb: every 60s we trigger a sync with every connected peer
+    // all at once which results in a sudden spike of activity every 60s then not much in between.
+    // This really should be spaced out, i.e. the 60s sync timing should apply per peer, not
+    // globally.
+
     MDEBUG("STARTED PEERLIST IDLE HANDSHAKE");
     typedef std::list<std::pair<epee::net_utils::connection_context_base, peerid_type> > local_connects_type;
     local_connects_type cncts;
@@ -2152,7 +2157,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context)
   {
-    if(!m_payload_handler.process_payload_sync_data(arg.payload_data, context, false))
+    if(!m_payload_handler.process_payload_sync_data(std::move(arg.payload_data), context, false))
     {
       LOG_WARNING_CC(context, "Failed to process_payload_sync_data(), dropping connection");
       drop_connection(context);
@@ -2219,7 +2224,7 @@ namespace nodetool
       return 1;
     }
 
-    if(!m_payload_handler.process_payload_sync_data(arg.payload_data, context, true))
+    if(!m_payload_handler.process_payload_sync_data(std::move(arg.payload_data), context, true))
     {
       LOG_WARNING_CC(context, "COMMAND_HANDSHAKE came, but process_payload_sync_data returned false, dropping connection.");
       drop_connection(context);
