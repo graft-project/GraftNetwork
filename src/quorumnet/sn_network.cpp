@@ -233,6 +233,10 @@ msg_view_t view(const zmq::message_t &m) {
     return {m.data<char>(), m.size()};
 }
 
+#ifndef __cpp_inline_variables
+constexpr const std::chrono::milliseconds SNNetwork::default_send_keep_alive;
+#endif
+
 std::unordered_map<std::string, std::pair<std::function<void(SNNetwork::message &message, void *data)>, bool>> SNNetwork::commands;
 bool SNNetwork::commands_mutable = true;
 void SNNetwork::register_quorum_command(std::string command, std::function<void(SNNetwork::message &message, void *data)> callback) {
