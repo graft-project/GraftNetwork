@@ -63,7 +63,7 @@ namespace service_nodes
   {
     uint64_t timestamp           = 0; // The actual time we last received an uptime proof
     uint64_t effective_timestamp = 0; // Typically the same, but on recommissions it is set to the recommission block time to fend off instant obligation checks
-    std::array<uint16_t, 3> version = {0,0,0};
+    std::array<uint16_t, 3> version{{0,0,0}};
     std::array<checkpoint_vote_record, CHECKPOINT_NUM_QUORUMS_TO_PARTICIPATE_IN> votes;
     uint8_t vote_index = 0;
     std::array<std::pair<uint32_t, uint64_t>, 2> public_ips = {}; // (not serialized)

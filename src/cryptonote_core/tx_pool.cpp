@@ -779,10 +779,10 @@ namespace cryptonote
         // don't prune the kept_by_block ones, they're likely added because we're adding a block with those
         // don't prune blink txes
         // don't prune the one we just added
-        if (meta.kept_by_block || has_blink(txid, true /*have lock*/) || txid == skip)
+        if (meta.kept_by_block || this->has_blink(txid, true /*have lock*/) || txid == skip)
           return true;
 
-        if (remove_tx(txid, &meta, &del_it))
+        if (this->remove_tx(txid, &meta, &del_it))
         {
           changed = true;
           return true;
