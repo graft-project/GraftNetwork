@@ -333,14 +333,14 @@ namespace cryptonote
           return false;
         }
       }
-      if (have_duplicated_non_standard_tx(tx, hf_version))
-      {
-        mark_double_spend(tx);
-        LOG_PRINT_L1("Transaction with id= "<< id << " already has a duplicate tx for height");
-        tvc.m_verifivation_failed = true;
-        tvc.m_double_spend = true;
-        return false;
-      }
+    }
+    if (!opts.kept_by_block && have_duplicated_non_standard_tx(tx, hf_version))
+    {
+      mark_double_spend(tx);
+      LOG_PRINT_L1("Transaction with id= "<< id << " already has a duplicate tx for height");
+      tvc.m_verifivation_failed = true;
+      tvc.m_double_spend = true;
+      return false;
     }
 
     if (!m_blockchain.check_tx_outputs(tx, tvc))
