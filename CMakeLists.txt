@@ -690,7 +690,7 @@ else()
   endif()
 
   # New in GCC 8.2
-  if (NOT WIN32)
+  if (NOT WIN32 AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_c_flag_if_supported(-fcf-protection=full C_SECURITY_FLAGS)
     add_cxx_flag_if_supported(-fcf-protection=full CXX_SECURITY_FLAGS)
     add_c_flag_if_supported(-fstack-clash-protection C_SECURITY_FLAGS)
