@@ -498,7 +498,7 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}/translations")
 add_subdirectory(external)
 
 # Final setup for libunbound
-include_directories(${UNBOUND_INCLUDE})
+include_directories(${UNBOUND_INCLUDE_DIRS})
 link_directories(${UNBOUND_LIBRARY_DIRS})
 
 # Final setup for easylogging++
