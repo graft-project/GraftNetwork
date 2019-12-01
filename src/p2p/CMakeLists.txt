@@ -53,9 +53,6 @@ loki_add_library(p2p
   ${p2p_headers}
   ${p2p_private_headers})
 
-target_include_directories(p2p
-  PUBLIC
-    ${MINIUPNPC_INCLUDE_DIRS})
 target_link_libraries(p2p
   PUBLIC
     version

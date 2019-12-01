@@ -501,6 +501,9 @@ add_subdirectory(external)
 include_directories(${UNBOUND_INCLUDE_DIRS})
 link_directories(${UNBOUND_LIBRARY_DIRS})
 
+include_directories(${MINIUPNPC_INCLUDE_DIRS})
+link_directories(${MINIUPNPC_LIBRARY_DIRS})
+
 # Final setup for easylogging++
 include_directories(${EASYLOGGING_INCLUDE})
 link_directories(${EASYLOGGING_LIBRARY_DIRS})
