@@ -2671,12 +2671,10 @@ bool t_rpc_command_executor::print_sn(const std::vector<std::string> &args)
         return b_remaining < a_remaining;
     });
 
-    std::stable_sort(registered.begin(), registered.end(),
+    std::sort(registered.begin(), registered.end(),
         [](const cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry *a, const cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry *b) {
-        if (a->last_reward_block_height == b->last_reward_block_height)
-          return a->last_reward_transaction_index < b->last_reward_transaction_index;
-
-        return a->last_reward_block_height < b->last_reward_block_height;
+        return std::make_tuple(a->last_reward_block_height, a->last_reward_transaction_index, a->service_node_pubkey)
+             < std::make_tuple(b->last_reward_block_height, b->last_reward_transaction_index, b->service_node_pubkey);
     });
 
     if (req.include_json)
