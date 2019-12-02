@@ -22,7 +22,7 @@ addons:
     update: true
     packages: [cmake, ccache, zeromq, boost, openssl@1.1, unbound, miniupnpc, libsodium, readline, ldns, hidapi, libusb, pkg-config]
 
-matrix:
+jobs:
   include:
     - name: "bionic"
       env: BUILD_TESTS=1
@@ -42,7 +42,6 @@ matrix:
     - arch: s390x
     - arch: ppc64le
     - name: "Windows cross-compile"
-      #- HOST=x86_64-w64-mingw32 DEP_OPTS="NO_QT=1" PACKAGES="cmake python3 g++-mingw-w64-x86-64 qttools5-dev-tools"
       addons:
         apt:
           packages: [g++-mingw-w64-x86-64, qttools5-dev-tools, python3]
@@ -53,6 +52,9 @@ matrix:
         - make -j2 -C contrib/depends HOST=$HOST NO_QT=1
         - export CMAKE_OPTS="-DCMAKE_TOOLCHAIN_FILE=$TRAVIS_BUILD_DIR/contrib/depends/$HOST/share/toolchain.cmake"
         - export LD_LIBRARY_PATH=$TRAVIS_BUILD_DIR/contrib/depends/$HOST/lib
+  fast_finish: true
+  allow_failures:
+      - name: "Windows cross-compile"
 
 before_script:
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then export PATH="/usr/local/opt/ccache/libexec:$PATH" PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"; fi
