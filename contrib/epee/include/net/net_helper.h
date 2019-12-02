@@ -103,13 +103,14 @@ namespace net_utils
 		inline
 			blocked_mode_client(boost::shared_ptr<boost::asio::io_service> ios
                             = boost::shared_ptr<boost::asio::io_service>{new boost::asio::io_service()})
+				: m_io_service(ios),
 				m_ctx(boost::asio::ssl::context::tlsv12),
 				m_connector(direct_connect{}),
-				m_ssl_socket(new boost::asio::ssl::stream<boost::asio::ip::tcp::socket>(m_io_service, m_ctx)),
+				m_ssl_socket(new boost::asio::ssl::stream<boost::asio::ip::tcp::socket>(get_io_service(), m_ctx)),
 				m_ssl_options(epee::net_utils::ssl_support_t::e_ssl_support_autodetect),
 				m_initialized(true),
 				m_connected(false),
-				m_deadline(m_io_service),
+				m_deadline(get_io_service()),
 				m_shutdowned(0),
 				m_bytes_sent(0),
 				m_bytes_received(0)
@@ -162,8 +163,8 @@ namespace net_utils
 				boost::unique_future<boost::asio::ip::tcp::socket> connection = m_connector(addr, port, m_deadline);
 				for (;;)
 				{
-					m_io_service.reset();
-					m_io_service.run_one();
+					m_io_service->reset();
+					m_io_service->run_one();
 
 					if (connection.is_ready())
 						break;
@@ -215,7 +216,7 @@ namespace net_utils
 
 				// Set SSL options
 				// disable sslv2
-				m_ssl_socket.reset(new boost::asio::ssl::stream<boost::asio::ip::tcp::socket>(m_io_service, m_ctx));
+				m_ssl_socket.reset(new boost::asio::ssl::stream<boost::asio::ip::tcp::socket>(get_io_service(), m_ctx));
 
 				// Get a list of endpoints corresponding to the server name.
 
@@ -303,8 +304,8 @@ namespace net_utils
 				// Block until the asynchronous operation has completed.
 				while (ec == boost::asio::error::would_block)
 				{
-					m_io_service.reset();
-					m_io_service.run_one(); 
+					m_io_service->reset();
+					m_io_service->run_one(); 
 				}
 
 				if (ec)
@@ -436,8 +437,8 @@ namespace net_utils
 				// Block until the asynchronous operation has completed.
 				while (ec == boost::asio::error::would_block && !boost::interprocess::ipcdetail::atomic_read32(&m_shutdowned))
 				{
-					m_io_service.reset();
-					m_io_service.run_one(); 
+					m_io_service->reset();
+					m_io_service->run_one(); 
 				}
 
 
@@ -632,8 +633,8 @@ namespace net_utils
 			m_ssl_socket->async_shutdown(boost::lambda::var(ec) = boost::lambda::_1);
 			while (ec == boost::asio::error::would_block)
 			{
-				m_io_service.reset();
-				m_io_service.run_one();
+				m_io_service->reset();
+				m_io_service->run_one();
 			}
 			// Ignore "short read" error
 			if (ec.category() == boost::asio::error::get_ssl_category() &&
@@ -676,7 +677,7 @@ namespace net_utils
 		}
 		
 	protected:
-    boost::shared_ptr<boost::asio::io_service> m_io_service;
+        boost::shared_ptr<boost::asio::io_service> m_io_service;
 		boost::asio::ssl::context m_ctx;
 		std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>> m_ssl_socket;
 		std::function<connect_func> m_connector;
