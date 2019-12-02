@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -28,17 +28,15 @@
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
-#include "include_base_utils.h"
-
-using namespace epee;
-
 #include "checkpoints.h"
 
 #include "common/dns_utils.h"
-#include "include_base_utils.h"
 #include "string_tools.h"
 #include "storages/portable_storage_template_helper.h" // epee json include
 #include "serialization/keyvalue_serialization.h"
+#include <vector>
+
+using namespace epee;
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "checkpoints"
@@ -76,7 +74,7 @@ namespace cryptonote
   bool checkpoints::add_checkpoint(uint64_t height, const std::string& hash_str)
   {
     crypto::hash h = crypto::null_hash;
-    bool r = epee::string_tools::parse_tpod_from_hex_string(hash_str, h);
+    bool r = epee::string_tools::hex_to_pod(hash_str, h);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse checkpoint hash string into binary representation!");
 
     // return false if adding at a height we already have AND the hash is different
@@ -161,6 +159,15 @@ namespace cryptonote
 
   bool checkpoints::init_default_checkpoints(network_type nettype)
   {
+    if (nettype == TESTNET)
+    {
+      return true;
+    }
+    if (nettype == STAGENET)
+    {
+      // TODO
+      return true;
+    }
     ADD_CHECKPOINT(1,     "5d03cc547e916ef79967d001288955cd5e18d3a1ae1c957c58cfd0d950fd295c");
     ADD_CHECKPOINT(10,    "a28669967ad657355c81fa61a51d368369cf8776bdf9e9ff971bd5f922fa1303");
     ADD_CHECKPOINT(100,   "dc6a22176a0511cc21be34eb0293cba88aacb0e29dd443bb741cc77ea00f77f9");
@@ -175,16 +182,6 @@ namespace cryptonote
     ADD_CHECKPOINT(150000, "97270d631542023c0815a125834c01a8e2e419d7c8498d1e3c59a504d713f867");
     ADD_CHECKPOINT(180000, "2d352ac387b412fc2a4bab837ec1eeb6ea30d6cd20388ae3744afd4a30c37c68");
     ADD_CHECKPOINT(200000, "de9ab57ac93d68ca8ddfea472caeabaaf86271385b3aa1c4fa168ccbb6180a6a");
-
-    if (nettype == TESTNET)
-    {
-      return true;
-    }
-    if (nettype == STAGENET)
-    {
-      // TODO
-      return true;
-    }
 
     return true;
   }
@@ -261,7 +258,7 @@ namespace cryptonote
         // parse the second part as crypto::hash,
         // if this fails move on to the next record
         std::string hashStr = record.substr(pos + 1);
-        if (!epee::string_tools::parse_tpod_from_hex_string(hashStr, hash))
+        if (!epee::string_tools::hex_to_pod(hashStr, hash))
         {
     continue;
         }

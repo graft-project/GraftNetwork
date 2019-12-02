@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2018, The Monero Project
+# Copyright (c) 2014-2019, The Monero Project
 #
 # All rights reserved.
 #
@@ -39,13 +39,19 @@ set(crypto_sources
   hash-extra-jh.c
   hash-extra-skein.c
   hash.c
+  hmac-keccak.c
   jh.c
   keccak.c
   oaes_lib.c
   random.c
   skein.c
   slow-hash.c
+  CryptonightR_JIT.c
   tree-hash.c)
+
+if(ARCH_ID STREQUAL "i386" OR ARCH_ID STREQUAL "x86_64" OR ARCH_ID STREQUAL "x86-64" OR ARCH_ID STREQUAL "amd64")
+list(APPEND crypto_sources CryptonightR_template.S)
+endif()
 
 set(crypto_headers)
 
@@ -59,6 +65,7 @@ set(crypto_private_headers
   groestl_tables.h
   hash-ops.h
   hash.h
+  hmac-keccak.h
   initializer.h
   jh.h
   keccak.h
@@ -66,7 +73,9 @@ set(crypto_private_headers
   oaes_lib.h
   random.h
   skein.h
-  skein_port.h)
+  skein_port.h
+  CryptonightR_JIT.h
+  CryptonightR_template.h)
 
 monero_private_headers(cncrypto
   ${crypto_private_headers})
@@ -101,4 +110,5 @@ if (ANDROID OR IOS)
   endif()
 endif()
 
-
+# cheat because cmake and ccache hate each other
+set_property(SOURCE CryptonightR_template.S PROPERTY LANGUAGE C)

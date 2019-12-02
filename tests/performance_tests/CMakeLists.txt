@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2018, The Monero Project
+# Copyright (c) 2014-2019, The Monero Project
 #
 # All rights reserved.
 #
@@ -31,6 +31,7 @@ set(performance_tests_sources
 
 set(performance_tests_headers
   check_tx_signature.h
+  check_hash.h
   cn_slow_hash.h
   cn_slow_hash_2.h
   cn_slow_hash_waltz.h
@@ -49,6 +50,8 @@ set(performance_tests_headers
   range_proof.h
   bulletproof.h
   crypto_ops.h
+  sc_reduce32.h
+  sc_check.h
   multiexp.h
   multi_tx_test_base.h
   performance_tests.h

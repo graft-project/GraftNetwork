@@ -1,5 +1,6 @@
-// Copyright (c) 2014-2018, The Monero Project
-//
+// Copyright (c) 2014-2019, The Graft Project
+// Copyright (c) 2014-2019, The Monero Project
+// 
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification, are
@@ -111,9 +112,8 @@ TEST(AddressFromURL, Failure)
 {
   bool dnssec_result = false;
 
-  //std::vector<std::string> addresses = tools::dns_utils::addresses_from_url("example.invalid", dnssec_result);
   std::vector<std::string> addresses = tools::dns_utils::addresses_from_url("example.veryinvalid", dnssec_result);
-  LOG_PRINT_L0("This test could fail in case of running inside LAN with local DNS server");
+
   // for a non-existing domain such as "example.invalid", the non-existence is proved with NSEC records
   ASSERT_TRUE(dnssec_result);
 
