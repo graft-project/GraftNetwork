@@ -391,10 +391,9 @@ cryptonote::transaction loki_chain_generator::create_staking_tx(const crypto::pu
     unlock_time = new_height + service_nodes::staking_num_lock_blocks(cryptonote::FAKECHAIN);
 
   loki_tx_builder(events_, result, top().block, src /*from*/, src /*to*/, amount, new_hf_version)
-      .is_staking(true)
+      .with_tx_type(cryptonote::txtype::stake)
       .with_unlock_time(unlock_time)
       .with_extra(extra)
-      .with_per_output_unlock(true)
       .build();
   return result;
 }

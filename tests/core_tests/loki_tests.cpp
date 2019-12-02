@@ -540,7 +540,7 @@ bool loki_core_fee_burning::generate(std::vector<test_event_entry>& events)
 
   auto add_burning_tx = [&events, &gen, &dummy, newest_hf](const std::array<uint64_t, 3> &send_fee_burn) {
     auto send = send_fee_burn[0], fee = send_fee_burn[1], burn = send_fee_burn[2];
-    transaction tx = gen.create_tx(gen.first_miner_, dummy, send, fee, false);
+    transaction tx = gen.create_tx(gen.first_miner_, dummy, send, fee);
     std::vector<uint8_t> burn_extra;
     add_burned_amount_to_tx_extra(burn_extra, burn);
     loki_tx_builder(events, tx, gen.blocks().back().block, gen.first_miner_, dummy, send, newest_hf).with_fee(fee).with_extra(burn_extra).build();
