@@ -1,4 +1,4 @@
-packages:=boost openssl zeromq cppzmq expat ldns libiconv hidapi protobuf libusb
+packages:=boost openssl zeromq expat ldns libiconv hidapi protobuf libusb
 native_packages := native_ccache native_protobuf
 
 darwin_native_packages = native_biplist native_ds_store native_mac_alias
