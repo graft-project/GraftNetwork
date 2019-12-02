@@ -474,14 +474,15 @@ namespace service_nodes
     cryptonote::tx_extra_service_node_state_change state_change;
     if (!cryptonote::get_service_node_state_change_from_tx_extra(tx.extra, state_change, hf_version))
     {
-      LOG_PRINT_L1("Transaction: " << cryptonote::get_transaction_hash(tx) << ", did not have valid state change data in tx extra rejecting malformed tx");
+      MERROR("Transaction: " << cryptonote::get_transaction_hash(tx) << ", did not have valid state change data in tx extra rejecting malformed tx");
       return false;
     }
 
     auto it = state_history.find(state_change.block_height);
     if (it == state_history.end())
     {
-      LOG_PRINT_L1("Transaction: " << cryptonote::get_transaction_hash(tx) << ", references quorum at height: " << cryptonote::get_block_hash(block) << ", that is not stored");
+      MERROR("Transaction: " << cryptonote::get_transaction_hash(tx) << " in block " << cryptonote::get_block_height(block) << " " << cryptonote::get_block_hash(block)
+          << " references quorum height " << state_change.block_height << " but that height is not stored!");
       return false;
     }
 
@@ -507,14 +508,14 @@ namespace service_nodes
 
     if (!quorums)
     {
-      LOG_PRINT_L1("Could not get a quorum that could completely validate the votes from state change in tx: " << get_transaction_hash(tx) << ", skipping transaction");
+      MERROR("Could not get a quorum that could completely validate the votes from state change in tx: " << get_transaction_hash(tx) << ", skipping transaction");
       return false;
     }
 
     crypto::public_key key;
     if (!get_pubkey_from_quorum(*quorums->obligations, quorum_group::worker, state_change.service_node_index, key))
     {
-      LOG_PRINT_L1("Retrieving the public key from state change in tx: " << cryptonote::get_transaction_hash(tx) << " failed");
+      MERROR("Retrieving the public key from state change in tx: " << cryptonote::get_transaction_hash(tx) << " failed");
       return false;
     }
 
