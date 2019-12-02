@@ -1,5 +1,5 @@
 packages:=boost openssl zeromq expat ldns libiconv hidapi protobuf libusb
-native_packages := native_ccache native_protobuf
+native_packages := native_protobuf
 
 darwin_native_packages = native_biplist native_ds_store native_mac_alias
 darwin_packages = sodium-darwin ncurses readline 
