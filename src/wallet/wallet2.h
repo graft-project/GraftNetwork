@@ -2188,9 +2188,18 @@ namespace boost
       a & x.subaddr_account;
       a & x.subaddr_indices;
       if (!typename Archive::is_saving())
+      {
         x.rct_config = { rct::RangeProofBorromean, 0 };
+        if (ver < 6)
+        {
+          x.tx_type    = cryptonote::txtype::standard;
+          x.hf_version = cryptonote::network_version_13_enforce_checkpoints;
+        }
+      }
+
       if (ver < 2)
         return;
+      a & x.selected_transfers;
       if (ver < 3)
         return;
       if (ver < 5)

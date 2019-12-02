@@ -2198,8 +2198,7 @@ namespace service_nodes
         info.version = version_t::v3_quorumnet;
       }
       // Make sure we handled any future state version upgrades:
-      assert(info.version == static_cast<version_t>(static_cast<uint8_t>(version_t::_count) - 1));
-
+      assert(info.version == tools::enum_top<decltype(info.version)>);
       service_nodes_infos.emplace(std::move(pubkey_info.pubkey), std::move(pubkey_info.info));
     }
     quorums = quorum_for_serialization_to_quorum_manager(state.quorums);

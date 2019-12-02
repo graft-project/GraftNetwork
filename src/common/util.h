@@ -313,4 +313,7 @@ namespace tools
   template <typename Enum>
   constexpr auto enum_count = static_cast<std::underlying_type_t<Enum>>(Enum::_count);
 
+  template <typename Enum>
+  constexpr Enum enum_top = static_cast<Enum>(enum_count<Enum> - 1);
+
 }
