@@ -223,7 +223,7 @@ namespace service_nodes
       crypto::public_key const &key = quorum.validators[vote.validator_index];
       if (!crypto::check_signature(hash, key, vote.signature))
       {
-        LOG_PRINT_L1("Invalid signatures for votes");
+        LOG_PRINT_L1("Invalid signature for voter " << vote.validator_index << "/" << key);
         vvc.m_signature_not_valid = true;
         return bad_tx(tvc);
       }
