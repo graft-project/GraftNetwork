@@ -1,8 +1,8 @@
 package=sodium-darwin
-$(package)_version=1.0.16
+$(package)_version=1.0.18
 $(package)_download_path=https://download.libsodium.org/libsodium/releases/
 $(package)_file_name=libsodium-$($(package)_version).tar.gz
-$(package)_sha256_hash=eeadc7e1e1bcef09680fb4837d448fbdf57224978f865ac1c16745868fbd0533
+$(package)_sha256_hash=6f504490b342a4f8a4c4a02fc9b866cbef8622d5df4e5452b46be121e46636c1
 
 define $(package)_set_vars
 $(package)_build_opts_darwin=OS=Darwin LIBTOOL="$($(package)_libtool)"
