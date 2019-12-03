@@ -1478,7 +1478,7 @@ namespace service_nodes
 
     cryptonote::network_type nettype = m_blockchain.nettype();
     m_state_history.insert(m_state_history.end(), m_state);
-    m_state.update_from_block(*m_db, nettype, m_state_history, m_alt_state, block, txs, m_service_node_keys);
+    m_state.update_from_block(*m_db, nettype, m_state_history, {} /*m_alt_state*/, block, txs, m_service_node_keys);
   }
 
   void service_node_list::blockchain_detached(uint64_t height, bool /*by_pop_blocks*/)
