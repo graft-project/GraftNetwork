@@ -425,6 +425,7 @@ namespace service_nodes
           cryptonote::BlockchainDB const &db,
           cryptonote::network_type nettype,
           std::set<state_t> const &state_history,
+          std::set<state_t> const &state_archive,
           std::unordered_map<crypto::hash, state_t> const &alt_states,
           const cryptonote::block& block,
           const std::vector<cryptonote::transaction>& txs,
@@ -437,6 +438,7 @@ namespace service_nodes
       // Returns true if a service node changed state (deregistered, decommissioned, or recommissioned)
       bool process_state_change_tx(
           std::set<state_t> const &state_history,
+          std::set<state_t> const &state_archive,
           std::unordered_map<crypto::hash, state_t> const &alt_states,
           cryptonote::network_type nettype,
           const cryptonote::block &block,

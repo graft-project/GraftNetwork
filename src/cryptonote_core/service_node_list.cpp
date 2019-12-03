@@ -457,6 +457,7 @@ namespace service_nodes
   }
 
   bool service_node_list::state_t::process_state_change_tx(std::set<state_t> const &state_history,
+                                                           std::set<state_t> const &state_archive,
                                                            std::unordered_map<crypto::hash, state_t> const &alt_states,
                                                            cryptonote::network_type nettype,
                                                            const cryptonote::block &block,
@@ -477,9 +478,15 @@ namespace service_nodes
     auto it = state_history.find(state_change.block_height);
     if (it == state_history.end())
     {
-      MERROR("Transaction: " << cryptonote::get_transaction_hash(tx) << " in block " << cryptonote::get_block_height(block) << " " << cryptonote::get_block_hash(block)
-          << " references quorum height " << state_change.block_height << " but that height is not stored!");
-      return false;
+      it = state_archive.find(state_change.block_height);
+      if (it == state_archive.end())
+      {
+        MERROR("Transaction: " << cryptonote::get_transaction_hash(tx) << " in block "
+                               << cryptonote::get_block_height(block) << " " << cryptonote::get_block_hash(block)
+                               << " references quorum height " << state_change.block_height
+                               << " but that height is not stored!");
+        return false;
+      }
     }
 
     quorum_manager const *quorums = &it->quorums;
@@ -1296,6 +1303,7 @@ namespace service_nodes
   void service_node_list::state_t::update_from_block(cryptonote::BlockchainDB const &db,
                                                      cryptonote::network_type nettype,
                                                      std::set<state_t> const &state_history,
+                                                     std::set<state_t> const &state_archive,
                                                      std::unordered_map<crypto::hash, state_t> const &alt_states,
                                                      const cryptonote::block &block,
                                                      const std::vector<cryptonote::transaction> &txs,
@@ -1367,7 +1375,7 @@ namespace service_nodes
       }
       else if (tx.type == cryptonote::txtype::state_change)
       {
-        need_swarm_update += process_state_change_tx(state_history, alt_states, nettype, block, tx, my_keys);
+        need_swarm_update += process_state_change_tx(state_history, state_archive, alt_states, nettype, block, tx, my_keys);
       }
       else if (tx.type == cryptonote::txtype::key_image_unlock)
       {
@@ -1466,7 +1474,7 @@ namespace service_nodes
 
     cryptonote::network_type nettype = m_blockchain.nettype();
     m_state_history.insert(m_state_history.end(), m_state);
-    m_state.update_from_block(*m_db, nettype, m_state_history, m_alt_state, block, txs, m_service_node_keys);
+    m_state.update_from_block(*m_db, nettype, m_state_history, m_state_archive, m_alt_state, block, txs, m_service_node_keys);
   }
 
   void service_node_list::blockchain_detached(uint64_t height, bool /*by_pop_blocks*/)
@@ -1748,7 +1756,7 @@ namespace service_nodes
     }
 
     state_t alt_state = *starting_state;
-    alt_state.update_from_block(*m_db, m_blockchain.nettype(), m_state_history, m_alt_state, block, txs, m_service_node_keys);
+    alt_state.update_from_block(*m_db, m_blockchain.nettype(), m_state_history, m_state_archive, m_alt_state, block, txs, m_service_node_keys);
     m_alt_state[block_hash] = std::move(alt_state);
 
     if (checkpoint)
@@ -2241,7 +2249,7 @@ namespace service_nodes
               state_t long_term_state                  = entry;
               cryptonote::block const &block           = m_db->get_block_from_height(long_term_state.height + 1);
               std::vector<cryptonote::transaction> txs = m_db->get_tx_list(block.tx_hashes);
-              long_term_state.update_from_block(*m_db, m_blockchain.nettype(), {} /*state_history*/, {} /*alt_states*/, block, txs, nullptr /*my_keys*/);
+              long_term_state.update_from_block(*m_db, m_blockchain.nettype(), {} /*state_history*/, {} /*state_archive*/, {} /*alt_states*/, block, txs, nullptr /*my_keys*/);
 
               entry.service_nodes_infos                = {};
               entry.key_image_blacklist                = {};
