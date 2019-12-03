@@ -322,7 +322,7 @@ public:
 
     using iterator = quorum_conn_iterator;
     iterator begin() const { return begin_; }
-    constexpr iterator end() const { return {}; }
+    static constexpr iterator end() { return {}; }
 };
 
 /// Iterable class that lets you iterator through peer indices of expected inbound connections for
@@ -337,7 +337,7 @@ public:
 
     using iterator = quorum_conn_iterator;
     iterator begin() const { return begin_; }
-    constexpr iterator end() const { return {}; }
+    static constexpr iterator end() { return {}; }
 };
 
 }

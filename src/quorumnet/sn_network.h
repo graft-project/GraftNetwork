@@ -530,7 +530,7 @@ bt_dict send_control_data(const std::string &cmd, const T &...opts) {
 #ifdef __cpp_fold_expressions
     (detail::apply_send_option(parts, control_data, opts),...);
 #else
-    std::initializer_list<int>{(detail::apply_send_option(parts, control_data, opts), 0)...};
+    (void) std::initializer_list<int>{(detail::apply_send_option(parts, control_data, opts), 0)...};
 #endif
 
     control_data["send"] = std::move(parts);

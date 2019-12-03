@@ -33,6 +33,8 @@ set(cryptonote_protocol_sources
   block_queue.cpp
   cryptonote_protocol_handler.inl
   quorumnet.cpp
+  core_protocol_instantiation.cpp
+  p2p_net_node_instantiation.cpp
 )
 
 set(cryptonote_protocol_headers)

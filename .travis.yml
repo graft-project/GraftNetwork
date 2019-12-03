@@ -1,65 +1,86 @@
-sudo: required
-dist: trusty
-os: linux
-language: minimal
+language: cpp
+dist: bionic
 cache:
+  ccache: true
+  timeout: 600
   directories:
-  - contrib/depends/built
-  - contrib/depends/sdk-sources
-  - $HOME/.ccache
+    - $HOME/Library/Caches/Homebrew
 env:
   global:
-    - MAKEJOBS=-j3
-    - CCACHE_SIZE=100M
-    - CCACHE_TEMPDIR=/tmp/.ccache-temp
     - CCACHE_COMPRESS=1
-    - CCACHE_DIR=$HOME/.ccache
-    - BASE_OUTDIR=$TRAVIS_BUILD_DIR/out
-    - SDK_URL=https://bitcoincore.org/depends-sources/sdks
-    - DOCKER_PACKAGES="build-essential libtool cmake autotools-dev automake pkg-config bsdmainutils curl git ca-certificates ccache"
-  matrix:
-# ARM v7
-    - HOST=arm-linux-gnueabihf PACKAGES="python3 gperf g++-arm-linux-gnueabihf"
-# ARM v8
-    - HOST=aarch64-linux-gnu PACKAGES="python3 gperf g++-aarch64-linux-gnu"
-# i686 Win
-# - HOST=i686-w64-mingw32 DEP_OPTS="NO_QT=1" PACKAGES="python3 g++-mingw-w64-i686 qttools5-dev-tools"
-# i686 Linux
-# - HOST=i686-pc-linux-gnu PACKAGES="gperf cmake g++-multilib python3-zmq"
-# Win64
-    - HOST=x86_64-w64-mingw32 DEP_OPTS="NO_QT=1" PACKAGES="cmake python3 g++-mingw-w64-x86-64 qttools5-dev-tools"
-# x86_64 Linux
-    - HOST=x86_64-unknown-linux-gnu PACKAGES="gperf cmake python3-zmq libdbus-1-dev libharfbuzz-dev"
-# Cross-Mac
-    - HOST=x86_64-apple-darwin11 PACKAGES="cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools python-dev python3-setuptools-git" OSX_SDK=10.11
+    - GCC_COLORS=\ 
 
-before_install:
-    - export PATH=$(echo $PATH | tr ':' "\n" | sed '/\/opt\/python/d' | tr "\n" ":" | sed "s|::|:|g")
-install:
-    - env | grep -E '^(CCACHE_|DISPLAY|CONFIG_SHELL)' | tee /tmp/env
-    - if [[ $HOST = *-mingw32 ]]; then DOCKER_ADMIN="--cap-add SYS_ADMIN"; fi
-    - DOCKER_ID=$(docker run $DOCKER_ADMIN -idt --mount type=bind,src=$TRAVIS_BUILD_DIR,dst=$TRAVIS_BUILD_DIR --mount type=bind,src=$CCACHE_DIR,dst=$CCACHE_DIR -w $TRAVIS_BUILD_DIR --env-file /tmp/env ubuntu:18.04)
-    - DOCKER_EXEC="docker exec $DOCKER_ID"
-    - if [ -n "$DPKG_ADD_ARCH" ]; then $DOCKER_EXEC dpkg --add-architecture "$DPKG_ADD_ARCH" ; fi
-    - travis_retry $DOCKER_EXEC apt-get update
-    - travis_retry $DOCKER_EXEC apt-get install --no-install-recommends --no-upgrade -qq $PACKAGES $DOCKER_PACKAGES
+os: linux
+addons:
+  apt:
+    packages: [libboost-chrono-dev, libboost-date-time-dev, libboost-filesystem-dev, libboost-locale-dev,
+        libboost-thread-dev, libboost-serialization-dev, libboost-program-options-dev, libboost-regex-dev,
+        libboost-system-dev, libssl-dev, libzmq3-dev, libunbound-dev, libevent-dev, libsodium-dev, libreadline-dev,
+        libldns-dev, libgtest-dev, libhidapi-dev, libusb-1.0-0-dev, libprotobuf-dev, protobuf-compiler,
+        libminiupnpc-dev, python3, pkg-config, ccache]
+  homebrew:
+    update: true
+    packages: [cmake, ccache, zeromq, boost, openssl@1.1, unbound, miniupnpc, libsodium, readline, ldns, hidapi, libusb, pkg-config]
+
+jobs:
+  include:
+    - name: "bionic"
+      env: BUILD_TESTS=1
+    - name: "bionic/clang"
+      compiler: clang
+    - name: "bionic/debug"
+      env: CMAKE_BUILD_TYPE=Debug
+    - name: "xenial"
+      dist: xenial
+    - name: "macOS 10.14"
+      os: osx
+      osx_image: xcode11.2
+    - name: "macOS 10.13"
+      os: osx
+      osx_image: xcode9.3
+    - arch: arm64
+    - arch: s390x
+    - arch: ppc64le
+    - name: "Windows cross-compile"
+      addons:
+        apt:
+          packages: [g++-mingw-w64-x86-64, qttools5-dev-tools, python3]
+      before_script:
+        - export HOST=x86_64-w64-mingw32
+        - sudo update-alternatives --set $HOST-g++ $(which $HOST-g++-posix)
+        - sudo update-alternatives --set $HOST-gcc $(which $HOST-gcc-posix)
+        - make -j2 -C contrib/depends HOST=$HOST NO_QT=1
+        - export CMAKE_OPTS="-DCMAKE_TOOLCHAIN_FILE=$TRAVIS_BUILD_DIR/contrib/depends/$HOST/share/toolchain.cmake"
+        - export LD_LIBRARY_PATH=$TRAVIS_BUILD_DIR/contrib/depends/$HOST/lib
+  fast_finish: true
+  allow_failures:
+      - name: "Windows cross-compile"
+
 before_script:
-    - mkdir -p contrib/depends/SDKs contrib/depends/sdk-sources
-    - if [ -n "$OSX_SDK" -a ! -f contrib/depends/sdk-sources/MacOSX${OSX_SDK}.sdk.tar.gz ]; then curl --location --fail $SDK_URL/MacOSX${OSX_SDK}.sdk.tar.gz -o contrib/depends/sdk-sources/MacOSX${OSX_SDK}.sdk.tar.gz; fi
-    - if [ -n "$OSX_SDK" -a -f contrib/depends/sdk-sources/MacOSX${OSX_SDK}.sdk.tar.gz ]; then tar -C contrib/depends/SDKs -xf contrib/depends/sdk-sources/MacOSX${OSX_SDK}.sdk.tar.gz; fi
-    - if [[ $HOST = *-mingw32 ]]; then $DOCKER_EXEC bash -c "update-alternatives --set $HOST-g++ \$(which $HOST-g++-posix)"; fi
-    - if [[ $HOST = *-mingw32 ]]; then $DOCKER_EXEC bash -c "update-alternatives --set $HOST-gcc \$(which $HOST-gcc-posix)"; fi
-    - if [ -z "$NO_DEPENDS" ]; then $DOCKER_EXEC bash -c "CONFIG_SHELL= make $MAKEJOBS -C contrib/depends HOST=$HOST $DEP_OPTS"; fi
+  - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then export PATH="/usr/local/opt/ccache/libexec:$PATH" PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"; fi
+  - if [ "${TRAVIS_COMPILER}" = "clang" ] && ! [ -e /usr/lib/ccache/clang ]; then sudo ln -s ../../bin/ccache /usr/lib/ccache/clang; sudo ln -s ../../bin/ccache /usr/lib/ccache/clang++; fi
+  - echo $TRAVIS_COMMIT_RANGE
+  - git log --format=fuller -1
 script:
-    - git submodule init && git submodule update
-    - export TRAVIS_COMMIT_LOG=`git log --format=fuller -1`
-    - OUTDIR=$BASE_OUTDIR/$TRAVIS_PULL_REQUEST/$TRAVIS_JOB_NUMBER-$HOST
-    - if [ -z "$NO_DEPENDS" ]; then $DOCKER_EXEC ccache --max-size=$CCACHE_SIZE; fi
-    # TODO(loki): Tests push the build > 50mins and so doesn't give us useful metrics on the CI.
-    # - if [ "$RUN_TESTS" = true ]; then $DOCKER_EXEC bash -c "mkdir build && cd build && cmake -D BUILD_TESTS=ON CMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=$TRAVIS_BUILD_DIR/contrib/depends/$HOST/share/toolchain.cmake .. && make $MAKEJOBS && make $MAKEJOBS ARGS=\"-E libwallet_api_tests\" test"; fi
-    # - if [ "$RUN_TESTS" = false ]; then $DOCKER_EXEC bash -c "mkdir build && cd build && cmake -DCMAKE_TOOLCHAIN_FILE=$TRAVIS_BUILD_DIR/contrib/depends/$HOST/share/toolchain.cmake .. && make $MAKEJOBS"; fi
-    - $DOCKER_EXEC bash -c "mkdir build && cd build && cmake -DCMAKE_TOOLCHAIN_FILE=$TRAVIS_BUILD_DIR/contrib/depends/$HOST/share/toolchain.cmake .. && make $MAKEJOBS"
-    - export LD_LIBRARY_PATH=$TRAVIS_BUILD_DIR/contrib/depends/$HOST/lib
-after_script:
-    - echo $TRAVIS_COMMIT_RANGE
-    - echo $TRAVIS_COMMIT_LOG
+  - mkdir build
+  - cd build
+  - if [ -z "$CMAKE_BUILD_TYPE" ]; then CMAKE_BUILD_TYPE=Release; fi
+  - CMAKE_OPTS="$CMAKE_OPTS -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE"
+  - if [ -n "$BUILD_TESTS" ]; then CMAKE_OPTS="$CMAKE_OPTS -DBUILD_TESTS=$BUILD_TESTS"; fi
+  - cmake $CMAKE_OPTS ..
+  - |
+    set -e
+    if [ -z "$TRAVIS_CPU_ARCH" ] || [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then
+      make -j2
+    else
+      # The wallet code is too bloated to be compiled at -j2 with only 4GB ram, so do the huge ones
+      # at -j1 and the rest at -j2.
+      #
+      make -j1 obj_rpc obj_wallet # core_rpc_server.cpp and wallet2.cpp are hogs
+      make -j2 daemon device_trezor # covers most things
+      make -j1 wallet_rpc_server # another hog, which depends on much of the above
+      make -j2 # everything else
+    fi
+  - if [ -n "$RUN_TESTS" ]; then make ARGS="-E libwallet_api_tests" test; fi
+before_cache:
+  - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then brew cleanup; fi
