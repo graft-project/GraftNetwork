@@ -276,10 +276,6 @@ void connection_basic::update_traffic_limits(size_t packet_size)
 }
 
 
-void connection_basic::set_start_time() {
-	CRITICAL_REGION_LOCAL(	network_throttle_manager::m_lock_get_global_throttle_out );
-	m_start_time = network_throttle_manager::get_global_throttle_out().get_time_seconds();
-}
 
 void connection_basic::do_send_handler_write(const void* ptr , size_t cb ) {
         // No sleeping here; sleeping is done once and for all in connection<t_protocol_handler>::handle_write

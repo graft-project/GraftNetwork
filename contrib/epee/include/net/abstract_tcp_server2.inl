@@ -629,15 +629,32 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     
     // No sleeping here; sleeping is done once and for all in "handle_write"
 
-    m_send_que_lock.lock(); // *** critical *** // NIH principle?
-                             // One could use boost::recursive_mutex and boost::recursive_mutex::scoped_lock
+    m_send_que_lock.lock(); // *** critical ***
     epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){m_send_que_lock.unlock();});
 
-    while (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT) {// Than means that connection too slow,
-                                                                    // 1024 packs maxsize of 64K should be enough
-      MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
-      self->shutdown();
-      return false;
+    long int retry=0;
+    const long int retry_limit = 5*4;
+    while (m_send_que.size() > ABSTRACT_SERVER_SEND_QUE_MAX_COUNT)
+    {
+        retry++;
+
+        /* if ( ::cryptonote::core::get_is_stopping() ) { // TODO re-add fast stop
+            _fact("ABORT queue wait due to stopping");
+            return false; // aborted
+        }*/
+
+        long int ms = 250 + (rand()%50);
+        MDEBUG("Sleeping because QUEUE is FULL, in " << __FUNCTION__ << " for " << ms << " ms before packet_size="<<cb); // XXX debug sleep
+        m_send_que_lock.unlock();
+        boost::this_thread::sleep(boost::posix_time::milliseconds( ms ) );
+        m_send_que_lock.lock();
+        _dbg1("sleep for queue: " << ms);
+
+        if (retry > retry_limit) {
+            MWARNING("send que size is more than ABSTRACT_SERVER_SEND_QUE_MAX_COUNT(" << ABSTRACT_SERVER_SEND_QUE_MAX_COUNT << "), shutting down connection");
+            shutdown();
+            return false;
+        }
     }
 
     m_send_que.resize(m_send_que.size()+1);
@@ -654,18 +671,19 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     else
     { // no active operation
 
-        if(m_send_que.size()!=1) {// It means that we've forgotten protect m_send_que
-                                  // by m_send_que_lock somewhere in the code
+        if(m_send_que.size()!=1)
+        {
             _erro("Looks like no active operations, but send que size != 1!!");
             return false;
         }
 
         auto size_now = m_send_que.front().size();
         MDEBUG("do_send_chunk() NOW SENSD: packet="<<size_now<<" B");
+        if (speed_limit_is_enabled())
+			do_send_handler_write( ptr , size_now ); // (((H)))
 
         CHECK_AND_ASSERT_MES( size_now == m_send_que.front().size(), false, "Unexpected queue size");
         reset_timer(get_default_timeout(), false);
-        boost::asio::async_write(socket_, boost::asio::buffer(m_send_que.front().data(), size_now ) ,
             async_write(boost::asio::buffer(m_send_que.front().data(), size_now ) ,
                                  strand_.wrap(
                                  boost::bind(&connection<t_protocol_handler>::handle_write, self, _1, _2)
@@ -673,10 +691,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
                                  );
         //_dbg3("(chunk): " << size_now);
         //logger_handle_net_write(size_now);
-        //_dbg3("(chunk): " << size_now);
-        //logger_handle_net_write(size_now);
         //_info("[sock " << socket().native_handle() << "] Async send requested " << m_send_que.front().size());
->>>>>>> monero/release-v0.14
     }
     
     //do_send_handler_stop( ptr , cb ); // empty function
@@ -691,7 +706,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   {
     unsigned count;
     try { count = host_count(m_host); } catch (...) { count = 0; }
-    const unsigned shift = get_state().sock_count > AGGRESSIVE_TIMEOUT_THRESHOLD ? std::min(std::max(count, 1u) - 1, 8u) : 0;
+    const unsigned shift = std::min(std::max(count, 1u) - 1, 8u);
     boost::posix_time::milliseconds timeout(0);
     if (m_local)
       timeout = boost::posix_time::milliseconds(DEFAULT_TIMEOUT_MS_LOCAL >> shift);
@@ -730,6 +745,8 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   template<class t_protocol_handler>
   void connection<t_protocol_handler>::reset_timer(boost::posix_time::milliseconds ms, bool add)
   {
+    if (m_connection_type != e_connection_type_RPC)
+      return;
     MTRACE("Setting " << ms << " expiry");
     auto self = safe_shared_from_this();
     if(!self)
@@ -815,75 +832,30 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   }
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
-  void connection<t_protocol_handler>::handle_write(const boost::system::error_code& e, size_t bytes_sent)
+  void connection<t_protocol_handler>::handle_write(const boost::system::error_code& e, size_t cb)
   {
     TRY_ENTRY();
-<<<<<<< HEAD
-    LOG_TRACE_CC(context, "[sock " << socket_.native_handle() << "] Async send calledback " << bytes_sent);
-
-    if (e) { // my crutch
-      for (auto entry : on_write_callback_list) { // my "crutch"
-          m_send_que_lock.lock();
-          connection<t_protocol_handler>::callback_type callback = entry.second;
-          m_send_que_lock.unlock();
-          if (callback) {
-              (*callback.get())(e);
-          }
-
-      }
-      m_send_que_lock.lock();
-      on_write_callback_list.clear();
-      m_send_que_lock.unlock();
-
-||||||| merged common ancestors
-    LOG_TRACE_CC(context, "[sock " << socket_.native_handle() << "] Async send calledback " << cb);
-=======
     LOG_TRACE_CC(context, "[sock " << socket().native_handle() << "] Async send calledback " << cb);
->>>>>>> monero/release-v0.14
 
-<<<<<<< HEAD
-      _dbg1("[sock " << socket_.native_handle() << "] Some problems at write: " << e.message() << ':' << e.value());
-||||||| merged common ancestors
-    if (e)
-    {
-      _dbg1("[sock " << socket_.native_handle() << "] Some problems at write: " << e.message() << ':' << e.value());
-=======
     if (e)
     {
       _dbg1("[sock " << socket().native_handle() << "] Some problems at write: " << e.message() << ':' << e.value());
->>>>>>> monero/release-v0.14
       shutdown();
       return;
     }
+    logger_handle_net_write(cb);
 
-#if 0
                 // The single sleeping that is needed for correctly handling "out" speed throttling
 		if (speed_limit_is_enabled()) {
 			sleep_before_packet(cb, 1, 1);
 		}
-#endif
 
     bool do_shutdown = false;
-    connection<t_protocol_handler>::callback_type callback; // my "crutch"
     CRITICAL_REGION_BEGIN(m_send_que_lock);
-    if(m_send_que.empty()) // we've forgotten protect m_send_que by m_send_mutex_lock
+    if(m_send_que.empty())
     {
       _erro("[sock " << socket().native_handle() << "] m_send_que.size() == 0 at handle_write!");
       return;
-    }
-
-    if (on_write_callback_list.size()) { // my crutch
-      std::pair<int64_t, callback_type>& next_callback = on_write_callback_list.front();
-      next_callback.first -= bytes_sent;
-      int64_t tmp = next_callback.first;
-      if (tmp <= 0) {
-        callback = next_callback.second;
-        on_write_callback_list.pop_front();
-        if (on_write_callback_list.size() && tmp < 0) {
-            std::pair<int64_t, callback_type>& next_callback = on_write_callback_list.front();
-            next_callback.first += tmp;
-        }
-      }
     }
 
     m_send_que.pop_front();
@@ -899,31 +871,6 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 		reset_timer(get_default_timeout(), false);
 		auto size_now = m_send_que.front().size();
 		MDEBUG("handle_write() NOW SENDS: packet="<<size_now<<" B" <<", from  queue size="<<m_send_que.size());
-<<<<<<< HEAD
-#if 0 // Hang io thread for any time by sleep instruction is a bad idea
-        if (speed_limit_is_enabled())
-            do_send_handler_write_from_queue(e, m_send_que.front().size() , m_send_que.size()); // (((H)))
-#endif // Comment thread sleep instructions
-
-        // Whether we've forgotten somewhere protect m_send_que by m_send_que_lock
-        CHECK_AND_ASSERT_MES( size_now == m_send_que.front().size(), void(), "Unexpected queue size");
-
-		boost::asio::async_write(socket_, boost::asio::buffer(m_send_que.front().data(), size_now) , 
-         strand_.wrap( // Was commented. Why?
-          boost::bind(&connection<t_protocol_handler>::handle_write, connection<t_protocol_handler>::shared_from_this(), _1, _2)
-                 )
-        );
-||||||| merged common ancestors
-		if (speed_limit_is_enabled())
-			do_send_handler_write_from_queue(e, m_send_que.front().size() , m_send_que.size()); // (((H)))
-		CHECK_AND_ASSERT_MES( size_now == m_send_que.front().size(), void(), "Unexpected queue size");
-		boost::asio::async_write(socket_, boost::asio::buffer(m_send_que.front().data(), size_now) , 
-        // strand_.wrap(
-          boost::bind(&connection<t_protocol_handler>::handle_write, connection<t_protocol_handler>::shared_from_this(), _1, _2)
-				// )
-        );
-      //_dbg3("(normal)" << size_now);
-=======
 		if (speed_limit_is_enabled())
 			do_send_handler_write_from_queue(e, m_send_que.front().size() , m_send_que.size()); // (((H)))
 		CHECK_AND_ASSERT_MES( size_now == m_send_que.front().size(), void(), "Unexpected queue size");
@@ -933,33 +880,19 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 			  )
           );
       //_dbg3("(normal)" << size_now);
->>>>>>> monero/release-v0.14
     }
     CRITICAL_REGION_END();
-    if (callback)
-        (*callback.get())(e);
 
 
     if(do_shutdown)
     {
-      boost::system::error_code ec =
-              boost::system::errc::make_error_code(boost::system::errc::operation_canceled);
-      for (auto entry : on_write_callback_list) { // my "crutch"
-        m_send_que_lock.lock();
-        connection<t_protocol_handler>::callback_type callback = entry.second;
-        m_send_que_lock.unlock();
-        if (callback)
-          (*callback.get())(ec);
-      }
-      m_send_que_lock.lock();
-      on_write_callback_list.clear();
-      m_send_que_lock.unlock();
-
       shutdown();
     }
     CATCH_ENTRY_L0("connection<t_protocol_handler>::handle_write", void());
   }
 
+  
+#if 0  
   template<class t_protocol_handler>
   void connection<t_protocol_handler>::handle_write_after_delay1(const boost::system::error_code& e, size_t bytes_sent)
   {
@@ -969,8 +902,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
   void connection<t_protocol_handler>::handle_write_after_delay2(const boost::system::error_code& e, size_t bytes_sent)
   {
   }
-
-
+#endif
 
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
@@ -983,7 +915,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
   template<class t_protocol_handler>
   bool connection<t_protocol_handler>::speed_limit_is_enabled() const {
-        return m_connection_type != e_connection_type_RPC ;
+		return m_connection_type != e_connection_type_RPC ;
 	}
 
   /************************************************************************/
@@ -1311,51 +1243,7 @@ POP_WARNINGS
   template<class t_protocol_handler>
   bool boosted_tcp_server<t_protocol_handler>::add_connection(t_connection_context& out, boost::asio::ip::tcp::socket&& sock, network_address real_remote, epee::net_utils::ssl_support_t ssl_support)
   {
-<<<<<<< HEAD
-    TRY_ENTRY();
-
-    connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_config, m_sock_count, m_sock_number, m_pfilter, m_connection_type) );
-    connections_mutex.lock();
-    connections_.push_back(std::make_pair(boost::get_system_time(), new_connection_l));
-    auto remove_connection = [](std::deque<std::pair<boost::system_time, connection_ptr>>& connections, const connection_ptr& c) {
-      for (auto it=connections.begin(); it!=connections.end(); ++it)
-        if (it->second == c)
-        {
-          connections.erase(it);
-          return;
-        }
-    };
-    MDEBUG("connections_ size now " << connections_.size());
-    connections_mutex.unlock();
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); remove_connection(connections_, new_connection_l); });
-    boost::asio::ip::tcp::socket&  sock_ = new_connection_l->socket();
-    
-    //////////////////////////////////////////////////////////////////////////
-    boost::asio::ip::tcp::resolver resolver(io_service_);
-    boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), adr, port, boost::asio::ip::tcp::resolver::query::canonical_name);
-    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
-    boost::asio::ip::tcp::resolver::iterator end;
-    if(iterator == end)
-||||||| merged common ancestors
-    TRY_ENTRY();
-
-    connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_config, m_sock_count, m_sock_number, m_pfilter, m_connection_type) );
-    connections_mutex.lock();
-    connections_.insert(new_connection_l);
-    MDEBUG("connections_ size now " << connections_.size());
-    connections_mutex.unlock();
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); connections_.erase(new_connection_l); });
-    boost::asio::ip::tcp::socket&  sock_ = new_connection_l->socket();
-    
-    //////////////////////////////////////////////////////////////////////////
-    boost::asio::ip::tcp::resolver resolver(io_service_);
-    boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), adr, port, boost::asio::ip::tcp::resolver::query::canonical_name);
-    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
-    boost::asio::ip::tcp::resolver::iterator end;
-    if(iterator == end)
-=======
     if(std::addressof(get_io_service()) == std::addressof(GET_IO_SERVICE(sock)))
->>>>>>> monero/release-v0.14
     {
       connection_ptr conn(new connection<t_protocol_handler>(std::move(sock), m_state, m_connection_type, ssl_support));
       if(conn->start(false, 1 < m_threads_count, std::move(real_remote)))
