@@ -234,9 +234,8 @@ namespace net_utils
 
 
 
-  namespace http
-  {
-
+	namespace http
+	{
 
 		template<typename net_client_type>
 		class http_simple_client_template: public i_target_handler
@@ -297,9 +296,8 @@ namespace net_utils
 				, m_lock()
 			{}
 
-
-      const std::string &get_host() const { return m_host_buff; }
-      const std::string &get_port() const { return m_port; }
+			const std::string &get_host() const { return m_host_buff; };
+			const std::string &get_port() const { return m_port; };
 
 			bool set_server(const std::string& address, boost::optional<login> user, ssl_options_t ssl_options = ssl_support_t::e_ssl_support_autodetect)
 			{
@@ -480,48 +478,58 @@ namespace net_utils
 				{
 					if(need_more_data)
 					{
-				m_state = reciev_machine_state_error;
-					}
-			}
-			need_more_data = false;
-				}
-				switch(m_state)
-				{
-				case reciev_machine_state_header:
-			keep_handling = handle_header(recv_buffer, need_more_data);
-			break;
-				case reciev_machine_state_body_content_len:
-			keep_handling = handle_body_content_len(recv_buffer, need_more_data);
-			break;
-				case reciev_machine_state_body_connection_close:
-			keep_handling = handle_body_connection_close(recv_buffer, need_more_data);
-			break;
-				case reciev_machine_state_body_chunked:
-			keep_handling = handle_body_body_chunked(recv_buffer, need_more_data);
-			break;
-				case reciev_machine_state_done:
-			keep_handling = false;
-			break;
-				case reciev_machine_state_error:
-			keep_handling = false;
-			break;
-				}
-
-                }
-                m_header_cache.clear();
-                if(m_state != reciev_machine_state_error)
-                {
-                    if(m_response_info.m_header_info.m_connection.size() && !string_tools::compare_no_case("close", m_response_info.m_header_info.m_connection))
-                        disconnect();
-
-                    return true;
-                }
-                else
-                {
-                    LOG_PRINT_L3("Returning false because of wrong state machine. state: " << m_state);
-                    return false;
-                }
+						if(!m_net_client.recv(recv_buffer, timeout))
+						{
+							MERROR("Unexpected recv fail");
+							m_state = reciev_machine_state_error;
             }
+            if(!recv_buffer.size())
+            {
+              //connection is going to be closed
+              if(reciev_machine_state_body_connection_close != m_state)
+              {
+                m_state = reciev_machine_state_error;
+              }
+            }
+            need_more_data = false;
+					}
+					switch(m_state)
+					{
+					case reciev_machine_state_header:
+						keep_handling = handle_header(recv_buffer, need_more_data);
+						break;
+					case reciev_machine_state_body_content_len:
+						keep_handling = handle_body_content_len(recv_buffer, need_more_data);
+						break;
+					case reciev_machine_state_body_connection_close:
+						keep_handling = handle_body_connection_close(recv_buffer, need_more_data);
+						break;
+					case reciev_machine_state_body_chunked:
+						keep_handling = handle_body_body_chunked(recv_buffer, need_more_data);
+						break;
+					case reciev_machine_state_done:
+						keep_handling = false;
+						break;
+					case reciev_machine_state_error:
+						keep_handling = false;
+						break;
+					}
+
+				}
+				m_header_cache.clear();
+				if(m_state != reciev_machine_state_error)
+				{
+					if(m_response_info.m_header_info.m_connection.size() && !string_tools::compare_no_case("close", m_response_info.m_header_info.m_connection))
+						disconnect();
+
+					return true;
+				}
+				else
+                {
+                  LOG_PRINT_L3("Returning false because of wrong state machine. state: " << m_state);
+                  return false;
+                }
+			}
 			//---------------------------------------------------------------------------
 			inline
 				bool handle_header(std::string& recv_buff, bool& need_more_data)
