@@ -660,7 +660,7 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
   fill_nonce(blk, TEST_DEFAULT_DIFFICULTY, height);
   entry.txs = tx_list;
   entry.service_node_state = prev.service_node_state;
-  entry.service_node_state.update_from_block(db_, cryptonote::FAKECHAIN, state_history_, {} /*alt_states*/, entry.block, entry.txs, nullptr);
+  entry.service_node_state.update_from_block(db_, cryptonote::FAKECHAIN, state_history_, {} /*state_archive*/, {} /*alt_states*/, entry.block, entry.txs, nullptr);
 
   uint64_t block_reward, block_reward_unpenalized;
   cryptonote::get_base_block_reward(epee::misc_utils::median(block_weights), entry.block_weight, prev.already_generated_coins, block_reward, block_reward_unpenalized, hf_version, height);
