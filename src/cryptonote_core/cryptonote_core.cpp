@@ -366,7 +366,9 @@ namespace cryptonote
     command_line::add_arg(desc, arg_quorumnet_port);
     command_line::add_arg(desc, arg_pad_transactions);
     command_line::add_arg(desc, arg_block_notify);
+#if 0 // TODO(loki): Pruning not supported because of Service Node List
     command_line::add_arg(desc, arg_prune_blockchain);
+#endif
     command_line::add_arg(desc, arg_reorg_notify);
     command_line::add_arg(desc, arg_block_rate_notify);
     command_line::add_arg(desc, arg_keep_alt_blocks);
