@@ -1327,6 +1327,7 @@ public:
 
   bool build()
   {
+    m_tx_params.set_hf_version(m_hf_version);
     m_finished = true;
 
     std::vector<cryptonote::tx_source_entry> sources;
