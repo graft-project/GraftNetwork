@@ -1354,7 +1354,7 @@ struct loki_blockchain_entry
   std::vector<cryptonote::transaction>       txs;
   uint64_t                                   block_weight;
   uint64_t                                   already_generated_coins;
-  service_nodes::service_node_list::state_t  service_node_state;
+  service_nodes::service_node_list::state_t  service_node_state{nullptr};
   bool                                       checkpointed;
   cryptonote::checkpoint_t                   checkpoint;
 };
@@ -1387,7 +1387,7 @@ struct loki_service_node_contribution
 struct loki_chain_generator
 {
   mutable std::unordered_map<crypto::public_key, crypto::secret_key>  service_node_keys_;
-  std::set<service_nodes::service_node_list::state_t>                 state_history_;
+  service_nodes::service_node_list::state_set                         state_history_;
 
   service_nodes::service_node_keys get_cached_keys(const crypto::public_key &pubkey) const;
 

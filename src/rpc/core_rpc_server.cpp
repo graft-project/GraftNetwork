@@ -2777,13 +2777,25 @@ namespace cryptonote
         ? (info.is_decommissioned() ? info.last_decommission_height : info.active_since_height) : info.last_reward_block_height;
     entry.earned_downtime_blocks        = service_nodes::quorum_cop::calculate_decommission_credit(info, current_height);
     entry.decommission_count            = info.decommission_count;
-    entry.service_node_version          = info.proof->version;
-    entry.public_ip                     = string_tools::get_ip_string_from_int32(info.proof->public_ip);
-    entry.storage_port                  = info.proof->storage_port;
-    entry.storage_server_reachable      = info.proof->storage_server_reachable;
-    entry.pubkey_ed25519                = info.proof->pubkey_ed25519 ? string_tools::pod_to_hex(info.proof->pubkey_ed25519) : "";
-    entry.pubkey_x25519                 = info.proof->pubkey_x25519 ? string_tools::pod_to_hex(info.proof->pubkey_x25519) : "";
-    entry.quorumnet_port                = info.proof->quorumnet_port;
+
+    m_core.get_service_node_list().access_proof(sn_info.pubkey, [&entry](const auto &proof) {
+        entry.service_node_version     = proof.version;
+        entry.public_ip                = string_tools::get_ip_string_from_int32(proof.public_ip);
+        entry.storage_port             = proof.storage_port;
+        entry.storage_server_reachable = proof.storage_server_reachable;
+        entry.pubkey_ed25519           = proof.pubkey_ed25519 ? string_tools::pod_to_hex(proof.pubkey_ed25519) : "";
+        entry.pubkey_x25519            = proof.pubkey_x25519 ? string_tools::pod_to_hex(proof.pubkey_x25519) : "";
+        entry.quorumnet_port           = proof.quorumnet_port;
+
+        // NOTE: Service Node Testing
+        entry.last_uptime_proof                  = proof.timestamp;
+        entry.storage_server_reachable           = proof.storage_server_reachable;
+        entry.storage_server_reachable_timestamp = proof.storage_server_reachable_timestamp;
+        entry.version_major                      = proof.version[0];
+        entry.version_minor                      = proof.version[1];
+        entry.version_patch                      = proof.version[2];
+        entry.votes = std::vector<service_nodes::checkpoint_vote_record>(proof.votes.begin(), proof.votes.end());
+    });
 
     entry.contributors.reserve(info.contributors.size());
 
@@ -2815,14 +2827,6 @@ namespace cryptonote
     entry.swarm_id                      = info.swarm_id;
     entry.registration_hf_version       = info.registration_hf_version;
 
-    // NOTE: Service Node Testing
-    entry.last_uptime_proof                  = info.proof->timestamp;
-    entry.storage_server_reachable           = info.proof->storage_server_reachable;
-    entry.storage_server_reachable_timestamp = info.proof->storage_server_reachable_timestamp;
-    entry.version_major                      = info.proof->version[0];
-    entry.version_minor                      = info.proof->version[1];
-    entry.version_patch                      = info.proof->version[2];
-    entry.votes = std::vector<service_nodes::checkpoint_vote_record>(info.proof->votes.begin(), info.proof->votes.end());
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_service_nodes(const COMMAND_RPC_GET_SERVICE_NODES::request& req, COMMAND_RPC_GET_SERVICE_NODES::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
@@ -2892,7 +2896,7 @@ namespace cryptonote
       }
     }
 
-    std::vector<service_nodes::service_node_pubkey_info> sn_infos = m_core.get_service_node_list_state({});
+    std::vector<service_nodes::service_node_pubkey_info> sn_infos = m_core.get_service_node_list_state();
 
     if (req.active_only) {
       const auto end =

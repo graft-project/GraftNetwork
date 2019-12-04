@@ -362,7 +362,7 @@ namespace service_nodes
   bool verify_vote_signature(uint8_t hf_version, const quorum_vote_t &vote, cryptonote::vote_verification_context &vvc, const service_nodes::quorum &quorum)
   {
     bool result = true;
-    if (vote.type >= quorum_type::_count)
+    if (vote.type > tools::enum_top<quorum_type>)
     {
       vvc.m_invalid_vote_type = true;
       result = false;

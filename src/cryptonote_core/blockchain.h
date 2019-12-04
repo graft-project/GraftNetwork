@@ -928,6 +928,9 @@ namespace cryptonote
      */
     bool for_all_outputs(uint64_t amount, std::function<bool(uint64_t height)>) const;
 
+    /// Returns true if we have a BlockchainDB reference, i.e. if we have been initialized
+    bool has_db() const { return m_db; }
+
     /**
      * @brief get a reference to the BlockchainDB in use by Blockchain
      *
