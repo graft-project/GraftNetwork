@@ -39,8 +39,6 @@
 #include "hash-ops.h"
 #include "oaes_lib.h"
 #include "variant2_int_sqrt.h"
-#include "variant4_random_math.h"
-// #include "CryptonightR_JIT.h" // TODO: check if needed for Graft
 
 #include <errno.h>
 #include <string.h>
@@ -54,41 +52,6 @@
 
 extern void aesb_single_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
 extern void aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
-
-static void local_abort(const char *msg)
-{
-  fprintf(stderr, "%s\n", msg);
-#ifdef NDEBUG
-  _exit(1);
-#else
-  abort();
-#endif
-}
-
-volatile int use_v4_jit_flag = -1;
-
-static inline int use_v4_jit(void)
-{
-#if defined(__x86_64__)
-
-  if (use_v4_jit_flag != -1)
-    return use_v4_jit_flag;
-
-  const char *env = getenv("MONERO_USE_CNV4_JIT");
-  if (!env) {
-    use_v4_jit_flag = 1;
-  }
-  else if (!strcmp(env, "0") || !strcmp(env, "no")) {
-    use_v4_jit_flag = 0;
-  }
-  else {
-    use_v4_jit_flag = 1;
-  }
-  return use_v4_jit_flag;
-#else
-  return 0;
-#endif
-}
 
 #define VARIANT1_1(p) \
   do if (variant == 1) \
@@ -224,7 +187,7 @@ static inline int use_v4_jit(void)
 #if defined DBL_MANT_DIG && (DBL_MANT_DIG >= 50)
   // double precision floating point type has enough bits of precision on current platform
   #define VARIANT2_PORTABLE_INTEGER_MATH(b, ptr) \
-    do if ((variant == 2) || (variant == 3)) \
+    do if (variant >= 2) \
     { \
       VARIANT2_INTEGER_MATH_DIVISION_STEP(b, ptr); \
       VARIANT2_INTEGER_MATH_SQRT_STEP_FP64(); \
@@ -234,7 +197,7 @@ static inline int use_v4_jit(void)
   // double precision floating point type is not good enough on current platform
   // fall back to the reference code (integer only)
   #define VARIANT2_PORTABLE_INTEGER_MATH(b, ptr) \
-    do if ((variant == 2) || (variant == 3)) \
+    do if (variant >= 2) \
     { \
       VARIANT2_INTEGER_MATH_DIVISION_STEP(b, ptr); \
       VARIANT2_INTEGER_MATH_SQRT_STEP_REF(); \
@@ -242,13 +205,13 @@ static inline int use_v4_jit(void)
 #endif
 
 #define VARIANT2_2_PORTABLE() \
-    if (variant == 2 || variant == 3) { \
+    if (variant >= 2) { \
       xor_blocks(long_state + (j ^ 0x10), d); \
       xor_blocks(d, long_state + (j ^ 0x20)); \
     }
 
 #define VARIANT2_2() \
-  do if (variant == 2 || variant == 3) \
+  do if (variant >= 2) \
   { \
     *U64(local_hp_state + (j ^ 0x10)) ^= SWAP64LE(hi); \
     *(U64(local_hp_state + (j ^ 0x10)) + 1) ^= SWAP64LE(lo); \
@@ -340,7 +303,6 @@ static inline int use_v4_jit(void)
   p = U64(&local_hp_state[j]); \
   b[0] = p[0]; b[1] = p[1]; \
   VARIANT2_INTEGER_MATH_SSE2(b, c); \
-  VARIANT4_RANDOM_MATH(a, b, r, &_b, &_b1); \
   __mul(); \
   VARIANT2_2(); \
   VARIANT2_SHUFFLE_ADD_SSE2(local_hp_state, j, reverse); \
@@ -681,8 +643,7 @@ void slow_hash_allocate_state(void)
         hp_allocated = 0;
         hp_state = (uint8_t *) malloc(MEMORY);
     }
-
-
+}
 
 /**
  *@brief frees the state allocated by slow_hash_allocate_state
@@ -703,7 +664,6 @@ void slow_hash_free_state(void)
         munmap(hp_state, MEMORY);
 #endif
     }
-
 
     hp_state = NULL;
     hp_allocated = 0;
