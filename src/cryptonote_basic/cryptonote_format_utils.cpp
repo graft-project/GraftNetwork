@@ -39,7 +39,7 @@
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include "ringct/rctSigs.h"
-// #include "serialization/binary_utils.h" // TODO: graft: remove if not needed
+#include "serialization/binary_utils.h" 
 
 using namespace epee;
 
