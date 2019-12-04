@@ -2677,14 +2677,14 @@ bool t_rpc_command_executor::print_sn(const std::vector<std::string> &args)
       if (req.service_node_pubkeys.size() > 0)
       {
         int str_size = 0;
-        for (const std::string &arg : args) str_size += (arg.size() + 2);
+        for (const std::string &arg : req.service_node_pubkeys) str_size += (arg.size() + 2);
 
         std::string buffer;
         buffer.reserve(str_size);
-        for (size_t i = 0; i < args.size(); ++i)
+        for (size_t i = 0; i < req.service_node_pubkeys.size(); ++i)
         {
-          buffer.append(args[i]);
-          if (i < args[i].size() - 1) buffer.append(", ");
+          buffer.append(req.service_node_pubkeys[i]);
+          if (i < req.service_node_pubkeys.size() - 1) buffer.append(", ");
         }
 
         tools::msg_writer() << "No service node is currently known on the network: " << buffer;
