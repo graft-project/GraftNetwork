@@ -5850,10 +5850,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
       }
       unlock_block = bc_height + locked_blocks;
     }
-
-    loki_construct_tx_params tx_params = tools::wallet2::construct_params(priority);
-
-    ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block, priority, extra, m_current_subaddress_account, subaddr_indices, tx_params);
+    ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block, priority, extra, m_current_subaddress_account, subaddr_indices);
 
     if (ptx_vector.empty())
     {
@@ -6895,9 +6892,7 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
   SCOPED_WALLET_UNLOCK();
   try
   {
-    loki_construct_tx_params tx_params = tools::wallet2::construct_params(priority);
-
-    auto ptx_vector = m_wallet->create_transactions_all(below, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block /* unlock_time */, priority, extra, m_current_subaddress_account, subaddr_indices, tx_params);
+    auto ptx_vector = m_wallet->create_transactions_all(below, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block /* unlock_time */, priority, extra, m_current_subaddress_account, subaddr_indices);
     sweep_main_internal(sweep_type_t::all_or_below, ptx_vector, info, priority == tools::wallet2::BLINK_PRIORITY);
   }
   catch (const std::exception &e)
@@ -7031,10 +7026,8 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
 
   try
   {
-    loki_construct_tx_params tx_params = tools::wallet2::construct_params(priority);
-
     // figure out what tx will be necessary
-    auto ptx_vector = m_wallet->create_transactions_single(ki, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, tx_params);
+    auto ptx_vector = m_wallet->create_transactions_single(ki, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra);
     sweep_main_internal(sweep_type_t::single, ptx_vector, info, priority == tools::wallet2::BLINK_PRIORITY);
   }
   catch (const std::exception& e)

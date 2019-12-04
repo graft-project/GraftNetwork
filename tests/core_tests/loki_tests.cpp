@@ -34,49 +34,6 @@
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "sn_core_tests"
 
-// TODO(loki): Improved register callback that all tests should start using.
-// Classes are not regenerated when replaying the test through the blockchain.
-// Before, state saved in this class like saving indexes where events ocurred
-// would not persist because when replaying tests we create a new instance of
-// the test class.
-
-  // i.e.
-#if 0
-    std::vector<events> events;
-    {
-        gen_service_nodes generator;
-        generator.generate(events);
-    }
-
-    gen_service_nodes generator;
-    replay_events_through_core(generator, ...)
-#endif
-
-// Which is stupid. Instead we preserve the original generator. This means
-// all the tests that use callbacks to preserve state can be removed.
-
-// TODO(loki): A lot of code using the new lambda callbacks now have access to
-// the shared stack frame where before it didn't can be optimised to utilise the
-// frame instead of re-deriving where data should be in the
-// test_events_entry array
-void loki_register_callback(std::vector<test_event_entry> &events,
-                            std::string const &callback_name,
-                            loki_callback callback)
-{
-  events.push_back(loki_callback_entry{callback_name, callback});
-}
-
-std::vector<std::pair<uint8_t, uint64_t>>
-loki_generate_sequential_hard_fork_table(uint8_t max_hf_version)
-{
-  assert(max_hf_version < cryptonote::network_version_count);
-  std::vector<std::pair<uint8_t, uint64_t>> result = {};
-  uint64_t version_height = 0;
-  for (uint8_t version = cryptonote::network_version_7; version <= max_hf_version; version++)
-    result.emplace_back(std::make_pair(version, version_height++));
-  return result;
-}
-
 // Suppose we have checkpoint and alt block at height 40 and the main chain is at height 40 with a differing block.
 // Main chain receives checkpoints for height 40 on the alt chain via votes and reorgs back to height 39.
 // Now main chain has an alt block sitting in its DB for height 40 which actually starts beyond the chain.
@@ -160,7 +117,6 @@ bool loki_checkpointing_alt_chain_handle_alt_blocks_at_tip::generate(std::vector
   });
   return true;
 }
-
 
 // NOTE: - Checks that a chain with a checkpoint but less PoW is preferred over a chain that is longer with more PoW but no checkpoints
 bool loki_checkpointing_alt_chain_more_service_node_checkpoints_less_pow_overtakes::generate(std::vector<test_event_entry>& events)
@@ -568,7 +524,7 @@ bool loki_core_fee_burning::generate(std::vector<test_event_entry>& events)
   gen.add_blocks_until_version(hard_forks.back().first);
 
   uint8_t newest_hf = hard_forks.back().first;
-  assert(newest_hf >= cryptonote::network_version_14);
+  assert(newest_hf >= cryptonote::network_version_14_blink_lns);
 
   gen.add_n_blocks(60);
   gen.add_mined_money_unlock_blocks();
@@ -584,7 +540,7 @@ bool loki_core_fee_burning::generate(std::vector<test_event_entry>& events)
 
   auto add_burning_tx = [&events, &gen, &dummy, newest_hf](const std::array<uint64_t, 3> &send_fee_burn) {
     auto send = send_fee_burn[0], fee = send_fee_burn[1], burn = send_fee_burn[2];
-    transaction tx = gen.create_tx(gen.first_miner_, dummy, send, fee, false);
+    transaction tx = gen.create_tx(gen.first_miner_, dummy, send, fee);
     std::vector<uint8_t> burn_extra;
     add_burned_amount_to_tx_extra(burn_extra, burn);
     loki_tx_builder(events, tx, gen.blocks().back().block, gen.first_miner_, dummy, send, newest_hf).with_fee(fee).with_extra(burn_extra).build();
@@ -1064,7 +1020,7 @@ bool loki_service_nodes_checkpoint_quorum_size::generate(std::vector<test_event_
   loki_chain_generator gen(events, hard_forks);
 
   gen.add_blocks_until_version(hard_forks.back().first);
-  gen.add_n_blocks(40);
+  gen.add_n_blocks(35);
   gen.add_mined_money_unlock_blocks();
 
   std::vector<cryptonote::transaction> registration_txs(service_nodes::CHECKPOINT_QUORUM_SIZE - 1);
@@ -1196,7 +1152,6 @@ bool loki_service_nodes_test_rollback::generate(std::vector<test_event_entry>& e
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_9_service_nodes);
   loki_chain_generator gen(events, hard_forks);
   gen.add_blocks_until_version(hard_forks.back().first);
-
   gen.add_n_blocks(20); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
@@ -1285,7 +1240,7 @@ bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry
   /// Create some service nodes before hf version 10
   constexpr size_t INIT_SN_COUNT  = 13;
   constexpr size_t TOTAL_SN_COUNT = 25;
-  gen.add_n_blocks(100);
+  gen.add_n_blocks(90);
   gen.add_mined_money_unlock_blocks();
 
   /// register some service nodes
@@ -1411,3 +1366,36 @@ bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry
   gen.add_n_blocks(5); /// test (implicitly) that deregistered nodes do not receive rewards
   return true;
 }
+
+bool loki_service_nodes_insufficient_contribution::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  gen.add_blocks_until_version(hard_forks.back().first);
+  gen.add_mined_money_unlock_blocks();
+
+  uint64_t operator_portions                = STAKING_PORTIONS / 2;
+  uint64_t remaining_portions               = STAKING_PORTIONS - operator_portions;
+  cryptonote::keypair sn_keys               = cryptonote::keypair::generate(hw::get_device("default"));
+  cryptonote::transaction register_tx       = gen.create_registration_tx(gen.first_miner_, sn_keys, operator_portions);
+  gen.add_tx(register_tx);
+  gen.create_and_add_next_block({register_tx});
+
+  cryptonote::transaction stake = gen.create_and_add_staking_tx(sn_keys.pub, gen.first_miner_, MK_COINS(1));
+  gen.create_and_add_next_block({stake});
+
+  loki_register_callback(events, "test_insufficient_stake_does_not_get_accepted", [&events, sn_keys](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("test_insufficient_stake_does_not_get_accepted");
+    const auto sn_list = c.get_service_node_list_state({sn_keys.pub});
+    CHECK_TEST_CONDITION(sn_list.size() == 1);
+
+    service_nodes::service_node_pubkey_info const &pubkey_info = sn_list[0];
+    CHECK_EQ(pubkey_info.info->total_contributed, MK_COINS(50));
+    return true;
+  });
+
+  return true;
+}
+

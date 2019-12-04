@@ -180,8 +180,8 @@ static_assert(BLINK_BURN_TX_FEE_PERCENT >= 0, "blink burn tx percent cannot be n
 #define HF_VERSION_INCREASE_FEE                 cryptonote::network_version_12_checkpointing
 #define HF_VERSION_PER_OUTPUT_FEE               cryptonote::network_version_13_enforce_checkpoints
 #define HF_VERSION_ED25519_KEY                  cryptonote::network_version_13_enforce_checkpoints
-#define HF_VERSION_FEE_BURNING                  cryptonote::network_version_14
-#define HF_VERSION_BLINK                        cryptonote::network_version_14
+#define HF_VERSION_FEE_BURNING                  cryptonote::network_version_14_blink_lns
+#define HF_VERSION_BLINK                        cryptonote::network_version_14_blink_lns
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 
@@ -284,7 +284,7 @@ namespace cryptonote
     network_version_11_infinite_staking, // Infinite Staking, CN-Turtle
     network_version_12_checkpointing, // Checkpointing, Relaxed Deregistration, RandomXL, Loki Storage Server
     network_version_13_enforce_checkpoints,
-    network_version_14,
+    network_version_14_blink_lns,
 
     network_version_count,
   };

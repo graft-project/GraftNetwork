@@ -1072,7 +1072,7 @@ namespace cryptonote
         continue;
       }
 
-      if (tx_info[n].tx.type != txtype::standard)
+      if (!tx_info[n].tx.is_transfer())
         continue;
       const rct::rctSig &rv = tx_info[n].tx.rct_signatures;
       switch (rv.type) {
@@ -1418,18 +1418,21 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_semantic(const transaction& tx, bool keeped_by_block) const
   {
-    if (tx.type != txtype::standard)
+    if (tx.is_transfer())
+    {
+      if (tx.vin.empty())
+      {
+        MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
+        return false;
+      }
+    }
+    else
     {
       if (tx.vin.size() != 0)
       {
         MERROR_VER("tx type: " << tx.type << " must have 0 inputs, received: " << tx.vin.size() << ", rejected for tx id = " << get_transaction_hash(tx));
         return false;
       }
-    }
-    else if (!tx.vin.size())
-    {
-      MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
-      return false;
     }
 
     if(!check_inputs_types_supported(tx))
@@ -1658,7 +1661,7 @@ namespace cryptonote
   bool core::relay_service_node_votes()
   {
     auto height = get_current_blockchain_height();
-    auto qnet_begins = get_earliest_ideal_height_for_version(network_version_14);
+    auto qnet_begins = get_earliest_ideal_height_for_version(network_version_14_blink_lns);
 
     auto votes = m_quorum_cop.get_relayable_votes(height);
     if (votes.empty())
@@ -1964,7 +1967,7 @@ namespace cryptonote
           uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
           if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
           {
-            if (hf_version >= cryptonote::network_version_14)
+            if (hf_version >= cryptonote::network_version_14_blink_lns)
             {
               MGINFO_RED(
                   "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "
