@@ -2470,10 +2470,10 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
         expiry_height = entry.registration_height + service_nodes::staking_num_lock_blocks(nettype);
     }
 
-    stream << indent2 << "Registration Hardfork Version | Register/Expiry Height: " << entry.registration_hf_version << " | " << entry.registration_height << " / ";
+    stream << indent2 << "Registration: Hardfork Version: " << entry.registration_hf_version << "; Height: " << entry.registration_height << "; Expiry: ";
     if (expiry_height == service_nodes::KEY_IMAGE_AWAITING_UNLOCK_HEIGHT)
     {
-        stream << "Staking Infinitely (stake unlock not requested yet)\n";
+        stream << "Staking Infinitely (stake unlock not requested)\n";
     }
     else
     {
@@ -2486,7 +2486,7 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
 
   if (detailed_view && is_registered) // Print reward status
   {
-    stream << indent2 << "Last Reward At (Height/TX Index): " << entry.last_reward_block_height << "/" << entry.last_reward_transaction_index << "\n";
+    stream << indent2 << "Last Reward (Or Penalty) At (Height/TX Index): " << entry.last_reward_block_height << "/" << entry.last_reward_transaction_index << "\n";
   }
 
   if (detailed_view) // Print operator information
@@ -2517,6 +2517,11 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
       stream << entry.public_ip << " :" << entry.storage_port << " (storage), :" << entry.quorumnet_port << " (quorumnet)";
 
     stream << "\n";
+    if (detailed_view)
+      stream << indent2 << "Auxiliary Public Keys:\n"
+             << indent3 << (entry.pubkey_ed25519.empty() ? "(not yet received)" : entry.pubkey_ed25519) << " (Ed25519)\n"
+             << indent3 << (entry.pubkey_x25519.empty()  ? "(not yet received)" : entry.pubkey_x25519)  << " (X25519)\n";
+
     stream << indent2 << "Storage Server Reachable: " << (entry.storage_server_reachable ? "Yes" : "No") << " (";
     if (entry.storage_server_reachable_timestamp == 0)
       stream << "Awaiting first test";
@@ -2672,14 +2677,14 @@ bool t_rpc_command_executor::print_sn(const std::vector<std::string> &args)
       if (req.service_node_pubkeys.size() > 0)
       {
         int str_size = 0;
-        for (const std::string &arg : args) str_size += (arg.size() + 2);
+        for (const std::string &arg : req.service_node_pubkeys) str_size += (arg.size() + 2);
 
         std::string buffer;
         buffer.reserve(str_size);
-        for (size_t i = 0; i < args.size(); ++i)
+        for (size_t i = 0; i < req.service_node_pubkeys.size(); ++i)
         {
-          buffer.append(args[i]);
-          if (i < args[i].size() - 1) buffer.append(", ");
+          buffer.append(req.service_node_pubkeys[i]);
+          if (i < req.service_node_pubkeys.size() - 1) buffer.append(", ");
         }
 
         tools::msg_writer() << "No service node is currently known on the network: " << buffer;
