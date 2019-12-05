@@ -179,7 +179,6 @@ namespace cryptonote
   , "Set maximum txpool weight in bytes."
   , DEFAULT_TXPOOL_MAX_WEIGHT
   };
-<<<<<<< HEAD
   static const command_line::arg_descriptor<std::string> arg_block_notify = {
     "block-notify"
   , "Run a program for each new block, '%s' will be replaced by the block hash"

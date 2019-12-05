@@ -101,7 +101,7 @@ uint64_t get_transaction_amount(const transaction& tx, const account_public_addr
             crypto::secret_key scalar1;
             crypto::derivation_to_scalar(derivation, n, scalar1);
             rct::ecdhTuple ecdh_info = tx.rct_signatures.ecdhInfo[n];
-            rct::ecdhDecode(ecdh_info, rct::sk2rct(scalar1));
+            rct::ecdhDecode(ecdh_info, rct::sk2rct(scalar1), tx.rct_signatures.type == rct::RCTTypeBulletproof2);
             rct::key C = tx.rct_signatures.outPk[n].mask;
             rct::addKeys2(Ctmp, ecdh_info.mask, ecdh_info.amount, rct::H);
             if (rct::equalKeys(C, Ctmp))
