@@ -92,7 +92,7 @@ namespace cryptonote
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define CORE_RPC_VERSION_MAJOR 3
-#define CORE_RPC_VERSION_MINOR 1
+#define CORE_RPC_VERSION_MINOR 2
 #define MAKE_CORE_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define CORE_RPC_VERSION MAKE_CORE_RPC_VERSION(CORE_RPC_VERSION_MAJOR, CORE_RPC_VERSION_MINOR)
 
@@ -809,6 +809,7 @@ namespace cryptonote
       uint64_t block_weight_median;         // Median block weight of latest 100 blocks.
       uint64_t start_time;                  // Start time of the daemon, as UNIX time.
       uint64_t last_storage_server_ping;    // Last ping time of the storage server (0 if never or not running as a service node)
+      uint64_t last_lokinet_ping;           // Last ping time of lokinet (0 if never or not running as a service node)
       uint64_t free_space;                  // Available disk space on the node.
       bool offline;                         // States if the node is offline (`true`) or online (`false`).
       bool untrusted;                       // States if the result is obtained using the bootstrap mode, and is therefore not trusted (`true`), or when the daemon is fully synced (`false`).
@@ -847,6 +848,7 @@ namespace cryptonote
         KV_SERIALIZE_OPT(block_weight_median, (uint64_t)0)
         KV_SERIALIZE(start_time)
         KV_SERIALIZE(last_storage_server_ping)
+        KV_SERIALIZE(last_lokinet_ping)
         KV_SERIALIZE(free_space)
         KV_SERIALIZE(offline)
         KV_SERIALIZE(untrusted)
