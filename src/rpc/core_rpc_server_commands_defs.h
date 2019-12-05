@@ -2204,7 +2204,8 @@ namespace cryptonote
         KV_SERIALIZE(network_address)
       END_KV_SERIALIZE_MAP()
     };
-
+    typedef epee::misc_utils::struct_init<request_t> request;
+    
     struct response_t
     {
       int64_t status;
@@ -2212,6 +2213,8 @@ namespace cryptonote
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
+    
   };
 
   struct COMMAND_RPC_SUPERNODE_STAKES
@@ -2243,6 +2246,7 @@ namespace cryptonote
         KV_SERIALIZE(stakes)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
     struct response_t
     {
@@ -2251,6 +2255,8 @@ namespace cryptonote
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
+    
   };
 
   struct COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST
@@ -2266,6 +2272,7 @@ namespace cryptonote
         KV_SERIALIZE(last_received_block_height)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
     struct response_t
     {
@@ -2274,6 +2281,7 @@ namespace cryptonote
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST
@@ -2298,7 +2306,7 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
 
-    struct request
+    struct request_t
     {
       uint64_t block_height;
       std::vector<tier> tiers;
@@ -2307,26 +2315,27 @@ namespace cryptonote
         KV_SERIALIZE(tiers)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
-    struct response
+    struct response_t
     {
       int64_t status;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
+    
   };
 
   struct COMMAND_RPC_SUPERNODE_ANNOUNCE
   {
-    struct request
+    struct request_t
     {
-
       std::string supernode_public_id;
       uint64_t height;
       std::string signature;
       std::string network_address;
-
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(supernode_public_id)
         KV_SERIALIZE(height)
@@ -2334,19 +2343,22 @@ namespace cryptonote
         KV_SERIALIZE(network_address)
       END_KV_SERIALIZE_MAP()
     };
-
-    struct response
+    typedef epee::misc_utils::struct_init<request_t> request;
+    
+    struct response_t
     {
       int64_t status;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
+    
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_RPC_BROADCAST
   {
-    struct request
+    struct request_t
     {
       std::string sender_address;
       std::string callback_uri;
@@ -2359,19 +2371,21 @@ namespace cryptonote
         KV_SERIALIZE(wait_answer)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
-    struct response
+    struct response_t
     {
       int64_t status;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_RPC_MULTICAST
   {
-    struct request
+    struct request_t
     {
       std::list<std::string> receiver_addresses;
       std::string sender_address;
@@ -2386,19 +2400,21 @@ namespace cryptonote
         KV_SERIALIZE(wait_answer)
       END_KV_SERIALIZE_MAP()
     };
-
-    struct response
+    typedef epee::misc_utils::struct_init<request_t> request;
+    
+    struct response_t
     {
       int64_t status;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_RPC_UNICAST
   {
-    struct request
+    struct request_t
     {
       std::string receiver_address;
       std::string sender_address;
@@ -2413,14 +2429,16 @@ namespace cryptonote
         KV_SERIALIZE(wait_answer)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
-    struct response
+    struct response_t
     {
       int64_t status;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct peer_data
@@ -2456,13 +2474,14 @@ namespace cryptonote
 
   struct COMMAND_RPC_TUNNEL_DATA
   {
-    struct request
+    struct request_t
     {
       BEGIN_KV_SERIALIZE_MAP()
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
-    struct response
+    struct response_t
     {
       std::string supernode_address;
       std::vector<route_data> tunnels;
@@ -2473,17 +2492,20 @@ namespace cryptonote
         KV_SERIALIZE(supernodes_addresses)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
+  
 
   struct COMMAND_RPC_RTA_STATS
   {
-    struct request
+    struct request_t
     {
       BEGIN_KV_SERIALIZE_MAP()
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
-    struct response
+    struct response_t
     {
       uint64_t announce_bytes_in;
       uint64_t announce_bytes_out;
@@ -2500,6 +2522,7 @@ namespace cryptonote
         KV_SERIALIZE(multicast_bytes_out)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_RPC_GET_OUTPUT_DISTRIBUTION

@@ -196,7 +196,7 @@ namespace nodetool
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 20;
 
-      struct request : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request
+      struct request_t : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request_t
       {
           uint64_t hop;
 
@@ -208,15 +208,16 @@ namespace nodetool
             KV_SERIALIZE(hop)
           END_KV_SERIALIZE_MAP()
       };
-
-      struct response : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::response { };
+      typedef epee::misc_utils::struct_init<request_t> request;
+      struct response_t : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::response_t { };
+      typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_BROADCAST
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 21;
 
-      struct request : public cryptonote::COMMAND_RPC_BROADCAST::request
+      struct request_t : public cryptonote::COMMAND_RPC_BROADCAST::request_t
       {
           uint64_t hop;
           std::string message_id;
@@ -230,15 +231,17 @@ namespace nodetool
             KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
       };
+      typedef epee::misc_utils::struct_init<request_t> request;
 
-      struct response : public cryptonote::COMMAND_RPC_BROADCAST::response { };
+      struct response_t : public cryptonote::COMMAND_RPC_BROADCAST::response_t { };
+      typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_MULTICAST
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 22;
 
-      struct request : public cryptonote::COMMAND_RPC_MULTICAST::request
+      struct request_t : public cryptonote::COMMAND_RPC_MULTICAST::request_t
       {
           uint64_t hop;
           std::string message_id;
@@ -253,15 +256,17 @@ namespace nodetool
             KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
       };
+      typedef epee::misc_utils::struct_init<request_t> request;
 
-      struct response : public cryptonote::COMMAND_RPC_MULTICAST::response { };
+      struct response_t : public cryptonote::COMMAND_RPC_MULTICAST::response_t { };
+      typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_UNICAST
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 23;
 
-      struct request : public cryptonote::COMMAND_RPC_UNICAST::request
+      struct request_t : public cryptonote::COMMAND_RPC_UNICAST::request_t
       {
           uint64_t hop;
           std::string message_id;
@@ -276,8 +281,10 @@ namespace nodetool
             KV_SERIALIZE(message_id)
           END_KV_SERIALIZE_MAP()
       };
+      typedef epee::misc_utils::struct_init<request_t> request;
 
-      struct response : public cryptonote::COMMAND_RPC_UNICAST::response { };
+      struct response_t : public cryptonote::COMMAND_RPC_UNICAST::response_t { };
+      typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   /************************************************************************/
@@ -586,7 +593,7 @@ namespace nodetool
   struct NOTIFY_SUPERNODE_ANNOUNCE
   {
       const static int ID = P2P_COMMANDS_POOL_BASE + 10;
-      struct request : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request {};
+      struct request_t : public cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE::request_t {};
   };
 
   inline crypto::hash get_proof_of_trust_hash(const nodetool::proof_of_trust& pot)
