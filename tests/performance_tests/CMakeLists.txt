@@ -31,7 +31,6 @@ set(performance_tests_sources
 
 set(performance_tests_headers
   check_tx_signature.h
-  check_hash.h
   cn_slow_hash.h
   cn_slow_hash_2.h
   cn_slow_hash_waltz.h

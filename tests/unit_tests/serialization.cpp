@@ -1412,26 +1412,3 @@ TEST(Serialization, portability_signed_tx)
   ASSERT_TRUE(epee::string_tools::pod_to_hex(ki1) == "f8b8af82c1be1a10d3900bbcbf318ae9388e5111f655a3bcab98852731d231cf");
 
 }
-
-TEST(Serialization, difficulty_type)
-{
-  std::vector<cryptonote::difficulty_type> v_original;
-
-  for(int i = 0; i != 100; i++)
-  {
-    v_original.push_back(cryptonote::difficulty_type("117868131154734361989189100"));
-    if(v_original.size() > 1)
-      v_original.back() *= v_original[v_original.size()-2];
-  }
-
-  std::stringstream ss;
-  boost::archive::portable_binary_oarchive a(ss);
-  a << v_original;
-
-  std::vector<cryptonote::difficulty_type> v_unserialized;
-
-  boost::archive::portable_binary_iarchive a2(ss);
-  a2 >> v_unserialized;
-
-  ASSERT_EQ(v_original, v_unserialized);
-}
