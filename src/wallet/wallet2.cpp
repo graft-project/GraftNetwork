@@ -10210,7 +10210,13 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   loki_construct_tx_params loki_tx_params = tools::wallet2::construct_params(priority);
   loki_tx_params.tx_type                  = tx_type;
   loki_tx_params.hf_version               = *hf_version;
-  bool burning                            = loki_tx_params.burn_fixed || loki_tx_params.burn_percent;
+  uint64_t burn_fixed = 0, burn_percent = 0;
+  // Swap these out because we don't want them present for building intermediate temporary tx
+  // calculations (which we don't actually use); we'll set them again at the end before we build the
+  // real transactions.
+  std::swap(burn_fixed, loki_tx_params.burn_fixed);
+  std::swap(burn_percent, loki_tx_params.burn_percent);
+  bool burning = burn_fixed || burn_percent;
   THROW_WALLET_EXCEPTION_IF(burning && loki_tx_params.hf_version < HF_VERSION_FEE_BURNING, error::wallet_internal_error, "cannot construct transaction: cannot burn amounts under the current hard fork");
   std::vector<uint8_t> extra_plus; // Copy and modified from input if modification needed
   const std::vector<uint8_t> &extra = burning ? extra_plus : extra_base;
@@ -10218,8 +10224,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   {
     extra_plus = extra_base;
     add_burned_amount_to_tx_extra(extra_plus, BURN_FEE_PLACEHOLDER);
-    fixed_fee = loki_tx_params.burn_fixed;
-    THROW_WALLET_EXCEPTION_IF(loki_tx_params.burn_percent > fee_percent, error::wallet_internal_error, "invalid burn fees: cannot burn more than the tx fee");
+    fixed_fee += burn_fixed;
+    THROW_WALLET_EXCEPTION_IF(burn_percent > fee_percent, error::wallet_internal_error, "invalid burn fees: cannot burn more than the tx fee");
   }
 
   // throw if attempting a transaction with no destinations
@@ -10639,12 +10645,11 @@ skip_tx:
     // Convert burn percent into a fixed burn amount because this is the last place we can back out
     // the base fee that would apply at 100% (the actual fee here is that times the priority-based
     // fee percent)
-    if (loki_tx_params.burn_percent)
+    if (burning)
     {
-      loki_tx_params.burn_fixed += tx.needed_fee * loki_tx_params.burn_percent / fee_percent;
+      loki_tx_params.burn_fixed = burn_fixed + tx.needed_fee * burn_percent / fee_percent;
       // Make sure we can't enlarge the tx because that could make it invalid:
       THROW_WALLET_EXCEPTION_IF(loki_tx_params.burn_fixed > BURN_FEE_PLACEHOLDER, error::wallet_internal_error, "attempt to burn a larger amount than is internally supported");
-      loki_tx_params.burn_percent = 0;
     }
 
     cryptonote::transaction test_tx;
@@ -10865,7 +10870,13 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
   loki_construct_tx_params loki_tx_params = tools::wallet2::construct_params(priority);
   loki_tx_params.tx_type                  = tx_type;
   loki_tx_params.hf_version               = *hf_version;
-  bool burning = loki_tx_params.burn_fixed || loki_tx_params.burn_percent;
+  uint64_t burn_fixed = 0, burn_percent = 0;
+  // Swap these out because we don't want them present for building intermediate temporary tx
+  // calculations (which we don't actually use); we'll set them again at the end before we build the
+  // real transactions.
+  std::swap(burn_fixed, loki_tx_params.burn_fixed);
+  std::swap(burn_percent, loki_tx_params.burn_percent);
+  bool burning = burn_fixed || burn_percent;
   THROW_WALLET_EXCEPTION_IF(burning && loki_tx_params.hf_version < HF_VERSION_FEE_BURNING, error::wallet_internal_error, "cannot construct transaction: cannot burn amounts under the current hard fork");
   std::vector<uint8_t> extra_plus; // Copy and modified from input if modification needed
   const std::vector<uint8_t> &extra = burning ? extra_plus : extra_base;
@@ -10873,8 +10884,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
   {
     extra_plus = extra_base;
     add_burned_amount_to_tx_extra(extra_plus, BURN_FEE_PLACEHOLDER);
-    fixed_fee = loki_tx_params.burn_fixed;
-    THROW_WALLET_EXCEPTION_IF(loki_tx_params.burn_percent > fee_percent, error::wallet_internal_error, "invalid burn fees: cannot burn more than the tx fee");
+    fixed_fee += burn_fixed;
+    THROW_WALLET_EXCEPTION_IF(burn_percent > fee_percent, error::wallet_internal_error, "invalid burn fees: cannot burn more than the tx fee");
   }
 
   LOG_PRINT_L2("Starting with " << unused_transfers_indices.size() << " non-dust outputs and " << unused_dust_indices.size() << " dust outputs");
@@ -11009,10 +11020,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
     // Convert burn percent into a fixed burn amount because this is the last place we can back out
     // the base fee that would apply at 100% (the actual fee here is that times the priority-based
     // fee percent)
-    if (loki_tx_params.burn_percent)
+    if (burning)
     {
-      loki_tx_params.burn_fixed += tx.needed_fee * loki_tx_params.burn_percent / fee_percent;
-      loki_tx_params.burn_percent = 0;
+      loki_tx_params.burn_fixed = burn_fixed + tx.needed_fee * burn_percent / fee_percent;
+      // Make sure we can't enlarge the tx because that could make it invalid:
+      THROW_WALLET_EXCEPTION_IF(loki_tx_params.burn_fixed > BURN_FEE_PLACEHOLDER, error::wallet_internal_error, "attempt to burn a larger amount than is internally supported");
     }
 
     cryptonote::transaction test_tx;
