@@ -154,20 +154,25 @@ namespace {
       << "service node winner: " << header.service_node_winner << std::endl;
   }
 
-  std::string get_human_time_ago(time_t t, time_t now)
+  std::string get_human_time_ago(time_t t, time_t now, bool abbreviate = false)
   {
     if (t == now)
       return "now";
     time_t dt = t > now ? t - now : now - t;
     std::string s;
     if (dt < 90)
-      s = boost::lexical_cast<std::string>(dt) + (dt == 1 ? " second" : " seconds");
+      s = boost::lexical_cast<std::string>(dt) + (abbreviate ? "sec" : dt == 1 ? " second" : " seconds");
     else if (dt < 90 * 60)
-      s = (boost::format("%.1f minutes") % ((float)dt/60)).str();
+      s = (boost::format(abbreviate ? "%.1fmin" : "%.1f minutes") % ((float)dt/60)).str();
     else if (dt < 36 * 3600)
-      s = (boost::format("%.1f hours") % ((float)dt/3600)).str();
+      s = (boost::format(abbreviate ? "%.1fhr" : "%.1f hours") % ((float)dt/3600)).str();
     else
       s = (boost::format("%.1f days") % ((float)dt/(3600*24))).str();
+    if (abbreviate) {
+        if (t > now)
+            return s + " (in fut.)";
+        return s;
+    }
     return s + " " + (t > now ? "in the future" : "ago");
   }
 
@@ -697,14 +702,15 @@ bool t_rpc_command_executor::show_status() {
   }
 
   std::stringstream str;
-  str << boost::format("Height: %llu/%llu (%.1f%%) on %s%s, %s, net hash %s, v%u%s, %s, %u(out)+%u(in) connections")
+  str << boost::format("Height: %llu/%llu (%.1f%%)%s%s%s, net hash %s, v%s(net v%u)%s, %s, %u(out)+%u(in) connections")
     % (unsigned long long)ires.height
     % (unsigned long long)net_height
     % get_sync_percentage(ires)
-    % (ires.testnet ? "testnet" : ires.stagenet ? "stagenet" : "mainnet")
+    % (ires.testnet ? " ON TESTNET" : ires.stagenet ? " ON STAGENET" : ""/*mainnet*/)
     % bootstrap_msg
-    % (!has_mining_info ? "mining info unavailable" : mining_busy ? "syncing" : mres.active ? ( ( mres.is_background_mining_enabled ? "smart " : "" ) + std::string("mining at ") + get_mining_speed(mres.speed)) : "not mining")
+    % (!has_mining_info ? ", mining info unavailable" : mining_busy ? ", syncing" : mres.active ? ( ( mres.is_background_mining_enabled ? ", smart " : ", " ) + std::string("mining at ") + get_mining_speed(mres.speed)) : ""/*not mining*/)
     % get_mining_speed(ires.difficulty / ires.target)
+    % (ires.version.empty() ? "?.?.?" : ires.version)
     % (unsigned)hfres.version
     % get_fork_extra_info(hfres.earliest_height, net_height, ires.target)
     % (hfres.state == cryptonote::HardFork::Ready ? "up to date" : hfres.state == cryptonote::HardFork::UpdateNeeded ? "update needed" : "out of date, likely forked")
@@ -733,11 +739,19 @@ bool t_rpc_command_executor::show_status() {
     else
       str << (!my_sn_staked ? "awaiting" : my_sn_active ? "active" : "DECOMMISSIONED (" + std::to_string(my_decomm_remaining) + " blocks credit)")
         << ", proof: " << (my_sn_last_uptime ? get_human_time_ago(my_sn_last_uptime, time(nullptr)) : "(never)");
-    str << ", s.server: ";
+    str << ", last pings: ";
     if (ires.last_storage_server_ping > 0)
-        str << "last ping " << get_human_time_ago(ires.last_storage_server_ping, time(nullptr));
+        str << get_human_time_ago(ires.last_storage_server_ping, time(nullptr), true /*abbreviate*/);
     else
-        str << "NO PING RECEIVED";
+        str << "NOT RECEIVED";
+    str << " (storage), ";
+
+    if (ires.last_lokinet_ping > 0)
+        str << get_human_time_ago(ires.last_lokinet_ping, time(nullptr), true /*abbreviate*/);
+    else
+        str << "NOT RECEIVED";
+    str << " (lokinet)";
+
 
     tools::success_msg_writer() << str.str();
   }
