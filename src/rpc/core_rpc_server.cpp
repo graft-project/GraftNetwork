@@ -235,7 +235,7 @@ namespace cryptonote
     if (restricted)
       res.database_size = round_up(res.database_size, 5ull* 1024 * 1024 * 1024);
     res.update_available = restricted ? false : m_core.is_update_available();
-    res.version = restricted ? "" : MONERO_VERSION;
+    res.version = restricted ? "" : GRAFT_VERSION;
 
     res.status = CORE_RPC_STATUS_OK;
     return true;
@@ -2370,7 +2370,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_announce: start");
       // send p2p announce
@@ -2382,7 +2382,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: start");
       // send p2p stakes
@@ -2394,7 +2394,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request &req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request &req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: start");
       // send p2p stake txs
@@ -2406,7 +2406,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_broadcast: start");
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
@@ -2426,7 +2426,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_multicast: start");
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
@@ -2456,7 +2456,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_unicast: start");
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
@@ -2485,7 +2485,7 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_get_tunnels: start");
       res.supernodes_addresses = m_p2p.get_supernodes_addresses();
@@ -2499,7 +2499,7 @@ namespace cryptonote
 
   //------------------------------------------------------------------------------------------------------------------------------
 
-  bool core_rpc_server::on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp)
+  bool core_rpc_server::on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx)
   {
       res.announce_bytes_in = m_p2p.get_announce_bytes_in();
       res.announce_bytes_out = m_p2p.get_announce_bytes_out();
