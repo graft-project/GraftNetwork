@@ -199,6 +199,9 @@ void delete_snnwrapper(void *&obj) {
 
 
 template <typename E>
+#ifdef __GNUG__
+[[gnu::warn_unused_result]]
+#endif
 E get_enum(const bt_dict &d, const std::string &key) {
     E result = static_cast<E>(get_int<std::underlying_type_t<E>>(d.at(key)));
     if (result < E::_count)
@@ -463,7 +466,7 @@ quorum_vote_t deserialize_vote(const bt_value &v) {
         std::memcpy(vote.checkpoint.block_hash.data, bh.data(), sizeof(vote.checkpoint.block_hash.data));
     } else {
         vote.state_change.worker_index = get_int<uint16_t>(d.at("wi"));
-        get_enum<new_state>(d, "sc");
+        vote.state_change.state = get_enum<new_state>(d, "sc");
     }
 
     return vote;
