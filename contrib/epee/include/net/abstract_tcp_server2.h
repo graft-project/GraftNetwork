@@ -317,7 +317,7 @@ namespace net_utils
         boost::shared_ptr<idle_callback_conext<t_handler>> ptr(new idle_callback_conext<t_handler>(io_service_, t_callback, timeout_ms));
         //needed call handler here ?...
         ptr->m_timer.expires_from_now(boost::posix_time::milliseconds(ptr->m_period));
-        ptr->m_timer.async_wait(m_strand.wrap(boost::bind(&boosted_tcp_server<t_protocol_handler>::global_timer_handler, this, ptr)));
+        ptr->m_timer.async_wait(boost::bind(&boosted_tcp_server<t_protocol_handler>::global_timer_handler<t_handler>, this, ptr));
         return true;
       }
 
