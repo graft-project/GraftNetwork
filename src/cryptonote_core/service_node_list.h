@@ -409,6 +409,8 @@ namespace service_nodes
       END_SERIALIZE()
     };
 
+    struct state_t;
+    using state_set = std::set<state_t, std::less<>>;
     using block_height = uint64_t;
     struct state_t
     {
@@ -420,18 +422,20 @@ namespace service_nodes
       mutable quorum_manager                 quorums;          // Mutable because we are allowed to (and need to) change it via std::set iterator
 
       state_t() = default;
-      state_t(block_height height) : height{height} {}
       state_t(cryptonote::Blockchain const &blockchain, state_serialized &&state);
 
-      bool operator<(const state_t &other) const { return this->height < other.height; }
+      friend bool operator<(const state_t &a, const state_t &b) { return a.height < b.height; }
+      friend bool operator<(const state_t &s, block_height h)   { return s.height < h; }
+      friend bool operator<(block_height h, const state_t &s)   { return        h < s.height; }
+
       std::vector<pubkey_and_sninfo>  active_service_nodes_infos() const; // return: Filtered pubkey-sorted vector of service nodes that are active (fully funded and *not* decommissioned).
       std::vector<pubkey_and_sninfo>  decommissioned_service_nodes_infos() const; // return: All nodes that are fully funded *and* decommissioned.
       std::vector<crypto::public_key> get_expired_nodes(cryptonote::BlockchainDB const &db, cryptonote::network_type nettype, uint8_t hf_version, uint64_t block_height) const;
       void update_from_block(
           cryptonote::BlockchainDB const &db,
           cryptonote::network_type nettype,
-          std::set<state_t> const &state_history,
-          std::set<state_t> const &state_archive,
+          state_set const &state_history,
+          state_set const &state_archive,
           std::unordered_map<crypto::hash, state_t> const &alt_states,
           const cryptonote::block& block,
           const std::vector<cryptonote::transaction>& txs,
@@ -443,8 +447,8 @@ namespace service_nodes
       bool process_contribution_tx(cryptonote::network_type nettype, cryptonote::block const &block, const cryptonote::transaction& tx, uint32_t index);
       // Returns true if a service node changed state (deregistered, decommissioned, or recommissioned)
       bool process_state_change_tx(
-          std::set<state_t> const &state_history,
-          std::set<state_t> const &state_archive,
+          state_set const &state_history,
+          state_set const &state_archive,
           std::unordered_map<crypto::hash, state_t> const &alt_states,
           cryptonote::network_type nettype,
           const cryptonote::block &block,
@@ -484,8 +488,8 @@ namespace service_nodes
     };
 
     std::deque<quorums_by_height>             m_old_quorum_states; // Store all old quorum history only if run with --store-full-quorum-history
-    std::set<state_t>                         m_state_history; // Store state_t's from MIN(2nd oldest checkpoint | height - DEFAULT_SHORT_TERM_STATE_HISTORY) up to the block height
-    std::set<state_t>                         m_state_archive; // Store state_t's where ((height < m_state_history.first()) && (height % STORE_LONG_TERM_STATE_INTERVAL))
+    state_set                                 m_state_history; // Store state_t's from MIN(2nd oldest checkpoint | height - DEFAULT_SHORT_TERM_STATE_HISTORY) up to the block height
+    state_set                                 m_state_archive; // Store state_t's where ((height < m_state_history.first()) && (height % STORE_LONG_TERM_STATE_INTERVAL))
     state_t                                   m_state;
     std::unordered_map<crypto::hash, state_t> m_alt_state;
 

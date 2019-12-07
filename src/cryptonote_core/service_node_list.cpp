@@ -452,8 +452,8 @@ namespace service_nodes
     return *new_ptr;
   }
 
-  bool service_node_list::state_t::process_state_change_tx(std::set<state_t> const &state_history,
-                                                           std::set<state_t> const &state_archive,
+  bool service_node_list::state_t::process_state_change_tx(state_set const &state_history,
+                                                           state_set const &state_archive,
                                                            std::unordered_map<crypto::hash, state_t> const &alt_states,
                                                            cryptonote::network_type nettype,
                                                            const cryptonote::block &block,
@@ -1360,8 +1360,8 @@ namespace service_nodes
 
   void service_node_list::state_t::update_from_block(cryptonote::BlockchainDB const &db,
                                                      cryptonote::network_type nettype,
-                                                     std::set<state_t> const &state_history,
-                                                     std::set<state_t> const &state_archive,
+                                                     state_set const &state_history,
+                                                     state_set const &state_archive,
                                                      std::unordered_map<crypto::hash, state_t> const &alt_states,
                                                      const cryptonote::block &block,
                                                      const std::vector<cryptonote::transaction> &txs,
@@ -1572,7 +1572,7 @@ namespace service_nodes
       return;
     }
 
-    std::set<state_t> &history = (using_archive) ? m_state_archive : m_state_history;
+    auto &history = (using_archive) ? m_state_archive : m_state_history;
     auto it = std::prev(history.end());
     m_state = std::move(*it);
     history.erase(it);
