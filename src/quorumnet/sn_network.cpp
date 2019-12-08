@@ -937,9 +937,12 @@ void SNNetwork::proxy_to_worker(size_t conn_index, std::list<zmq::message_t> &&p
     // dropped if the connection no longer exists).
 
     std::string pubkey;
+
+    bool is_outgoing_conn = !listener || conn_index > 0;
+
     bool remote_is_sn;
-    if (conn_index > 0) { // Talking to a remote, we know the pubkey already, and is a SN.
-        pubkey = remotes[conn_index - 1].first;
+    if (is_outgoing_conn) { // Talking to a remote, we know the pubkey already, and is a SN.
+        pubkey = remotes[conn_index - (listener ? 1 : 0)].first;
         remote_is_sn = 1;
     } else { // Incoming; extract the pubkey from the message properties
         try {
@@ -958,12 +961,12 @@ void SNNetwork::proxy_to_worker(size_t conn_index, std::list<zmq::message_t> &&p
     auto &peer_info = peers[pubkey];
     peer_info.service_node |= remote_is_sn;
 
-    if (conn_index < 1) { // incoming connection; pop off the route and update it if needed
+    if (is_outgoing_conn) {
+        peer_info.activity(); // outgoing connection activity, pump the activity timer
+    } else { // incoming connection; pop off the route and update it if needed
         auto route = pop_string(parts);
         if (peer_info.incoming != route)
             peer_info.incoming = route;
-    } else { // outgoing connection activity, pump the activity timer
-        peer_info.activity();
     }
 
     // We need at least a command:
