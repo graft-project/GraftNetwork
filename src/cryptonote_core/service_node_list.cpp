@@ -96,6 +96,9 @@ namespace service_nodes
     if (m_blockchain.get_current_hard_fork_version() < cryptonote::network_version_9_service_nodes)
       return;
 
+    m_rescanning = true;
+    LOKI_DEFER { m_rescanning = false; };
+
     auto scan_start         = std::chrono::high_resolution_clock::now();
     uint64_t chain_height   = m_blockchain.get_current_blockchain_height();
     uint64_t current_height = chain_height - 1;
@@ -580,7 +583,7 @@ namespace service_nodes
           info.swarm_id = UNASSIGNED_SWARM_ID;
         }
 
-        if (sn_list)
+        if (sn_list && !sn_list->m_rescanning)
         {
           auto &proof = sn_list->m_proofs[key];
           proof.timestamp = proof.effective_timestamp = 0;
@@ -1006,7 +1009,7 @@ namespace service_nodes
 
       // Explicitly reset any stored proof to 0, and store it just in case this is a
       // re-registration: we want to wipe out any data from the previous registration.
-      if (sn_list)
+      if (sn_list && !sn_list->m_rescanning)
       {
         auto &proof = sn_list->m_proofs[key];
         proof = {};
