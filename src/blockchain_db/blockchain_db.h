@@ -557,7 +557,7 @@ public:
   /**
    * @brief An empty destructor.
    */
-  virtual ~BlockchainDB() { };
+  virtual ~BlockchainDB() = default;
 
   /**
    * @brief init command line options
@@ -1844,18 +1844,19 @@ public:
 class db_txn_guard
 {
 public:
-  db_txn_guard(BlockchainDB *db, bool readonly): db(db), readonly(readonly), active(false)
+  db_txn_guard(BlockchainDB& db, bool readonly): db(db), readonly(readonly), active(false)
   {
     if (readonly)
     {
-      active = db->block_rtxn_start();
+      active = db.block_rtxn_start();
     }
     else
     {
-      db->block_wtxn_start();
+      db.block_wtxn_start();
       active = true;
     }
   }
+  db_txn_guard(BlockchainDB* db, bool readonly) : db_txn_guard(*db, readonly) {}
   virtual ~db_txn_guard()
   {
     if (active)
@@ -1864,28 +1865,36 @@ public:
   void stop()
   {
     if (readonly)
-      db->block_rtxn_stop();
+      db.block_rtxn_stop();
     else
-      db->block_wtxn_stop();
+      db.block_wtxn_stop();
     active = false;
   }
   void abort()
   {
     if (readonly)
-      db->block_rtxn_abort();
+      db.block_rtxn_abort();
     else
-      db->block_wtxn_abort();
+      db.block_wtxn_abort();
     active = false;
   }
 
 private:
-  BlockchainDB *db;
+  BlockchainDB &db;
   bool readonly;
   bool active;
 };
 
-class db_rtxn_guard: public db_txn_guard { public: db_rtxn_guard(BlockchainDB *db): db_txn_guard(db, true) {} };
-class db_wtxn_guard: public db_txn_guard { public: db_wtxn_guard(BlockchainDB *db): db_txn_guard(db, false) {} };
+class db_rtxn_guard: public db_txn_guard {
+public:
+  explicit db_rtxn_guard(BlockchainDB& db) : db_txn_guard{db, true} {}
+  explicit db_rtxn_guard(BlockchainDB* db) : db_rtxn_guard{*db} {}
+};
+class db_wtxn_guard: public db_txn_guard {
+public:
+  explicit db_wtxn_guard(BlockchainDB& db) : db_txn_guard{db, false} {}
+  explicit db_wtxn_guard(BlockchainDB* db) : db_wtxn_guard{*db} {}
+};
 
 BlockchainDB *new_db(const std::string& db_type);
 
