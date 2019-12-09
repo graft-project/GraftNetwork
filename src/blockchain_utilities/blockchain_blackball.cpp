@@ -1288,11 +1288,6 @@ int main(int argc, char* argv[])
             const std::pair<uint64_t, uint64_t> output = std::make_pair(txin.amount, absolute[o]);
             if (opt_verbose)
             {
-<<<<<<< HEAD
-              MINFO("Marking output " << output.first << "/" << output.second << " as spent, due to being used in " << new_ring.size() << " identical " << new_ring.size() << "-rings");
-||||||| merged common ancestors
-              MINFO("Blackballing output " << output.first << "/" << output.second << ", due to being used in " << new_ring.size() << " identical " << new_ring.size() << "-rings");
-=======
               MINFO("Marking output " << output.first << "/" << output.second << " as spent, due to being used in " << new_ring.size() << " identical " << new_ring.size() << "-rings");
               std::cout << "\r" << start_idx << "/" << n_txes << "         \r" << std::flush;
             }
