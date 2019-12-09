@@ -821,6 +821,11 @@ private:
     uint64_t balance(uint32_t subaddr_index_major) const;
     uint64_t unlocked_balance(uint32_t subaddr_index_major, uint64_t *blocks_to_unlock = NULL) const;
     uint64_t unlocked_balance(uint32_t subaddr_index_major, uint64_t till_block) const;
+    /*!
+     * \brief unspent_balance - like balance(), but only counts transfers for which we have the key image allowing verification of being unspent
+     * \return wallet balance in atomic units
+     */
+    uint64_t unspent_balance() const;
     // locked & unlocked balance per subaddress of given or current subaddress account
     std::map<uint32_t, uint64_t> balance_per_subaddress(uint32_t subaddr_index_major) const;
     std::map<uint32_t, std::pair<uint64_t, uint64_t>> unlocked_balance_per_subaddress(uint32_t subaddr_index_major) const;
@@ -832,6 +837,7 @@ private:
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
       uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, T destination_split_strategy, const tx_dust_policy& dust_policy, cryptonote::transaction& tx, pending_tx &ptx,
       size_t tx_type = cryptonote::transaction::tx_type_generic);
+    
     void transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
       uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, const rct::RCTConfig &rct_config,

@@ -126,7 +126,6 @@ using namespace cryptonote;
 #define MULTISIG_EXPORT_FILE_MAGIC "Graft multisig export\001"
 
 #define OUTPUT_EXPORT_FILE_MAGIC "Graft output export\004"
-#define OUTPUT_EXPORT_FILE_MAGIC "Monero output export\004"
 
 #define SEGREGATION_FORK_HEIGHT 99999999
 #define TESTNET_SEGREGATION_FORK_HEIGHT 99999999
@@ -1937,7 +1936,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           boost::unique_lock<hw::device> hwdev_lock (hwdev);
           hwdev.set_mode(hw::device::NONE);
           hwdev.conceal_derivation(tx_scan_info[i].received->derivation, tx_pub_key, additional_tx_pub_keys.data, derivation, additional_derivations);
-          scan_output(tx, miner_tx, tx_pub_key, i, tx_scan_info[i], num_vouts_received, tx_money_got_in_outs, outs);
+          scan_output(tx, miner_tx, tx_pub_key, i, tx_scan_info[i], num_vouts_received, tx_money_got_in_outs, outs, pool);
         }
       }
     }
@@ -2308,13 +2307,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     if (tx_notify)
       tx_notify->notify("%s", epee::string_tools::pod_to_hex(txid).c_str(), NULL);
   }
-
-  if (notify)
-  {
-    std::shared_ptr<tools::Notify> tx_notify = m_tx_notify;
-    if (tx_notify)
-      tx_notify->notify(epee::string_tools::pod_to_hex(txid).c_str());
-  }
+  
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::process_unconfirmed(const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t height)
@@ -3519,8 +3512,6 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
   if (!r)
     return r;
   std::string tmp_file_name = keys_file_name + ".new";
-  std::string buf;
-  r = ::serialization::dump_binary(keys_file_data, buf);
   r = r && epee::file_io_utils::save_string_to_file(tmp_file_name, buf);
   CHECK_AND_ASSERT_MES(r, false, "failed to generate wallet keys file " << tmp_file_name);
 
@@ -8476,7 +8467,6 @@ void wallet2::transfer_selected(const std::vector<cryptonote::tx_destination_ent
   std::vector<crypto::secret_key> additional_tx_keys;
   rct::multisig_out msout;
   LOG_PRINT_L2("constructing tx");
-<<<<<<< HEAD
   bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sources, splitted_dsts, change_dts.addr, extra, tx, unlock_time, tx_key, additional_tx_keys, false, {}, m_multisig ? &msout : NULL, tx_type);
   LOG_PRINT_L2("constructed tx, r="<<r);
   THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sources, splitted_dsts, unlock_time, m_nettype);
@@ -8526,7 +8516,7 @@ void wallet2::transfer_selected(const std::vector<cryptonote::tx_destination_ent
 
 void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry> dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
   std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs,
-  uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, const rct::RCTConfig &rct_config, uint32_t tx_type)
+  uint64_t unlock_time, uint64_t fee, const std::vector<uint8_t>& extra, cryptonote::transaction& tx, pending_tx &ptx, const rct::RCTConfig &rct_config, size_t tx_type)
 {
   using namespace cryptonote;
   // throw if attempting a transaction with no destinations

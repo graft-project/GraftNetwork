@@ -428,7 +428,7 @@ WalletImpl::WalletImpl(NetworkType nettype, uint64_t kdf_rounds)
     , m_is_connected(false)
     , m_refreshShouldRescan(false)
 {
-<<<<<<< HEAD
+
     m_wallet.reset(new tools::GraftWallet(static_cast<cryptonote::network_type>(nettype), kdf_rounds, true));
     m_history.reset(new TransactionHistoryImpl(this));
     m_wallet2Callback.reset(new Wallet2CallbackImpl(this));
@@ -1397,20 +1397,6 @@ std::string WalletImpl::exchangeMultisigKeys(const std::vector<std::string> &inf
         return m_wallet->exchange_multisig_keys(epee::wipeable_string(m_password), info);
     } catch (const exception& e) {
         LOG_ERROR("Error on exchanging multisig keys: " << e.what());
-        setStatusError(string(tr("Failed to make multisig: ")) + e.what());
-    }
-
-    return string();
-}
-
-std::string WalletImpl::exchangeMultisigKeys(const std::vector<std::string> &info) {
-    try {
-        clearStatus();
-        checkMultisigWalletNotReady(m_wallet);
-
-        return m_wallet->exchange_multisig_keys(epee::wipeable_string(m_password), info);
-    } catch (const exception& e) {
-        LOG_ERROR("Error on exchanging multisig keys: ") << e.what();
         setStatusError(string(tr("Failed to make multisig: ")) + e.what());
     }
 

@@ -1,6 +1,5 @@
 // Copyright (c) 2018-2019, The Graft Project
 // Copyright (c) 2014-2019, The Monero Project
->>>>>>> monero/release-v0.14
 //
 // All rights reserved.
 //
