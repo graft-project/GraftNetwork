@@ -866,6 +866,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     // validation.
     crypto::hash tx_hash;
     auto &tx_hash_str = boost::get<std::string>(data.at("#"));
+    bool already_approved = false, already_rejected = false;
     if (tx_hash_str.size() == sizeof(crypto::hash)) {
         std::memcpy(tx_hash.data, tx_hash_str.data(), sizeof(crypto::hash));
         std::shared_lock<std::shared_timed_mutex> lock{snw.mutex};
@@ -874,16 +875,28 @@ void handle_blink(SNNetwork::message &m, void *self) {
             auto &umap = bit->second;
             auto it = umap.find(tx_hash);
             if (it != umap.end() && it->second.btxptr) {
-                MDEBUG("Already seen and forwarded this blink tx, ignoring it.");
-                if (tag && !it->second.reply_tag) {
-                    // Set the tag/pubkey if not set: that means we received it from a blink quorum
-                    // peer before we got it from the originating node, but this is the originating
-                    // node to whom we still want to reply.
-                    it->second.reply_tag = tag;
-                    it->second.reply_pubkey = m.pubkey;
+                if (tag) {
+                    // This is a direct blink submission, not a quorum-relayed submission
+                    already_approved = it->second.btxptr->approved();
+                    already_rejected = !already_approved && it->second.btxptr->rejected();
+                    if (already_approved || already_rejected) {
+                        // Quorum approved/rejected the tx before we received the submitted blink,
+                        // reply with a bl_good/bl_bad immediately (done below, outside the lock).
+                        MINFO("Submitted blink tx already " << (already_approved ? "approved" : "rejected") <<
+                                "; sending result back to originating node");
+                    } else {
+                        // We've already seen it but are still waiting on more signatures to
+                        // determine the result, so stash the tag & pubkey in the metadata to delay
+                        // the reply until a signature comes in that flips it to approved/rejected
+                        // status.
+                        it->second.reply_tag = tag;
+                        it->second.reply_pubkey = m.pubkey;
+                        return;
+                    }
+                } else {
+                    MDEBUG("Already seen and forwarded this blink tx, ignoring it.");
+                    return;
                 }
-
-                return;
             }
         }
         MTRACE("Blink tx hash: " << as_hex(tx_hash.data));
@@ -891,6 +904,11 @@ void handle_blink(SNNetwork::message &m, void *self) {
         MINFO("Rejecting blink tx: invalid tx hash included in request");
         if (tag)
             m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Invalid transaction hash"}});
+        return;
+    }
+
+    if (already_approved || already_rejected) {
+        snw.snn.send(m.pubkey, already_approved ? "bl_good" : "bl_bad", bt_dict{{"!", tag}}, send_option::optional{});
         return;
     }
 
