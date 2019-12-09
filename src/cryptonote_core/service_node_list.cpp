@@ -2465,6 +2465,15 @@ namespace service_nodes
 
     // NOTE: Load uptime proof data
     m_proofs = db.get_all_service_node_proofs();
+    if (m_service_node_keys)
+    {
+      // Reset our own proof timestamp to zero so that we aggressively try to resend proofs on
+      // startup (in case we are restarting because the last proof that we think went out didn't
+      // actually make it to the network).
+      auto &mine = m_proofs[m_service_node_keys->pub];
+      mine.timestamp = mine.effective_timestamp = 0;
+    }
+
     initialize_x25519_map();
 
     MGINFO("Service node data loaded successfully, height: " << m_state.height);
