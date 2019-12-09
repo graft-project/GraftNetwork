@@ -2083,6 +2083,7 @@ namespace service_nodes
     if (pk && 0 == crypto_sign_ed25519_pk_to_curve25519(pubkey_x25519.data, pk.data)) {
       pubkey_ed25519 = pk;
     } else {
+      MWARNING("Failed to derive x25519 pubkey from ed25519 pubkey " << pubkey_ed25519);
       pubkey_x25519 = crypto::x25519_public_key::null();
       pubkey_ed25519 = crypto::ed25519_public_key::null();
     }
