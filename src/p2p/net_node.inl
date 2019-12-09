@@ -2031,7 +2031,7 @@ namespace nodetool
       if (found) // TODO: Graft - should we stop iterating here?
         break;
     }
-    MDEBUG("find_connection_id_by_peer: done looking for: " << pe.adr.str() << ", found: " << conn_id);
+    MDEBUG("find_connection_id_by_peer: done looking for: " << pe.adr.str() << ", found: " << conn_id.second);
     return found;
   }
 

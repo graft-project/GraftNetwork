@@ -382,7 +382,8 @@ namespace net_utils
     connection_ptr new_connection_;
 
     boost::mutex connections_mutex;
-    std::deque<std::pair<boost::system_time, connection_ptr>> connections_;
+    //    std::deque<std::pair<boost::system_time, connection_ptr>> connections_;
+    std::set<connection_ptr> connections_;
     boost::asio::io_service::strand m_strand;
   }; // class <>boosted_tcp_server
 

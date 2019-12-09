@@ -54,9 +54,6 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net"
 
-#define AGGRESSIVE_TIMEOUT_THRESHOLD 120 // sockets
-#define NEW_CONNECTION_TIMEOUT_LOCAL 1200000 // 2 minutes
-#define NEW_CONNECTION_TIMEOUT_REMOTE 10000 // 10 seconds
 #define DEFAULT_TIMEOUT_MS_LOCAL 1800000 // 30 minutes
 #define DEFAULT_TIMEOUT_MS_REMOTE 300000 // 5 minutes
 #define TIMEOUT_EXTRA_MS_PER_BYTE 0.2
@@ -192,7 +189,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
     m_protocol_handler.after_init_connection();
 
-    reset_timer(boost::posix_time::milliseconds(m_local ? NEW_CONNECTION_TIMEOUT_LOCAL : NEW_CONNECTION_TIMEOUT_REMOTE), false);
+    reset_timer(get_default_timeout(), false);
 
     // first read on the raw socket to detect SSL for the server
     buffer_ssl_init_fill = 0;
@@ -343,7 +340,6 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 
 
 		if (speed_limit_is_enabled()) {
-#if 0
 			do // keep sleeping if we should sleep
 			{
 				{ //_scope_dbg1("CRITICAL_REGION_LOCAL");
@@ -358,7 +354,6 @@ PRAGMA_WARNING_DISABLE_VS(4355)
 					boost::this_thread::sleep_for(boost::chrono::milliseconds(ms));
 				}
 			} while(delay > 0);
-#endif
 		} // any form of sleeping
 		
       //_info("[sock " << socket().native_handle() << "] RECV " << bytes_transferred);
@@ -532,6 +527,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
         CHECK_AND_ASSERT_MES(! (chunksize_max<0), false, "Negative chunksize_max" ); // make sure it is unsigned before removin sign with cast:
         long long unsigned int chunksize_max_unsigned = static_cast<long long unsigned int>( chunksize_max ) ;
         // may be it's better to use "long long long long long long unsigned int" or use multiprecision arithmetics?no? really?
+#if 0
 
         allow_split = false; // splitting for upload speed control...
                              // But it's allowed for non RPC connections
@@ -540,6 +536,7 @@ PRAGMA_WARNING_DISABLE_VS(4355)
                              // So, splitting is meaningless
                              // * Actually I had turned off RPC connection speed controls, because it hangs io_service threads.
 
+#endif
         if (allow_split && (cb > chunksize_max_unsigned)) {
 			{ // LOCK: chunking
     		epee::critical_region_t<decltype(m_chunking_lock)> send_guard(m_chunking_lock); // *** critical *** 
@@ -891,19 +888,6 @@ PRAGMA_WARNING_DISABLE_VS(4355)
     CATCH_ENTRY_L0("connection<t_protocol_handler>::handle_write", void());
   }
 
-  
-#if 0  
-  template<class t_protocol_handler>
-  void connection<t_protocol_handler>::handle_write_after_delay1(const boost::system::error_code& e, size_t bytes_sent)
-  {
-  }
-
-  template<class t_protocol_handler>
-  void connection<t_protocol_handler>::handle_write_after_delay2(const boost::system::error_code& e, size_t bytes_sent)
-  {
-  }
-#endif
-
   //---------------------------------------------------------------------------------
   template<class t_protocol_handler>
   void connection<t_protocol_handler>::setRpcStation()
@@ -1171,7 +1155,7 @@ POP_WARNINGS
     connections_mutex.lock();
     for (auto &c: connections_)
     {
-      c.second->cancel();
+      c->cancel();
     }
     connections_.clear();
     connections_mutex.unlock();
@@ -1402,7 +1386,7 @@ POP_WARNINGS
 
     // start adds the connection to the config object's list, so we don't need to have it locally anymore
     connections_mutex.lock();
-    remove_connection(connections_, new_connection_l);
+    connections_.erase(new_connection_l);
     connections_mutex.unlock();
     bool r = new_connection_l->start(false, 1 < m_threads_count);
     if (r)
@@ -1429,18 +1413,10 @@ POP_WARNINGS
     TRY_ENTRY();    
     connection_ptr new_connection_l(new connection<t_protocol_handler>(io_service_, m_state, m_connection_type, ssl_support) );
     connections_mutex.lock();
-    connections_.push_back(std::make_pair(boost::get_system_time(), new_connection_l));
-    auto remove_connection = [](std::deque<std::pair<boost::system_time, connection_ptr>>& connections, const connection_ptr& c) {
-      for (auto it=connections.begin(); it!=connections.end(); ++it)
-        if (it->second == c)
-        {
-          connections.erase(it);
-          return;
-        }
-    };
+    connections_.insert(new_connection_l);
     MDEBUG("connections_ size now " << connections_.size());
     connections_mutex.unlock();
-    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); remove_connection(connections_, new_connection_l); });
+    epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ CRITICAL_REGION_LOCAL(connections_mutex); connections_.erase(new_connection_l); });
     boost::asio::ip::tcp::socket&  sock_ = new_connection_l->socket();
     
     //////////////////////////////////////////////////////////////////////////
@@ -1500,7 +1476,7 @@ POP_WARNINGS
 
             // start adds the connection to the config object's list, so we don't need to have it locally anymore
             connections_mutex.lock();
-            remove_connection(connections_, new_connection_l);
+            connections_.erase(new_connection_l);
             connections_mutex.unlock();
             bool r = new_connection_l->start(false, 1 < m_threads_count);
             if (r)
