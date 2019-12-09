@@ -6234,7 +6234,7 @@ bool simple_wallet::transfer(const std::vector<std::string> &args_)
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::transfer_rta(const std::vector<std::string> &args_)
 {
-  return transfer_main(TransferRTAFee, args_);
+  return transfer_main(TransferRTAFee, args_, false);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::locked_transfer(const std::vector<std::string> &args_)
@@ -6245,7 +6245,7 @@ bool simple_wallet::locked_transfer(const std::vector<std::string> &args_)
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::stake_transfer(const std::vector<std::string> &args_)
 {
-  return transfer_main(TransferStake, args_);
+  return transfer_main(TransferStake, args_, false);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::locked_sweep_all(const std::vector<std::string> &args_)
