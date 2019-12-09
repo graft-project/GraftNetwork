@@ -522,6 +522,11 @@ namespace nodetool
       m_save_graph = save_graph;
       epee::net_utils::connection_basic::set_save_graph(save_graph);
     }
+    
+    void set_rpc_port(uint16_t rpc_port)
+    {
+      m_rpc_port = rpc_port;
+    }
 
     void add_supernode(const std::string& addr, const std::string& url)
     {
@@ -588,11 +593,7 @@ namespace nodetool
     void handle_stakes_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes);
     void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
 
-    void set_rpc_port(uint16_t rpc_port)
-    {
-      m_rpc_port = rpc_port;
-    }
-    
+
 
   private:
     std::multimap<int, std::string> m_supernode_requests_timestamps;
