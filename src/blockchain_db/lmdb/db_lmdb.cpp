@@ -383,14 +383,12 @@ struct mdb_block_info_2 : mdb_block_info_1
   uint64_t bi_cum_rct;
 };
 
-struct mdb_block_info_3 : mdb_block_info_2
+struct mdb_block_info : mdb_block_info_2
 {
   uint64_t bi_long_term_block_weight;
 };
 
-static_assert(sizeof(mdb_block_info_3) == sizeof(mdb_block_info_1) + 16, "unexpected mdb_block_info struct sizes");
-
-using mdb_block_info = mdb_block_info_3;
+static_assert(sizeof(mdb_block_info) == sizeof(mdb_block_info_1) + 16, "unexpected mdb_block_info struct sizes");
 
 struct blk_checkpoint_header
 {
@@ -2634,7 +2632,7 @@ size_t BlockchainLMDB::get_block_weight(const uint64_t& height) const
   return ret;
 }
 
-std::vector<uint64_t> BlockchainLMDB::get_block_info_64bit_fields(uint64_t start_height, size_t count, uint64_t (*extract)(const void* bi_data)) const
+std::vector<uint64_t> BlockchainLMDB::get_block_info_64bit_fields(uint64_t start_height, size_t count, uint64_t (*extract)(const mdb_block_info* bi_data)) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -2739,13 +2737,13 @@ void BlockchainLMDB::add_max_block_size(uint64_t sz)
 std::vector<uint64_t> BlockchainLMDB::get_block_weights(uint64_t start_height, size_t count) const
 {
   return get_block_info_64bit_fields(start_height, count,
-      [](const void* bi) { return static_cast<const mdb_block_info *>(bi)->bi_weight; });
+      [](const mdb_block_info* bi) { return bi->bi_weight; });
 }
 
 std::vector<uint64_t> BlockchainLMDB::get_long_term_block_weights(uint64_t start_height, size_t count) const
 {
   return get_block_info_64bit_fields(start_height, count,
-      [](const void* bi) { return static_cast<const mdb_block_info *>(bi)->bi_long_term_block_weight; });
+      [](const mdb_block_info* bi) { return bi->bi_long_term_block_weight; });
 }
 
 difficulty_type BlockchainLMDB::get_block_cumulative_difficulty(const uint64_t& height) const
@@ -5708,7 +5706,7 @@ void BlockchainLMDB::migrate_3_4()
       }
       else if (result)
         throw0(DB_ERROR(lmdb_error("Failed to get a record from block_info: ", result).c_str()));
-      mdb_block_info_3 bi;
+      mdb_block_info bi;
       static_cast<mdb_block_info_2 &>(bi) = *static_cast<const mdb_block_info_2*>(v.mv_data);
 
       // get block major version to determine which rule is in place

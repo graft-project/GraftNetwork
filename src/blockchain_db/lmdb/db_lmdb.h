@@ -40,6 +40,8 @@
 namespace cryptonote
 {
 
+struct mdb_block_info;
+
 struct txindex {
     crypto::hash key;
     tx_data_t data;
@@ -408,7 +410,7 @@ private:
 
   uint64_t get_database_size() const override;
 
-  std::vector<uint64_t> get_block_info_64bit_fields(uint64_t start_height, size_t count, uint64_t (*extract)(const void* mdb_block_info)) const;
+  std::vector<uint64_t> get_block_info_64bit_fields(uint64_t start_height, size_t count, uint64_t (*extract)(const mdb_block_info*)) const;
 
   uint64_t get_max_block_size() override;
   void add_max_block_size(uint64_t sz) override;
