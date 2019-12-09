@@ -28,7 +28,7 @@
 
 #include <cryptonote_core/cryptonote_core.h>
 #include <crypto/hash.h>
-#include "common/int-util.h"
+#include "int-util.h"
 #include <boost/scoped_ptr.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
