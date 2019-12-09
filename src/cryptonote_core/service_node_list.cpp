@@ -2212,17 +2212,18 @@ namespace service_nodes
   }
 
   void service_node_list::initialize_x25519_map() {
-    auto sn_infos = get_service_node_list_state();
-    std::unique_lock<std::shared_timed_mutex> lock{m_x25519_map_mutex};
+    std::unique_lock<boost::recursive_mutex> sn_lock{m_sn_mutex, std::defer_lock};
+    std::unique_lock<std::shared_timed_mutex> x_lock{m_x25519_map_mutex, std::defer_lock};
+    std::lock(sn_lock, x_lock);
 
     auto now = std::time(nullptr);
-    for (const auto &sn_info : sn_infos)
+    for (const auto &pk_info : m_state.service_nodes_infos)
     {
-      auto it = m_proofs.find(sn_info.pubkey);
+      auto it = m_proofs.find(pk_info.first);
       if (it == m_proofs.end())
        continue;
       if (const auto &x2_pk = it->second.pubkey_x25519)
-        m_x25519_to_pub.emplace(x2_pk, std::make_pair(sn_info.pubkey, now));
+        m_x25519_to_pub.emplace(x2_pk, std::make_pair(pk_info.first, now));
     }
   }
 
