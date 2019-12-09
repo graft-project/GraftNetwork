@@ -55,6 +55,7 @@
 
 using epee::string_tools::pod_to_hex;
 using namespace crypto;
+using namespace boost::endian;
 
 enum struct lmdb_version
 {
@@ -2333,14 +2334,14 @@ static_assert(sizeof(blob_header) == 8, "blob_header layout is unexpected, possi
 static blob_header write_little_endian_blob_header(blob_type type, uint32_t size)
 {
   blob_header result = {type, size};
-  boost::endian::native_to_little_inplace(result.size);
+  native_to_little_inplace(result.size);
   return result;
 }
 
 static blob_header native_endian_blob_header(const blob_header *header)
 {
   blob_header result = {header->type, header->size};
-  boost::endian::little_to_native_inplace(result.size);
+  little_to_native_inplace(result.size);
   return result;
 }
 
@@ -3868,8 +3869,8 @@ void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
   header.block_hash            = checkpoint.block_hash;
   header.num_signatures        = checkpoint.signatures.size();
 
-  boost::endian::native_to_little_inplace(header.height);
-  boost::endian::native_to_little_inplace(header.num_signatures);
+  native_to_little_inplace(header.height);
+  native_to_little_inplace(header.num_signatures);
 
   size_t const MAX_BYTES_REQUIRED   = sizeof(header) + (sizeof(*checkpoint.signatures.data()) * service_nodes::CHECKPOINT_QUORUM_SIZE);
   uint8_t buffer[MAX_BYTES_REQUIRED];
@@ -3945,9 +3946,9 @@ static checkpoint_t convert_mdb_val_to_checkpoint(MDB_val const value)
   auto const *signatures =
       reinterpret_cast<service_nodes::voter_to_signature *>(static_cast<uint8_t *>(value.mv_data) + sizeof(*header));
 
-  auto num_sigs = boost::endian::little_to_native(header->num_signatures);
+  auto num_sigs = little_to_native(header->num_signatures);
 
-  result.height     = boost::endian::little_to_native(header->height);
+  result.height     = little_to_native(header->height);
   result.type       = (num_sigs > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
   result.block_hash = header->block_hash;
   result.signatures.insert(result.signatures.end(), signatures, signatures + num_sigs);
@@ -5963,27 +5964,23 @@ struct service_node_proof_serialized
 {
   service_node_proof_serialized() = default;
   service_node_proof_serialized(const service_nodes::proof_info &info)
-    : timestamp{info.timestamp}, ip{info.public_ip}, storage_port{info.storage_port}, quorumnet_port{info.quorumnet_port},
-      version{info.version[0], info.version[1], info.version[2]}, pubkey_ed25519{info.pubkey_ed25519}
-  {
-    boost::endian::native_to_little_inplace(timestamp);
-    boost::endian::native_to_little_inplace(ip);
-    boost::endian::native_to_little_inplace(storage_port);
-    boost::endian::native_to_little_inplace(quorumnet_port);
-    boost::endian::native_to_little_inplace(version[0]);
-    boost::endian::native_to_little_inplace(version[1]);
-    boost::endian::native_to_little_inplace(version[2]);
-  }
+    : timestamp{native_to_little(info.timestamp)},
+      ip{native_to_little(info.public_ip)},
+      storage_port{native_to_little(info.storage_port)},
+      quorumnet_port{native_to_little(info.quorumnet_port)},
+      version{native_to_little(info.version[0]), native_to_little(info.version[1]), native_to_little(info.version[2])},
+      pubkey_ed25519{info.pubkey_ed25519}
+  {}
   void update(service_nodes::proof_info &info) const
   {
-    info.timestamp = boost::endian::little_to_native(timestamp);
+    info.timestamp = little_to_native(timestamp);
     if (info.timestamp > info.effective_timestamp)
       info.effective_timestamp = info.timestamp;
-    info.public_ip = boost::endian::little_to_native(ip);
-    info.storage_port = boost::endian::little_to_native(storage_port);
-    info.quorumnet_port = boost::endian::little_to_native(quorumnet_port);
+    info.public_ip = little_to_native(ip);
+    info.storage_port = little_to_native(storage_port);
+    info.quorumnet_port = little_to_native(quorumnet_port);
     for (size_t i = 0; i < info.version.size(); i++)
-      info.version[i] = boost::endian::little_to_native(version[i]);
+      info.version[i] = little_to_native(version[i]);
     info.update_pubkey(pubkey_ed25519);
   }
   operator service_nodes::proof_info() const
