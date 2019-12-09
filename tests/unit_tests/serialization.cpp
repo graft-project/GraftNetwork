@@ -1045,8 +1045,21 @@ TEST(Serialization, portability_outputs)
   ASSERT_TRUE(td2.m_pk_index == 0);
 }
 
+#define UNSIGNED_TX_PREFIX "Graft unsigned tx set\003"
+struct unsigned_tx_set
+{
+  std::vector<tools::wallet2::tx_construction_data> txes;
+  tools::wallet2::transfer_container transfers;
+};
+template <class Archive>
+inline void serialize(Archive &a, unsigned_tx_set &x, const boost::serialization::version_type ver)
+{
+  a & x.txes;
+  a & x.transfers;
+}
+
 namespace helper {
-    void dump_unsigned_tx(const tools::wallet2::unsigned_tx_set &tx, cryptonote::network_type nettype)
+    void dump_unsigned_tx(const unsigned_tx_set &tx, cryptonote::network_type nettype)
     {
         std::cout << "txes.size(): " << tx.txes.size() << std::endl;
         for (int i = 0; i < tx.txes.size(); ++i) {
@@ -1116,18 +1129,7 @@ namespace helper {
     }
 }
 
-#define UNSIGNED_TX_PREFIX "Graft unsigned tx set\003"
-struct unsigned_tx_set
-{
-  std::vector<tools::wallet2::tx_construction_data> txes;
-  tools::wallet2::transfer_container transfers;
-};
-template <class Archive>
-inline void serialize(Archive &a, unsigned_tx_set &x, const boost::serialization::version_type ver)
-{
-  a & x.txes;
-  a & x.transfers;
-}
+
 TEST(Serialization, portability_unsigned_tx)
 {
   const boost::filesystem::path filename = unit_test::data_dir / "unsigned_monero_tx";
