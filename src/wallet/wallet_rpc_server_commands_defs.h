@@ -713,22 +713,28 @@ namespace wallet_rpc
       std::list<std::string> supernode_signatures;
       std::string graft_payment_id;
       uint64_t auth_sample_height;
+
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(destinations)
+        KV_SERIALIZE(account_index)
+        KV_SERIALIZE(subaddr_indices)
         KV_SERIALIZE(priority)
-        KV_SERIALIZE(mixin)
+        KV_SERIALIZE_OPT(ring_size, (uint64_t)0)
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
         KV_SERIALIZE(get_tx_key)
+        KV_SERIALIZE_OPT(do_not_relay, false)
+        KV_SERIALIZE_OPT(get_tx_hex, false)
+        KV_SERIALIZE_OPT(get_tx_metadata, false)
+
         KV_SERIALIZE(supernode_keys)
         KV_SERIALIZE(supernode_signatures)
         KV_SERIALIZE(graft_payment_id)
         KV_SERIALIZE(auth_sample_height)
-        KV_SERIALIZE_OPT(do_not_relay, false)
-        KV_SERIALIZE_OPT(get_tx_hex, false)
       END_KV_SERIALIZE_MAP()
     };
-
+    typedef epee::misc_utils::struct_init<request_t> request;
+    
     struct response_t : public COMMAND_RPC_TRANSFER::response_t
     {
       std::string encrypted_tx_key; // encrypted tx key using multiple key encryption
@@ -740,6 +746,8 @@ namespace wallet_rpc
         KV_SERIALIZE(encrypted_tx_key)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
+    
   };
 
   struct COMMAND_RPC_SWEEP_DUST
@@ -2412,31 +2420,6 @@ namespace wallet_rpc
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
-  };
-
-  struct COMMAND_RPC_EXCHANGE_MULTISIG_KEYS
-  {
-    struct request
-    {
-      std::string password;
-      std::vector<std::string> multisig_info;
-
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(password)
-        KV_SERIALIZE(multisig_info)
-      END_KV_SERIALIZE_MAP()
-    };
-
-    struct response
-    {
-      std::string address;
-      std::string multisig_info;
-
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(address)
-        KV_SERIALIZE(multisig_info)
-      END_KV_SERIALIZE_MAP()
-    };
   };
 
   struct COMMAND_RPC_SIGN_MULTISIG

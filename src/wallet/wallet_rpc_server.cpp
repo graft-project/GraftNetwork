@@ -1126,7 +1126,7 @@ namespace tools
     try
     {
       const bool rta_tx_fee = true;
-      uint64_t mixin = m_wallet->adjust_mixin(req.mixin);
+      uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, req.priority, extra, req.account_index, req.subaddr_indices, rta_tx_fee);
 
       // reject proposed transactions if there are more than one.  see on_transfer_split below.
