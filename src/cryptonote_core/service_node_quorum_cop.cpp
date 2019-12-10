@@ -560,12 +560,12 @@ namespace service_nodes
 
     std::unique_lock<cryptonote::Blockchain> lock{blockchain};
 
-    bool update_checkpoint = true;
+    bool update_checkpoint;
     if (blockchain.get_checkpoint(vote.block_height, checkpoint) &&
         checkpoint.block_hash == vote.checkpoint.block_hash)
     {
-      update_checkpoint = checkpoint.signatures.size() != service_nodes::CHECKPOINT_QUORUM_SIZE;
-      if (update_checkpoint)
+      update_checkpoint = false;
+      if (checkpoint.signatures.size() != service_nodes::CHECKPOINT_QUORUM_SIZE)
       {
         checkpoint.signatures.reserve(service_nodes::CHECKPOINT_QUORUM_SIZE);
         std::sort(checkpoint.signatures.begin(),
@@ -594,6 +594,7 @@ namespace service_nodes
     }
     else
     {
+      update_checkpoint = true;
       checkpoint = make_empty_service_node_checkpoint(vote.checkpoint.block_hash, vote.block_height);
       checkpoint.signatures.reserve(votes.size());
       for (pool_vote_entry const &pool_vote : votes)
