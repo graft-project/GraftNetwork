@@ -1362,23 +1362,14 @@ struct loki_blockchain_entry
 
 struct loki_chain_generator_db : public cryptonote::BaseTestDB
 {
-  std::vector<loki_blockchain_entry>                        &blockchain;
-  std::unordered_map<crypto::hash, cryptonote::transaction> &tx_table; // TODO(loki): I want to store pointers to transactions but I get some memory corruption somewhere. Pls fix.
-  std::unordered_map<crypto::hash, loki_blockchain_entry>   &block_table;
-
-  loki_chain_generator_db(std::vector<loki_blockchain_entry> &blockchain,
-                          std::unordered_map<crypto::hash, cryptonote::transaction> &tx_table,
-                          std::unordered_map<crypto::hash, loki_blockchain_entry> &block_table)
-  : blockchain(blockchain)
-  , tx_table(tx_table)
-  , block_table(block_table)
-  {
-  }
+  std::vector<loki_blockchain_entry>                        blocks;
+  std::unordered_map<crypto::hash, cryptonote::transaction> tx_table;
+  std::unordered_map<crypto::hash, loki_blockchain_entry>   block_table;
 
   cryptonote::block                     get_block_from_height(const uint64_t &height) const override;
   bool                                  get_tx(const crypto::hash& h, cryptonote::transaction &tx) const override;
   std::vector<cryptonote::checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints) const override;
-  uint64_t height() const override { return blockchain.size(); }
+  uint64_t height() const override { return blocks.size(); }
 };
 
 struct loki_service_node_contribution
@@ -1392,8 +1383,6 @@ struct loki_chain_generator
   // TODO(loki): I want to store pointers to transactions but I get some memory corruption somewhere. Pls fix.
   // We already store blockchain_entries in block_ vector which stores the actual backing transaction entries.
   std::unordered_map<crypto::hash, cryptonote::transaction>          tx_table_;
-  std::unordered_map<crypto::hash, loki_blockchain_entry>            block_table_; // TODO(loki): Hmm takes a copy. But its easier to work this way, particularly for storing alt blocks
-  std::vector<loki_blockchain_entry>                                 blocks_;
   mutable std::unordered_map<crypto::public_key, crypto::secret_key> service_node_keys_;
   service_nodes::service_node_list::state_set                        state_history_;
   uint64_t                                                           last_cull_height_ = 0;
@@ -1407,11 +1396,11 @@ struct loki_chain_generator
   loki_chain_generator(std::vector<test_event_entry> &events, const std::vector<std::pair<uint8_t, uint64_t>> &hard_forks);
   ~loki_chain_generator() { sqlite3_close_v2(lns_db_.db); }
 
-  uint64_t                                             height()       const { return cryptonote::get_block_height(blocks_.back().block); }
-  const std::vector<loki_blockchain_entry>&            blocks()       const { return blocks_; }
+  uint64_t                                             height()       const { return cryptonote::get_block_height(db_.blocks.back().block); }
+  const std::vector<loki_blockchain_entry>&            blocks()       const { return db_.blocks; }
   size_t                                               event_index()  const { return events_.size() - 1; }
 
-  const loki_blockchain_entry&                         top() const { return blocks_.back(); }
+  const loki_blockchain_entry&                         top() const { return db_.blocks.back(); }
   service_nodes::quorum_manager                        top_quorum() const;
   service_nodes::quorum_manager                        quorum(uint64_t height) const;
   std::shared_ptr<const service_nodes::quorum>         get_quorum(service_nodes::quorum_type type, uint64_t height) const;

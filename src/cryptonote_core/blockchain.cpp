@@ -604,7 +604,7 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
 
   uint64_t tail_height   = 0;
   crypto::hash tail_hash = get_tail_id(tail_height);
-  if (!m_lns_db.init(nettype, lns_db, tail_height, tail_hash))
+  if (lns_db && !m_lns_db.init(nettype, lns_db, tail_height, tail_hash))
   {
     MERROR("LNS failed to initialise");
     return false;
