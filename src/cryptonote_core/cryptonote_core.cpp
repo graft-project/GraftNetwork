@@ -763,10 +763,8 @@ namespace cryptonote
       0
     };
 
-    BlockchainDB *initialized_db = db.release();
     // Service Nodes
     {
-      m_service_node_list.set_db_pointer(initialized_db);
       m_service_node_list.set_quorum_history_storage(command_line::get_arg(vm, arg_store_quorum_history));
 
       // NOTE: Implicit dependency. Service node list needs to be hooked before checkpoints.
@@ -791,7 +789,8 @@ namespace cryptonote
     }
 
     const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
-    r = m_blockchain_storage.init(initialized_db, m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
+    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
+
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     if (!command_line::is_arg_defaulted(vm, arg_recalculate_difficulty))
@@ -800,7 +799,7 @@ namespace cryptonote
       cryptonote::BlockchainDB::fixup_context context  = {};
       context.type                                     = cryptonote::BlockchainDB::fixup_type::calculate_difficulty;
       context.calculate_difficulty_params.start_height = recalc_diff_from_block;
-      initialized_db->fixup(context);
+      m_blockchain_storage.get_db().fixup(context);
     }
 
     r = m_mempool.init(max_txpool_weight);
@@ -964,7 +963,6 @@ namespace cryptonote
     if (m_quorumnet_obj)
       quorumnet_delete(m_quorumnet_obj);
     m_service_node_list.store();
-    m_service_node_list.set_db_pointer(nullptr);
     m_miner.stop();
     m_mempool.deinit();
     m_blockchain_storage.deinit();
@@ -1951,41 +1949,43 @@ namespace cryptonote
 
     if (!states.empty() && (states[0].info->registration_height + 1) < get_current_blockchain_height())
     {
-      service_nodes::service_node_info const &info = *states[0].info;
-      m_check_uptime_proof_interval.do_call([&info, this]() {
+      m_check_uptime_proof_interval.do_call([this]() {
         // This timer is not perfectly precise and can leak seconds slightly, so send the uptime
         // proof if we are within half a tick of the target time.  (Essentially our target proof
         // window becomes the first time this triggers in the 57.5-62.5 minute window).
-        uint64_t threshold = static_cast<uint64_t>(time(nullptr) - UPTIME_PROOF_FREQUENCY_IN_SECONDS + UPTIME_PROOF_TIMER_SECONDS/2);
-        if (info.proof->timestamp <= threshold)
+        uint64_t next_proof_time = 0;
+        m_service_node_list.access_proof(m_service_node_keys->pub, [&](auto &proof) { next_proof_time = proof.timestamp; });
+        next_proof_time += UPTIME_PROOF_FREQUENCY_IN_SECONDS - UPTIME_PROOF_TIMER_SECONDS/2;
+
+        if ((uint64_t) std::time(nullptr) < next_proof_time)
+          return true;
+
+        if (!check_external_ping(m_last_storage_server_ping, STORAGE_SERVER_PING_LIFETIME, "the storage server"))
         {
-          if (!check_external_ping(m_last_storage_server_ping, STORAGE_SERVER_PING_LIFETIME, "the storage server"))
+          MGINFO_RED(
+              "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
+              "is running! It is required to run alongside the Loki daemon");
+          return true;
+        }
+        uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
+        if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
+        {
+          if (hf_version >= cryptonote::network_version_14_blink_lns)
           {
             MGINFO_RED(
-                "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
+                "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "
                 "is running! It is required to run alongside the Loki daemon");
             return true;
           }
-          uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
-          if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
+          else
           {
-            if (hf_version >= cryptonote::network_version_14_blink_lns)
-            {
-              MGINFO_RED(
-                  "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "
-                  "is running! It is required to run alongside the Loki daemon");
-              return true;
-            }
-            else
-            {
-              MGINFO_RED(
-                  "Have not heard from lokinet recently. Make sure that it is running! "
-                  "It is required to run alongside the Loki daemon after hard fork 14");
-            }
+            MGINFO_RED(
+                "Have not heard from lokinet recently. Make sure that it is running! "
+                "It is required to run alongside the Loki daemon after hard fork 14");
           }
-
-          this->submit_uptime_proof();
         }
+
+        submit_uptime_proof();
 
         return true;
       });
@@ -2024,6 +2024,7 @@ namespace cryptonote
     // m_check_updates_interval.do_call(boost::bind(&core::check_updates, this));
     m_check_disk_space_interval.do_call(boost::bind(&core::check_disk_space, this));
     m_block_rate_interval.do_call(boost::bind(&core::check_block_rate, this));
+    m_sn_proof_cleanup_interval.do_call([&snl=m_service_node_list] { snl.cleanup_proofs(); return true; });
 
     time_t const lifetime = time(nullptr) - get_start_time();
     if (m_service_node_keys && lifetime > UPTIME_PROOF_INITIAL_DELAY_SECONDS) // Give us some time to connect to peers before sending uptimes

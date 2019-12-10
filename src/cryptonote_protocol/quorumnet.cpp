@@ -114,17 +114,23 @@ std::string get_connect_string(const service_node_list &sn_list, const crypto::x
         MDEBUG("no connection available: could not find primary pubkey from x25519 pubkey " << x25519_pub);
         return "";
     }
-    auto states = sn_list.get_service_node_list_state({{pubkey}});
-    if (states.empty()) {
+    bool found = false;
+    uint32_t ip = 0;
+    uint16_t port = 0;
+    sn_list.for_each_service_node_info_and_proof(&pubkey, &pubkey + 1, [&](auto&, auto&, auto& proof) {
+        found = true;
+        ip = proof.public_ip;
+        port = proof.quorumnet_port;
+    });
+    if (!found) {
         MDEBUG("no connection available: primary pubkey " << pubkey << " is not registered");
         return "";
     }
-    const auto &proof = *states[0].info->proof;
-    if (!proof.public_ip || !proof.quorumnet_port) {
-        MDEBUG("no connection available: primary pubkey " << pubkey << " has no associated ip and/or port");
+    if (!(ip && port)) {
+        MDEBUG("no connection available: service node " << pubkey << " has no associated ip and/or port");
         return "";
     }
-    return "tcp://" + epee::string_tools::get_ip_string_from_int32(proof.public_ip) + ":" + std::to_string(proof.quorumnet_port);
+    return "tcp://" + epee::string_tools::get_ip_string_from_int32(ip) + ":" + std::to_string(port);
 }
 
 constexpr el::Level easylogging_level(LogLevel level) {
@@ -294,13 +300,11 @@ public:
         }
 
         // Lookup the x25519 and ZMQ connection string for all peers
-        snw.core.get_service_node_list().for_each_service_node_info(need_remotes.begin(), need_remotes.end(),
-            [this](const crypto::public_key &pubkey, const service_nodes::service_node_info &info) {
-                if (!info.is_active()) return;
-                auto &proof = *info.proof;
-                if (!proof.pubkey_x25519 || !proof.quorumnet_port || !proof.public_ip) return;
-                remotes.emplace(pubkey,
-                    std::make_pair(proof.pubkey_x25519, "tcp://" + epee::string_tools::get_ip_string_from_int32(proof.public_ip) + ":" + std::to_string(proof.quorumnet_port)));
+        snw.core.get_service_node_list().for_each_service_node_info_and_proof(need_remotes.begin(), need_remotes.end(),
+            [this](const auto &pubkey, const auto &info, const auto &proof) {
+              if (info.is_active() && proof.pubkey_x25519 && proof.quorumnet_port && proof.public_ip)
+                remotes.emplace(pubkey, std::make_pair(proof.pubkey_x25519,
+                    "tcp://" + epee::string_tools::get_ip_string_from_int32(proof.public_ip) + ":" + std::to_string(proof.quorumnet_port)));
             });
 
         compute_peers(qbegin, qend, opportunistic);
@@ -1286,13 +1290,12 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
 
         std::vector<std::pair<std::string, std::string>> remotes; // x25519 pubkey -> connect string
         remotes.reserve(candidates.size());
-        snw.core.get_service_node_list().for_each_service_node_info(candidates.begin(), candidates.end(),
-            [&remotes](const crypto::public_key &pubkey, const service_nodes::service_node_info &info) {
+        snw.core.get_service_node_list().for_each_service_node_info_and_proof(candidates.begin(), candidates.end(),
+            [&remotes](const auto &pubkey, const auto &info, const auto &proof) {
                 if (!info.is_active()) {
                     MTRACE("Not include inactive node " << pubkey);
                     return;
                 }
-                auto &proof = *info.proof;
                 if (!proof.pubkey_x25519 || !proof.quorumnet_port || !proof.public_ip) {
                     MTRACE("Not including node " << pubkey << ": missing x25519(" << as_hex(get_data_as_string(proof.pubkey_x25519)) << "), "
                             "public_ip(" << epee::string_tools::get_ip_string_from_int32(proof.public_ip) << "), or qnet port(" << proof.quorumnet_port << ")");

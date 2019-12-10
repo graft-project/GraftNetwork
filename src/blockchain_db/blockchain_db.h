@@ -96,6 +96,10 @@
  *   KEY_IMAGE_EXISTS
  */
 
+namespace service_nodes {
+struct proof_info;
+}
+
 namespace cryptonote
 {
 struct checkpoint_t;
@@ -557,7 +561,7 @@ public:
   /**
    * @brief An empty destructor.
    */
-  virtual ~BlockchainDB() { };
+  virtual ~BlockchainDB() = default;
 
   /**
    * @brief init command line options
@@ -1823,8 +1827,22 @@ public:
   virtual bool get_output_blacklist(std::vector<uint64_t> &blacklist) const   = 0;
   virtual void add_output_blacklist(std::vector<uint64_t> const &blacklist)   = 0;
   virtual void set_service_node_data(const std::string& data, bool long_term) = 0;
-  virtual bool get_service_node_data(std::string &data, bool long_term)       = 0;
+  virtual bool get_service_node_data(std::string &data, bool long_term) const = 0;
   virtual void clear_service_node_data()                                      = 0;
+
+  /// Updates the given proof data with the latest stored info for the given service node.  Returns
+  /// true if found (and fields updated), false otherwise.
+  virtual bool get_service_node_proof(const crypto::public_key &pubkey, service_nodes::proof_info &proof) const = 0;
+
+  /// Returns pubkeys and proof data for all currently stored service nodes.
+  virtual std::unordered_map<crypto::public_key, service_nodes::proof_info> get_all_service_node_proofs() const = 0;
+
+  /// Creates or updates the proof data for a service node from a proof.
+  virtual void set_service_node_proof(const crypto::public_key &pubkey, const service_nodes::proof_info &proof) = 0;
+
+  /// Removes stored serialized proof sn data associated with the given pubkey.  Returns true if
+  /// found, false if not found.
+  virtual bool remove_service_node_proof(const crypto::public_key &pubkey) = 0;
 
   /**
    * @brief set whether or not to automatically remove logs
@@ -1844,18 +1862,19 @@ public:
 class db_txn_guard
 {
 public:
-  db_txn_guard(BlockchainDB *db, bool readonly): db(db), readonly(readonly), active(false)
+  db_txn_guard(BlockchainDB& db, bool readonly): db(db), readonly(readonly), active(false)
   {
     if (readonly)
     {
-      active = db->block_rtxn_start();
+      active = db.block_rtxn_start();
     }
     else
     {
-      db->block_wtxn_start();
+      db.block_wtxn_start();
       active = true;
     }
   }
+  db_txn_guard(BlockchainDB* db, bool readonly) : db_txn_guard(*db, readonly) {}
   virtual ~db_txn_guard()
   {
     if (active)
@@ -1864,28 +1883,36 @@ public:
   void stop()
   {
     if (readonly)
-      db->block_rtxn_stop();
+      db.block_rtxn_stop();
     else
-      db->block_wtxn_stop();
+      db.block_wtxn_stop();
     active = false;
   }
   void abort()
   {
     if (readonly)
-      db->block_rtxn_abort();
+      db.block_rtxn_abort();
     else
-      db->block_wtxn_abort();
+      db.block_wtxn_abort();
     active = false;
   }
 
 private:
-  BlockchainDB *db;
+  BlockchainDB &db;
   bool readonly;
   bool active;
 };
 
-class db_rtxn_guard: public db_txn_guard { public: db_rtxn_guard(BlockchainDB *db): db_txn_guard(db, true) {} };
-class db_wtxn_guard: public db_txn_guard { public: db_wtxn_guard(BlockchainDB *db): db_txn_guard(db, false) {} };
+class db_rtxn_guard: public db_txn_guard {
+public:
+  explicit db_rtxn_guard(BlockchainDB& db) : db_txn_guard{db, true} {}
+  explicit db_rtxn_guard(BlockchainDB* db) : db_rtxn_guard{*db} {}
+};
+class db_wtxn_guard: public db_txn_guard {
+public:
+  explicit db_wtxn_guard(BlockchainDB& db) : db_txn_guard{db, false} {}
+  explicit db_wtxn_guard(BlockchainDB* db) : db_wtxn_guard{*db} {}
+};
 
 BlockchainDB *new_db(const std::string& db_type);
 

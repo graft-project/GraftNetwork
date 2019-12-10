@@ -81,9 +81,17 @@ namespace service_nodes
   service_node_test_results quorum_cop::check_service_node(uint8_t hf_version, const crypto::public_key &pubkey, const service_node_info &info) const
   {
     service_node_test_results result; // Defaults to true for individual tests
-    uint64_t now                          = time(nullptr);
-    proof_info const &proof               = *info.proof;
-    uint64_t time_since_last_uptime_proof = now - std::max(proof.timestamp, proof.effective_timestamp);
+    bool ss_reachable = true;
+    uint64_t timestamp = 0;
+    decltype(std::declval<proof_info>().public_ips) ips{};
+    decltype(std::declval<proof_info>().votes) votes;
+    m_core.get_service_node_list().access_proof(pubkey, [&](const proof_info &proof) {
+        ss_reachable = proof.storage_server_reachable;
+        timestamp = std::max(proof.timestamp, proof.effective_timestamp);
+        ips = proof.public_ips;
+        votes = proof.votes;
+    });
+    uint64_t time_since_last_uptime_proof = std::time(nullptr) - timestamp;
 
     bool check_uptime_obligation     = true;
     bool check_checkpoint_obligation = true;
@@ -102,7 +110,7 @@ namespace service_nodes
       result.uptime_proved = false;
     }
 
-    if (!info.proof->storage_server_reachable)
+    if (!ss_reachable)
     {
       LOG_PRINT_L1("Service Node storage server is not reachable for node: " << pubkey);
       if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
@@ -110,7 +118,6 @@ namespace service_nodes
     }
 
     // IP change checks
-    const auto &ips = proof.public_ips;
     if (ips[0].first && ips[1].first) {
       // Figure out when we last had a blockchain-level IP change penalty (or when we registered);
       // we only consider IP changes starting two hours after the last IP penalty.
@@ -127,7 +134,7 @@ namespace service_nodes
     if (check_checkpoint_obligation && !info.is_decommissioned())
     {
       int missed_votes = 0;
-      for (checkpoint_vote_record const &record : proof.votes)
+      for (checkpoint_vote_record const &record : votes)
       {
         if (!record.voted) missed_votes++;
       }
