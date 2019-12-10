@@ -187,9 +187,9 @@ namespace service_nodes
     m_vote_pool.set_relayed(relayed_votes);
   }
 
-  std::vector<quorum_vote_t> quorum_cop::get_relayable_votes(uint64_t current_height)
+  std::vector<quorum_vote_t> quorum_cop::get_relayable_votes(uint64_t current_height, uint8_t hf_version, bool quorum_relay)
   {
-    return m_vote_pool.get_relayable_votes(current_height);
+    return m_vote_pool.get_relayable_votes(current_height, hf_version, quorum_relay);
   }
 
   int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, crypto::public_key const &my_pubkey)
@@ -535,7 +535,7 @@ namespace service_nodes
     return true;
   }
 
-  static bool handle_checkpoint_vote(cryptonote::core &core, const quorum_vote_t& vote, const std::vector<pool_vote_entry>& votes, const quorum& quorum)
+  static bool handle_checkpoint_vote(cryptonote::core& core, const quorum_vote_t& vote, const std::vector<pool_vote_entry>& votes, const quorum& quorum)
   {
     if (votes.size() < CHECKPOINT_MIN_VOTES)
     {

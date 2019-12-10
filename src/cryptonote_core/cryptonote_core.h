@@ -85,7 +85,7 @@ namespace cryptonote
   // Stops the quorumnet listener; is expected to delete the object and reset the pointer to nullptr.
   extern void (*quorumnet_delete)(void *&self);
   // Relays votes via quorumnet.
-  extern void (*quorumnet_relay_votes)(void *self, const std::vector<service_nodes::quorum_vote_t> &votes);
+  extern void (*quorumnet_relay_obligation_votes)(void *self, const std::vector<service_nodes::quorum_vote_t> &votes);
   // Sends a blink tx to the current blink quorum, returns a future that can be used to wait for the
   // result.
   extern std::future<std::pair<blink_result, std::string>> (*quorumnet_send_blink)(void *self, const std::string &tx_blob);
@@ -929,6 +929,12 @@ namespace cryptonote
       * @return true, necessary for binding this function to a periodic invoker
       */
      bool relay_service_node_votes();
+
+     /**
+      * @brief sets the given votes to relayed; generally called automatically when
+      * relay_service_node_votes() is called.
+      */
+     void set_service_node_votes_relayed(const std::vector<service_nodes::quorum_vote_t> &votes);
 
      /**
       * @brief Record if the service node has checkpointed at this point in time
