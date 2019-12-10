@@ -1008,7 +1008,7 @@ private:
     void rescan_spent();
     void rescan_blockchain(bool hard, bool refresh = true, bool keep_key_images = false);
     bool is_transfer_unlocked(const transfer_details &td) const;
-    bool is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height, crypto::key_image const *key_image = nullptr) const;
+    bool is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height, bool unmined_blink, crypto::key_image const *key_image = nullptr) const;
 
     uint64_t get_last_block_reward() const { return m_last_block_reward; }
     uint64_t get_device_last_key_image_sync() const { return m_device_last_key_image_sync; }
