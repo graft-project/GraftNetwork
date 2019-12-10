@@ -1943,6 +1943,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
             td.m_internal_output_index = o;
             td.m_global_output_index = unmined_blink ? 0 : o_indices[o]; // blink tx doesn't have this; will get updated when it gets into a block
             td.m_unmined_blink = unmined_blink;
+            td.m_was_blink = blink;
             td.m_tx = (const cryptonote::transaction_prefix&)tx;
             td.m_txid = txid;
             td.m_key_image = tx_scan_info[o].ki;
@@ -2368,6 +2369,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       payment.m_subaddr_index = i.index;
       payment.m_type          = i.type;
       payment.m_unmined_blink = pool && blink;
+      payment.m_was_blink     = blink;
       if (pool && !blink) {
         if (emplace_or_replace(m_unconfirmed_payments, payment_id, pool_payment_details{payment, double_spend_seen}))
           all_same = false;
@@ -5881,6 +5883,7 @@ transfer_view wallet2::make_transfer_view(const crypto::hash &txid, const crypto
   result.address = get_subaddress_as_str(pd.m_subaddr_index);
   result.confirmed = true;
   result.blink_mempool = pd.m_unmined_blink;
+  result.was_blink = pd.m_was_blink;
   // TODO(sacha): is this just for in or also coinbase?
   const bool unlocked = is_transfer_unlocked(result.unlock_time, result.height, result.blink_mempool);
   result.lock_msg = unlocked ? "unlocked" : "locked";
@@ -9943,6 +9946,7 @@ void wallet2::light_wallet_get_address_txs()
     address_tx.m_amount  =  incoming ? total_received - total_sent : total_sent - total_received;
     address_tx.m_fee = 0;                 // TODO
     address_tx.m_unmined_blink = false;
+    address_tx.m_was_blink = false;
     address_tx.m_block_height = t.height;
     address_tx.m_unlock_time  = t.unlock_time;
     address_tx.m_timestamp = t.timestamp;
@@ -9958,6 +9962,7 @@ void wallet2::light_wallet_get_address_txs()
       payment.m_amount       = total_received - total_sent;
       payment.m_fee          = 0;         // TODO
       payment.m_unmined_blink = false;
+      payment.m_was_blink = false;
       payment.m_block_height = t.height;
       payment.m_unlock_time  = t.unlock_time;
       payment.m_timestamp = t.timestamp;
