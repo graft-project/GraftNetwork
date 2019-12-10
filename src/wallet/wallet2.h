@@ -1388,9 +1388,8 @@ private:
     uint64_t adjust_mixin(uint64_t mixin) const;
     uint32_t adjust_priority(uint32_t priority);
 
-    // Shortcut to set up construction parameters; the returned object is default constructed unless
-    // priority is blink in which case the burn values are set appropriately.
-    static cryptonote::loki_construct_tx_params construct_params(uint32_t priority);
+    // params constructor, accumulates the burn amounts if the priority is a blink and, or a lns tx
+    static cryptonote::loki_construct_tx_params construct_params(uint8_t hf_version, cryptonote::txtype tx_type, uint32_t priority);
 
     bool is_unattended() const { return m_unattended; }
 
@@ -1542,6 +1541,8 @@ private:
       pending_tx  ptx;
     };
     request_stake_unlock_result can_request_stake_unlock(const crypto::public_key &sn_key);
+    std::vector<wallet2::pending_tx> create_buy_lns_mapping_tx(uint16_t type, std::string const &name, std::string const &value, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
+    std::vector<wallet2::pending_tx> create_buy_lns_mapping_tx(std::string const &type, std::string const &name, std::string const &value, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
 
     void freeze(size_t idx);
     void thaw(size_t idx);
