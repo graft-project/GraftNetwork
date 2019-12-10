@@ -292,11 +292,14 @@ uint64_t Blockchain::get_current_blockchain_height() const
 bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsystems)
 {
   if (!subsystems) return true;
+  if (!m_lns_db.db) subsystems = static_cast<decltype(subsystems)>(static_cast<uint8_t>(subsystems) & ~loki_subsystem_lns);
 
   uint64_t chain_height     = m_db->height();
   uint64_t const snl_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_9_service_nodes), m_service_node_list.height() + 1);
   uint64_t const lns_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_14_blink_lns),    m_lns_db.height() + 1);
   uint64_t lns_end_height   = 0;
+
+  if (subsystems & loki_subsystem_lns)
   {
     checkpoint_t immutable_checkpoint = {};
     if (m_db->get_immutable_checkpoint(&immutable_checkpoint, chain_height))
@@ -312,13 +315,14 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
       end_height   = chain_height;
     }
 
-    if (subsystems & loki_subsystem_lns)
+    if ((subsystems & loki_subsystem_lns) && (lns_end_height != 0))
     {
       start_height = std::min(start_height, lns_height);
       end_height   = std::max(end_height, lns_end_height);
     }
 
-    if (start_height >= end_height)
+    // NOTE: (end_height > chain_height) can occur when querying immutable checkpoints that are hardcoded in
+    if (start_height >= end_height || end_height > chain_height)
       return true;
     int64_t const total_blocks = static_cast<int64_t>(end_height) - static_cast<int64_t>(start_height);
 
