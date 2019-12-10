@@ -516,19 +516,17 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
                                                                          size_t value_len,
                                                                          std::string const &name) const
 {
+  crypto::ed25519_public_key pkey;
+  crypto::ed25519_secret_key skey;
+  crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(src.get_keys().m_spend_secret_key.data));
+
   std::vector<uint8_t> extra;
   cryptonote::tx_extra_loki_name_system data = {};
-  data.owner                                 = src.get_keys().m_spend_ed25519_public_key;
+  data.owner                                 = pkey;
   data.type                                  = type;
   data.value                                 = std::string(reinterpret_cast<char const *>(value), value_len);
   data.name                                  = name;
-
-  crypto::hash hash = data.make_signature_hash();
-  crypto_sign_ed25519_detached(data.signature.data,
-                               nullptr,
-                               reinterpret_cast<const unsigned char *>(hash.data),
-                               sizeof(hash.data),
-                               src.get_keys().m_spend_ed25519_secret_key.data);
+  data.signature                             = data.make_signature(skey);
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
 
   cryptonote::block const &head = top().block;

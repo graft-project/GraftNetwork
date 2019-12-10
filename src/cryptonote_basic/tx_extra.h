@@ -388,7 +388,8 @@ namespace cryptonote
     std::string                value;
     crypto::ed25519_signature  signature;
 
-    crypto::hash make_signature_hash() const;
+    crypto::hash              make_signature_hash() const;
+    crypto::ed25519_signature make_signature(crypto::ed25519_secret_key const &key) const;
     BEGIN_SERIALIZE()
       FIELD(owner);
       FIELD(type);

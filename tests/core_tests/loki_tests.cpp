@@ -1022,7 +1022,9 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
     gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   }
 
-  crypto::ed25519_public_key const &miner_key = miner.get_keys().m_spend_ed25519_public_key;
+  crypto::ed25519_public_key miner_key;
+  crypto::ed25519_secret_key miner_skey;
+  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
   char const name[] = "my_domain.loki";
   cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key), name);
   gen.create_and_add_next_block({tx});
@@ -1122,8 +1124,13 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
     gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   }
 
-  crypto::ed25519_public_key const &miner_key = miner.get_keys().m_spend_ed25519_public_key;
-  crypto::ed25519_public_key const &bob_key   = bob.get_keys().m_spend_ed25519_public_key;
+  crypto::ed25519_public_key miner_key;
+  crypto::ed25519_secret_key miner_skey;
+  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
+
+  crypto::ed25519_public_key bob_key;
+  crypto::ed25519_secret_key bob_skey;
+  crypto_sign_ed25519_seed_keypair(bob_key.data, bob_skey.data, reinterpret_cast<const unsigned char *>(bob.get_keys().m_spend_secret_key.data));
 
   std::string messenger_name                           = "MyFriendlyDisplayName";
   char messenger_key[lns::MESSENGER_PUBLIC_KEY_LENGTH] = {};
@@ -1228,24 +1235,19 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
   gen.add_n_blocks(30); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
-  crypto::ed25519_public_key const &miner_key = miner.get_keys().m_spend_ed25519_public_key;
+  crypto::ed25519_public_key miner_key;
+  crypto::ed25519_secret_key miner_skey;
+  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
 
   // Manually construct transaction with invalid tx extra
   {
-    auto make_lns_tx_with_custom_extra = [](loki_chain_generator &gen,
-                                            std::vector<test_event_entry> &events,
-                                            cryptonote::account_base const &src,
-                                            cryptonote::tx_extra_loki_name_system &data,
-                                            bool valid,
-                                            char const *reason) -> void {
-
-      crypto::hash hash = data.make_signature_hash();
-      crypto_sign_ed25519_detached(data.signature.data,
-                                   nullptr,
-                                   reinterpret_cast<const unsigned char *>(hash.data),
-                                   sizeof(hash.data),
-                                   src.get_keys().m_spend_ed25519_secret_key.data);
-
+    auto make_lns_tx_with_custom_extra = [&](loki_chain_generator &gen,
+                                             std::vector<test_event_entry> &events,
+                                             cryptonote::account_base const &src,
+                                             cryptonote::tx_extra_loki_name_system &data,
+                                             bool valid,
+                                             char const *reason) -> void {
+      data.signature = data.make_signature(miner_skey);
       std::vector<uint8_t> extra;
       cryptonote::add_loki_name_system_to_tx_extra(extra, data);
 
@@ -1263,7 +1265,7 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
     };
 
     cryptonote::tx_extra_loki_name_system valid_data = {};
-    valid_data.owner                                 = miner.get_keys().m_spend_ed25519_public_key;
+    valid_data.owner                                 = miner_key;
     valid_data.type                                  = static_cast<uint16_t>(lns::mapping_type::blockchain);
     valid_data.value                                 = cryptonote::get_account_address_as_str(cryptonote::FAKECHAIN, false, miner.get_keys().m_account_address);
     valid_data.name                                  = "my_lns_name";
@@ -1443,7 +1445,10 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   }
 
-  crypto::ed25519_public_key const &miner_key = miner.get_keys().m_spend_ed25519_public_key;
+  crypto::ed25519_public_key miner_key;
+  crypto::ed25519_secret_key miner_skey;
+  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
+
   char const name[] = "my_domain.loki";
   cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key), name);
   gen.create_and_add_next_block({tx});
@@ -1529,20 +1534,16 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   gen.add_n_blocks(30); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
-  crypto::ed25519_public_key const &miner_key = miner.get_keys().m_spend_ed25519_public_key;
+  crypto::ed25519_public_key pkey;
+  crypto::ed25519_secret_key skey;
+  crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
 
-  auto make_lns_tx_with_custom_extra = [](loki_chain_generator &gen,
-                                          std::vector<test_event_entry> &events,
-                                          cryptonote::account_base const &src,
-                                          cryptonote::tx_extra_loki_name_system &data) -> void {
+  auto make_lns_tx_with_custom_extra = [&](loki_chain_generator &gen,
+                                           std::vector<test_event_entry> &events,
+                                           cryptonote::account_base const &src,
+                                           cryptonote::tx_extra_loki_name_system &data) -> void {
 
-    crypto::hash hash = data.make_signature_hash();
-    crypto_sign_ed25519_detached(data.signature.data,
-                                 nullptr,
-                                 reinterpret_cast<const unsigned char *>(hash.data),
-                                 sizeof(hash.data),
-                                 src.get_keys().m_spend_ed25519_secret_key.data);
-
+    data.signature = data.make_signature(skey);
     std::vector<uint8_t> extra;
     cryptonote::add_loki_name_system_to_tx_extra(extra, data);
 
@@ -1560,7 +1561,7 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   };
 
   cryptonote::tx_extra_loki_name_system data = {};
-  data.owner                                 = miner.get_keys().m_spend_ed25519_public_key;
+  data.owner                                 = pkey;
   data.value                                 = cryptonote::get_account_address_as_str(cryptonote::FAKECHAIN, false, miner.get_keys().m_account_address);
 
   // Blockchain
