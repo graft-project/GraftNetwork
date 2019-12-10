@@ -57,7 +57,7 @@
 #include "checkpoints/checkpoints.h"
 #include "cryptonote_basic/hardfork.h"
 #include "blockchain_db/blockchain_db.h"
-#include "cryptonote_core/loki_name_system_db.h"
+#include "cryptonote_core/loki_name_system.h"
 
 struct sqlite3;
 namespace service_nodes { class service_node_list; };

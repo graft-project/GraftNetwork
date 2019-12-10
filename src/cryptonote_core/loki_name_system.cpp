@@ -1,4 +1,4 @@
-#include "loki_name_system_db.h"
+#include "loki_name_system.h"
 
 #include "checkpoints/checkpoints.h"
 #include "common/loki.h"

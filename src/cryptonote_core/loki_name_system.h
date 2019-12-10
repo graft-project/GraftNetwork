@@ -1,5 +1,5 @@
-#ifndef LOKI_NAME_SYSTEM_DB_H
-#define LOKI_NAME_SYSTEM_DB_H
+#ifndef LOKI_NAME_SYSTEM_H
+#define LOKI_NAME_SYSTEM_H
 
 #include "crypto/crypto.h"
 #include "cryptonote_config.h"
@@ -110,4 +110,4 @@ private:
 };
 
 }; // namespace service_nodes
-#endif // LOKI_NAME_SYSTEM_DB_H
+#endif // LOKI_NAME_SYSTEM_H

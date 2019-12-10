@@ -43,7 +43,7 @@
 #include "ringct/rctSigs.h"
 #include "cryptonote_basic/verification_context.h"
 #include "cryptonote_core/service_node_voting.h"
-#include "cryptonote_core/loki_name_system_db.h"
+#include "cryptonote_core/loki_name_system.h"
 
 #include <boost/endian/conversion.hpp>
 
