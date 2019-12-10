@@ -866,6 +866,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     // validation.
     crypto::hash tx_hash;
     auto &tx_hash_str = boost::get<std::string>(data.at("#"));
+    bool already_approved = false, already_rejected = false;
     if (tx_hash_str.size() == sizeof(crypto::hash)) {
         std::memcpy(tx_hash.data, tx_hash_str.data(), sizeof(crypto::hash));
         std::shared_lock<std::shared_timed_mutex> lock{snw.mutex};
@@ -874,16 +875,28 @@ void handle_blink(SNNetwork::message &m, void *self) {
             auto &umap = bit->second;
             auto it = umap.find(tx_hash);
             if (it != umap.end() && it->second.btxptr) {
-                MDEBUG("Already seen and forwarded this blink tx, ignoring it.");
-                if (tag && !it->second.reply_tag) {
-                    // Set the tag/pubkey if not set: that means we received it from a blink quorum
-                    // peer before we got it from the originating node, but this is the originating
-                    // node to whom we still want to reply.
-                    it->second.reply_tag = tag;
-                    it->second.reply_pubkey = m.pubkey;
+                if (tag) {
+                    // This is a direct blink submission, not a quorum-relayed submission
+                    already_approved = it->second.btxptr->approved();
+                    already_rejected = !already_approved && it->second.btxptr->rejected();
+                    if (already_approved || already_rejected) {
+                        // Quorum approved/rejected the tx before we received the submitted blink,
+                        // reply with a bl_good/bl_bad immediately (done below, outside the lock).
+                        MINFO("Submitted blink tx already " << (already_approved ? "approved" : "rejected") <<
+                                "; sending result back to originating node");
+                    } else {
+                        // We've already seen it but are still waiting on more signatures to
+                        // determine the result, so stash the tag & pubkey in the metadata to delay
+                        // the reply until a signature comes in that flips it to approved/rejected
+                        // status.
+                        it->second.reply_tag = tag;
+                        it->second.reply_pubkey = m.pubkey;
+                        return;
+                    }
+                } else {
+                    MDEBUG("Already seen and forwarded this blink tx, ignoring it.");
+                    return;
                 }
-
-                return;
             }
         }
         MTRACE("Blink tx hash: " << as_hex(tx_hash.data));
@@ -891,6 +904,11 @@ void handle_blink(SNNetwork::message &m, void *self) {
         MINFO("Rejecting blink tx: invalid tx hash included in request");
         if (tag)
             m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Invalid transaction hash"}});
+        return;
+    }
+
+    if (already_approved || already_rejected) {
+        snw.snn.send(m.pubkey, already_approved ? "bl_good" : "bl_bad", bt_dict{{"!", tag}}, send_option::optional{});
         return;
     }
 
@@ -1198,8 +1216,6 @@ struct blink_result_data {
     std::chrono::high_resolution_clock::time_point expiry;
     int remote_count;
     std::atomic<int> nostart_count{0};
-    std::atomic<int> bad_count{0};
-    std::atomic<int> good_count{0};
 };
 std::unordered_map<uint64_t, blink_result_data> pending_blink_results;
 std::shared_timed_mutex pending_blink_result_mutex;
@@ -1321,9 +1337,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
     return future;
 }
 
-
-void common_blink_response(uint64_t tag, cryptonote::blink_result res, std::string msg, bool nostart, bool bad, bool good) {
-    assert(int{nostart} + int{bad} + int{good} == 1);
+void common_blink_response(uint64_t tag, cryptonote::blink_result res, std::string msg, bool nostart = false) {
     bool promise_set = false;
     {
         std::shared_lock<std::shared_timed_mutex> lock{pending_blink_result_mutex};
@@ -1332,9 +1346,20 @@ void common_blink_response(uint64_t tag, cryptonote::blink_result res, std::stri
             return; // Already handled, or obsolete
 
         auto &pbr = it->second;
-        auto &count = nostart ? pbr.nostart_count : bad ? pbr.bad_count : pbr.good_count;
-        auto count_same = ++count;
-        if (count_same > pbr.remote_count / 2) {
+        bool forward_response;
+        if (nostart) {
+            // On a bl_nostart response wait until we have confirmation from a majority of the nodes
+            // we sent to because it could be a local blink quorum node error.
+            int count = ++pbr.nostart_count;
+            forward_response = count > pbr.remote_count / 2;
+        } else {
+            // Otherwise on bl_good or bl_bad response we immediately send it back.  In theory a
+            // service node could lie about this, but there's nothing actually at risk other than a
+            // false confirmation message returned to the sender which will get resolved at the next
+            // refresh (the recipient verifies blink signatures and isn't affected).
+            forward_response = true;
+        }
+        if (forward_response) {
             try {
                 pbr.promise.set_value(std::make_pair(res, msg));
                 promise_set = true;
@@ -1367,7 +1392,7 @@ void handle_blink_not_started(SNNetwork::message &m, void *self) {
 
     MINFO("Received no-start blink response: " << error);
 
-    common_blink_response(tag, cryptonote::blink_result::rejected, std::move(error), true, false, false);
+    common_blink_response(tag, cryptonote::blink_result::rejected, std::move(error), true /*nostart*/);
 }
 /// bl_bad gets returned once we know enough of the blink quorum has rejected the result to make it
 /// unequivocal that it has been rejected.  We require a failure response from a majority of the
@@ -1391,7 +1416,7 @@ void handle_blink_failure(SNNetwork::message &m, void *self) {
 
     MINFO("Received blink failure response");
 
-    common_blink_response(tag, cryptonote::blink_result::rejected, "Transaction rejected by quorum"s, false, true, false);
+    common_blink_response(tag, cryptonote::blink_result::rejected, "Transaction rejected by quorum"s);
 }
 
 /// bl_good gets returned once we know enough of the blink quorum has accepted the result to make it
@@ -1409,7 +1434,7 @@ void handle_blink_success(SNNetwork::message &m, void *self) {
 
     MINFO("Received blink success response");
 
-    common_blink_response(tag, cryptonote::blink_result::accepted, ""s, false, false, true);
+    common_blink_response(tag, cryptonote::blink_result::accepted, ""s);
 }
 
 
