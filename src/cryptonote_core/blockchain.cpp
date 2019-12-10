@@ -3391,7 +3391,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         return false;
       }
 
-      if (!lns::validate_lns_entry(tx, data))
+      if (!lns::validate_lns_entry(nettype(), tx, data))
       {
         MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner << ", type = " << (int)data.type << ", name = " << data.name);
         return false;

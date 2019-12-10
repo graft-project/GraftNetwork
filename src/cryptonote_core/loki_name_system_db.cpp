@@ -65,7 +65,7 @@ static void sql_copy_blob(sqlite3_stmt *statement, int row, void *dest, int dest
   memcpy(dest, blob, std::min(dest_size, blob_len));
 }
 
-static bool sql_run_statement(lns_sql_type type, sqlite3_stmt *statement, void *context)
+static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type type, sqlite3_stmt *statement, void *context)
 {
   bool data_loaded = false;
   bool result      = false;
@@ -112,15 +112,14 @@ static bool sql_run_statement(lns_sql_type type, sqlite3_stmt *statement, void *
             entry->user_id = sqlite3_column_int(statement, mapping_record_row_user_id);
 
             int name_len  = sqlite3_column_bytes(statement, mapping_record_row_name);
+            auto *name    = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_name));
             int value_len = sqlite3_column_bytes(statement, mapping_record_row_value);
             auto *value   = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_value));
-            if (validate_lns_name_value_mapping_lengths(entry->type, name_len, value, value_len))
+            if (validate_lns_name_and_value(nettype, entry->type, name, name_len, value, value_len))
             {
-              auto *name  = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_name));
-              entry->name = std::string(name, name_len);
-
+              entry->name  = std::string(name, name_len);
               entry->value = std::string(value, value_len);
-              data_loaded = true;
+              data_loaded  = true;
             }
           }
           break;
@@ -197,58 +196,65 @@ uint64_t lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew
   return result;
 }
 
-bool validate_lns_name_value_mapping_lengths(uint16_t type, int name_len, char const *value, int value_len)
+bool validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len)
 {
-  int max_name_len             = lns::GENERIC_NAME_MAX;
-  int max_value_len            = lns::GENERIC_VALUE_MAX;
-  bool value_require_exact_len = true;
-
+  int max_name_len = lns::GENERIC_NAME_MAX;
   if (type == static_cast<uint16_t>(mapping_type::blockchain))
   {
-    max_name_len  = BLOCKCHAIN_NAME_MAX;
-    max_value_len = BLOCKCHAIN_WALLET_ADDRESS_LENGTH;
-  }
-  else if (type == static_cast<uint16_t>(mapping_type::lokinet))
-  {
-    max_name_len  = LOKINET_DOMAIN_NAME_MAX;
-    max_value_len = LOKINET_ADDRESS_LENGTH;
-  }
-  else if (type == static_cast<uint16_t>(mapping_type::messenger))
-  {
-    max_name_len  = MESSENGER_DISPLAY_NAME_MAX;
-    max_value_len = MESSENGER_PUBLIC_KEY_LENGTH;
+    max_name_len = BLOCKCHAIN_NAME_MAX;
+    cryptonote::address_parse_info info = {};
+    if (value_len == 0 || !get_account_address_from_str(info, nettype, std::string(value, value_len)))
+      return false;
   }
   else
   {
-    value_require_exact_len = false;
+    int max_value_len            = lns::GENERIC_VALUE_MAX;
+    bool value_require_exact_len = true;
+
+    if (type == static_cast<uint16_t>(mapping_type::lokinet))
+    {
+      max_name_len  = LOKINET_DOMAIN_NAME_MAX;
+      max_value_len = LOKINET_ADDRESS_LENGTH;
+    }
+    else if (type == static_cast<uint16_t>(mapping_type::messenger))
+    {
+      max_name_len  = MESSENGER_DISPLAY_NAME_MAX;
+      max_value_len = MESSENGER_PUBLIC_KEY_LENGTH;
+    }
+    else
+    {
+      value_require_exact_len = false;
+    }
+
+    if (value_require_exact_len)
+    {
+      if (value_len != max_value_len)
+        return false;
+    }
+    else
+    {
+      if (value_len > max_value_len || value_len == 0)
+        return false;
+    }
   }
 
   if (name_len > max_name_len || name_len == 0)
     return false;
 
-  if (value_require_exact_len)
-  {
-    if (value_len != max_value_len)
-      return false;
-  }
-  else
-  {
-    if (value_len > max_value_len || value_len == 0)
-      return false;
-  }
-
-  // NOTE: Messenger public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
+  // TODO(doyle): Lokinet domain name validation
   if (type == static_cast<uint16_t>(mapping_type::messenger))
   {
+    // NOTE: Messenger public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
     if (value[0] != 0x05)
       return false;
   }
+
   return true;
 }
 
-bool validate_lns_entry(cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &entry)
+bool validate_lns_entry(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &entry)
 {
-  if (!validate_lns_name_value_mapping_lengths(entry.type, static_cast<int>(entry.name.size()), entry.value.data(), static_cast<int>(entry.value.size())))
+  if (!validate_lns_name_and_value(nettype, entry.type, entry.name.data(), static_cast<int>(entry.name.size()), entry.value.data(), static_cast<int>(entry.value.size())))
   {
     LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " Failed name: " << entry.name << "or value: " << entry.value << " validation");
     return false;
@@ -263,6 +269,42 @@ bool validate_lns_entry(cryptonote::transaction const &tx, cryptonote::tx_extra_
     return false;
   }
 
+  return true;
+}
+
+bool validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason)
+{
+  std::string type_lowered = type;
+  for (char &ch : type_lowered)
+  {
+    if (ch >= 'A' && ch <= 'Z')
+      ch = ch + ('a' - 'A');
+  }
+
+  uint16_t mapping_type_ = 0;
+  if      (type_lowered == "blockchain") mapping_type_ = static_cast<uint16_t>(mapping_type::blockchain);
+  else if (type_lowered == "lokinet")    mapping_type_ = static_cast<uint16_t>(mapping_type::lokinet);
+  else if (type_lowered == "messenger")  mapping_type_ = static_cast<uint16_t>(mapping_type::messenger);
+  else
+  {
+    try
+    {
+      size_t value = std::stoul(type_lowered);
+      if (value > std::numeric_limits<uint16_t>::max())
+      {
+        if (reason) *reason = "LNS custom type specifies value too large, must be from 0-65536: " + std::to_string(value);
+        return false;
+      }
+      mapping_type_ = static_cast<uint16_t>(value);
+    }
+    catch (std::exception const &)
+    {
+      if (reason) *reason = "Failed to convert custom lns mapping argument (was not proper integer, or not one of the recognised arguments blockchain, lokinet, messenger), string was: " + type;
+      return false;
+    }
+  }
+
+  if (mapping_type) *mapping_type = mapping_type_;
   return true;
 }
 
@@ -388,7 +430,7 @@ static bool process_loki_name_system_tx(cryptonote::network_type nettype,
     return false;
   }
 
-  if (!validate_lns_entry(tx, tx_extra))
+  if (!validate_lns_entry(nettype, tx, tx_extra))
   {
     assert("Failed to validate acquire name service. Should already have failed validation prior" == nullptr);
     LOG_PRINT_L1("LNS TX: Failed to validate for tx: " << get_transaction_hash(tx) << ". This should have failed validation earlier");
@@ -505,7 +547,7 @@ bool name_system_db::save_user(crypto::ed25519_public_key const &key, int64_t *r
   sqlite3_stmt *statement = save_user_sql;
   sqlite3_clear_bindings(statement);
   sqlite3_bind_blob(statement, 1 /*sql param index*/, &key, sizeof(key), nullptr /*destructor*/);
-  bool result = sql_run_statement(lns_sql_type::save_user, statement, nullptr);
+  bool result = sql_run_statement(nettype, lns_sql_type::save_user, statement, nullptr);
   if (row_id) *row_id = sqlite3_last_insert_rowid(db);
   return result;
 }
@@ -538,7 +580,7 @@ bool name_system_db::save_mapping(uint16_t type, std::string const &name, void c
   sqlite3_bind_blob (statement, mapping_record_row_value, value, value_len, nullptr /*destructor*/);
   sqlite3_bind_int64(statement, mapping_record_row_register_height, static_cast<int64_t>(height));
   sqlite3_bind_int64(statement, mapping_record_row_user_id, user_id);
-  bool result = sql_run_statement(lns_sql_type::save_mapping, statement, nullptr);
+  bool result = sql_run_statement(nettype, lns_sql_type::save_mapping, statement, nullptr);
   return result;
 }
 
@@ -548,7 +590,7 @@ bool name_system_db::save_settings(uint64_t top_height, crypto::hash const &top_
   sqlite3_bind_blob (statement, lns_db_setting_row_top_hash,   top_hash.data, sizeof(top_hash), nullptr /*destructor*/);
   sqlite3_bind_int64(statement, lns_db_setting_row_top_height, top_height);
   sqlite3_bind_int  (statement, lns_db_setting_row_version,    version);
-  bool result = sql_run_statement(lns_sql_type::save_setting, statement, nullptr);
+  bool result = sql_run_statement(nettype, lns_sql_type::save_setting, statement, nullptr);
   return result;
 }
 
@@ -564,7 +606,7 @@ bool name_system_db::expire_mappings(uint64_t height)
   sqlite3_bind_int      (statement, 1 /*sql param index*/, static_cast<int>(mapping_type::lokinet));
   sqlite3_bind_int64    (statement, 2 /*sql param index*/, expire_height);
 
-  bool result = sql_run_statement(lns_sql_type::expire_mapping, statement, nullptr);
+  bool result = sql_run_statement(nettype, lns_sql_type::expire_mapping, statement, nullptr);
   return result;
 }
 
@@ -575,7 +617,7 @@ user_record name_system_db::get_user_by_key(crypto::ed25519_public_key const &ke
   sqlite3_bind_blob(statement, 1 /*sql param index*/, &key, sizeof(key), nullptr /*destructor*/);
 
   user_record result = {};
-  result.loaded      = sql_run_statement(lns_sql_type::get_user, statement, &result);
+  result.loaded      = sql_run_statement(nettype, lns_sql_type::get_user, statement, &result);
   return result;
 }
 
@@ -586,7 +628,7 @@ user_record name_system_db::get_user_by_id(int user_id) const
   sqlite3_bind_int(statement, 1 /*sql param index*/, user_id);
 
   user_record result = {};
-  result.loaded      = sql_run_statement(lns_sql_type::get_user, statement, &result);
+  result.loaded      = sql_run_statement(nettype, lns_sql_type::get_user, statement, &result);
   return result;
 }
 
@@ -598,7 +640,7 @@ mapping_record name_system_db::get_mapping(uint16_t type, void const *value, siz
   sqlite3_bind_blob(statement, 2 /*sql param index*/, value, value_len, nullptr /*destructor*/);
 
   mapping_record result = {};
-  result.loaded         = sql_run_statement(lns_sql_type::get_mapping, statement, &result);
+  result.loaded         = sql_run_statement(nettype, lns_sql_type::get_mapping, statement, &result);
   return result;
 }
 
@@ -612,7 +654,7 @@ settings_record name_system_db::get_settings() const
 {
   sqlite3_stmt *statement = get_user_by_id_sql;
   settings_record result  = {};
-  result.loaded           = sql_run_statement(lns_sql_type::get_setting, statement, &result);
+  result.loaded           = sql_run_statement(nettype, lns_sql_type::get_setting, statement, &result);
   return result;
 }
 

@@ -19,23 +19,23 @@ struct account_address;
 
 namespace lns
 {
-constexpr uint64_t BURN_REQUIREMENT                 = 100 * COIN;
-constexpr uint64_t BLOCKCHAIN_NAME_MAX              = 95;
-constexpr uint64_t BLOCKCHAIN_WALLET_ADDRESS_LENGTH = 69;
+constexpr uint64_t BURN_REQUIREMENT    = 100 * COIN;
+constexpr uint64_t BLOCKCHAIN_NAME_MAX = 96;
 
-constexpr uint64_t LOKINET_DOMAIN_NAME_MAX          = 253;
-constexpr uint64_t LOKINET_ADDRESS_LENGTH           = 32;
+constexpr uint64_t LOKINET_DOMAIN_NAME_MAX = 253;
+constexpr uint64_t LOKINET_ADDRESS_LENGTH  = 32;
 
-constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX       = 64;
-constexpr uint64_t MESSENGER_PUBLIC_KEY_LENGTH      = 33;
+constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX  = 64;
+constexpr uint64_t MESSENGER_PUBLIC_KEY_LENGTH = 33;
 
 constexpr uint64_t GENERIC_NAME_MAX  = 255;
 constexpr uint64_t GENERIC_VALUE_MAX = 255;
 
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window);
-bool         validate_lns_name_value_mapping_lengths(uint16_t type, int name_len, char const *value, int value_len);
-bool         validate_lns_entry(cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &entry);
+bool         validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len);
+bool         validate_lns_entry(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &entry);
+bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
 
 struct user_record
 {
