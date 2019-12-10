@@ -65,21 +65,13 @@ namespace service_nodes
   constexpr int X25519_MAP_PRUNING_LAG = 24*60*60;
   static_assert(X25519_MAP_PRUNING_LAG > UPTIME_PROOF_MAX_TIME_IN_SECONDS, "x25519 map pruning lag is too short!");
 
-  static uint64_t short_term_state_cull_height(uint8_t hf_version, cryptonote::BlockchainDB const *db, uint64_t block_height)
+  static uint64_t short_term_state_cull_height(uint8_t hf_version, uint64_t block_height)
   {
     size_t constexpr DEFAULT_SHORT_TERM_STATE_HISTORY = 6 * STATE_CHANGE_TX_LIFETIME_IN_BLOCKS;
     static_assert(DEFAULT_SHORT_TERM_STATE_HISTORY >= BLOCKS_EXPECTED_IN_HOURS(12), // Arbitrary, but raises a compilation failure if it gets shortened.
         "not enough short term state storage for blink quorum retrieval!");
     uint64_t result =
         (block_height < DEFAULT_SHORT_TERM_STATE_HISTORY) ? 0 : block_height - DEFAULT_SHORT_TERM_STATE_HISTORY;
-
-    if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
-    {
-      uint64_t latest_height = db->height() - 1;
-      cryptonote::checkpoint_t checkpoint;
-      if (db->get_immutable_checkpoint(&checkpoint, latest_height))
-        result = std::min(result, checkpoint.height - 1);
-    }
     return result;
   }
 
@@ -1493,7 +1485,7 @@ namespace service_nodes
     // Cull old history
     //
     {
-      uint64_t cull_height = short_term_state_cull_height(hf_version, m_db, block_height);
+      uint64_t cull_height = short_term_state_cull_height(hf_version, block_height);
       auto end_it          = m_state_history.upper_bound(cull_height);
       for (auto it = m_state_history.begin(); it != end_it; it++)
       {
@@ -1922,7 +1914,7 @@ namespace service_nodes
     // store their quorums, such that the following states have quorum
     // information preceeding it.
 
-    uint64_t const max_short_term_height = short_term_state_cull_height(hf_version, m_db, (m_state.height - 1)) + VOTE_LIFETIME + VOTE_OR_TX_VERIFY_HEIGHT_BUFFER;
+    uint64_t const max_short_term_height = short_term_state_cull_height(hf_version, (m_state.height - 1)) + VOTE_LIFETIME + VOTE_OR_TX_VERIFY_HEIGHT_BUFFER;
     for (auto it = m_state_history.begin();
          it != m_state_history.end() && it->height <= max_short_term_height;
          it++)
