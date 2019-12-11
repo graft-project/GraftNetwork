@@ -260,6 +260,7 @@ private:
     uint64_t suggested_confirmations_threshold;                // Estimation of the confirmations needed for the transaction to be included in a block.
     uint64_t checkpointed;                                     // If transfer is backed by atleast 2 Service Node Checkpoints, 0 if it is not, see immutable_height in the daemon rpc call get_info
     bool blink_mempool;                                        // True if this is an approved blink tx in the mempool
+    bool was_blink;                                            // True if we saw this as an approved blink (either in the mempool or a recent, uncheckpointed block).  Note that if we didn't see it while an active blink this won't be set.
 
     // Not serialized, for internal wallet2 use
     tools::pay_type pay_type;                                  // @NoLokiRPCDocGen Internal use only, not serialized
@@ -298,6 +299,7 @@ private:
       KV_SERIALIZE_OPT(suggested_confirmations_threshold, (uint64_t)0)
       KV_SERIALIZE(checkpointed)
       KV_SERIALIZE(blink_mempool)
+      KV_SERIALIZE(was_blink)
     END_KV_SERIALIZE_MAP()
   };
 
@@ -407,6 +409,7 @@ private:
       bool m_spent;
       bool m_frozen;
       bool m_unmined_blink;
+      bool m_was_blink;
       uint64_t m_spent_height;
       crypto::key_image m_key_image; //TODO: key_image stored twice :(
       rct::key m_mask;
@@ -434,6 +437,7 @@ private:
         FIELD(m_spent)
         FIELD(m_frozen)
         FIELD(m_unmined_blink)
+        FIELD(m_was_blink)
         FIELD(m_spent_height)
         FIELD(m_key_image)
         FIELD(m_mask)
@@ -461,6 +465,7 @@ private:
       pay_type m_type;
       cryptonote::subaddress_index m_subaddr_index;
       bool m_unmined_blink;
+      bool m_was_blink;
 
       bool is_coinbase() const { return ((m_type == pay_type::miner) || (m_type == pay_type::service_node) || (m_type == pay_type::governance)); }
     };
@@ -1008,7 +1013,7 @@ private:
     void rescan_spent();
     void rescan_blockchain(bool hard, bool refresh = true, bool keep_key_images = false);
     bool is_transfer_unlocked(const transfer_details &td) const;
-    bool is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height, crypto::key_image const *key_image = nullptr) const;
+    bool is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height, bool unmined_blink, crypto::key_image const *key_image = nullptr) const;
 
     uint64_t get_last_block_reward() const { return m_last_block_reward; }
     uint64_t get_device_last_key_image_sync() const { return m_device_last_key_image_sync; }
@@ -1781,11 +1786,11 @@ private:
 
 }
 BOOST_CLASS_VERSION(tools::wallet2, 29)
-BOOST_CLASS_VERSION(tools::wallet2::transfer_details, 13)
+BOOST_CLASS_VERSION(tools::wallet2::transfer_details, 14)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_info, 1)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_info::LR, 0)
 BOOST_CLASS_VERSION(tools::wallet2::multisig_tx_set, 1)
-BOOST_CLASS_VERSION(tools::wallet2::payment_details, 5)
+BOOST_CLASS_VERSION(tools::wallet2::payment_details, 6)
 BOOST_CLASS_VERSION(tools::wallet2::pool_payment_details, 1)
 BOOST_CLASS_VERSION(tools::wallet2::unconfirmed_transfer_details, 8)
 BOOST_CLASS_VERSION(tools::wallet2::confirmed_transfer_details, 7)
@@ -1808,37 +1813,6 @@ namespace boost
     template <class Archive>
     inline typename std::enable_if<Archive::is_loading::value, void>::type initialize_transfer_details(Archive &a, tools::wallet2::transfer_details &x, const boost::serialization::version_type ver)
     {
-        if (ver < 1)
-        {
-          x.m_mask = rct::identity();
-          x.m_amount = x.m_tx.vout[x.m_internal_output_index].amount;
-        }
-        if (ver < 2)
-        {
-          x.m_spent_height = 0;
-        }
-        if (ver < 4)
-        {
-          x.m_rct = x.m_tx.vout[x.m_internal_output_index].amount == 0;
-        }
-        if (ver < 6)
-        {
-          x.m_key_image_known = true;
-        }
-        if (ver < 7)
-        {
-          x.m_pk_index = 0;
-        }
-        if (ver < 8)
-        {
-          x.m_subaddr_index = {};
-        }
-        if (ver < 9)
-        {
-          x.m_key_image_partial = false;
-          x.m_multisig_k.clear();
-          x.m_multisig_info.clear();
-        }
         if (ver < 10)
         {
           x.m_key_image_request = false;
@@ -1848,9 +1822,9 @@ namespace boost
           x.m_frozen = false;
         }
         if (ver < 13)
-        {
           x.m_unmined_blink = false;
-        }
+        if (ver < 14)
+          x.m_was_blink = false;
     }
 
     template <class Archive>
@@ -1859,103 +1833,32 @@ namespace boost
       a & x.m_block_height;
       a & x.m_global_output_index;
       a & x.m_internal_output_index;
-      if (ver < 3)
-      {
-        cryptonote::transaction tx;
-        a & tx;
-        x.m_tx = (const cryptonote::transaction_prefix&)tx;
-        x.m_txid = cryptonote::get_transaction_hash(tx);
-      }
-      else
-      {
-        a & x.m_tx;
-      }
+      a & x.m_tx;
       a & x.m_spent;
       a & x.m_key_image;
-      if (ver < 1)
-      {
-        // ensure mask and amount are set
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
       a & x.m_mask;
       a & x.m_amount;
-      if (ver < 2)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
       a & x.m_spent_height;
-      if (ver < 3)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
       a & x.m_txid;
-      if (ver < 4)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
       a & x.m_rct;
-      if (ver < 5)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
-      if (ver < 6)
-      {
-        // v5 did not properly initialize
-        uint8_t u;
-        a & u;
-        x.m_key_image_known = true;
-        return;
-      }
       a & x.m_key_image_known;
-      if (ver < 7)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
       a & x.m_pk_index;
-      if (ver < 8)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
       a & x.m_subaddr_index;
-      if (ver < 9)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
       a & x.m_multisig_info;
       a & x.m_multisig_k;
       a & x.m_key_image_partial;
-      if (ver < 10)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
-      a & x.m_key_image_request;
-      if (ver < 11)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
-      a & x.m_uses;
-      if (ver < 12)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
-      a & x.m_frozen;
-      if (ver < 13)
-      {
-        initialize_transfer_details(a, x, ver);
-        return;
-      }
-      a & x.m_unmined_blink;
+      if (ver > 9)
+        a & x.m_key_image_request;
+      if (ver > 10)
+        a & x.m_uses;
+      if (ver > 11)
+        a & x.m_frozen;
+      if (ver > 12)
+        a & x.m_unmined_blink;
+      if (ver > 13)
+        a & x.m_was_blink;
+
+      initialize_transfer_details(a, x, ver);
     }
 
     template <class Archive>
@@ -2099,6 +2002,8 @@ namespace boost
         x.m_type = tools::pay_type::unspecified;
       if (ver < 5)
         x.m_unmined_blink = false;
+      if (ver < 6)
+        x.m_was_blink = false;
 
       if (ver < 1) return;
       a & x.m_timestamp;
@@ -2110,6 +2015,8 @@ namespace boost
       a & x.m_type;
       if (ver < 5) return;
       a & x.m_unmined_blink;
+      if (ver < 6) return;
+      a & x.m_was_blink;
     }
 
     template <class Archive>

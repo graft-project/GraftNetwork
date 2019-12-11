@@ -1943,6 +1943,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
             td.m_internal_output_index = o;
             td.m_global_output_index = unmined_blink ? 0 : o_indices[o]; // blink tx doesn't have this; will get updated when it gets into a block
             td.m_unmined_blink = unmined_blink;
+            td.m_was_blink = blink;
             td.m_tx = (const cryptonote::transaction_prefix&)tx;
             td.m_txid = txid;
             td.m_key_image = tx_scan_info[o].ki;
@@ -2368,6 +2369,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       payment.m_subaddr_index = i.index;
       payment.m_type          = i.type;
       payment.m_unmined_blink = pool && blink;
+      payment.m_was_blink     = blink;
       if (pool && !blink) {
         if (emplace_or_replace(m_unconfirmed_payments, payment_id, pool_payment_details{payment, double_spend_seen}))
           all_same = false;
@@ -5800,7 +5802,8 @@ std::map<uint32_t, std::pair<uint64_t, uint64_t>> wallet2::unlocked_balance_per_
       }
       else
       {
-        uint64_t unlock_height = td.m_block_height + std::max<uint64_t>(CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE, CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS);
+        uint64_t unlock_height = td.m_unmined_blink && td.m_block_height == 0 ? blockchain_height : td.m_block_height;
+        unlock_height += std::max<uint64_t>(CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE, CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS);
         if (td.m_tx.unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER && td.m_tx.unlock_time > unlock_height)
           unlock_height = td.m_tx.unlock_time;
         blocks_to_unlock = unlock_height > blockchain_height ? unlock_height - blockchain_height : 0;
@@ -5879,12 +5882,13 @@ transfer_view wallet2::make_transfer_view(const crypto::hash &txid, const crypto
   result.subaddr_indices.push_back(pd.m_subaddr_index);
   result.address = get_subaddress_as_str(pd.m_subaddr_index);
   result.confirmed = true;
+  result.blink_mempool = pd.m_unmined_blink;
+  result.was_blink = pd.m_was_blink;
   // TODO(sacha): is this just for in or also coinbase?
-  const bool unlocked = is_transfer_unlocked(result.unlock_time, result.height);
+  const bool unlocked = is_transfer_unlocked(result.unlock_time, result.height, result.blink_mempool);
   result.lock_msg = unlocked ? "unlocked" : "locked";
   set_confirmations(result, get_blockchain_current_height(), get_last_block_reward());
   result.checkpointed = (result.height == 0 && pd.m_unmined_blink ? false : result.height <= m_immutable_height);
-  result.blink_mempool = pd.m_unmined_blink;
   return result;
 }
 //------------------------------------------------------------------------------------------------------------------------------
@@ -6306,15 +6310,27 @@ void wallet2::rescan_blockchain(bool hard, bool refresh, bool keep_key_images)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_transfer_unlocked(const transfer_details& td) const
 {
-  return is_transfer_unlocked(td.m_tx.get_unlock_time(td.m_internal_output_index), td.m_block_height, &td.m_key_image);
+  return is_transfer_unlocked(td.m_tx.get_unlock_time(td.m_internal_output_index), td.m_block_height, td.m_unmined_blink, &td.m_key_image);
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height, crypto::key_image const *key_image) const
+bool wallet2::is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height, bool unmined_blink, crypto::key_image const *key_image) const
 {
+  auto blockchain_height = get_blockchain_current_height();
+  if (block_height == 0 && unmined_blink)
+  {
+    // TODO(loki): this restriction will go away when we add Reblink support, but for now received
+    // blinks still have to be mined and confirmed like regular transactions before they can be
+    // spent (blink without reblink just gives you a guarantee that they will be mined).
+    //
+    // Guess that the blink will go into the next block (if we're wrong then the displayed
+    // blocks-to-unlock count will be wrong, but that's not a huge deal).
+    block_height = blockchain_height;
+  }
+
   if(!is_tx_spendtime_unlocked(unlock_time, block_height))
     return false;
 
-  if(block_height + CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE > get_blockchain_current_height())
+  if(block_height + CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE > blockchain_height)
     return false;
 
   if (!is_connected())
@@ -9930,6 +9946,7 @@ void wallet2::light_wallet_get_address_txs()
     address_tx.m_amount  =  incoming ? total_received - total_sent : total_sent - total_received;
     address_tx.m_fee = 0;                 // TODO
     address_tx.m_unmined_blink = false;
+    address_tx.m_was_blink = false;
     address_tx.m_block_height = t.height;
     address_tx.m_unlock_time  = t.unlock_time;
     address_tx.m_timestamp = t.timestamp;
@@ -9945,6 +9962,7 @@ void wallet2::light_wallet_get_address_txs()
       payment.m_amount       = total_received - total_sent;
       payment.m_fee          = 0;         // TODO
       payment.m_unmined_blink = false;
+      payment.m_was_blink = false;
       payment.m_block_height = t.height;
       payment.m_unlock_time  = t.unlock_time;
       payment.m_timestamp = t.timestamp;
