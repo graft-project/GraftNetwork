@@ -2294,10 +2294,10 @@ namespace service_nodes
         info.version = version_t::v1_add_registration_hf_version;
         info.registration_hf_version = sn_list->m_blockchain.get_hard_fork_version(pubkey_info.info->registration_height);
       }
-      if (info.version < version_t::v3_quorumnet)
+      if (info.version < version_t::v4_noproofs)
       {
-        // Nothing to do here (the missing data only comes in via uptime proof).
-        info.version = version_t::v3_quorumnet;
+        // Nothing to do here (the missing data will be generated in the new proofs db via uptime proofs).
+        info.version = version_t::v4_noproofs;
       }
       // Make sure we handled any future state version upgrades:
       assert(info.version == tools::enum_top<decltype(info.version)>);
