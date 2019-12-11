@@ -94,7 +94,7 @@ namespace service_nodes
     bool update(uint64_t ts, uint32_t ip, uint16_t s_port, uint16_t q_port, std::array<uint16_t, 3> ver, const crypto::ed25519_public_key &pk_ed, const crypto::x25519_public_key &pk_x2);
 
     // Stores this record in the database.
-    void store(const crypto::public_key &pubkey, cryptonote::BlockchainDB &db);
+    void store(const crypto::public_key &pubkey, cryptonote::Blockchain &blockchain);
   };
 
   struct service_node_info // registration information

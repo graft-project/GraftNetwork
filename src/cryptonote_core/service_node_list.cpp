@@ -587,7 +587,7 @@ namespace service_nodes
         {
           auto &proof = sn_list->m_proofs[key];
           proof.timestamp = proof.effective_timestamp = 0;
-          proof.store(key, sn_list->m_blockchain.get_db());
+          proof.store(key, sn_list->m_blockchain);
         }
         return true;
 
@@ -1013,7 +1013,7 @@ namespace service_nodes
       {
         auto &proof = sn_list->m_proofs[key];
         proof = {};
-        proof.store(key, sn_list->m_blockchain.get_db());
+        proof.store(key, sn_list->m_blockchain);
       }
 
       if (my_keys && my_keys->pub == key) MGINFO_GREEN("Service node registered (yours): " << key << " on height: " << block_height);
@@ -2042,8 +2042,10 @@ namespace service_nodes
     return false;
   }
 
-  void proof_info::store(const crypto::public_key &pubkey, cryptonote::BlockchainDB &db)
+  void proof_info::store(const crypto::public_key &pubkey, cryptonote::Blockchain &blockchain)
   {
+    std::unique_lock<cryptonote::Blockchain> lock{blockchain};
+    auto &db = blockchain.get_db();
     cryptonote::db_wtxn_guard guard{db};
     db.set_service_node_proof(pubkey, *this);
   }
@@ -2161,7 +2163,7 @@ namespace service_nodes
 
     auto old_x25519 = iproof.pubkey_x25519;
     if (iproof.update(now, proof.public_ip, proof.storage_port, proof.qnet_port, proof.snode_version, proof.pubkey_ed25519, derived_x25519_pubkey))
-      iproof.store(proof.pubkey, m_blockchain.get_db());
+      iproof.store(proof.pubkey, m_blockchain);
 
     if ((uint64_t) m_x25519_map_last_pruned + X25519_MAP_PRUNING_INTERVAL <= now)
     {
@@ -2184,7 +2186,9 @@ namespace service_nodes
   void service_node_list::cleanup_proofs()
   {
     MDEBUG("Cleaning up expired SN proofs");
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    std::unique_lock<boost::recursive_mutex> lock_sn{m_sn_mutex, std::defer_lock};
+    std::unique_lock<cryptonote::Blockchain> lock_db{m_blockchain, std::defer_lock};
+    std::lock(lock_sn, lock_db);
     uint64_t now = std::time(nullptr);
     auto& db = m_blockchain.get_db();
     cryptonote::db_wtxn_guard guard{db};
