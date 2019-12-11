@@ -158,7 +158,9 @@ struct bt_deserialize<T, std::enable_if_t<std::is_integral<T>::value>> {
                     throw bt_deserialize_invalid("Found too-large value " + std::to_string(read.first.u64) + " when deserializing just before input location " + std::to_string(is.tellg()));
                 val = static_cast<T>(read.first.u64);
             } else {
-                if (sizeof(T) < sizeof(int64_t) && (read.first.i64 < smin || read.first.i64 > smax))
+                bool oob  = read.first.i64 < smin;
+                     oob |= read.first.i64 > smax;
+                if (sizeof(T) < sizeof(int64_t) && oob)
                     throw bt_deserialize_invalid("Found out-of-range value " + std::to_string(read.first.i64) + " when deserializing just before input location " + std::to_string(is.tellg()));
                 val = static_cast<T>(read.first.i64);
             }
