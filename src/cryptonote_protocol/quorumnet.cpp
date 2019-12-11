@@ -476,24 +476,25 @@ quorum_vote_t deserialize_vote(const bt_value &v) {
     return vote;
 }
 
-void relay_votes(void *obj, const std::vector<service_nodes::quorum_vote_t> &votes) {
+void relay_obligation_votes(void *obj, const std::vector<service_nodes::quorum_vote_t> &votes) {
     auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
 
     auto my_keys_ptr = snw.core.get_service_node_keys();
     assert(my_keys_ptr);
     const auto &my_keys = *my_keys_ptr;
 
-    // Loop twice: the first time we build up the set of remotes we need for all votes; then we look
-    // up their proofs -- which requires a potentially expensive lock -- to get the x25519 pubkey
-    // and port from the proof; then we do the sending in the second loop.
-    std::unordered_set<crypto::public_key> need_remotes;
-    int votes_relayed = 0;
     MDEBUG("Starting relay of " << votes.size() << " votes");
+    std::vector<service_nodes::quorum_vote_t> relayed_votes;
+    relayed_votes.reserve(votes.size());
     for (auto &vote : votes) {
-        auto quorum = snw.core.get_service_node_list().get_quorum(vote.type, vote.block_height);
+        if (vote.type != quorum_type::obligations) {
+            MERROR("Internal logic error: quorumnet asked to relay a " << vote.type << " vote, but should only be called with obligations votes");
+            continue;
+        }
 
+        auto quorum = snw.core.get_service_node_list().get_quorum(vote.type, vote.block_height);
         if (!quorum) {
-            MWARNING("Unable to relay vote: no testing quorum vote for type " << vote.type << " @ height " << vote.block_height);
+            MWARNING("Unable to relay vote: no " << vote.type << " quorum available for height " << vote.block_height);
             continue;
         }
 
@@ -511,16 +512,17 @@ void relay_votes(void *obj, const std::vector<service_nodes::quorum_vote_t> &vot
             continue;
         }
 
-        pinfo.relay_to_peers("vote", serialize_vote(vote));
-        votes_relayed++;
+        pinfo.relay_to_peers("vote_ob", serialize_vote(vote));
+        relayed_votes.push_back(vote);
     }
-    MDEBUG("Relayed " << votes_relayed << " votes");
+    MDEBUG("Relayed " << relayed_votes.size() << " votes");
+    snw.core.set_service_node_votes_relayed(relayed_votes);
 }
 
-void handle_vote(SNNetwork::message &m, void *self) {
+void handle_obligation_vote(SNNetwork::message &m, void *self) {
     auto &snw = *reinterpret_cast<SNNWrapper *>(self);
 
-    MDEBUG("Received a relayed vote from " << as_hex(m.pubkey));
+    MDEBUG("Received a relayed obligation vote from " << as_hex(m.pubkey));
 
     if (m.data.size() != 1) {
         MINFO("Ignoring vote: expected 1 data part, not " << m.data.size());
@@ -528,14 +530,20 @@ void handle_vote(SNNetwork::message &m, void *self) {
     }
 
     try {
-        quorum_vote_t vote = deserialize_vote(m.data[0]);
+        std::vector<quorum_vote_t> vvote;
+        vvote.push_back(deserialize_vote(m.data[0]));
+        auto& vote = vvote.back();
 
+        if (vote.type != quorum_type::obligations) {
+            MWARNING("Received invalid non-obligations vote via quorumnet; ignoring");
+            return;
+        }
         if (vote.block_height > snw.core.get_current_blockchain_height()) {
             MDEBUG("Ignoring vote: block height " << vote.block_height << " is too high");
             return;
         }
 
-        cryptonote::vote_verification_context vvc = {};
+        cryptonote::vote_verification_context vvc{};
         snw.core.add_service_node_vote(vote, vvc);
         if (vvc.m_verification_failed)
         {
@@ -544,7 +552,7 @@ void handle_vote(SNNetwork::message &m, void *self) {
         }
 
         if (vvc.m_added_to_pool)
-            relay_votes(self, {{vote}});
+            relay_obligation_votes(self, std::move(vvote));
     }
     catch (const std::exception &e) {
         MWARNING("Deserialization of vote from " << as_hex(m.pubkey) << " failed: " << e.what());
@@ -1449,11 +1457,11 @@ void handle_blink_success(SNNetwork::message &m, void *self) {
 void init_core_callbacks() {
     cryptonote::quorumnet_new = new_snnwrapper;
     cryptonote::quorumnet_delete = delete_snnwrapper;
-    cryptonote::quorumnet_relay_votes = relay_votes;
+    cryptonote::quorumnet_relay_obligation_votes = relay_obligation_votes;
     cryptonote::quorumnet_send_blink = send_blink;
 
-    // Receives a vote
-    SNNetwork::register_quorum_command("vote", handle_vote);
+    // Receives an obligation vote
+    SNNetwork::register_quorum_command("vote_ob", handle_obligation_vote);
 
     // Receives a new blink tx submission from an external node, or forward from other quorum
     // members who received it from an external node.

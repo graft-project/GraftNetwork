@@ -2423,6 +2423,8 @@ skip:
   bool t_cryptonote_protocol_handler<t_core>::relay_service_node_votes(NOTIFY_NEW_SERVICE_NODE_VOTE::request& arg, cryptonote_connection_context& exclude_context)
   {
     bool result = relay_to_synchronized_peers<NOTIFY_NEW_SERVICE_NODE_VOTE>(arg, exclude_context);
+    if (result)
+      m_core.set_service_node_votes_relayed(arg.votes);
     return result;
   }
   //------------------------------------------------------------------------------------------------------------------------

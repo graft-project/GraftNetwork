@@ -150,7 +150,11 @@ namespace service_nodes
     void                         set_relayed         (const std::vector<quorum_vote_t>& votes);
     void                         remove_expired_votes(uint64_t height);
     void                         remove_used_votes   (std::vector<cryptonote::transaction> const &txs, uint8_t hard_fork_version);
-    std::vector<quorum_vote_t>   get_relayable_votes (uint64_t height) const;
+
+    /// Returns relayable votes for either p2p (quorum_relay=false) or quorumnet
+    /// (quorum_relay=true).  Before HF14 everything goes via p2p; starting in HF14 obligation votes
+    /// go via quorumnet, checkpoints go via p2p.
+    std::vector<quorum_vote_t>   get_relayable_votes (uint64_t height, uint8_t hf_version, bool quorum_relay) const;
     bool                         received_checkpoint_vote(uint64_t height, size_t index_in_quorum) const;
 
   private:

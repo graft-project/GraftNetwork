@@ -262,12 +262,12 @@ namespace cryptonote
   }
   void *(*quorumnet_new)(core &, const std::string &bind);
   void (*quorumnet_delete)(void *&self);
-  void (*quorumnet_relay_votes)(void *self, const std::vector<service_nodes::quorum_vote_t> &);
+  void (*quorumnet_relay_obligation_votes)(void *self, const std::vector<service_nodes::quorum_vote_t> &);
   std::future<std::pair<blink_result, std::string>> (*quorumnet_send_blink)(void *self, const std::string &tx_blob);
   static bool init_core_callback_stubs() {
     quorumnet_new = [](core &, const std::string &) -> void * { need_core_init(); };
     quorumnet_delete = [](void *&) { need_core_init(); };
-    quorumnet_relay_votes = [](void *, const std::vector<service_nodes::quorum_vote_t> &) { need_core_init(); };
+    quorumnet_relay_obligation_votes = [](void *, const std::vector<service_nodes::quorum_vote_t> &) { need_core_init(); };
     quorumnet_send_blink = [](void *, const std::string &) -> std::future<std::pair<blink_result, std::string>> { need_core_init(); };
     return false;
   }
@@ -1661,25 +1661,26 @@ namespace cryptonote
   bool core::relay_service_node_votes()
   {
     auto height = get_current_blockchain_height();
-    auto qnet_begins = get_earliest_ideal_height_for_version(network_version_14_blink_lns);
+    auto hf_version = get_hard_fork_version(height);
 
-    auto votes = m_quorum_cop.get_relayable_votes(height);
-    if (votes.empty())
-      return true;
+    auto quorum_votes = m_quorum_cop.get_relayable_votes(height, hf_version, true);
+    auto p2p_votes    = m_quorum_cop.get_relayable_votes(height, hf_version, false);
+    if (!quorum_votes.empty())
+      quorumnet_relay_obligation_votes(m_quorumnet_obj, quorum_votes);
 
-    if (height >= qnet_begins) {
-      quorumnet_relay_votes(m_quorumnet_obj, votes);
-      m_quorum_cop.set_votes_relayed(votes);
-      return true;
+    if (!p2p_votes.empty())
+    {
+      NOTIFY_NEW_SERVICE_NODE_VOTE::request req{};
+      req.votes = std::move(p2p_votes);
+      cryptonote_connection_context fake_context{};
+      get_protocol()->relay_service_node_votes(req, fake_context);
     }
 
-    NOTIFY_NEW_SERVICE_NODE_VOTE::request req{};
-    req.votes = std::move(votes);
-    cryptonote_connection_context fake_context{};
-    if (get_protocol()->relay_service_node_votes(req, fake_context))
-      m_quorum_cop.set_votes_relayed(req.votes);
-
     return true;
+  }
+  void core::set_service_node_votes_relayed(const std::vector<service_nodes::quorum_vote_t> &votes)
+  {
+    m_quorum_cop.set_votes_relayed(votes);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::get_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
