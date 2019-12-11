@@ -255,13 +255,16 @@ ringdb::~ringdb()
 void ringdb::close()
 {
   CRITICAL_REGION_LOCAL(g_mdb_env_lock);
-  ref_counter--;
-  if (ref_counter == 0 && env)
+  if (ref_counter > 0) // close() might be called outside of dtor
   {
-    mdb_dbi_close(env, dbi_rings);
-    mdb_dbi_close(env, dbi_blackballs);
-    mdb_env_close(env);
-    env = NULL;
+    ref_counter--;
+    if (ref_counter == 0 && env)
+    {
+      mdb_dbi_close(env, dbi_rings);
+      mdb_dbi_close(env, dbi_blackballs);
+      mdb_env_close(env);
+      env = NULL;
+    }
   }
 }
 
