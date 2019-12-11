@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2019, The Monero Project
-// Copyright (c)      2018, The Loki Project
+// Copyright (c) 2018-2019, The Loki Project
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification, are
@@ -46,31 +46,29 @@
 
 #include "checkpoints/checkpoints.h"
 #include "cryptonote_core/service_node_rules.h"
+#include "cryptonote_core/service_node_list.h"
 #include "cryptonote_basic/hardfork.h"
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "blockchain.db.lmdb"
 
 
-#if defined(__i386) || defined(__x86_64)
-#define MISALIGNED_OK	1
-#endif
-
 using epee::string_tools::pod_to_hex;
 using namespace crypto;
+using namespace boost::endian;
 
 enum struct lmdb_version
 {
     v4 = 4,
     v5,     // alt_block_data_1_t => alt_block_data_t: Alt block data has boolean for if the block was checkpointed
+    _count
 };
 
-constexpr lmdb_version VERSION = lmdb_version::v5; // Increase when the DB structure changes
+constexpr lmdb_version VERSION = tools::enum_top<lmdb_version>;
 
 namespace
 {
 
-#pragma pack(push, 1)
 // This MUST be identical to output_data_t, without the extra rct data at the end
 struct pre_rct_output_data_t
 {
@@ -78,17 +76,17 @@ struct pre_rct_output_data_t
   uint64_t           unlock_time;  //!< the output's unlock time (or height)
   uint64_t           height;       //!< the height of the block which created the output
 };
-#pragma pack(pop)
+static_assert(sizeof(pre_rct_output_data_t) == sizeof(crypto::public_key) + 2*sizeof(uint64_t), "pre_ct_output_data_t has unexpected padding");
 
 template <typename T>
-inline void throw0(const T &e)
+void throw0(const T &e)
 {
   LOG_PRINT_L0(e.what());
   throw e;
 }
 
 template <typename T>
-inline void throw1(const T &e)
+void throw1(const T &e)
 {
   LOG_PRINT_L1(e.what());
   throw e;
@@ -242,9 +240,11 @@ const char* const LMDB_ALT_BLOCKS = "alt_blocks";
 const char* const LMDB_HF_STARTING_HEIGHTS = "hf_starting_heights";
 const char* const LMDB_HF_VERSIONS = "hf_versions";
 const char* const LMDB_SERVICE_NODE_DATA = "service_node_data";
+const char* const LMDB_SERVICE_NODE_LATEST = "service_node_proofs"; // contains the latest data sent with a proof: time, aux keys, ip, ports
 
 const char* const LMDB_PROPERTIES = "properties";
 
+constexpr unsigned int LMDB_DB_COUNT = 23; // Should agree with the number of db's above
 
 const char zerokey[8] = {0};
 const MDB_val zerokval = { sizeof(zerokey), (void *)zerokey };
@@ -255,82 +255,149 @@ const std::string lmdb_error(const std::string& error_string, int mdb_res)
   return full_string;
 }
 
-inline void lmdb_db_open(MDB_txn* txn, const char* name, int flags, MDB_dbi& dbi, const std::string& error_string)
+void lmdb_db_open(MDB_txn* txn, const char* name, int flags, MDB_dbi& dbi, const std::string& error_string)
 {
   if (auto res = mdb_dbi_open(txn, name, flags, &dbi))
     throw0(cryptonote::DB_OPEN_FAILURE((lmdb_error(error_string + " : ", res) + std::string(" - you may want to start with --db-salvage")).c_str()));
 }
 
+// Lets you iterator over all the pairs of K/V pairs in a database
+template <typename K, typename V>
+class iterable_db {
+private:
+  MDB_cursor* cursor;
+  MDB_cursor_op op_start, op_incr;
+public:
+  iterable_db(MDB_cursor* cursor, MDB_cursor_op op_start = MDB_FIRST, MDB_cursor_op op_incr = MDB_NEXT)
+    : cursor{cursor}, op_start{op_start}, op_incr{op_incr} {}
+
+  class iterator {
+  public:
+    using value_type = std::pair<K*, V*>;
+    using reference = value_type&;
+    using pointer = value_type*;
+    using difference_type = ptrdiff_t;
+    using iterator_category = std::input_iterator_tag;
+
+    constexpr iterator() : element{nullptr, nullptr} {}
+    iterator(MDB_cursor* c, MDB_cursor_op op_start, MDB_cursor_op op_incr) : cursor{c}, op_incr{op_incr} {
+      next(op_start);
+    }
+
+    iterator& operator++() { next(op_incr); return *this; }
+    iterator operator++(int) { iterator copy{*this}; ++*this; return copy; }
+
+    reference operator*() { return element; }
+    pointer operator->() { return &element; }
+
+    bool operator==(const iterator& i) const { return element.first == i.element.first; }
+    bool operator!=(const iterator& i) const { return !(*this == i); }
+
+  private:
+    void next(MDB_cursor_op op) {
+      int result = mdb_cursor_get(cursor, &k, &v, op);
+      if (result == MDB_NOTFOUND) {
+        element.first = nullptr;
+        element.second = nullptr;
+      } else if (result == MDB_SUCCESS) {
+        element.first = static_cast<K*>(k.mv_data);
+        element.second = static_cast<V*>(v.mv_data);
+      } else {
+        throw0(cryptonote::DB_ERROR(lmdb_error("enumeration failed: ", result)));
+      }
+    }
+
+    MDB_cursor* cursor = nullptr;
+    const MDB_cursor_op op_incr = MDB_NEXT;
+    MDB_val k, v;
+    std::pair<K*, V*> element;
+  };
+
+  iterator begin() { return {cursor, op_start, op_incr}; }
+  constexpr iterator end() { return {}; }
+};
+
+void setup_cursor(const MDB_dbi& db, MDB_cursor*& cursor, MDB_txn* txn)
+{
+  if (!cursor) {
+    int result = mdb_cursor_open(txn, db, &cursor);
+    if (result)
+      throw0(cryptonote::DB_ERROR(lmdb_error("Failed to open cursor: ", result)));
+  }
+}
+
+void setup_rcursor(const MDB_dbi& db, MDB_cursor*& cursor, MDB_txn* txn, bool& rflag, bool using_wcursor)
+{
+  if (!cursor) {
+    setup_cursor(db, cursor, txn);
+    if (!using_wcursor)
+      rflag = true;
+  } else if (!using_wcursor && !rflag) {
+    int result = mdb_cursor_renew(txn, cursor);
+    if (result)
+      throw0(cryptonote::DB_ERROR(lmdb_error("Failed to renew cursor: ", result)));
+    rflag = true;
+  }
+}
 
 }  // anonymous namespace
 
-#define CURSOR(name) \
-	if (!m_cur_ ## name) { \
-	  int result = mdb_cursor_open(*m_write_txn, m_ ## name, &m_cur_ ## name); \
-	  if (result) \
-        throw0(DB_ERROR(lmdb_error("Failed to open cursor: ", result).c_str())); \
-	}
+#define CURSOR(name) setup_cursor(m_##name, m_cursors->name, *m_write_txn);
 
-#define RCURSOR(name) \
-	if (!m_cur_ ## name) { \
-	  int result = mdb_cursor_open(m_txn, m_ ## name, (MDB_cursor **)&m_cur_ ## name); \
-	  if (result) \
-        throw0(DB_ERROR(lmdb_error("Failed to open cursor: ", result).c_str())); \
-	  if (m_cursors != &m_wcursors) \
-	    m_tinfo->m_ti_rflags.m_rf_ ## name = true; \
-	} else if (m_cursors != &m_wcursors && !m_tinfo->m_ti_rflags.m_rf_ ## name) { \
-	  int result = mdb_cursor_renew(m_txn, m_cur_ ## name); \
-      if (result) \
-        throw0(DB_ERROR(lmdb_error("Failed to renew cursor: ", result).c_str())); \
-	  m_tinfo->m_ti_rflags.m_rf_ ## name = true; \
-	}
+#define RCURSOR(name) setup_rcursor(m_##name, m_cursors->name, m_txn, m_tinfo->m_ti_rflags.m_rf_##name, m_cursors == &m_wcursors);
+
+#define m_cur_blocks	m_cursors->blocks
+#define m_cur_block_heights	m_cursors->block_heights
+#define m_cur_block_info	m_cursors->block_info
+#define m_cur_output_txs	m_cursors->output_txs
+#define m_cur_output_amounts	m_cursors->output_amounts
+#define m_cur_output_blacklist	m_cursors->output_blacklist
+#define m_cur_txs	m_cursors->txs
+#define m_cur_txs_pruned	m_cursors->txs_pruned
+#define m_cur_txs_prunable	m_cursors->txs_prunable
+#define m_cur_txs_prunable_hash	m_cursors->txs_prunable_hash
+#define m_cur_txs_prunable_tip	m_cursors->txs_prunable_tip
+#define m_cur_tx_indices	m_cursors->tx_indices
+#define m_cur_tx_outputs	m_cursors->tx_outputs
+#define m_cur_spent_keys	m_cursors->spent_keys
+#define m_cur_txpool_meta	m_cursors->txpool_meta
+#define m_cur_txpool_blob	m_cursors->txpool_blob
+#define m_cur_alt_blocks	m_cursors->alt_blocks
+#define m_cur_hf_versions	m_cursors->hf_versions
+#define m_cur_properties	m_cursors->properties
 
 namespace cryptonote
 {
 
-typedef struct mdb_block_info_1
+struct mdb_block_info_1
 {
   uint64_t bi_height;
   uint64_t bi_timestamp;
   uint64_t bi_coins;
-  uint64_t bi_weight; // a size_t really but we need 32-bit compat
+  uint64_t bi_weight; // a size_t really but we need to keep this struct padding-free
   difficulty_type bi_diff;
   crypto::hash bi_hash;
-} mdb_block_info_1;
+};
 
-typedef struct mdb_block_info_2
+struct mdb_block_info_2 : mdb_block_info_1
 {
-  uint64_t bi_height;
-  uint64_t bi_timestamp;
-  uint64_t bi_coins;
-  uint64_t bi_weight; // a size_t really but we need 32-bit compat
-  difficulty_type bi_diff;
-  crypto::hash bi_hash;
   uint64_t bi_cum_rct;
-} mdb_block_info_2;
+};
 
-typedef struct mdb_block_info_3
+struct mdb_block_info : mdb_block_info_2
 {
-  uint64_t bi_height;
-  uint64_t bi_timestamp;
-  uint64_t bi_coins;
-  uint64_t bi_weight; // a size_t really but we need 32-bit compat
-  difficulty_type bi_diff;
-  crypto::hash bi_hash;
-  uint64_t bi_cum_rct;
   uint64_t bi_long_term_block_weight;
-} mdb_block_info_3;
+};
 
-typedef mdb_block_info_3 mdb_block_info;
+static_assert(sizeof(mdb_block_info) == sizeof(mdb_block_info_1) + 16, "unexpected mdb_block_info struct sizes");
 
-#pragma pack(push, 1)
 struct blk_checkpoint_header
 {
   uint64_t     height;
   crypto::hash block_hash;
   uint64_t     num_signatures;
 };
-#pragma pack(pop)
+static_assert(sizeof(blk_checkpoint_header) == 2*sizeof(uint64_t) + sizeof(crypto::hash), "blk_checkpoint_header has unexpected padding");
 
 typedef struct blk_height {
     crypto::hash bh_hash;
@@ -360,7 +427,7 @@ std::atomic_flag mdb_txn_safe::creation_gate = ATOMIC_FLAG_INIT;
 
 mdb_threadinfo::~mdb_threadinfo()
 {
-  MDB_cursor **cur = &m_ti_rcursors.m_txc_blocks;
+  MDB_cursor **cur = &m_ti_rcursors.blocks;
   unsigned i;
   for (i=0; i<sizeof(mdb_txn_cursors)/sizeof(MDB_cursor *); i++)
     if (cur[i])
@@ -489,7 +556,7 @@ void lmdb_resized(MDB_env *env)
   mdb_txn_safe::allow_new_txns();
 }
 
-inline int lmdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **txn)
+int lmdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB_txn **txn)
 {
   int res = mdb_txn_begin(env, parent, flags, txn);
   if (res == MDB_MAP_RESIZED) {
@@ -499,7 +566,7 @@ inline int lmdb_txn_begin(MDB_env *env, MDB_txn *parent, unsigned int flags, MDB
   return res;
 }
 
-inline int lmdb_txn_renew(MDB_txn *txn)
+int lmdb_txn_renew(MDB_txn *txn)
 {
   int res = mdb_txn_renew(txn);
   if (res == MDB_MAP_RESIZED) {
@@ -509,7 +576,7 @@ inline int lmdb_txn_renew(MDB_txn *txn)
   return res;
 }
 
-inline void BlockchainLMDB::check_open() const
+void BlockchainLMDB::check_open() const
 {
   if (!m_open)
     throw0(DB_ERROR("DB operation attempted on a not-open DB instance"));
@@ -1340,7 +1407,7 @@ void BlockchainLMDB::open(const std::string& filename, cryptonote::network_type 
   // set up lmdb environment
   if ((result = mdb_env_create(&m_env)))
     throw0(DB_ERROR(lmdb_error("Failed to create lmdb environment: ", result).c_str()));
-  if ((result = mdb_env_set_maxdbs(m_env, 22)))
+  if ((result = mdb_env_set_maxdbs(m_env, LMDB_DB_COUNT)))
     throw0(DB_ERROR(lmdb_error("Failed to set max number of dbs: ", result).c_str()));
 
   int threads = tools::get_max_concurrency();
@@ -1429,6 +1496,8 @@ void BlockchainLMDB::open(const std::string& filename, cryptonote::network_type 
 
   lmdb_db_open(txn, LMDB_SERVICE_NODE_DATA, MDB_INTEGERKEY | MDB_CREATE, m_service_node_data, "Failed to open db handle for m_service_node_data");
 
+  lmdb_db_open(txn, LMDB_SERVICE_NODE_LATEST, MDB_CREATE, m_service_node_proofs, "Failed to open db handle for m_service_node_proofs");
+
   lmdb_db_open(txn, LMDB_PROPERTIES, MDB_CREATE, m_properties, "Failed to open db handle for m_properties");
 
   mdb_set_dupsort(txn, m_spent_keys, compare_hash32);
@@ -1447,6 +1516,7 @@ void BlockchainLMDB::open(const std::string& filename, cryptonote::network_type 
   mdb_set_compare(txn, m_txpool_meta, compare_hash32);
   mdb_set_compare(txn, m_txpool_blob, compare_hash32);
   mdb_set_compare(txn, m_alt_blocks, compare_hash32);
+  mdb_set_compare(txn, m_service_node_proofs, compare_hash32);
   mdb_set_compare(txn, m_properties, compare_string);
 
   if (!(mdb_flags & MDB_RDONLY))
@@ -1677,16 +1747,13 @@ void BlockchainLMDB::unlock()
   check_open();
 }
 
-#define TXN_PREFIX(flags); \
+#define TXN_PREFIX(flags) \
   mdb_txn_safe auto_txn; \
   mdb_txn_safe* txn_ptr = &auto_txn; \
   if (m_batch_active) \
     txn_ptr = m_write_txn; \
-  else \
-  { \
-    if (auto mdb_res = lmdb_txn_begin(m_env, NULL, flags, auto_txn)) \
-      throw0(DB_ERROR(lmdb_error(std::string("Failed to create a transaction for the db in ")+__FUNCTION__+": ", mdb_res).c_str())); \
-  } \
+  else if (auto mdb_res = lmdb_txn_begin(m_env, NULL, flags, auto_txn)) \
+    throw0(DB_ERROR(lmdb_error(std::string("Failed to create a transaction for the db in ")+__FUNCTION__+": ", mdb_res)));
 
 #define TXN_PREFIX_RDONLY() \
   MDB_txn *m_txn; \
@@ -1695,7 +1762,6 @@ void BlockchainLMDB::unlock()
   bool my_rtxn = block_rtxn_start(&m_txn, &m_cursors); \
   if (my_rtxn) auto_txn.m_tinfo = m_tinfo.get(); \
   else auto_txn.uncheck()
-#define TXN_POSTFIX_RDONLY()
 
 #define TXN_POSTFIX_SUCCESS() \
   do { \
@@ -1821,7 +1887,6 @@ uint64_t BlockchainLMDB::get_txpool_tx_count(bool include_unrelayed_txes) const
         ++num_entries;
     }
   }
-  TXN_POSTFIX_RDONLY();
 
   return num_entries;
 }
@@ -1838,7 +1903,6 @@ bool BlockchainLMDB::txpool_has_tx(const crypto::hash& txid) const
   auto result = mdb_cursor_get(m_cur_txpool_meta, &k, NULL, MDB_SET);
   if (result != 0 && result != MDB_NOTFOUND)
     throw1(DB_ERROR(lmdb_error("Error finding txpool tx meta: ", result).c_str()));
-  TXN_POSTFIX_RDONLY();
   return result != MDB_NOTFOUND;
 }
 
@@ -1889,7 +1953,6 @@ bool BlockchainLMDB::get_txpool_tx_meta(const crypto::hash& txid, txpool_tx_meta
       throw1(DB_ERROR(lmdb_error("Error finding txpool tx meta: ", result).c_str()));
 
   meta = *(const txpool_tx_meta_t*)v.mv_data;
-  TXN_POSTFIX_RDONLY();
   return true;
 }
 
@@ -1910,7 +1973,6 @@ bool BlockchainLMDB::get_txpool_tx_blob(const crypto::hash& txid, cryptonote::bl
       throw1(DB_ERROR(lmdb_error("Error finding txpool tx blob: ", result).c_str()));
 
   bd.assign(reinterpret_cast<const char*>(v.mv_data), v.mv_size);
-  TXN_POSTFIX_RDONLY();
   return true;
 }
 
@@ -1940,7 +2002,6 @@ uint32_t BlockchainLMDB::get_blockchain_pruning_seed() const
     throw0(DB_ERROR("Failed to retrieve or create pruning seed: unexpected value size"));
   uint32_t pruning_seed;
   memcpy(&pruning_seed, v.mv_data, sizeof(pruning_seed));
-  TXN_POSTFIX_RDONLY();
   return pruning_seed;
 }
 
@@ -2253,8 +2314,6 @@ bool BlockchainLMDB::for_all_txpool_txes(std::function<bool(const crypto::hash&,
     }
   }
 
-  TXN_POSTFIX_RDONLY();
-
   return ret;
 }
 
@@ -2275,14 +2334,14 @@ static_assert(sizeof(blob_header) == 8, "blob_header layout is unexpected, possi
 static blob_header write_little_endian_blob_header(blob_type type, uint32_t size)
 {
   blob_header result = {type, size};
-  boost::endian::native_to_little_inplace(result.size);
+  native_to_little_inplace(result.size);
   return result;
 }
 
 static blob_header native_endian_blob_header(const blob_header *header)
 {
   blob_header result = {header->type, header->size};
-  boost::endian::little_to_native_inplace(result.size);
+  little_to_native_inplace(result.size);
   return result;
 }
 
@@ -2360,8 +2419,6 @@ bool BlockchainLMDB::for_all_alt_blocks(std::function<bool(const crypto::hash&, 
     }
   }
 
-  TXN_POSTFIX_RDONLY();
-
   return ret;
 }
 
@@ -2392,7 +2449,6 @@ bool BlockchainLMDB::block_exists(const crypto::hash& h, uint64_t *height) const
     ret = true;
   }
 
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -2421,7 +2477,6 @@ uint64_t BlockchainLMDB::get_block_height(const crypto::hash& h) const
 
   blk_height *bhp = (blk_height *)key.mv_data;
   uint64_t ret = bhp->bh_height;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -2455,8 +2510,6 @@ cryptonote::blobdata BlockchainLMDB::get_block_blob_from_height(const uint64_t& 
   blobdata bd;
   bd.assign(reinterpret_cast<char*>(result.mv_data), result.mv_size);
 
-  TXN_POSTFIX_RDONLY();
-
   return bd;
 }
 
@@ -2479,7 +2532,6 @@ uint64_t BlockchainLMDB::get_block_timestamp(const uint64_t& height) const
 
   mdb_block_info *bi = (mdb_block_info *)result.mv_data;
   uint64_t ret = bi->bi_timestamp;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -2541,7 +2593,6 @@ std::vector<uint64_t> BlockchainLMDB::get_block_cumulative_rct_outputs(const std
     prev_height = height;
   }
 
-  TXN_POSTFIX_RDONLY();
   return res;
 }
 
@@ -2579,11 +2630,10 @@ size_t BlockchainLMDB::get_block_weight(const uint64_t& height) const
 
   mdb_block_info *bi = (mdb_block_info *)result.mv_data;
   size_t ret = bi->bi_weight;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
-std::vector<uint64_t> BlockchainLMDB::get_block_info_64bit_fields(uint64_t start_height, size_t count, off_t offset) const
+std::vector<uint64_t> BlockchainLMDB::get_block_info_64bit_fields(uint64_t start_height, size_t count, uint64_t (*extract)(const mdb_block_info* bi_data)) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -2629,11 +2679,9 @@ std::vector<uint64_t> BlockchainLMDB::get_block_info_64bit_fields(uint64_t start
       if (result)
         throw0(DB_ERROR(lmdb_error("Error attempting to retrieve block_info from the db: ", result).c_str()));
     }
-    const mdb_block_info *bi = ((const mdb_block_info *)v.mv_data) + (height - range_begin);
-    ret.push_back(*(const uint64_t*)(((const char*)bi) + offset));
+    ret.push_back(extract(static_cast<const mdb_block_info *>(v.mv_data) + (height - range_begin)));
   }
 
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -2655,7 +2703,6 @@ uint64_t BlockchainLMDB::get_max_block_size()
     throw0(DB_ERROR("Failed to retrieve or create max block size: unexpected value size"));
   uint64_t max_block_size;
   memcpy(&max_block_size, v.mv_data, sizeof(max_block_size));
-  TXN_POSTFIX_RDONLY();
   return max_block_size;
 }
 
@@ -2688,15 +2735,16 @@ void BlockchainLMDB::add_max_block_size(uint64_t sz)
     throw0(DB_ERROR(lmdb_error("Failed to set max_block_size: ", result).c_str()));
 }
 
-
 std::vector<uint64_t> BlockchainLMDB::get_block_weights(uint64_t start_height, size_t count) const
 {
-  return get_block_info_64bit_fields(start_height, count, offsetof(mdb_block_info, bi_weight));
+  return get_block_info_64bit_fields(start_height, count,
+      [](const mdb_block_info* bi) { return bi->bi_weight; });
 }
 
 std::vector<uint64_t> BlockchainLMDB::get_long_term_block_weights(uint64_t start_height, size_t count) const
 {
-  return get_block_info_64bit_fields(start_height, count, offsetof(mdb_block_info, bi_long_term_block_weight));
+  return get_block_info_64bit_fields(start_height, count,
+      [](const mdb_block_info* bi) { return bi->bi_long_term_block_weight; });
 }
 
 difficulty_type BlockchainLMDB::get_block_cumulative_difficulty(const uint64_t& height) const
@@ -2718,7 +2766,6 @@ difficulty_type BlockchainLMDB::get_block_cumulative_difficulty(const uint64_t& 
 
   mdb_block_info *bi = (mdb_block_info *)result.mv_data;
   difficulty_type ret = bi->bi_diff;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -2758,7 +2805,6 @@ uint64_t BlockchainLMDB::get_block_already_generated_coins(const uint64_t& heigh
 
   mdb_block_info *bi = (mdb_block_info *)result.mv_data;
   uint64_t ret = bi->bi_coins;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -2781,7 +2827,6 @@ uint64_t BlockchainLMDB::get_block_long_term_weight(const uint64_t& height) cons
 
   mdb_block_info *bi = (mdb_block_info *)result.mv_data;
   uint64_t ret = bi->bi_long_term_block_weight;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -2804,7 +2849,6 @@ crypto::hash BlockchainLMDB::get_block_hash_from_height(const uint64_t& height) 
 
   mdb_block_info *bi = (mdb_block_info *)result.mv_data;
   crypto::hash ret = bi->bi_hash;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -2923,8 +2967,6 @@ bool BlockchainLMDB::tx_exists(const crypto::hash& h) const
   TIME_MEASURE_FINISH(time1);
   time_tx_exists += time1;
 
-  TXN_POSTFIX_RDONLY();
-
   if (! tx_found)
   {
     LOG_PRINT_L1("transaction with hash " << epee::string_tools::pod_to_hex(h) << " not found in db");
@@ -2952,8 +2994,6 @@ bool BlockchainLMDB::tx_exists(const crypto::hash& h, uint64_t& tx_id) const
     txindex *tip = (txindex *)v.mv_data;
     tx_id = tip->data.tx_id;
   }
-
-  TXN_POSTFIX_RDONLY();
 
   bool ret = false;
   if (get_result == MDB_NOTFOUND)
@@ -2985,7 +3025,6 @@ uint64_t BlockchainLMDB::get_tx_unlock_time(const crypto::hash& h) const
 
   txindex *tip = (txindex *)v.mv_data;
   uint64_t ret = tip->data.unlock_time;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -3020,8 +3059,6 @@ bool BlockchainLMDB::get_tx_blob(const crypto::hash& h, cryptonote::blobdata &bd
   bd.assign(reinterpret_cast<char*>(result0.mv_data), result0.mv_size);
   bd.append(reinterpret_cast<char*>(result1.mv_data), result1.mv_size);
 
-  TXN_POSTFIX_RDONLY();
-
   return true;
 }
 
@@ -3049,8 +3086,6 @@ bool BlockchainLMDB::get_pruned_tx_blob(const crypto::hash& h, cryptonote::blobd
     throw0(DB_ERROR(lmdb_error("DB error attempting to fetch tx from hash", get_result).c_str()));
 
   bd.assign(reinterpret_cast<char*>(result.mv_data), result.mv_size);
-
-  TXN_POSTFIX_RDONLY();
 
   return true;
 }
@@ -3080,8 +3115,6 @@ bool BlockchainLMDB::get_prunable_tx_blob(const crypto::hash& h, cryptonote::blo
 
   bd.assign(reinterpret_cast<char*>(result.mv_data), result.mv_size);
 
-  TXN_POSTFIX_RDONLY();
-
   return true;
 }
 
@@ -3110,8 +3143,6 @@ bool BlockchainLMDB::get_prunable_tx_hash(const crypto::hash& tx_hash, crypto::h
 
   prunable_hash = *(const crypto::hash*)result.mv_data;
 
-  TXN_POSTFIX_RDONLY();
-
   return true;
 }
 
@@ -3126,8 +3157,6 @@ uint64_t BlockchainLMDB::get_tx_count() const
   MDB_stat db_stats;
   if ((result = mdb_stat(m_txn, m_txs_pruned, &db_stats)))
     throw0(DB_ERROR(lmdb_error("Failed to query m_txs_pruned: ", result).c_str()));
-
-  TXN_POSTFIX_RDONLY();
 
   return db_stats.ms_entries;
 }
@@ -3146,27 +3175,28 @@ std::vector<transaction> BlockchainLMDB::get_tx_list(const std::vector<crypto::h
   return v;
 }
 
-uint64_t BlockchainLMDB::get_tx_block_height(const crypto::hash& h) const
+std::vector<uint64_t> BlockchainLMDB::get_tx_block_heights(const std::vector<crypto::hash>& hs) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
+  std::vector<uint64_t> result;
+  result.reserve(hs.size());
 
   TXN_PREFIX_RDONLY();
   RCURSOR(tx_indices);
 
-  MDB_val_set(v, h);
-  auto get_result = mdb_cursor_get(m_cur_tx_indices, (MDB_val *)&zerokval, &v, MDB_GET_BOTH);
-  if (get_result == MDB_NOTFOUND)
+  for (const auto &h : hs)
   {
-    throw1(TX_DNE(std::string("tx_data_t with hash ").append(epee::string_tools::pod_to_hex(h)).append(" not found in db").c_str()));
+    MDB_val_set(v, h);
+    auto get_result = mdb_cursor_get(m_cur_tx_indices, (MDB_val *)&zerokval, &v, MDB_GET_BOTH);
+    if (get_result == MDB_NOTFOUND)
+      result.push_back(std::numeric_limits<uint64_t>::max());
+    else if (get_result)
+      throw0(DB_ERROR(lmdb_error("DB error attempting to fetch tx height from hash", get_result)));
+    else
+      result.push_back(reinterpret_cast<txindex *>(v.mv_data)->data.block_id);
   }
-  else if (get_result)
-    throw0(DB_ERROR(lmdb_error("DB error attempting to fetch tx height from hash", get_result).c_str()));
-
-  txindex *tip = (txindex *)v.mv_data;
-  uint64_t ret = tip->data.block_id;
-  TXN_POSTFIX_RDONLY();
-  return ret;
+  return result;
 }
 
 uint64_t BlockchainLMDB::get_num_outputs(const uint64_t& amount) const
@@ -3187,8 +3217,6 @@ uint64_t BlockchainLMDB::get_num_outputs(const uint64_t& amount) const
   }
   else if (result != MDB_NOTFOUND)
     throw0(DB_ERROR("DB error attempting to get number of outputs of an amount"));
-
-  TXN_POSTFIX_RDONLY();
 
   return num_elems;
 }
@@ -3223,7 +3251,6 @@ output_data_t BlockchainLMDB::get_output_key(const uint64_t& amount, const uint6
     if (include_commitmemt)
       ret.commitment = rct::zeroCommit(amount);
   }
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -3246,7 +3273,6 @@ tx_out_index BlockchainLMDB::get_output_tx_and_index_from_global(const uint64_t&
   outtx *ot = (outtx *)v.mv_data;
   tx_out_index ret = tx_out_index(ot->tx_hash, ot->local_index);
 
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -3302,7 +3328,6 @@ std::vector<std::vector<uint64_t>> BlockchainLMDB::get_tx_amount_output_indices(
     }
   }
 
-  TXN_POSTFIX_RDONLY();
   return amount_output_indices_set;
 }
 
@@ -3319,7 +3344,6 @@ bool BlockchainLMDB::has_key_image(const crypto::key_image& img) const
   MDB_val k = {sizeof(img), (void *)&img};
   ret = (mdb_cursor_get(m_cur_spent_keys, (MDB_val *)&zerokval, &k, MDB_GET_BOTH) == 0);
 
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -3350,8 +3374,6 @@ bool BlockchainLMDB::for_all_key_images(std::function<bool(const crypto::key_ima
       break;
     }
   }
-
-  TXN_POSTFIX_RDONLY();
 
   return fret;
 }
@@ -3401,8 +3423,6 @@ bool BlockchainLMDB::for_blocks_range(const uint64_t& h1, const uint64_t& h2, st
     if (height >= h2)
       break;
   }
-
-  TXN_POSTFIX_RDONLY();
 
   return fret;
 }
@@ -3464,8 +3484,6 @@ bool BlockchainLMDB::for_all_transactions(std::function<bool(const crypto::hash&
     }
   }
 
-  TXN_POSTFIX_RDONLY();
-
   return fret;
 }
 
@@ -3498,8 +3516,6 @@ bool BlockchainLMDB::for_all_outputs(std::function<bool(uint64_t amount, const c
       break;
     }
   }
-
-  TXN_POSTFIX_RDONLY();
 
   return fret;
 }
@@ -3538,8 +3554,6 @@ bool BlockchainLMDB::for_all_outputs(uint64_t amount, const std::function<bool(u
       break;
     }
   }
-
-  TXN_POSTFIX_RDONLY();
 
   return fret;
 }
@@ -3855,8 +3869,8 @@ void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
   header.block_hash            = checkpoint.block_hash;
   header.num_signatures        = checkpoint.signatures.size();
 
-  boost::endian::native_to_little_inplace(header.height);
-  boost::endian::native_to_little_inplace(header.num_signatures);
+  native_to_little_inplace(header.height);
+  native_to_little_inplace(header.num_signatures);
 
   size_t const MAX_BYTES_REQUIRED   = sizeof(header) + (sizeof(*checkpoint.signatures.data()) * service_nodes::CHECKPOINT_QUORUM_SIZE);
   uint8_t buffer[MAX_BYTES_REQUIRED];
@@ -3896,7 +3910,7 @@ void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
   MDB_val value = {};
   value.mv_size = actual_bytes_used;
   value.mv_data = buffer;
-  int ret = mdb_cursor_put(m_cur_block_checkpoints, &key, &value, 0);
+  int ret = mdb_cursor_put(m_cursors->block_checkpoints, &key, &value, 0);
   if (ret)
     throw0(DB_ERROR(lmdb_error("Failed to update block checkpoint in db transaction: ", ret).c_str()));
 }
@@ -3911,10 +3925,10 @@ void BlockchainLMDB::remove_block_checkpoint(uint64_t height)
 
   MDB_val_set(key, height);
   MDB_val value = {};
-  int ret = mdb_cursor_get(m_cur_block_checkpoints, &key, &value, MDB_SET_KEY);
+  int ret = mdb_cursor_get(m_cursors->block_checkpoints, &key, &value, MDB_SET_KEY);
   if (ret == MDB_SUCCESS)
   {
-    ret = mdb_cursor_del(m_cur_block_checkpoints, 0);
+    ret = mdb_cursor_del(m_cursors->block_checkpoints, 0);
     if (ret)
       throw0(DB_ERROR(lmdb_error("Failed to delete block checkpoint: ", ret).c_str()));
   }
@@ -3932,18 +3946,12 @@ static checkpoint_t convert_mdb_val_to_checkpoint(MDB_val const value)
   auto const *signatures =
       reinterpret_cast<service_nodes::voter_to_signature *>(static_cast<uint8_t *>(value.mv_data) + sizeof(*header));
 
-  boost::endian::little_to_native_inplace(header->height);
-  boost::endian::little_to_native_inplace(header->num_signatures);
+  auto num_sigs = little_to_native(header->num_signatures);
 
-  result.height     = header->height;
-  result.type       = (header->num_signatures > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
+  result.height     = little_to_native(header->height);
+  result.type       = (num_sigs > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
   result.block_hash = header->block_hash;
-  result.signatures.reserve(header->num_signatures);
-  for (size_t i = 0; i < header->num_signatures; ++i)
-  {
-    service_nodes::voter_to_signature const *signature = signatures + i;
-    result.signatures.push_back(*signature);
-  }
+  result.signatures.insert(result.signatures.end(), signatures, signatures + num_sigs);
 
   return result;
 }
@@ -3956,13 +3964,12 @@ bool BlockchainLMDB::get_block_checkpoint_internal(uint64_t height, checkpoint_t
 
   MDB_val_set(key, height);
   MDB_val value = {};
-  int ret = mdb_cursor_get(m_cur_block_checkpoints, &key, &value, op);
+  int ret = mdb_cursor_get(m_cursors->block_checkpoints, &key, &value, op);
   if (ret == MDB_SUCCESS)
   {
     checkpoint = convert_mdb_val_to_checkpoint(value);
   }
 
-  TXN_POSTFIX_RDONLY();
   if (ret != MDB_SUCCESS && ret != MDB_NOTFOUND)
     throw0(DB_ERROR(lmdb_error("Failed to get block checkpoint: ", ret).c_str()));
 
@@ -4041,7 +4048,7 @@ std::vector<checkpoint_t> BlockchainLMDB::get_checkpoints_range(uint64_t start, 
     RCURSOR(block_checkpoints);
 
     MDB_val_set(key, first_checkpoint.height);
-    int ret = mdb_cursor_get(m_cur_block_checkpoints, &key, nullptr, MDB_SET_KEY);
+    int ret = mdb_cursor_get(m_cursors->block_checkpoints, &key, nullptr, MDB_SET_KEY);
     if (ret != MDB_SUCCESS)
       throw0(DB_ERROR(lmdb_error("Unexpected failure to get checkpoint we just queried: ", ret).c_str()));
 
@@ -4053,7 +4060,7 @@ std::vector<checkpoint_t> BlockchainLMDB::get_checkpoints_range(uint64_t start, 
     for (; result.size() < num_desired_checkpoints;)
     {
       MDB_val value = {};
-      ret           = mdb_cursor_get(m_cur_block_checkpoints, nullptr, &value, op);
+      ret           = mdb_cursor_get(m_cursors->block_checkpoints, nullptr, &value, op);
 
       if (ret == MDB_NOTFOUND) break;
       if (ret != MDB_SUCCESS)
@@ -4066,8 +4073,6 @@ std::vector<checkpoint_t> BlockchainLMDB::get_checkpoints_range(uint64_t start, 
         result.push_back(checkpoint);
       }
     }
-
-    TXN_POSTFIX_RDONLY();
   }
 
   return result;
@@ -4116,8 +4121,6 @@ void BlockchainLMDB::get_output_tx_and_index_from_global(const std::vector<uint6
     const outtx *ot = (const outtx *)v.mv_data;
     tx_out_indices.push_back(tx_out_index(ot->tx_hash, ot->local_index));
   }
-
-  TXN_POSTFIX_RDONLY();
 }
 
 void BlockchainLMDB::get_output_key(const epee::span<const uint64_t> &amounts, const std::vector<uint64_t> &offsets, std::vector<output_data_t> &outputs, bool allow_partial) const
@@ -4168,8 +4171,6 @@ void BlockchainLMDB::get_output_key(const epee::span<const uint64_t> &amounts, c
       data.commitment = rct::zeroCommit(amount);
     }
   }
-
-  TXN_POSTFIX_RDONLY();
 
   TIME_MEASURE_FINISH(db3);
   LOG_PRINT_L3("db3: " << db3);
@@ -4299,8 +4300,6 @@ std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> BlockchainLMDB::get
     }
   }
 
-  TXN_POSTFIX_RDONLY();
-
   return histogram;
 }
 
@@ -4346,8 +4345,6 @@ bool BlockchainLMDB::get_output_distribution(uint64_t amount, uint64_t from_heig
     distribution[n] += distribution[n - 1];
   base = 0;
 
-  TXN_POSTFIX_RDONLY();
-
   return true;
 }
 
@@ -4390,7 +4387,6 @@ bool BlockchainLMDB::get_output_blacklist(std::vector<uint64_t> &blacklist) cons
     }
   }
 
-  TXN_POSTFIX_RDONLY();
   return true;
 }
 
@@ -4469,7 +4465,6 @@ uint8_t BlockchainLMDB::get_hard_fork_version(uint64_t height) const
     throw0(DB_ERROR(lmdb_error("Error attempting to retrieve a hard fork version at height " + boost::lexical_cast<std::string>(height) + " from the db: ", result).c_str()));
 
   uint8_t ret = *(const uint8_t*)val_ret.mv_data;
-  TXN_POSTFIX_RDONLY();
   return ret;
 }
 
@@ -4534,7 +4529,6 @@ bool BlockchainLMDB::get_alt_block(const crypto::hash &blkid, alt_block_data_t *
     throw0(DB_ERROR(lmdb_error("Error attempting to retrieve alternate block " + epee::string_tools::pod_to_hex(blkid) + " from the db: ", result).c_str()));
   if (!read_alt_block_data_from_mdb_val(v, data, block, checkpoint))
     throw0(DB_ERROR("Record size is less than expected"));
-  TXN_POSTFIX_RDONLY();
   return true;
 }
 
@@ -4573,7 +4567,6 @@ uint64_t BlockchainLMDB::get_alt_block_count()
       throw0(DB_ERROR(lmdb_error("Failed to query m_alt_blocks: ", result).c_str()));
     count = db_stats.ms_entries;
   }
-  TXN_POSTFIX_RDONLY();
   return count;
 }
 
@@ -5513,17 +5506,11 @@ void BlockchainLMDB::migrate_2_3()
       }
       else if (result)
         throw0(DB_ERROR(lmdb_error("Failed to get a record from block_info: ", result).c_str()));
-      const mdb_block_info_1 *bi_old = (const mdb_block_info_1*)v.mv_data;
       mdb_block_info_2 bi;
-      bi.bi_height = bi_old->bi_height;
-      bi.bi_timestamp = bi_old->bi_timestamp;
-      bi.bi_coins = bi_old->bi_coins;
-      bi.bi_weight = bi_old->bi_weight;
-      bi.bi_diff = bi_old->bi_diff;
-      bi.bi_hash = bi_old->bi_hash;
-      if (bi_old->bi_height >= distribution.size())
+      static_cast<mdb_block_info_1 &>(bi) = *static_cast<const mdb_block_info_1*>(v.mv_data);
+      if (bi.bi_height >= distribution.size())
         throw0(DB_ERROR("Bad height in block_info record"));
-      bi.bi_cum_rct = distribution[bi_old->bi_height];
+      bi.bi_cum_rct = distribution[bi.bi_height];
       MDB_val_set(nv, bi);
       result = mdb_cursor_put(c_cur, (MDB_val *)&zerokval, &nv, MDB_APPENDDUP);
       if (result)
@@ -5632,7 +5619,6 @@ void BlockchainLMDB::migrate_3_4()
           for (uint64_t output_index : outputs[0])
             global_output_indexes.push_back(output_index);
         }
-        TXN_POSTFIX_RDONLY();
       }
 
       mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -5721,15 +5707,8 @@ void BlockchainLMDB::migrate_3_4()
       }
       else if (result)
         throw0(DB_ERROR(lmdb_error("Failed to get a record from block_info: ", result).c_str()));
-      const mdb_block_info_2 *bi_old = (const mdb_block_info_2*)v.mv_data;
-      mdb_block_info_3 bi;
-      bi.bi_height = bi_old->bi_height;
-      bi.bi_timestamp = bi_old->bi_timestamp;
-      bi.bi_coins = bi_old->bi_coins;
-      bi.bi_weight = bi_old->bi_weight;
-      bi.bi_diff = bi_old->bi_diff;
-      bi.bi_hash = bi_old->bi_hash;
-      bi.bi_cum_rct = bi_old->bi_cum_rct;
+      mdb_block_info bi;
+      static_cast<mdb_block_info_2 &>(bi) = *static_cast<const mdb_block_info_2*>(v.mv_data);
 
       // get block major version to determine which rule is in place
       if (!past_long_term_weight)
@@ -5922,12 +5901,12 @@ void BlockchainLMDB::set_service_node_data(const std::string& data, bool long_te
   MDB_val_set(k, key);
   MDB_val_sized(blob, data);
   int result;
-  result = mdb_cursor_put(m_cur_service_node_data, &k, &blob, 0);
+  result = mdb_cursor_put(m_cursors->service_node_data, &k, &blob, 0);
   if (result)
     throw0(DB_ERROR(lmdb_error("Failed to add service node data to db transaction: ", result).c_str()));
 }
 
-bool BlockchainLMDB::get_service_node_data(std::string& data, bool long_term)
+bool BlockchainLMDB::get_service_node_data(std::string& data, bool long_term) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -5940,7 +5919,7 @@ bool BlockchainLMDB::get_service_node_data(std::string& data, bool long_term)
   MDB_val_set(k, key);
   MDB_val v;
 
-  int result = mdb_cursor_get(m_cur_service_node_data, &k, &v, MDB_SET_KEY);
+  int result = mdb_cursor_get(m_cursors->service_node_data, &k, &v, MDB_SET_KEY);
   if (result != MDB_SUCCESS)
   {
     if (result == MDB_NOTFOUND)
@@ -5974,11 +5953,122 @@ void BlockchainLMDB::clear_service_node_data()
   {
     MDB_val_set(k, key);
     int result;
-    if ((result = mdb_cursor_get(m_cur_service_node_data, &k, NULL, MDB_SET)))
+    if ((result = mdb_cursor_get(m_cursors->service_node_data, &k, NULL, MDB_SET)))
         return;
-    if ((result = mdb_cursor_del(m_cur_service_node_data, 0)))
+    if ((result = mdb_cursor_del(m_cursors->service_node_data, 0)))
       throw1(DB_ERROR(lmdb_error("Failed to add removal of service node data to db transaction: ", result).c_str()));
   }
 }
+
+struct service_node_proof_serialized
+{
+  service_node_proof_serialized() = default;
+  service_node_proof_serialized(const service_nodes::proof_info &info)
+    : timestamp{native_to_little(info.timestamp)},
+      ip{native_to_little(info.public_ip)},
+      storage_port{native_to_little(info.storage_port)},
+      quorumnet_port{native_to_little(info.quorumnet_port)},
+      version{native_to_little(info.version[0]), native_to_little(info.version[1]), native_to_little(info.version[2])},
+      pubkey_ed25519{info.pubkey_ed25519}
+  {}
+  void update(service_nodes::proof_info &info) const
+  {
+    info.timestamp = little_to_native(timestamp);
+    if (info.timestamp > info.effective_timestamp)
+      info.effective_timestamp = info.timestamp;
+    info.public_ip = little_to_native(ip);
+    info.storage_port = little_to_native(storage_port);
+    info.quorumnet_port = little_to_native(quorumnet_port);
+    for (size_t i = 0; i < info.version.size(); i++)
+      info.version[i] = little_to_native(version[i]);
+    info.update_pubkey(pubkey_ed25519);
+  }
+  operator service_nodes::proof_info() const
+  {
+    service_nodes::proof_info info{};
+    update(info);
+    return info;
+  }
+
+  uint64_t timestamp;
+  uint32_t ip;
+  uint16_t storage_port;
+  uint16_t quorumnet_port;
+  uint16_t version[3];
+  uint16_t _padding{0};
+  crypto::ed25519_public_key pubkey_ed25519;
+};
+static_assert(sizeof(service_node_proof_serialized) == 56, "service node serialization struct has unexpected size and/or padding");
+
+bool BlockchainLMDB::get_service_node_proof(const crypto::public_key &pubkey, service_nodes::proof_info &proof) const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+
+  RCURSOR(service_node_proofs);
+  MDB_val v, k{sizeof(pubkey), (void*) &pubkey};
+
+  int result = mdb_cursor_get(m_cursors->service_node_proofs, &k, &v, MDB_SET_KEY);
+  if (result == MDB_NOTFOUND)
+    return false;
+  else if (result != MDB_SUCCESS)
+    throw0(DB_ERROR(lmdb_error("DB error attempting to get service node data", result)));
+
+  static_cast<const service_node_proof_serialized *>(v.mv_data)->update(proof);
+  return true;
+}
+
+void BlockchainLMDB::set_service_node_proof(const crypto::public_key &pubkey, const service_nodes::proof_info &proof)
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  mdb_txn_cursors *m_cursors = &m_wcursors;
+  CURSOR(service_node_proofs);
+  service_node_proof_serialized data{proof};
+
+  MDB_val k{sizeof(pubkey), (void*) &pubkey},
+          v{sizeof(data), &data};
+  int result = mdb_cursor_put(m_cursors->service_node_proofs, &k, &v, 0);
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to add service node latest proof data to db transaction: ", result)));
+}
+
+std::unordered_map<crypto::public_key, service_nodes::proof_info> BlockchainLMDB::get_all_service_node_proofs() const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+  RCURSOR(service_node_proofs);
+
+  std::unordered_map<crypto::public_key, service_nodes::proof_info> result;
+  for (const auto &pair : iterable_db<crypto::public_key, service_node_proof_serialized>(m_cursors->service_node_proofs))
+    result.emplace(*pair.first, *pair.second);
+
+  return result;
+}
+
+bool BlockchainLMDB::remove_service_node_proof(const crypto::public_key& pubkey)
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+  mdb_txn_cursors *m_cursors = &m_wcursors;
+  CURSOR(service_node_proofs)
+
+  MDB_val k{sizeof(pubkey), (void*) &pubkey};
+  auto result = mdb_cursor_get(m_cursors->service_node_proofs, &k, NULL, MDB_SET);
+  if (result == MDB_NOTFOUND)
+    return false;
+  if (result != MDB_SUCCESS)
+    throw0(DB_ERROR(lmdb_error("Error finding service node proof to remove", result)));
+  result = mdb_cursor_del(m_cursors->service_node_proofs, 0);
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Error remove service node proof", result)));
+  return true;
+}
+
 
 }  // namespace cryptonote

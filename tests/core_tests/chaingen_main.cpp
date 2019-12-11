@@ -110,10 +110,12 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(loki_checkpointing_alt_chain_handle_alt_blocks_at_tip);
     GENERATE_AND_PLAY(loki_checkpointing_alt_chain_more_service_node_checkpoints_less_pow_overtakes);
     GENERATE_AND_PLAY(loki_checkpointing_alt_chain_receive_checkpoint_votes_should_reorg_back);
+    GENERATE_AND_PLAY(loki_checkpointing_alt_chain_too_old_should_be_dropped);
     GENERATE_AND_PLAY(loki_checkpointing_alt_chain_with_increasing_service_node_checkpoints);
     GENERATE_AND_PLAY(loki_checkpointing_service_node_checkpoint_from_votes);
     GENERATE_AND_PLAY(loki_checkpointing_service_node_checkpoints_check_reorg_windows);
     GENERATE_AND_PLAY(loki_core_block_reward_unpenalized);
+    GENERATE_AND_PLAY(loki_core_fee_burning);
     GENERATE_AND_PLAY(loki_core_governance_batched_reward);
     GENERATE_AND_PLAY(loki_core_test_deregister_preferred);
     GENERATE_AND_PLAY(loki_core_test_deregister_safety_buffer);
@@ -124,6 +126,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(loki_service_nodes_alt_quorums);
     GENERATE_AND_PLAY(loki_service_nodes_checkpoint_quorum_size);
     GENERATE_AND_PLAY(loki_service_nodes_gen_nodes);
+    GENERATE_AND_PLAY(loki_service_nodes_insufficient_contribution);
     GENERATE_AND_PLAY(loki_service_nodes_test_rollback);
     GENERATE_AND_PLAY(loki_service_nodes_test_swarms_basic);
 
@@ -143,6 +146,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_block_ts_in_future);
     GENERATE_AND_PLAY(gen_block_invalid_prev_id);
     GENERATE_AND_PLAY(gen_block_invalid_nonce);
+    GENERATE_AND_PLAY(gen_block_invalid_binary_format);
     GENERATE_AND_PLAY(gen_block_no_miner_tx);
     GENERATE_AND_PLAY(gen_block_unlock_time_is_low);
     GENERATE_AND_PLAY(gen_block_unlock_time_is_high);
@@ -181,6 +185,13 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_tx_output_is_not_txout_to_key);
     GENERATE_AND_PLAY(gen_tx_signatures_are_invalid);
 
+    GENERATE_AND_PLAY(gen_double_spend_in_tx);
+    GENERATE_AND_PLAY(gen_double_spend_in_the_same_block);
+    GENERATE_AND_PLAY(gen_double_spend_in_different_blocks);
+    GENERATE_AND_PLAY(gen_double_spend_in_different_chains);
+    GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_the_same_block);
+    GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_different_blocks);
+
     GENERATE_AND_PLAY(gen_multisig_tx_invalid_23_1__no_threshold);
     GENERATE_AND_PLAY(gen_multisig_tx_invalid_45_5_23_no_threshold);
     GENERATE_AND_PLAY(gen_multisig_tx_invalid_22_1__no_threshold);
@@ -212,24 +223,12 @@ int main(int argc, char* argv[])
     // TODO(loki): Tests we need to fix
 #if 0
       //GENERATE_AND_PLAY(gen_ring_signature_big); // Takes up to XXX hours (if CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW == 10)
-      //GENERATE_AND_PLAY(gen_block_invalid_binary_format); // Takes up to 3 hours, if CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW == 500, up to 30 minutes, if CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW == 10
 
       // Transaction verification tests
       GENERATE_AND_PLAY(gen_tx_mixed_key_offset_not_exist); // TODO(loki): See comment in the function
       GENERATE_AND_PLAY(gen_tx_output_with_zero_amount); // TODO(loki): See comment in the function
 
       // Double spend
-      GENERATE_AND_PLAY(gen_double_spend_in_tx<false>);
-      GENERATE_AND_PLAY(gen_double_spend_in_tx<true>);
-      GENERATE_AND_PLAY(gen_double_spend_in_the_same_block<false>);
-      GENERATE_AND_PLAY(gen_double_spend_in_the_same_block<true>);
-      GENERATE_AND_PLAY(gen_double_spend_in_different_blocks<false>);
-      GENERATE_AND_PLAY(gen_double_spend_in_different_blocks<true>);
-      GENERATE_AND_PLAY(gen_double_spend_in_different_chains);
-      GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_the_same_block<false>);
-      GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_the_same_block<true>);
-      GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_different_blocks<false>);
-      GENERATE_AND_PLAY(gen_double_spend_in_alt_chain_in_different_blocks<true>);
 
       GENERATE_AND_PLAY(gen_block_reward);
       GENERATE_AND_PLAY(gen_uint_overflow_2);
@@ -300,7 +299,7 @@ int main(int argc, char* argv[])
     if (!failed_tests.empty())
     {
       MLOG(level, "FAILED TESTS:");
-      BOOST_FOREACH(auto test_name, failed_tests)
+      for (auto &test_name : failed_tests)
       {
         MLOG(level, "  " << test_name);
       }

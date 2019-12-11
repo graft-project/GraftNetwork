@@ -30,11 +30,13 @@
 
 #include <boost/variant.hpp>
 #include <mutex>
+#include <shared_mutex>
 #include "serialization/serialization.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_core/service_node_rules.h"
 #include "cryptonote_core/service_node_voting.h"
 #include "cryptonote_core/service_node_quorum_cop.h"
+#include "common/util.h"
 
 namespace cryptonote
 {
@@ -60,9 +62,8 @@ namespace service_nodes
 
   struct proof_info
   {
-    uint64_t timestamp           = 0; // The actual time we last received an uptime proof
+    uint64_t timestamp           = 0; // The actual time we last received an uptime proof (serialized)
     uint64_t effective_timestamp = 0; // Typically the same, but on recommissions it is set to the recommission block time to fend off instant obligation checks
-    uint16_t version_major = 0, version_minor = 0, version_patch = 0;
     std::array<checkpoint_vote_record, CHECKPOINT_NUM_QUORUMS_TO_PARTICIPATE_IN> votes;
     uint8_t vote_index = 0;
     std::array<std::pair<uint32_t, uint64_t>, 2> public_ips = {}; // (not serialized)
@@ -71,16 +72,29 @@ namespace service_nodes
     uint64_t storage_server_reachable_timestamp = 0;
     proof_info() { votes.fill({}); }
 
-    // Called to update both actual and effective timestamp, i.e. when a proof is received
-    void update_timestamp(uint64_t ts) { timestamp = ts; effective_timestamp = ts; }
-
-    // Unlike the above, these three *do* get serialized, but directly from state_t rather than as a subobject:
-    uint32_t public_ip;
-    uint16_t storage_port;
+    // Unlike all of the above (except for timestamp), these values *do* get serialized
+    uint32_t public_ip      = 0;
+    uint16_t storage_port   = 0;
+    uint16_t quorumnet_port = 0;
+    std::array<uint16_t, 3> version{{0,0,0}};
     crypto::ed25519_public_key pubkey_ed25519 = crypto::ed25519_public_key::null();
 
     // Derived from pubkey_ed25519, not serialized
     crypto::x25519_public_key pubkey_x25519 = crypto::x25519_public_key::null();
+
+    // Updates pubkey_ed25519 to the given key, re-deriving the x25519 key if it actually changes
+    // (does nothing if the key is the same as the current value).  If x25519 derivation fails then
+    // both pubkeys are set to null.
+    void update_pubkey(const crypto::ed25519_public_key &pk);
+
+    // Called to update data received from a proof is received, updating values in the local object.
+    // Returns true if serializable data is changed (in which case `store()` should be called).
+    // Note that this does not update the m_x25519_to_pub map if the x25519 key changes (that's the
+    // caller's responsibility).
+    bool update(uint64_t ts, uint32_t ip, uint16_t s_port, uint16_t q_port, std::array<uint16_t, 3> ver, const crypto::ed25519_public_key &pk_ed, const crypto::x25519_public_key &pk_x2);
+
+    // Stores this record in the database.
+    void store(const crypto::public_key &pubkey, cryptonote::BlockchainDB &db);
   };
 
   struct service_node_info // registration information
@@ -90,28 +104,31 @@ namespace service_nodes
       v0_checkpointing,               // versioning reset in 4.0.0 (data structure storage changed)
       v1_add_registration_hf_version,
       v2_ed25519,
+      v3_quorumnet,
+      v4_noproofs,
 
-      count
+      _count
     };
 
     struct contribution_t
     {
       enum class version_t : uint8_t {
         v0,
-        count
+
+        _count
       };
 
       version_t          version{version_t::v0};
-      crypto::public_key key_image_pub_key;
-      crypto::key_image  key_image;
-      uint64_t           amount;
+      crypto::public_key key_image_pub_key{};
+      crypto::key_image  key_image{};
+      uint64_t           amount = 0;
 
       contribution_t() = default;
       contribution_t(version_t version, const crypto::public_key &pubkey, const crypto::key_image &key_image, uint64_t amount)
         : version{version}, key_image_pub_key{pubkey}, key_image{key_image}, amount{amount} {}
 
       BEGIN_SERIALIZE_OBJECT()
-        ENUM_FIELD(version, version < version_t::count)
+        ENUM_FIELD(version, version < version_t::_count)
         FIELD(key_image_pub_key)
         FIELD(key_image)
         VARINT_FIELD(amount)
@@ -120,10 +137,10 @@ namespace service_nodes
 
     struct contributor_t
     {
-      uint8_t  version;
-      uint64_t amount;
-      uint64_t reserved;
-      cryptonote::account_public_address address;
+      uint8_t  version = 0;
+      uint64_t amount = 0;
+      uint64_t reserved = 0;
+      cryptonote::account_public_address address{};
       std::vector<contribution_t> locked_contributions;
 
       contributor_t() = default;
@@ -143,31 +160,24 @@ namespace service_nodes
       END_SERIALIZE()
     };
 
-    uint64_t                           registration_height;
-    uint64_t                           requested_unlock_height;
+    uint64_t                           registration_height = 0;
+    uint64_t                           requested_unlock_height = 0;
     // block_height and transaction_index are to record when the service node last received a reward.
-    uint64_t                           last_reward_block_height;
-    uint32_t                           last_reward_transaction_index;
-    uint32_t                           decommission_count; // How many times this service node has been decommissioned
-    int64_t                            active_since_height; // if decommissioned: equal to the *negative* height at which you became active before the decommission
-    uint64_t                           last_decommission_height; // The height at which the last (or current!) decommissioning started, or 0 if never decommissioned
+    uint64_t                           last_reward_block_height = 0;
+    uint32_t                           last_reward_transaction_index = 0;
+    uint32_t                           decommission_count = 0; // How many times this service node has been decommissioned
+    int64_t                            active_since_height = 0; // if decommissioned: equal to the *negative* height at which you became active before the decommission
+    uint64_t                           last_decommission_height = 0; // The height at which the last (or current!) decommissioning started, or 0 if never decommissioned
     std::vector<contributor_t>         contributors;
-    uint64_t                           total_contributed;
-    uint64_t                           total_reserved;
-    uint64_t                           staking_requirement;
-    uint64_t                           portions_for_operator;
-    swarm_id_t                         swarm_id;
-    cryptonote::account_public_address operator_address;
-    uint64_t                           last_ip_change_height; // The height of the last quorum penalty for changing IPs
-    version_t                          version = version_t::v2_ed25519;
-    uint8_t                            registration_hf_version;
-
-    // The data in `proof_info` are shared across states because we don't want to roll them back in
-    // the event of a reorg: we always want them to contain the latest received info.  They are also
-    // deliberately mutable (via the dereferenced non-const type) so that they can be updated
-    // without needing to duplicate state.  Only IP/ports/ed25519 pubkey are serialized; the rest
-    // of proof info is transient.
-    std::shared_ptr<proof_info> proof = std::make_shared<proof_info>();
+    uint64_t                           total_contributed = 0;
+    uint64_t                           total_reserved = 0;
+    uint64_t                           staking_requirement = 0;
+    uint64_t                           portions_for_operator = 0;
+    swarm_id_t                         swarm_id = 0;
+    cryptonote::account_public_address operator_address{};
+    uint64_t                           last_ip_change_height = 0; // The height of the last quorum penalty for changing IPs
+    version_t                          version = tools::enum_top<version_t>;
+    uint8_t                            registration_hf_version = 0;
 
     service_node_info() = default;
     bool is_fully_funded() const { return total_contributed >= staking_requirement; }
@@ -178,10 +188,8 @@ namespace service_nodes
     bool can_be_voted_on        (uint64_t block_height) const;
     size_t total_num_locked_contributions() const;
 
-    void derive_x25519_pubkey_from_ed25519(); // Attempts to set x25519 from ed25519 pubkey.  Sets both to null if conversion fails.
-
     BEGIN_SERIALIZE_OBJECT()
-      ENUM_FIELD(version, version < version_t::count)
+      ENUM_FIELD(version, version < version_t::_count)
       VARINT_FIELD(registration_height)
       VARINT_FIELD(requested_unlock_height)
       VARINT_FIELD(last_reward_block_height)
@@ -196,17 +204,23 @@ namespace service_nodes
       VARINT_FIELD(portions_for_operator)
       FIELD(operator_address)
       VARINT_FIELD(swarm_id)
-      VARINT_FIELD_N("public_ip", proof->public_ip)
-      VARINT_FIELD_N("storage_port", proof->storage_port)
+      if (version < version_t::v4_noproofs) {
+        uint32_t fake_ip = 0;
+        uint16_t fake_port = 0;
+        VARINT_FIELD_N("public_ip", fake_ip)
+        VARINT_FIELD_N("storage_port", fake_port)
+      }
       VARINT_FIELD(last_ip_change_height)
       if (version >= version_t::v1_add_registration_hf_version)
         VARINT_FIELD(registration_hf_version);
-      if (version >= version_t::v2_ed25519) {
-        FIELD_N("pubkey_ed25519", proof->pubkey_ed25519)
-        if (!W)
-          derive_x25519_pubkey_from_ed25519();
+      if (version >= version_t::v2_ed25519 && version < version_t::v4_noproofs) {
+        crypto::ed25519_public_key fake_pk = crypto::ed25519_public_key::null();
+        FIELD_N("pubkey_ed25519", fake_pk)
+        if (version >= version_t::v3_quorumnet) {
+          uint16_t fake_port = 0;
+          VARINT_FIELD_N("quorumnet_port", fake_port)
+        }
       }
-
     END_SERIALIZE()
   };
 
@@ -261,20 +275,6 @@ namespace service_nodes
     std::vector<payout_entry> payouts;
   };
 
-  template<typename RandomIt>
-  void loki_shuffle(RandomIt begin, RandomIt end, uint64_t seed)
-  {
-    if (end <= begin + 1) return;
-    const size_t size = std::distance(begin, end);
-    std::mt19937_64 mersenne_twister(seed);
-    for (size_t i = 1; i < size; i++)
-    {
-      size_t j = (size_t)uniform_distribution_portable(mersenne_twister, i+1);
-      using std::swap;
-      swap(begin[i], begin[j]);
-    }
-  }
-
   /// Collection of keys used by a service node
   struct service_node_keys {
     /// The service node key pair used for registration-related data on the chain; is
@@ -304,7 +304,11 @@ namespace service_nodes
       public cryptonote::AltBlockAddedHook
   {
   public:
-    service_node_list(cryptonote::Blockchain& blockchain);
+    explicit service_node_list(cryptonote::Blockchain& blockchain);
+    // non-copyable:
+    service_node_list(const service_node_list &) = delete;
+    service_node_list &operator=(const service_node_list &) = delete;
+
     bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint) override;
     void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
     void init() override;
@@ -319,29 +323,63 @@ namespace service_nodes
     ///
     /// For checkpointing, quorums are only generated when height % CHECKPOINT_INTERVAL == 0 (and
     /// the actual internal quorum used is for `height - REORG_SAFETY_BUFFER_BLOCKS_POST_HF12`, i.e.
-    /// do no subtract off the buffer in advance)
+    /// do no subtract off the buffer in advance).
+    /// Similarly for blink (but on BLINK_QUORUM_INTERVAL, but without any buffer offset applied here).
     /// return: nullptr if the quorum is not cached in memory (pruned from memory).
-    std::shared_ptr<const testing_quorum> get_testing_quorum(quorum_type type, uint64_t height, bool include_old = false, std::vector<std::shared_ptr<const testing_quorum>> *alt_states = nullptr) const;
-    bool                                  get_quorum_pubkey(quorum_type type, quorum_group group, uint64_t height, size_t quorum_index, crypto::public_key &key) const;
+    std::shared_ptr<const quorum> get_quorum(quorum_type type, uint64_t height, bool include_old = false, std::vector<std::shared_ptr<const quorum>> *alt_states = nullptr) const;
+    bool                          get_quorum_pubkey(quorum_type type, quorum_group group, uint64_t height, size_t quorum_index, crypto::public_key &key) const;
 
-    std::vector<service_node_pubkey_info> get_service_node_list_state(const std::vector<crypto::public_key> &service_node_pubkeys) const;
+    size_t get_service_node_count() const;
+    std::vector<service_node_pubkey_info> get_service_node_list_state(const std::vector<crypto::public_key> &service_node_pubkeys = {}) const;
     const std::vector<key_image_blacklist_entry> &get_blacklisted_key_images() const { return m_state.key_image_blacklist; }
+
+    /// Accesses a proof with the required lock held; used to extract needed proof values.  Func
+    /// should be callable with a single `const proof_info &` argument.  If there is no proof info
+    /// at all for the given pubkey then Func will not be called.
+    template <typename Func>
+    void access_proof(const crypto::public_key &pubkey, Func f) const {
+      std::unique_lock<boost::recursive_mutex> lock;
+      auto it = m_proofs.find(pubkey);
+      if (it != m_proofs.end())
+        f(it->second);
+    }
 
     /// Returns the (monero curve) pubkey associated with a x25519 pubkey.  Returns a null public
     /// key if not found.  (Note: this is just looking up the association, not derivation).
     crypto::public_key get_pubkey_from_x25519(const crypto::x25519_public_key &x25519) const;
 
-    void set_db_pointer(cryptonote::BlockchainDB* db);
-    void set_my_service_node_keys(std::shared_ptr<const service_node_keys> keys);
+    /// Initializes the x25519 map from current pubkey state; called during initialization
+    void initialize_x25519_map();
+
+    /// Does something read-only for each registered service node in the range of pubkeys.  The SN
+    /// lock is held while iterating, so the "something" should be quick.  Func should take
+    /// arguments:
+    ///     (const crypto::public_key&, const service_node_info&, const proof_info&)
+    /// Unknown public keys are skipped.
+    template <typename It, typename Func>
+    void for_each_service_node_info_and_proof(It begin, It end, Func f) const {
+      static const proof_info empty_proof{};
+      std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+      for (auto sni_end = m_state.service_nodes_infos.end(); begin != end; ++begin) {
+        auto it = m_state.service_nodes_infos.find(*begin);
+        if (it != sni_end) {
+          auto pit = m_proofs.find(it->first);
+          f(it->first, *it->second, (pit != m_proofs.end() ? pit->second : empty_proof));
+        }
+      }
+    }
+
+    void set_my_service_node_keys(const service_node_keys *keys);
     void set_quorum_history_storage(uint64_t hist_size); // 0 = none (default), 1 = unlimited, N = # of blocks
     bool store();
 
-    void get_all_service_nodes_public_keys(std::vector<crypto::public_key>& keys, bool require_active) const;
-
     /// Record public ip and storage port and add them to the service node list
-    cryptonote::NOTIFY_UPTIME_PROOF::request generate_uptime_proof(const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port) const;
+    cryptonote::NOTIFY_UPTIME_PROOF::request generate_uptime_proof(const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port, uint16_t quorumnet_port) const;
     bool handle_uptime_proof        (cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool &my_uptime_proof_confirmation);
     void record_checkpoint_vote     (crypto::public_key const &pubkey, uint64_t height, bool voted);
+
+    // Called every hour to remove proofs for expired SNs from memory and the database.
+    void cleanup_proofs();
 
     bool set_storage_server_peer_reachable(crypto::public_key const &pubkey, bool value);
 
@@ -349,7 +387,7 @@ namespace service_nodes
     {
       uint8_t        version;
       uint64_t       height;
-      testing_quorum quorums[static_cast<uint8_t>(quorum_type::count)];
+      quorum         quorums[tools::enum_count<quorum_type>];
 
       BEGIN_SERIALIZE()
         FIELD(version)
@@ -402,48 +440,52 @@ namespace service_nodes
       END_SERIALIZE()
     };
 
+    struct state_t;
+    using state_set = std::set<state_t, std::less<>>;
     using block_height = uint64_t;
-    using keys_ptr = std::shared_ptr<const service_node_keys>;
     struct state_t
     {
-      crypto::hash                           block_hash;
-      bool                                   only_loaded_quorums;
+      crypto::hash                           block_hash{crypto::null_hash};
+      bool                                   only_loaded_quorums{false};
       service_nodes_infos_t                  service_nodes_infos;
       std::vector<key_image_blacklist_entry> key_image_blacklist;
       block_height                           height{0};
       mutable quorum_manager                 quorums;          // Mutable because we are allowed to (and need to) change it via std::set iterator
+      service_node_list*                     sn_list;
 
-      state_t() = default;
-      state_t(block_height height) : height{height} {}
-      state_t(cryptonote::Blockchain const &blockchain, state_serialized &&state);
+      state_t(service_node_list* snl) : sn_list{snl} {}
+      state_t(service_node_list* snl, state_serialized &&state);
 
-      bool operator<(const state_t &other) const { return this->height < other.height; }
+      friend bool operator<(const state_t &a, const state_t &b) { return a.height < b.height; }
+      friend bool operator<(const state_t &s, block_height h)   { return s.height < h; }
+      friend bool operator<(block_height h, const state_t &s)   { return        h < s.height; }
+
       std::vector<pubkey_and_sninfo>  active_service_nodes_infos() const; // return: Filtered pubkey-sorted vector of service nodes that are active (fully funded and *not* decommissioned).
       std::vector<pubkey_and_sninfo>  decommissioned_service_nodes_infos() const; // return: All nodes that are fully funded *and* decommissioned.
       std::vector<crypto::public_key> get_expired_nodes(cryptonote::BlockchainDB const &db, cryptonote::network_type nettype, uint8_t hf_version, uint64_t block_height) const;
       void update_from_block(
           cryptonote::BlockchainDB const &db,
           cryptonote::network_type nettype,
-          std::set<state_t> const &state_history,
-          std::set<state_t> const &state_archive,
+          state_set const &state_history,
+          state_set const &state_archive,
           std::unordered_map<crypto::hash, state_t> const &alt_states,
           const cryptonote::block& block,
           const std::vector<cryptonote::transaction>& txs,
-          const keys_ptr &my_keys);
+          const service_node_keys *my_keys);
 
       // Returns true if there was a registration:
-      bool process_registration_tx(cryptonote::network_type nettype, cryptonote::block const &block, const cryptonote::transaction& tx, uint32_t index, const keys_ptr &my_keys);
+      bool process_registration_tx(cryptonote::network_type nettype, cryptonote::block const &block, const cryptonote::transaction& tx, uint32_t index, const service_node_keys *my_keys);
       // Returns true if there was a successful contribution that fully funded a service node:
       bool process_contribution_tx(cryptonote::network_type nettype, cryptonote::block const &block, const cryptonote::transaction& tx, uint32_t index);
       // Returns true if a service node changed state (deregistered, decommissioned, or recommissioned)
       bool process_state_change_tx(
-          std::set<state_t> const &state_history,
-          std::set<state_t> const &state_archive,
+          state_set const &state_history,
+          state_set const &state_archive,
           std::unordered_map<crypto::hash, state_t> const &alt_states,
           cryptonote::network_type nettype,
           const cryptonote::block &block,
           const cryptonote::transaction& tx,
-          const keys_ptr &my_keys);
+          const service_node_keys *my_keys);
       bool process_key_image_unlock_tx(cryptonote::network_type nettype, uint64_t block_height, const cryptonote::transaction &tx);
       block_winner get_block_winner() const;
     };
@@ -453,6 +495,7 @@ namespace service_nodes
 
   private:
     // Note(maxim): private methods don't have to be protected the mutex
+    bool m_rescanning = false; /* set to true when doing a rescan so we know not to reset proofs */
     void rescan_starting_from_curr_state(bool store_to_disk);
     void process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
 
@@ -461,13 +504,13 @@ namespace service_nodes
 
     mutable boost::recursive_mutex m_sn_mutex;
     cryptonote::Blockchain&        m_blockchain;
-    keys_ptr                       m_service_node_keys;
-    cryptonote::BlockchainDB      *m_db;
+    const service_node_keys       *m_service_node_keys;
     uint64_t                       m_store_quorum_history;
 
     /// Maps x25519 pubkeys to registration pubkeys + last block seen value (used for expiry)
     std::unordered_map<crypto::x25519_public_key, std::pair<crypto::public_key, time_t>> m_x25519_to_pub;
     time_t m_x25519_map_last_pruned = 0;
+    mutable std::shared_timed_mutex m_x25519_map_mutex;
 
     struct quorums_by_height
     {
@@ -478,10 +521,11 @@ namespace service_nodes
     };
 
     std::deque<quorums_by_height>             m_old_quorum_states; // Store all old quorum history only if run with --store-full-quorum-history
-    std::set<state_t>                         m_state_history; // Store state_t's from MIN(2nd oldest checkpoint | height - DEFAULT_SHORT_TERM_STATE_HISTORY) up to the block height
-    std::set<state_t>                         m_state_archive; // Store state_t's where ((height < m_state_history.first()) && (height % STORE_LONG_TERM_STATE_INTERVAL))
+    state_set                                 m_state_history; // Store state_t's from MIN(2nd oldest checkpoint | height - DEFAULT_SHORT_TERM_STATE_HISTORY) up to the block height
+    state_set                                 m_state_archive; // Store state_t's where ((height < m_state_history.first()) && (height % STORE_LONG_TERM_STATE_INTERVAL))
     state_t                                   m_state;
     std::unordered_map<crypto::hash, state_t> m_alt_state;
+    std::unordered_map<crypto::public_key, proof_info> m_proofs;
 
     bool                                   m_state_added_to_archive;
     data_for_serialization                 m_cache_long_term_data;

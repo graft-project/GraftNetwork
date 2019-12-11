@@ -48,6 +48,7 @@
 #include "net/local_ip.h"
 #include "p2p_protocol_defs.h"
 #include "syncobj.h"
+#include "common/random.h"
 
 namespace nodetool
 {
@@ -290,7 +291,7 @@ namespace nodetool
 
     if (anonymize)
     {
-      std::random_shuffle(bs_head.begin(), bs_head.end());
+      std::shuffle(bs_head.begin(), bs_head.end(), tools::rng);
       if (bs_head.size() > depth)
         bs_head.resize(depth);
       for (auto &e: bs_head)

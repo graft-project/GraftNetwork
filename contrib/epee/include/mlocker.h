@@ -30,6 +30,7 @@
 
 #include <map>
 #include <boost/thread/mutex.hpp>
+#include "span.h"
 
 namespace epee
 {
@@ -84,4 +85,6 @@ namespace epee
 
   template <class T, size_t N>
   using mlocked_arr = mlocked<std::array<T, N>>;
+
+  template <typename T> constexpr bool is_byte_spannable<mlocked<T>> = is_byte_spannable<T>;
 }

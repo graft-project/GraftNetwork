@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, The Monero Project
+// Copyright (c) 2019, The Loki Project
 //
 // All rights reserved.
 //
@@ -25,13 +25,37 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
-#include "p2p/net_node.h"
-#include "p2p/net_node.inl"
-#include "cryptonote_protocol/cryptonote_protocol_handler.h"
-#include "cryptonote_protocol/cryptonote_protocol_handler.inl"
+#pragma once
 
-namespace nodetool { template class node_server<cryptonote::t_cryptonote_protocol_handler<cryptonote::core>>; }
-namespace cryptonote { template class t_cryptonote_protocol_handler<cryptonote::core>; }
+#include <random>
+
+namespace tools {
+
+/// A thread-local, pre-seeded mt19937_64 rng ready for use.  Don't use this where an RNG with a
+/// specific seed is needed.
+extern thread_local std::mt19937_64 rng;
+
+/// Generates a deterministic uint64_t uniformly distributed over [0, n).  This is roughly
+/// equivalent to `std::uniform_int_distribution<uint64_t>{0, n}(rng)`, but that is not guaranteed
+/// to be unique across platforms/compilers, while this is.
+uint64_t uniform_distribution_portable(std::mt19937_64& rng, uint64_t n);
+
+/// Uniformly shuffles all the elements in [begin, end) in a deterministic method so that, given the
+/// same seed, this will always produce the same result on any platform/compiler/etc.
+template<typename RandomIt>
+void shuffle_portable(RandomIt begin, RandomIt end, uint64_t seed)
+{
+  if (end <= begin + 1) return;
+  const size_t size = std::distance(begin, end);
+  std::mt19937_64 rng{seed};
+  for (size_t i = 1; i < size; i++)
+  {
+    size_t j = (size_t)uniform_distribution_portable(rng, i+1);
+    using std::swap;
+    swap(begin[i], begin[j]);
+  }
+}
+
+
+};

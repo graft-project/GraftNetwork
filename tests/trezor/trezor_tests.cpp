@@ -215,7 +215,7 @@ int main(int argc, char* argv[])
     if (!failed_tests.empty())
     {
       MLOG(level, "FAILED TESTS:");
-      BOOST_FOREACH(auto test_name, failed_tests)
+      for (auto& test_name : failed_tests)
       {
         MLOG(level, "  " << test_name);
       }
@@ -318,7 +318,7 @@ static bool init_core_replay_events(std::vector<test_event_entry>& events, crypt
 
   // start with a clean pool
   std::vector<crypto::hash> pool_txs;
-  CHECK_AND_ASSERT_THROW_MES(core->get_pool_transaction_hashes(pool_txs), "Failed to flush txpool");
+  core->get_pool().get_transaction_hashes(pool_txs);
   core->get_blockchain_storage().flush_txes_from_pool(pool_txs);
 
   t_test_class validator;

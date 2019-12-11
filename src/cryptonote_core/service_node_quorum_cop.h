@@ -46,10 +46,10 @@ namespace service_nodes
 {
   struct service_node_info;
 
-  struct testing_quorum
+  struct quorum
   {
-    std::vector<crypto::public_key> validators; // Array of public keys identifying service nodes which are being tested for the queried height.
-    std::vector<crypto::public_key> workers;    // Array of public keys identifying service nodes which are responsible for voting on the queried height.
+    std::vector<crypto::public_key> validators; // Array of public keys identifying service nodes who validate and sign.
+    std::vector<crypto::public_key> workers;    // Array of public keys of tested service nodes (if applicable).
 
     BEGIN_SERIALIZE()
       FIELD(validators)
@@ -59,15 +59,17 @@ namespace service_nodes
 
   struct quorum_manager
   {
-    std::shared_ptr<const testing_quorum> obligations;
-    // TODO(doyle): Validators aren't used, but I kept this as a testing_quorum
+    std::shared_ptr<const quorum> obligations;
+    // TODO(doyle): Workers aren't used, but I kept this as a quorum
     // to avoid drastic changes for now to a lot of the service node API
-    std::shared_ptr<const testing_quorum> checkpointing;
+    std::shared_ptr<const quorum> checkpointing;
+    std::shared_ptr<const quorum> blink;
 
-    std::shared_ptr<const testing_quorum> get(quorum_type type) const
+    std::shared_ptr<const quorum> get(quorum_type type) const
     {
       if (type == quorum_type::obligations) return obligations;
       else if (type == quorum_type::checkpointing) return checkpointing;
+      else if (type == quorum_type::blink) return blink;
       MERROR("Developer error: Unhandled quorum enum with value: " << (size_t)type);
       assert(!"Developer error: Unhandled quorum enum with value: ");
       return nullptr;
@@ -97,7 +99,7 @@ namespace service_nodes
     void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
 
     void                       set_votes_relayed  (std::vector<quorum_vote_t> const &relayed_votes);
-    std::vector<quorum_vote_t> get_relayable_votes(uint64_t current_height);
+    std::vector<quorum_vote_t> get_relayable_votes(uint64_t current_height, uint8_t hf_version, bool quorum_relay);
     bool                       handle_vote        (quorum_vote_t const &vote, cryptonote::vote_verification_context &vvc);
 
     static int64_t calculate_decommission_credit(const service_node_info &info, uint64_t current_height);
@@ -112,4 +114,24 @@ namespace service_nodes
     uint64_t          m_last_checkpointed_height;
     mutable epee::critical_section m_lock;
   };
+
+  int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, const crypto::public_key &my_pubkey);
+
+  /** Calculates a checksum value from the (ordered!) set of pubkeys to casually test whether two
+   * quorums are the same.  (Not meant to be cryptographically secure).
+   *
+   * offset is used to add multiple lists together without having to construct a separate vector,
+   * that is:
+   *
+   *     checksum([a,b,c,d,e])
+   *
+   * and
+   *
+   *     checksum([a,b,c]) + checksum([d,e], 3)
+   *
+   * yield the same result.  Public keys may be null; pubkeys that are skipped via the offset are
+   * equivalent to a null pubkey for skipped entries, and the checksum of [a,b,ZERO] is equal to the
+   * checksum of [a,b] but not equal to [a,ZERO,b].
+   */
+  uint64_t quorum_checksum(const std::vector<crypto::public_key> &pubkeys, size_t offset = 0);
 }

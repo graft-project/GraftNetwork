@@ -3626,7 +3626,7 @@ Input %llu/%llu (%s): amount=%s</source>
     <message>
         <location filename="../src/simplewallet/simplewallet.cpp" line="5709"/>
         <location filename="../src/simplewallet/simplewallet.cpp" line="6295"/>
-        <source>Locked blocks too high, max 1000000 (˜4 yrs)</source>
+        <source>Locked blocks too high, max 1000000 (~4 yrs)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

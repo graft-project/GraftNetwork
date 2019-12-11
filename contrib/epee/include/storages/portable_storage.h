@@ -50,7 +50,6 @@ namespace epee
     public:
       typedef epee::serialization::hsection hsection;
       typedef epee::serialization::harray  harray;
-      typedef storage_entry meta_entry;
 
       portable_storage(){}
       virtual ~portable_storage(){}
@@ -137,7 +136,7 @@ namespace epee
     {
       TRY_ENTRY();
       std::stringstream ss;
-      storage_block_header sbh = AUTO_VAL_INIT(sbh);
+      storage_block_header sbh{};
       sbh.m_signature_a = SWAP32LE(PORTABLE_STORAGE_SIGNATUREA);
       sbh.m_signature_b = SWAP32LE(PORTABLE_STORAGE_SIGNATUREB);
       sbh.m_ver = PORTABLE_STORAGE_FORMAT_VER;

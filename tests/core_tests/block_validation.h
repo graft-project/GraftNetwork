@@ -53,7 +53,7 @@ public:
     DEFINE_TESTS_ERROR_CONTEXT("gen_block_verification_base::check_block_purged");
 
     CHECK_TEST_CONDITION(invalid_block_idx < ev_index);
-    CHECK_EQ(0, c.get_pool_transactions_count());
+    CHECK_EQ(0, c.get_pool().get_transactions_count());
     CHECK_EQ(invalid_block_idx, c.get_current_blockchain_height());
 
     return true;
@@ -72,7 +72,7 @@ struct gen_block_accepted_base : public test_chain_unit_base
   {
     DEFINE_TESTS_ERROR_CONTEXT("gen_block_accepted_base::check_block_accepted");
 
-    CHECK_EQ(0, c.get_pool_transactions_count());
+    CHECK_EQ(0, c.get_pool().get_transactions_count());
     CHECK_EQ(expected_blockchain_height, c.get_current_blockchain_height());
 
     return true;
@@ -192,12 +192,5 @@ struct gen_block_is_too_big : public gen_block_verification_base<1>
 
 struct gen_block_invalid_binary_format : public test_chain_unit_base
 {
-  gen_block_invalid_binary_format();
   bool generate(std::vector<test_event_entry>& events) const;
-  bool check_block_verification_context(const cryptonote::block_verification_context& bvc, size_t event_idx, const cryptonote::block& /*blk*/);
-  bool check_all_blocks_purged(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
-  bool corrupt_blocks_boundary(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
-
-private:
-  size_t m_corrupt_blocks_begin_idx;
 };

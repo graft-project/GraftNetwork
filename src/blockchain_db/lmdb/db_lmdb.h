@@ -40,66 +40,47 @@
 namespace cryptonote
 {
 
-typedef struct txindex {
+struct mdb_block_info;
+
+struct txindex {
     crypto::hash key;
     tx_data_t data;
-} txindex;
+};
 
-typedef struct mdb_txn_cursors
+struct mdb_txn_cursors
 {
-  MDB_cursor *m_txc_blocks;
-  MDB_cursor *m_txc_block_heights;
-  MDB_cursor *m_txc_block_info;
-  MDB_cursor *m_txc_block_checkpoints;
+  MDB_cursor *blocks;
+  MDB_cursor *block_heights;
+  MDB_cursor *block_info;
+  MDB_cursor *block_checkpoints;
 
-  MDB_cursor *m_txc_output_txs;
-  MDB_cursor *m_txc_output_amounts;
+  MDB_cursor *output_txs;
+  MDB_cursor *output_amounts;
 
-  MDB_cursor *m_txc_txs;
-  MDB_cursor *m_txc_txs_pruned;
-  MDB_cursor *m_txc_txs_prunable;
-  MDB_cursor *m_txc_txs_prunable_hash;
-  MDB_cursor *m_txc_txs_prunable_tip;
-  MDB_cursor *m_txc_tx_indices;
-  MDB_cursor *m_txc_tx_outputs;
+  MDB_cursor *txs;
+  MDB_cursor *txs_pruned;
+  MDB_cursor *txs_prunable;
+  MDB_cursor *txs_prunable_hash;
+  MDB_cursor *txs_prunable_tip;
+  MDB_cursor *tx_indices;
+  MDB_cursor *tx_outputs;
 
-  MDB_cursor *m_txc_spent_keys;
+  MDB_cursor *spent_keys;
 
-  MDB_cursor *m_txc_txpool_meta;
-  MDB_cursor *m_txc_txpool_blob;
+  MDB_cursor *txpool_meta;
+  MDB_cursor *txpool_blob;
 
-  MDB_cursor *m_txc_alt_blocks;
+  MDB_cursor *alt_blocks;
 
-  MDB_cursor *m_txc_hf_versions;
+  MDB_cursor *hf_versions;
 
-  MDB_cursor *m_txc_service_node_data;
-  MDB_cursor *m_txc_output_blacklist;
-  MDB_cursor *m_txc_properties;
-} mdb_txn_cursors;
+  MDB_cursor *service_node_data;
+  MDB_cursor *service_node_proofs;
+  MDB_cursor *output_blacklist;
+  MDB_cursor *properties;
+};
 
-#define m_cur_blocks	m_cursors->m_txc_blocks
-#define m_cur_block_heights	m_cursors->m_txc_block_heights
-#define m_cur_block_info	m_cursors->m_txc_block_info
-#define m_cur_block_checkpoints m_cursors->m_txc_block_checkpoints
-#define m_cur_output_txs	m_cursors->m_txc_output_txs
-#define m_cur_output_amounts	m_cursors->m_txc_output_amounts
-#define m_cur_output_blacklist	m_cursors->m_txc_output_blacklist
-#define m_cur_txs	m_cursors->m_txc_txs
-#define m_cur_txs_pruned	m_cursors->m_txc_txs_pruned
-#define m_cur_txs_prunable	m_cursors->m_txc_txs_prunable
-#define m_cur_txs_prunable_hash	m_cursors->m_txc_txs_prunable_hash
-#define m_cur_txs_prunable_tip	m_cursors->m_txc_txs_prunable_tip
-#define m_cur_tx_indices	m_cursors->m_txc_tx_indices
-#define m_cur_tx_outputs	m_cursors->m_txc_tx_outputs
-#define m_cur_spent_keys	m_cursors->m_txc_spent_keys
-#define m_cur_txpool_meta	m_cursors->m_txc_txpool_meta
-#define m_cur_txpool_blob	m_cursors->m_txc_txpool_blob
-#define m_cur_alt_blocks	m_cursors->m_txc_alt_blocks
-#define m_cur_hf_versions	m_cursors->m_txc_hf_versions
-#define m_cur_service_node_data	m_cursors->m_txc_service_node_data
-#define m_cur_properties	m_cursors->m_txc_properties
-
-typedef struct mdb_rflags
+struct mdb_rflags
 {
   bool m_rf_txn;
   bool m_rf_blocks;
@@ -122,17 +103,18 @@ typedef struct mdb_rflags
   bool m_rf_alt_blocks;
   bool m_rf_hf_versions;
   bool m_rf_service_node_data;
+  bool m_rf_service_node_proofs;
   bool m_rf_properties;
-} mdb_rflags;
+};
 
-typedef struct mdb_threadinfo
+struct mdb_threadinfo
 {
   MDB_txn *m_ti_rtxn;	// per-thread read txn
   mdb_txn_cursors m_ti_rcursors;	// per-thread read cursors
   mdb_rflags m_ti_rflags;	// per-thread read state
 
   ~mdb_threadinfo();
-} mdb_threadinfo;
+};
 
 struct mdb_txn_safe
 {
@@ -270,7 +252,7 @@ public:
 
   std::vector<transaction> get_tx_list(const std::vector<crypto::hash>& hlist) const override;
 
-  uint64_t get_tx_block_height(const crypto::hash& h) const override;
+  std::vector<uint64_t> get_tx_block_heights(const std::vector<crypto::hash>& hlist) const override;
 
   uint64_t get_num_outputs(const uint64_t& amount) const override;
 
@@ -428,9 +410,9 @@ private:
 
   uint64_t get_database_size() const override;
 
-  std::vector<uint64_t> get_block_info_64bit_fields(uint64_t start_height, size_t count, off_t offset) const;
+  std::vector<uint64_t> get_block_info_64bit_fields(uint64_t start_height, size_t count, uint64_t (*extract)(const mdb_block_info*)) const;
 
-  uint64_t get_max_block_size();
+  uint64_t get_max_block_size() override;
   void add_max_block_size(uint64_t sz) override;
 
   // fix up anything that may be wrong due to past bugs
@@ -449,8 +431,13 @@ private:
 
   bool get_block_checkpoint_internal(uint64_t height, checkpoint_t &checkpoint, MDB_cursor_op op) const;
   void set_service_node_data(const std::string& data, bool long_term) override;
-  bool get_service_node_data(std::string& data, bool long_term) override;
+  bool get_service_node_data(std::string& data, bool long_term) const override;
   void clear_service_node_data() override;
+
+  bool get_service_node_proof(const crypto::public_key& pubkey, service_nodes::proof_info& proof) const override;
+  void set_service_node_proof(const crypto::public_key& pubkey, const service_nodes::proof_info& proof) override;
+  std::unordered_map<crypto::public_key, service_nodes::proof_info> get_all_service_node_proofs() const override;
+  bool remove_service_node_proof(const crypto::public_key& pubkey) override;
 
 private:
   MDB_env* m_env;
@@ -483,6 +470,7 @@ private:
   MDB_dbi m_hf_versions;
 
   MDB_dbi m_service_node_data;
+  MDB_dbi m_service_node_proofs;
 
   MDB_dbi m_properties;
 

@@ -38,6 +38,12 @@ namespace service_nodes {
                 "The maximum number of votes a service node can miss cannot be greater than the amount of checkpoint "
                 "quorums they must participate in before we check if they should be deregistered or not.");
 
+  constexpr int BLINK_QUORUM_INTERVAL = 5; // We generate a new sub-quorum every N blocks (two consecutive quorums are needed for a blink signature)
+  constexpr int BLINK_QUORUM_LAG      = 7 * BLINK_QUORUM_INTERVAL; // The lag (which must be a multiple of BLINK_QUORUM_INTERVAL) in determining the base blink quorum height
+  constexpr int BLINK_EXPIRY_BUFFER   = BLINK_QUORUM_LAG + 10; // We don't select any SNs that have a scheduled unlock within this many blocks (measured from the lagged height)
+  static_assert(BLINK_QUORUM_LAG % BLINK_QUORUM_INTERVAL == 0, "BLINK_QUORUM_LAG must be an integral multiple of BLINK_QUORUM_INTERVAL");
+  static_assert(BLINK_EXPIRY_BUFFER > BLINK_QUORUM_LAG + BLINK_QUORUM_INTERVAL, "BLINK_EXPIRY_BUFFER is too short to cover a blink quorum height range");
+
   // State change quorums are in charge of policing the network by changing the state of a service
   // node on the network: temporary decommissioning, recommissioning, and permanent deregistration.
   constexpr size_t   STATE_CHANGE_NTH_OF_THE_NETWORK_TO_TEST = 100;
@@ -50,16 +56,24 @@ namespace service_nodes {
   constexpr int    MIN_TIME_IN_S_BEFORE_VOTING            = 0;
   constexpr size_t CHECKPOINT_QUORUM_SIZE                 = 5;
   constexpr size_t CHECKPOINT_MIN_VOTES                   = 1;
+  constexpr int    BLINK_SUBQUORUM_SIZE                   = 5;
+  constexpr int    BLINK_MIN_VOTES                        = 1;
 #else
   constexpr size_t STATE_CHANGE_MIN_VOTES_TO_CHANGE_STATE = 7;
   constexpr size_t STATE_CHANGE_QUORUM_SIZE               = 10;
   constexpr int    MIN_TIME_IN_S_BEFORE_VOTING            = UPTIME_PROOF_MAX_TIME_IN_SECONDS;
   constexpr size_t CHECKPOINT_QUORUM_SIZE                 = 20;
   constexpr size_t CHECKPOINT_MIN_VOTES                   = 13;
+  constexpr int    BLINK_SUBQUORUM_SIZE                   = 10;
+  constexpr int    BLINK_MIN_VOTES                        = 7;
 #endif
 
   static_assert(STATE_CHANGE_MIN_VOTES_TO_CHANGE_STATE <= STATE_CHANGE_QUORUM_SIZE, "The number of votes required to kick can't exceed the actual quorum size, otherwise we never kick.");
-  static_assert(CHECKPOINT_MIN_VOTES <= CHECKPOINT_QUORUM_SIZE, "The number of votes required to kick can't exceed the actual quorum size, otherwise we never kick.");
+  static_assert(CHECKPOINT_MIN_VOTES <= CHECKPOINT_QUORUM_SIZE, "The number of votes required to add a checkpoint can't exceed the actual quorum size, otherwise we never add checkpoints.");
+  static_assert(BLINK_MIN_VOTES <= BLINK_SUBQUORUM_SIZE, "The number of votes required can't exceed the actual blink subquorum size, otherwise we never approve.");
+#ifndef LOKI_ENABLE_INTEGRATION_TEST_HOOKS
+  static_assert(BLINK_MIN_VOTES > BLINK_SUBQUORUM_SIZE / 2, "Blink approvals must require a majority of quorum members to prevent conflicting, signed blinks.");
+#endif
 
   // NOTE: We can reorg up to last 2 checkpoints + the number of extra blocks before the next checkpoint is set
   constexpr uint64_t  REORG_SAFETY_BUFFER_BLOCKS_POST_HF12 = (CHECKPOINT_INTERVAL * CHECKPOINT_NUM_CHECKPOINTS_FOR_CHAIN_FINALITY) + (CHECKPOINT_INTERVAL - 1);
@@ -96,22 +110,29 @@ namespace service_nodes {
   // blocks out of sync and sending something that it thinks is legit.
   constexpr uint64_t VOTE_OR_TX_VERIFY_HEIGHT_BUFFER    = 5;
 
-  constexpr std::array<int, 3> MIN_STORAGE_SERVER_VERSION = {1, 0, 7};
+  constexpr std::array<int, 3> MIN_STORAGE_SERVER_VERSION{{1, 0, 7}};
+  constexpr std::array<int, 3> MIN_LOKINET_VERSION{{0, 6, 0}};
 
   using swarm_id_t                         = uint64_t;
   constexpr swarm_id_t UNASSIGNED_SWARM_ID = UINT64_MAX;
 
-  inline quorum_type max_quorum_type_for_hf(uint8_t hf_version)
+  constexpr size_t min_votes_for_quorum_type(quorum_type q) {
+    return
+      q == quorum_type::obligations     ? STATE_CHANGE_MIN_VOTES_TO_CHANGE_STATE :
+      q == quorum_type::checkpointing   ? CHECKPOINT_MIN_VOTES :
+      q == quorum_type::blink           ? BLINK_MIN_VOTES :
+      std::numeric_limits<size_t>::max();
+  };
+
+  constexpr quorum_type max_quorum_type_for_hf(uint8_t hf_version)
   {
-    // TODO(loki): After switching to V13, we can change checkpointing quorums to activate on V13 since we delete all
-    // v12 checkpoints so we don't need quorum data for it and save some space
-    quorum_type result = (hf_version <= cryptonote::network_version_11_infinite_staking) ? quorum_type::obligations
-                                                                                         : quorum_type::checkpointing;
-    assert(result != quorum_type::count);
-    return result;
+    return
+        hf_version <= cryptonote::network_version_12_checkpointing ? quorum_type::obligations :
+        hf_version <  cryptonote::network_version_14_blink_lns     ? quorum_type::checkpointing :
+        quorum_type::blink;
   }
 
-  inline uint64_t staking_num_lock_blocks(cryptonote::network_type nettype)
+  constexpr uint64_t staking_num_lock_blocks(cryptonote::network_type nettype)
   {
     switch (nettype)
     {
@@ -141,5 +162,4 @@ uint64_t     get_locked_key_image_unlock_height(cryptonote::network_type nettype
 uint64_t get_portions_to_make_amount(uint64_t staking_requirement, uint64_t amount);
 
 bool get_portions_from_percent_str(std::string cut_str, uint64_t& portions);
-uint64_t uniform_distribution_portable(std::mt19937_64& mersenne_twister, uint64_t n);
 }

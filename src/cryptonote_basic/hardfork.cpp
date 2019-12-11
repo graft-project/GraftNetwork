@@ -71,6 +71,8 @@ static constexpr HardFork::Params mainnet_hard_forks[] =
   { network_version_11_infinite_staking,    234767, 0, 1554170400 }, // 2019-03-26 13:00AEDT
   { network_version_12_checkpointing,       321467, 0, 1563940800 }, // 2019-07-24 14:00AEDT
   { network_version_13_enforce_checkpoints, 385824, 0, 1571850000 }, // 2019-10-23 19:00AEDT
+  // TODO: add v14 fork height; also remember to update hf_min_loki_versions in service_node_list
+  // with the final 6.1.0 release version.
 };
 
 static constexpr HardFork::Params testnet_hard_forks[] =
@@ -82,6 +84,7 @@ static constexpr HardFork::Params testnet_hard_forks[] =
   { network_version_11_infinite_staking,    5,      0, 1551223964 },
   { network_version_12_checkpointing,       75471,  0, 1561608000 }, // 2019-06-28 14:00AEDT
   { network_version_13_enforce_checkpoints, 127028, 0, 1568440800 }, // 2019-09-13 16:00AEDT
+  { network_version_14_blink_lns,           174630, 0, 1575075600 }, // 2019-11-30 07:00UTC
 };
 
 static constexpr HardFork::Params stagenet_hard_forks[] =

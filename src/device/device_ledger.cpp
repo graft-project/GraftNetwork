@@ -321,8 +321,8 @@ namespace hw {
     bool device_ledger::reset() {
       reset_buffer();
       int offset = set_command_header_noopt(INS_RESET);
-      memmove(this->buffer_send+offset, LOKI_VERSION, strlen(LOKI_VERSION));
-      offset += strlen(LOKI_VERSION);
+      memmove(this->buffer_send+offset, LOKI_VERSION_STR, strlen(LOKI_VERSION_STR));
+      offset += strlen(LOKI_VERSION_STR);
       this->buffer_send[4] = offset-5;
       this->length_send = offset;
       this->exchange();

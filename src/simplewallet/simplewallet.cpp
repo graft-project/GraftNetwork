@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2019, The Monero Project
-// Copyright (c)      2018, The Loki Project
+// Copyright (c) 2018-2019, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -135,11 +135,6 @@ typedef cryptonote::simple_wallet sw;
     } \
   } while(0)
 
-enum TransferType {
-  Transfer,
-  TransferLocked,
-};
-
 namespace
 {
   const auto arg_wallet_file = wallet_args::arg_wallet_file();
@@ -172,12 +167,13 @@ namespace
   const char* USAGE_INCOMING_TRANSFERS("incoming_transfers [available|unavailable] [verbose] [uses] [index=<N1>[,<N2>[,...]]]");
   const char* USAGE_PAYMENTS("payments <PID_1> [<PID_2> ... <PID_N>]");
   const char* USAGE_PAYMENT_ID("payment_id");
-  const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [<priority>] (<URI> | <address> <amount>) [<payment_id>]");
+  const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [blink|<priority>] (<URI> | <address> <amount>) [<payment_id>]");
+  const char* USAGE_BLINK("blink [index=<N1>[,<N2>,...]] (<URI> | <address> <amount>)");
   const char* USAGE_LOCKED_TRANSFER("locked_transfer [index=<N1>[,<N2>,...]] [<priority>] (<URI> | <addr> <amount>) <lockblocks> [<payment_id (obsolete)>]");
   const char* USAGE_LOCKED_SWEEP_ALL("locked_sweep_all [index=<N1>[,<N2>,...]] [<priority>] <address> <lockblocks> [<payment_id (obsolete)>]");
-  const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...]] [<priority>] [outputs=<N>] <address> [<payment_id (obsolete)>] [use_v1_tx]");
-  const char* USAGE_SWEEP_BELOW("sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [<priority>] <address> [<payment_id (obsolete)>]");
-  const char* USAGE_SWEEP_SINGLE("sweep_single [<priority>] [outputs=<N>] <key_image> <address> [<payment_id (obsolete)>]");
+  const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...]] [blink|<priority>] [outputs=<N>] <address> [<payment_id (obsolete)>] [use_v1_tx]");
+  const char* USAGE_SWEEP_BELOW("sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [blink|<priority>] <address> [<payment_id (obsolete)>]");
+  const char* USAGE_SWEEP_SINGLE("sweep_single [blink|<priority>] [outputs=<N>] <key_image> <address> [<payment_id (obsolete)>]");
   const char* USAGE_SIGN_TRANSFER("sign_transfer [export_raw]");
   const char* USAGE_SET_LOG("set_log <level>|{+,-,}<categories>");
   const char* USAGE_ACCOUNT("account\n"
@@ -916,10 +912,14 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
           print_money(base_fee.second) % cryptonote::get_unit(cryptonote::get_default_decimal_point())).str();
 
   std::vector<uint64_t> fees;
+  std::ostringstream typical_fees;
   for (uint32_t priority = 1; priority <= 4; ++priority)
   {
-    uint64_t mult = m_wallet->get_fee_multiplier(priority);
-    fees.push_back((base_fee.first * typical_size + base_fee.second * typical_outs) * mult);
+    uint64_t pct = m_wallet->get_fee_percent(priority);
+    uint64_t typical_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100;
+    fees.push_back(typical_fee);
+    if (priority > 1) typical_fees << ", ";
+    typical_fees << print_money(typical_fee) << " (" << tools::allowed_priority_strings[priority] << ")";
   }
   std::vector<std::pair<uint64_t, uint64_t>> blocks;
   try
@@ -955,6 +955,30 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
     else
       message_writer() << tr("No backlog at priority ") << priority;
   }
+
+  auto hf_version = m_wallet->get_hard_fork_version();
+  if (hf_version && *hf_version >= HF_VERSION_BLINK)
+  {
+    uint64_t pct = m_wallet->get_fee_percent(tools::wallet2::BLINK_PRIORITY);
+    uint64_t fixed = BLINK_BURN_FIXED;
+
+    uint64_t typical_blink_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100 + fixed;
+
+    if (fixed)
+      message_writer() << (boost::format(tr("Current blink fee is %s %s per byte + %s %s per output + %s %s")) %
+          print_money(base_fee.first * pct / 100) % cryptonote::get_unit(cryptonote::get_default_decimal_point()) %
+          print_money(base_fee.second * pct / 100) % cryptonote::get_unit(cryptonote::get_default_decimal_point()) %
+          print_money(fixed) % cryptonote::get_unit(cryptonote::get_default_decimal_point())).str();
+    else
+      message_writer() << (boost::format(tr("Current blink fee is %s %s per byte + %s %s per output")) %
+          print_money(base_fee.first * pct / 100) % cryptonote::get_unit(cryptonote::get_default_decimal_point()) %
+          print_money(base_fee.second * pct / 100) % cryptonote::get_unit(cryptonote::get_default_decimal_point())).str();
+
+    typical_fees << ", " << print_money(typical_blink_fee) << " (blink)";
+  }
+
+  message_writer() << "Estimated typical small transaction fees: " << typical_fees.str();
+
   return true;
 }
 
@@ -1549,10 +1573,12 @@ bool simple_wallet::submit_multisig_main(const std::vector<std::string> &args, b
       return false;
     }
 
+    constexpr bool FIXME_blink = false; // Blink not supported yet for multisig wallets
+
     // actually commit the transactions
     for (auto &ptx: txs.m_ptx)
     {
-      m_wallet->commit_tx(ptx);
+      m_wallet->commit_tx(ptx, FIXME_blink);
       success_msg_writer(true) << tr("Transaction successfully submitted, transaction ") << get_transaction_hash(ptx.tx) << ENDL
           << tr("You can check its status by using the `show_transfers` command.");
     }
@@ -2729,11 +2755,11 @@ simple_wallet::simple_wallet()
       tr("Show the blockchain height."));
   m_cmd_binder.set_handler("transfer", boost::bind(&simple_wallet::transfer, this, _1),
                            tr(USAGE_TRANSFER),
-                           tr("Transfer <amount> to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. Multiple payments can be made at once by adding <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
+                           tr("Transfer <amount> to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction, or \"blink\" for an instant transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. Multiple payments can be made at once by adding <address_2> <amount_2> et cetera (before the payment ID, if it's included)"));
   m_cmd_binder.set_handler("locked_transfer",
                            boost::bind(&simple_wallet::locked_transfer, this, _1),
                            tr(USAGE_LOCKED_TRANSFER),
-                           tr("Transfer <amount> to <address> and lock it for <lockblocks> (max. 1000000). If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
+                           tr("Transfer <amount> to <address> and lock it for <lockblocks> (max. 1000000). If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> et cetera (before the <lockblocks>)"));
   m_cmd_binder.set_handler("locked_sweep_all",
                            boost::bind(&simple_wallet::locked_sweep_all, this, _1),
                            tr(USAGE_LOCKED_SWEEP_ALL),
@@ -4756,7 +4782,7 @@ bool simple_wallet::start_mining(const std::vector<std::string>& args)
     fail_msg_writer() << tr("wallet is null");
     return true;
   }
-  COMMAND_RPC_START_MINING::request req = AUTO_VAL_INIT(req); 
+  COMMAND_RPC_START_MINING::request req{};
   req.miner_address = m_wallet->get_account().get_public_address_str(m_wallet->nettype());
 
   bool ok = true;
@@ -4911,13 +4937,19 @@ void simple_wallet::on_new_block(uint64_t height, const cryptonote::block& block
     m_refresh_progress_reporter.update(height, false);
 }
 //----------------------------------------------------------------------------------------------------
-void simple_wallet::on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index, uint64_t unlock_time)
+void simple_wallet::on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index, uint64_t unlock_time, bool blink)
 {
-  message_writer(console_color_green, false) << "\r" <<
-    tr("Height ") << height << ", " <<
-    tr("txid ") << txid << ", " <<
-    print_money(amount) << ", " <<
-    tr("idx ") << subaddr_index;
+  {
+    auto m = message_writer(console_color_green, false);
+    m << "\r";
+    if (height == 0 && blink)
+      m << tr("Blink, ");
+    else
+      m << tr("Height ") << height << ", ";
+    m << tr("txid ") << txid << ", " <<
+      print_money(amount) << ", " <<
+      tr("idx ") << subaddr_index;
+  }
 
   const uint64_t warn_height = m_wallet->nettype() == TESTNET ? 1000000 : m_wallet->nettype() == STAGENET ? 50000 : 1650000;
   if (height >= warn_height)
@@ -5528,14 +5560,14 @@ bool simple_wallet::print_ring_members(const std::vector<tools::wallet2::pending
       // convert relative offsets of ring member keys into absolute offsets (indices) associated with the amount
       std::vector<uint64_t> absolute_offsets = cryptonote::relative_output_offsets_to_absolute(in_key.key_offsets);
       // get block heights from which those ring member keys originated
-      COMMAND_RPC_GET_OUTPUTS_BIN::request req = AUTO_VAL_INIT(req);
+      COMMAND_RPC_GET_OUTPUTS_BIN::request req{};
       req.outputs.resize(absolute_offsets.size());
       for (size_t j = 0; j < absolute_offsets.size(); ++j)
       {
         req.outputs[j].amount = in_key.amount;
         req.outputs[j].index = absolute_offsets[j];
       }
-      COMMAND_RPC_GET_OUTPUTS_BIN::response res = AUTO_VAL_INIT(res);
+      COMMAND_RPC_GET_OUTPUTS_BIN::response res{};
       bool r = m_wallet->invoke_http_bin("/get_outs.bin", req, res);
       err = interpret_rpc_response(r, res.status);
       if (!err.empty())
@@ -5604,7 +5636,7 @@ static bool locked_blocks_arg_valid(const std::string& arg, uint64_t& duration)
 
   if (duration > 1000000)
   {
-    fail_msg_writer() << tr("Locked blocks too high, max 1000000 (˜4 yrs)");
+    fail_msg_writer() << tr("Locked blocks too high, max 1000000 (~4 yrs)");
     return false;
   }
 
@@ -5612,7 +5644,7 @@ static bool locked_blocks_arg_valid(const std::string& arg, uint64_t& duration)
 }
 
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::string> &args_, bool called_by_mms)
+bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std::string> &args_, bool called_by_mms)
 {
 //  "transfer [index=<N1>[,<N2>,...]] [<priority>] <address> <amount> [<payment_id>]"
   if (!try_connect_to_daemon())
@@ -5638,7 +5670,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
 
   priority = m_wallet->adjust_priority(priority);
 
-  const size_t min_args = (transfer_type == TransferLocked) ? 2 : 1;
+  const size_t min_args = (transfer_type == Transfer::Locked) ? 2 : 1;
   if(local_args.size() < min_args)
   {
      fail_msg_writer() << tr("wrong number of arguments");
@@ -5671,8 +5703,14 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
   }
 
   uint64_t locked_blocks = 0;
-  if (transfer_type == TransferLocked)
+  if (transfer_type == Transfer::Locked)
   {
+    if (priority == tools::wallet2::BLINK_PRIORITY)
+    {
+      fail_msg_writer() << tr("blink priority cannot be used for locked transfers");
+      return false;
+    }
+
     if (!locked_blocks_arg_valid(local_args.back(), locked_blocks))
     {
       return true;
@@ -5747,7 +5785,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     {
       if (payment_id_seen)
       {
-        fail_msg_writer() << tr("a single transaction cannot use more than one payment id");
+        fail_msg_writer() << tr("a single transaction cannot use more than one payment id/integrated address");
         return false;
       }
 
@@ -5802,25 +5840,17 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     std::vector<tools::wallet2::pending_tx> ptx_vector;
     uint64_t bc_height, unlock_block = 0;
     std::string err;
-    switch (transfer_type)
+    if (transfer_type == Transfer::Locked)
     {
-      case TransferLocked:
-        bc_height = get_daemon_blockchain_height(err);
-        if (!err.empty())
-        {
-          fail_msg_writer() << tr("failed to get blockchain height: ") << err;
-          return false;
-        }
-        unlock_block = bc_height + locked_blocks;
-        ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block /* unlock_time */, priority, extra, m_current_subaddress_account, subaddr_indices);
-      break;
-      default:
-        LOG_ERROR("Unknown transfer method, using default");
-        /* FALLTHRU */
-      case Transfer:
-        ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, m_current_subaddress_account, subaddr_indices);
-      break;
+      bc_height = get_daemon_blockchain_height(err);
+      if (!err.empty())
+      {
+        fail_msg_writer() << tr("failed to get blockchain height: ") << err;
+        return false;
+      }
+      unlock_block = bc_height + locked_blocks;
     }
+    ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block, priority, extra, m_current_subaddress_account, subaddr_indices);
 
     if (ptx_vector.empty())
     {
@@ -5829,7 +5859,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     }
 
     // if we need to check for backlog, check the worst case tx
-    if (m_wallet->confirm_backlog())
+    if (m_wallet->confirm_backlog() && priority != tools::wallet2::BLINK_PRIORITY)
     {
       std::stringstream prompt;
       double worst_fee_per_byte = std::numeric_limits<double>::max();
@@ -5924,7 +5954,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
         if (dust_in_fee != 0) prompt << boost::format(tr(", of which %s is dust from change")) % print_money(dust_in_fee);
         if (dust_not_in_fee != 0)  prompt << tr(".") << ENDL << boost::format(tr("A total of %s from dust change will be sent to dust address")) 
                                                    % print_money(dust_not_in_fee);
-        if (transfer_type == TransferLocked)
+        if (transfer_type == Transfer::Locked)
         {
           float days = locked_blocks / 720.0f;
           prompt << boost::format(tr(".\nThis transaction (including %s change) will unlock on block %llu, in approximately %s days (assuming 2 minutes per block)")) % cryptonote::print_money(change) % ((unsigned long long)unlock_block) % days;
@@ -5997,7 +6027,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
           return false;
         }
 
-        commit_or_save(signed_tx.ptx, m_do_not_relay);
+        commit_or_save(signed_tx.ptx, m_do_not_relay, priority == tools::wallet2::BLINK_PRIORITY);
       }
       catch (const std::exception& e)
       {
@@ -6026,7 +6056,7 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
     }
     else
     {
-      commit_or_save(ptx_vector, m_do_not_relay);
+      commit_or_save(ptx_vector, m_do_not_relay, priority == tools::wallet2::BLINK_PRIORITY);
     }
   }
   catch (const std::exception &e)
@@ -6046,19 +6076,17 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::transfer(const std::vector<std::string> &args_)
 {
-  transfer_main(Transfer, args_, false);
-  return true;
+  return transfer_main(Transfer::Normal, args_, false);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::locked_transfer(const std::vector<std::string> &args_)
 {
-  transfer_main(TransferLocked, args_, false);
-  return true;
+  return transfer_main(Transfer::Locked, args_, false);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::locked_sweep_all(const std::vector<std::string> &args_)
 {
-  return sweep_main(0, true, args_);
+  return sweep_main(0, Transfer::Locked, args_);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::register_service_node(const std::vector<std::string> &args_)
@@ -6087,7 +6115,7 @@ bool simple_wallet::register_service_node(const std::vector<std::string> &args_)
   try
   {
     std::vector<tools::wallet2::pending_tx> ptx_vector = {result.ptx};
-    if (!sweep_main_internal(sweep_type_t::register_stake, ptx_vector, info))
+    if (!sweep_main_internal(sweep_type_t::register_stake, ptx_vector, info, false /* don't blink */))
     {
       fail_msg_writer() << tr("Sending register transaction failed");
       return true;
@@ -6202,7 +6230,7 @@ bool simple_wallet::stake(const std::vector<std::string> &args_)
         tools::msg_writer() << stake_result.msg;
 
       std::vector<tools::wallet2::pending_tx> ptx_vector = {stake_result.ptx};
-      if (!sweep_main_internal(sweep_type_t::stake, ptx_vector, info))
+      if (!sweep_main_internal(sweep_type_t::stake, ptx_vector, info, false /* don't blink */))
       {
         fail_msg_writer() << tr("Sending stake transaction failed");
         return true;
@@ -6283,7 +6311,7 @@ bool simple_wallet::request_stake_unlock(const std::vector<std::string> &args_)
 
   try
   {
-    commit_or_save(ptx_vector, m_do_not_relay);
+    commit_or_save(ptx_vector, m_do_not_relay, false /* don't blink */);
   }
   catch (const std::exception &e)
   {
@@ -6525,7 +6553,7 @@ bool simple_wallet::sweep_unmixable(const std::vector<std::string> &args_)
     }
     else
     {
-      commit_or_save(ptx_vector, m_do_not_relay);
+      commit_or_save(ptx_vector, m_do_not_relay, false /* don't blink */);
     }
   }
   catch (const std::exception &e)
@@ -6541,7 +6569,7 @@ bool simple_wallet::sweep_unmixable(const std::vector<std::string> &args_)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::sweep_main_internal(sweep_type_t sweep_type, std::vector<tools::wallet2::pending_tx> &ptx_vector, cryptonote::address_parse_info const &dest)
+bool simple_wallet::sweep_main_internal(sweep_type_t sweep_type, std::vector<tools::wallet2::pending_tx> &ptx_vector, cryptonote::address_parse_info const &dest, bool blink)
 {
   if ((sweep_type == sweep_type_t::stake || sweep_type == sweep_type_t::register_stake) && ptx_vector.size() > 1)
   {
@@ -6651,7 +6679,7 @@ bool simple_wallet::sweep_main_internal(sweep_type_t sweep_type, std::vector<too
         return true;
       }
 
-      commit_or_save(signed_tx.ptx, m_do_not_relay);
+      commit_or_save(signed_tx.ptx, m_do_not_relay, blink);
     }
     catch (const std::exception& e)
     {
@@ -6677,7 +6705,7 @@ bool simple_wallet::sweep_main_internal(sweep_type_t sweep_type, std::vector<too
   }
   else
   {
-    commit_or_save(ptx_vector, m_do_not_relay);
+    commit_or_save(ptx_vector, m_do_not_relay, blink);
     submitted_to_network = true;
   }
 
@@ -6690,7 +6718,7 @@ bool simple_wallet::sweep_main_internal(sweep_type_t sweep_type, std::vector<too
   return true;
 }
 
-bool simple_wallet::sweep_main(uint64_t below, bool locked, const std::vector<std::string> &args_, tools::wallet2::sweep_style_t sweep_style)
+bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std::vector<std::string> &args_)
 {
   auto print_usage = [below]()
   {
@@ -6735,7 +6763,11 @@ bool simple_wallet::sweep_main(uint64_t below, bool locked, const std::vector<st
 
   priority = m_wallet->adjust_priority(priority);
   uint64_t unlock_block = 0;
-  if (locked) {
+  if (transfer_type == Transfer::Locked) {
+    if (priority == tools::wallet2::BLINK_PRIORITY) {
+      fail_msg_writer() << tr("blink priority cannot be used for locked transfers");
+      return false;
+    }
     uint64_t locked_blocks = 0;
 
     if (local_args.size() < 2) {
@@ -6754,7 +6786,7 @@ bool simple_wallet::sweep_main(uint64_t below, bool locked, const std::vector<st
     }
     if (locked_blocks > 1000000)
     {
-      fail_msg_writer() << tr("Locked blocks too high, max 1000000 (˜4 yrs)");
+      fail_msg_writer() << tr("Locked blocks too high, max 1000000 (~4 yrs)");
       return true;
     }
     std::string err;
@@ -6860,8 +6892,8 @@ bool simple_wallet::sweep_main(uint64_t below, bool locked, const std::vector<st
   SCOPED_WALLET_UNLOCK();
   try
   {
-    auto ptx_vector = m_wallet->create_transactions_all(below, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block /* unlock_time */, priority, extra, m_current_subaddress_account, subaddr_indices, false, sweep_style);
-    sweep_main_internal(sweep_type_t::all_or_below, ptx_vector, info);
+    auto ptx_vector = m_wallet->create_transactions_all(below, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block /* unlock_time */, priority, extra, m_current_subaddress_account, subaddr_indices);
+    sweep_main_internal(sweep_type_t::all_or_below, ptx_vector, info, priority == tools::wallet2::BLINK_PRIORITY);
   }
   catch (const std::exception &e)
   {
@@ -6996,7 +7028,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
   {
     // figure out what tx will be necessary
     auto ptx_vector = m_wallet->create_transactions_single(ki, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra);
-    sweep_main_internal(sweep_type_t::single, ptx_vector, info);
+    sweep_main_internal(sweep_type_t::single, ptx_vector, info, priority == tools::wallet2::BLINK_PRIORITY);
   }
   catch (const std::exception& e)
   {
@@ -7013,20 +7045,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::sweep_all(const std::vector<std::string> &args_)
 {
-  std::vector<std::string> copied_args = args_;
-
-  tools::wallet2::sweep_style_t sweep_style = tools::wallet2::sweep_style_t::normal;
-  if (args_.size() > 0)
-  {
-    std::string const &last_arg = copied_args.back();
-    if (last_arg == "use_v1_tx")
-    {
-      sweep_style = tools::wallet2::sweep_style_t::use_v1_tx;
-      copied_args.erase(copied_args.end() - 1);
-    }
-  }
-
-  return sweep_main(0, false, copied_args, sweep_style);
+  return sweep_main(0, Transfer::Normal, args_);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::sweep_below(const std::vector<std::string> &args_)
@@ -7042,7 +7061,7 @@ bool simple_wallet::sweep_below(const std::vector<std::string> &args_)
     fail_msg_writer() << tr("invalid amount threshold");
     return true;
   }
-  return sweep_main(below, false, std::vector<std::string>(++args_.begin(), args_.end()));
+  return sweep_main(below, Transfer::Normal, std::vector<std::string>(++args_.begin(), args_.end()));
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::accept_loaded_tx(const std::function<size_t()> get_num_txes, const std::function<const tools::wallet2::tx_construction_data&(size_t)> &get_tx, const std::string &extra_message)
@@ -7292,7 +7311,10 @@ bool simple_wallet::submit_transfer(const std::vector<std::string> &args_)
       return true;
     }
 
-    commit_or_save(ptx_vector, false);
+    // FIXME: store the blink status in the signed_loki_tx somehow?
+    constexpr bool FIXME_blink = false;
+
+    commit_or_save(ptx_vector, false, FIXME_blink);
   }
   catch (const std::exception& e)
   {
@@ -7947,10 +7969,10 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
     auto formatter = boost::format("%8.8s %6.6s %8.8s %12.12s %16.16s %20.20s %s %s %14.14s %s %s - %s");
 
     message_writer(color, false) << formatter
-      % (transfer.type.size() ? transfer.type : std::to_string(transfer.height))
+      % (transfer.type.size() ? transfer.type : (transfer.height == 0 && transfer.blink_mempool) ? "blink" : std::to_string(transfer.height))
       % tools::pay_type_string(transfer.pay_type)
       % transfer.lock_msg
-      % (transfer.checkpointed ? "checkpointed" : "no")
+      % (transfer.checkpointed ? "checkpointed" : transfer.was_blink ? "blink" : "no")
       % tools::get_human_readable_timestamp(transfer.timestamp)
       % print_money(transfer.amount)
       % string_tools::pod_to_hex(transfer.hash)
@@ -8241,7 +8263,7 @@ void simple_wallet::wallet_idle_thread()
         uint64_t fetched_blocks;
         bool received_money;
         if (try_connect_to_daemon(true))
-          m_wallet->refresh(m_wallet->is_trusted_daemon(), 0, fetched_blocks, received_money, false); // don't check the pool in background mode
+          m_wallet->refresh(m_wallet->is_trusted_daemon(), 0, fetched_blocks, received_money);
       }
       catch(...) {}
       m_auto_refresh_refreshing = false;
@@ -9239,20 +9261,27 @@ bool simple_wallet::show_transfer(const std::vector<std::string> &args)
         payment_id = payment_id.substr(0,16);
       success_msg_writer() << "Incoming transaction found";
       success_msg_writer() << "txid: " << txid;
-      success_msg_writer() << "Height: " << pd.m_block_height;
+      if (pd.m_block_height == 0 && pd.m_unmined_blink)
+        success_msg_writer() << "Height: blink (not yet mined)";
+      else
+        success_msg_writer() << "Height: " << pd.m_block_height;
       success_msg_writer() << "Timestamp: " << tools::get_human_readable_timestamp(pd.m_timestamp);
       success_msg_writer() << "Amount: " << print_money(pd.m_amount);
       success_msg_writer() << "Payment ID: " << payment_id;
       if (pd.m_unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER)
       {
         uint64_t bh = std::max(pd.m_unlock_time, pd.m_block_height + CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE);
-        uint64_t last_block_reward = m_wallet->get_last_block_reward();
-        uint64_t suggested_threshold = last_block_reward ? (pd.m_amount + last_block_reward - 1) / last_block_reward : 0;
+        uint64_t suggested_threshold = 0;
+        if (!pd.m_unmined_blink)
+        {
+          uint64_t last_block_reward = m_wallet->get_last_block_reward();
+          suggested_threshold = last_block_reward ? (pd.m_amount + last_block_reward - 1) / last_block_reward : 0;
+        }
         if (bh >= last_block_height)
           success_msg_writer() << "Locked: " << (bh - last_block_height) << " blocks to unlock";
         else if (suggested_threshold > 0)
           success_msg_writer() << std::to_string(last_block_height - bh) << " confirmations (" << suggested_threshold << " suggested threshold)";
-        else
+        else if (!pd.m_unmined_blink)
           success_msg_writer() << std::to_string(last_block_height - bh) << " confirmations";
       }
       else
@@ -9264,7 +9293,7 @@ bool simple_wallet::show_transfer(const std::vector<std::string> &args)
         else
           success_msg_writer() << "locked for " << tools::get_human_readable_timespan(std::chrono::seconds(pd.m_unlock_time - threshold));
       }
-      success_msg_writer() << "Checkpointed: " << (pd.m_block_height <= m_wallet->get_immutable_height() ? "Yes" : "No");
+      success_msg_writer() << "Checkpointed: " << (pd.m_unmined_blink ? "Blink" : pd.m_block_height <= m_wallet->get_immutable_height() ? "Yes" : pd.m_was_blink ? "Blink" : "No");
       success_msg_writer() << "Address index: " << pd.m_subaddr_index.minor;
       success_msg_writer() << "Note: " << m_wallet->get_tx_note(txid);
       return true;
@@ -9395,7 +9424,7 @@ void simple_wallet::interrupt()
   }
 }
 //----------------------------------------------------------------------------------------------------
-void simple_wallet::commit_or_save(std::vector<tools::wallet2::pending_tx>& ptx_vector, bool do_not_relay)
+void simple_wallet::commit_or_save(std::vector<tools::wallet2::pending_tx>& ptx_vector, bool do_not_relay, bool blink)
 {
   size_t i = 0;
   std::string msg_buf; // NOTE(loki): Buffer output so integration tests read the entire output
@@ -9427,7 +9456,7 @@ void simple_wallet::commit_or_save(std::vector<tools::wallet2::pending_tx>& ptx_
     }
     else
     {
-      m_wallet->commit_tx(ptx);
+      m_wallet->commit_tx(ptx, blink);
       msg_buf += tr("Transaction successfully submitted, transaction <");
       msg_buf += epee::string_tools::pod_to_hex(txid);
       msg_buf += ">\n";
@@ -10124,7 +10153,7 @@ void simple_wallet::mms_sync(const std::vector<std::string> &args)
 void simple_wallet::mms_transfer(const std::vector<std::string> &args)
 {
   // It's too complicated to check any arguments here, just let 'transfer_main' do the whole job
-  transfer_main(Transfer, args, true);
+  transfer_main(Transfer::Normal, args, true);
 }
 
 void simple_wallet::mms_delete(const std::vector<std::string> &args)

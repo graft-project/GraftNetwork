@@ -160,45 +160,68 @@ string tx2str(const cryptonote::transaction& tx, const cryptonote::hash256& tx_h
     return ss.str();
 }*/
 
-bool tests::proxy_core::handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay) {
-    if (!keeped_by_block)
-        return true;
+std::vector<cryptonote::core::tx_verification_batch_info> tests::proxy_core::parse_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blobs, const tx_pool_options &opts) {
 
-    crypto::hash tx_hash = null_hash;
-    crypto::hash tx_prefix_hash = null_hash;
-    transaction tx;
+    std::vector<cryptonote::core::tx_verification_batch_info> tx_info(tx_blobs.size());
 
-    if (!parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash, tx_prefix_hash)) {
-        cerr << "WRONG TRANSACTION BLOB, Failed to parse, rejected" << endl;
-        return false;
+    for (size_t i = 0; i < tx_blobs.size(); i++) {
+        auto &txi = tx_info[i];
+        crypto::hash tx_prefix_hash = null_hash;
+        if (opts.kept_by_block) {
+            txi.result = txi.parsed = true;
+        } else if (parse_and_validate_tx_from_blob(tx_blobs[i], txi.tx, txi.tx_hash, tx_prefix_hash)) {
+            cout << "TX " << endl << endl;
+            cout << txi.tx_hash << endl;
+            cout << tx_prefix_hash << endl;
+            cout << tx_blobs[i].size() << endl;
+            //cout << string_tools::buff_to_hex_nodelimer(tx_blob) << endl << endl;
+            cout << obj_to_json_str(txi.tx) << endl;
+            cout << endl << "ENDTX" << endl;
+            txi.result = txi.parsed = true;
+            txi.blob = &tx_blobs[i];
+        } else {
+            txi.tvc.m_verifivation_failed = true;
+            cerr << "WRONG TRANSACTION BLOB, Failed to parse, rejected" << endl;
+        }
     }
 
-    cout << "TX " << endl << endl;
-    cout << tx_hash << endl;
-    cout << tx_prefix_hash << endl;
-    cout << tx_blob.size() << endl;
-    //cout << string_tools::buff_to_hex_nodelimer(tx_blob) << endl << endl;
-    cout << obj_to_json_str(tx) << endl;
-    cout << endl << "ENDTX" << endl;
-
-    return true;
+    return tx_info;
 }
 
-bool tests::proxy_core::handle_incoming_txs(const std::vector<blobdata>& tx_blobs, std::vector<tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay)
+bool tests::proxy_core::handle_parsed_txs(std::vector<cryptonote::core::tx_verification_batch_info> &parsed_txs, const tx_pool_options &opts, uint64_t *blink_rollback_height) {
+
+    if (blink_rollback_height) *blink_rollback_height = 0;
+
+    bool ok = true;
+    for (auto &i : parsed_txs)
+        ok &= i.result;
+
+    return ok;
+}
+
+std::vector<core::tx_verification_batch_info> tests::proxy_core::handle_incoming_txs(const std::vector<blobdata>& tx_blobs, const tx_pool_options &opts)
 {
-    tvc.resize(tx_blobs.size());
-    size_t i = 0;
-    for (const auto &tx_blob: tx_blobs)
-    {
-      if (!handle_incoming_tx(tx_blob, tvc[i], keeped_by_block, relayed, do_not_relay))
-          return false;
-      ++i;
-    }
-    return true;
+    auto parsed = parse_incoming_txs(tx_blobs, opts);
+    handle_parsed_txs(parsed, opts);
+    return parsed;
+}
+
+bool tests::proxy_core::handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, const tx_pool_options &opts)
+{
+    const std::vector<cryptonote::blobdata> tx_blobs{{tx_blob}};
+    auto parsed = handle_incoming_txs(tx_blobs, opts);
+    parsed[0].blob = &tx_blob; // Update pointer to the input rather than the copy in case the caller wants to use it for some reason
+    tvc = parsed[0].tvc;
+    return parsed[0].result;
+}
+
+std::pair<std::vector<std::shared_ptr<blink_tx>>, std::unordered_set<crypto::hash>>
+tests::proxy_core::parse_incoming_blinks(const std::vector<serializable_blink_metadata> &blinks) {
+    return {};
 }
 
 bool tests::proxy_core::handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block_, cryptonote::block_verification_context& bvc, cryptonote::checkpoint_t *checkpoint, bool update_miner_blocktemplate) {
-    block b = AUTO_VAL_INIT(b);
+    block b{};
 
     if(!parse_and_validate_block_from_blob(block_blob, b)) {
         cerr << "Failed to parse and validate new block" << endl;

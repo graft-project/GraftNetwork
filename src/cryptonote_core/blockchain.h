@@ -71,6 +71,7 @@ namespace cryptonote
   };
 
   class tx_memory_pool;
+  struct tx_pool_options;
   struct test_options;
 
   /** Declares ways in which the BlockchainDB backend should be told to sync
@@ -376,20 +377,18 @@ namespace cryptonote
     size_t get_total_transactions() const;
 
     /**
-     * @brief gets the hashes for a subset of the blockchain
+     * @brief gets the hashes for a sample of the blockchain
      *
-     * puts into list <ids> a list of hashes representing certain blocks
-     * from the blockchain in reverse chronological order
+     * Builds a list of hashes representing certain blocks from the blockchain in reverse
+     * chronological order for comparison of chains when synchronizing.  The sampled blocks include
+     * the most recent blocks, then drops off exponentially back to the genesis block.
      *
-     * the blocks chosen, at the time of this writing, are:
-     *   the most recent 11
-     *   powers of 2 less recent from there, so 13, 17, 25, etc...
-     *
-     * @param ids return-by-reference list to put the resulting hashes in
-     *
-     * @return true
+     * Specifically the blocks chosen for height H, are:
+     *   - the most recent 11 (H-1, H-2, ..., H-10, H-11)
+     *   - base-2 exponential drop off from there, so: H-13, H-17, H-25, etc... (going down to, at smallest, height 1)
+     *   - the genesis block (height 0)
      */
-    bool get_short_chain_history(std::list<crypto::hash>& ids) const;
+    void get_short_chain_history(std::list<crypto::hash>& ids) const;
 
     /**
      * @brief get recent block hashes for a foreign chain
@@ -456,18 +455,30 @@ namespace cryptonote
     bool find_blockchain_supplement(const uint64_t req_start_block, const std::list<crypto::hash>& qblock_ids, std::vector<std::pair<std::pair<cryptonote::blobdata, crypto::hash>, std::vector<std::pair<crypto::hash, cryptonote::blobdata> > > >& blocks, uint64_t& total_height, uint64_t& start_height, bool pruned, bool get_miner_tx_hash, size_t max_count) const;
 
     /**
-     * @brief retrieves a set of blocks and their transactions, and possibly other transactions
+     * @brief retrieves a set of blocks and their transactions
      *
-     * the request object encapsulates a list of block hashes and a (possibly empty) list of
-     * transaction hashes.  for each block hash, the block is fetched along with all of that
-     * block's transactions.  Any transactions requested separately are fetched afterwards.
+     * the request object encapsulates a list of block hashes.  for each block hash, the block is
+     * fetched along with all of that block's transactions.
      *
      * @param arg the request
      * @param rsp return-by-reference the response to fill in
      *
      * @return true unless any blocks or transactions are missing
      */
-    bool handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NOTIFY_RESPONSE_GET_OBJECTS::request& rsp);
+    bool handle_get_blocks(NOTIFY_REQUEST_GET_BLOCKS::request& arg, NOTIFY_RESPONSE_GET_BLOCKS::request& rsp);
+
+    /**
+     * @brief retrieves a set of transactions
+     *
+     * The request object encapsulates a list of tx hashes which are fetched and stored in the
+     * response object.
+     *
+     * @param arg the request
+     * @param rsp return-by-reference the response to fill in
+     *
+     * @return true unless any transactions are missing
+     */
+    bool handle_get_txs(NOTIFY_REQUEST_GET_TXS::request& arg, NOTIFY_NEW_TRANSACTIONS::request& rsp);
 
     /**
      * @brief get number of outputs of an amount past the minimum spendable age
@@ -626,11 +637,14 @@ namespace cryptonote
      *
      * @param tx_weight the transaction weight
      * @param tx_outs the number of outputs created in the transaction
-     * @param fee the fee
+     * @param fee the miner tx fee (any burned component must already be removed, such as is done by
+     * get_tx_miner_fee)
+     * @param burned the amount of coin burned in this tx
+     * @param opts transaction pool options used to pass through required fee/burn amounts
      *
      * @return true if the fee is enough, false otherwise
      */
-    bool check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee) const;
+    bool check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee, uint64_t burned, const tx_pool_options &opts) const;
 
     /**
      * @brief check that a transaction's outputs conform to current standards
@@ -675,37 +689,38 @@ namespace cryptonote
     /**
      * @brief gets blocks based on a list of block hashes
      *
-     * @tparam t_ids_container a standard-iterable container
-     * @tparam t_blocks_container a standard-iterable container
-     * @tparam t_missed_container a standard-iterable container
-     * @param block_ids a container of block hashes for which to get the corresponding blocks
-     * @param blocks return-by-reference a container to store result blocks in
-     * @param missed_bs return-by-reference a container to store missed blocks in
+     * @param block_ids a vector of block hashes for which to get the corresponding blocks
+     * @param blocks return-by-reference a vector to store result blocks in
+     * @param missed_bs return-by-reference a vector to store missed blocks in
      *
      * @return false if an unexpected exception occurs, else true
      */
-    template<class t_ids_container, class t_blocks_container, class t_missed_container>
-    bool get_blocks(const t_ids_container& block_ids, t_blocks_container& blocks, t_missed_container& missed_bs) const;
+    bool get_blocks(const std::vector<crypto::hash>& block_ids, std::vector<std::pair<cryptonote::blobdata,block>>& blocks, std::vector<crypto::hash>& missed_bs) const;
 
     /**
      * @brief gets transactions based on a list of transaction hashes
      *
-     * @tparam t_ids_container a standard-iterable container
-     * @tparam t_tx_container a standard-iterable container
-     * @tparam t_missed_container a standard-iterable container
-     * @param txs_ids a container of hashes for which to get the corresponding transactions
-     * @param txs return-by-reference a container to store result transactions in
-     * @param missed_txs return-by-reference a container to store missed transactions in
+     * @param txs_ids a vector of hashes for which to get the corresponding transactions
+     * @param txs return-by-reference a vector to store result transactions in
+     * @param missed_txs return-by-reference a vector to store missed transactions in
      * @param pruned whether to return full or pruned blobs
      *
      * @return false if an unexpected exception occurs, else true
      */
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_transactions_blobs(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs, bool pruned = false) const;
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_split_transactions_blobs(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs) const;
-    template<class t_ids_container, class t_tx_container, class t_missed_container>
-    bool get_transactions(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs) const;
+    bool get_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<blobdata>& txs, std::vector<crypto::hash>& missed_txs, bool pruned = false) const;
+    bool get_split_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<std::tuple<crypto::hash, cryptonote::blobdata, crypto::hash, cryptonote::blobdata>>& txs, std::vector<crypto::hash>& missed_txs) const;
+    bool get_transactions(const std::vector<crypto::hash>& txs_ids, std::vector<transaction>& txs, std::vector<crypto::hash>& missed_txs) const;
+
+    /**
+     * @brief looks up transactions based on a list of transaction hashes and returns the block
+     * height in which they were mined, or 0 if not found on the blockchain.
+     *
+     * @param txs_ids vector of hashes to look up
+     *
+     * @return vector of the same length as txs_ids containing the heights corresponding to the
+     * given hashes, or 0 if not found.
+     */
+    std::vector<uint64_t> get_transactions_heights(const std::vector<crypto::hash>& txs_ids) const;
 
     //debug functions
 
@@ -913,6 +928,9 @@ namespace cryptonote
      */
     bool for_all_outputs(uint64_t amount, std::function<bool(uint64_t height)>) const;
 
+    /// Returns true if we have a BlockchainDB reference, i.e. if we have been initialized
+    bool has_db() const { return m_db; }
+
     /**
      * @brief get a reference to the BlockchainDB in use by Blockchain
      *
@@ -932,6 +950,11 @@ namespace cryptonote
     {
       return *m_db;
     }
+
+    /// @brief return a reference to the service node list
+    const service_nodes::service_node_list &get_service_node_list() const { return m_service_node_list; }
+    /// @brief return a reference to the service node list
+    service_nodes::service_node_list &get_service_node_list() { return m_service_node_list; }
 
     /**
      * @brief get a number of outputs of a specific amount
@@ -977,10 +1000,13 @@ namespace cryptonote
     bool update_blockchain_pruning();
     bool check_blockchain_pruning();
 
+    uint64_t get_immutable_height() const;
+
     bool calc_batched_governance_reward(uint64_t height, uint64_t &reward) const;
 
-    void lock();
-    void unlock();
+    void lock() { m_blockchain_lock.lock(); }
+    void unlock() { m_blockchain_lock.unlock(); }
+    bool try_lock() { return m_blockchain_lock.try_lock(); }
 
     void cancel();
 
@@ -1029,7 +1055,7 @@ namespace cryptonote
     tx_memory_pool& m_tx_pool;
     service_nodes::service_node_list& m_service_node_list;
 
-    mutable epee::critical_section m_blockchain_lock; // TODO: add here reader/writer lock
+    mutable boost::recursive_mutex m_blockchain_lock; // TODO: add here reader/writer lock
 
     // main chain
     size_t m_current_block_cumul_weight_limit;
@@ -1143,17 +1169,14 @@ namespace cryptonote
      * If pmax_related_block_height is not NULL, its value is set to the height
      * of the most recent block which contains an output used in the input set
      *
-     * @param tx_version the transaction version
      * @param txin the transaction input
      * @param tx_prefix_hash the transaction prefix hash, for caching organization
-     * @param sig the input signature
      * @param output_keys return-by-reference the public keys of the outputs in the input set
-     * @param rct_signatures the ringCT signatures, which are only valid if tx version > 1
      * @param pmax_related_block_height return-by-pointer the height of the most recent block in the input set
      *
      * @return false if any output is not yet unlocked, or is missing, otherwise true
      */
-    bool check_tx_input(txversion tx_version, const txin_to_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height);
+    bool check_tx_input(const txin_to_key& txin, const crypto::hash& tx_prefix_hash, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height);
 
     /**
      * @brief validate a transaction's inputs and their keys
@@ -1255,7 +1278,7 @@ namespace cryptonote
      *
      * @return true on success, false otherwise
      */
-    bool build_alt_chain(const crypto::hash &prev_id, std::list<block_extended_info>& alt_chain, std::vector<uint64_t> &timestamps, block_verification_context& bvc, int *num_alt_checkpoints, int *num_checkpoints) const;
+    bool build_alt_chain(const crypto::hash &prev_id, std::list<block_extended_info>& alt_chain, std::vector<uint64_t> &timestamps, block_verification_context& bvc, int *num_alt_checkpoints, int *num_checkpoints);
 
     /**
      * @brief gets the difficulty requirement for a new block on an alternate chain

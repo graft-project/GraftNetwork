@@ -154,20 +154,25 @@ namespace {
       << "service node winner: " << header.service_node_winner << std::endl;
   }
 
-  std::string get_human_time_ago(time_t t, time_t now)
+  std::string get_human_time_ago(time_t t, time_t now, bool abbreviate = false)
   {
     if (t == now)
       return "now";
     time_t dt = t > now ? t - now : now - t;
     std::string s;
     if (dt < 90)
-      s = boost::lexical_cast<std::string>(dt) + (dt == 1 ? " second" : " seconds");
+      s = boost::lexical_cast<std::string>(dt) + (abbreviate ? "sec" : dt == 1 ? " second" : " seconds");
     else if (dt < 90 * 60)
-      s = (boost::format("%.1f minutes") % ((float)dt/60)).str();
+      s = (boost::format(abbreviate ? "%.1fmin" : "%.1f minutes") % ((float)dt/60)).str();
     else if (dt < 36 * 3600)
-      s = (boost::format("%.1f hours") % ((float)dt/3600)).str();
+      s = (boost::format(abbreviate ? "%.1fhr" : "%.1f hours") % ((float)dt/3600)).str();
     else
       s = (boost::format("%.1f days") % ((float)dt/(3600*24))).str();
+    if (abbreviate) {
+        if (t > now)
+            return s + " (in fut.)";
+        return s;
+    }
     return s + " " + (t > now ? "in the future" : "ago");
   }
 
@@ -178,7 +183,7 @@ namespace {
 
     struct tm tm;
     epee::misc_utils::get_gmt_time(t, tm);
-    strftime(buf, sizeof(buf), "%Y-%m-%d %I:%M:%S %p", &tm);
+    strftime(buf, sizeof(buf), "%Y-%m-%d %I:%M:%S %p UTC", &tm);
     return buf;
   }
 
@@ -697,14 +702,15 @@ bool t_rpc_command_executor::show_status() {
   }
 
   std::stringstream str;
-  str << boost::format("Height: %llu/%llu (%.1f%%) on %s%s, %s, net hash %s, v%u%s, %s, %u(out)+%u(in) connections")
+  str << boost::format("Height: %llu/%llu (%.1f%%)%s%s%s, net hash %s, v%s(net v%u)%s, %s, %u(out)+%u(in) connections")
     % (unsigned long long)ires.height
     % (unsigned long long)net_height
     % get_sync_percentage(ires)
-    % (ires.testnet ? "testnet" : ires.stagenet ? "stagenet" : "mainnet")
+    % (ires.testnet ? " ON TESTNET" : ires.stagenet ? " ON STAGENET" : ""/*mainnet*/)
     % bootstrap_msg
-    % (!has_mining_info ? "mining info unavailable" : mining_busy ? "syncing" : mres.active ? ( ( mres.is_background_mining_enabled ? "smart " : "" ) + std::string("mining at ") + get_mining_speed(mres.speed)) : "not mining")
+    % (!has_mining_info ? ", mining info unavailable" : mining_busy ? ", syncing" : mres.active ? ( ( mres.is_background_mining_enabled ? ", smart " : ", " ) + std::string("mining at ") + get_mining_speed(mres.speed)) : ""/*not mining*/)
     % get_mining_speed(ires.difficulty / ires.target)
+    % (ires.version.empty() ? "?.?.?" : ires.version)
     % (unsigned)hfres.version
     % get_fork_extra_info(hfres.earliest_height, net_height, ires.target)
     % (hfres.state == cryptonote::HardFork::Ready ? "up to date" : hfres.state == cryptonote::HardFork::UpdateNeeded ? "update needed" : "out of date, likely forked")
@@ -733,11 +739,19 @@ bool t_rpc_command_executor::show_status() {
     else
       str << (!my_sn_staked ? "awaiting" : my_sn_active ? "active" : "DECOMMISSIONED (" + std::to_string(my_decomm_remaining) + " blocks credit)")
         << ", proof: " << (my_sn_last_uptime ? get_human_time_ago(my_sn_last_uptime, time(nullptr)) : "(never)");
-    str << ", s.server: ";
+    str << ", last pings: ";
     if (ires.last_storage_server_ping > 0)
-        str << "last ping " << get_human_time_ago(ires.last_storage_server_ping, time(nullptr));
+        str << get_human_time_ago(ires.last_storage_server_ping, time(nullptr), true /*abbreviate*/);
     else
-        str << "NO PING RECEIVED";
+        str << "NOT RECEIVED";
+    str << " (storage), ";
+
+    if (ires.last_lokinet_ping > 0)
+        str << get_human_time_ago(ires.last_lokinet_ping, time(nullptr), true /*abbreviate*/);
+    else
+        str << "NOT RECEIVED";
+    str << " (lokinet)";
+
 
     tools::success_msg_writer() << str.str();
   }
@@ -997,7 +1011,7 @@ bool t_rpc_command_executor::print_quorum_state(uint64_t start_height, uint64_t 
 
   req.start_height = start_height;
   req.end_height   = end_height;
-  req.quorum_type  = (decltype(req.quorum_type))service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value;
+  req.quorum_type  = cryptonote::COMMAND_RPC_GET_QUORUM_STATE::ALL_QUORUMS_SENTINEL_VALUE;
 
   std::string fail_message = "Unsuccessful";
 
@@ -1312,6 +1326,41 @@ bool t_rpc_command_executor::is_key_image_spent(const crypto::key_image &ki) {
   return true;
 }
 
+static void print_pool(const std::vector<cryptonote::tx_info> &transactions, bool include_json) {
+  if (transactions.empty())
+  {
+    tools::msg_writer() << "Pool is empty" << std::endl;
+    return;
+  }
+  const time_t now = time(NULL);
+  tools::msg_writer() << "Transactions:";
+  for (auto &tx_info : transactions)
+  {
+    auto w = tools::msg_writer();
+    w << "id: " << tx_info.id_hash << "\n";
+    if (include_json) w << tx_info.tx_json << "\n";
+    w << "blob_size: " << tx_info.blob_size << "\n"
+      << "weight: " << tx_info.weight << "\n"
+      << "fee: " << cryptonote::print_money(tx_info.fee) << "\n"
+      /// NB(Loki): in v13 we have min_fee = per_out*outs + per_byte*bytes, only the total fee/byte matters for
+      /// the purpose of building a block template from the pool, so we still print the overall fee / byte here.
+      /// (we can't back out the individual per_out and per_byte that got used anyway).
+      << "fee/byte: " << cryptonote::print_money(tx_info.fee / (double)tx_info.weight) << "\n"
+      << "receive_time: " << tx_info.receive_time << " (" << get_human_time_ago(tx_info.receive_time, now) << ")\n"
+      << "relayed: " << (tx_info.relayed ? boost::lexical_cast<std::string>(tx_info.last_relayed_time) + " (" + get_human_time_ago(tx_info.last_relayed_time, now) + ")" : "no") << "\n"
+      << std::boolalpha
+      << "do_not_relay: " << tx_info.do_not_relay << "\n"
+      << "blink: " << tx_info.blink << "\n"
+      << "kept_by_block: " << tx_info.kept_by_block << "\n"
+      << "double_spend_seen: " << tx_info.double_spend_seen << "\n"
+      << std::noboolalpha
+      << "max_used_block_height: " << tx_info.max_used_block_height << "\n"
+      << "max_used_block_id: " << tx_info.max_used_block_id_hash << "\n"
+      << "last_failed_height: " << tx_info.last_failed_height << "\n"
+      << "last_failed_id: " << tx_info.last_failed_id_hash << "\n";
+  }
+}
+
 bool t_rpc_command_executor::print_transaction_pool_long() {
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL::request req;
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL::response res;
@@ -1334,41 +1383,14 @@ bool t_rpc_command_executor::print_transaction_pool_long() {
     }
   }
 
-  if (res.transactions.empty() && res.spent_key_images.empty())
+  print_pool(res.transactions, true);
+
+  if (res.spent_key_images.empty())
   {
-    tools::msg_writer() << "Pool is empty" << std::endl;
-  }
-  if (! res.transactions.empty())
-  {
-    const time_t now = time(NULL);
-    tools::msg_writer() << "Transactions: ";
-    for (auto & tx_info : res.transactions)
-    {
-      tools::msg_writer() << "id: " << tx_info.id_hash << std::endl
-                          << tx_info.tx_json << std::endl
-                          << "blob_size: " << tx_info.blob_size << std::endl
-                          << "weight: " << tx_info.weight << std::endl
-                          << "fee: " << cryptonote::print_money(tx_info.fee) << std::endl
-                          /// NB(Loki): in v13 we have min_fee = per_out*outs + per_byte*bytes, only the total fee/byte matters for
-                          /// the purpose of building a block template from the pool, so we still print the overall fee / byte here.
-                          /// (we can't back out the individual per_out and per_byte that got used anyway).
-                          << "fee/byte: " << cryptonote::print_money(tx_info.fee / (double)tx_info.weight) << std::endl
-                          << "receive_time: " << tx_info.receive_time << " (" << get_human_time_ago(tx_info.receive_time, now) << ")" << std::endl
-                          << "relayed: " << [&](const cryptonote::tx_info &tx_info)->std::string { if (!tx_info.relayed) return "no"; return boost::lexical_cast<std::string>(tx_info.last_relayed_time) + " (" + get_human_time_ago(tx_info.last_relayed_time, now) + ")"; } (tx_info) << std::endl
-                          << "do_not_relay: " << (tx_info.do_not_relay ? 'T' : 'F')  << std::endl
-                          << "kept_by_block: " << (tx_info.kept_by_block ? 'T' : 'F') << std::endl
-                          << "double_spend_seen: " << (tx_info.double_spend_seen ? 'T' : 'F')  << std::endl
-                          << "max_used_block_height: " << tx_info.max_used_block_height << std::endl
-                          << "max_used_block_id: " << tx_info.max_used_block_id_hash << std::endl
-                          << "last_failed_height: " << tx_info.last_failed_height << std::endl
-                          << "last_failed_id: " << tx_info.last_failed_id_hash << std::endl;
-    }
-    if (res.spent_key_images.empty())
-    {
+    if (! res.transactions.empty())
       tools::msg_writer() << "WARNING: Inconsistent pool state - no spent key images";
-    }
   }
-  if (! res.spent_key_images.empty())
+  else
   {
     tools::msg_writer() << ""; // one newline
     tools::msg_writer() << "Spent key images: ";
@@ -1423,31 +1445,7 @@ bool t_rpc_command_executor::print_transaction_pool_short() {
     }
   }
 
-  if (res.transactions.empty())
-  {
-    tools::msg_writer() << "Pool is empty" << std::endl;
-  }
-  else
-  {
-    const time_t now = time(NULL);
-    for (auto & tx_info : res.transactions)
-    {
-      tools::msg_writer() << "id: " << tx_info.id_hash << std::endl
-                          << "blob_size: " << tx_info.blob_size << std::endl
-                          << "weight: " << tx_info.weight << std::endl
-                          << "fee: " << cryptonote::print_money(tx_info.fee) << std::endl
-                          << "fee/byte: " << cryptonote::print_money(tx_info.fee / (double)tx_info.weight) << std::endl
-                          << "receive_time: " << tx_info.receive_time << " (" << get_human_time_ago(tx_info.receive_time, now) << ")" << std::endl
-                          << "relayed: " << [&](const cryptonote::tx_info &tx_info)->std::string { if (!tx_info.relayed) return "no"; return boost::lexical_cast<std::string>(tx_info.last_relayed_time) + " (" + get_human_time_ago(tx_info.last_relayed_time, now) + ")"; } (tx_info) << std::endl
-                          << "do_not_relay: " << (tx_info.do_not_relay ? 'T' : 'F')  << std::endl
-                          << "kept_by_block: " << (tx_info.kept_by_block ? 'T' : 'F') << std::endl
-                          << "double_spend_seen: " << (tx_info.double_spend_seen ? 'T' : 'F') << std::endl
-                          << "max_used_block_height: " << tx_info.max_used_block_height << std::endl
-                          << "max_used_block_id: " << tx_info.max_used_block_id_hash << std::endl
-                          << "last_failed_height: " << tx_info.last_failed_height << std::endl
-                          << "last_failed_id: " << tx_info.last_failed_id_hash << std::endl;
-    }
-  }
+  print_pool(res.transactions, false);
 
   return true;
 }
@@ -2486,23 +2484,23 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
         expiry_height = entry.registration_height + service_nodes::staking_num_lock_blocks(nettype);
     }
 
-    stream << indent2 << "Registration Hardfork Version | Register/Expiry Height: " << entry.registration_hf_version << " | " << entry.registration_height << " / ";
+    stream << indent2 << "Registration: Hardfork Version: " << entry.registration_hf_version << "; Height: " << entry.registration_height << "; Expiry: ";
     if (expiry_height == service_nodes::KEY_IMAGE_AWAITING_UNLOCK_HEIGHT)
     {
-        stream << "Staking Infinitely (stake unlock not requested yet)\n";
+        stream << "Staking Infinitely (stake unlock not requested)\n";
     }
     else
     {
       uint64_t delta_height      = (blockchain_height >= expiry_height) ? 0 : expiry_height - blockchain_height;
       uint64_t expiry_epoch_time = now + (delta_height * DIFFICULTY_TARGET_V2);
       stream << expiry_height << " (in " << delta_height << ") blocks\n";
-      stream << indent2 << "Expiry Date (Est. UTC): " << get_date_time(expiry_epoch_time) << " (" << get_human_time_ago(expiry_epoch_time, now) << ")\n";
+      stream << indent2 << "Expiry Date (estimated): " << get_date_time(expiry_epoch_time) << " (" << get_human_time_ago(expiry_epoch_time, now) << ")\n";
     }
   }
 
   if (detailed_view && is_registered) // Print reward status
   {
-    stream << indent2 << "Last Reward At (Height/TX Index): " << entry.last_reward_block_height << "/" << entry.last_reward_transaction_index << "\n";
+    stream << indent2 << "Last Reward (Or Penalty) At (Height/TX Index): " << entry.last_reward_block_height << "/" << entry.last_reward_transaction_index << "\n";
   }
 
   if (detailed_view) // Print operator information
@@ -2526,13 +2524,18 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
     }
 
     stream << "\n";
-    stream << indent2 << "IP Address & Port: ";
+    stream << indent2 << "IP Address & Ports: ";
     if (entry.public_ip == "0.0.0.0")
       stream << "(Awaiting confirmation from network)";
     else
-      stream << entry.public_ip << ":" << entry.storage_port;
+      stream << entry.public_ip << " :" << entry.storage_port << " (storage), :" << entry.quorumnet_port << " (quorumnet)";
 
     stream << "\n";
+    if (detailed_view)
+      stream << indent2 << "Auxiliary Public Keys:\n"
+             << indent3 << (entry.pubkey_ed25519.empty() ? "(not yet received)" : entry.pubkey_ed25519) << " (Ed25519)\n"
+             << indent3 << (entry.pubkey_x25519.empty()  ? "(not yet received)" : entry.pubkey_x25519)  << " (X25519)\n";
+
     stream << indent2 << "Storage Server Reachable: " << (entry.storage_server_reachable ? "Yes" : "No") << " (";
     if (entry.storage_server_reachable_timestamp == 0)
       stream << "Awaiting first test";
@@ -2688,14 +2691,14 @@ bool t_rpc_command_executor::print_sn(const std::vector<std::string> &args)
       if (req.service_node_pubkeys.size() > 0)
       {
         int str_size = 0;
-        for (const std::string &arg : args) str_size += (arg.size() + 2);
+        for (const std::string &arg : req.service_node_pubkeys) str_size += (arg.size() + 2);
 
         std::string buffer;
         buffer.reserve(str_size);
-        for (size_t i = 0; i < args.size(); ++i)
+        for (size_t i = 0; i < req.service_node_pubkeys.size(); ++i)
         {
-          buffer.append(args[i]);
-          if (i < args[i].size() - 1) buffer.append(", ");
+          buffer.append(req.service_node_pubkeys[i]);
+          if (i < req.service_node_pubkeys.size() - 1) buffer.append(", ");
         }
 
         tools::msg_writer() << "No service node is currently known on the network: " << buffer;
@@ -3479,6 +3482,7 @@ bool t_rpc_command_executor::prepare_registration()
 
 bool t_rpc_command_executor::prune_blockchain()
 {
+#if 0
     cryptonote::COMMAND_RPC_PRUNE_BLOCKCHAIN::request req;
     cryptonote::COMMAND_RPC_PRUNE_BLOCKCHAIN::response res;
     std::string fail_message = "Unsuccessful";
@@ -3503,6 +3507,9 @@ bool t_rpc_command_executor::prune_blockchain()
     }
 
     tools::success_msg_writer() << "Blockchain pruned";
+#else
+    tools::fail_msg_writer() << "Blockchain pruning is not supported in Loki yet";
+#endif
     return true;
 }
 

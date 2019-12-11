@@ -41,6 +41,7 @@
 #include <boost/archive/portable_binary_oarchive.hpp>
 #include "cryptonote_basic.h"
 #include "common/unordered_containers_boost_serialization.h"
+#include "common/util.h"
 #include "crypto/crypto.h"
 #include "ringct/rctTypes.h"
 #include "ringct/rctOps.h"
@@ -152,7 +153,7 @@ namespace boost
   {
     uint16_t v = static_cast<uint16_t>(x);
     a & v;
-    if (v >= static_cast<uint16_t>(cryptonote::txversion::_count))
+    if (v >= tools::enum_count<cryptonote::txversion>)
       throw boost::archive::archive_exception(boost::archive::archive_exception::other_exception, "Unsupported tx version");
     x = static_cast<cryptonote::txversion>(v);
   }
@@ -162,7 +163,7 @@ namespace boost
   {
     uint16_t txtype = static_cast<uint16_t>(x);
     a & txtype;
-    if (txtype >= static_cast<uint16_t>(cryptonote::txtype::_count))
+    if (txtype >= tools::enum_count<cryptonote::txtype>)
       throw boost::archive::archive_exception(boost::archive::archive_exception::other_exception, "Unsupported tx type");
     x = static_cast<cryptonote::txtype>(txtype);
   }

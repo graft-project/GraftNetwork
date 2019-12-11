@@ -236,8 +236,8 @@ void WalletManagerImpl::setDaemonAddress(const std::string &address)
 
 bool WalletManagerImpl::connected(uint32_t *version)
 {
-    epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_VERSION::request> req_t = AUTO_VAL_INIT(req_t);
-    epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_VERSION::response, std::string> resp_t = AUTO_VAL_INIT(resp_t);
+    epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_VERSION::request> req_t{};
+    epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_VERSION::response, std::string> resp_t{};
     req_t.jsonrpc = "2.0";
     req_t.id = epee::serialization::storage_entry(0);
     req_t.method = "get_version";
@@ -359,7 +359,7 @@ std::tuple<bool, std::string, std::string, std::string, std::string> WalletManag
     if (!tools::check_updates(software, buildtag, version, hash))
       return std::make_tuple(false, "", "", "", "");
 
-    if (tools::vercmp(version.c_str(), LOKI_VERSION) > 0)
+    if (tools::vercmp(version.c_str(), LOKI_VERSION_STR) > 0)
     {
       std::string user_url = tools::get_update_url(software, subdir, buildtag, version, true);
       std::string auto_url = tools::get_update_url(software, subdir, buildtag, version, false);

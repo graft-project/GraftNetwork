@@ -44,6 +44,7 @@ set(common_sources
   password.cpp
   perf_timer.cpp
   pruning.cpp
+  random.cpp
   scoped_message_writer.cpp
   spawn.cpp
   threadpool.cpp
@@ -76,7 +77,9 @@ set(common_private_headers
   http_connection.h
   loki_integration_test_hooks.h
   notify.h
+  osrb.h
   pruning.h
+  random.h
   rpc_client.h
   scoped_message_writer.h
   unordered_containers_boost_serialization.h
@@ -104,7 +107,7 @@ loki_add_library(common
 target_link_libraries(common
   PUBLIC
     cncrypto
-    ${UNBOUND_LIBRARY}
+    ${UNBOUND_LIBRARIES}
     ${LIBUNWIND_LIBRARIES}
     ${Boost_DATE_TIME_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}

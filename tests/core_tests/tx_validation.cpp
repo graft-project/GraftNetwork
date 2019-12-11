@@ -55,7 +55,7 @@ namespace
 
     void step2_fill_inputs(const account_keys& sender_account_keys, const std::vector<tx_source_entry>& sources)
     {
-      BOOST_FOREACH(const tx_source_entry& src_entr, sources)
+      for (const auto &src_entr : sources)
       {
         m_in_contexts.push_back(keypair());
         keypair& in_ephemeral = m_in_contexts.back();
@@ -71,7 +71,7 @@ namespace
         input_to_key.k_image = img;
 
         // fill outputs array and use relative offsets
-        BOOST_FOREACH(const tx_source_entry::output_entry& out_entry, src_entr.outputs)
+        for (const auto &out_entry : src_entr.outputs)
           input_to_key.key_offsets.push_back(out_entry.first);
 
         input_to_key.key_offsets = absolute_output_offsets_to_relative(input_to_key.key_offsets);
@@ -82,7 +82,7 @@ namespace
     void step3_fill_outputs(const std::vector<tx_destination_entry>& destinations)
     {
       size_t output_index = 0;
-      BOOST_FOREACH(const tx_destination_entry& dst_entr, destinations)
+      for (const auto &dst_entr : destinations)
       {
         crypto::key_derivation derivation;
         crypto::public_key out_eph_public_key;
@@ -109,12 +109,12 @@ namespace
       m_tx.signatures.clear();
 
       size_t i = 0;
-      BOOST_FOREACH(const tx_source_entry& src_entr, sources)
+      for (const auto &src_entr : sources)
       {
         std::vector<const crypto::public_key*> keys_ptrs;
         std::vector<crypto::public_key> keys(src_entr.outputs.size());
         size_t j = 0;
-        BOOST_FOREACH(const tx_source_entry::output_entry& o, src_entr.outputs)
+        for (const auto &o : src_entr.outputs)
         {
           keys[j] = rct::rct2pk(o.second.dest);
           keys_ptrs.push_back(&keys[j]);
@@ -358,7 +358,7 @@ bool gen_tx_invalid_input_amount::generate(std::vector<test_event_entry>& events
 
   transaction tx = {};
   cryptonote::tx_destination_entry change_addr{ change_amount, miner_account.get_keys().m_account_address, false /*is_subaddress*/ };
-  assert(cryptonote::construct_tx(miner_account.get_keys(), sources, destinations, change_addr, {} /*tx_extra*/, tx, 0 /*unlock_time*/, cryptonote::network_version_7, false /*is_staking*/));
+  assert(cryptonote::construct_tx(miner_account.get_keys(), sources, destinations, change_addr, {} /*tx_extra*/, tx, 0 /*unlock_time*/, {}));
 
   DO_CALLBACK(events, "mark_invalid_tx");
   events.push_back(tx);
@@ -537,7 +537,7 @@ bool gen_tx_key_image_not_derive_from_tx_key::generate(std::vector<test_event_en
   // Tx with invalid key image can't be subscribed, so create empty signature
   tx.signatures.resize(1);
   tx.signatures[0].resize(1);
-  tx.signatures[0][0] = boost::value_initialized<crypto::signature>();
+  tx.signatures[0][0] = {};
 
   DO_CALLBACK(events, "mark_invalid_tx");
   events.push_back(tx);
@@ -560,7 +560,7 @@ bool gen_tx_key_image_is_invalid::generate(std::vector<test_event_entry>& events
   // Tx with invalid key image can't be subscribed, so create empty signature
   tx.signatures.resize(1);
   tx.signatures[0].resize(1);
-  tx.signatures[0][0] = boost::value_initialized<crypto::signature>();
+  tx.signatures[0][0] = {};
 
   DO_CALLBACK(events, "mark_invalid_tx");
   events.push_back(tx);
@@ -669,7 +669,7 @@ bool gen_tx_output_with_zero_amount::generate(std::vector<test_event_entry>& eve
 
   transaction tx = {};
   cryptonote::tx_destination_entry change_addr{ change_amount, miner_account.get_keys().m_account_address, false /*is_subaddress*/ };
-  assert(cryptonote::construct_tx(miner_account.get_keys(), sources, destinations, change_addr, {} /*tx_extra*/, tx, 0 /*unlock_time*/, cryptonote::network_version_7, false /*is_staking*/));
+  assert(cryptonote::construct_tx(miner_account.get_keys(), sources, destinations, change_addr, {} /*tx_extra*/, tx, 0 /*unlock_time*/, {}));
 
 #else
   transaction tx           = {};

@@ -1,4 +1,5 @@
 #include "service_node_swarm.h"
+#include "common/random.h"
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "service_nodes"
@@ -91,7 +92,7 @@ namespace service_nodes
   prod_static const excess_pool_snode& pick_from_excess_pool(const std::vector<excess_pool_snode>& excess_pool, std::mt19937_64 &mt)
   {
     /// Select random snode
-    const auto idx = uniform_distribution_portable(mt, excess_pool.size());
+    const auto idx = tools::uniform_distribution_portable(mt, excess_pool.size());
     return excess_pool.at(idx);
   }
 
@@ -198,7 +199,7 @@ namespace service_nodes
           break;
         }
       }
-      const size_t random_idx = uniform_distribution_portable(mt, upper_index + 1);
+      const size_t random_idx = tools::uniform_distribution_portable(mt, upper_index + 1);
       const swarm_id_t swarm_id = sorted_swarm_sizes[random_idx].swarm_id;
       swarm_to_snodes.at(swarm_id).push_back(sn_pk);
       /// run the excess/threshold round after each additional snode

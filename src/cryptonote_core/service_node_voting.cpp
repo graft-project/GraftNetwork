@@ -103,7 +103,7 @@ namespace service_nodes
     return result;
   }
 
-  static bool bounds_check_worker_index(service_nodes::testing_quorum const &quorum, uint32_t worker_index, cryptonote::vote_verification_context *vvc)
+  static bool bounds_check_worker_index(service_nodes::quorum const &quorum, uint32_t worker_index, cryptonote::vote_verification_context *vvc)
   {
     if (worker_index >= quorum.workers.size())
     {
@@ -114,7 +114,7 @@ namespace service_nodes
     return true;
   }
 
-  static bool bounds_check_validator_index(service_nodes::testing_quorum const &quorum, uint32_t validator_index, cryptonote::vote_verification_context *vvc)
+  static bool bounds_check_validator_index(service_nodes::quorum const &quorum, uint32_t validator_index, cryptonote::vote_verification_context *vvc)
   {
     if (validator_index >= quorum.validators.size())
     {
@@ -133,7 +133,7 @@ namespace service_nodes
   bool verify_tx_state_change(const cryptonote::tx_extra_service_node_state_change &state_change,
                               uint64_t latest_height,
                               cryptonote::tx_verification_context &tvc,
-                              const service_nodes::testing_quorum &quorum,
+                              const service_nodes::quorum &quorum,
                               const uint8_t hf_version)
   {
     auto &vvc = tvc.m_vote_ctx;
@@ -232,7 +232,7 @@ namespace service_nodes
     return true;
   }
 
-  bool verify_checkpoint(uint8_t hf_version, cryptonote::checkpoint_t const &checkpoint, service_nodes::testing_quorum const &quorum)
+  bool verify_checkpoint(uint8_t hf_version, cryptonote::checkpoint_t const &checkpoint, service_nodes::quorum const &quorum)
   {
     if (checkpoint.type == cryptonote::checkpoint_type::service_node)
     {
@@ -270,19 +270,8 @@ namespace service_nodes
           }
         }
 
-        // TODO(loki): Temporary HF13 code, remove when we hit HF13 because we delete all HF12 checkpoints and don't need conditionals for HF12/HF13 checkpointing code
-        std::vector<crypto::public_key> const &quorum_keys =
-            (hf_version >= cryptonote::network_version_13_enforce_checkpoints) ? quorum.validators : quorum.workers;
-        if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
-        {
-          if (!bounds_check_validator_index(quorum, voter_to_signature.voter_index, nullptr)) return false;
-        }
-        else
-        {
-          if (!bounds_check_worker_index(quorum, voter_to_signature.voter_index, nullptr)) return false;
-        }
-
-        crypto::public_key const &key = quorum_keys[voter_to_signature.voter_index];
+        if (!bounds_check_validator_index(quorum, voter_to_signature.voter_index, nullptr)) return false;
+        crypto::public_key const &key = quorum.validators[voter_to_signature.voter_index];
         if (unique_vote_set[voter_to_signature.voter_index]++)
         {
           LOG_PRINT_L1("Voter: " << epee::string_tools::pod_to_hex(key) << ", quorum index is duplicated: " << voter_to_signature.voter_index << ", checkpoint failed verification at height: " << checkpoint.height);
@@ -327,8 +316,7 @@ namespace service_nodes
     result.type                  = quorum_type::checkpointing;
     result.checkpoint.block_hash = block_hash;
     result.block_height          = block_height;
-    // TODO(loki): Temporary HF13 code, remove when we hit HF13 because we delete all HF12 checkpoints and don't need conditionals for HF12/HF13 checkpointing code
-    result.group                 = (hf_version >= cryptonote::network_version_13_enforce_checkpoints) ? quorum_group::validator : quorum_group::worker;
+    result.group                 = quorum_group::validator;
     result.index_in_group        = index_in_quorum;
     result.signature             = make_signature_from_vote(result, keys);
     return result;
@@ -371,10 +359,10 @@ namespace service_nodes
     return result;
   }
 
-  bool verify_vote_signature(uint8_t hf_version, const quorum_vote_t &vote, cryptonote::vote_verification_context &vvc, const service_nodes::testing_quorum &quorum)
+  bool verify_vote_signature(uint8_t hf_version, const quorum_vote_t &vote, cryptonote::vote_verification_context &vvc, const service_nodes::quorum &quorum)
   {
     bool result = true;
-    if (vote.type >= quorum_type::count)
+    if (vote.type > tools::enum_top<quorum_type>)
     {
       vvc.m_invalid_vote_type = true;
       result = false;
@@ -428,10 +416,7 @@ namespace service_nodes
 
       case quorum_type::checkpointing:
       {
-        // TODO(loki): Temporary HF13 code, remove when we hit HF13 because we delete all HF12 checkpoints and don't need conditionals for HF12/HF13 checkpointing code
-        quorum_group expected_group =
-            (hf_version >= cryptonote::network_version_13_enforce_checkpoints) ? quorum_group::validator : quorum_group::worker;
-        if (vote.group != expected_group)
+        if (vote.group != quorum_group::validator)
         {
           LOG_PRINT_L1("Vote received specifies incorrect voting group");
           vvc.m_incorrect_voting_group = true;
@@ -439,8 +424,7 @@ namespace service_nodes
         }
         else
         {
-          std::vector<crypto::public_key> const &quorum_keys = (hf_version >= cryptonote::network_version_13_enforce_checkpoints) ? quorum.validators : quorum.workers;
-          key  = quorum_keys[vote.index_in_group];
+          key  = quorum.validators[vote.index_in_group];
           hash = vote.checkpoint.block_hash;
         }
       }
@@ -451,7 +435,9 @@ namespace service_nodes
       return result;
 
     result = crypto::check_signature(hash, key, vote.signature);
-    if (!result)
+    if (result)
+      MDEBUG("Signature accepted for " << vote.type << " voter " << vote.index_in_group << "/" << key << " voting for worker " << vote.state_change.worker_index << " at height " << vote.block_height);
+    else
       vvc.m_signature_not_valid = true;
 
     return result;
@@ -516,7 +502,7 @@ namespace service_nodes
           result.push_back(vote_entry.vote);
   }
 
-  std::vector<quorum_vote_t> voting_pool::get_relayable_votes(uint64_t height) const
+  std::vector<quorum_vote_t> voting_pool::get_relayable_votes(uint64_t height, uint8_t hf_version, bool quorum_relay) const
   {
     CRITICAL_REGION_LOCAL(m_lock);
 
@@ -531,8 +517,16 @@ namespace service_nodes
     const uint64_t min_height = height > VOTE_LIFETIME ? height - VOTE_LIFETIME : 0;
 
     std::vector<quorum_vote_t> result;
-    append_relayable_votes(result, m_obligations_pool, max_last_sent, min_height);
-    append_relayable_votes(result, m_checkpoint_pool,  max_last_sent, min_height);
+
+    if (quorum_relay && hf_version < cryptonote::network_version_14_blink_lns)
+      return result; // no quorum relaying before HF14
+
+    if (hf_version < cryptonote::network_version_14_blink_lns || quorum_relay)
+      append_relayable_votes(result, m_obligations_pool, max_last_sent, min_height);
+
+    if (hf_version < cryptonote::network_version_14_blink_lns || !quorum_relay)
+      append_relayable_votes(result, m_checkpoint_pool,  max_last_sent, min_height);
+
     return result;
   }
 

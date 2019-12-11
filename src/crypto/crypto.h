@@ -50,13 +50,13 @@ namespace crypto {
 #include "random.h"
   }
 
-  struct ec_point {
+  struct alignas(size_t) ec_point {
     char data[32];
     // Returns true if non-null, i.e. not 0.
     operator bool() const { static constexpr char null[32] = {0}; return memcmp(data, null, sizeof(data)); }
   };
 
-  struct ec_scalar {
+  struct alignas(size_t) ec_scalar {
     char data[32];
   };
 
@@ -86,36 +86,41 @@ namespace crypto {
 
   struct signature {
     ec_scalar c, r;
+
+    // Returns true if non-null, i.e. not 0.
+    operator bool() const { static constexpr char null[64] = {0}; return memcmp(this, null, sizeof(null)); }
   };
 
   // The sizes below are all provided by sodium.h, but we don't want to depend on it here; we check
   // that they agree with the actual constants from sodium.h when compiling cryptonote_core.cpp.
-  struct ed25519_public_key {
+  struct alignas(size_t) ed25519_public_key {
     unsigned char data[32]; // 32 = crypto_sign_ed25519_PUBLICKEYBYTES
     static constexpr ed25519_public_key null() { return {0}; }
     /// Returns true if non-null
     operator bool() const { return memcmp(data, null().data, sizeof(data)); }
   };
 
-  struct ed25519_secret_key_ {
+  struct alignas(size_t) ed25519_secret_key_ {
     // 64 = crypto_sign_ed25519_SECRETKEYBYTES (but we don't depend on libsodium header here)
     unsigned char data[64];
   };
   using ed25519_secret_key = epee::mlocked<tools::scrubbed<ed25519_secret_key_>>;
 
-  struct ed25519_signature {
+  struct alignas(size_t) ed25519_signature {
     unsigned char data[64]; // 64 = crypto_sign_BYTES
     static constexpr ed25519_signature null() { return {0}; }
+    // Returns true if non-null, i.e. not 0.
+    operator bool() const { auto z = null(); return memcmp(this, &z, sizeof(z)); }
   };
 
-  struct x25519_public_key {
+  struct alignas(size_t) x25519_public_key {
     unsigned char data[32]; // crypto_scalarmult_curve25519_BYTES
     static constexpr x25519_public_key null() { return {0}; }
     /// Returns true if non-null
     operator bool() const { return memcmp(data, null().data, sizeof(data)); }
   };
 
-  struct x25519_secret_key_ {
+  struct alignas(size_t) x25519_secret_key_ {
     unsigned char data[32]; // crypto_scalarmult_curve25519_BYTES
   };
   using x25519_secret_key = epee::mlocked<tools::scrubbed<x25519_secret_key_>>;
@@ -262,9 +267,17 @@ namespace crypto {
   const extern crypto::secret_key null_skey;
 }
 
+EPEE_TYPE_IS_SPANNABLE(crypto::ec_scalar)
+EPEE_TYPE_IS_SPANNABLE(crypto::public_key)
+EPEE_TYPE_IS_SPANNABLE(crypto::key_derivation)
+EPEE_TYPE_IS_SPANNABLE(crypto::key_image)
+EPEE_TYPE_IS_SPANNABLE(crypto::signature)
+EPEE_TYPE_IS_SPANNABLE(crypto::ed25519_public_key)
+EPEE_TYPE_IS_SPANNABLE(crypto::x25519_public_key)
+
 CRYPTO_MAKE_HASHABLE(public_key)
 CRYPTO_MAKE_HASHABLE_CONSTANT_TIME(secret_key)
 CRYPTO_MAKE_HASHABLE(key_image)
-CRYPTO_MAKE_COMPARABLE(signature)
+CRYPTO_MAKE_HASHABLE(signature)
 CRYPTO_MAKE_HASHABLE(ed25519_public_key)
 CRYPTO_MAKE_HASHABLE(x25519_public_key)

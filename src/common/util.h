@@ -259,16 +259,18 @@ namespace tools
 
   namespace detail {
     // Copy an integer type, swapping to little-endian if needed
-    template <typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
+    template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
     void memcpy_one(char *dest, T t) {
       boost::endian::native_to_little_inplace(t);
       std::memcpy(dest, &t, sizeof(T));
     }
 
     // Copy a class byte-for-byte (but only if it is standard layout and has byte alignment)
-    template <typename T, typename std::enable_if<std::is_class<T>::value, int>::type = 0>
+    template <typename T, std::enable_if_t<std::is_class<T>::value, int> = 0>
     void memcpy_one(char *dest, const T &t) {
-      static_assert(std::is_standard_layout<T>::value && alignof(T) == 1, "memcpy_le() may only be used on simple (1-byte alignment) struct types");
+      // We don't *actually* require byte alignment here but it's quite possibly an error (i.e.
+      // passing in a type containing integer members) so disallow it.
+      static_assert(std::is_trivially_copyable<T>::value && alignof(T) == 1, "memcpy_le() may only be used on simple (1-byte alignment) struct types");
       std::memcpy(dest, &t, sizeof(T));
     }
 
@@ -306,5 +308,12 @@ namespace tools
     detail::memcpy_le_impl(r.data(), t...);
     return r;
   }
+
+  // Returns the `_count` element of a scoped enum, cast to the enum's underlying type
+  template <typename Enum>
+  constexpr auto enum_count = static_cast<std::underlying_type_t<Enum>>(Enum::_count);
+
+  template <typename Enum>
+  constexpr Enum enum_top = static_cast<Enum>(enum_count<Enum> - 1);
 
 }
