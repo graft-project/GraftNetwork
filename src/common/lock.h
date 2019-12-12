@@ -33,11 +33,6 @@
 
 namespace tools {
 
-template <typename... Lock, size_t... Index>
-void lock_tuple_impl(std::tuple<Lock...> &locks, std::index_sequence<Index...>) {
-    std::lock(std::get<Index>(locks)...);
-}
-
 /// Takes any number of lockable objects, locks them atomically, and returns a tuple of
 /// std::unique_lock holding the individual locks.
 template <typename... T>
@@ -45,8 +40,8 @@ template <typename... T>
 [[gnu::warn_unused_result]]
 #endif
 std::tuple<std::unique_lock<T>...> unique_locks(T& ...lockables) {
-    auto locks = std::make_tuple(std::unique_lock<T>(lockables, std::defer_lock)...);
-    lock_tuple_impl(locks, std::make_index_sequence<sizeof...(T)>{});
+    std::lock(lockables...);
+    auto locks = std::make_tuple(std::unique_lock<T>(lockables, std::adopt_lock)...);
     return locks;
 }
 
