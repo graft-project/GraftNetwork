@@ -30,6 +30,7 @@
 
 #include <mutex>
 #include <tuple>
+#include <boost/thread/lock_algorithms.hpp>
 
 namespace tools {
 
@@ -40,7 +41,7 @@ template <typename... T>
 [[gnu::warn_unused_result]]
 #endif
 std::tuple<std::unique_lock<T>...> unique_locks(T& ...lockables) {
-    std::lock(lockables...);
+    boost::lock(lockables...);
     auto locks = std::make_tuple(std::unique_lock<T>(lockables, std::adopt_lock)...);
     return locks;
 }
