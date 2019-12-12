@@ -46,6 +46,7 @@ extern "C" {
 #include "common/i18n.h"
 #include "common/util.h"
 #include "common/random.h"
+#include "common/lock.h"
 #include "blockchain.h"
 #include "service_node_quorum_cop.h"
 
@@ -2137,10 +2138,7 @@ namespace service_nodes
         REJECT_PROOF("invalid quorumnet port in uptime proof");
     }
 
-    std::unique_lock<boost::recursive_mutex> sn_lock{m_sn_mutex, std::defer_lock};
-    std::unique_lock<std::shared_timed_mutex> x_lock{m_x25519_map_mutex, std::defer_lock};
-    std::lock(sn_lock, x_lock);
-
+    auto locks = tools::unique_locks(m_sn_mutex, m_x25519_map_mutex);
     auto it = m_state.service_nodes_infos.find(proof.pubkey);
     if (it == m_state.service_nodes_infos.end())
       REJECT_PROOF("no such service node is currently registered");
@@ -2186,9 +2184,7 @@ namespace service_nodes
   void service_node_list::cleanup_proofs()
   {
     MDEBUG("Cleaning up expired SN proofs");
-    std::unique_lock<boost::recursive_mutex> lock_sn{m_sn_mutex, std::defer_lock};
-    std::unique_lock<cryptonote::Blockchain> lock_db{m_blockchain, std::defer_lock};
-    std::lock(lock_sn, lock_db);
+    auto locks = tools::unique_locks(m_sn_mutex, m_blockchain);
     uint64_t now = std::time(nullptr);
     auto& db = m_blockchain.get_db();
     cryptonote::db_wtxn_guard guard{db};
@@ -2218,9 +2214,7 @@ namespace service_nodes
   }
 
   void service_node_list::initialize_x25519_map() {
-    std::unique_lock<boost::recursive_mutex> sn_lock{m_sn_mutex, std::defer_lock};
-    std::unique_lock<std::shared_timed_mutex> x_lock{m_x25519_map_mutex, std::defer_lock};
-    std::lock(sn_lock, x_lock);
+    auto locks = tools::unique_locks(m_sn_mutex, m_x25519_map_mutex);
 
     auto now = std::time(nullptr);
     for (const auto &pk_info : m_state.service_nodes_infos)
