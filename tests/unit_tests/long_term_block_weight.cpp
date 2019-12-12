@@ -126,7 +126,7 @@ static uint32_t lcg()
 
 TEST(long_term_block_weight, empty_short)
 {
-  PREFIX(9);
+  PREFIX(15);
 
   ASSERT_TRUE(bc->update_next_cumulative_weight_limit());
 
@@ -136,7 +136,7 @@ TEST(long_term_block_weight, empty_short)
 
 TEST(long_term_block_weight, identical_before_fork)
 {
-  PREFIX(9);
+  PREFIX(15);
 
   for (uint64_t h = 1; h < 10 * TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW; ++h)
   {
@@ -153,7 +153,7 @@ TEST(long_term_block_weight, identical_before_fork)
 
 TEST(long_term_block_weight, identical_after_fork_before_long_term_window)
 {
-  PREFIX(10);
+  PREFIX(17);
 
   for (uint64_t h = 1; h <= TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW; ++h)
   {
@@ -170,7 +170,7 @@ TEST(long_term_block_weight, identical_after_fork_before_long_term_window)
 
 TEST(long_term_block_weight, ceiling_at_30000000)
 {
-  PREFIX(10);
+  PREFIX(17);
 
   for (uint64_t h = 0; h < TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW + TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW / 2 - 1; ++h)
   {
@@ -185,7 +185,7 @@ TEST(long_term_block_weight, ceiling_at_30000000)
 
 TEST(long_term_block_weight, multi_pop)
 {
-  PREFIX(10);
+  PREFIX(17);
 
   for (uint64_t h = 1; h <= TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW + 20; ++h)
   {
@@ -219,7 +219,7 @@ TEST(long_term_block_weight, multi_pop)
 
 TEST(long_term_block_weight, multiple_updates)
 {
-  PREFIX(10);
+  PREFIX(17);
 
   for (uint64_t h = 1; h <= 3 * TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW; ++h)
   {
@@ -243,7 +243,7 @@ TEST(long_term_block_weight, multiple_updates)
 
 TEST(long_term_block_weight, pop_invariant_max)
 {
-  PREFIX(10);
+  PREFIX(17);
 
   for (uint64_t h = 1; h < TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW - 10; ++h)
   {
@@ -291,7 +291,7 @@ TEST(long_term_block_weight, pop_invariant_max)
 
 TEST(long_term_block_weight, pop_invariant_random)
 {
-  PREFIX(10);
+  PREFIX(17);
 
   for (uint64_t h = 1; h < 2 * TEST_LONG_TERM_BLOCK_WEIGHT_WINDOW - 10; ++h)
   {
@@ -353,7 +353,7 @@ TEST(long_term_block_weight, pop_invariant_random)
 
 TEST(long_term_block_weight, long_growth_spike_and_drop)
 {
-  PREFIX(10);
+  PREFIX(17);
 
   uint64_t long_term_effective_median_block_weight;
 
