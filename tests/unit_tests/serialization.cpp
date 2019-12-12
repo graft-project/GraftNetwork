@@ -632,6 +632,12 @@ TEST(Serialization, serializes_rta_transaction_correctly)
   cryptonote::transaction tx1;
   tx.version = 3;
   tx.type = cryptonote::transaction::tx_type_rta;
+  
+  // Graft: Disqualification-TX: TODO: get_transaction_hash will fail for tx without inputs
+  cryptonote::txin_gen txin_gen1;
+  txin_gen1.height = 0;
+  tx.vin.push_back(txin_gen1);
+  
   cryptonote::rta_header rta_hdr_in, rta_hdr_out;
   std::vector<cryptonote::account_base> accounts;
 
@@ -643,6 +649,7 @@ TEST(Serialization, serializes_rta_transaction_correctly)
   }
 
   cryptonote::add_graft_rta_header_to_extra(tx.extra, rta_hdr_in);
+
 
   crypto::hash tx_hash;
   ASSERT_TRUE(cryptonote::get_transaction_hash(tx, tx_hash));
@@ -662,7 +669,7 @@ TEST(Serialization, serializes_rta_transaction_correctly)
   ASSERT_TRUE(serialization::dump_binary(tx, blob));
   ASSERT_TRUE(serialization::parse_binary(blob, tx1));
   ASSERT_EQ(tx, tx1);
-  ASSERT_TRUE(cryptonote::get_graft_rta_signatures_from_extra2(tx, signatures2));
+  ASSERT_TRUE(cryptonote::get_graft_rta_signatures_from_extra2(tx1, signatures2));
   ASSERT_EQ(signatures1, signatures2);
 
   crypto::hash tx_hash1;
@@ -681,6 +688,11 @@ TEST(Serialization, empty_rta_signatures)
   cryptonote::transaction tx_out;
   tx_in.version = 3;
   tx_in.type = cryptonote::transaction::tx_type_rta;
+  // Graft: Disqualification-TX: TODO: get_transaction_hash will fail for tx without inputs
+  cryptonote::txin_gen txin_gen1;
+  txin_gen1.height = 0;
+  tx_in.vin.push_back(txin_gen1);
+  
   cryptonote::rta_header rta_hdr_in, rta_hdr_out;
   std::vector<cryptonote::account_base> accounts;
 
@@ -692,18 +704,16 @@ TEST(Serialization, empty_rta_signatures)
   }
 
   cryptonote::add_graft_rta_header_to_extra(tx_in.extra, rta_hdr_in);
-
   crypto::hash tx_hash;
   ASSERT_TRUE(cryptonote::get_transaction_hash(tx_in, tx_hash));
-
 
   std::vector<cryptonote::rta_signature> signatures1, signatures2;
 
   ASSERT_TRUE(cryptonote::add_graft_rta_signatures_to_extra2(tx_in.extra2, signatures1));
 
-
   ASSERT_TRUE(serialization::dump_binary(tx_in, blob));
   ASSERT_TRUE(serialization::parse_binary(blob, tx_out));
+  
   ASSERT_EQ(tx_in, tx_out);
   ASSERT_TRUE(cryptonote::get_graft_rta_signatures_from_extra2(tx_out, signatures2));
   ASSERT_EQ(signatures1, signatures2);
