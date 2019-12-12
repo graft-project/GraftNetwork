@@ -1025,7 +1025,7 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
   crypto::ed25519_public_key miner_key;
   crypto::ed25519_secret_key miner_skey;
   crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
-  char const name[] = "my_domain.loki";
+  char const name[] = "mydomain.loki";
   cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key), name);
   gen.create_and_add_next_block({tx});
 
@@ -1132,7 +1132,7 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
   crypto::ed25519_secret_key bob_skey;
   crypto_sign_ed25519_seed_keypair(bob_key.data, bob_skey.data, reinterpret_cast<const unsigned char *>(bob.get_keys().m_spend_secret_key.data));
 
-  std::string messenger_name                           = "MyFriendlyDisplayName";
+  std::string messenger_name                           = "myfriendlydisplayname.loki";
   char messenger_key[lns::MESSENGER_PUBLIC_KEY_LENGTH] = {};
   messenger_key[0]                                     = 5;
   memcpy(messenger_key + 1, miner_key.data, sizeof(miner_key));
@@ -1295,7 +1295,8 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
     // Lokinet domain name too long
     {
       cryptonote::tx_extra_loki_name_system data = valid_data;
-      data.name                                  = std::string(lns::LOKINET_DOMAIN_NAME_MAX + 1, 'A');
+      data.name                                  = std::string(lns::LOKINET_DOMAIN_NAME_MAX, 'A');
+      data.name                                 += ".loki";
       make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Lokinet) Domain name in LNS too long");
     }
 
@@ -1317,6 +1318,13 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
     {
       cryptonote::tx_extra_loki_name_system data = valid_data;
       data.value                                 = std::string(lns::LOKINET_ADDRESS_LENGTH - 1, 'A');
+
+      size_t index                            = 0;
+      data.value[data.value.size() - ++index] = 'i';
+      data.value[data.value.size() - ++index] = 'k';
+      data.value[data.value.size() - ++index] = 'o';
+      data.value[data.value.size() - ++index] = 'l';
+      data.value[data.value.size() - ++index] = '.';
       make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Lokinet) Domain value in LNS too short");
     }
 
@@ -1442,7 +1450,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
   crypto::ed25519_secret_key miner_skey;
   crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
 
-  char const name[] = "my_domain.loki";
+  char const name[] = "mydomain.loki";
   cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key), name);
   gen.create_and_add_next_block({tx});
 
@@ -1568,7 +1576,7 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   // Lokinet
   {
     data.type                                  = static_cast<uint16_t>(lns::mapping_type::lokinet);
-    data.name                                  = std::string(lns::LOKINET_DOMAIN_NAME_MAX, 'A');
+    data.name                                  = "doyle.loki";
     data.value                                 = std::string(lns::LOKINET_ADDRESS_LENGTH, 'Z');
     make_lns_tx_with_custom_extra(gen, events, miner, data);
   }

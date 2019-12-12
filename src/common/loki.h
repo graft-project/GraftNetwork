@@ -72,6 +72,9 @@ struct defer_helper
 template <typename T, size_t N>
 constexpr size_t array_count(T (&)[N]) { return N; }
 
+template <typename T, size_t N>
+constexpr size_t char_count(T (&)[N]) { return N - 1; }
+
 }; // namespace Loki
 
 #endif // LOKI_H

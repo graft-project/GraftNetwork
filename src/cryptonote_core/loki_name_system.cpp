@@ -196,6 +196,24 @@ uint64_t lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew
   return result;
 }
 
+static bool char_is_num(char c)
+{
+  bool result = c >= '0' && c <= '9';
+  return result;
+}
+
+static bool char_is_alpha(char c)
+{
+  bool result = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+  return result;
+}
+
+static bool char_is_alphanum(char c)
+{
+  bool result = char_is_num(c) || char_is_alpha(c);
+  return result;
+}
+
 bool validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len)
 {
   int max_name_len = lns::GENERIC_NAME_MAX;
@@ -241,12 +259,46 @@ bool validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type
   if (name_len > max_name_len || name_len == 0)
     return false;
 
-  // TODO(doyle): Lokinet domain name validation
   if (type == static_cast<uint16_t>(mapping_type::messenger))
   {
     // NOTE: Messenger public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
     if (value[0] != 0x05)
       return false;
+  }
+  else if (type == static_cast<uint16_t>(mapping_type::lokinet))
+  {
+    // Domain has to start with a letter or digit, and can have letters, digits, or hyphens in between and must end with a .loki
+    // ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.loki$
+    {
+      char const SHORTEST_DOMAIN[] = "a.loki";
+      if (name_len < static_cast<int>(loki::char_count(SHORTEST_DOMAIN)))
+        return false;
+    }
+
+    // Must start with alphanumeric
+    if (!char_is_alphanum(name[0]))
+      return false;
+
+    // Must end with .loki
+    char const SUFFIX[]     = ".loki";
+    char const *name_suffix = name + (name_len - loki::char_count(SUFFIX));
+    if (memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0)
+      return false;
+
+    // Characted preceeding suffix must be alphanumeric
+    char const *char_preceeding_suffix = name_suffix - 1;
+    if (!char_is_alphanum(char_preceeding_suffix[0]))
+      return false;
+
+    // Inbetween start and preceeding suffix, alphanumeric and hyphen characters permitted
+    char const *begin = name + 1;
+    char const *end   = char_preceeding_suffix;
+    for (char const *it = begin; it < end; it++)
+    {
+      char c = it[0];
+      if (!(char_is_alphanum(c) || c == '-'))
+        return false;
+    }
   }
 
   return true;
@@ -256,7 +308,7 @@ bool validate_lns_entry(cryptonote::network_type nettype, cryptonote::transactio
 {
   if (!validate_lns_name_and_value(nettype, entry.type, entry.name.data(), static_cast<int>(entry.name.size()), entry.value.data(), static_cast<int>(entry.value.size())))
   {
-    LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " Failed name: " << entry.name << "or value: " << entry.value << " validation");
+    LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " Failed name: " << entry.name << " or value: " << entry.value << " validation");
     return false;
   }
 

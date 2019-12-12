@@ -55,6 +55,7 @@ set(unit_tests_sources
   http.cpp
   keccak.cpp
   logging.cpp
+  loki_name_system.cpp
   long_term_block_weight.cpp
   lmdb.cpp
   main.cpp
