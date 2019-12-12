@@ -2138,7 +2138,7 @@ namespace service_nodes
         REJECT_PROOF("invalid quorumnet port in uptime proof");
     }
 
-    auto locks = tools::unique_locks(m_sn_mutex, m_x25519_map_mutex);
+    auto locks = tools::unique_locks(m_blockchain, m_sn_mutex, m_x25519_map_mutex);
     auto it = m_state.service_nodes_infos.find(proof.pubkey);
     if (it == m_state.service_nodes_infos.end())
       REJECT_PROOF("no such service node is currently registered");
