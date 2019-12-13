@@ -124,6 +124,9 @@ public:
     /// if desired.
     void *data = nullptr;
 
+    /// Possible command types; see register_command
+    enum class command_type { quorum, public_, response };
+
 private:
     zmq::context_t context;
 
@@ -305,7 +308,7 @@ private:
     ///
     /// The value is the {callback, public} pair where `public` is true if unauthenticated
     /// connections may call this and false if only authenricated SNs may invoke the command.
-    static std::unordered_map<std::string, std::pair<std::function<void(SNNetwork::message &message, void *data)>, bool>> commands;
+    static std::unordered_map<std::string, std::pair<void(*)(SNNetwork::message &message, void *data), command_type>> commands;
     static bool commands_mutable;
 
     /// Starts up the proxy thread; called during construction
@@ -327,7 +330,6 @@ public:
      * @param allow_incoming called on incoming connections with the (verified) incoming connection
      * pubkey (32-byte binary string) to determine whether the given SN should be allowed to
      * connect.
-     * @param data - an opaque pointer to pass along to command callbacks
      * @param want_log 
      * @param log a function pointer (or non-capturing lambda) to call to get a std::ostream pointer
      * to send output to, or nullptr to suppress output.  Optional; if omitted the default returns
@@ -336,7 +338,8 @@ public:
      * std::thread::hardware_concurrency().  Note that threads are only started on demand (i.e. when
      * a request arrives when all existing threads are busy handling requests).
      */
-    SNNetwork(std::string pubkey, std::string privkey,
+    SNNetwork(std::string pubkey,
+            std::string privkey,
             const std::vector<std::string> &bind,
             LookupFunc peer_lookup,
             AllowFunc allow_connection,
@@ -361,6 +364,12 @@ public:
      * running) rejoins the proxy thread.
      */
     ~SNNetwork();
+
+    /**
+     * Returns true if we are running as a service node, which (currently) is synonymous with us
+     * being started in listening mode.
+     */
+    bool is_service_node() const { return (bool) listener; }
 
     /**
      * Try to initiate a connection to the given SN in anticipation of needing a connection in the
@@ -424,26 +433,27 @@ public:
     const std::string &get_privkey() const { return privkey; }
 
     /**
-     * Registers a quorum command that may be invoked by authenticated SN connections but not
-     * unauthenticated (non-SN) connections.
+     * Registers a command that may be invoked on a quorumnet connection.  The quorum command
+     * is one of three types:
+     *     - `SNNetwork::command_type::quorum` - for a command that is only permitted between
+     *       registered service nodes.  It will be discarded if received from a remote that is not
+     *       recognized as a service node, or if the local node is not a service node.
+     *     - `SNNetwork::command_type::public_` - for a command that is permitted from anyone, but
+     *       only if the local node is running as a service node.
+     *     - `SNNetwork::command_type::response` - for a command that can be issued by a service
+     *       node to the local client (whether or not running as a service node), typically issued
+     *       in response to a `public_` command issued by this service node.
      *
      * Commands may only be registered before any SNNetwork instance has been constructed.
      *
      * @param command - the command string to assign.  If it already exists it will be replaced.
      * @param callback - a callback that takes the message info and the opaque `data` pointer
+     * @param cmd_type - the command type, as described above.
      */
-    static void register_quorum_command(std::string command, std::function<void(SNNetwork::message &message, void *data)> callback);
-
-    /**
-     * Registers a network command that may be invoked by both authenticated SN connections and
-     * unauthenticated (non-SN) connections.
-     *
-     * Commands may only be registered before any SNNetwork instance has been constructed.
-     *
-     * @param command - the command string to assign.  If it already exists it will be replaced.
-     * @param callback - a callback that takes the message info and the opaque `data` pointer
-     */
-    static void register_public_command(std::string command, std::function<void(SNNetwork::message &message, void *data)> callback);
+    static void register_command(
+            std::string command,
+            command_type cmd_type,
+            void(*callback)(SNNetwork::message &message, void *data));
 };
 
 /// Namespace for options to the send() method

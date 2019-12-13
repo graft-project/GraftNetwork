@@ -89,6 +89,11 @@ struct SNNWrapper {
     template <typename... Args>
     SNNWrapper(cryptonote::core &core, Args &&...args) :
         snn{std::forward<Args>(args)...}, core{core} {}
+
+    static SNNWrapper &from(void* obj) {
+        assert(obj);
+        return *reinterpret_cast<SNNWrapper*>(obj);
+    }
 };
 
 template <typename T>
@@ -477,7 +482,7 @@ quorum_vote_t deserialize_vote(const bt_value &v) {
 }
 
 void relay_obligation_votes(void *obj, const std::vector<service_nodes::quorum_vote_t> &votes) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
+    auto &snw = SNNWrapper::from(obj);
 
     auto my_keys_ptr = snw.core.get_service_node_keys();
     assert(my_keys_ptr);
@@ -520,7 +525,7 @@ void relay_obligation_votes(void *obj, const std::vector<service_nodes::quorum_v
 }
 
 void handle_obligation_vote(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
+    auto &snw = SNNWrapper::from(self);
 
     MDEBUG("Received a relayed obligation vote from " << as_hex(m.pubkey));
 
@@ -811,7 +816,7 @@ void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &
 ///           submission will fail immediately if it does not).
 ///
 void handle_blink(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
+    auto &snw = SNNWrapper::from(self);
 
     // TODO: if someone sends an invalid tx (i.e. one that doesn't get to the distribution stage)
     // then put a timeout on that IP during which new submissions from them are dropped for a short
@@ -824,7 +829,9 @@ void handle_blink(SNNetwork::message &m, void *self) {
 
     MDEBUG("Received a blink tx from " << (m.sn ? "SN " : "non-SN ") << as_hex(m.pubkey));
 
-    assert(snw.core.get_service_node_keys());
+    auto keys = snw.core.get_service_node_keys();
+    assert(keys);
+    if (!keys) return;
 
     if (m.data.size() != 1) {
         MINFO("Rejecting blink message: expected one data entry not " << m.data.size());
@@ -1047,9 +1054,8 @@ void handle_blink(SNNetwork::message &m, void *self) {
     }
 
     auto hash_to_sign = btx.hash(approved);
-    auto &keys = *snw.core.get_service_node_keys();
     crypto::signature sig;
-    generate_signature(hash_to_sign, keys.pub, keys.key, sig);
+    generate_signature(hash_to_sign, keys->pub, keys->key, sig);
 
     // Now that we have the blink tx stored we can add our signature *and* any other pending
     // signatures we are holding onto, then blast the entire thing to our peers.
@@ -1099,7 +1105,7 @@ void copy_signature_values(std::list<pending_signature> &signatures, const bt_va
 ///
 /// Signatures will be forwarded if new; known signatures will be ignored.
 void handle_blink_signature(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
+    auto &snw = SNNWrapper::from(self);
 
     MDEBUG("Received a blink tx signature from SN " << as_hex(m.pubkey));
 
@@ -1282,7 +1288,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
     if (!blink_tag) return future;
 
     try {
-        auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
+        auto &snw = SNNWrapper::from(obj);
         uint64_t height = snw.core.get_current_blockchain_height();
         uint64_t checksum;
         auto quorums = get_blink_quorums(height, snw.core.get_service_node_list(), nullptr, &checksum);
@@ -1392,7 +1398,7 @@ void common_blink_response(uint64_t tag, cryptonote::blink_result res, std::stri
 ///
 /// It's possible for some nodes to accept and others to refuse, so we don't actually set the
 /// promise unless we get a nostart response from a majority of the remotes.
-void handle_blink_not_started(SNNetwork::message &m, void *self) {
+void handle_blink_not_started(SNNetwork::message &m, void *) {
     if (m.data.size() != 1) {
         MERROR("Bad blink not started response: expected one data entry not " << m.data.size());
         return;
@@ -1411,7 +1417,7 @@ void handle_blink_not_started(SNNetwork::message &m, void *self) {
 ///
 ///     ! - the tag as included in the submission
 ///
-void handle_blink_failure(SNNetwork::message &m, void *self) {
+void handle_blink_failure(SNNetwork::message &m, void *) {
     if (m.data.size() != 1) {
         MERROR("Blink failure message not understood: expected one data entry not " << m.data.size());
         return;
@@ -1435,7 +1441,7 @@ void handle_blink_failure(SNNetwork::message &m, void *self) {
 ///
 ///     ! - the tag as included in the submission
 ///
-void handle_blink_success(SNNetwork::message &m, void *self) {
+void handle_blink_success(SNNetwork::message &m, void *) {
     if (m.data.size() != 1) {
         MERROR("Blink success message not understood: expected one data entry not " << m.data.size());
         return;
@@ -1461,30 +1467,30 @@ void init_core_callbacks() {
     cryptonote::quorumnet_send_blink = send_blink;
 
     // Receives an obligation vote
-    SNNetwork::register_quorum_command("vote_ob", handle_obligation_vote);
+    SNNetwork::register_command("vote_ob", SNNetwork::command_type::quorum, handle_obligation_vote);
 
     // Receives a new blink tx submission from an external node, or forward from other quorum
     // members who received it from an external node.
-    SNNetwork::register_public_command("blink", handle_blink);
+    SNNetwork::register_command("blink", SNNetwork::command_type::public_, handle_blink);
 
     // Sends a message back to the blink initiator that the transaction was NOT relayed, either
     // because the height was invalid or the quorum checksum failed.  This is only sent by the entry
     // point service nodes into the quorum to let it know the tx verification has not started from
     // that node.  It does not necessarily indicate a failure unless all entry point attempts return
     // the same.
-    SNNetwork::register_quorum_command("bl_nostart", handle_blink_not_started);
+    SNNetwork::register_command("bl_nostart", SNNetwork::command_type::response, handle_blink_not_started);
 
     // Sends a message from the entry SNs back to the initiator that the Blink tx has been rejected:
     // that is, enough signed rejections have occured that the Blink tx cannot be accepted.
-    SNNetwork::register_quorum_command("bl_bad", handle_blink_failure);
+    SNNetwork::register_command("bl_bad", SNNetwork::command_type::response, handle_blink_failure);
 
     // Sends a message from the entry SNs back to the initiator that the Blink tx has been accepted
     // and validated and is being broadcast to the network.
-    SNNetwork::register_quorum_command("bl_good", handle_blink_success);
+    SNNetwork::register_command("bl_good", SNNetwork::command_type::response, handle_blink_success);
 
     // Receives blink tx signatures or rejections between quorum members (either original or
     // forwarded).  These are propagated by the receiver if new
-    SNNetwork::register_quorum_command("blink_sign", handle_blink_signature);
+    SNNetwork::register_command("blink_sign", SNNetwork::command_type::quorum, handle_blink_signature);
 }
 
 }

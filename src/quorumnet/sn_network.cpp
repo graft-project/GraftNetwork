@@ -237,20 +237,27 @@ msg_view_t view(const zmq::message_t &m) {
 constexpr const std::chrono::milliseconds SNNetwork::default_send_keep_alive;
 #endif
 
-std::unordered_map<std::string, std::pair<std::function<void(SNNetwork::message &message, void *data)>, bool>> SNNetwork::commands;
-bool SNNetwork::commands_mutable = true;
-void SNNetwork::register_quorum_command(std::string command, std::function<void(SNNetwork::message &message, void *data)> callback) {
-    if (!commands_mutable)
-        throw std::logic_error("Failed to register quorum command: command must be added before constructing a SNNetwork instance");
-
-    commands.emplace(std::move(command), std::make_pair(std::move(callback), false));
+static std::string command_type_string(SNNetwork::command_type t) {
+    return
+            t == SNNetwork::command_type::quorum ? "quorum" :
+            t == SNNetwork::command_type::public_ ? "public" :
+            t == SNNetwork::command_type::response ? "response" :
+            "unknown";
+}
+static std::ostream& operator<<(std::ostream& o, SNNetwork::command_type t) {
+    return o << command_type_string(t);
 }
 
-void SNNetwork::register_public_command(std::string command, std::function<void(SNNetwork::message &message, void *data)> callback) {
-    if (!commands_mutable)
-        throw std::logic_error("Failed to register public command: command must be added before constructing a SNNetwork instance");
+std::unordered_map<std::string, std::pair<void(*)(SNNetwork::message &message, void *data), SNNetwork::command_type>> SNNetwork::commands;
+bool SNNetwork::commands_mutable = true;
+void SNNetwork::register_command(std::string command, command_type cmd_type,
+        void(*callback)(SNNetwork::message &message, void *data)) {
+    assert(cmd_type >= SNNetwork::command_type::quorum && cmd_type <= SNNetwork::command_type::response);
 
-    commands.emplace(std::move(command), std::make_pair(std::move(callback), true));
+    if (!commands_mutable)
+        throw std::logic_error("Failed to register " + command_type_string(cmd_type) + " command: command must be added before constructing a SNNetwork instance");
+
+    commands.emplace(std::move(command), std::make_pair(callback, cmd_type));
 }
 
 std::atomic<int> next_id{1};
@@ -443,10 +450,16 @@ void SNNetwork::worker_thread(std::string worker_id) {
                 continue;
             }
 
-            const bool &public_cmd = cmdit->second.second;
-            if (!public_cmd && !msg.sn) {
+            auto cmd_type = cmdit->second.second;
+            const bool command_accepted = (
+                cmd_type == command_type::response ? msg.sn :
+                cmd_type == command_type::quorum ? msg.sn && is_service_node() :
+                cmd_type == command_type::public_ ? is_service_node() :
+                false);
+            if (!command_accepted) {
                 // If they aren't valid, tell them so that they can disconnect (and attempt to reconnect later with appropriate authentication)
-                SN_LOG(warn, worker_id << "/" << object_id << " received quorum-only command " << msg.command << " from non-SN remote " << as_hex(msg.pubkey) << "; replying with a BYE");
+                SN_LOG(warn, worker_id << "/" << object_id << " received disallowed " << cmd_type << " command " << msg.command <<
+                        " from " << (msg.sn ? "non-" : "") << "SN remote " << as_hex(msg.pubkey) << "; replying with a BYE");
                 send(msg.pubkey, "BYE", send_option::incoming{});
                 detail::send_control(get_control_socket(), "DISCONNECT", {{"pubkey",msg.pubkey}});
                 continue;
