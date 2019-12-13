@@ -89,6 +89,11 @@ struct SNNWrapper {
     template <typename... Args>
     SNNWrapper(cryptonote::core &core, Args &&...args) :
         snn{std::forward<Args>(args)...}, core{core} {}
+
+    static SNNWrapper &from(void* obj) {
+        assert(obj);
+        return *reinterpret_cast<SNNWrapper*>(obj);
+    }
 };
 
 template <typename T>
@@ -477,13 +482,10 @@ quorum_vote_t deserialize_vote(const bt_value &v) {
 }
 
 void relay_obligation_votes(void *obj, const std::vector<service_nodes::quorum_vote_t> &votes) {
-    assert(obj);
-    if (!obj) return;
-    auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
+    auto &snw = SNNWrapper::from(obj);
 
     auto my_keys_ptr = snw.core.get_service_node_keys();
     assert(my_keys_ptr);
-    if (!my_keys_ptr) return;
     const auto &my_keys = *my_keys_ptr;
 
     MDEBUG("Starting relay of " << votes.size() << " votes");
@@ -523,9 +525,7 @@ void relay_obligation_votes(void *obj, const std::vector<service_nodes::quorum_v
 }
 
 void handle_obligation_vote(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
-    assert(self);
-    if (!self) return;
+    auto &snw = SNNWrapper::from(self);
 
     MDEBUG("Received a relayed obligation vote from " << as_hex(m.pubkey));
 
@@ -816,9 +816,7 @@ void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &
 ///           submission will fail immediately if it does not).
 ///
 void handle_blink(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
-    assert(self);
-    if (!self) return;
+    auto &snw = SNNWrapper::from(self);
 
     // TODO: if someone sends an invalid tx (i.e. one that doesn't get to the distribution stage)
     // then put a timeout on that IP during which new submissions from them are dropped for a short
@@ -1107,9 +1105,7 @@ void copy_signature_values(std::list<pending_signature> &signatures, const bt_va
 ///
 /// Signatures will be forwarded if new; known signatures will be ignored.
 void handle_blink_signature(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
-    assert(self);
-    if (!self) return;
+    auto &snw = SNNWrapper::from(self);
 
     MDEBUG("Received a blink tx signature from SN " << as_hex(m.pubkey));
 
@@ -1292,7 +1288,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
     if (!blink_tag) return future;
 
     try {
-        auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
+        auto &snw = SNNWrapper::from(obj);
         uint64_t height = snw.core.get_current_blockchain_height();
         uint64_t checksum;
         auto quorums = get_blink_quorums(height, snw.core.get_service_node_list(), nullptr, &checksum);
