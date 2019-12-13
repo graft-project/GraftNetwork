@@ -453,8 +453,8 @@ void SNNetwork::worker_thread(std::string worker_id) {
             auto cmd_type = cmdit->second.second;
             const bool command_accepted = (
                 cmd_type == command_type::response ? msg.sn :
-                cmd_type == command_type::quorum ? msg.sn && listener :
-                cmd_type == command_type::public_ ? (bool) listener :
+                cmd_type == command_type::quorum ? msg.sn && is_service_node() :
+                cmd_type == command_type::public_ ? is_service_node() :
                 false);
             if (!command_accepted) {
                 // If they aren't valid, tell them so that they can disconnect (and attempt to reconnect later with appropriate authentication)

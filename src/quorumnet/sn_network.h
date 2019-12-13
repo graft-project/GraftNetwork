@@ -366,6 +366,12 @@ public:
     ~SNNetwork();
 
     /**
+     * Returns true if we are running as a service node, which (currently) is synonymous with us
+     * being started in listening mode.
+     */
+    bool is_service_node() const { return (bool) listener; }
+
+    /**
      * Try to initiate a connection to the given SN in anticipation of needing a connection in the
      * future.  If a connection is already established, the connection's idle timer will be reset
      * (so that the connection will not be closed too soon).  If the given idle timeout is greater
