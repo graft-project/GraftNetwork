@@ -308,7 +308,7 @@ private:
     ///
     /// The value is the {callback, public} pair where `public` is true if unauthenticated
     /// connections may call this and false if only authenricated SNs may invoke the command.
-    static std::unordered_map<std::string, std::pair<std::function<void(SNNetwork::message &message, void *data)>, command_type>> commands;
+    static std::unordered_map<std::string, std::pair<void(*)(SNNetwork::message &message, void *data), command_type>> commands;
     static bool commands_mutable;
 
     /// Starts up the proxy thread; called during construction
@@ -446,8 +446,8 @@ public:
      */
     static void register_command(
             std::string command,
-            std::function<void(SNNetwork::message &message, void *data)> callback,
-            command_type cmd_type);
+            command_type cmd_type,
+            void(*callback)(SNNetwork::message &message, void *data));
 };
 
 /// Namespace for options to the send() method

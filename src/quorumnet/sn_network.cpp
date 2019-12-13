@@ -248,18 +248,16 @@ static std::ostream& operator<<(std::ostream& o, SNNetwork::command_type t) {
     return o << command_type_string(t);
 }
 
-std::unordered_map<std::string, std::pair<std::function<void(SNNetwork::message &message, void *data)>, SNNetwork::command_type>> SNNetwork::commands;
+std::unordered_map<std::string, std::pair<void(*)(SNNetwork::message &message, void *data), SNNetwork::command_type>> SNNetwork::commands;
 bool SNNetwork::commands_mutable = true;
-void SNNetwork::register_command(
-        std::string command,
-        std::function<void(SNNetwork::message &message, void *data)> callback,
-        command_type cmd_type) {
+void SNNetwork::register_command(std::string command, command_type cmd_type,
+        void(*callback)(SNNetwork::message &message, void *data)) {
     assert(cmd_type >= SNNetwork::command_type::quorum && cmd_type <= SNNetwork::command_type::response);
 
     if (!commands_mutable)
         throw std::logic_error("Failed to register " + command_type_string(cmd_type) + " command: command must be added before constructing a SNNetwork instance");
 
-    commands.emplace(std::move(command), std::make_pair(std::move(callback), cmd_type));
+    commands.emplace(std::move(command), std::make_pair(callback, cmd_type));
 }
 
 std::atomic<int> next_id{1};
