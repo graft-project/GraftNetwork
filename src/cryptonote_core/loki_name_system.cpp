@@ -304,18 +304,33 @@ bool validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type
   return true;
 }
 
-bool validate_lns_entry(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &entry)
+bool validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry)
 {
-  if (!validate_lns_name_and_value(nettype, entry.type, entry.name.data(), static_cast<int>(entry.name.size()), entry.value.data(), static_cast<int>(entry.value.size())))
+  cryptonote::tx_extra_loki_name_system entry_;
+  if (!entry) entry = &entry_;
+
+  if (!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, *entry))
   {
-    LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " Failed name: " << entry.name << " or value: " << entry.value << " validation");
+    LOG_PRINT_L1("TX: " << tx.type << " " << get_transaction_hash(tx) << ", didn't have loki name service in the tx_extra");
+    return false;
+  }
+
+  uint64_t burn = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
+  if (!validate_lns_name_and_value(nettype, entry->type, entry->name.data(), static_cast<int>(entry->name.size()), entry->value.data(), static_cast<int>(entry->value.size())))
+  {
+    LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " Failed name: " << entry->name << " or value: " << entry->value << " validation");
+    return false;
+  }
+
+  if (burn < BURN_REQUIREMENT)
+  {
+    LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " burned insufficient amounts of loki: " << burn << "; require: " << BURN_REQUIREMENT);
     return false;
   }
 
   // TODO: Validate burn amount in the tx_extra
-
-  crypto::hash hash = entry.make_signature_hash();
-  if (crypto_sign_ed25519_verify_detached(entry.signature.data, reinterpret_cast<const unsigned char *>(hash.data), sizeof(hash.data), entry.owner.data) != 0)
+  crypto::hash hash = entry->make_signature_hash();
+  if (crypto_sign_ed25519_verify_detached(entry->signature.data, reinterpret_cast<const unsigned char *>(hash.data), sizeof(hash.data), entry->owner.data) != 0)
   {
     LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " Failed signature validation");
     return false;
@@ -471,27 +486,6 @@ DROP TABLE IF EXISTS "mappings";
   return true;
 }
 
-static bool process_loki_name_system_tx(cryptonote::network_type nettype,
-                                        uint64_t block_height,
-                                        const cryptonote::transaction &tx,
-                                        cryptonote::tx_extra_loki_name_system &tx_extra)
-{
-  if (!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, tx_extra))
-  {
-    LOG_PRINT_L1("TX: " << tx.type << " " << get_transaction_hash(tx) << ", didn't have loki name service in the tx_extra");
-    return false;
-  }
-
-  if (!validate_lns_entry(nettype, tx, tx_extra))
-  {
-    assert("Failed to validate acquire name service. Should already have failed validation prior" == nullptr);
-    LOG_PRINT_L1("LNS TX: Failed to validate for tx: " << get_transaction_hash(tx) << ". This should have failed validation earlier");
-    return false;
-  }
-
-  return true;
-}
-
 enum struct sql_transaction_type
 {
     begin,
@@ -534,8 +528,12 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
         continue;
 
       cryptonote::tx_extra_loki_name_system entry = {};
-      if (!process_loki_name_system_tx(nettype, height, tx, entry))
+      if (!validate_lns_tx(nettype, tx, &entry))
+      {
+        LOG_PRINT_L1("LNS TX: Failed to validate for tx: " << get_transaction_hash(tx) << ". This should have failed validation earlier");
+        assert("Failed to validate acquire name service. Should already have failed validation prior" == nullptr);
         continue;
+      }
 
       bool transaction_begun = false;
       int64_t user_id        = 0;

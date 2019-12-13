@@ -1250,15 +1250,16 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
       data.signature = data.make_signature(miner_skey);
       std::vector<uint8_t> extra;
       cryptonote::add_loki_name_system_to_tx_extra(extra, data);
+      cryptonote::add_burned_amount_to_tx_extra(extra, lns::BURN_REQUIREMENT);
 
       uint64_t new_height    = cryptonote::get_block_height(gen.top().block) + 1;
       uint8_t new_hf_version = gen.get_hf_version_at(new_height);
 
       cryptonote::transaction tx = {};
-      loki_tx_builder(
-          events, tx, gen.top().block, src /*from*/, src.get_keys().m_account_address, 0, new_hf_version)
+      loki_tx_builder(events, tx, gen.top().block, src /*from*/, src.get_keys().m_account_address, 0, new_hf_version)
           .with_tx_type(cryptonote::txtype::loki_name_system)
           .with_extra(extra)
+          .with_fee(lns::BURN_REQUIREMENT + TESTS_DEFAULT_FEE)
           .build();
 
       gen.add_tx(tx, valid /*can_be_added_to_blockchain*/, reason, false /*kept_by_block*/);
@@ -1547,15 +1548,16 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
     data.signature = data.make_signature(skey);
     std::vector<uint8_t> extra;
     cryptonote::add_loki_name_system_to_tx_extra(extra, data);
+    cryptonote::add_burned_amount_to_tx_extra(extra, lns::BURN_REQUIREMENT);
 
     uint64_t new_height    = cryptonote::get_block_height(gen.top().block) + 1;
     uint8_t new_hf_version = gen.get_hf_version_at(new_height);
 
     cryptonote::transaction tx = {};
-    loki_tx_builder(
-        events, tx, gen.top().block, src /*from*/, src.get_keys().m_account_address, 0, new_hf_version)
+    loki_tx_builder(events, tx, gen.top().block, src /*from*/, src.get_keys().m_account_address, 0, new_hf_version)
         .with_tx_type(cryptonote::txtype::loki_name_system)
         .with_extra(extra)
+        .with_fee(lns::BURN_REQUIREMENT + TESTS_DEFAULT_FEE)
         .build();
 
     gen.add_tx(tx, true /*can_be_added_to_blockchain*/, "", false /*kept_by_block*/);

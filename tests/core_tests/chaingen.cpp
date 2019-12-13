@@ -531,15 +531,17 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   data.name                                  = name;
   data.signature                             = data.make_signature(skey);
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
+  cryptonote::add_burned_amount_to_tx_extra(extra, lns::BURN_REQUIREMENT);
 
   cryptonote::block const &head = top().block;
   uint64_t new_height           = get_block_height(top().block) + 1;
   uint8_t new_hf_version        = get_hf_version_at(new_height);
 
   cryptonote::transaction result = {};
-  loki_tx_builder(events_, result, head, src /*from*/, src.get_keys().m_account_address, 0, new_hf_version)
+  loki_tx_builder(events_, result, head, src /*from*/, src.get_keys().m_account_address, 0 /*amount*/, new_hf_version)
       .with_tx_type(cryptonote::txtype::loki_name_system)
       .with_extra(extra)
+      .with_fee(lns::BURN_REQUIREMENT + TESTS_DEFAULT_FEE)
       .build();
 
   return result;
