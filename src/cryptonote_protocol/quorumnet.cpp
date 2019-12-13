@@ -1461,30 +1461,30 @@ void init_core_callbacks() {
     cryptonote::quorumnet_send_blink = send_blink;
 
     // Receives an obligation vote
-    SNNetwork::register_quorum_command("vote_ob", handle_obligation_vote);
+    SNNetwork::register_command("vote_ob", handle_obligation_vote, SNNetwork::command_type::quorum);
 
     // Receives a new blink tx submission from an external node, or forward from other quorum
     // members who received it from an external node.
-    SNNetwork::register_public_command("blink", handle_blink);
+    SNNetwork::register_command("blink", handle_blink, SNNetwork::command_type::public_);
 
     // Sends a message back to the blink initiator that the transaction was NOT relayed, either
     // because the height was invalid or the quorum checksum failed.  This is only sent by the entry
     // point service nodes into the quorum to let it know the tx verification has not started from
     // that node.  It does not necessarily indicate a failure unless all entry point attempts return
     // the same.
-    SNNetwork::register_quorum_command("bl_nostart", handle_blink_not_started);
+    SNNetwork::register_command("bl_nostart", handle_blink_not_started, SNNetwork::command_type::response);
 
     // Sends a message from the entry SNs back to the initiator that the Blink tx has been rejected:
     // that is, enough signed rejections have occured that the Blink tx cannot be accepted.
-    SNNetwork::register_quorum_command("bl_bad", handle_blink_failure);
+    SNNetwork::register_command("bl_bad", handle_blink_failure, SNNetwork::command_type::response);
 
     // Sends a message from the entry SNs back to the initiator that the Blink tx has been accepted
     // and validated and is being broadcast to the network.
-    SNNetwork::register_quorum_command("bl_good", handle_blink_success);
+    SNNetwork::register_command("bl_good", handle_blink_success, SNNetwork::command_type::response);
 
     // Receives blink tx signatures or rejections between quorum members (either original or
     // forwarded).  These are propagated by the receiver if new
-    SNNetwork::register_quorum_command("blink_sign", handle_blink_signature);
+    SNNetwork::register_command("blink_sign", handle_blink_signature, SNNetwork::command_type::quorum);
 }
 
 }
