@@ -429,7 +429,7 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
     VALUES (1,?,?,?);
 )FOO";
 
-  char constexpr GET_MAPPING_SQL[] = R"FOO(SELECT * FROM mappings WHERE "type" = ? AND "value" = ?)FOO";
+  char constexpr GET_MAPPING_SQL[] = R"FOO(SELECT * FROM mappings WHERE "type" = ? AND "name" = ?)FOO";
 
   char constexpr SAVE_MAPPING_SQL[] =
       "INSERT INTO mappings "
@@ -559,7 +559,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       if (!transaction_begun)
         transaction_begun = sql_transaction(db, sql_transaction_type::begin);
 
-      if (save_mapping(static_cast<uint16_t>(entry.type), entry.name, entry.value.data(), entry.value.size(), height, user_id))
+      if (save_mapping(static_cast<uint16_t>(entry.type), entry.name, entry.value, height, user_id))
       {
         if (transaction_begun && !sql_transaction(db, sql_transaction_type::commit))
         {
@@ -602,32 +602,17 @@ bool name_system_db::save_user(crypto::ed25519_public_key const &key, int64_t *r
   return result;
 }
 
-bool name_system_db::save_mapping(uint16_t type, std::string const &name, void const *value, int value_len, uint64_t height, int64_t user_id)
+bool name_system_db::save_mapping(uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id)
 {
   sqlite3_stmt *statement = save_mapping_sql;
-  if (type == static_cast<uint16_t>(mapping_type::lokinet))
-  {
-    if (mapping_record record = get_mapping(type, value, value_len))
-    {
-      // NOTE: Early out here, instead of trying to save (and fail) since we already payed for the lookup
-      if (record.user_id != user_id)
-        return false;
+  bool exists = false;
+  if (!can_add_or_renew_lns_entry(type, name.data(), name.size(), &user_id, &exists))
+    return false;
 
-      uint64_t renew_window        = 0;
-      uint64_t expiry_blocks       = lokinet_expiry_blocks(nettype, &renew_window);
-      uint64_t renew_window_offset = expiry_blocks - renew_window;
-      uint64_t min_renew_height    = record.register_height + renew_window_offset;
-
-      if (min_renew_height > height)
-        return false; // Trying to renew too early
-
-      statement = force_save_mapping_sql;
-    }
-  }
-
+  if (exists) statement = force_save_mapping_sql;
   sqlite3_bind_int  (statement, mapping_record_row_type, type);
-  sqlite3_bind_text (statement, mapping_record_row_name, name.c_str(), name.size(), nullptr /*destructor*/);
-  sqlite3_bind_blob (statement, mapping_record_row_value, value, value_len, nullptr /*destructor*/);
+  sqlite3_bind_text (statement, mapping_record_row_name, name.data(), name.size(), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, mapping_record_row_value, value.data(), value.size(), nullptr /*destructor*/);
   sqlite3_bind_int64(statement, mapping_record_row_register_height, static_cast<int64_t>(height));
   sqlite3_bind_int64(statement, mapping_record_row_user_id, user_id);
   bool result = sql_run_statement(nettype, lns_sql_type::save_mapping, statement, nullptr);
@@ -671,7 +656,7 @@ user_record name_system_db::get_user_by_key(crypto::ed25519_public_key const &ke
   return result;
 }
 
-user_record name_system_db::get_user_by_id(int user_id) const
+user_record name_system_db::get_user_by_id(int64_t user_id) const
 {
   sqlite3_stmt *statement = get_user_by_id_sql;
   sqlite3_clear_bindings(statement);
@@ -682,21 +667,21 @@ user_record name_system_db::get_user_by_id(int user_id) const
   return result;
 }
 
-mapping_record name_system_db::get_mapping(uint16_t type, void const *value, size_t value_len) const
+mapping_record name_system_db::get_mapping(uint16_t type, char const *name, size_t name_len) const
 {
   sqlite3_stmt *statement = get_mapping_sql;
   sqlite3_clear_bindings(statement);
   sqlite3_bind_int(statement, 1 /*sql param index*/, type);
-  sqlite3_bind_blob(statement, 2 /*sql param index*/, value, value_len, nullptr /*destructor*/);
+  sqlite3_bind_text(statement, 2 /*sql param index*/, name, name_len, nullptr /*destructor*/);
 
   mapping_record result = {};
   result.loaded         = sql_run_statement(nettype, lns_sql_type::get_mapping, statement, &result);
   return result;
 }
 
-mapping_record name_system_db::get_mapping(uint16_t type, std::string const &value) const
+mapping_record name_system_db::get_mapping(uint16_t type, std::string const &name) const
 {
-  mapping_record result = get_mapping(type, value.data(), value.size());
+  mapping_record result = get_mapping(type, name.data(), name.size());
   return result;
 }
 
@@ -706,6 +691,38 @@ settings_record name_system_db::get_settings() const
   settings_record result  = {};
   result.loaded           = sql_run_statement(nettype, lns_sql_type::get_setting, statement, &result);
   return result;
+}
+
+bool name_system_db::can_add_or_renew_lns_entry(uint16_t type, char const *name, int name_len, crypto::ed25519_public_key const &owner) const
+{
+  user_record user = get_user_by_key(owner);
+  bool result      = can_add_or_renew_lns_entry(type, name, name_len, (user) ? &user.id : nullptr);
+  return result;
+}
+
+bool name_system_db::can_add_or_renew_lns_entry(uint16_t type, char const *name, int name_len, int64_t *user_id, bool *exists) const
+{
+  if (exists) *exists = false;
+  mapping_record record = get_mapping(type, name, name_len);
+  if (!record)
+      return true;
+
+  if (exists) *exists = true;
+  if (type != static_cast<uint16_t>(mapping_type::lokinet))
+      return false;
+
+  uint64_t renew_window        = 0;
+  uint64_t expiry_blocks       = lokinet_expiry_blocks(nettype, &renew_window);
+  uint64_t renew_window_offset = expiry_blocks - renew_window;
+  uint64_t min_renew_height    = record.register_height + renew_window_offset;
+
+  if (min_renew_height > (last_processed_height + 1))
+    return false; // Trying to renew too early
+
+  if (user_id && (*user_id != record.user_id))
+    return false; // LNS entry can be renewed, but person renewing is not the same as the one who originally bought the domain
+
+  return true;
 }
 
 }; // namespace service_nodes

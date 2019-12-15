@@ -82,16 +82,19 @@ struct name_system_db
   uint64_t        height         () { return last_processed_height; }
 
   bool            save_user      (crypto::ed25519_public_key const &key, int64_t *row_id);
-  bool            save_mapping   (uint16_t type, std::string const &name, void const *value, int value_len, uint64_t height, int64_t user_id);
+  bool            save_mapping   (uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id);
   bool            save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
 
   bool            expire_mappings(uint64_t height);
 
   user_record     get_user_by_key(crypto::ed25519_public_key const &key) const;
-  user_record     get_user_by_id (int user_id) const;
-  mapping_record  get_mapping    (uint16_t type, void const *value, size_t value_len) const;
-  mapping_record  get_mapping    (uint16_t type, std::string const &value) const;
+  user_record     get_user_by_id (int64_t user_id) const;
+  mapping_record  get_mapping    (uint16_t type, char const *name, size_t name_len) const;
+  mapping_record  get_mapping    (uint16_t type, std::string const &name) const;
   settings_record get_settings   () const;
+
+  bool            can_add_or_renew_lns_entry(uint16_t type, char const *name, int name_len, crypto::ed25519_public_key const &owner) const;
+  bool            can_add_or_renew_lns_entry(uint16_t type, char const *name, int name_len, int64_t *user_id = nullptr, bool *exists = nullptr) const;
 
   sqlite3                  *db                     = nullptr;
 private:

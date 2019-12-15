@@ -3390,6 +3390,12 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner << ", type = " << (int)data.type << ", name = " << data.name);
         return false;
       }
+
+      if (m_lns_db.db && !m_lns_db.can_add_or_renew_lns_entry(data.type, data.name.data(), data.name.size(), data.owner))
+      {
+        MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner << ", type = " << (int)data.type << ", name = " << data.name << " can not be renewed.");
+        return false;
+      }
     }
   }
   else

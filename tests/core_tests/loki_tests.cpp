@@ -1049,7 +1049,7 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
     CHECK_EQ(user.id, 1);
     CHECK_EQ(miner_key, user.key);
 
-    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key));
+    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), name, loki::char_count(name));
     CHECK_EQ(mappings.loaded, true);
     CHECK_EQ(mappings.type, static_cast<uint16_t>(lns::mapping_type::lokinet));
     CHECK_EQ(mappings.name, std::string(name));
@@ -1081,7 +1081,7 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
     CHECK_EQ(user.id, 1);
     CHECK_EQ(miner_key, user.key);
 
-    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key));
+    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), name, loki::char_count(name));
     CHECK_EQ(mappings.loaded, false);
     return true;
   });
@@ -1144,32 +1144,36 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
         gen.create_and_add_loki_name_system_tx(miner,
                                                static_cast<uint16_t>(lns::mapping_type::messenger),
                                                messenger_key,
-                                               loki::array_count(messenger_key),
+                                               sizeof(messenger_key),
                                                messenger_name);
 
     cryptonote::transaction bar2 =
         gen.create_and_add_loki_name_system_tx(miner,
                                                static_cast<uint16_t>(lns::mapping_type::lokinet),
-                                               miner_key.data,
+                                               miner_key.data, // Just need any normal 32 byte ed key, so reuse miner key
                                                sizeof(miner_key),
                                                messenger_name);
 
     cryptonote::transaction bar3 =
         gen.create_and_add_loki_name_system_tx(miner,
                                                custom_type,
-                                               miner_key.data,
-                                               sizeof(miner_key),
+                                               messenger_key,
+                                               sizeof(messenger_key),
                                                messenger_name);
+
+    gen.create_and_add_next_block({bar, bar2, bar3});
+
+    // TODO(doyle): We need a staging area for lns txs to accumulate because you can submit multiple
+    // LNS txes inbetween waiting for the next immutable checkpoint requesting the same name.
 
     // NOTE: But don't allow duplicates if the type and name are the same (i.e. dupe the messenger entry but different owner)
-    cryptonote::transaction bar4 =
-        gen.create_and_add_loki_name_system_tx(bob,
-                                               static_cast<uint16_t>(lns::mapping_type::messenger),
-                                               messenger_key,
-                                               loki::array_count(messenger_key),
-                                               messenger_name);
+    cryptonote::transaction bar4 = gen.create_loki_name_system_tx(bob,
+                                                                  static_cast<uint16_t>(lns::mapping_type::messenger),
+                                                                  messenger_key,
+                                                                  sizeof(messenger_key),
+                                                                  messenger_name);
 
-    gen.create_and_add_next_block({bar, bar2, bar3, bar4});
+    gen.add_tx(bar4, false /*can_be_added_to_blockchain*/, "Duplicate name requested by new owner");
   }
   uint64_t height_of_lns_entry = gen.height();
 
@@ -1190,7 +1194,7 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
     CHECK_EQ(user.id, 1);
     CHECK_EQ(miner_key, user.key);
 
-    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::messenger), messenger_key, sizeof(messenger_key));
+    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::messenger), messenger_name);
     CHECK_EQ(mappings.loaded, true);
     CHECK_EQ(mappings.type, static_cast<uint16_t>(lns::mapping_type::messenger));
     CHECK_EQ(mappings.name, std::string(messenger_name));
@@ -1198,7 +1202,7 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
     CHECK_EQ(mappings.register_height, height_of_lns_entry);
     CHECK_EQ(mappings.user_id, user.id);
 
-    lns::mapping_record mappings2 = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key));
+    lns::mapping_record mappings2 = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), messenger_name);
     CHECK_EQ(mappings2.loaded, true);
     CHECK_EQ(mappings2.type, static_cast<uint16_t>(lns::mapping_type::lokinet));
     CHECK_EQ(mappings2.name, std::string(messenger_name));
@@ -1206,7 +1210,7 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
     CHECK_EQ(mappings2.register_height, height_of_lns_entry);
     CHECK_EQ(mappings2.user_id, user.id);
 
-    lns::mapping_record mappings3 = lns_db.get_mapping(custom_type, miner_key.data, sizeof(miner_key.data));
+    lns::mapping_record mappings3 = lns_db.get_mapping(custom_type, messenger_name);
     CHECK_EQ(mappings3.loaded, true);
     CHECK_EQ(mappings3.type, custom_type);
     CHECK_EQ(mappings3.name, std::string(messenger_name));
@@ -1477,7 +1481,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     CHECK_EQ(user.id, 1);
     CHECK_EQ(miner_key, user.key);
 
-    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key));
+    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), name, loki::char_count(name));
     CHECK_EQ(mappings.loaded, true);
     CHECK_EQ(mappings.type, static_cast<uint16_t>(lns::mapping_type::lokinet));
     CHECK_EQ(mappings.name, std::string(name));
@@ -1513,7 +1517,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     CHECK_EQ(user.id, 1);
     CHECK_EQ(miner_key, user.key);
 
-    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.data, sizeof(miner_key));
+    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), name, loki::char_count(name));
     CHECK_EQ(mappings.loaded, true);
     CHECK_EQ(mappings.type, static_cast<uint16_t>(lns::mapping_type::lokinet));
     CHECK_EQ(mappings.name, std::string(name));
