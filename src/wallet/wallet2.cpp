@@ -2880,16 +2880,18 @@ bool wallet2::long_poll_pool_state()
   THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT &&
                             res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error, res.status);
 
-  m_long_poll_tx_pool_checksum = {};
-  for (crypto::hash const &hash : res.tx_hashes)
-    crypto::hash_xor(m_long_poll_tx_pool_checksum, hash);
-
-  {
-    std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
-    m_long_poll_tx_pool_cache = std::move(res.tx_hashes);
-  }
-
   bool result = res.status == CORE_RPC_STATUS_OK;
+  if (result)
+  {
+    m_long_poll_tx_pool_checksum = {};
+    for (crypto::hash const &hash : res.tx_hashes)
+      crypto::hash_xor(m_long_poll_tx_pool_checksum, hash);
+
+    {
+      std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
+      m_long_poll_tx_pool_cache = std::move(res.tx_hashes);
+    }
+  }
   return result;
 }
 //----------------------------------------------------------------------------------------------------
