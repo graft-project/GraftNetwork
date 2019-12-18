@@ -2403,8 +2403,6 @@ namespace tools
       }
     }
 
-    m_wallet->update_pool_state();
-
     std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>> pool_payments;
     m_wallet->get_unconfirmed_payments(pool_payments, req.account_index);
     for (std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>>::const_iterator i = pool_payments.begin(); i != pool_payments.end(); ++i) {

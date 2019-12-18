@@ -545,17 +545,6 @@ namespace cryptonote
         tx_hashes.end());
   }
 
-  constexpr size_t SIZE_TS_IN_HASH = sizeof(crypto::hash) / sizeof(size_t);
-  static_assert(SIZE_TS_IN_HASH * sizeof(size_t) == sizeof(crypto::hash) && alignof(crypto::hash) >= alignof(size_t),
-      "Expected crypto::hash size/alignment not satisfied");
-
-  static void hash_xor(crypto::hash &checksum, const crypto::hash &x) {
-    size_t (&cs)[SIZE_TS_IN_HASH] = reinterpret_cast<size_t (&)[SIZE_TS_IN_HASH]>(checksum);
-    const size_t (&xs)[SIZE_TS_IN_HASH] = reinterpret_cast<const size_t (&)[SIZE_TS_IN_HASH]>(x);
-    for (size_t i = 0; i < SIZE_TS_IN_HASH; ++i)
-      cs[i] ^= xs[i];
-  }
-
   std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> tx_memory_pool::get_blink_hashes_and_mined_heights() const
   {
     std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> hnh;
@@ -619,7 +608,7 @@ namespace cryptonote
       if (it == result.end() || it->first != heights[i])
         result.emplace_hint(it, heights[i], hashes[i]);
       else
-        hash_xor(it->second, hashes[i]);
+        crypto::hash_xor(it->second, hashes[i]);
     }
     return result;
   }

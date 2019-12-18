@@ -416,6 +416,7 @@ namespace cryptonote
 
     std::atomic<bool> m_idle_run;
     boost::thread m_idle_thread;
+    boost::thread m_long_poll_thread;
     boost::mutex m_idle_mutex;
     boost::condition_variable m_idle_cond;
 

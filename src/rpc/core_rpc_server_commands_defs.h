@@ -1535,7 +1535,11 @@ namespace cryptonote
   {
     struct request_t
     {
+      bool         long_poll;        // Optional: If true, this call is blocking until timeout OR tx pool has changed since the last query. TX pool change is detected by comparing the hash of all the hashes in the tx pool.
+      crypto::hash tx_pool_checksum; // Optional: If `long_poll` is true the caller must pass the hashes of all their known tx pool hashes, XOR'ed together.
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE_OPT(long_poll, false)
+        KV_SERIALIZE_VAL_POD_AS_BLOB_OPT(tx_pool_checksum, crypto::hash{})
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;

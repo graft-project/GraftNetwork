@@ -58,6 +58,7 @@ using namespace epee;
 #include "core_rpc_server_error_codes.h"
 #include "p2p/net_node.h"
 #include "version.h"
+#include "wallet/wallet2.h"
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "daemon.rpc"
@@ -1126,10 +1127,32 @@ namespace cryptonote
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN>(invoke_http_mode::JON, "/get_transaction_pool_hashes.bin", req, res, r))
       return r;
 
+    std::vector<crypto::hash> tx_pool_hashes;
     const bool restricted = m_restricted && ctx;
     const bool request_has_rpc_origin = ctx != NULL;
-    m_core.get_pool().get_transaction_hashes(res.tx_hashes, !request_has_rpc_origin || !restricted);
-    res.status = CORE_RPC_STATUS_OK;
+    m_core.get_pool().get_transaction_hashes(tx_pool_hashes, !request_has_rpc_origin || !restricted);
+
+    if (req.long_poll)
+    {
+      crypto::hash checksum = {};
+      for (crypto::hash const &hash : tx_pool_hashes) crypto::hash_xor(checksum, hash);
+
+      if (req.tx_pool_checksum == checksum)
+      {
+        time_t before = time(nullptr);
+        std::unique_lock<std::mutex> lock(m_core.long_poll_mutex);
+        if (m_core.long_poll_wake_up_clients.wait_for(lock, tools::wallet2::rpc_long_poll_timeout) == std::cv_status::timeout)
+        {
+          std::stringstream stream;
+          stream << "Long polling client timed out before " << __func__ << " txpool had an update";
+          res.status = stream.str();
+          return true;
+        }
+      }
+    }
+
+    res.tx_hashes = std::move(tx_pool_hashes);
+    res.status    = CORE_RPC_STATUS_OK;
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
