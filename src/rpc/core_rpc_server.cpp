@@ -1140,8 +1140,18 @@ namespace cryptonote
       if (req.tx_pool_checksum == checksum)
       {
         time_t before = time(nullptr);
-        std::unique_lock<std::mutex> lock(m_core.long_poll_mutex);
-        if (m_core.long_poll_wake_up_clients.wait_for(lock, tools::wallet2::rpc_long_poll_timeout) == std::cv_status::timeout)
+        std::unique_lock<std::mutex> lock(m_core.m_long_poll_mutex);
+        if ((m_core.m_long_poll_connections + 1) > MAX_LONG_POLL_CONNECTIONS)
+        {
+          res.status = "Too many long polling connections, refusing connection";
+          return true;
+        }
+
+        m_core.m_long_poll_connections++;
+        std::cv_status status = m_core.m_long_poll_wake_up_clients.wait_for(lock, tools::wallet2::rpc_long_poll_timeout);
+        m_core.m_long_poll_connections--;
+
+        if (status == std::cv_status::timeout)
         {
           res.status = CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT;
           return true;

@@ -72,7 +72,7 @@ public:
   void run()
   {
     MGINFO("Starting " << m_description << " RPC server...");
-    if (!m_server.run(32 /*threads*/, false /*wait - for all threads in the pool to exit when terminating*/))
+    if (!m_server.run(cryptonote::core_rpc_server::THREADS, false /*wait - for all threads in the pool to exit when terminating*/))
     {
       throw std::runtime_error("Failed to start " + m_description + " RPC server.");
     }

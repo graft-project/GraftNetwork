@@ -1238,7 +1238,7 @@ namespace cryptonote
       }
     }
 
-    if (tx_pool_changed) long_poll_wake_up_clients.notify_all();
+    if (tx_pool_changed) m_long_poll_wake_up_clients.notify_all();
     return ok;
   }
   //-----------------------------------------------------------------------------------------------
