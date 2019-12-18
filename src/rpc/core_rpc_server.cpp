@@ -1143,9 +1143,7 @@ namespace cryptonote
         std::unique_lock<std::mutex> lock(m_core.long_poll_mutex);
         if (m_core.long_poll_wake_up_clients.wait_for(lock, tools::wallet2::rpc_long_poll_timeout) == std::cv_status::timeout)
         {
-          std::stringstream stream;
-          stream << "Long polling client timed out before " << __func__ << " txpool had an update";
-          res.status = stream.str();
+          res.status = CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT;
           return true;
         }
       }

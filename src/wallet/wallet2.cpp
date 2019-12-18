@@ -2864,7 +2864,7 @@ void wallet2::remove_obsolete_pool_txs(const std::vector<crypto::hash> &tx_hashe
   }
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::long_poll_pool_state()
+bool wallet2::long_poll_pool_state()
 {
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::request req  = {};
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::response res = {};
@@ -2877,7 +2877,8 @@ void wallet2::long_poll_pool_state()
   }
   THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "get_transaction_pool_hashes.bin");
   THROW_WALLET_EXCEPTION_IF(res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "get_transaction_pool_hashes.bin");
-  THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error);
+  THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT &&
+                            res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error, res.status);
 
   m_long_poll_tx_pool_checksum = {};
   for (crypto::hash const &hash : res.tx_hashes)
@@ -2887,6 +2888,9 @@ void wallet2::long_poll_pool_state()
     std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
     m_long_poll_tx_pool_cache = std::move(res.tx_hashes);
   }
+
+  bool result = res.status == CORE_RPC_STATUS_OK;
+  return result;
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::update_pool_state(bool refreshed)

@@ -8326,15 +8326,10 @@ bool simple_wallet::run()
     {
       try
       {
-        if (m_auto_refresh_enabled)
-        {
-          m_wallet->long_poll_pool_state();
+        if (m_auto_refresh_enabled && m_wallet->long_poll_pool_state())
           m_idle_cond.notify_one();
-        }
       }
-      catch (...)
-      {
-      }
+      catch (...) { }
     }
   });
 

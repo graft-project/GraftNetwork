@@ -1343,7 +1343,10 @@ private:
 
     // This call also takes the long poll mutex and uses it's own individual
     // http client that it exclusively owns.
-    void long_poll_pool_state();
+
+    // Returns true if call succeeded, false if the long poll timed out, throws
+    // if a network error.
+    bool long_poll_pool_state();
     void update_pool_state(bool refreshed = false);
     void remove_obsolete_pool_txs(const std::vector<crypto::hash> &tx_hashes);
 
