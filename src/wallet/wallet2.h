@@ -1337,6 +1337,12 @@ private:
     bool import_key_images(signed_tx_set & signed_tx, size_t offset=0, bool only_selected_transfers=false);
     crypto::public_key get_tx_pub_key_from_received_outs(const tools::wallet2::transfer_details &td) const;
 
+    crypto::hash get_long_poll_tx_pool_checksum() const
+    {
+      std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
+      return m_long_poll_tx_pool_checksum;
+    };
+
     // long_poll_pool_state is blocking and does NOT return to the caller until
     // the daemon detects a change in the contents of the txpool by comparing
     // our last tx pool checksum with theirs.
@@ -1674,7 +1680,7 @@ private:
 
     std::recursive_mutex                      m_long_poll_mutex;
     epee::net_utils::http::http_simple_client m_long_poll_client;
-    std::mutex                                m_long_poll_tx_pool_cache_mutex;
+    mutable std::mutex                        m_long_poll_tx_pool_cache_mutex;
     std::vector<crypto::hash>                 m_long_poll_tx_pool_cache;
     crypto::hash                              m_long_poll_tx_pool_checksum = {};
 

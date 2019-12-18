@@ -2899,8 +2899,7 @@ void wallet2::update_pool_state(bool refreshed)
   std::vector<crypto::hash> tx_hashes;
   {
     std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
-    tx_hashes = std::move(m_long_poll_tx_pool_cache);
-    m_long_poll_tx_pool_cache.clear();
+    tx_hashes = m_long_poll_tx_pool_cache;
   }
 
   auto keys_reencryptor = epee::misc_utils::create_scope_leave_handler([&, this]() {

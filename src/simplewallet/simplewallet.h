@@ -426,6 +426,8 @@ namespace cryptonote
     uint32_t m_current_subaddress_account;
 
     bool m_long_payment_id_support;
+    std::atomic<uint64_t> m_password_asked_on_height;
+    crypto::hash          m_password_asked_on_checksum;
     
     // MMS
     mms::message_store& get_message_store() const { return m_wallet->get_message_store(); };
