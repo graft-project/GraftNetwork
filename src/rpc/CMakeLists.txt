@@ -139,5 +139,5 @@ target_link_libraries(daemon_rpc_server
     ${Boost_REGEX_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
-    ${ZMQ_LIB}
+    ${ZMQ_LIBRARIES}
     ${EXTRA_LIBRARIES})
