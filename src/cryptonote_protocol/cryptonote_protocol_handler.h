@@ -57,6 +57,7 @@ DISABLE_VS_WARNINGS(4355)
 
 namespace cryptonote
 {
+  using namespace std::literals;
 
   template<class t_core>
   class t_cryptonote_protocol_handler:  public i_cryptonote_protocol
@@ -180,9 +181,9 @@ namespace cryptonote
     std::atomic<bool> m_no_sync;
     boost::mutex m_sync_lock;
     block_queue m_block_queue;
-    epee::math_helper::once_a_time_seconds<30> m_idle_peer_kicker;
-    epee::math_helper::once_a_time_milliseconds<100> m_standby_checker;
-    epee::math_helper::once_a_time_seconds<101> m_sync_search_checker;
+    epee::math_helper::periodic_task m_idle_peer_kicker{30s};
+    epee::math_helper::periodic_task m_standby_checker{100ms};
+    epee::math_helper::periodic_task m_sync_search_checker{101s};
     std::atomic<unsigned int> m_max_out_peers;
     tools::PerformanceTimer m_sync_timer, m_add_timer;
     uint64_t m_last_add_end_time;

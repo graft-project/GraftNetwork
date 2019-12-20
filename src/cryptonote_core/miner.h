@@ -33,6 +33,7 @@
 #include <boost/program_options.hpp>
 #include <boost/logic/tribool_fwd.hpp>
 #include <atomic>
+#include "cryptonote_basic/blobdatatype.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/verification_context.h"
 #include "cryptonote_basic/difficulty.h"
@@ -43,6 +44,7 @@
 
 namespace cryptonote
 {
+  using namespace std::literals;
 
   struct i_miner_handler
   {
@@ -149,9 +151,9 @@ namespace cryptonote
     i_miner_handler* m_phandler;
     Blockchain* m_pbc;
     account_public_address m_mine_address;
-    epee::math_helper::once_a_time_seconds<5> m_update_block_template_interval;
-    epee::math_helper::once_a_time_seconds<2> m_update_merge_hr_interval;
-    epee::math_helper::once_a_time_seconds<1> m_autodetect_interval;
+    epee::math_helper::periodic_task m_update_block_template_interval{5s};
+    epee::math_helper::periodic_task m_update_merge_hr_interval{2s};
+    epee::math_helper::periodic_task m_autodetect_interval{1s};
     std::vector<blobdata> m_extra_messages;
     miner_config m_config;
     std::string m_config_folder_path;    

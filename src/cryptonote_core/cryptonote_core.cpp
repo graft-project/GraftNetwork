@@ -1952,6 +1952,10 @@ namespace cryptonote
     }
     return true;
   }
+  void core::reset_proof_interval()
+  {
+    m_check_uptime_proof_interval.reset();
+  }
   //-----------------------------------------------------------------------------------------------
   void core::do_uptime_proof_call()
   {
@@ -1969,14 +1973,14 @@ namespace cryptonote
         next_proof_time += UPTIME_PROOF_FREQUENCY_IN_SECONDS - UPTIME_PROOF_TIMER_SECONDS/2;
 
         if ((uint64_t) std::time(nullptr) < next_proof_time)
-          return true;
+          return;
 
         if (!check_external_ping(m_last_storage_server_ping, STORAGE_SERVER_PING_LIFETIME, "the storage server"))
         {
           MGINFO_RED(
               "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
               "is running! It is required to run alongside the Loki daemon");
-          return true;
+          return;
         }
         uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
         if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
@@ -1986,7 +1990,7 @@ namespace cryptonote
             MGINFO_RED(
                 "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "
                 "is running! It is required to run alongside the Loki daemon");
-            return true;
+            return;
           }
           else
           {
@@ -1997,14 +2001,12 @@ namespace cryptonote
         }
 
         submit_uptime_proof();
-
-        return true;
       });
     }
     else
     {
       // reset the interval so that we're ready when we register, OR if we get deregistered this primes us up for re-registration in the same session
-      m_check_uptime_proof_interval = {};
+      m_check_uptime_proof_interval.reset();
     }
   }
   //-----------------------------------------------------------------------------------------------
