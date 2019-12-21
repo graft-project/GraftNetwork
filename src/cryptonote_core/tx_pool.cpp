@@ -574,11 +574,8 @@ namespace cryptonote
     size_t next_good = 0;
     for (size_t i = 0; i < hashes.size(); i++)
     {
-      if (heights[i] > immutable_height)
+      if (heights[i] > immutable_height || heights[i] == 0 /* unmined mempool blink */)
       {
-        if (heights[i] == std::numeric_limits<uint64_t>::max()) // unmined mempool blink
-          heights[i] = 0;
-
         // Swap elements into the "good" part of the list so that when we're we'll have divided the
         // vector into [0, ..., next_good-1] elements containing the parts we want to return, and
         // [next_good, ...] containing the elements to remove from blink storage.
