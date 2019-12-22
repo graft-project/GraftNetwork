@@ -849,11 +849,13 @@ namespace cryptonote
       if (status != std::future_status::ready) {
         res.status = "Failed";
         res.reason = "Blink quorum timeout";
+        res.blink_status = blink_result::timeout;
         return true;
       }
 
       try {
         auto result = future.get();
+        res.blink_status = result.first;
         if (result.first == blink_result::accepted) {
           res.status = CORE_RPC_STATUS_OK;
         } else {
@@ -861,6 +863,7 @@ namespace cryptonote
           res.reason = !result.second.empty() ? result.second : result.first == blink_result::timeout ? "Blink quorum timeout" : "Transaction rejected by blink quorum";
         }
       } catch (const std::exception &e) {
+        res.blink_status = blink_result::rejected;
         res.status = "Failed";
         res.reason = std::string{"Transaction failed: "} + e.what();
       }

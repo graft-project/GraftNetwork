@@ -716,15 +716,15 @@ namespace cryptonote
     };
     typedef epee::misc_utils::struct_init<request_t> request;
 
-
     struct response_t
     {
       std::string status; // General RPC error code. "OK" means everything looks good. Any other value means that something went wrong.
-      std::string reason; // Additional information. Currently empty or "Not relayed" if transaction was accepted but not relayed.
+      std::string reason; // Additional information. Currently empty, "Not relayed" if transaction was accepted but not relayed, or some descriptive message of why the tx failed.
       bool not_relayed;   // Transaction was not relayed (true) or relayed (false).
       bool untrusted;     // States if the result is obtained using the bootstrap mode, and is therefore not trusted (`true`), or when the daemon is fully synced (`false`).
       tx_verification_context tvc;
       bool sanity_check_failed;
+      blink_result blink_status; // 0 for a non-blink tx.  For a blink tx: 1 means rejected, 2 means accepted, 3 means timeout.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
@@ -733,6 +733,7 @@ namespace cryptonote
         KV_SERIALIZE(sanity_check_failed)
         KV_SERIALIZE(untrusted)
         KV_SERIALIZE(tvc)
+        KV_SERIALIZE_ENUM(blink_status)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

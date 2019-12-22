@@ -74,8 +74,6 @@ namespace cryptonote
   extern const command_line::arg_descriptor<size_t> arg_block_download_max_size;
   extern const command_line::arg_descriptor<uint64_t> arg_recalculate_difficulty;
 
-  enum class blink_result { rejected, accepted, timeout };
-
   // Function pointers that are set to throwing stubs and get replaced by the actual functions in
   // cryptonote_protocol/quorumnet.cpp's quorumnet::init_core_callbacks().  This indirection is here
   // so that core doesn't need to link against cryptonote_protocol (plus everything it depends on).

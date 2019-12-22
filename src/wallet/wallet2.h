@@ -1361,7 +1361,7 @@ private:
     cryptonote::byte_and_output_fees get_base_fees() const;
     uint64_t get_fee_quantization_mask() const;
     uint64_t adjust_mixin(uint64_t mixin) const;
-    uint32_t adjust_priority(uint32_t priority);
+    uint32_t adjust_priority(uint32_t priority, bool blink = false);
 
     // Shortcut to set up construction parameters; the returned object is default constructed unless
     // priority is blink in which case the burn values are set appropriately.

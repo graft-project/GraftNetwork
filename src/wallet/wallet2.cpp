@@ -5851,12 +5851,12 @@ void wallet2::get_transfers(wallet2::transfer_container& incoming_transfers) con
 //------------------------------------------------------------------------------------------------------------------------------
 static void set_confirmations(transfer_view &entry, uint64_t blockchain_height, uint64_t block_reward)
 {
-  if (entry.height >= blockchain_height || (entry.height == 0 && (entry.type == "pending" || entry.type == "pool")))
+  if (entry.height >= blockchain_height || (entry.height == 0 && (entry.blink_mempool || entry.type == "pending" || entry.type == "pool")))
     entry.confirmations = 0;
   else
     entry.confirmations = blockchain_height - entry.height;
 
-  if (block_reward == 0)
+  if (block_reward == 0 || entry.blink_mempool || entry.was_blink)
     entry.suggested_confirmations_threshold = 0;
   else
     entry.suggested_confirmations_threshold = (entry.amount + block_reward - 1) / block_reward;
@@ -6653,7 +6653,10 @@ void wallet2::commit_tx(pending_tx& ptx, bool blink)
     m_daemon_rpc_mutex.unlock();
     THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "sendrawtransaction");
     THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "sendrawtransaction");
-    THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status != CORE_RPC_STATUS_OK, error::tx_rejected, ptx.tx, get_rpc_status(daemon_send_resp.status), get_text_reason(daemon_send_resp, &ptx.tx, blink));
+    if (blink)
+      THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status != CORE_RPC_STATUS_OK, error::tx_blink_rejected, ptx.tx, get_rpc_status(daemon_send_resp.status), get_text_reason(daemon_send_resp, &ptx.tx, blink));
+    else
+      THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status != CORE_RPC_STATUS_OK, error::tx_rejected,       ptx.tx, get_rpc_status(daemon_send_resp.status), get_text_reason(daemon_send_resp, &ptx.tx, blink));
     // sanity checks
     for (size_t idx: ptx.selected_transfers)
     {
@@ -6693,11 +6696,11 @@ void wallet2::commit_tx(pending_tx& ptx, bool blink)
     m_transfers[idx].m_multisig_k.clear();
 
   //fee includes dust if dust policy specified it.
-  LOG_PRINT_L1("Transaction successfully sent. <" << txid << ">" << ENDL
-            << "Commission: " << print_money(ptx.fee) << " (dust sent to dust addr: " << print_money((ptx.dust_added_to_fee ? 0 : ptx.dust)) << ")" << ENDL
-            << "Balance: " << print_money(balance(ptx.construction_data.subaddr_account)) << ENDL
-            << "Unlocked: " << print_money(unlocked_balance(ptx.construction_data.subaddr_account)) << ENDL
-            << "Please, wait for confirmation for your balance to be unlocked.");
+  LOG_PRINT_L1("Transaction successfully " << (blink ? "blinked. " : "sent. ") << txid
+            << "\nCommission: " << print_money(ptx.fee) << " (dust sent to dust addr: " << print_money((ptx.dust_added_to_fee ? 0 : ptx.dust)) << ")"
+            << "\nBalance: " << print_money(balance(ptx.construction_data.subaddr_account))
+            << "\nUnlocked: " << print_money(unlocked_balance(ptx.construction_data.subaddr_account))
+            << "\nPlease, wait for confirmation for your balance to be unlocked.");
 }
 
 void wallet2::commit_tx(std::vector<pending_tx>& ptx_vector, bool blink)
@@ -7519,9 +7522,11 @@ uint64_t wallet2::adjust_mixin(uint64_t mixin) const
   return mixin;
 }
 //----------------------------------------------------------------------------------------------------
-uint32_t wallet2::adjust_priority(uint32_t priority)
+uint32_t wallet2::adjust_priority(uint32_t priority, bool blink)
 {
-  if (priority == 0 && m_default_priority == 0 && auto_low_priority())
+  if (blink)
+    priority = BLINK_PRIORITY;
+  else if (priority == 0 && m_default_priority == 0 && auto_low_priority())
   {
     try
     {
@@ -12300,7 +12305,7 @@ bool wallet2::check_reserve_proof(const cryptonote::account_public_address &addr
     THROW_WALLET_EXCEPTION_IF(proof.index_in_tx >= tx.vout.size(), error::wallet_internal_error, "index_in_tx is out of bound");
 
     const cryptonote::txout_to_key* const out_key = boost::get<cryptonote::txout_to_key>(std::addressof(tx.vout[proof.index_in_tx].target));
-    THROW_WALLET_EXCEPTION_IF(!out_key, error::wallet_internal_error, "Output key wasn't found")
+    THROW_WALLET_EXCEPTION_IF(!out_key, error::wallet_internal_error, "Output key wasn't found");
 
     // TODO(loki): We should make a catch-all function that gets all the public
     // keys out into an array and iterate through all insteaad of multiple code

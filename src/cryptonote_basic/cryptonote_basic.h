@@ -172,6 +172,10 @@ namespace cryptonote
     _count
   };
 
+  // Blink quorum statuses.  Note that the underlying numeric values is used in the RPC.  `none` is
+  // only used in places like the RPC where we return a value even if not a blink at all.
+  enum class blink_result { none = 0, rejected, accepted, timeout };
+
   class transaction_prefix
   {
 
