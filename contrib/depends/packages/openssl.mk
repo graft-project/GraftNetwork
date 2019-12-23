@@ -49,7 +49,7 @@ endef
 
 # make reproducible - replace `time()` used in the build with a fixed timestamp:
 define $(package)_preprocess_cmds
-  sed -i.old 's/^\(my \$date = .*\) time()/\1 1575269735/' util/mkbuildinf.pl &&
+  sed -i.old 's/^\(my \$date = .*\) time()/\1 1575269735/' util/mkbuildinf.pl && \
   sed -i -e "s/-mandroid //" Configure && \
   patch < $($(package)_patch_dir)/fix_arflags.patch
 endef
