@@ -29,6 +29,7 @@
 #pragma once
 
 #include <mutex>
+#include <shared_mutex>
 #include <tuple>
 #include <boost/thread/lock_algorithms.hpp>
 
@@ -55,6 +56,17 @@ template <typename T, typename... Args>
 #endif
 std::unique_lock<T> unique_lock(T& lockable, Args&&... args) {
     return std::unique_lock<T>(lockable, std::forward<Args>(args)...);
+}
+
+/// Shortcut for getting a std::shared_lock<T> without worrying about T.  First argument is the
+/// shared lockable; it any any remaining args (such as `std::defer_lock`) are forwarded to the
+/// std::shared_lock<T> constructor.
+template <typename T, typename... Args>
+#ifdef __GNUG__
+[[gnu::warn_unused_result]]
+#endif
+std::shared_lock<T> shared_lock(T& lockable, Args&&... args) {
+    return std::shared_lock<T>(lockable, std::forward<Args>(args)...);
 }
 
 }

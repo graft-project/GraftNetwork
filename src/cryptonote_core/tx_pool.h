@@ -326,13 +326,13 @@ namespace cryptonote
      * @brief obtains a unique lock on the approved blink tx pool
      */
     template <typename... Args>
-    auto blink_unique_lock(Args &&...args) const { return std::unique_lock<std::shared_timed_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
+    auto blink_unique_lock(Args &&...args) const { return std::unique_lock<boost::shared_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
 
     /**
      * @brief obtains a shared lock on the approved blink tx pool
      */
     template <typename... Args>
-    auto blink_shared_lock(Args &&...args) const { return std::shared_lock<std::shared_timed_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
+    auto blink_shared_lock(Args &&...args) const { return std::shared_lock<boost::shared_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
 
 
     // load/store operations
@@ -742,7 +742,7 @@ namespace cryptonote
 
     std::unordered_map<crypto::hash, transaction> m_parsed_tx_cache;
 
-    mutable std::shared_timed_mutex m_blinks_mutex;
+    mutable boost::shared_mutex m_blinks_mutex;
 
     // Contains blink metadata for approved blink transactions. { txhash => blink_tx, ... }.
     mutable std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;

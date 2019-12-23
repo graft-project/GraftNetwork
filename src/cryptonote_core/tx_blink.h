@@ -33,6 +33,7 @@
 #include "service_node_rules.h"
 #include <iostream>
 #include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 
 namespace service_nodes {
 class service_node_list;
@@ -86,12 +87,12 @@ public:
     /// Obtains a unique lock on this blink tx; required for any signature-mutating method unless
     /// otherwise noted
     template <typename... Args>
-    auto unique_lock(Args &&...args) { return std::unique_lock<std::shared_timed_mutex>{mutex_, std::forward<Args>(args)...}; }
+    auto unique_lock(Args &&...args) { return std::unique_lock<boost::shared_mutex>{mutex_, std::forward<Args>(args)...}; }
 
     /// Obtains a shared lock on this blink tx; required for any signature-dependent method unless
     /// otherwise noted
     template <typename... Args>
-    auto shared_lock(Args &&...args) { return std::shared_lock<std::shared_timed_mutex>{mutex_, std::forward<Args>(args)...}; }
+    auto shared_lock(Args &&...args) { return std::shared_lock<boost::shared_mutex>{mutex_, std::forward<Args>(args)...}; }
 
     /**
      * Sets the maximum number of signatures for the given subquorum type, if the given size is less
@@ -194,7 +195,7 @@ private:
     }
 
     std::array<std::array<quorum_signature, service_nodes::BLINK_SUBQUORUM_SIZE>, tools::enum_count<subquorum>> signatures_;
-    std::shared_timed_mutex mutex_;
+    boost::shared_mutex mutex_;
 };
 
 }

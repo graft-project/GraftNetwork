@@ -31,6 +31,7 @@
 #include <boost/variant.hpp>
 #include <mutex>
 #include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 #include "serialization/serialization.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_core/service_node_rules.h"
@@ -510,7 +511,7 @@ namespace service_nodes
     /// Maps x25519 pubkeys to registration pubkeys + last block seen value (used for expiry)
     std::unordered_map<crypto::x25519_public_key, std::pair<crypto::public_key, time_t>> m_x25519_to_pub;
     time_t m_x25519_map_last_pruned = 0;
-    mutable std::shared_timed_mutex m_x25519_map_mutex;
+    mutable boost::shared_mutex m_x25519_map_mutex;
 
     struct quorums_by_height
     {
