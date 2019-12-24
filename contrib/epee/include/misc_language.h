@@ -30,6 +30,7 @@
 
 #include <limits>
 #include <boost/thread.hpp>
+#include <boost/chrono/duration.hpp>
 namespace epee
 {
 #define STD_TRY_BEGIN() try {
@@ -94,13 +95,9 @@ namespace misc_utils
 	
 
 	inline
-	bool sleep_no_w(long ms )
+	void sleep_no_w(long ms)
 	{
-		boost::this_thread::sleep( 
-			boost::get_system_time() + 
-			boost::posix_time::milliseconds( std::max<long>(ms,0) ) );
-		
-		return true;
+		boost::this_thread::sleep_for(boost::chrono::milliseconds{ms});
 	}
 
   template<class type_vec_type>
