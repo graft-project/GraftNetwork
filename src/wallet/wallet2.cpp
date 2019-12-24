@@ -238,20 +238,19 @@ struct options {
   const command_line::arg_descriptor<bool> daemon_ssl_allow_chained = {"daemon-ssl-allow-chained", tools::wallet2::tr("Allow user (via --daemon-ssl-ca-certificates) chain certificates"), false};
   const command_line::arg_descriptor<bool> testnet = {"testnet", tools::wallet2::tr("For testnet. Daemon must also be launched with --testnet flag"), false};
   const command_line::arg_descriptor<bool> stagenet = {"stagenet", tools::wallet2::tr("For stagenet. Daemon must also be launched with --stagenet flag"), false};
+  const command_line::arg_descriptor<bool> regtest = {"regtest", tools::wallet2::tr("For regression testing. Daemon must also be launched with --regtest flag"), false};
 
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-  const command_line::arg_descriptor<bool> fakenet = {"fakenet", tools::wallet2::tr("For loki integration tests, fakenet"), false};
-#endif
-
-  const command_line::arg_descriptor<std::string, false, true, 2> shared_ringdb_dir = {
+  const command_line::arg_descriptor<std::string, false, true, 3> shared_ringdb_dir = {
     "shared-ringdb-dir", tools::wallet2::tr("Set shared ring database path"),
     get_default_ringdb_path(),
-    {{ &testnet, &stagenet }},
-    [](std::array<bool, 2> testnet_stagenet, bool defaulted, std::string val)->std::string {
-      if (testnet_stagenet[0])
+    {{ &testnet, &stagenet, &regtest }},
+    [](std::array<bool, 3> test_stage_fake, bool defaulted, std::string val)->std::string {
+      if (test_stage_fake[0])
         return (boost::filesystem::path(val) / "testnet").string();
-      else if (testnet_stagenet[1])
+      else if (test_stage_fake[1])
         return (boost::filesystem::path(val) / "stagenet").string();
+      else if (test_stage_fake[2])
+        return (boost::filesystem::path(val) / "fake").string();
       return val;
     }
   };
@@ -300,15 +299,10 @@ std::unique_ptr<tools::wallet2> make_basic(const boost::program_options::variabl
 
   const bool testnet = command_line::get_arg(vm, opts.testnet);
   const bool stagenet = command_line::get_arg(vm, opts.stagenet);
-  network_type nettype = testnet ? TESTNET : stagenet ? STAGENET : MAINNET;
+  const bool fakenet = command_line::get_arg(vm, opts.regtest);
+  network_type nettype = testnet ? TESTNET : stagenet ? STAGENET : fakenet ? FAKECHAIN : MAINNET;
 
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-  if (command_line::get_arg(vm, opts.fakenet))
-  {
-    assert(!testnet &&!stagenet); // NOTE(loki): Developer error
-    nettype = FAKECHAIN;
-  }
-#endif
+  THROW_WALLET_EXCEPTION_IF(testnet + stagenet + fakenet > 1, tools::error::wallet_internal_error, "At most one of --testnet, --stagenet, or --regtest may be specified");
 
   const uint64_t kdf_rounds = command_line::get_arg(vm, opts.kdf_rounds);
   THROW_WALLET_EXCEPTION_IF(kdf_rounds == 0, tools::error::wallet_internal_error, "KDF rounds must not be 0");
@@ -1145,9 +1139,7 @@ void wallet2::init_options(boost::program_options::options_description& desc_par
   command_line::add_arg(desc_params, opts.daemon_ssl_allow_chained);
   command_line::add_arg(desc_params, opts.testnet);
   command_line::add_arg(desc_params, opts.stagenet);
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-  command_line::add_arg(desc_params, opts.fakenet);
-#endif
+  command_line::add_arg(desc_params, opts.regtest);
   command_line::add_arg(desc_params, opts.shared_ringdb_dir);
   command_line::add_arg(desc_params, opts.kdf_rounds);
   mms::message_store::init_options(desc_params);

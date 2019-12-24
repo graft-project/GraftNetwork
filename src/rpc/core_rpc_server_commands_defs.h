@@ -749,12 +749,16 @@ namespace cryptonote
       uint64_t    threads_count;        // Number of mining thread to run.
       bool        do_background_mining; // States if the mining should run in background (`true`) or foreground (`false`).
       bool        ignore_battery;       // States if battery state (on laptop) should be ignored (`true`) or not (`false`).
+      uint64_t    num_blocks;           // Mine until the blockchain has this many new blocks, then stop (no limit if 0, the default)
+      bool        slow_mining;          // Do slow mining (i.e. don't allocate RandomX cache); primarily intended for testing
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(miner_address)
         KV_SERIALIZE(threads_count)
         KV_SERIALIZE(do_background_mining)
         KV_SERIALIZE(ignore_battery)
+        KV_SERIALIZE_OPT(num_blocks, uint64_t{0})
+        KV_SERIALIZE_OPT(slow_mining, false)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;

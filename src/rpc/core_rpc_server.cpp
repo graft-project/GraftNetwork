@@ -950,7 +950,7 @@ namespace cryptonote
       res.status = "Already mining";
       return true;
     }
-    if(!miner.start(info.address, static_cast<size_t>(req.threads_count), req.do_background_mining, req.ignore_battery))
+    if(!miner.start(info.address, static_cast<size_t>(req.threads_count), req.do_background_mining, req.ignore_battery, req.num_blocks, req.slow_mining))
     {
       res.status = "Failed, mining not started";
       LOG_PRINT_L0(res.status);

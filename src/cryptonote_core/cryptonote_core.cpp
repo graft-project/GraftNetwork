@@ -757,7 +757,10 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec");
     }
 
-    const std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks = {std::make_pair(cryptonote::network_version_count - 1, 1)};
+    const std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks = {
+        {cryptonote::network_version_7,         1},
+        {cryptonote::network_version_count - 1, 2},
+    };
     const cryptonote::test_options regtest_test_options = {
       regtest_hard_forks,
       0
@@ -2048,7 +2051,8 @@ namespace cryptonote
     m_sn_proof_cleanup_interval.do_call([&snl=m_service_node_list] { snl.cleanup_proofs(); return true; });
 
     time_t const lifetime = time(nullptr) - get_start_time();
-    if (m_service_node_keys && lifetime > UPTIME_PROOF_INITIAL_DELAY_SECONDS) // Give us some time to connect to peers before sending uptimes
+    int proof_delay = m_nettype == FAKECHAIN ? 5 : UPTIME_PROOF_INITIAL_DELAY_SECONDS;
+    if (m_service_node_keys && lifetime > proof_delay) // Give us some time to connect to peers before sending uptimes
     {
       do_uptime_proof_call();
     }
