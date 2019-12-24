@@ -1335,6 +1335,7 @@ namespace cryptonote
         continue;
       }
 
+      bool no_quorum = false;
       std::array<const std::vector<crypto::public_key> *, tools::enum_count<blink_tx::subquorum>> validators;
       for (uint8_t qi = 0; qi < tools::enum_count<blink_tx::subquorum>; qi++)
       {
@@ -1342,8 +1343,16 @@ namespace cryptonote
         auto &q = quorum_cache[q_height];
         if (!q)
           q = get_quorum(service_nodes::quorum_type::blink, q_height);
+        if (!q)
+        {
+          MINFO("Don't have a quorum for height " << q_height << " (yet?), ignoring this blink");
+          no_quorum = true;
+          break;
+        }
         validators[qi] = &q->validators;
       }
+      if (no_quorum)
+        continue;
 
       std::vector<std::pair<size_t, std::string>> failures;
       for (size_t s = 0; s < bdata.signature.size(); s++)
@@ -1959,9 +1968,9 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   void core::do_uptime_proof_call()
   {
-    // wait one block before starting uptime proofs.
     std::vector<service_nodes::service_node_pubkey_info> const states = get_service_node_list_state({ m_service_node_keys->pub });
 
+    // wait one block before starting uptime proofs.
     if (!states.empty() && (states[0].info->registration_height + 1) < get_current_blockchain_height())
     {
       m_check_uptime_proof_interval.do_call([this]() {
