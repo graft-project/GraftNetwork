@@ -3784,7 +3784,7 @@ void BlockchainLMDB::block_wtxn_start()
       memset(&m_tinfo->m_ti_rflags, 0, sizeof(m_tinfo->m_ti_rflags));
     }
   } else if (m_writer != boost::this_thread::get_id())
-    throw0(DB_ERROR_TXN_START((std::string("Attempted to start new write txn when batch txn already exists in ")+__FUNCTION__).c_str()));
+    throw0(DB_ERROR_TXN_START((std::string("Attempted to start new write txn when batch txn already exists in another thread in ")+__FUNCTION__).c_str()));
 }
 
 void BlockchainLMDB::block_wtxn_stop()
