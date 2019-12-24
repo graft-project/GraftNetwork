@@ -9,6 +9,7 @@ $(package)_dependencies=sodium
 define $(package)_set_vars
   $(package)_config_opts=--without-documentation --disable-shared --with-libsodium
   $(package)_config_opts_linux=--with-pic
+  $(package)_config_opts_freebsd=--with-pic
   $(package)_cxxflags=-std=c++11
 endef
 
@@ -19,7 +20,7 @@ define $(package)_preprocess_cmds
 endef
 
 define $(package)_config_cmds
-  $($(package)_autoconf)
+  $($(package)_autoconf) AR_FLAGS=$($(package)_arflags)
 endef
 
 define $(package)_build_cmds

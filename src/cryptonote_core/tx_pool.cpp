@@ -758,7 +758,9 @@ namespace cryptonote
     auto blink_lock = blink_shared_lock(std::defer_lock);
     std::unique_lock<tx_memory_pool> tx_lock{*this, std::defer_lock};
     std::unique_lock<Blockchain> bc_lock{m_blockchain, std::defer_lock};
-    std::lock(blink_lock, tx_lock, bc_lock);
+    // Breaks on macOS's broken SDK version 10.11 that we currently use:
+    //std::lock(blink_lock, tx_lock, bc_lock);
+    boost::lock(blink_lock, tx_lock, bc_lock);
     LockedTXN lock(m_blockchain);
     bool changed = false;
 
