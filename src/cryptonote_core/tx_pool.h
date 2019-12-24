@@ -322,6 +322,12 @@ namespace cryptonote
      */
     bool try_lock() const { return m_transactions_lock.try_lock(); }
 
+    /* These are needed as a workaround for boost::lock not considering the type lockable if const
+     * versions are defined.  When we switch to std::lock these can go. */
+    void lock() { m_transactions_lock.lock(); }
+    void unlock() { m_transactions_lock.unlock(); }
+    bool try_lock() { return m_transactions_lock.try_lock(); }
+
     /**
      * @brief obtains a unique lock on the approved blink tx pool
      */
