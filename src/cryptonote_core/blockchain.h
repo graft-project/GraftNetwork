@@ -992,18 +992,8 @@ namespace cryptonote
     uint64_t get_immutable_height() const;
 
 
-    void lock();
-    void unlock();
+    uint64_t get_immutable_height() const;
 
-    void cancel();
-
-    /**
-     * @brief called when we see a tx originating from a block
-     *
-
-    void lock();
-    void unlock();
-    bool try_lock();
 
     void cancel();
 
@@ -1091,7 +1081,7 @@ namespace cryptonote
     mutable crypto::hash m_long_term_block_weights_cache_tip_hash;
     mutable epee::misc_utils::rolling_median_t<uint64_t> m_long_term_block_weights_cache_rolling_median;
 
-    epee::critical_section m_difficulty_lock;
+    std::mutex m_difficulty_lock;
     crypto::hash m_difficulty_for_next_block_top_hash;
     difficulty_type m_difficulty_for_next_block;
 
@@ -1104,8 +1094,6 @@ namespace cryptonote
 
 
     checkpoints m_checkpoints;
-    bool m_enforce_dns_checkpoints;
-
     HardFork *m_hardfork;
 
     network_type m_nettype;
@@ -1199,6 +1187,9 @@ namespace cryptonote
      * Currently this function calls ring signature validation for each
      * transaction.
      *
+     * This fails if called on a non-standard metadata transaction such as a deregister; you
+     * generally want to call check_tx() instead, which calls this if appropriate.
+     *
      * @param tx the transaction to validate
      * @param tvc returned information about tx verification
      * @param pmax_related_block_height return-by-pointer the height of the most recent block in the input set
@@ -1282,7 +1273,7 @@ namespace cryptonote
      *
      * @return true on success, false otherwise
      */
-    bool build_alt_chain(const crypto::hash &prev_id, std::list<block_extended_info>& alt_chain, std::vector<uint64_t> &timestamps, block_verification_context& bvc, int *num_checkpoints) const;
+    bool build_alt_chain(const crypto::hash &prev_id, std::list<block_extended_info>& alt_chain, std::vector<uint64_t> &timestamps, block_verification_context& bvc, int *num_alt_checkpoints, int *num_checkpoints);
 
     /**
      * @brief gets the difficulty requirement for a new block on an alternate chain
@@ -1323,7 +1314,7 @@ namespace cryptonote
      *
      * @return false if anything is found wrong with the miner transaction, otherwise true
      */
-    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version);
+    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, uint8_t version);
 
     /**
      * @brief reverts the blockchain to its previous state following a failed switch
