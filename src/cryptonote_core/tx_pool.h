@@ -188,8 +188,8 @@ namespace cryptonote
      * the given shared_ptr is a new blink that is not yet shared between threads (and thus doesn't
      * need locking): sharing is expected only after it is added to the blinks via this method.
      *
-     * NB: this function assumes that the given blink tx is valid and approved but does *not* check
-     * it (except when compiling in debug mode).
+     * NB: this function assumes that the given blink tx is valid and approved (signed) but does
+     * *not* check it (except as an assert when compiling in debug mode).
      *
      * @param blink the blink_tx shared_ptr
      * @param have_lock can be specified as true to avoid taking out a unique lock on the blinks

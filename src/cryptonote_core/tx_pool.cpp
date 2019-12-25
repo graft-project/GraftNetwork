@@ -641,7 +641,10 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::remove_blink_conflicts(const crypto::hash &id, const std::vector<crypto::hash> &conflict_txs, uint64_t *blink_rollback_height)
   {
-    auto lock = blink_shared_lock();
+    auto bl_lock = blink_shared_lock(std::defer_lock);
+    auto bc_lock = tools::unique_lock(m_blockchain, std::defer_lock);
+    boost::lock(bl_lock, bc_lock);
+
     // Since this is a signed blink tx, we want to see if we can eject any existing mempool
     // txes to make room.
 
@@ -680,7 +683,7 @@ namespace cryptonote
 
     if (!mempool_txs.empty())
     {
-      std::unique_lock<Blockchain> lock_bc{m_blockchain};
+      LockedTXN txnlock(m_blockchain);
       for (auto &tx : mempool_txs)
       {
         MWARNING("Removing conflicting tx " << tx << " from mempool for incoming blink tx " << id);
@@ -690,6 +693,7 @@ namespace cryptonote
           return false;
         }
       }
+      txnlock.commit();
     }
 
     if (blink_rollback_height && rollback_height_needed < *blink_rollback_height)
@@ -746,7 +750,6 @@ namespace cryptonote
     m_blockchain.remove_txpool_tx(txid);
     m_txpool_weight -= meta->weight;
     remove_transaction_keyimages(tx, txid);
-    MINFO("Removing tx " << txid << " from txpool: weight: " << meta->weight << ", fee/byte: " << tx_fee);
     m_txs_by_fee_and_receive_time.erase(it);
 
     return true;
