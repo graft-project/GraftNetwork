@@ -995,8 +995,9 @@ namespace cryptonote
     const unsigned int unprunable_size = t.unprunable_size;
     if (blob && unprunable_size)
     {
-      CHECK_AND_ASSERT_MES(unprunable_size <= blob->size(), false, "Inconsistent transaction unprunable and blob sizes");
-      cryptonote::get_blob_hash(epee::span<const char>(blob->data() + unprunable_size, blob->size() - unprunable_size), res);
+      const unsigned int v3_fields_len = (t.version == 3) ? t.v3_fields_size.load() : 0;
+      CHECK_AND_ASSERT_MES(unprunable_size <= blob->size() - v3_fields_len , false, "Inconsistent transaction unprunable and blob sizes");
+      cryptonote::get_blob_hash(epee::span<const char>(blob->data() + unprunable_size, blob->size() - unprunable_size - v3_fields_len), res);
     }
     else
     {
