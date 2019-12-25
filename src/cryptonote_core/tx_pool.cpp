@@ -320,6 +320,7 @@ namespace cryptonote
         }
         else if (opts.approved_blink)
         {
+          MDEBUG("Incoming blink tx is approved, but has " << conflict_txs.size() << " conflicting local tx(es); dropping conflicts");
           if (remove_blink_conflicts(id, conflict_txs, blink_rollback_height))
             double_spend = false;
           else
@@ -667,6 +668,7 @@ namespace cryptonote
     auto heights = m_blockchain.get_transactions_heights(conflict_txs);
     for (size_t i = 0; i < heights.size(); ++i)
     {
+      MDEBUG("Conflicting tx " << conflict_txs[i] << (heights[i] ? "mined at height " + std::to_string(heights[i]) : "in mempool"));
       if (!heights[i])
       {
         mempool_txs.push_back(conflict_txs[i]);
