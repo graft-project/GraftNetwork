@@ -296,7 +296,8 @@ namespace cryptonote
 
     {
       std::vector<crypto::hash> conflict_txs;
-      bool double_spend = have_tx_keyimges_as_spent(tx, opts.approved_blink ? &conflict_txs : nullptr);
+      bool double_spend = have_tx_keyimges_as_spent(tx, &conflict_txs);
+
       if (double_spend)
       {
         if (opts.kept_by_block)
@@ -304,13 +305,14 @@ namespace cryptonote
           // The tx came from a block popped from the chain; we keep it around even if the key
           // images are spent so that we notice the double spend *unless* the tx is conflicting with
           // one or more blink txs, in which case we drop it because it can never be accepted.
+          auto blink_lock = blink_shared_lock();
           double_spend = false;
           for (const auto &tx_hash : conflict_txs)
           {
             if (m_blinks.count(tx_hash))
             {
               // Warn on this because it should be impossible in normal operations and so is almost certainly malicious
-              MWARNING("Not re-adding popped tx " << tx_hash << " to the mempool: it conflicts with blink tx " << tx_hash);
+              MWARNING("Not re-adding popped/incoming tx " << tx_hash << " to the mempool: it conflicts with blink tx " << tx_hash);
               double_spend = true;
               break;
             }
