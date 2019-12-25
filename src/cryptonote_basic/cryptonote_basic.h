@@ -296,10 +296,11 @@ namespace cryptonote
 
     std::atomic<unsigned int> unprunable_size;
     std::atomic<unsigned int> prefix_size;
+    std::atomic<unsigned int> v3_fields_size;
 
     transaction();
-    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), type(t.type), extra2(t.extra2), pruned(t.pruned), unprunable_size(t.unprunable_size.load()), prefix_size(t.prefix_size.load()) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
-    transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; type = t.type; extra2 = t.extra2; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } pruned = t.pruned; unprunable_size = t.unprunable_size.load(); prefix_size = t.prefix_size.load(); return *this; }
+    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), type(t.type), extra2(t.extra2), pruned(t.pruned), unprunable_size(t.unprunable_size.load()), prefix_size(t.prefix_size.load()), v3_fields_size(t.v3_fields_size.load()) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
+    transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; type = t.type; extra2 = t.extra2; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } pruned = t.pruned; unprunable_size = t.unprunable_size.load(); prefix_size = t.prefix_size.load(); v3_fields_size = t.v3_fields_size.load(); return *this; }
     virtual ~transaction();
     void set_null();
     void invalidate_hashes();
@@ -370,7 +371,7 @@ namespace cryptonote
 
           if (std::is_same<Archive<W>, binary_archive<W>>())
             unprunable_size = getpos(ar) - start_pos;
-
+          
           if (!pruned && rct_signatures.type != rct::RCTTypeNull)
           {
             ar.tag("rctsig_prunable");
@@ -383,10 +384,15 @@ namespace cryptonote
         }
       }
       // version >= 3 is rta transaction: allowed 0 fee and auth sample signatures
-      if (version >= 3)
+      if (version == 3) 
+      // quirck. for v3 we don't use type for hash calculation, so we need to adjust blob passed to hash function by 
+      // moving end of the buffer up by the size of serialized 'type' and 'extra2' fields
       {
+        // we can't use 'extra2' field into tx-hash calculation, but we should(?) include 'type' field
+        size_t v3_fields_start_pos = getpos(ar);
         FIELD(type)
         FIELD(extra2)
+        v3_fields_size = getpos(ar) - v3_fields_start_pos;
       }
       if (!typename Archive<W>::is_saving())
         pruned = false;
@@ -445,6 +451,7 @@ namespace cryptonote
     pruned = false;
     unprunable_size = 0;
     prefix_size = 0;
+    v3_fields_size = 0; //?
   }
 
   inline
