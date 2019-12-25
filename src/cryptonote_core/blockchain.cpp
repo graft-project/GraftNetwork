@@ -4615,7 +4615,7 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
   //  Something which takes the blockchain lock may never take the txpool lock
   //  if it has not provably taken the txpool lock earlier
   //
-  //  The txpool lock is now taken in prepare_handle_incoming_blocks
+  //  The txpool lock and blockchain lock are now taken here
   //  and released in cleanup_handle_incoming_blocks. This avoids issues
   //  when something uses the pool, which now uses the blockchain and
   //  needs a batch, since a batch could otherwise be active while the
