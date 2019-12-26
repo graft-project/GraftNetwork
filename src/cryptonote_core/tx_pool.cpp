@@ -296,7 +296,8 @@ namespace cryptonote
 
     {
       std::vector<crypto::hash> conflict_txs;
-      bool double_spend = have_tx_keyimges_as_spent(tx, opts.approved_blink ? &conflict_txs : nullptr);
+      bool double_spend = have_tx_keyimges_as_spent(tx, &conflict_txs);
+
       if (double_spend)
       {
         if (opts.kept_by_block)
@@ -304,13 +305,14 @@ namespace cryptonote
           // The tx came from a block popped from the chain; we keep it around even if the key
           // images are spent so that we notice the double spend *unless* the tx is conflicting with
           // one or more blink txs, in which case we drop it because it can never be accepted.
+          auto blink_lock = blink_shared_lock();
           double_spend = false;
           for (const auto &tx_hash : conflict_txs)
           {
-            if (m_blinks.count(tx_hash))
+            if (tx_hash != id && m_blinks.count(tx_hash))
             {
-              // Warn on this because it should be impossible in normal operations and so is almost certainly malicious
-              MWARNING("Not re-adding popped tx " << tx_hash << " to the mempool: it conflicts with blink tx " << tx_hash);
+              // Warn on this because it almost certainly indicates something malicious
+              MWARNING("Not re-adding popped/incoming tx " << id << " to the mempool: it conflicts with blink tx " << tx_hash);
               double_spend = true;
               break;
             }
@@ -318,6 +320,7 @@ namespace cryptonote
         }
         else if (opts.approved_blink)
         {
+          MDEBUG("Incoming blink tx is approved, but has " << conflict_txs.size() << " conflicting local tx(es); dropping conflicts");
           if (remove_blink_conflicts(id, conflict_txs, blink_rollback_height))
             double_spend = false;
           else
@@ -359,7 +362,8 @@ namespace cryptonote
     crypto::hash max_used_block_id = null_hash;
     uint64_t max_used_block_height = 0;
     cryptonote::txpool_tx_meta_t meta;
-    bool ch_inp_res = check_tx_inputs([&tx]()->cryptonote::transaction&{ return tx; }, id, max_used_block_height, max_used_block_id, tvc, opts.kept_by_block);
+    bool ch_inp_res = check_tx_inputs([&tx]()->cryptonote::transaction&{ return tx; }, id, max_used_block_height, max_used_block_id, tvc, opts.kept_by_block,
+        opts.approved_blink ? blink_rollback_height : nullptr);
     const bool non_standard_tx = !tx.is_transfer();
     if(!ch_inp_res)
     {
@@ -574,11 +578,8 @@ namespace cryptonote
     size_t next_good = 0;
     for (size_t i = 0; i < hashes.size(); i++)
     {
-      if (heights[i] > immutable_height)
+      if (heights[i] > immutable_height || heights[i] == 0 /* unmined mempool blink */)
       {
-        if (heights[i] == std::numeric_limits<uint64_t>::max()) // unmined mempool blink
-          heights[i] = 0;
-
         // Swap elements into the "good" part of the list so that when we're we'll have divided the
         // vector into [0, ..., next_good-1] elements containing the parts we want to return, and
         // [next_good, ...] containing the elements to remove from blink storage.
@@ -642,7 +643,10 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::remove_blink_conflicts(const crypto::hash &id, const std::vector<crypto::hash> &conflict_txs, uint64_t *blink_rollback_height)
   {
-    auto lock = blink_shared_lock();
+    auto bl_lock = blink_shared_lock(std::defer_lock);
+    auto bc_lock = tools::unique_lock(m_blockchain, std::defer_lock);
+    boost::lock(bl_lock, bc_lock);
+
     // Since this is a signed blink tx, we want to see if we can eject any existing mempool
     // txes to make room.
 
@@ -665,14 +669,15 @@ namespace cryptonote
     auto heights = m_blockchain.get_transactions_heights(conflict_txs);
     for (size_t i = 0; i < heights.size(); ++i)
     {
+      MDEBUG("Conflicting tx " << conflict_txs[i] << (heights[i] ? "mined at height " + std::to_string(heights[i]) : "in mempool"));
       if (!heights[i])
       {
         mempool_txs.push_back(conflict_txs[i]);
       }
       else if (heights[i] > immutable_height && blink_rollback_height)
       {
-        if (rollback_height_needed == 0 || rollback_height_needed > heights[i] - 1)
-          rollback_height_needed = heights[i] - 1;
+        if (rollback_height_needed == 0 || rollback_height_needed > heights[i])
+          rollback_height_needed = heights[i];
         // else already set to something at least as early as this tx
       }
       else
@@ -681,7 +686,7 @@ namespace cryptonote
 
     if (!mempool_txs.empty())
     {
-      std::unique_lock<Blockchain> lock_bc{m_blockchain};
+      LockedTXN txnlock(m_blockchain);
       for (auto &tx : mempool_txs)
       {
         MWARNING("Removing conflicting tx " << tx << " from mempool for incoming blink tx " << id);
@@ -691,10 +696,14 @@ namespace cryptonote
           return false;
         }
       }
+      txnlock.commit();
     }
 
     if (blink_rollback_height && rollback_height_needed < *blink_rollback_height)
+    {
+      MINFO("Incoming blink tx requires a rollback to the " << rollback_height_needed << " to un-mine conflicting transactions");
       *blink_rollback_height = rollback_height_needed;
+    }
 
     return true;
   }
@@ -747,7 +756,6 @@ namespace cryptonote
     m_blockchain.remove_txpool_tx(txid);
     m_txpool_weight -= meta->weight;
     remove_transaction_keyimages(tx, txid);
-    MINFO("Removing tx " << txid << " from txpool: weight: " << meta->weight << ", fee/byte: " << tx_fee);
     m_txs_by_fee_and_receive_time.erase(it);
 
     return true;
@@ -758,7 +766,9 @@ namespace cryptonote
     auto blink_lock = blink_shared_lock(std::defer_lock);
     std::unique_lock<tx_memory_pool> tx_lock{*this, std::defer_lock};
     std::unique_lock<Blockchain> bc_lock{m_blockchain, std::defer_lock};
-    std::lock(blink_lock, tx_lock, bc_lock);
+    // Breaks on macOS's broken SDK version 10.11 that we currently use:
+    //std::lock(blink_lock, tx_lock, bc_lock);
+    boost::lock(blink_lock, tx_lock, bc_lock);
     LockedTXN lock(m_blockchain);
     bool changed = false;
 
@@ -1540,7 +1550,8 @@ namespace cryptonote
     return m_spent_key_images.end() != m_spent_key_images.find(key_im);
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::check_tx_inputs(const std::function<cryptonote::transaction&(void)> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block) const
+  bool tx_memory_pool::check_tx_inputs(const std::function<cryptonote::transaction&()> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height,
+      crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block, uint64_t* blink_rollback_height) const
   {
     if (!kept_by_block)
     {
@@ -1553,7 +1564,87 @@ namespace cryptonote
         return std::get<0>(i->second);
       }
     }
-    bool ret = m_blockchain.check_tx_inputs(get_tx(), max_used_block_height, max_used_block_id, tvc, kept_by_block);
+    std::unordered_set<crypto::key_image> key_image_conflicts;
+    bool ret = m_blockchain.check_tx_inputs(get_tx(), max_used_block_height, max_used_block_id, tvc, kept_by_block, blink_rollback_height ? &key_image_conflicts : nullptr);
+
+    if (ret && !key_image_conflicts.empty())
+    {
+      // There are some key image conflicts, but since we have blink_rollback_height this is an
+      // approved blink tx that we want to accept via rollback, if possible.
+
+      auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
+      uint64_t immutable = m_blockchain.get_immutable_height();
+      uint64_t height = m_blockchain.get_current_blockchain_height();
+      bool can_fix_with_a_rollback = false;
+      if (height - immutable > 100)
+      {
+        // Sanity check; if this happens checkpoints are failing and we can't guarantee blinks
+        // anyway (because the blink quorums are not immutable).
+        MERROR("Unable to scan for conflicts: blockchain checkpoints are too far back");
+      }
+      else
+      {
+        MDEBUG("Found " << key_image_conflicts.size() << " conflicting key images for blink tx " << txid << "; checking to see if we can roll back");
+        // Check all the key images of all the blockchain transactions in blocks since the immutable
+        // height, and remove any conflicts from the set of conflicts, updating the rollback height
+        // as we go.  If we remove all then rolling back will work, and we can accept the blink,
+        // otherwise we have to refuse it (because immutable blocks have to trump a blink tx).
+        //
+        // This sounds expensive, but in reality the blocks since the immutable checkpoint is
+        // usually only around 8-12, we do this in reverse order (conflicts are most likely to be in
+        // the last block or two), and there is little incentive to actively exploit this since this
+        // code is here, and even if someone did want to they'd have to also be 51% attacking the
+        // network to wipe out recently mined blinks -- but that can't work anyway.
+        //
+        std::vector<std::pair<cryptonote::blobdata, cryptonote::block>> blocks;
+        if (m_blockchain.get_blocks(immutable + 1, height, blocks))
+        {
+          std::vector<cryptonote::transaction> txs;
+          std::vector<crypto::hash> missed_txs;
+          uint64_t earliest = height;
+          for (auto it = blocks.rbegin(); it != blocks.rend(); it++)
+          {
+            const auto& block = it->second;
+            auto block_height = cryptonote::get_block_height(block);
+            txs.clear();
+            missed_txs.clear();
+
+            if (!m_blockchain.get_transactions(block.tx_hashes, txs, missed_txs))
+            {
+              MERROR("Unable to get transactions for block " << block.hash);
+              can_fix_with_a_rollback = false;
+              break;
+            }
+            for (const auto& tx : txs) {
+              for (const auto& in : tx.vin) {
+                if (in.type() == typeid(txin_to_key) && key_image_conflicts.erase(boost::get<txin_to_key>(in).k_image)) {
+                  earliest = std::min(earliest, block_height);
+                  if (key_image_conflicts.empty())
+                    goto end;
+                }
+              }
+            }
+          }
+end:
+          if (key_image_conflicts.empty() && earliest < height && earliest > immutable)
+          {
+            MDEBUG("Blink admission requires rolling back to height " << earliest);
+            can_fix_with_a_rollback = true;
+            if (*blink_rollback_height == 0 || *blink_rollback_height > earliest)
+              *blink_rollback_height = earliest;
+          }
+        }
+        else
+          MERROR("Failed to retrieve blocks for trying a blink rollback!");
+      }
+      if (!can_fix_with_a_rollback)
+      {
+        MWARNING("Blink admission of " << txid << " is not possible even with a rollback: found " << key_image_conflicts.size() << " key image conflicts in immutable blocks");
+        ret = false;
+        tvc.m_double_spend = true;
+      }
+    }
+
     if (!kept_by_block)
       m_input_cache.insert(std::make_pair(txid, std::make_tuple(ret, tvc, max_used_block_height, max_used_block_id)));
     return ret;

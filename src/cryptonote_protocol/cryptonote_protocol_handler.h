@@ -57,6 +57,7 @@ DISABLE_VS_WARNINGS(4355)
 
 namespace cryptonote
 {
+  using namespace std::literals;
 
   template<class t_core>
   class t_cryptonote_protocol_handler:  public i_cryptonote_protocol
@@ -80,6 +81,7 @@ namespace cryptonote
       HANDLE_NOTIFY_T2(NOTIFY_REQUEST_FLUFFY_MISSING_TX, &cryptonote_protocol_handler::handle_request_fluffy_missing_tx)
       HANDLE_NOTIFY_T2(NOTIFY_UPTIME_PROOF, &cryptonote_protocol_handler::handle_uptime_proof)
       HANDLE_NOTIFY_T2(NOTIFY_NEW_SERVICE_NODE_VOTE, &cryptonote_protocol_handler::handle_notify_new_service_node_vote)
+      HANDLE_NOTIFY_T2(NOTIFY_NEW_SERVICE_NODE_VOTE_OLD, &cryptonote_protocol_handler::handle_notify_new_service_node_vote_old)
       HANDLE_NOTIFY_T2(NOTIFY_REQUEST_BLOCK_BLINKS, &cryptonote_protocol_handler::handle_request_block_blinks)
       HANDLE_NOTIFY_T2(NOTIFY_RESPONSE_BLOCK_BLINKS, &cryptonote_protocol_handler::handle_response_block_blinks)
     END_INVOKE_MAP2()
@@ -118,6 +120,7 @@ namespace cryptonote
     int handle_request_fluffy_missing_tx(int command, NOTIFY_REQUEST_FLUFFY_MISSING_TX::request& arg, cryptonote_connection_context& context);
     int handle_uptime_proof(int command, NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& context);
     int handle_notify_new_service_node_vote(int command, NOTIFY_NEW_SERVICE_NODE_VOTE::request& arg, cryptonote_connection_context& context);
+    int handle_notify_new_service_node_vote_old(int command, NOTIFY_NEW_SERVICE_NODE_VOTE_OLD::request& arg, cryptonote_connection_context& context);
     int handle_request_block_blinks(int command, NOTIFY_REQUEST_BLOCK_BLINKS::request& arg, cryptonote_connection_context& context);
     int handle_response_block_blinks(int command, NOTIFY_RESPONSE_BLOCK_BLINKS::request& arg, cryptonote_connection_context& context);
 
@@ -152,6 +155,7 @@ namespace cryptonote
     virtual bool relay_transactions(NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& exclude_context);
     virtual bool relay_uptime_proof(NOTIFY_UPTIME_PROOF::request& arg, cryptonote_connection_context& exclude_context);
     virtual bool relay_service_node_votes(NOTIFY_NEW_SERVICE_NODE_VOTE::request& arg, cryptonote_connection_context& exclude_context);
+    virtual bool relay_service_node_votes(NOTIFY_NEW_SERVICE_NODE_VOTE_OLD::request& arg, cryptonote_connection_context& exclude_context);
     //----------------------------------------------------------------------------------
     //bool get_payload_sync_data(HANDSHAKE_DATA::request& hshd, cryptonote_connection_context& context);
     bool should_drop_connection(cryptonote_connection_context& context, uint32_t next_stripe);
@@ -177,9 +181,9 @@ namespace cryptonote
     std::atomic<bool> m_no_sync;
     boost::mutex m_sync_lock;
     block_queue m_block_queue;
-    epee::math_helper::once_a_time_seconds<30> m_idle_peer_kicker;
-    epee::math_helper::once_a_time_milliseconds<100> m_standby_checker;
-    epee::math_helper::once_a_time_seconds<101> m_sync_search_checker;
+    epee::math_helper::periodic_task m_idle_peer_kicker{30s};
+    epee::math_helper::periodic_task m_standby_checker{100ms};
+    epee::math_helper::periodic_task m_sync_search_checker{101s};
     std::atomic<unsigned int> m_max_out_peers;
     tools::PerformanceTimer m_sync_timer, m_add_timer;
     uint64_t m_last_add_end_time;

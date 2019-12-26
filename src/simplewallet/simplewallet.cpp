@@ -168,7 +168,6 @@ namespace
   const char* USAGE_PAYMENTS("payments <PID_1> [<PID_2> ... <PID_N>]");
   const char* USAGE_PAYMENT_ID("payment_id");
   const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [blink|<priority>] (<URI> | <address> <amount>) [<payment_id>]");
-  const char* USAGE_BLINK("blink [index=<N1>[,<N2>,...]] (<URI> | <address> <amount>)");
   const char* USAGE_LOCKED_TRANSFER("locked_transfer [index=<N1>[,<N2>,...]] [<priority>] (<URI> | <addr> <amount>) <lockblocks> [<payment_id (obsolete)>]");
   const char* USAGE_LOCKED_SWEEP_ALL("locked_sweep_all [index=<N1>[,<N2>,...]] [<priority>] <address> <lockblocks> [<payment_id (obsolete)>]");
   const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...]] [blink|<priority>] [outputs=<N>] <address> [<payment_id (obsolete)>] [use_v1_tx]");

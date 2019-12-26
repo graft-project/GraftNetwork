@@ -710,7 +710,7 @@ uint8_t loki_chain_generator::get_hf_version_at(uint64_t height) const {
   return cur_hf_ver;
 }
 
-std::vector<uint64_t> loki_chain_generator::last_n_block_weights(uint64_t height, size_t num) const
+std::vector<uint64_t> loki_chain_generator::last_n_block_weights(uint64_t height, uint64_t num) const
 {
   std::vector<uint64_t> result;
   if (num > height) num = height;

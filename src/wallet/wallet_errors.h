@@ -81,6 +81,7 @@ namespace tools
     //         not_enough_outs_to_mix
     //         tx_not_constructed
     //         tx_rejected
+    //           tx_blink_rejected
     //         tx_sum_overflow
     //         tx_too_big
     //         zero_destination
@@ -634,8 +635,8 @@ namespace tools
     //----------------------------------------------------------------------------------------------------
     struct tx_rejected : public transfer_error
     {
-      explicit tx_rejected(std::string&& loc, const cryptonote::transaction& tx, const std::string& status, const std::string& reason)
-        : transfer_error(std::move(loc), "Transaction was rejected by daemon")
+      explicit tx_rejected(std::string loc, const cryptonote::transaction& tx, const std::string& status, const std::string& reason, std::string base_msg = "Transaction was rejected by daemon")
+        : transfer_error(std::move(loc), std::move(base_msg) + (reason.size() ? ": " + reason : ""))
         , m_tx(tx)
         , m_status(status)
         , m_reason(reason)
@@ -663,6 +664,13 @@ namespace tools
       cryptonote::transaction m_tx;
       std::string m_status;
       std::string m_reason;
+    };
+    //----------------------------------------------------------------------------------------------------
+    struct tx_blink_rejected : public tx_rejected
+    {
+      tx_blink_rejected(std::string loc, const cryptonote::transaction& tx, const std::string& status, const std::string& reason)
+        : tx_rejected(std::move(loc), tx, status, reason, "Transaction was not accepted blink quorum")
+      {}
     };
     //----------------------------------------------------------------------------------------------------
     struct tx_sum_overflow : public transfer_error
@@ -927,8 +935,8 @@ namespace tools
   } while(0)
 
 #define THROW_WALLET_EXCEPTION_IF(cond, err_type, ...)                                                      \
-  if (cond)                                                                                                 \
+  do { if (cond)                                                                                            \
   {                                                                                                         \
     LOG_ERROR(#cond << ". THROW EXCEPTION: " << #err_type);                                                 \
     tools::error::throw_wallet_ex<err_type>(std::string(__FILE__ ":" STRINGIZE(__LINE__)), ## __VA_ARGS__); \
-  }
+  } } while (0)

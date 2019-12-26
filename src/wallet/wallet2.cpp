@@ -238,20 +238,19 @@ struct options {
   const command_line::arg_descriptor<bool> daemon_ssl_allow_chained = {"daemon-ssl-allow-chained", tools::wallet2::tr("Allow user (via --daemon-ssl-ca-certificates) chain certificates"), false};
   const command_line::arg_descriptor<bool> testnet = {"testnet", tools::wallet2::tr("For testnet. Daemon must also be launched with --testnet flag"), false};
   const command_line::arg_descriptor<bool> stagenet = {"stagenet", tools::wallet2::tr("For stagenet. Daemon must also be launched with --stagenet flag"), false};
+  const command_line::arg_descriptor<bool> regtest = {"regtest", tools::wallet2::tr("For regression testing. Daemon must also be launched with --regtest flag"), false};
 
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-  const command_line::arg_descriptor<bool> fakenet = {"fakenet", tools::wallet2::tr("For loki integration tests, fakenet"), false};
-#endif
-
-  const command_line::arg_descriptor<std::string, false, true, 2> shared_ringdb_dir = {
+  const command_line::arg_descriptor<std::string, false, true, 3> shared_ringdb_dir = {
     "shared-ringdb-dir", tools::wallet2::tr("Set shared ring database path"),
     get_default_ringdb_path(),
-    {{ &testnet, &stagenet }},
-    [](std::array<bool, 2> testnet_stagenet, bool defaulted, std::string val)->std::string {
-      if (testnet_stagenet[0])
+    {{ &testnet, &stagenet, &regtest }},
+    [](std::array<bool, 3> test_stage_fake, bool defaulted, std::string val)->std::string {
+      if (test_stage_fake[0])
         return (boost::filesystem::path(val) / "testnet").string();
-      else if (testnet_stagenet[1])
+      else if (test_stage_fake[1])
         return (boost::filesystem::path(val) / "stagenet").string();
+      else if (test_stage_fake[2])
+        return (boost::filesystem::path(val) / "fake").string();
       return val;
     }
   };
@@ -300,15 +299,10 @@ std::unique_ptr<tools::wallet2> make_basic(const boost::program_options::variabl
 
   const bool testnet = command_line::get_arg(vm, opts.testnet);
   const bool stagenet = command_line::get_arg(vm, opts.stagenet);
-  network_type nettype = testnet ? TESTNET : stagenet ? STAGENET : MAINNET;
+  const bool fakenet = command_line::get_arg(vm, opts.regtest);
+  network_type nettype = testnet ? TESTNET : stagenet ? STAGENET : fakenet ? FAKECHAIN : MAINNET;
 
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-  if (command_line::get_arg(vm, opts.fakenet))
-  {
-    assert(!testnet &&!stagenet); // NOTE(loki): Developer error
-    nettype = FAKECHAIN;
-  }
-#endif
+  THROW_WALLET_EXCEPTION_IF(testnet + stagenet + fakenet > 1, tools::error::wallet_internal_error, "At most one of --testnet, --stagenet, or --regtest may be specified");
 
   const uint64_t kdf_rounds = command_line::get_arg(vm, opts.kdf_rounds);
   THROW_WALLET_EXCEPTION_IF(kdf_rounds == 0, tools::error::wallet_internal_error, "KDF rounds must not be 0");
@@ -1145,9 +1139,7 @@ void wallet2::init_options(boost::program_options::options_description& desc_par
   command_line::add_arg(desc_params, opts.daemon_ssl_allow_chained);
   command_line::add_arg(desc_params, opts.testnet);
   command_line::add_arg(desc_params, opts.stagenet);
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-  command_line::add_arg(desc_params, opts.fakenet);
-#endif
+  command_line::add_arg(desc_params, opts.regtest);
   command_line::add_arg(desc_params, opts.shared_ringdb_dir);
   command_line::add_arg(desc_params, opts.kdf_rounds);
   mms::message_store::init_options(desc_params);
@@ -5851,12 +5843,12 @@ void wallet2::get_transfers(wallet2::transfer_container& incoming_transfers) con
 //------------------------------------------------------------------------------------------------------------------------------
 static void set_confirmations(transfer_view &entry, uint64_t blockchain_height, uint64_t block_reward)
 {
-  if (entry.height >= blockchain_height || (entry.height == 0 && (entry.type == "pending" || entry.type == "pool")))
+  if (entry.height >= blockchain_height || (entry.height == 0 && (entry.blink_mempool || entry.type == "pending" || entry.type == "pool")))
     entry.confirmations = 0;
   else
     entry.confirmations = blockchain_height - entry.height;
 
-  if (block_reward == 0)
+  if (block_reward == 0 || entry.blink_mempool || entry.was_blink)
     entry.suggested_confirmations_threshold = 0;
   else
     entry.suggested_confirmations_threshold = (entry.amount + block_reward - 1) / block_reward;
@@ -6653,7 +6645,10 @@ void wallet2::commit_tx(pending_tx& ptx, bool blink)
     m_daemon_rpc_mutex.unlock();
     THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "sendrawtransaction");
     THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "sendrawtransaction");
-    THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status != CORE_RPC_STATUS_OK, error::tx_rejected, ptx.tx, get_rpc_status(daemon_send_resp.status), get_text_reason(daemon_send_resp, &ptx.tx, blink));
+    if (blink)
+      THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status != CORE_RPC_STATUS_OK, error::tx_blink_rejected, ptx.tx, get_rpc_status(daemon_send_resp.status), get_text_reason(daemon_send_resp, &ptx.tx, blink));
+    else
+      THROW_WALLET_EXCEPTION_IF(daemon_send_resp.status != CORE_RPC_STATUS_OK, error::tx_rejected,       ptx.tx, get_rpc_status(daemon_send_resp.status), get_text_reason(daemon_send_resp, &ptx.tx, blink));
     // sanity checks
     for (size_t idx: ptx.selected_transfers)
     {
@@ -6693,11 +6688,11 @@ void wallet2::commit_tx(pending_tx& ptx, bool blink)
     m_transfers[idx].m_multisig_k.clear();
 
   //fee includes dust if dust policy specified it.
-  LOG_PRINT_L1("Transaction successfully sent. <" << txid << ">" << ENDL
-            << "Commission: " << print_money(ptx.fee) << " (dust sent to dust addr: " << print_money((ptx.dust_added_to_fee ? 0 : ptx.dust)) << ")" << ENDL
-            << "Balance: " << print_money(balance(ptx.construction_data.subaddr_account)) << ENDL
-            << "Unlocked: " << print_money(unlocked_balance(ptx.construction_data.subaddr_account)) << ENDL
-            << "Please, wait for confirmation for your balance to be unlocked.");
+  LOG_PRINT_L1("Transaction successfully " << (blink ? "blinked. " : "sent. ") << txid
+            << "\nCommission: " << print_money(ptx.fee) << " (dust sent to dust addr: " << print_money((ptx.dust_added_to_fee ? 0 : ptx.dust)) << ")"
+            << "\nBalance: " << print_money(balance(ptx.construction_data.subaddr_account))
+            << "\nUnlocked: " << print_money(unlocked_balance(ptx.construction_data.subaddr_account))
+            << "\nPlease, wait for confirmation for your balance to be unlocked.");
 }
 
 void wallet2::commit_tx(std::vector<pending_tx>& ptx_vector, bool blink)
@@ -7519,9 +7514,11 @@ uint64_t wallet2::adjust_mixin(uint64_t mixin) const
   return mixin;
 }
 //----------------------------------------------------------------------------------------------------
-uint32_t wallet2::adjust_priority(uint32_t priority)
+uint32_t wallet2::adjust_priority(uint32_t priority, bool blink)
 {
-  if (priority == 0 && m_default_priority == 0 && auto_low_priority())
+  if (blink)
+    priority = BLINK_PRIORITY;
+  else if (priority == 0 && m_default_priority == 0 && auto_low_priority())
   {
     try
     {
@@ -12300,7 +12297,7 @@ bool wallet2::check_reserve_proof(const cryptonote::account_public_address &addr
     THROW_WALLET_EXCEPTION_IF(proof.index_in_tx >= tx.vout.size(), error::wallet_internal_error, "index_in_tx is out of bound");
 
     const cryptonote::txout_to_key* const out_key = boost::get<cryptonote::txout_to_key>(std::addressof(tx.vout[proof.index_in_tx].target));
-    THROW_WALLET_EXCEPTION_IF(!out_key, error::wallet_internal_error, "Output key wasn't found")
+    THROW_WALLET_EXCEPTION_IF(!out_key, error::wallet_internal_error, "Output key wasn't found");
 
     // TODO(loki): We should make a catch-all function that gets all the public
     // keys out into an array and iterate through all insteaad of multiple code

@@ -341,7 +341,12 @@ namespace nodetool
   {
     bool testnet = command_line::get_arg(vm, cryptonote::arg_testnet_on);
     bool stagenet = command_line::get_arg(vm, cryptonote::arg_stagenet_on);
-    m_nettype = testnet ? cryptonote::TESTNET : stagenet ? cryptonote::STAGENET : cryptonote::MAINNET;
+    bool fakenet = command_line::get_arg(vm, cryptonote::arg_regtest_on);
+    m_nettype =
+        testnet  ? cryptonote::TESTNET :
+        stagenet ? cryptonote::STAGENET :
+        fakenet  ? cryptonote::FAKECHAIN :
+        cryptonote::MAINNET;
 
     network_zone& public_zone = m_network_zones[epee::net_utils::zone::public_];
     public_zone.m_connect = &public_connect;

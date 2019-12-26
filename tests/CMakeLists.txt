@@ -78,6 +78,8 @@ file(COPY
   data/signed_loki_tx
   DESTINATION data)
 
+find_package(PythonInterp 3)
+
 add_subdirectory(core_tests)
 add_subdirectory(fuzz)
 add_subdirectory(crypto)
@@ -89,6 +91,7 @@ add_subdirectory(difficulty)
 add_subdirectory(block_weight)
 add_subdirectory(hash)
 add_subdirectory(net_load_tests)
+add_subdirectory(network_tests)
 if (BUILD_GUI_DEPS)
   add_subdirectory(libwallet_api_tests)
 endif()

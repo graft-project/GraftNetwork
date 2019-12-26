@@ -36,6 +36,7 @@
 #include "quorumnet/conn_matrix.h"
 #include "cryptonote_config.h"
 #include "common/random.h"
+#include "common/lock.h"
 
 #include <shared_mutex>
 
@@ -72,7 +73,7 @@ struct SNNWrapper {
     // Track submitted blink txes here; unlike the blinks stored in the mempool we store these ones
     // more liberally to track submitted blinks, even if unsigned/unacceptable, while the mempool
     // only stores approved blinks.
-    std::shared_timed_mutex mutex;
+    boost::shared_mutex mutex;
 
     struct blink_metadata {
         std::shared_ptr<blink_tx> btxptr;
@@ -89,6 +90,11 @@ struct SNNWrapper {
     template <typename... Args>
     SNNWrapper(cryptonote::core &core, Args &&...args) :
         snn{std::forward<Args>(args)...}, core{core} {}
+
+    static SNNWrapper &from(void* obj) {
+        assert(obj);
+        return *reinterpret_cast<SNNWrapper*>(obj);
+    }
 };
 
 template <typename T>
@@ -477,7 +483,7 @@ quorum_vote_t deserialize_vote(const bt_value &v) {
 }
 
 void relay_obligation_votes(void *obj, const std::vector<service_nodes::quorum_vote_t> &votes) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
+    auto &snw = SNNWrapper::from(obj);
 
     auto my_keys_ptr = snw.core.get_service_node_keys();
     assert(my_keys_ptr);
@@ -520,7 +526,7 @@ void relay_obligation_votes(void *obj, const std::vector<service_nodes::quorum_v
 }
 
 void handle_obligation_vote(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
+    auto &snw = SNNWrapper::from(self);
 
     MDEBUG("Received a relayed obligation vote from " << as_hex(m.pubkey));
 
@@ -811,7 +817,7 @@ void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &
 ///           submission will fail immediately if it does not).
 ///
 void handle_blink(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
+    auto &snw = SNNWrapper::from(self);
 
     // TODO: if someone sends an invalid tx (i.e. one that doesn't get to the distribution stage)
     // then put a timeout on that IP during which new submissions from them are dropped for a short
@@ -824,7 +830,9 @@ void handle_blink(SNNetwork::message &m, void *self) {
 
     MDEBUG("Received a blink tx from " << (m.sn ? "SN " : "non-SN ") << as_hex(m.pubkey));
 
-    assert(snw.core.get_service_node_keys());
+    auto keys = snw.core.get_service_node_keys();
+    assert(keys);
+    if (!keys) return;
 
     if (m.data.size() != 1) {
         MINFO("Rejecting blink message: expected one data entry not " << m.data.size());
@@ -881,7 +889,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     bool already_approved = false, already_rejected = false;
     if (tx_hash_str.size() == sizeof(crypto::hash)) {
         std::memcpy(tx_hash.data, tx_hash_str.data(), sizeof(crypto::hash));
-        std::shared_lock<std::shared_timed_mutex> lock{snw.mutex};
+        auto lock = tools::shared_lock(snw.mutex);
         auto bit = snw.blinks.find(blink_height);
         if (bit != snw.blinks.end()) {
             auto &umap = bit->second;
@@ -989,7 +997,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     // signatures for this blink tx that we received or processed before we got here with this tx.
     std::list<pending_signature> signatures;
     {
-        std::unique_lock<std::shared_timed_mutex> lock(snw.mutex);
+        auto lock = tools::unique_lock(snw.mutex);
         auto &bl_info = snw.blinks[blink_height][tx_hash];
         if (bl_info.btxptr) {
             MDEBUG("Already seen and forwarded this blink tx, ignoring it.");
@@ -1047,9 +1055,8 @@ void handle_blink(SNNetwork::message &m, void *self) {
     }
 
     auto hash_to_sign = btx.hash(approved);
-    auto &keys = *snw.core.get_service_node_keys();
     crypto::signature sig;
-    generate_signature(hash_to_sign, keys.pub, keys.key, sig);
+    generate_signature(hash_to_sign, keys->pub, keys->key, sig);
 
     // Now that we have the blink tx stored we can add our signature *and* any other pending
     // signatures we are holding onto, then blast the entire thing to our peers.
@@ -1099,7 +1106,7 @@ void copy_signature_values(std::list<pending_signature> &signatures, const bt_va
 ///
 /// Signatures will be forwarded if new; known signatures will be ignored.
 void handle_blink_signature(SNNetwork::message &m, void *self) {
-    auto &snw = *reinterpret_cast<SNNWrapper *>(self);
+    auto &snw = SNNWrapper::from(self);
 
     MDEBUG("Received a blink tx signature from SN " << as_hex(m.pubkey));
 
@@ -1196,12 +1203,12 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
         // Most of the time we'll already know about the blink and don't need a unique lock to
         // extract info we need.  If we fail, we'll stash the signature to be processed when we get
         // the blink tx itself.
-        std::shared_lock<std::shared_timed_mutex> lock{snw.mutex};
+        auto lock = tools::shared_lock(snw.mutex);
         find_blink();
     }
 
     if (!btxptr) {
-        std::unique_lock<std::shared_timed_mutex> lock{snw.mutex};
+        auto lock = tools::unique_lock(snw.mutex);
         // We probably don't have it, so want to stash the signature until we received it.  There's
         // a chance, however, that another thread processed it while we were waiting for this
         // exclusive mutex, so check it again before we stash a delayed signature.
@@ -1230,7 +1237,7 @@ struct blink_result_data {
     std::atomic<int> nostart_count{0};
 };
 std::unordered_map<uint64_t, blink_result_data> pending_blink_results;
-std::shared_timed_mutex pending_blink_result_mutex;
+boost::shared_mutex pending_blink_result_mutex;
 
 // Sanity check against runaway active pending blink submissions
 constexpr size_t MAX_ACTIVE_PROMISES = 1000;
@@ -1249,7 +1256,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
     } else {
         auto now = std::chrono::high_resolution_clock::now();
         bool found = false;
-        std::unique_lock<std::shared_timed_mutex> lock{pending_blink_result_mutex};
+        auto lock = tools::unique_lock(pending_blink_result_mutex);
         for (auto it = pending_blink_results.begin(); it != pending_blink_results.end(); ) {
             auto &b_results = it->second;
             if (b_results.expiry >= now) {
@@ -1282,7 +1289,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
     if (!blink_tag) return future;
 
     try {
-        auto &snw = *reinterpret_cast<SNNWrapper *>(obj);
+        auto &snw = SNNWrapper::from(obj);
         uint64_t height = snw.core.get_current_blockchain_height();
         uint64_t checksum;
         auto quorums = get_blink_quorums(height, snw.core.get_service_node_list(), nullptr, &checksum);
@@ -1336,7 +1343,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
             snw.snn.send(remotes[i].first, "blink", data, send_option::hint{remotes[i].second});
         }
     } catch (...) {
-        std::unique_lock<std::shared_timed_mutex> lock{pending_blink_result_mutex};
+        auto lock = tools::unique_lock(pending_blink_result_mutex);
         auto it = pending_blink_results.find(blink_tag); // Look up again because `brd` might have been deleted
         if (it != pending_blink_results.end()) {
             try {
@@ -1351,7 +1358,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
 void common_blink_response(uint64_t tag, cryptonote::blink_result res, std::string msg, bool nostart = false) {
     bool promise_set = false;
     {
-        std::shared_lock<std::shared_timed_mutex> lock{pending_blink_result_mutex};
+        auto lock = tools::shared_lock(pending_blink_result_mutex);
         auto it = pending_blink_results.find(tag);
         if (it == pending_blink_results.end())
             return; // Already handled, or obsolete
@@ -1379,7 +1386,7 @@ void common_blink_response(uint64_t tag, cryptonote::blink_result res, std::stri
         }
     }
     if (promise_set) {
-        std::unique_lock<std::shared_timed_mutex> lock{pending_blink_result_mutex};
+        auto lock = tools::unique_lock(pending_blink_result_mutex);
         pending_blink_results.erase(tag);
     }
 }
@@ -1392,7 +1399,7 @@ void common_blink_response(uint64_t tag, cryptonote::blink_result res, std::stri
 ///
 /// It's possible for some nodes to accept and others to refuse, so we don't actually set the
 /// promise unless we get a nostart response from a majority of the remotes.
-void handle_blink_not_started(SNNetwork::message &m, void *self) {
+void handle_blink_not_started(SNNetwork::message &m, void *) {
     if (m.data.size() != 1) {
         MERROR("Bad blink not started response: expected one data entry not " << m.data.size());
         return;
@@ -1411,7 +1418,7 @@ void handle_blink_not_started(SNNetwork::message &m, void *self) {
 ///
 ///     ! - the tag as included in the submission
 ///
-void handle_blink_failure(SNNetwork::message &m, void *self) {
+void handle_blink_failure(SNNetwork::message &m, void *) {
     if (m.data.size() != 1) {
         MERROR("Blink failure message not understood: expected one data entry not " << m.data.size());
         return;
@@ -1435,7 +1442,7 @@ void handle_blink_failure(SNNetwork::message &m, void *self) {
 ///
 ///     ! - the tag as included in the submission
 ///
-void handle_blink_success(SNNetwork::message &m, void *self) {
+void handle_blink_success(SNNetwork::message &m, void *) {
     if (m.data.size() != 1) {
         MERROR("Blink success message not understood: expected one data entry not " << m.data.size());
         return;
@@ -1461,30 +1468,30 @@ void init_core_callbacks() {
     cryptonote::quorumnet_send_blink = send_blink;
 
     // Receives an obligation vote
-    SNNetwork::register_quorum_command("vote_ob", handle_obligation_vote);
+    SNNetwork::register_command("vote_ob", SNNetwork::command_type::quorum, handle_obligation_vote);
 
     // Receives a new blink tx submission from an external node, or forward from other quorum
     // members who received it from an external node.
-    SNNetwork::register_public_command("blink", handle_blink);
+    SNNetwork::register_command("blink", SNNetwork::command_type::public_, handle_blink);
 
     // Sends a message back to the blink initiator that the transaction was NOT relayed, either
     // because the height was invalid or the quorum checksum failed.  This is only sent by the entry
     // point service nodes into the quorum to let it know the tx verification has not started from
     // that node.  It does not necessarily indicate a failure unless all entry point attempts return
     // the same.
-    SNNetwork::register_quorum_command("bl_nostart", handle_blink_not_started);
+    SNNetwork::register_command("bl_nostart", SNNetwork::command_type::response, handle_blink_not_started);
 
     // Sends a message from the entry SNs back to the initiator that the Blink tx has been rejected:
     // that is, enough signed rejections have occured that the Blink tx cannot be accepted.
-    SNNetwork::register_quorum_command("bl_bad", handle_blink_failure);
+    SNNetwork::register_command("bl_bad", SNNetwork::command_type::response, handle_blink_failure);
 
     // Sends a message from the entry SNs back to the initiator that the Blink tx has been accepted
     // and validated and is being broadcast to the network.
-    SNNetwork::register_quorum_command("bl_good", handle_blink_success);
+    SNNetwork::register_command("bl_good", SNNetwork::command_type::response, handle_blink_success);
 
     // Receives blink tx signatures or rejections between quorum members (either original or
     // forwarded).  These are propagated by the receiver if new
-    SNNetwork::register_quorum_command("blink_sign", handle_blink_signature);
+    SNNetwork::register_command("blink_sign", SNNetwork::command_type::quorum, handle_blink_signature);
 }
 
 }

@@ -1015,9 +1015,14 @@ if (LOKI_DEBUG_SHORT_PROOFS)
   add_definitions(-DUPTIME_PROOF_BASE_MINUTE=3) # 20x faster uptime proofs
 endif()
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(ZMQ REQUIRED libzmq)
-pkg_check_modules(SODIUM REQUIRED libsodium)
+if(NOT ZMQ_LIBRARIES) # may be already set (such as by contrib/depends toolchain)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(ZMQ REQUIRED libzmq)
+endif()
+if(NOT SODIUM_LIBRARIES)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(SODIUM REQUIRED libsodium)
+endif()
 include_directories(${ZMQ_INCLUDE_DIRS} ${SODIUM_INCLUDE_DIRS})
 link_directories(${ZMQ_LIBRARY_DIRS} ${SODIUM_LIBRARY_DIRS})
 
@@ -1059,5 +1064,3 @@ option(INSTALL_VENDORED_LIBUNBOUND "Install libunbound binary built from source 
 
 
 CHECK_C_COMPILER_FLAG(-std=c11 HAVE_C11)
-
-find_package(PythonInterp)

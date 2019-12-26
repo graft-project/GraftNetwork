@@ -103,6 +103,9 @@ public:
       void add_missing_blink_hashes(const std::map<uint64_t, std::vector<crypto::hash>> &potential) {}
       template <typename... Args>
       int blink_shared_lock(Args &&...args) { return 42; }
+      void lock() {}
+      void unlock() {}
+      bool try_lock() { return true; }
       std::shared_ptr<cryptonote::blink_tx> get_blink(crypto::hash &) { return nullptr; }
       bool get_transaction(const crypto::hash& id, cryptonote::blobdata& tx_blob) const { return false; }
       bool have_tx(const crypto::hash &txid) const { return false; }

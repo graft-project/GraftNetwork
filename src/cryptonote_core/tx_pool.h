@@ -55,6 +55,8 @@ namespace cryptonote
   /*                                                                      */
   /************************************************************************/
 
+  using namespace std::literals;
+
   //! tuple of <deregister, transaction fee, receive time> for organization
   typedef std::pair<std::tuple<bool, double, std::time_t>, crypto::hash> tx_by_fee_and_receive_time_entry;
 
@@ -88,6 +90,7 @@ namespace cryptonote
     static tx_pool_options new_blink(bool approved) {
       tx_pool_options o;
       o.do_not_relay = !approved;
+      o.approved_blink = approved;
       o.fee_percent = BLINK_MINER_TX_FEE_PERCENT;
       o.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
       o.burn_fixed = BLINK_BURN_FIXED;
@@ -129,8 +132,8 @@ namespace cryptonote
      * @param id the transaction's hash
      * @param tx_weight the transaction's weight
      * @param blink_rollback_height if tx is a blink that conflicts with a recent (non-immutable)
-     * block tx then set this pointer to the last height that doesn't conflict (unless already set
-     * to some lower, non-zero height).
+     * block tx then set this pointer to the required new height: that is, all blocks with height
+     * `block_rollback_height` and above must be removed.
      */
     bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version, uint64_t *blink_rollback_height = nullptr);
 
@@ -186,8 +189,8 @@ namespace cryptonote
      * the given shared_ptr is a new blink that is not yet shared between threads (and thus doesn't
      * need locking): sharing is expected only after it is added to the blinks via this method.
      *
-     * NB: this function assumes that the given blink tx is valid and approved but does *not* check
-     * it (except when compiling in debug mode).
+     * NB: this function assumes that the given blink tx is valid and approved (signed) but does
+     * *not* check it (except as an assert when compiling in debug mode).
      *
      * @param blink the blink_tx shared_ptr
      * @param have_lock can be specified as true to avoid taking out a unique lock on the blinks
@@ -322,17 +325,23 @@ namespace cryptonote
      */
     bool try_lock() const { return m_transactions_lock.try_lock(); }
 
+    /* These are needed as a workaround for boost::lock not considering the type lockable if const
+     * versions are defined.  When we switch to std::lock these can go. */
+    void lock() { m_transactions_lock.lock(); }
+    void unlock() { m_transactions_lock.unlock(); }
+    bool try_lock() { return m_transactions_lock.try_lock(); }
+
     /**
      * @brief obtains a unique lock on the approved blink tx pool
      */
     template <typename... Args>
-    auto blink_unique_lock(Args &&...args) const { return std::unique_lock<std::shared_timed_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
+    auto blink_unique_lock(Args &&...args) const { return std::unique_lock<boost::shared_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
 
     /**
      * @brief obtains a shared lock on the approved blink tx pool
      */
     template <typename... Args>
-    auto blink_shared_lock(Args &&...args) const { return std::shared_lock<std::shared_timed_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
+    auto blink_shared_lock(Args &&...args) const { return std::shared_lock<boost::shared_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
 
 
     // load/store operations
@@ -682,7 +691,8 @@ namespace cryptonote
      * @param the id of the incoming blink tx
      * @param conflict_txs vector of conflicting transaction hashes that are preventing the blink tx
      * @param blink_rollback_height a pointer to update to the new required height if a chain
-     * rollback is needed for the blink tx
+     * rollback is needed for the blink tx.  (That is, all blocks with height >=
+     * blink_rollback_height need to be popped).
      *
      * @return true if the conflicting transactions have been removed (and/or the rollback height
      * set), false if tx removal and/or rollback are insufficient to eliminate conflicting txes.
@@ -707,7 +717,7 @@ namespace cryptonote
 
     //TODO: this time should be a named constant somewhere, not hard-coded
     //! interval on which to check for stale/"stuck" transactions
-    epee::math_helper::once_a_time_seconds<30> m_remove_stuck_tx_interval;
+    epee::math_helper::periodic_task m_remove_stuck_tx_interval{30s};
 
     //TODO: look into doing this better
     //!< container for transactions organized by fee per size and receive time
@@ -725,7 +735,7 @@ namespace cryptonote
     sorted_tx_container::iterator find_tx_in_sorted_container(const crypto::hash& id) const;
 
     //! cache/call Blockchain::check_tx_inputs results
-    bool check_tx_inputs(const std::function<cryptonote::transaction&(void)> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false) const;
+    bool check_tx_inputs(const std::function<cryptonote::transaction&()> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false, uint64_t* blink_rollback_height = nullptr) const;
 
     //! transactions which are unlikely to be included in blocks
     /*! These transactions are kept in RAM in case they *are* included
@@ -742,7 +752,7 @@ namespace cryptonote
 
     std::unordered_map<crypto::hash, transaction> m_parsed_tx_cache;
 
-    mutable std::shared_timed_mutex m_blinks_mutex;
+    mutable boost::shared_mutex m_blinks_mutex;
 
     // Contains blink metadata for approved blink transactions. { txhash => blink_tx, ... }.
     mutable std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;

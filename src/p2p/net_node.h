@@ -61,6 +61,7 @@ DISABLE_VS_WARNINGS(4355)
 
 namespace nodetool
 {
+  using namespace std::literals;
   struct proxy
   {
     proxy()
@@ -417,6 +418,11 @@ namespace nodetool
       m_rpc_port = rpc_port;
     }
 
+    void reset_peer_handshake_timer()
+    {
+      m_peer_handshake_idle_maker_interval.reset();
+    }
+
   private:
     std::string m_config_folder;
 
@@ -440,11 +446,11 @@ namespace nodetool
     t_payload_net_handler& m_payload_handler;
     peerlist_storage m_peerlist_storage;
 
-    epee::math_helper::once_a_time_seconds<P2P_DEFAULT_HANDSHAKE_INTERVAL> m_peer_handshake_idle_maker_interval;
-    epee::math_helper::once_a_time_seconds<1> m_connections_maker_interval;
-    epee::math_helper::once_a_time_seconds<60*30, false> m_peerlist_store_interval;
-    epee::math_helper::once_a_time_seconds<60> m_gray_peerlist_housekeeping_interval;
-    epee::math_helper::once_a_time_seconds<3600, false> m_incoming_connections_interval;
+    epee::math_helper::periodic_task m_peer_handshake_idle_maker_interval{std::chrono::seconds{P2P_DEFAULT_HANDSHAKE_INTERVAL}};
+    epee::math_helper::periodic_task m_connections_maker_interval{1s};
+    epee::math_helper::periodic_task m_peerlist_store_interval{30min};
+    epee::math_helper::periodic_task m_gray_peerlist_housekeeping_interval{1min};
+    epee::math_helper::periodic_task m_incoming_connections_interval{1h};
 
     uint64_t m_last_stat_request_time;
     std::list<epee::net_utils::network_address>   m_priority_peers;
