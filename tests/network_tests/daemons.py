@@ -217,9 +217,9 @@ class Daemon(RPCDaemon):
     def ping(self, *, storage=True, lokinet=True):
         """Sends fake storage server and lokinet pings to the running lokid"""
         if storage:
-            self.json_rpc("storage_server_ping", { "version_major": 1, "version_minor": 0, "version_patch": 9 })
+            self.json_rpc("storage_server_ping", { "version_major": 9, "version_minor": 9, "version_patch": 9 })
         if lokinet:
-            self.json_rpc("lokinet_ping", { "version": [0,6,0] })
+            self.json_rpc("lokinet_ping", { "version": [9,9,9] })
 
 
     def p2p_resync(self):
