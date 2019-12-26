@@ -418,6 +418,11 @@ namespace nodetool
       m_rpc_port = rpc_port;
     }
 
+    void reset_peer_handshake_timer()
+    {
+      m_peer_handshake_idle_maker_interval.reset();
+    }
+
   private:
     std::string m_config_folder;
 

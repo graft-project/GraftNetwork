@@ -3396,4 +3396,17 @@ namespace cryptonote
     };
   };
 
+  // Deliberately undocumented; this RPC call is really only useful for testing purposes to reset
+  // the resync idle timer (which normally fires every 60s) for the test suite.
+  struct COMMAND_RPC_TEST_TRIGGER_P2P_RESYNC
+  {
+    struct request { BEGIN_KV_SERIALIZE_MAP() END_KV_SERIALIZE_MAP() };
+    struct response {
+      std::string status;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
 }

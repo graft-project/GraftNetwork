@@ -3266,5 +3266,15 @@ namespace cryptonote
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_test_trigger_p2p_resync(const COMMAND_RPC_TEST_TRIGGER_P2P_RESYNC::request& req,
+                                                   COMMAND_RPC_TEST_TRIGGER_P2P_RESYNC::response& res,
+                                                   epee::json_rpc::error& error_resp,
+                                                   const connection_context* ctx)
+  {
+    m_p2p.reset_peer_handshake_timer();
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
 
 }  // namespace cryptonote
