@@ -55,6 +55,7 @@ jobs:
   fast_finish: true
   allow_failures:
       - name: "Windows cross-compile"
+      - arch: ppc64le
 
 before_script:
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then export PATH="/usr/local/opt/ccache/libexec:$PATH" PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"; fi
