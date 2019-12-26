@@ -32,9 +32,8 @@
 
 #include <list>
 #include <numeric>
-#include <boost/timer/timer.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/random_generator.hpp>
+#include <chrono>
+#include <atomic>
 
 #include "misc_os_dependent.h"
 #include "syncobj.h"
@@ -230,57 +229,38 @@ namespace math_helper
 		}
 
 	}
-	template<uint64_t scale, int default_interval, bool start_immediate = true>
-	class once_a_time
-	{
-    uint64_t get_time() const
+
+  // Periodic timer that gatekeeps calling of a job to a minimum interval after the previous job
+  // finished.  Only the reset() call is thread-safe; everything else should be confined to the
+  // owning thread.
+  class periodic_task {
+  public:
+    explicit periodic_task(std::chrono::microseconds interval, bool start_immediate = true)
+      : m_interval{interval}, m_last_worked_time{std::chrono::steady_clock::now()}, m_trigger_now{start_immediate}
+    {}
+
+    template <class functor_t>
+    void do_call(functor_t functr)
     {
-#ifdef _WIN32
-      FILETIME fileTime;
-      GetSystemTimeAsFileTime(&fileTime);
-      unsigned __int64 present = 0;
-      present |= fileTime.dwHighDateTime;
-      present = present << 32;
-      present |= fileTime.dwLowDateTime;
-      present /= 10;  // mic-sec
-      return present;
-#else
-      struct timeval tv;
-      gettimeofday(&tv, NULL);
-      return tv.tv_sec * 1000000 + tv.tv_usec;
-#endif
+      if (m_trigger_now || std::chrono::steady_clock::now() - m_last_worked_time > m_interval)
+      {
+        functr();
+        m_last_worked_time = std::chrono::steady_clock::now();
+        m_trigger_now = false;
+      }
     }
 
-	public:
-		once_a_time():m_interval(default_interval * scale)
-		{
-			m_last_worked_time = 0;
-      if(!start_immediate)
-        m_last_worked_time = get_time();
-		}
+    // Makes the next task attempt run the job, regardless of the time since the last job. Atomic.
+    void reset() { m_trigger_now = true; }
+    // Returns the current interval
+    std::chrono::microseconds interval() const { return m_interval; }
+    // Changes the current interval
+    void interval(std::chrono::microseconds us) { m_interval = us; }
 
-		template<class functor_t>
-		bool do_call(functor_t functr)
-		{
-			uint64_t current_time = get_time();
-
-      if(current_time - m_last_worked_time > m_interval)
-			{
-				bool res = functr();
-				m_last_worked_time = get_time();
-				return res;
-			}
-			return true;
-		}
-
-	private:
-		uint64_t m_last_worked_time;
-		uint64_t m_interval;
-	};
-
-  template<int default_interval, bool start_immediate = true>
-  class once_a_time_seconds: public once_a_time<1000000, default_interval, start_immediate> {};
-  template<int default_interval, bool start_immediate = true>
-  class once_a_time_milliseconds: public once_a_time<1000, default_interval, start_immediate> {};
+  private:
+    std::chrono::microseconds m_interval;
+    std::chrono::steady_clock::time_point m_last_worked_time;
+    std::atomic<bool> m_trigger_now;
+  };
 }
 }

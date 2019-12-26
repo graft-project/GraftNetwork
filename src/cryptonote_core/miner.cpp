@@ -31,7 +31,6 @@
 
 #include <sstream>
 #include <numeric>
-#include <boost/interprocess/detail/atomic.hpp>
 #include <boost/algorithm/string.hpp>
 #include "misc_language.h"
 #include "syncobj.h"
@@ -267,15 +266,15 @@ namespace cryptonote
     // restart all threads
     {
       CRITICAL_REGION_LOCAL(m_threads_lock);
-      boost::interprocess::ipcdetail::atomic_write32(&m_stop, 1);
+      m_stop = true;
       while (m_threads_active > 0)
         misc_utils::sleep_no_w(100);
       m_threads.clear();
     }
-    boost::interprocess::ipcdetail::atomic_write32(&m_stop, 0);
-    boost::interprocess::ipcdetail::atomic_write32(&m_thread_index, 0);
+    m_stop = false;
+    m_thread_index = 0;
     for(size_t i = 0; i != m_threads_total; i++)
-      m_threads.push_back(boost::thread(m_attrs, boost::bind(&miner::worker_thread, this)));
+      m_threads.push_back(boost::thread(m_attrs, boost::bind(&miner::worker_thread, this, false)));
   }
   //-----------------------------------------------------------------------------------------------------
   void miner::init_options(boost::program_options::options_description& desc)
@@ -363,7 +362,7 @@ namespace cryptonote
     return m_threads_total;
   }
   //-----------------------------------------------------------------------------------------------------
-  bool miner::start(const account_public_address& adr, size_t threads_count, bool do_background, bool ignore_battery)
+  bool miner::start(const account_public_address& adr, size_t threads_count, bool do_background, bool ignore_battery, uint64_t stop_after, bool slow_mining)
   {
     m_block_reward = 0;
     m_mine_address = adr;
@@ -390,14 +389,17 @@ namespace cryptonote
 
     request_block_template();//lets update block template
 
-    boost::interprocess::ipcdetail::atomic_write32(&m_stop, 0);
-    boost::interprocess::ipcdetail::atomic_write32(&m_thread_index, 0);
+    m_stop = false;
+    m_thread_index = 0;
+    m_stop_height = stop_after ? m_height + stop_after : std::numeric_limits<uint64_t>::max();
+    if (stop_after)
+      MGINFO("Mining until height " << m_stop_height);
     set_is_background_mining_enabled(do_background);
     set_ignore_battery(ignore_battery);
     
     for(size_t i = 0; i != m_threads_total; i++)
     {
-      m_threads.push_back(boost::thread(m_attrs, boost::bind(&miner::worker_thread, this)));
+      m_threads.push_back(boost::thread(m_attrs, boost::bind(&miner::worker_thread, this, slow_mining)));
     }
 
     if (threads_count == 0)
@@ -431,7 +433,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------------
   void miner::send_stop_signal()
   {
-    boost::interprocess::ipcdetail::atomic_write32(&m_stop, 1);
+    m_stop = true;
   }
   extern "C" void rx_stop_mining(void);
   //-----------------------------------------------------------------------------------------------------
@@ -518,9 +520,9 @@ namespace cryptonote
       MDEBUG("MINING RESUMED");
   }
   //-----------------------------------------------------------------------------------------------------
-  bool miner::worker_thread()
+  bool miner::worker_thread(bool slow_mining)
   {
-    uint32_t th_local_index = boost::interprocess::ipcdetail::atomic_inc32(&m_thread_index);
+    uint32_t th_local_index = m_thread_index++;
     MLOG_SET_THREAD_NAME(std::string("[miner ") + std::to_string(th_local_index) + "]");
     MGINFO("Miner thread was started ["<< th_local_index << "]");
     uint32_t nonce = m_starter_nonce + th_local_index;
@@ -530,6 +532,11 @@ namespace cryptonote
     block b;
     rx_slow_hash_allocate_state();
     ++m_threads_active;
+    bool call_stop = false;
+#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
+    call_stop = true;
+#endif
+
     while(!m_stop)
     {
       if(m_pausers_count)//anti split workaround
@@ -569,9 +576,16 @@ namespace cryptonote
         continue;
       }
 
+      if (height >= m_stop_height)
+      {
+        m_stop = true;
+        call_stop = true;
+        break;
+      }
+
       b.nonce = nonce;
       crypto::hash h;
-      get_block_longhash(m_pbc, b, h, height, tools::get_max_concurrency());
+      get_block_longhash(m_pbc, b, h, height, slow_mining ? 0 : tools::get_max_concurrency());
 
       if(check_hash(h, local_diff))
       {
@@ -597,6 +611,7 @@ namespace cryptonote
         }
 #endif
       }
+
       nonce+=m_threads_total;
       ++m_hashes;
       ++m_total_hashes;
@@ -604,9 +619,8 @@ namespace cryptonote
     rx_slow_hash_free_state();
     MGINFO("Miner thread stopped ["<< th_local_index << "]");
     --m_threads_active;
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-    stop();
-#endif
+    if (call_stop)
+      stop();
     return true;
   }
   //-----------------------------------------------------------------------------------------------------

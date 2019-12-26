@@ -33,6 +33,7 @@
 #include <boost/program_options.hpp>
 #include <boost/logic/tribool_fwd.hpp>
 #include <atomic>
+#include "cryptonote_basic/blobdatatype.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/verification_context.h"
 #include "cryptonote_basic/difficulty.h"
@@ -43,6 +44,7 @@
 
 namespace cryptonote
 {
+  using namespace std::literals;
 
   struct i_miner_handler
   {
@@ -66,7 +68,7 @@ namespace cryptonote
     static void init_options(boost::program_options::options_description& desc);
     bool set_block_template(const block& bl, const difficulty_type& diffic, uint64_t height, uint64_t block_reward);
     bool on_block_chain_update();
-    bool start(const account_public_address& adr, size_t threads_count, bool do_background = false, bool ignore_battery = false);
+    bool start(const account_public_address& adr, size_t threads_count, bool do_background, bool ignore_battery, uint64_t stop_after = 0, bool slow_mining = false);
     uint64_t get_speed() const;
     uint32_t get_threads_count() const;
     void send_stop_signal();
@@ -116,7 +118,7 @@ namespace cryptonote
     static constexpr uint64_t BACKGROUND_MINING_MIN_MINER_EXTRA_SLEEP_MILLIS            = 5;
 
   private:
-    bool worker_thread();
+    bool worker_thread(bool slow_mining = false);
     bool request_block_template();
     void  merge_hr();
     void  update_autodetection();
@@ -131,15 +133,16 @@ namespace cryptonote
     };
 
 
-    volatile uint32_t m_stop;
+    std::atomic<bool> m_stop;
+    uint64_t m_stop_height = std::numeric_limits<uint64_t>::max();
     epee::critical_section m_template_lock;
     block m_template;
     std::atomic<uint32_t> m_template_no;
     std::atomic<uint32_t> m_starter_nonce;
     difficulty_type m_diffic;
     uint64_t m_height;
-    volatile uint32_t m_thread_index; 
-    volatile uint32_t m_threads_total;
+    std::atomic<uint32_t> m_thread_index; 
+    std::atomic<uint32_t> m_threads_total;
     std::atomic<uint32_t> m_threads_active;
     std::atomic<int32_t> m_pausers_count;
     epee::critical_section m_miners_count_lock;
@@ -149,9 +152,9 @@ namespace cryptonote
     i_miner_handler* m_phandler;
     Blockchain* m_pbc;
     account_public_address m_mine_address;
-    epee::math_helper::once_a_time_seconds<5> m_update_block_template_interval;
-    epee::math_helper::once_a_time_seconds<2> m_update_merge_hr_interval;
-    epee::math_helper::once_a_time_seconds<1> m_autodetect_interval;
+    epee::math_helper::periodic_task m_update_block_template_interval{5s};
+    epee::math_helper::periodic_task m_update_merge_hr_interval{2s};
+    epee::math_helper::periodic_task m_autodetect_interval{1s};
     std::vector<blobdata> m_extra_messages;
     miner_config m_config;
     std::string m_config_folder_path;    

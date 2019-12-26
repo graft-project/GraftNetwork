@@ -50,6 +50,7 @@
 #include "net/network_throttle-detail.hpp"
 #include "common/pruning.h"
 #include "common/random.h"
+#include "common/lock.h"
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "net.cn"
@@ -164,10 +165,18 @@ namespace cryptonote
       // Delete any irrelevant heights > 0 (the mempool) and <= the immutable height
       context.m_blink_state.erase(context.m_blink_state.lower_bound(1), context.m_blink_state.lower_bound(immutable_height + 1));
 
+      // We can't validate blinks yet if we are syncing and haven't synced enough blocks to look
+      // up the blink quorum.  Set a cutoff at current height plus 10 because blink quorums are
+      // defined by 35 and 30 blocks ago, so even if we are 10 blocks behind the blink quorum will
+      // still be 20-25 blocks old which means we can form it and it is likely to be checkpointed.
+      const uint64_t future_height_limit = curr_height + 10;
+
       // m_blink_state: HEIGHT => {CHECKSUM, NEEDED}
       for (auto &i : context.m_blink_state)
       {
         if (!i.second.second) continue;
+
+        if (i.first > future_height_limit) continue;
 
         // We thought we needed it when we last got some data; check whether we still do:
         auto my_it = my_blink_hashes.find(i.first);
@@ -783,7 +792,7 @@ namespace cryptonote
           m_core.resume_mine();
           return 1;
         }
-          
+
         block_verification_context bvc{};
         m_core.handle_incoming_block(arg.b.block, pblocks.empty() ? NULL : &pblocks[0], bvc, nullptr /*checkpoint*/); // got block from handle_notify_new_block
         if (!m_core.cleanup_handle_incoming_blocks(true))
@@ -793,7 +802,7 @@ namespace cryptonote
           return 1;
         }
         m_core.resume_mine();
-        
+
         if( bvc.m_verifivation_failed )
         {
           LOG_PRINT_CCONTEXT_L0("Block verification failed, dropping connection");
@@ -1072,7 +1081,8 @@ namespace cryptonote
     // while syncing, core will lock for a long time, so we ignore those txes as they aren't really
     // needed anyway, and avoid a long block before replying.  (Not for .requested though: in that
     // case we specifically asked for these txes).
-    if(!is_synchronized() && !arg.requested)
+    bool syncing = !is_synchronized();
+    if(syncing && !arg.requested)
     {
       LOG_DEBUG_CC(context, "Received new tx while syncing, ignored");
       return 1;
@@ -1098,7 +1108,8 @@ namespace cryptonote
         if (blink_approved.count(txi.tx_hash))
           txi.approved_blink = true;
 
-      all_okay = m_core.handle_parsed_txs(parsed_txs, txpool_opts);
+      uint64_t blink_rollback_height = 0;
+      all_okay = m_core.handle_parsed_txs(parsed_txs, txpool_opts, &blink_rollback_height);
 
       // Even if !all_okay (which means we want to drop the connection) we may still have added some
       // incoming txs and so still need to finish handling/relaying them
@@ -1120,6 +1131,27 @@ namespace cryptonote
       // about approved because add_blinks() already does that).
       blinks.erase(std::remove_if(blinks.begin(), blinks.end(), [&](const auto &b) { return unknown_txs.count(b->get_txhash()) > 0; }), blinks.end());
       m_core.add_blinks(blinks);
+
+      if (blink_rollback_height > 0)
+      {
+        MDEBUG("after handling parsed txes we need to rollback to height: " << blink_rollback_height);
+        // We need to clear back to and including block at height blink_rollback_height (so that the
+        // new blockchain "height", i.e. of current top_block_height+1, is blink_rollback_height).
+        auto &blockchain = m_core.get_blockchain_storage();
+        auto locks = tools::unique_locks(blockchain, m_core.get_pool());
+
+        uint64_t height    = blockchain.get_current_blockchain_height(),
+                 immutable = blockchain.get_immutable_height();
+        if (immutable >= blink_rollback_height)
+        {
+          MWARNING("blink rollback specified a block at or before the immutable height; we can only roll back to the immutable height.");
+          blink_rollback_height = immutable + 1;
+        }
+        if (blink_rollback_height < height)
+          m_core.get_blockchain_storage().blink_rollback(blink_rollback_height);
+        else
+          MDEBUG("Nothing to roll back");
+      }
     }
 
     // If this is a response to a request for txes that we sent (.requested) then don't relay this
@@ -1130,7 +1162,10 @@ namespace cryptonote
       relay_transactions(arg, context);
     }
 
-    if (!all_okay || bad_blinks)
+    // If we're still syncing (which implies this was a requested tx list) then it's quite possible
+    // we got sent some mempool or future block blinks that we can't handle yet, which is fine (and
+    // so don't drop the connection).
+    if (!syncing && (!all_okay || bad_blinks))
     {
       LOG_PRINT_CCONTEXT_L1((!all_okay && bad_blinks ? "Tx and Blink" : !all_okay ? "Tx" : "Blink") << " verification(s) failed, dropping connection");
       drop_connection(context, false, false);
@@ -2640,7 +2675,17 @@ skip:
 
     m_block_queue.flush_spans(context.m_connection_id, flush_all_spans);
 
-    m_p2p->drop_connection(context);
+    // If this is the first drop_connection attempt then give the peer a second chance to sort
+    // itself out: it might have send an invalid block because of a blink conflict, and we want it
+    // to be able to get our blinks and do a rollback, but if we close instantly it might not get
+    // them before we close the connection and so might never learn of the problem.
+    if (context.m_drop_count >= 1)
+    {
+      LOG_DEBUG_CC(context, "giving connect id " << context.m_connection_id << " a second chance before dropping");
+      ++context.m_drop_count;
+    }
+    else
+      m_p2p->drop_connection(context);
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>

@@ -716,15 +716,15 @@ namespace cryptonote
     };
     typedef epee::misc_utils::struct_init<request_t> request;
 
-
     struct response_t
     {
       std::string status; // General RPC error code. "OK" means everything looks good. Any other value means that something went wrong.
-      std::string reason; // Additional information. Currently empty or "Not relayed" if transaction was accepted but not relayed.
+      std::string reason; // Additional information. Currently empty, "Not relayed" if transaction was accepted but not relayed, or some descriptive message of why the tx failed.
       bool not_relayed;   // Transaction was not relayed (true) or relayed (false).
       bool untrusted;     // States if the result is obtained using the bootstrap mode, and is therefore not trusted (`true`), or when the daemon is fully synced (`false`).
       tx_verification_context tvc;
       bool sanity_check_failed;
+      blink_result blink_status; // 0 for a non-blink tx.  For a blink tx: 1 means rejected, 2 means accepted, 3 means timeout.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
@@ -733,6 +733,7 @@ namespace cryptonote
         KV_SERIALIZE(sanity_check_failed)
         KV_SERIALIZE(untrusted)
         KV_SERIALIZE(tvc)
+        KV_SERIALIZE_ENUM(blink_status)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -748,12 +749,16 @@ namespace cryptonote
       uint64_t    threads_count;        // Number of mining thread to run.
       bool        do_background_mining; // States if the mining should run in background (`true`) or foreground (`false`).
       bool        ignore_battery;       // States if battery state (on laptop) should be ignored (`true`) or not (`false`).
+      uint64_t    num_blocks;           // Mine until the blockchain has this many new blocks, then stop (no limit if 0, the default)
+      bool        slow_mining;          // Do slow mining (i.e. don't allocate RandomX cache); primarily intended for testing
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(miner_address)
         KV_SERIALIZE(threads_count)
         KV_SERIALIZE(do_background_mining)
         KV_SERIALIZE(ignore_battery)
+        KV_SERIALIZE_OPT(num_blocks, uint64_t{0})
+        KV_SERIALIZE_OPT(slow_mining, false)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
@@ -3385,6 +3390,19 @@ namespace cryptonote
     struct response
     {
       std::string status; // Generic RPC error code. "OK" is the success value.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  // Deliberately undocumented; this RPC call is really only useful for testing purposes to reset
+  // the resync idle timer (which normally fires every 60s) for the test suite.
+  struct COMMAND_RPC_TEST_TRIGGER_P2P_RESYNC
+  {
+    struct request { BEGIN_KV_SERIALIZE_MAP() END_KV_SERIALIZE_MAP() };
+    struct response {
+      std::string status;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()

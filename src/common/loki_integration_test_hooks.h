@@ -85,7 +85,7 @@ integration_test_t integration_test;
 
 const command_line::arg_descriptor<std::string, false> arg_integration_test_hardforks_override = {
   "integration-test-hardforks-override"
-, "Specify custom hardfork heights and launch in fakenet mode"
+, "Specify custom hardfork heights and launch in regtest mode"
 , ""
 , false
 };

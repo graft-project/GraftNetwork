@@ -963,6 +963,17 @@ bool Blockchain::rollback_blockchain_switching(const std::list<block_and_checkpo
   return true;
 }
 //------------------------------------------------------------------
+bool Blockchain::blink_rollback(uint64_t rollback_height)
+{
+  auto lock = tools::unique_locks(m_tx_pool, *this);
+  bool stop_batch = m_db->batch_start();
+  MDEBUG("Rolling back to height " << rollback_height);
+  bool ret = rollback_blockchain_switching({}, rollback_height);
+  if (stop_batch)
+    m_db->batch_stop();
+  return ret;
+}
+//------------------------------------------------------------------
 // This function attempts to switch to an alternate chain, returning
 // boolean based on success therein.
 bool Blockchain::switch_to_alternative_blockchain(const std::list<block_extended_info>& alt_chain, bool keep_disconnected_chain)
@@ -2759,7 +2770,7 @@ void Blockchain::on_new_tx_from_block(const cryptonote::transaction &tx)
 // This function overloads its sister function with
 // an extra value (hash of highest block that holds an output used as input)
 // as a return-by-reference.
-bool Blockchain::check_tx_inputs(transaction& tx, uint64_t& max_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block)
+bool Blockchain::check_tx_inputs(transaction& tx, uint64_t& max_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block, std::unordered_set<crypto::key_image>* key_image_conflicts)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
@@ -2775,7 +2786,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, uint64_t& max_used_block_heigh
 #endif
 
   TIME_MEASURE_START(a);
-  bool res = check_tx_inputs(tx, tvc, &max_used_block_height);
+  bool res = check_tx_inputs(tx, tvc, &max_used_block_height, key_image_conflicts);
   TIME_MEASURE_FINISH(a);
   if(m_show_time_stats)
   {
@@ -2957,7 +2968,7 @@ bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_pr
 //        check_tx_input() rather than here, and use this function simply
 //        to iterate the inputs as necessary (splitting the task
 //        using threads, etc.)
-bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height)
+bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height, std::unordered_set<crypto::key_image>* key_image_conflicts)
 {
   PERF_TIMER(check_tx_inputs);
   LOG_PRINT_L3("Blockchain::" << __func__);
@@ -3032,8 +3043,13 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         if(have_tx_keyimg_as_spent(in_to_key.k_image))
         {
           MERROR_VER("Key image already spent in blockchain: " << epee::string_tools::pod_to_hex(in_to_key.k_image));
-          tvc.m_double_spend = true;
-          return false;
+          if (key_image_conflicts)
+            key_image_conflicts->insert(in_to_key.k_image);
+          else
+          {
+            tvc.m_double_spend = true;
+            return false;
+          }
         }
 
         // make sure that output being spent matches up correctly with the
@@ -4615,7 +4631,7 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
   //  Something which takes the blockchain lock may never take the txpool lock
   //  if it has not provably taken the txpool lock earlier
   //
-  //  The txpool lock is now taken in prepare_handle_incoming_blocks
+  //  The txpool lock and blockchain lock are now taken here
   //  and released in cleanup_handle_incoming_blocks. This avoids issues
   //  when something uses the pool, which now uses the blockchain and
   //  needs a batch, since a batch could otherwise be active while the

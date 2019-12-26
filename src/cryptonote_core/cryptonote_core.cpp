@@ -757,7 +757,10 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec");
     }
 
-    const std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks = {std::make_pair(cryptonote::network_version_count - 1, 1)};
+    const std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks = {
+        {cryptonote::network_version_7,         1},
+        {cryptonote::network_version_count - 1, 2},
+    };
     const cryptonote::test_options regtest_test_options = {
       regtest_hard_forks,
       0
@@ -1335,6 +1338,7 @@ namespace cryptonote
         continue;
       }
 
+      bool no_quorum = false;
       std::array<const std::vector<crypto::public_key> *, tools::enum_count<blink_tx::subquorum>> validators;
       for (uint8_t qi = 0; qi < tools::enum_count<blink_tx::subquorum>; qi++)
       {
@@ -1342,8 +1346,16 @@ namespace cryptonote
         auto &q = quorum_cache[q_height];
         if (!q)
           q = get_quorum(service_nodes::quorum_type::blink, q_height);
+        if (!q)
+        {
+          MINFO("Don't have a quorum for height " << q_height << " (yet?), ignoring this blink");
+          no_quorum = true;
+          break;
+        }
         validators[qi] = &q->validators;
       }
+      if (no_quorum)
+        continue;
 
       std::vector<std::pair<size_t, std::string>> failures;
       for (size_t s = 0; s < bdata.signature.size(); s++)
@@ -1368,7 +1380,6 @@ namespace cryptonote
         for (auto &f : failures)
           os << " [" << int(bdata.quorum[f.first]) << ":" << int(bdata.position[f.first]) << "]: " << f.second;
         MINFO("Invalid blink tx " << bdata.tx_hash << ": " << os.str());
-        continue;
       }
     }
 
@@ -1952,12 +1963,16 @@ namespace cryptonote
     }
     return true;
   }
+  void core::reset_proof_interval()
+  {
+    m_check_uptime_proof_interval.reset();
+  }
   //-----------------------------------------------------------------------------------------------
   void core::do_uptime_proof_call()
   {
-    // wait one block before starting uptime proofs.
     std::vector<service_nodes::service_node_pubkey_info> const states = get_service_node_list_state({ m_service_node_keys->pub });
 
+    // wait one block before starting uptime proofs.
     if (!states.empty() && (states[0].info->registration_height + 1) < get_current_blockchain_height())
     {
       m_check_uptime_proof_interval.do_call([this]() {
@@ -1969,14 +1984,14 @@ namespace cryptonote
         next_proof_time += UPTIME_PROOF_FREQUENCY_IN_SECONDS - UPTIME_PROOF_TIMER_SECONDS/2;
 
         if ((uint64_t) std::time(nullptr) < next_proof_time)
-          return true;
+          return;
 
         if (!check_external_ping(m_last_storage_server_ping, STORAGE_SERVER_PING_LIFETIME, "the storage server"))
         {
           MGINFO_RED(
               "Failed to submit uptime proof: have not heard from the storage server recently. Make sure that it "
               "is running! It is required to run alongside the Loki daemon");
-          return true;
+          return;
         }
         uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
         if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
@@ -1986,7 +2001,7 @@ namespace cryptonote
             MGINFO_RED(
                 "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "
                 "is running! It is required to run alongside the Loki daemon");
-            return true;
+            return;
           }
           else
           {
@@ -1997,14 +2012,12 @@ namespace cryptonote
         }
 
         submit_uptime_proof();
-
-        return true;
       });
     }
     else
     {
       // reset the interval so that we're ready when we register, OR if we get deregistered this primes us up for re-registration in the same session
-      m_check_uptime_proof_interval = {};
+      m_check_uptime_proof_interval.reset();
     }
   }
   //-----------------------------------------------------------------------------------------------
@@ -2038,7 +2051,8 @@ namespace cryptonote
     m_sn_proof_cleanup_interval.do_call([&snl=m_service_node_list] { snl.cleanup_proofs(); return true; });
 
     time_t const lifetime = time(nullptr) - get_start_time();
-    if (m_service_node_keys && lifetime > UPTIME_PROOF_INITIAL_DELAY_SECONDS) // Give us some time to connect to peers before sending uptimes
+    int proof_delay = m_nettype == FAKECHAIN ? 5 : UPTIME_PROOF_INITIAL_DELAY_SECONDS;
+    if (m_service_node_keys && lifetime > proof_delay) // Give us some time to connect to peers before sending uptimes
     {
       do_uptime_proof_call();
     }
