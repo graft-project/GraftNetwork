@@ -1004,6 +1004,12 @@ namespace cryptonote
 
     bool calc_batched_governance_reward(uint64_t height, uint64_t &reward) const;
 
+    void lock() const { m_blockchain_lock.lock(); }
+    void unlock() const { m_blockchain_lock.unlock(); }
+    bool try_lock() const { return m_blockchain_lock.try_lock(); }
+
+    /* These are needed as a workaround for boost::lock not considering the type lockable if const
+     * versions are defined.  When we switch to std::lock these can go. */
     void lock() { m_blockchain_lock.lock(); }
     void unlock() { m_blockchain_lock.unlock(); }
     bool try_lock() { return m_blockchain_lock.try_lock(); }
@@ -1090,7 +1096,7 @@ namespace cryptonote
     mutable crypto::hash m_long_term_block_weights_cache_tip_hash;
     mutable epee::misc_utils::rolling_median_t<uint64_t> m_long_term_block_weights_cache_rolling_median;
 
-    epee::critical_section m_difficulty_lock;
+    std::mutex m_difficulty_lock;
     crypto::hash m_difficulty_for_next_block_top_hash;
     difficulty_type m_difficulty_for_next_block;
 

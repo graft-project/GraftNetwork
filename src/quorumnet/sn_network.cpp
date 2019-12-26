@@ -55,7 +55,7 @@ public:
     simple_string_view(const std::string &str) : _data{str.data()}, _size{str.size()} {}
     constexpr simple_string_view(const char *data, size_t size) noexcept : _data{data}, _size{size} {}
     simple_string_view(const char *data) : _data{data}, _size{std::char_traits<char>::length(data)} {}
-    constexpr simple_string_view &operator=(const simple_string_view &) = default;
+    simple_string_view &operator=(const simple_string_view &) = default;
     constexpr const char *data() const { return _data; }
     constexpr size_t size() const { return _size; }
     constexpr bool empty() { return _size == 0; }
