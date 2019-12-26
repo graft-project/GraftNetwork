@@ -2640,7 +2640,17 @@ skip:
 
     m_block_queue.flush_spans(context.m_connection_id, flush_all_spans);
 
-    m_p2p->drop_connection(context);
+    // If this is the first drop_connection attempt then give the peer a second chance to sort
+    // itself out: it might have send an invalid block because of a blink conflict, and we want it
+    // to be able to get our blinks and do a rollback, but if we close instantly it might not get
+    // them before we close the connection and so might never learn of the problem.
+    if (context.m_drop_count >= 1)
+    {
+      LOG_DEBUG_CC(context, "giving connect id " << context.m_connection_id << " a second chance before dropping");
+      ++context.m_drop_count;
+    }
+    else
+      m_p2p->drop_connection(context);
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
