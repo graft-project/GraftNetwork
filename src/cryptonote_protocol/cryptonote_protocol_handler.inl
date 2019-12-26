@@ -1098,7 +1098,8 @@ namespace cryptonote
         if (blink_approved.count(txi.tx_hash))
           txi.approved_blink = true;
 
-      all_okay = m_core.handle_parsed_txs(parsed_txs, txpool_opts);
+      uint64_t blink_rollback_height = 0;
+      all_okay = m_core.handle_parsed_txs(parsed_txs, txpool_opts, &blink_rollback_height);
 
       // Even if !all_okay (which means we want to drop the connection) we may still have added some
       // incoming txs and so still need to finish handling/relaying them
@@ -1120,6 +1121,27 @@ namespace cryptonote
       // about approved because add_blinks() already does that).
       blinks.erase(std::remove_if(blinks.begin(), blinks.end(), [&](const auto &b) { return unknown_txs.count(b->get_txhash()) > 0; }), blinks.end());
       m_core.add_blinks(blinks);
+
+      if (blink_rollback_height > 0)
+      {
+        MDEBUG("after handling parsed txes we need to rollback to height: " << blink_rollback_height);
+        // We need to clear back to and including block at height blink_rollback_height (so that the
+        // new blockchain "height", i.e. of current top_block_height+1, is blink_rollback_height).
+        auto &blockchain = m_core.get_blockchain_storage();
+        auto locks = tools::unique_locks(blockchain, m_core.get_pool());
+
+        uint64_t height    = blockchain.get_current_blockchain_height(),
+                 immutable = blockchain.get_immutable_height();
+        if (immutable >= blink_rollback_height)
+        {
+          MWARNING("blink rollback specified a block at or before the immutable height; we can only roll back to the immutable height.");
+          blink_rollback_height = immutable + 1;
+        }
+        if (blink_rollback_height < height)
+          m_core.get_blockchain_storage().blink_rollback(blink_rollback_height);
+        else
+          MDEBUG("Nothing to roll back");
+      }
     }
 
     // If this is a response to a request for txes that we sent (.requested) then don't relay this

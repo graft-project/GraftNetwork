@@ -1377,7 +1377,6 @@ namespace cryptonote
         for (auto &f : failures)
           os << " [" << int(bdata.quorum[f.first]) << ":" << int(bdata.position[f.first]) << "]: " << f.second;
         MINFO("Invalid blink tx " << bdata.tx_hash << ": " << os.str());
-        continue;
       }
     }
 

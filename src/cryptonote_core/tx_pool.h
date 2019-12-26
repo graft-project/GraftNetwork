@@ -90,6 +90,7 @@ namespace cryptonote
     static tx_pool_options new_blink(bool approved) {
       tx_pool_options o;
       o.do_not_relay = !approved;
+      o.approved_blink = approved;
       o.fee_percent = BLINK_MINER_TX_FEE_PERCENT;
       o.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
       o.burn_fixed = BLINK_BURN_FIXED;
@@ -131,8 +132,8 @@ namespace cryptonote
      * @param id the transaction's hash
      * @param tx_weight the transaction's weight
      * @param blink_rollback_height if tx is a blink that conflicts with a recent (non-immutable)
-     * block tx then set this pointer to the last height that doesn't conflict (unless already set
-     * to some lower, non-zero height).
+     * block tx then set this pointer to the required new height: that is, all blocks with height
+     * `block_rollback_height` and above must be removed.
      */
     bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version, uint64_t *blink_rollback_height = nullptr);
 
@@ -690,7 +691,8 @@ namespace cryptonote
      * @param the id of the incoming blink tx
      * @param conflict_txs vector of conflicting transaction hashes that are preventing the blink tx
      * @param blink_rollback_height a pointer to update to the new required height if a chain
-     * rollback is needed for the blink tx
+     * rollback is needed for the blink tx.  (That is, all blocks with height >=
+     * blink_rollback_height need to be popped).
      *
      * @return true if the conflicting transactions have been removed (and/or the rollback height
      * set), false if tx removal and/or rollback are insufficient to eliminate conflicting txes.
@@ -733,7 +735,7 @@ namespace cryptonote
     sorted_tx_container::iterator find_tx_in_sorted_container(const crypto::hash& id) const;
 
     //! cache/call Blockchain::check_tx_inputs results
-    bool check_tx_inputs(const std::function<cryptonote::transaction&(void)> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false) const;
+    bool check_tx_inputs(const std::function<cryptonote::transaction&()> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false, uint64_t* blink_rollback_height = nullptr) const;
 
     //! transactions which are unlikely to be included in blocks
     /*! These transactions are kept in RAM in case they *are* included

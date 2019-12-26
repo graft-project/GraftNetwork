@@ -582,10 +582,11 @@ namespace cryptonote
      * @param max_used_block_id return-by-reference block hash of most recent input
      * @param tvc returned information about tx verification
      * @param kept_by_block whether or not the transaction is from a previously-verified block
+     * @param key_image_conflicts if specified then don't fail on duplicate key images but instead add them here for the caller to decide on
      *
      * @return false if any input is invalid, otherwise true
      */
-    bool check_tx_inputs(transaction& tx, uint64_t& pmax_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false);
+    bool check_tx_inputs(transaction& tx, uint64_t& pmax_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false, std::unordered_set<crypto::key_image>* key_image_conflicts = nullptr);
 
     /**
      * @brief get fee quantization mask
@@ -1044,6 +1045,12 @@ namespace cryptonote
      */
     void pop_blocks(uint64_t nblocks);
 
+    /**
+     * Rolls back the blockchain to the given height when necessary for admitting blink
+     * transactions.
+     */
+    bool blink_rollback(uint64_t rollback_height);
+
 #ifndef IN_UNIT_TESTS
   private:
 #endif
@@ -1204,10 +1211,11 @@ namespace cryptonote
      * @param tx the transaction to validate
      * @param tvc returned information about tx verification
      * @param pmax_related_block_height return-by-pointer the height of the most recent block in the input set
+     * @param key_image_conflicts if specified then don't fail on duplicate key images but instead add them here for the caller to decide on
      *
      * @return false if any validation step fails, otherwise true
      */
-    bool check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height = NULL);
+    bool check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height = nullptr, std::unordered_set<crypto::key_image>* key_image_conflicts = nullptr);
 
     /**
      * @brief performs a blockchain reorganization according to the longest chain rule

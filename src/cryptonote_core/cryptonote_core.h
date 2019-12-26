@@ -239,7 +239,7 @@ namespace cryptonote
       * stored blink signatures and can have applicable blink signatures (i.e. not in an immutable
       * mined block).
       *
-      * Note that this does not verify that enough valid signatures are present: the caller should
+      * Note that this does not require that enough valid signatures are present: the caller should
       * check `->approved()` on the return blinks to validate blink with valid signature sets.
       *
       * @param blinks vector of serializable_blink_metadata
