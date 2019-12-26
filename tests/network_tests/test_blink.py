@@ -251,7 +251,7 @@ def test_blink_replacement(net, mike, alice, chuck, chuck_double_spend):
     assert alice.node.txpool_hashes() == [blink_hash]
 
 
-@pytest.mark.parametrize('rollback_size', (5, ))
+@pytest.mark.parametrize('rollback_size', (1, 5))
 def test_blink_rollback(net, mike, alice, chuck, chuck_double_spend, rollback_size):
     """Tests that a mined, conflicting non-blink tx on a node gets rolled back by the arrival of a
     blink tx that conflicts with it.
@@ -277,7 +277,7 @@ def test_blink_rollback(net, mike, alice, chuck, chuck_double_spend, rollback_si
     vprint("Restarting bridge node")
     chuck.bridge.ready()
 
-    give_up = time.time() + 10
+    give_up = time.time() + 20
     vprint("Waiting for bridge node to sync")
     while time.time() < give_up:
         info = chuck.bridge.rpc("/get_info").json()
@@ -292,17 +292,12 @@ def test_blink_rollback(net, mike, alice, chuck, chuck_double_spend, rollback_si
         time.sleep(.5)
     assert give_up is None, "Gave up waiting for bridge node to sync"
 
-    # Force a resync of bridge with all peers to make sure we got the blink.  We may have synced
-    # from the hidden node and thus rollback, or we may have received the blink in time to avoid
-    # adding the block from the hidden node; either way we should end up at the same height as the
-    # main network.
-    chuck.bridge.p2p_resync()
-
     expiry = time.time() + 10
     while time.time() < expiry:
         ch, ah = chuck.bridge.height(), alice.node.height()
         if ch != ah:
             vprint("Waiting for chuck bridge ({}) to reach expected height ({})".format(ch, ah))
+            chuck.bridge.p2p_resync()
             time.sleep(.5)
 
     assert chuck.bridge.height() == alice.node.height()

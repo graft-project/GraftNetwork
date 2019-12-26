@@ -1121,7 +1121,7 @@ namespace cryptonote
         if (parsed_txs[i].tvc.m_should_be_relayed)
           newtxs.push_back(std::move(arg.txs[i]));
 
-        if (parsed_txs[i].tvc.m_added_to_pool)
+        if (parsed_txs[i].tvc.m_added_to_pool || parsed_txs[i].already_have)
           unknown_txs.erase(parsed_txs[i].tx_hash);
       }
       arg.txs = std::move(newtxs);
