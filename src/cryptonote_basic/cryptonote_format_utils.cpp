@@ -550,6 +550,11 @@ namespace cryptonote
     if (!pick<tx_extra_nonce>(nar, tx_extra_fields, TX_EXTRA_NONCE)) return false;
     if (!pick<tx_extra_merge_mining_tag>(nar, tx_extra_fields, TX_EXTRA_MERGE_MINING_TAG)) return false;
     if (!pick<tx_extra_mysterious_minergate>(nar, tx_extra_fields, TX_EXTRA_MYSTERIOUS_MINERGATE_TAG)) return false;
+    if (!pick<tx_extra_graft_extra>(nar, tx_extra_fields, TX_EXTRA_GRAFT_EXTRA_TAG)) return false;
+    if (!pick<tx_extra_graft_stake_tx>(nar, tx_extra_fields, TX_EXTRA_GRAFT_STAKE_TX_TAG)) return false;
+    if (!pick<tx_extra_graft_tx_secret_key>(nar, tx_extra_fields, TX_EXTRA_GRAFT_TX_SECRET_KEY_TAG)) return false;
+    if (!pick<tx_extra_graft_rta_header>(nar, tx_extra_fields, TX_EXTRA_GRAFT_RTA_HEADER_TAG)) return false;
+    if (!pick<tx_extra_graft_rta_signatures>(nar, tx_extra_fields, TX_EXTRA_GRAFT_RTA_SIGNATURES_TAG)) return false;
     if (!pick<tx_extra_padding>(nar, tx_extra_fields, TX_EXTRA_TAG_PADDING)) return false;
 
     // if not empty, someone added a new type and did not add a case above
