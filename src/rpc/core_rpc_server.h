@@ -168,15 +168,13 @@ namespace cryptonote
       END_JSON_RPC_MAP()
       // Graft RTA handlers start here
       BEGIN_JSON_RPC_MAP("/json_rpc/rta")
-        MAP_JON_RPC_WE_IF("send_supernode_announce",on_supernode_announce,         COMMAND_RPC_SUPERNODE_ANNOUNCE, !m_restricted)
-        MAP_JON_RPC_WE_IF("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST, !m_restricted)
-        MAP_JON_RPC_WE_IF("multicast",              on_multicast,                  COMMAND_RPC_MULTICAST, !m_restricted)
-        MAP_JON_RPC_WE_IF("unicast",                on_unicast,                    COMMAND_RPC_UNICAST, !m_restricted)
-
-        MAP_JON_RPC_WE_IF("get_tunnels",              on_get_tunnels,              COMMAND_RPC_TUNNEL_DATA, !m_restricted)
-        MAP_JON_RPC_WE_IF("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES, !m_restricted)
-        MAP_JON_RPC_WE_IF("send_supernode_blockchain_based_list", on_supernode_blockchain_based_list,  COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST, !m_restricted)
-        MAP_JON_RPC_WE_IF("get_stats", on_get_rta_stats,  COMMAND_RPC_RTA_STATS, !m_restricted)
+        MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
+        MAP_JON_RPC_WE("wide_broadcast",         on_wide_broadcast,             COMMAND_RPC_BROADCAST)
+        MAP_JON_RPC_WE("register_supernode",     on_register_supernode,         COMMAND_RPC_REGISTER_SUPERNODE)
+        MAP_JON_RPC_WE("redirect_supernode_id",  on_redirect_supernode_id,      COMMAND_RPC_REDIRECT_SUPERNODE_ID)
+        MAP_JON_RPC_WE("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES)
+        MAP_JON_RPC_WE("send_supernode_blockchain_based_list", on_supernode_blockchain_based_list,  COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST)
+        MAP_JON_RPC_WE("get_stats", on_get_rta_stats,  COMMAND_RPC_RTA_STATS)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -245,17 +243,16 @@ namespace cryptonote
     bool on_prune_blockchain(const COMMAND_RPC_PRUNE_BLOCKCHAIN::request& req, COMMAND_RPC_PRUNE_BLOCKCHAIN::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     //-----------------------
     // RTA
-    bool on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request& req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request& req, COMMAND_RPC_SUPERNODE_GET_STAKES::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request& req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
-    bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
-    bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
-
-    bool on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
+    bool on_wide_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
+    bool on_register_supernode(const COMMAND_RPC_REGISTER_SUPERNODE::request& req, COMMAND_RPC_REGISTER_SUPERNODE::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
+    bool on_redirect_supernode_id(const COMMAND_RPC_REDIRECT_SUPERNODE_ID::request& req, COMMAND_RPC_REDIRECT_SUPERNODE_ID::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
 
 private:
+    bool on_broadcast_impl(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp, bool wide = false, const connection_context *ctx = NULL);
     bool check_core_busy();
     bool check_core_ready();
     
@@ -276,6 +273,7 @@ private:
     bool m_was_bootstrap_ever_used;
     network_type m_nettype;
     bool m_restricted;
+    uint32_t m_broadcast_hops = 0;
   };
 }
 

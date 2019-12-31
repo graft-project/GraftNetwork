@@ -1466,15 +1466,16 @@ namespace cryptonote
   bool tx_memory_pool::validate_rta_tx(const crypto::hash &txid, const std::vector<rta_signature> &rta_signs, const rta_header &rta_hdr) const
   {
     bool result = true;
+    static const size_t MIN_SIGNATURES = 6 + 3;
 
     if (rta_hdr.keys.size() == 0) {
       MERROR("Failed to validate rta tx, missing auth sample keys for tx: " << txid );
       return false;
     }
-#if 0  // don't validate signatures for rta mining
-    if (rta_hdr.keys.size() != rta_signs.size()) {
-      MERROR("Failed to validate rta tx: " << txid << ", keys.size() != signatures.size()");
-      return false;
+
+    if (rta_signs.size() < MIN_SIGNATURES) {
+        MERROR("expected " << MIN_SIGNATURES << " rta signatures but only " << rta_signs.size() << "given ");
+        return false;
     }
 
     for (const auto &rta_sign : rta_signs) {
@@ -1485,18 +1486,9 @@ namespace cryptonote
         break;
       }
 
-
       result &= crypto::check_signature(txid, rta_hdr.keys[rta_sign.key_index], rta_sign.signature);
       if (!result) {
         MERROR("Failed to validate rta tx signature: " << epee::string_tools::pod_to_hex(txid) << " for key: " << rta_hdr.keys[rta_sign.key_index]);
-        break;
-      }
-    }
-#endif
-    for (const crypto::public_key &key : rta_hdr.keys) {
-      result &= validate_supernode(rta_hdr.auth_sample_height, key);
-      if (!result) {
-        MERROR("Failed to validate rta tx: " << epee::string_tools::pod_to_hex(txid) << ", key: " << key << " doesn't belong to a valid supernode");
         break;
       }
     }

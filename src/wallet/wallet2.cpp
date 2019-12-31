@@ -6445,6 +6445,44 @@ bool wallet2::save_tx_signed(const std::vector<wallet2::pending_tx> &ptx_vector,
   return true;
 
 }
+
+void wallet2::set_spent(const wallet2::pending_tx &ptx)
+{
+  using namespace cryptonote;
+  crypto::hash txid;
+
+  txid = get_transaction_hash(ptx.tx);
+  crypto::hash payment_id = crypto::null_hash;
+  std::vector<cryptonote::tx_destination_entry> dests;
+  uint64_t amount_in = 0;
+  if (store_tx_info())
+  {
+    payment_id = get_payment_id(ptx);
+    dests = ptx.dests;
+    for(size_t idx: ptx.selected_transfers)
+      amount_in += m_transfers[idx].amount();
+  }
+  add_unconfirmed_tx(ptx.tx, amount_in, dests, payment_id, ptx.change_dts.amount, ptx.construction_data.subaddr_account, ptx.construction_data.subaddr_indices);
+  if (store_tx_info())
+  {
+    LOG_PRINT_L2("storing tx key " << ptx.tx_key);
+    m_tx_keys.insert(std::make_pair(txid, ptx.tx_key));
+    m_additional_tx_keys.insert(std::make_pair(txid, ptx.additional_tx_keys));
+    LOG_PRINT_L2("there're  " << m_tx_keys.size() << " stored keys");
+  }
+
+  LOG_PRINT_L2("transaction " << txid << " generated ok and sent to daemon, key_images: [" << ptx.key_images << "]");
+
+  for(size_t idx: ptx.selected_transfers)
+  {
+    set_spent(idx, 0);
+  }
+
+  // tx generated, get rid of used k values
+  for (size_t idx: ptx.selected_transfers)
+    m_transfers[idx].m_multisig_k.clear();
+
+}
 //----------------------------------------------------------------------------------------------------
 std::string wallet2::dump_tx_to_str(const std::vector<pending_tx> &ptx_vector) const
 {
@@ -8744,7 +8782,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
         LOG_PRINT_L2("Creating supplementary multisig transaction");
         cryptonote::transaction ms_tx;
         auto sources_copy_copy = sources_copy;
-        bool r = cryptonote::construct_tx_with_tx_key(m_account.get_keys(), m_subaddresses, sources_copy_copy, splitted_dsts, change_dts.addr, extra, ms_tx, unlock_time,tx_key, additional_tx_keys, true, rct_config, &msout, false);
+        bool r = cryptonote::construct_tx_with_tx_key(m_account.get_keys(), m_subaddresses, sources_copy_copy, splitted_dsts, change_dts.addr, extra, ms_tx, unlock_time,tx_key, additional_tx_keys, true, rct_config, &msout, false, tx_type);
         LOG_PRINT_L2("constructed tx, r="<<r);
         THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sources, splitted_dsts, unlock_time, m_nettype);
         THROW_WALLET_EXCEPTION_IF(upper_transaction_weight_limit <= get_transaction_weight(tx), error::tx_too_big, tx, upper_transaction_weight_limit);
