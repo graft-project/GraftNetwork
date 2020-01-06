@@ -426,6 +426,7 @@ private:
   void migrate_2_3();
   void migrate_3_4();
   void migrate_4_5(cryptonote::network_type nettype);
+  void migrate_5_6();
 
   void cleanup_batch();
 
