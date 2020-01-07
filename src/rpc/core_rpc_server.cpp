@@ -1141,7 +1141,8 @@ namespace cryptonote
 
       if (req.tx_pool_checksum == checksum)
       {
-        time_t before = time(nullptr);
+        size_t tx_count_before = tx_pool_hashes.size();
+        time_t before          = time(nullptr);
         std::unique_lock<std::mutex> lock(m_core.m_long_poll_mutex);
         if ((m_long_poll_active_connections + 1) > m_max_long_poll_connections)
         {
@@ -1150,10 +1151,13 @@ namespace cryptonote
         }
 
         m_long_poll_active_connections++;
-        std::cv_status status = m_core.m_long_poll_wake_up_clients.wait_for(lock, tools::wallet2::rpc_long_poll_timeout);
-        m_long_poll_active_connections--;
+        bool condition_activated = m_core.m_long_poll_wake_up_clients.wait_for(lock, tools::wallet2::rpc_long_poll_timeout, [this, tx_count_before]() {
+              size_t tx_count_after = m_core.get_pool().get_transactions_count();
+              return tx_count_before != tx_count_after;
+            });
 
-        if (status == std::cv_status::timeout)
+        m_long_poll_active_connections--;
+        if (!condition_activated)
         {
           res.status = CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT;
           return true;
