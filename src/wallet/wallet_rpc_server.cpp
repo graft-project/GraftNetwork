@@ -120,6 +120,7 @@ namespace tools
       m_last_auto_refresh_time = boost::posix_time::microsec_clock::universal_time();
       return true;
     }, 1000);
+
     m_net_server.add_idle_handler([this](){
       if (m_stop.load(std::memory_order_relaxed))
       {
@@ -128,6 +129,22 @@ namespace tools
       }
       return true;
     }, 500);
+
+    m_net_server.add_idle_handler([this](){
+        if (m_auto_refresh_period == 0 || !m_wallet)
+          return true;
+
+        try
+        {
+          if (m_wallet->long_poll_pool_state())
+            m_wallet->refresh(m_wallet->is_trusted_daemon());
+        }
+        catch (const std::exception &ex)
+        {
+          // NOTE: Don't care about error, non fatal.
+        }
+        return true;
+    }, tools::wallet2::rpc_long_poll_timeout.count());
 
     //DO NOT START THIS SERVER IN MORE THEN 1 THREADS WITHOUT REFACTORING
     return epee::http_server_impl_base<wallet_rpc_server, connection_context>::run(1, true);
@@ -2402,8 +2419,6 @@ namespace tools
         res.transfers.push_back(m_wallet->make_transfer_view(i->first, i->second));
       }
     }
-
-    m_wallet->update_pool_state();
 
     std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>> pool_payments;
     m_wallet->get_unconfirmed_payments(pool_payments, req.account_index);

@@ -61,6 +61,7 @@ enum struct lmdb_version
 {
     v4 = 4,
     v5,     // alt_block_data_1_t => alt_block_data_t: Alt block data has boolean for if the block was checkpointed
+    v6,     // remigrate voter_to_signature struct due to alignment change
     _count
 };
 
@@ -398,6 +399,7 @@ struct blk_checkpoint_header
   uint64_t     num_signatures;
 };
 static_assert(sizeof(blk_checkpoint_header) == 2*sizeof(uint64_t) + sizeof(crypto::hash), "blk_checkpoint_header has unexpected padding");
+static_assert(sizeof(service_nodes::voter_to_signature) == sizeof(uint16_t) + 6 /*padding*/ + sizeof(crypto::signature), "Unexpected padding/struct size change. DB checkpoint signature entries need to be re-migrated to the new size");
 
 typedef struct blk_height {
     crypto::hash bh_hash;
@@ -3861,9 +3863,14 @@ uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t
   return ++m_height;
 }
 
-void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
+struct checkpoint_mdb_buffer
 {
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  char data[sizeof(blk_checkpoint_header) + (sizeof(service_nodes::voter_to_signature) * service_nodes::CHECKPOINT_QUORUM_SIZE)];
+  size_t len;
+};
+
+static bool convert_checkpoint_into_buffer(checkpoint_t const &checkpoint, checkpoint_mdb_buffer &result)
+{
   blk_checkpoint_header header = {};
   header.height                = checkpoint.height;
   header.block_hash            = checkpoint.block_hash;
@@ -3872,19 +3879,16 @@ void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
   native_to_little_inplace(header.height);
   native_to_little_inplace(header.num_signatures);
 
-  size_t const MAX_BYTES_REQUIRED   = sizeof(header) + (sizeof(*checkpoint.signatures.data()) * service_nodes::CHECKPOINT_QUORUM_SIZE);
-  uint8_t buffer[MAX_BYTES_REQUIRED];
-
-  size_t const bytes_for_signatures = sizeof(*checkpoint.signatures.data()) * header.num_signatures;
-  size_t const actual_bytes_used    = sizeof(header) + bytes_for_signatures;
-  if (actual_bytes_used > MAX_BYTES_REQUIRED)
+  size_t const bytes_for_signatures = sizeof(*checkpoint.signatures.data()) * checkpoint.signatures.size();
+  result.len                        = sizeof(header) + bytes_for_signatures;
+  if (result.len > sizeof(result.data))
   {
-    LOG_PRINT_L0("Unexpected pre-calculated maximum number of bytes: " << MAX_BYTES_REQUIRED << ", is insufficient to store signatures requiring: " << actual_bytes_used << " bytes");
-    assert(actual_bytes_used <= MAX_BYTES_REQUIRED);
-    return;
+    LOG_PRINT_L0("Unexpected pre-calculated maximum number of bytes: " << sizeof(result.data) << ", is insufficient to store signatures requiring: " << result.len << " bytes");
+    assert(result.len <= sizeof(result.data));
+    return false;
   }
 
-  uint8_t *buffer_ptr = buffer;
+  char *buffer_ptr = result.data;
   memcpy(buffer_ptr, (void *)&header, sizeof(header));
   buffer_ptr += sizeof(header);
 
@@ -3893,14 +3897,24 @@ void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
 
   // Bounds check memcpy
   {
-    uint8_t const *end = buffer + MAX_BYTES_REQUIRED;
+    char const *end = result.data + sizeof(result.data);
     if (buffer_ptr > end)
     {
       LOG_PRINT_L0("Unexpected memcpy bounds overflow on update_block_checkpoint");
       assert(buffer_ptr <= end);
-      return;
+      return false;
     }
   }
+
+  return true;
+}
+
+void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+
+  checkpoint_mdb_buffer buffer = {};
+  convert_checkpoint_into_buffer(checkpoint, buffer);
 
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -3908,8 +3922,8 @@ void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
 
   MDB_val_set(key, checkpoint.height);
   MDB_val value = {};
-  value.mv_size = actual_bytes_used;
-  value.mv_data = buffer;
+  value.mv_size = buffer.len;
+  value.mv_data = buffer.data;
   int ret = mdb_cursor_put(m_cursors->block_checkpoints, &key, &value, 0);
   if (ret)
     throw0(DB_ERROR(lmdb_error("Failed to update block checkpoint in db transaction: ", ret).c_str()));
@@ -3947,7 +3961,6 @@ static checkpoint_t convert_mdb_val_to_checkpoint(MDB_val const value)
       reinterpret_cast<service_nodes::voter_to_signature *>(static_cast<uint8_t *>(value.mv_data) + sizeof(*header));
 
   auto num_sigs = little_to_native(header->num_signatures);
-
   result.height     = little_to_native(header->height);
   result.type       = (num_sigs > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
   result.block_hash = header->block_hash;
@@ -5869,6 +5882,115 @@ void BlockchainLMDB::migrate_4_5(cryptonote::network_type nettype)
     throw0(DB_ERROR(lmdb_error("Failed to update version for the db: ", result).c_str()));
 }
 
+void BlockchainLMDB::migrate_5_6()
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  MGINFO_YELLOW("Migrating blockchain from DB version 5 to 6 - this may take a while:");
+
+  mdb_txn_safe txn(false);
+  {
+    int result = mdb_txn_begin(m_env, NULL, 0, txn);
+    if (result) throw0(DB_ERROR(lmdb_error("Failed to create a transaction for the db: ", result).c_str()));
+  }
+
+  if (auto res = mdb_dbi_open(txn, LMDB_BLOCK_CHECKPOINTS, 0, &m_block_checkpoints)) return;
+
+  MDB_cursor *cursor;
+  if (auto ret = mdb_cursor_open(txn, m_block_checkpoints, &cursor))
+    throw0(DB_ERROR(lmdb_error("Failed to open a cursor for block checkpoints: ", ret).c_str()));
+
+  struct unaligned_signature
+  {
+    char c[32];
+    char r[32];
+  };
+
+  struct unaligned_voter_to_signature
+  {
+    uint16_t            voter_index;
+    unaligned_signature signature;
+  };
+
+  // NOTE: Iterate through all checkpoints in the DB. Convert them into
+  // a checkpoint, and compare the expected size of the payload
+  // (header+signatures) in the DB. If they don't match with the current
+  // expected size, the checkpoint was stored when signatures were not aligned.
+
+  // If we detect this, then we re-interpret the data as the unaligned version
+  // of the voter_to_signature. Save that information to an aligned version and
+  // re-store it back into the DB.
+
+
+  for (MDB_cursor_op op = MDB_FIRST;; op = MDB_NEXT)
+  {
+    MDB_val key, val;
+    int ret = mdb_cursor_get(cursor, &key, &val, op);
+    if (ret == MDB_NOTFOUND) break;
+    if (ret) throw0(DB_ERROR(lmdb_error("Failed to enumerate block checkpoints: ", ret).c_str()));
+
+    // NOTE: We don't have to check blk_checkpoint_header alignment even though
+    // crypto::hash became aligned due to the pre-existing static assertion for
+    // unexpected padding
+
+    auto const *header = static_cast<blk_checkpoint_header const *>(val.mv_data);
+    auto num_sigs      = little_to_native(header->num_signatures);
+    auto const *aligned_signatures = reinterpret_cast<service_nodes::voter_to_signature *>(static_cast<uint8_t *>(val.mv_data) + sizeof(*header));
+    if (num_sigs == 0) continue; // NOTE: Hardcoded checkpoints
+
+    checkpoint_t checkpoint = {};
+    checkpoint.height       = little_to_native(header->height);
+    checkpoint.type         = (num_sigs > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
+    checkpoint.block_hash   = header->block_hash;
+
+    bool unaligned_checkpoint = false;
+    {
+      std::array<int, service_nodes::CHECKPOINT_QUORUM_SIZE> vote_set = {};
+      for (size_t i = 0; i < num_sigs; i++)
+      {
+        auto const &entry = aligned_signatures[i];
+        size_t const actual_num_bytes_for_signatures   = val.mv_size - sizeof(*header);
+        size_t const expected_num_bytes_for_signatures = sizeof(service_nodes::voter_to_signature) * num_sigs;
+        if (actual_num_bytes_for_signatures != expected_num_bytes_for_signatures)
+        {
+          unaligned_checkpoint = true;
+          break;
+        }
+      }
+    }
+
+    if (unaligned_checkpoint)
+    {
+      auto const *unaligned_signatures = reinterpret_cast<unaligned_voter_to_signature *>(static_cast<uint8_t *>(val.mv_data) + sizeof(*header));
+      for (size_t i = 0; i < num_sigs; i++)
+      {
+        auto const &unaligned = unaligned_signatures[i];
+        service_nodes::voter_to_signature aligned = {};
+        aligned.voter_index                       = unaligned.voter_index;
+        memcpy(aligned.signature.c.data, unaligned.signature.c, sizeof(aligned.signature.c));
+        memcpy(aligned.signature.r.data, unaligned.signature.r, sizeof(aligned.signature.r));
+        checkpoint.signatures.push_back(aligned);
+      }
+    }
+    else
+    {
+      break;
+    }
+
+    checkpoint_mdb_buffer buffer = {};
+    if (!convert_checkpoint_into_buffer(checkpoint, buffer))
+      throw0(DB_ERROR("Failed to convert migrated checkpoint into buffer"));
+
+    val.mv_size = buffer.len;
+    val.mv_data = buffer.data;
+    ret = mdb_cursor_put(cursor, &key, &val, MDB_CURRENT);
+    if (ret) throw0(DB_ERROR(lmdb_error("Failed to update block checkpoint in db migration transaction: ", ret).c_str()));
+  }
+  txn.commit();
+
+  if (int result = write_db_version(m_env, m_properties, txn, (uint32_t)lmdb_version::v6))
+    throw0(DB_ERROR(lmdb_error("Failed to update version for the db: ", result).c_str()));
+}
+
 void BlockchainLMDB::migrate(const uint32_t oldversion, cryptonote::network_type nettype)
 {
   switch(oldversion) {
@@ -5882,6 +6004,8 @@ void BlockchainLMDB::migrate(const uint32_t oldversion, cryptonote::network_type
     migrate_3_4(); /* FALLTHRU */
   case 4:
     migrate_4_5(nettype); /* FALLTHRU */
+  case 5:
+    migrate_5_6(); /* FALLTHRU */
   default:
     break;
   }

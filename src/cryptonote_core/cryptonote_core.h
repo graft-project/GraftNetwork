@@ -963,7 +963,9 @@ namespace cryptonote
       */
      bool relay_txpool_transactions();
 
-   private:
+     std::mutex              m_long_poll_mutex;
+     std::condition_variable m_long_poll_wake_up_clients;
+ private:
 
      /**
       * @copydoc Blockchain::add_new_block
@@ -1162,6 +1164,7 @@ namespace cryptonote
      bool m_pad_transactions;
 
      std::shared_ptr<tools::Notify> m_block_rate_notify;
+
    };
 }
 

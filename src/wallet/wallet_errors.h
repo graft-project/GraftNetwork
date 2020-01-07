@@ -416,8 +416,8 @@ namespace tools
     //----------------------------------------------------------------------------------------------------
     struct get_tx_pool_error : public refresh_error
     {
-      explicit get_tx_pool_error(std::string&& loc)
-        : refresh_error(std::move(loc), "Error getting transaction pool")
+      explicit get_tx_pool_error(std::string&& loc, const std::string &message = "")
+        : refresh_error(std::move(loc), "Error getting transaction pool " + message)
       {
       }
 
