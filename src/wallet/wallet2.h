@@ -314,6 +314,7 @@ private:
   public:
     static constexpr uint32_t BLINK_PRIORITY = 0x626c6e6b; // "blnk"
     static constexpr const std::chrono::seconds rpc_timeout = std::chrono::minutes(3) + std::chrono::seconds(30);
+    static constexpr const auto rpc_long_poll_timeout       = std::chrono::seconds(15);
 
     enum RefreshType {
       RefreshFull,
@@ -1336,6 +1337,22 @@ private:
     bool import_key_images(signed_tx_set & signed_tx, size_t offset=0, bool only_selected_transfers=false);
     crypto::public_key get_tx_pub_key_from_received_outs(const tools::wallet2::transfer_details &td) const;
 
+    crypto::hash get_long_poll_tx_pool_checksum() const
+    {
+      std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
+      return m_long_poll_tx_pool_checksum;
+    };
+
+    // long_poll_pool_state is blocking and does NOT return to the caller until
+    // the daemon detects a change in the contents of the txpool by comparing
+    // our last tx pool checksum with theirs.
+
+    // This call also takes the long poll mutex and uses it's own individual
+    // http client that it exclusively owns.
+
+    // Returns true if call succeeded, false if the long poll timed out, throws
+    // if a network error.
+    bool long_poll_pool_state();
     void update_pool_state(bool refreshed = false);
     void remove_obsolete_pool_txs(const std::vector<crypto::hash> &tx_hashes);
 
@@ -1415,21 +1432,21 @@ private:
     inline bool invoke_http_json(const boost::string_ref uri, const t_request& req, t_response& res, std::chrono::milliseconds timeout = std::chrono::seconds(15), const boost::string_ref http_method = "GET")
     {
       if (m_offline) return false;
-      boost::lock_guard<boost::recursive_mutex> lock(m_daemon_rpc_mutex);
+      std::lock_guard<std::recursive_mutex> lock(m_daemon_rpc_mutex);
       return epee::net_utils::invoke_http_json(uri, req, res, m_http_client, timeout, http_method);
     }
     template<class t_request, class t_response>
     inline bool invoke_http_bin(const boost::string_ref uri, const t_request& req, t_response& res, std::chrono::milliseconds timeout = std::chrono::seconds(15), const boost::string_ref http_method = "GET")
     {
       if (m_offline) return false;
-      boost::lock_guard<boost::recursive_mutex> lock(m_daemon_rpc_mutex);
+      std::lock_guard<std::recursive_mutex> lock(m_daemon_rpc_mutex);
       return epee::net_utils::invoke_http_bin(uri, req, res, m_http_client, timeout, http_method);
     }
     template<class t_request, class t_response>
     inline bool invoke_http_json_rpc(const boost::string_ref uri, const std::string& method_name, const t_request& req, t_response& res, std::chrono::milliseconds timeout = std::chrono::seconds(15), const boost::string_ref http_method = "GET", const std::string& req_id = "0")
     {
       if (m_offline) return false;
-      boost::lock_guard<boost::recursive_mutex> lock(m_daemon_rpc_mutex);
+      std::lock_guard<std::recursive_mutex> lock(m_daemon_rpc_mutex);
       return epee::net_utils::invoke_http_json_rpc(uri, method_name, req, res, m_http_client, timeout, http_method, req_id);
     }
 
@@ -1548,6 +1565,7 @@ private:
     void finish_rescan_bc_keep_key_images(uint64_t transfer_height, const crypto::hash &hash);
     void set_offline(bool offline = true);
 
+
   private:
     /*!
      * \brief  Stores wallet information to wallet file.
@@ -1660,6 +1678,12 @@ private:
     std::unordered_map<crypto::hash, crypto::secret_key> m_tx_keys;
     std::unordered_map<crypto::hash, std::vector<crypto::secret_key>> m_additional_tx_keys;
 
+    std::recursive_mutex                      m_long_poll_mutex;
+    epee::net_utils::http::http_simple_client m_long_poll_client;
+    mutable std::mutex                        m_long_poll_tx_pool_cache_mutex;
+    std::vector<crypto::hash>                 m_long_poll_tx_pool_cache;
+    crypto::hash                              m_long_poll_tx_pool_checksum = {};
+
     transfer_container m_transfers;
     payment_container m_payments;
     std::unordered_map<crypto::key_image, size_t> m_key_images;
@@ -1678,7 +1702,7 @@ private:
 
     std::atomic<bool> m_run;
 
-    boost::recursive_mutex m_daemon_rpc_mutex;
+    std::recursive_mutex m_daemon_rpc_mutex;
 
     bool m_trusted_daemon;
     i_wallet2_callback* m_callback;

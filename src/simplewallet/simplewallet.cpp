@@ -4999,17 +4999,25 @@ boost::optional<epee::wipeable_string> simple_wallet::on_get_password(const char
   // can't ask for password from a background thread
   if (!m_in_manual_refresh.load(std::memory_order_relaxed))
   {
-    message_writer(console_color_red, false) << boost::format(tr("Password needed (%s) - use the refresh command")) % reason;
-    m_cmd_binder.print_prompt();
+    crypto::hash tx_pool_checksum = m_wallet->get_long_poll_tx_pool_checksum();
+    if (m_password_asked_on_height   != m_wallet->get_blockchain_current_height() ||
+        m_password_asked_on_checksum != tx_pool_checksum)
+    {
+      m_password_asked_on_height = m_wallet->get_blockchain_current_height();
+      m_password_asked_on_checksum   = tx_pool_checksum;
+
+      message_writer(console_color_red, false) << boost::format(tr("Password needed %s")) % reason;
+      m_cmd_binder.print_prompt();
+    }
     return boost::none;
   }
 
 #ifdef HAVE_READLINE
   rdln::suspend_readline pause_readline;
 #endif
-  std::string msg = tr("Enter password");
+  std::string msg = tr("Enter password ");
   if (reason && *reason)
-    msg += std::string(" (") + reason + ")";
+    msg += reason;
   auto pwd_container = tools::password_container::prompt(false, msg.c_str());
   if (!pwd_container)
   {
@@ -8320,7 +8328,18 @@ bool simple_wallet::run()
   refresh_main(0, ResetNone, true);
 
   m_auto_refresh_enabled = m_wallet->auto_refresh();
-  m_idle_thread = boost::thread([&]{wallet_idle_thread();});
+  m_idle_thread          = boost::thread([&] { wallet_idle_thread(); });
+  m_long_poll_thread     = boost::thread([&] {
+    for (;;)
+    {
+      try
+      {
+        if (m_auto_refresh_enabled && m_wallet->long_poll_pool_state())
+          m_idle_cond.notify_one();
+      }
+      catch (...) { }
+    }
+  });
 
   message_writer(console_color_green, false) << "Background refresh thread started";
 
@@ -9349,7 +9368,6 @@ bool simple_wallet::show_transfer(const std::vector<std::string> &args)
 
   try
   {
-    m_wallet->update_pool_state();
     std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>> pool_payments;
     m_wallet->get_unconfirmed_payments(pool_payments, m_current_subaddress_account);
     for (std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>>::const_iterator i = pool_payments.begin(); i != pool_payments.end(); ++i) {

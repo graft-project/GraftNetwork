@@ -416,6 +416,7 @@ namespace cryptonote
 
     std::atomic<bool> m_idle_run;
     boost::thread m_idle_thread;
+    boost::thread m_long_poll_thread;
     boost::mutex m_idle_mutex;
     boost::condition_variable m_idle_cond;
 
@@ -425,6 +426,8 @@ namespace cryptonote
     uint32_t m_current_subaddress_account;
 
     bool m_long_payment_id_support;
+    std::atomic<uint64_t> m_password_asked_on_height;
+    crypto::hash          m_password_asked_on_checksum;
     
     // MMS
     mms::message_store& get_message_store() const { return m_wallet->get_message_store(); };
