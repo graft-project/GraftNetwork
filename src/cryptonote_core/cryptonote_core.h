@@ -963,7 +963,6 @@ namespace cryptonote
       */
      bool relay_txpool_transactions();
 
-     std::atomic<size_t>     m_long_poll_connections;
      std::mutex              m_long_poll_mutex;
      std::condition_variable m_long_poll_wake_up_clients;
  private:

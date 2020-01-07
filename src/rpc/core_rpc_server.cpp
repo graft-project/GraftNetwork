@@ -86,6 +86,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_restricted_rpc);
     command_line::add_arg(desc, arg_bootstrap_daemon_address);
     command_line::add_arg(desc, arg_bootstrap_daemon_login);
+    command_line::add_arg(desc, arg_rpc_long_poll_connections);
     cryptonote::rpc_args::init_options(desc, true);
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -105,6 +106,7 @@ namespace cryptonote
   {
     m_restricted = restricted;
     m_net_server.set_threads_prefix("RPC");
+    m_max_long_poll_connections = command_line::get_arg(vm, arg_rpc_long_poll_connections);
 
     auto rpc_config = cryptonote::rpc_args::process(vm, true);
     if (!rpc_config)
@@ -1141,15 +1143,15 @@ namespace cryptonote
       {
         time_t before = time(nullptr);
         std::unique_lock<std::mutex> lock(m_core.m_long_poll_mutex);
-        if ((m_core.m_long_poll_connections + 1) > MAX_LONG_POLL_CONNECTIONS)
+        if ((m_long_poll_active_connections + 1) > m_max_long_poll_connections)
         {
           res.status = "Too many long polling connections, refusing connection";
           return true;
         }
 
-        m_core.m_long_poll_connections++;
+        m_long_poll_active_connections++;
         std::cv_status status = m_core.m_long_poll_wake_up_clients.wait_for(lock, tools::wallet2::rpc_long_poll_timeout);
-        m_core.m_long_poll_connections--;
+        m_long_poll_active_connections--;
 
         if (status == std::cv_status::timeout)
         {
@@ -2557,6 +2559,12 @@ namespace cryptonote
   //
   // Loki
   //
+  const command_line::arg_descriptor<int> core_rpc_server::arg_rpc_long_poll_connections = {
+      "rpc-long-poll-connections"
+    , "Number of RPC connections allocated for long polling wallet queries to the TX pool"
+    , 16
+    };
+
   bool core_rpc_server::on_get_quorum_state(const COMMAND_RPC_GET_QUORUM_STATE::request& req, COMMAND_RPC_GET_QUORUM_STATE::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
   {
     PERF_TIMER(on_get_quorum_state);
