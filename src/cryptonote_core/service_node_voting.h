@@ -129,6 +129,7 @@ namespace service_nodes
     voter_to_signature() = default;
     voter_to_signature(quorum_vote_t const &vote) : voter_index(vote.index_in_group), signature(vote.signature) { }
     uint16_t          voter_index;
+    char              padding[6];
     crypto::signature signature;
 
     BEGIN_SERIALIZE()
