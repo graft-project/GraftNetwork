@@ -331,67 +331,22 @@ namespace nodetool
 
     // sometimes supernode gets very busy so it doesn't respond within 1 second, increasing timeout to 3s
     static constexpr size_t SUPERNODE_HTTP_TIMEOUT_MILLIS = 3 * 1000;
+    // posts HTTP request to local supernode
     template<class request_struct>
-    int post_request_to_supernode(local_sn_t &local_sn, const std::string &method, const typename request_struct::request &body,
-                                  const std::string &endpoint = std::string())
-    {
-        boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
-        epee::json_rpc::request<typename request_struct::request>& req = static_cast<epee::json_rpc::request<typename request_struct::request> &>(init_req);
-        req.jsonrpc = "2.0";
-        req.id = 0;
-        req.method = method;
-        req.params = body;
+    int post_to_supernode(local_sn_t &local_sn, const std::string &method, const typename request_struct::request &body,
+                                  const std::string &endpoint = std::string());
 
-        std::string uri = "/" + method;
-        if (!endpoint.empty())
-        {
-            uri = endpoint;
-        }
-        typename request_struct::response resp = AUTO_VAL_INIT(resp);
-        bool r = epee::net_utils::invoke_http_json(local_sn.uri + uri,
-                                                   req, resp, local_sn.client,
-                                                   std::chrono::milliseconds(size_t(SUPERNODE_HTTP_TIMEOUT_MILLIS)), "POST");
-        if (!r || resp.status == 0)
-        {
-            return 0;
-        }
-        return 1;
-    }
-
+    // posts HTTP request to all local supernodes
     template<typename request_struct>
-    int post_request_to_supernodes(const std::string &method, const typename request_struct::request &body,
-                                   const std::string &endpoint = std::string())
-    {
-      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
-      int ret = 0;
-      for(auto& sn : m_local_sns)
-        ret += post_request_to_supernode<request_struct>(sn.second, method, body, endpoint);
-      return ret;
-    }
+    int post_to_all_supernodes(const std::string &method, const typename request_struct::request &body,
+                                   const std::string &endpoint = std::string());
 
+    // posts HTTP request to specific supernodes (in case specified in 'body.receiver_addresses') or to all local supernodes
+    // (in case 'body.receriver_addresses' is empty)
     template<typename request_struct>
-    int post_request_to_supernode_receivers(const std::string &method, const typename request_struct::request &body,
-                                   const std::string &endpoint = std::string())
-    {
-      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
-      int ret = 0;
-      if(body.receiver_addresses.empty())
-      {
-        for(auto& sn : m_local_sns)
-          ret += post_request_to_supernode<request_struct>(sn.second, method, body, endpoint);
-      }
-      else
-      {
-        for(auto& id : body.receiver_addresses)
-        {
-          auto it = m_local_sns.find(id);
-          if(it == m_local_sns.end()) continue;
-          ret += post_request_to_supernode<request_struct>(it->second, method, body, endpoint);
-        }
-      }
-      return ret;
-    }
-
+    int post_to_supernode_list(const std::string &method, const typename request_struct::request &body,
+                                   const std::string &endpoint = std::string());
+    
     void remove_old_request_cache();
 
     //----------------- commands handlers ----------------------------------------------

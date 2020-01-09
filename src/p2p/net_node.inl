@@ -976,9 +976,75 @@ namespace nodetool
       MDEBUG("P2P Request: notify_peer_list: end notify");
       return true;
   }
-
   //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
+  template<typename t_payload_net_handler>
+  template<class request_struct>
+  int node_server<t_payload_net_handler>::post_to_supernode(local_sn_t &local_sn, const std::string &method, const typename request_struct::request &body,
+                                const std::string &endpoint)
+  {
+      boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
+      epee::json_rpc::request<typename request_struct::request>& req = static_cast<epee::json_rpc::request<typename request_struct::request> &>(init_req);
+      req.jsonrpc = "2.0";
+      req.id = 0;
+      req.method = method;
+      req.params = body;
+
+      std::string uri = "/" + method;
+      if (!endpoint.empty())
+      {
+          uri = endpoint;
+      }
+      typename request_struct::response resp = AUTO_VAL_INIT(resp);
+      MDEBUG("POSTing to supernode: " << local_sn.uri + uri);
+      bool r = epee::net_utils::invoke_http_json(local_sn.uri + uri,
+                                                 req, resp, local_sn.client,
+                                                 std::chrono::milliseconds(size_t(SUPERNODE_HTTP_TIMEOUT_MILLIS)), "POST");
+      MDEBUG("POSTing to supernode done: " << local_sn.uri + uri << ", result: " << r << ", status: " << resp.status);
+      if (!r || resp.status == 0)
+      {
+          return 0;
+      }
+      return 1;
+  }
+  
+  //-----------------------------------------------------------------------------------
+  template<typename t_payload_net_handler>
+  template<typename request_struct>
+  int node_server<t_payload_net_handler>::post_to_all_supernodes(const std::string &method, const typename request_struct::request &body,
+                                 const std::string &endpoint)
+  {
+    boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+    int ret = 0;
+    for(auto& sn : m_local_sns)
+      ret += post_to_supernode<request_struct>(sn.second, method, body, endpoint);
+    return ret;
+  }
+  //-----------------------------------------------------------------------------------
+  template<typename t_payload_net_handler>
+  template<typename request_struct>
+  int node_server<t_payload_net_handler>::post_to_supernode_list(const std::string &method, const typename request_struct::request &body,
+                                 const std::string &endpoint)
+  {
+    boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
+    int ret = 0;
+    if(body.receiver_addresses.empty())
+    {
+      for(auto& sn : m_local_sns)
+        ret += post_to_supernode<request_struct>(sn.second, method, body, endpoint);
+    }
+    else
+    {
+      for(auto& id : body.receiver_addresses)
+      {
+        auto it = m_local_sns.find(id);
+        if(it == m_local_sns.end()) continue;
+        ret += post_to_supernode<request_struct>(it->second, method, body, endpoint);
+      }
+    }
+    return ret;
+  }
+  //-----------------------------------------------------------------------------------
+  template<typename t_payload_net_handler>
   void node_server<t_payload_net_handler>::remove_old_request_cache()
   {
       int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -1114,7 +1180,7 @@ namespace nodetool
 
                   for(const auto& id : my_addresses)
                   {
-                      post_request_to_supernode<COMMAND_BROADCAST>( m_local_sns[id], "broadcast_to_me", arg, arg.callback_uri);
+                      post_to_supernode<COMMAND_BROADCAST>( m_local_sns[id], "broadcast_to_me", arg, arg.callback_uri);
                   }
               }
 
@@ -1144,7 +1210,7 @@ namespace nodetool
                   std::string callback_url = sn.redirect_uri;
                   MDEBUG("==> redirect broadcast for \n" << id << "\n url =" << callback_url);
                   redirect_req.receiver_id = id;
-                  post_request_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "redirect_to_other_supenode", redirect_req, callback_url);
+                  post_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "redirect_to_other_supenode", redirect_req, callback_url);
                 }
               }
 
@@ -2568,7 +2634,7 @@ namespace nodetool
 
       MDEBUG("P2P Request: do_broadcast: broadcast to me");
       {
-          post_request_to_supernode_receivers<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
+          post_to_supernode_list<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
       }
 
 #ifdef LOCK_RTA_SENDING
@@ -3066,7 +3132,7 @@ namespace nodetool
       request.stakes.emplace_back(std::move(dst_stake));
     }
 
-    post_request_to_supernodes<cryptonote::COMMAND_RPC_SUPERNODE_STAKES>(supernode_endpoint, request);
+    post_to_all_supernodes<cryptonote::COMMAND_RPC_SUPERNODE_STAKES>(supernode_endpoint, request);
   }
 
   template<class t_payload_net_handler>
@@ -3112,7 +3178,7 @@ namespace nodetool
       request.tiers.emplace_back(std::move(dst_tier));
     }
 
-    post_request_to_supernodes<cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST>(supernode_endpoint, request);
+    post_to_all_supernodes<cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST>(supernode_endpoint, request);
   }
 
   template<class t_payload_net_handler>
