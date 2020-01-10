@@ -1193,24 +1193,18 @@ std::unique_ptr<wallet2> wallet2::make_dummy(const boost::program_options::varia
 //----------------------------------------------------------------------------------------------------
 bool wallet2::set_daemon(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, bool trusted_daemon, epee::net_utils::ssl_options_t ssl_options)
 {
-  m_daemon_address = std::move(daemon_address);
-  m_daemon_login   = std::move(daemon_login);
-  m_trusted_daemon = trusted_daemon;
+  m_daemon_address        = std::move(daemon_address);
+  m_daemon_login          = std::move(daemon_login);
+  m_trusted_daemon        = trusted_daemon;
   MINFO("setting daemon to " << get_daemon_address());
 
   bool result = true;
   {
     std::lock_guard<std::recursive_mutex> daemon_mutex(m_daemon_rpc_mutex);
+    m_long_poll_ssl_options = ssl_options;
     if(m_http_client.is_connected())
       m_http_client.disconnect();
     result &= m_http_client.set_server(get_daemon_address(), get_daemon_login(), ssl_options);
-  }
-
-  {
-    std::lock_guard<std::recursive_mutex> long_poll_mutex(m_long_poll_mutex);
-    if(m_long_poll_client.is_connected())
-      m_long_poll_client.disconnect();
-    result &= m_long_poll_client.set_server(get_daemon_address(), get_daemon_login(), std::move(ssl_options));
   }
 
   return result;
@@ -2867,6 +2861,26 @@ void wallet2::remove_obsolete_pool_txs(const std::vector<crypto::hash> &tx_hashe
 //----------------------------------------------------------------------------------------------------
 bool wallet2::long_poll_pool_state()
 {
+  // Update daemon address for long polling here instead of in set_daemon which
+  // could block on the long polling connection thread.
+  {
+    std::string new_host;
+    boost::optional<epee::net_utils::http::login> login;
+    {
+      std::lock_guard<std::recursive_mutex> daemon_mutex(m_daemon_rpc_mutex);
+      new_host = m_daemon_address;
+      login    = m_daemon_login;
+    }
+
+    std::lock_guard<std::recursive_mutex> long_poll_mutex(m_long_poll_mutex);
+    if (new_host != m_long_poll_client.get_host())
+    {
+      if(m_long_poll_client.is_connected())
+        m_long_poll_client.disconnect();
+      m_long_poll_client.set_server(new_host, login, m_long_poll_ssl_options);
+    }
+  }
+
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::request req  = {};
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::response res = {};
   req.long_poll        = true;
@@ -2876,24 +2890,28 @@ bool wallet2::long_poll_pool_state()
     std::lock_guard<decltype(m_long_poll_mutex)> lock(m_long_poll_mutex);
     r = epee::net_utils::invoke_http_json("/get_transaction_pool_hashes.bin", req, res, m_long_poll_client, cryptonote::rpc_long_poll_timeout, "GET");
   }
+
+  bool maxed_out_connections = res.status == CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS;
+  bool timed_out             = res.status == CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT;
+  if (maxed_out_connections || timed_out)
+  {
+    if (maxed_out_connections) std::this_thread::sleep_for(30s);
+    return false;
+  }
+
   THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "get_transaction_pool_hashes.bin");
   THROW_WALLET_EXCEPTION_IF(res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "get_transaction_pool_hashes.bin");
-  THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT &&
-                            res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error, res.status);
+  THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error, res.status);
 
-  bool result = res.status == CORE_RPC_STATUS_OK;
-  if (result)
+  m_long_poll_tx_pool_checksum = {};
+  for (crypto::hash const &hash : res.tx_hashes)
+    crypto::hash_xor(m_long_poll_tx_pool_checksum, hash);
+
   {
-    m_long_poll_tx_pool_checksum = {};
-    for (crypto::hash const &hash : res.tx_hashes)
-      crypto::hash_xor(m_long_poll_tx_pool_checksum, hash);
-
-    {
-      std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
-      m_long_poll_tx_pool_cache = std::move(res.tx_hashes);
-    }
+    std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
+    m_long_poll_tx_pool_cache = std::move(res.tx_hashes);
   }
-  return result;
+  return true;
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::update_pool_state(bool refreshed)
