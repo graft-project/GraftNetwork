@@ -1565,6 +1565,7 @@ private:
     void set_offline(bool offline = true);
 
 
+    bool m_long_poll_disabled = false;
   private:
     /*!
      * \brief  Stores wallet information to wallet file.

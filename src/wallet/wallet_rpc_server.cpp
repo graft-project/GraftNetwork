@@ -138,26 +138,29 @@ namespace tools
       return true;
     }, 500);
 
-    m_long_poll_thread = boost::thread([&] {
-      for (;;)
-      {
-        if (m_auto_refresh_period == 0 || !m_wallet)
+    if (!m_wallet->m_long_poll_disabled)
+    {
+      m_long_poll_thread = boost::thread([&] {
+        for (;;)
         {
-          std::this_thread::sleep_for(std::chrono::seconds(10));
-          continue;
-        }
+          if (m_auto_refresh_period == 0 || !m_wallet)
+          {
+            std::this_thread::sleep_for(std::chrono::seconds(10));
+            continue;
+          }
 
-        try
-        {
-          if (m_wallet->long_poll_pool_state())
-            m_long_poll_new_changes = true;
+          try
+          {
+            if (m_wallet->long_poll_pool_state())
+              m_long_poll_new_changes = true;
+          }
+          catch (...)
+          {
+            // NOTE: Don't care about error, non fatal.
+          }
         }
-        catch (...)
-        {
-          // NOTE: Don't care about error, non fatal.
-        }
-      }
-    });
+      });
+    }
 
     //DO NOT START THIS SERVER IN MORE THEN 1 THREADS WITHOUT REFACTORING
     return epee::http_server_impl_base<wallet_rpc_server, connection_context>::run(1, true);
