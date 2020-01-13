@@ -2167,13 +2167,11 @@ namespace service_nodes
       x25519_map_last_pruned = now;
     }
 
-    if (old_x25519 != derived_x25519_pubkey)
-    {
-      if (old_x25519)
-        x25519_to_pub.erase(old_x25519);
-      if (derived_x25519_pubkey)
-        x25519_to_pub[derived_x25519_pubkey] = {proof.pubkey, now};
-    }
+    if (old_x25519 && old_x25519 != derived_x25519_pubkey)
+      x25519_to_pub.erase(old_x25519);
+
+    if (derived_x25519_pubkey)
+      x25519_to_pub[derived_x25519_pubkey] = {proof.pubkey, now};
 
     return true;
   }
