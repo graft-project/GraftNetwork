@@ -1457,6 +1457,20 @@ void handle_blink_success(SNNetwork::message &m, void *) {
     common_blink_response(tag, cryptonote::blink_result::accepted, ""s);
 }
 
+void handle_ping(SNNetwork::message &m, void *) {
+    uint64_t tag = 0;
+    if (!m.data.empty()) {
+        auto &data = boost::get<bt_dict>(m.data[0]);
+        tag = get_or<uint64_t>(data, "!", 0);
+    }
+
+    MINFO("Received ping request from " << (m.sn ? "SN" : "non-SN") << " " << as_hex(m.pubkey) << ", sending pong");
+    m.reply("pong", bt_dict{{"!", tag}, {"sn", m.sn}});
+}
+
+void handle_pong(SNNetwork::message &m, void *) {
+    MINFO("Received pong from " << (m.sn ? "SN" : "non-SN") << " " << as_hex(m.pubkey));
+}
 
 } // end empty namespace
 
@@ -1494,6 +1508,10 @@ void init_core_callbacks() {
     // Receives blink tx signatures or rejections between quorum members (either original or
     // forwarded).  These are propagated by the receiver if new
     SNNetwork::register_command("blink_sign", SNNetwork::command_type::quorum, handle_blink_signature);
+
+    // Replies with a pong and the auth status, used for quorumnet connectivity testing.
+    SNNetwork::register_command("ping", SNNetwork::command_type::public_, handle_ping);
+    SNNetwork::register_command("pong", SNNetwork::command_type::public_, handle_pong);
 }
 
 }
