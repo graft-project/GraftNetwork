@@ -8329,17 +8329,23 @@ bool simple_wallet::run()
 
   m_auto_refresh_enabled = m_wallet->auto_refresh();
   m_idle_thread          = boost::thread([&] { wallet_idle_thread(); });
-  m_long_poll_thread     = boost::thread([&] {
-    for (;;)
-    {
-      try
+
+  if (!m_wallet->m_long_poll_disabled)
+  {
+    m_long_poll_thread = boost::thread([&] {
+      for (;;)
       {
-        if (m_auto_refresh_enabled && m_wallet->long_poll_pool_state())
-          m_idle_cond.notify_one();
+        try
+        {
+          if (m_auto_refresh_enabled && m_wallet->long_poll_pool_state())
+            m_idle_cond.notify_one();
+        }
+        catch (...)
+        {
+        }
       }
-      catch (...) { }
-    }
-  });
+    });
+  }
 
   message_writer(console_color_green, false) << "Background refresh thread started";
 

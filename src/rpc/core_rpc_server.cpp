@@ -1135,6 +1135,13 @@ namespace cryptonote
 
     if (req.long_poll)
     {
+      if (m_max_long_poll_connections <= 0)
+      {
+        // Essentially disable long polling by making the wallet long polling thread go to sleep due to receiving this message
+        res.status = CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS;
+        return true;
+      }
+
       crypto::hash checksum = {};
       for (crypto::hash const &hash : tx_pool_hashes) crypto::hash_xor(checksum, hash);
 
@@ -1145,7 +1152,7 @@ namespace cryptonote
         std::unique_lock<std::mutex> lock(m_core.m_long_poll_mutex);
         if ((m_long_poll_active_connections + 1) > m_max_long_poll_connections)
         {
-          res.status = "Too many long polling connections, refusing connection";
+          res.status = CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS;
           return true;
         }
 

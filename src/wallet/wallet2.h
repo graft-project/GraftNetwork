@@ -1565,6 +1565,7 @@ private:
     void set_offline(bool offline = true);
 
 
+    bool m_long_poll_disabled = false;
   private:
     /*!
      * \brief  Stores wallet information to wallet file.
@@ -1682,6 +1683,7 @@ private:
     mutable std::mutex                        m_long_poll_tx_pool_cache_mutex;
     std::vector<crypto::hash>                 m_long_poll_tx_pool_cache;
     crypto::hash                              m_long_poll_tx_pool_checksum = {};
+    epee::net_utils::ssl_options_t            m_long_poll_ssl_options = epee::net_utils::ssl_support_t::e_ssl_support_autodetect;
 
     transfer_container m_transfers;
     payment_container m_payments;

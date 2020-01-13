@@ -965,6 +965,7 @@ namespace cryptonote
   {
     if (m_quorumnet_obj)
       quorumnet_delete(m_quorumnet_obj);
+    m_long_poll_wake_up_clients.notify_all();
     m_service_node_list.store();
     m_miner.stop();
     m_mempool.deinit();
