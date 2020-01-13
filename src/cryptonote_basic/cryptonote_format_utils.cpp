@@ -180,9 +180,9 @@ namespace cryptonote
     return true;
   }
 
-  // NOTE: Compiling with a minimum Mac OSX API of 10.13 and generating
-  // a binary_archive with a one_shot_read_buffer, causes the following snippet
-  // to fail
+  // NOTE: Compiling with a libc++ (Mac OSX 10.13, our Android NDK version) and
+  // generating a binary_archive with a one_shot_read_buffer, causes the
+  // following snippet to fail
 
 #if 0
   explicit binary_archive(stream_type &s) : base_type(s) {
@@ -199,11 +199,9 @@ namespace cryptonote
 
   // A seekg followed by a tellg returns 0, no state flags are set on the io
   // stream. So use the old method that copies the blob into a stringstream
-  // instead for APPLE targets.
-  
-  // 2020-01-08, doyle
+  // 2020-01-15, doyle
 
-#if defined __APPLE__
+#if defined(_LIBCPP_VERSION)
   #define BINARY_ARCHIVE_STREAM(stream_name, blob) \
     std::stringstream stream_name; \
     stream_name.write(reinterpret_cast<const char *>(blob.data()), blob.size())
