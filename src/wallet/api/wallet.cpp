@@ -150,7 +150,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         return m_listener;
     }
 
-    virtual void on_new_block(uint64_t height, const cryptonote::block& block)
+    void on_new_block(uint64_t height, const cryptonote::block& block) override
     {
         // Don't flood the GUI with signals. On fast refresh - send signal every 1000th block
         // get_refresh_from_block_height() returns the blockheight from when the wallet was 
@@ -163,12 +163,11 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         }
     }
 
-    virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index, uint64_t unlock_time)
+    void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index, uint64_t unlock_time, bool blink) override
     {
-
         std::string tx_hash =  epee::string_tools::pod_to_hex(txid);
 
-        LOG_PRINT_L3(__FUNCTION__ << ": money received. height:  " << height
+        LOG_PRINT_L3(__FUNCTION__ << ": money received." << (blink ? "blink: " : "height: ") << height
                      << ", tx: " << tx_hash
                      << ", amount: " << print_money(amount)
                      << ", idx: " << subaddr_index);
@@ -179,7 +178,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         }
     }
 
-    virtual void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index)
+    void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index) override
     {
 
         std::string tx_hash =  epee::string_tools::pod_to_hex(txid);
@@ -195,8 +194,12 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         }
     }
 
-    virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx,
-                                uint64_t amount, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index)
+    void on_money_spent(uint64_t height,
+                        const crypto::hash &txid,
+                        const cryptonote::transaction &in_tx,
+                        uint64_t amount,
+                        const cryptonote::transaction &spend_tx,
+                        const cryptonote::subaddress_index &subaddr_index) override
     {
         // TODO;
         std::string tx_hash = epee::string_tools::pod_to_hex(txid);
@@ -211,20 +214,20 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         }
     }
 
-    virtual void on_skip_transaction(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx)
+    void on_skip_transaction(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx) override
     {
         // TODO;
     }
 
     // Light wallet callbacks
-    virtual void on_lw_new_block(uint64_t height)
+    void on_lw_new_block(uint64_t height) override
     {
       if (m_listener) {
         m_listener->newBlock(height);
       }
     }
 
-    virtual void on_lw_money_received(uint64_t height, const crypto::hash &txid, uint64_t amount)
+    void on_lw_money_received(uint64_t height, const crypto::hash &txid, uint64_t amount) override
     {
       if (m_listener) {
         std::string tx_hash =  epee::string_tools::pod_to_hex(txid);
@@ -232,7 +235,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
       }
     }
 
-    virtual void on_lw_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, uint64_t amount)
+    void on_lw_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, uint64_t amount) override
     {
       if (m_listener) {
         std::string tx_hash =  epee::string_tools::pod_to_hex(txid);
@@ -240,7 +243,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
       }
     }
 
-    virtual void on_lw_money_spent(uint64_t height, const crypto::hash &txid, uint64_t amount)
+    void on_lw_money_spent(uint64_t height, const crypto::hash &txid, uint64_t amount) override
     {
       if (m_listener) {
         std::string tx_hash =  epee::string_tools::pod_to_hex(txid);
@@ -248,21 +251,21 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
       }
     }
 
-    virtual void on_device_button_request(uint64_t code)
+    void on_device_button_request(uint64_t code) override
     {
       if (m_listener) {
         m_listener->onDeviceButtonRequest(code);
       }
     }
 
-    virtual void on_device_button_pressed()
+    void on_device_button_pressed() override
     {
       if (m_listener) {
         m_listener->onDeviceButtonPressed();
       }
     }
 
-    virtual boost::optional<epee::wipeable_string> on_device_pin_request()
+    boost::optional<epee::wipeable_string> on_device_pin_request() override
     {
       if (m_listener) {
         auto pin = m_listener->onDevicePinRequest();
@@ -273,7 +276,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
       return boost::none;
     }
 
-    virtual boost::optional<epee::wipeable_string> on_device_passphrase_request(bool on_device)
+    boost::optional<epee::wipeable_string> on_device_passphrase_request(bool on_device) override
     {
       if (m_listener) {
         auto passphrase = m_listener->onDevicePassphraseRequest(on_device);
@@ -284,7 +287,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
       return boost::none;
     }
 
-    virtual void on_device_progress(const hw::device_progress & event)
+    void on_device_progress(const hw::device_progress & event) override
     {
       if (m_listener) {
         m_listener->onDeviceProgress(DeviceProgress(event.progress(), event.indeterminate()));
