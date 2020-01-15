@@ -43,8 +43,6 @@
 #include "common_defines.h"
 #include "common/util.h"
 
-#include "cryptonote_core/service_node_rules.h"
-
 #include "mnemonics/electrum-words.h"
 #include "mnemonics/english.h"
 #include <boost/format.hpp>
@@ -1423,7 +1421,7 @@ PendingTransaction* WalletImpl::restoreMultisigTransaction(const string& signDat
 //    - confirmed_transfer_details)
 
 PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const string &payment_id, optional<uint64_t> amount, uint32_t mixin_count,
-                                                  PendingTransaction::Priority priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
+                                                  uint32_t priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
 
 {
     clearStatus();
@@ -1438,8 +1436,7 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     if (fake_outs_count == 0)
         fake_outs_count = DEFAULT_MIXIN;
     fake_outs_count = m_wallet->adjust_mixin(fake_outs_count);
-
-    uint32_t adjusted_priority = m_wallet->adjust_priority(static_cast<uint32_t>(priority));
+    uint32_t adjusted_priority = m_wallet->adjust_priority(priority);
 
     PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
 
