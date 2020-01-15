@@ -50,6 +50,7 @@
 #include <boost/format.hpp>
 #include <sstream>
 #include <unordered_map>
+#include <thread>
 
 #ifdef WIN32
 #include <boost/locale.hpp>
@@ -458,6 +459,26 @@ WalletImpl::WalletImpl(NetworkType nettype, uint64_t kdf_rounds)
         this->refreshThreadFunc();
     });
 
+    m_longPollThread = boost::thread([this]() {
+      for (;;)
+      {
+        if (!m_refreshEnabled)
+        {
+          std::this_thread::sleep_for(std::chrono::seconds(10));
+          continue;
+        }
+
+        try
+        {
+          if (m_wallet->long_poll_pool_state())
+            m_refreshCV.notify_one();
+        }
+        catch (...)
+        {
+          // Ignore
+        }
+      }
+    });
 }
 
 WalletImpl::~WalletImpl()
