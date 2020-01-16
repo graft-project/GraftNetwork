@@ -7514,7 +7514,7 @@ uint64_t wallet2::get_fee_percent(uint32_t priority, int fee_algorithm) const
   if (priority == 0)
     priority = fee_algorithm >= 1 ? 2 : 1;
 
-  if (priority == BLINK_PRIORITY)
+  if (priority == tx_priority_blink)
   {
     THROW_WALLET_EXCEPTION_IF(!use_fork_rules(HF_VERSION_BLINK, 0), error::invalid_priority);
     return BLINK_MINER_TX_FEE_PERCENT + BLINK_BURN_TX_FEE_PERCENT;
@@ -7582,10 +7582,13 @@ uint64_t wallet2::adjust_mixin(uint64_t mixin) const
   return mixin;
 }
 //----------------------------------------------------------------------------------------------------
-uint32_t wallet2::adjust_priority(uint32_t priority, bool blink)
+uint32_t wallet2::adjust_priority(uint32_t priority)
 {
-  if (blink)
-    priority = BLINK_PRIORITY;
+  constexpr uint32_t DEPRECATED_BLINK_PRIORITY = 0x626c6e6b; // "blnk"
+  if (priority == DEPRECATED_BLINK_PRIORITY)
+  {
+    priority = tx_priority_blink;
+  }
   else if (priority == 0 && m_default_priority == 0 && auto_low_priority())
   {
     try
@@ -7665,7 +7668,7 @@ uint32_t wallet2::adjust_priority(uint32_t priority, bool blink)
 loki_construct_tx_params wallet2::construct_params(uint32_t priority)
 {
   loki_construct_tx_params tx_params;
-  if (priority == BLINK_PRIORITY)
+  if (priority == tx_priority_blink)
   {
     tx_params.burn_fixed = BLINK_BURN_FIXED;
     tx_params.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
@@ -8132,7 +8135,7 @@ wallet2::stake_result wallet2::create_stake_tx(const crypto::public_key& service
   {
     priority = adjust_priority(priority);
 
-    if (priority == BLINK_PRIORITY)
+    if (priority == tx_priority_blink)
     {
       result.status = stake_result_status::no_blink;
       result.msg += tr("Service node stakes cannot use blink priority");
@@ -8200,7 +8203,7 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
 
     priority = adjust_priority(priority);
 
-    if (priority == BLINK_PRIORITY)
+    if (priority == tx_priority_blink)
     {
       result.status = register_service_node_result_status::no_blink;
       result.msg += tr("Service node registrations cannot use blink priority");
@@ -14343,7 +14346,7 @@ bool parse_priority(const std::string& arg, uint32_t& priority)
     priority = std::distance(allowed_priority_strings.begin(), priority_pos);
     return true;
   } else if (arg == "blink") {
-    priority = wallet2::BLINK_PRIORITY;
+    priority = tx_priority_blink;
     return true;
   }
   return false;
