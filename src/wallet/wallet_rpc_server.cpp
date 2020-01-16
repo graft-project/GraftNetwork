@@ -35,6 +35,7 @@
 #include <boost/preprocessor/stringize.hpp>
 #include <cstdint>
 #include "include_base_utils.h"
+#include <chrono>
 using namespace epee;
 
 #include "wallet_rpc_server.h"
@@ -111,8 +112,14 @@ namespace tools
     m_net_server.add_idle_handler([this](){
       if (m_auto_refresh_period == 0) // disabled
         return true;
-      if (boost::posix_time::microsec_clock::universal_time() < m_last_auto_refresh_time + boost::posix_time::seconds(m_auto_refresh_period))
-        return true;
+
+      if (!m_long_poll_new_changes)
+      {
+        if (boost::posix_time::microsec_clock::universal_time() < m_last_auto_refresh_time + boost::posix_time::seconds(m_auto_refresh_period))
+          return true;
+      }
+      m_long_poll_new_changes = false; // Always consume the change, if we miss one due to thread race, not the end of the world.
+
       try {
         if (m_wallet) m_wallet->refresh(m_wallet->is_trusted_daemon());
       } catch (const std::exception& ex) {
@@ -131,21 +138,29 @@ namespace tools
       return true;
     }, 500);
 
-    m_net_server.add_idle_handler([this](){
+    m_long_poll_thread = boost::thread([&] {
+      for (;;)
+      {
         if (m_auto_refresh_period == 0 || !m_wallet)
+        {
+          std::this_thread::sleep_for(std::chrono::seconds(10));
+          continue;
+        }
+
+        if (m_wallet->m_long_poll_disabled)
           return true;
 
         try
         {
           if (m_wallet->long_poll_pool_state())
-            m_wallet->refresh(m_wallet->is_trusted_daemon());
+            m_long_poll_new_changes = true;
         }
-        catch (const std::exception &ex)
+        catch (...)
         {
           // NOTE: Don't care about error, non fatal.
         }
-        return true;
-    }, cryptonote::rpc_long_poll_timeout.count());
+      }
+    });
 
     //DO NOT START THIS SERVER IN MORE THEN 1 THREADS WITHOUT REFACTORING
     return epee::http_server_impl_base<wallet_rpc_server, connection_context>::run(1, true);
@@ -845,7 +860,8 @@ namespace tools
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority, req.blink);
+      uint32_t priority = m_wallet->adjust_priority(req.priority);
+      if (req.blink) priority = tools::tx_priority_blink;
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
 
       if (ptx_vector.empty())
@@ -897,7 +913,8 @@ namespace tools
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority, req.blink);
+      uint32_t priority = m_wallet->adjust_priority(req.priority);
+      if (req.blink) priority = tools::tx_priority_blink;
       LOG_PRINT_L2("on_transfer_split calling create_transactions_2");
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
       LOG_PRINT_L2("on_transfer_split called create_transactions_2");
@@ -1307,7 +1324,8 @@ namespace tools
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority, req.blink);
+      uint32_t priority = m_wallet->adjust_priority(req.priority);
+      if (req.blink) priority = tools::tx_priority_blink;
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, dsts[0].is_subaddress, req.outputs, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
 
       return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay, req.blink,
@@ -1362,7 +1380,8 @@ namespace tools
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority, req.blink);
+      uint32_t priority = m_wallet->adjust_priority(req.priority);
+      if (req.blink) priority = tools::tx_priority_blink;
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_single(ki, dsts[0].addr, dsts[0].is_subaddress, req.outputs, mixin, req.unlock_time, priority, extra);
 
       if (ptx_vector.empty())

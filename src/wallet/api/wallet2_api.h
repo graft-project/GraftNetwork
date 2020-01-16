@@ -77,19 +77,11 @@ struct PendingTransaction
         Status_Critical
     };
 
-    enum Priority {
-        Priority_Default = 0,
-        Priority_Low = 1,
-        Priority_Medium = 2,
-        Priority_High = 3,
-        Priority_Last
-    };
-
     virtual ~PendingTransaction() = 0;
     virtual int status() const = 0;
     virtual std::string errorString() const = 0;
     // commit transaction or save to file if filename is provided.
-    virtual bool commit(const std::string &filename = "", bool overwrite = false) = 0;
+    virtual bool commit(const std::string &filename = "", bool overwrite = false, bool blink = false) = 0;
     virtual uint64_t amount() const = 0;
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
@@ -824,16 +816,18 @@ struct Wallet
      * \param mixin_count       mixin count. if 0 passed, wallet will use default value
      * \param subaddr_account   subaddress account from which the input funds are taken
      * \param subaddr_indices   set of subaddress indices to use for transfer or sweeping. if set empty, all are chosen when sweeping, and one or more are automatically chosen when transferring. after execution, returns the set of actually used indices
-     * \param priority
+     * \param priority          set a priority for the transaction. Accepted Values are: default (0), or 0-5 for: default, unimportant, normal, elevated, priority, blink.
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
      *                          after object returned
      */
 
-    virtual PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
-                                                   optional<uint64_t> amount, uint32_t mixin_count,
-                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low,
-                                                   uint32_t subaddr_account = 0,
-                                                   std::set<uint32_t> subaddr_indices = {}) = 0;
+    virtual PendingTransaction *createTransaction(const std::string &dst_addr,
+                                                  const std::string &payment_id,
+                                                  optional<uint64_t> amount,
+                                                  uint32_t mixin_count,
+                                                  uint32_t priority                  = 0,
+                                                  uint32_t subaddr_account           = 0,
+                                                  std::set<uint32_t> subaddr_indices = {}) = 0;
 
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.
@@ -1256,7 +1250,6 @@ struct WalletManagerBase
     //! checks for an update and returns version, hash and url
     static std::tuple<bool, std::string, std::string, std::string, std::string> checkUpdates(const std::string &software, std::string subdir);
 };
-
 
 struct WalletManagerFactory
 {

@@ -84,6 +84,7 @@ namespace cryptonote
 #define CORE_RPC_STATUS_BUSY   "BUSY"
 #define CORE_RPC_STATUS_NOT_MINING "NOT MINING"
 constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT[] = "Long polling client timed out before txpool had an update";
+constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon maxed out long polling connections";
 
 // When making *any* change here, bump minor
 // If the change is incompatible, then bump major and set minor to 0

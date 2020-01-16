@@ -240,6 +240,7 @@ struct options {
   const command_line::arg_descriptor<bool> testnet = {"testnet", tools::wallet2::tr("For testnet. Daemon must also be launched with --testnet flag"), false};
   const command_line::arg_descriptor<bool> stagenet = {"stagenet", tools::wallet2::tr("For stagenet. Daemon must also be launched with --stagenet flag"), false};
   const command_line::arg_descriptor<bool> regtest = {"regtest", tools::wallet2::tr("For regression testing. Daemon must also be launched with --regtest flag"), false};
+  const command_line::arg_descriptor<bool> disable_rpc_long_poll = {"disable-rpc-long-poll", tools::wallet2::tr("Disable TX pool long polling functionality for instantaneous TX detection"), false};
 
   const command_line::arg_descriptor<std::string, false, true, 3> shared_ringdb_dir = {
     "shared-ringdb-dir", tools::wallet2::tr("Set shared ring database path"),
@@ -451,6 +452,7 @@ std::unique_ptr<tools::wallet2> make_basic(const boost::program_options::variabl
   wallet->get_message_store().set_options(vm);
   wallet->device_name(device_name);
   wallet->device_derivation_path(device_derivation_path);
+  wallet->m_long_poll_disabled = command_line::get_arg(vm, opts.disable_rpc_long_poll);
 
   if (command_line::get_arg(vm, opts.offline))
     wallet->set_offline();
@@ -1148,6 +1150,7 @@ void wallet2::init_options(boost::program_options::options_description& desc_par
   command_line::add_arg(desc_params, opts.hw_device_derivation_path);
   command_line::add_arg(desc_params, opts.tx_notify);
   command_line::add_arg(desc_params, opts.offline);
+  command_line::add_arg(desc_params, opts.disable_rpc_long_poll);
 }
 
 std::pair<std::unique_ptr<wallet2>, tools::password_container> wallet2::make_from_json(const boost::program_options::variables_map& vm, bool unattended, const std::string& json_file, const std::function<boost::optional<tools::password_container>(const char *, bool)> &password_prompter)
@@ -1193,24 +1196,18 @@ std::unique_ptr<wallet2> wallet2::make_dummy(const boost::program_options::varia
 //----------------------------------------------------------------------------------------------------
 bool wallet2::set_daemon(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, bool trusted_daemon, epee::net_utils::ssl_options_t ssl_options)
 {
-  m_daemon_address = std::move(daemon_address);
-  m_daemon_login   = std::move(daemon_login);
-  m_trusted_daemon = trusted_daemon;
+  m_daemon_address        = std::move(daemon_address);
+  m_daemon_login          = std::move(daemon_login);
+  m_trusted_daemon        = trusted_daemon;
   MINFO("setting daemon to " << get_daemon_address());
 
   bool result = true;
   {
     std::lock_guard<std::recursive_mutex> daemon_mutex(m_daemon_rpc_mutex);
+    m_long_poll_ssl_options = ssl_options;
     if(m_http_client.is_connected())
       m_http_client.disconnect();
     result &= m_http_client.set_server(get_daemon_address(), get_daemon_login(), ssl_options);
-  }
-
-  {
-    std::lock_guard<std::recursive_mutex> long_poll_mutex(m_long_poll_mutex);
-    if(m_long_poll_client.is_connected())
-      m_long_poll_client.disconnect();
-    result &= m_long_poll_client.set_server(get_daemon_address(), get_daemon_login(), std::move(ssl_options));
   }
 
   return result;
@@ -2867,6 +2864,26 @@ void wallet2::remove_obsolete_pool_txs(const std::vector<crypto::hash> &tx_hashe
 //----------------------------------------------------------------------------------------------------
 bool wallet2::long_poll_pool_state()
 {
+  // Update daemon address for long polling here instead of in set_daemon which
+  // could block on the long polling connection thread.
+  {
+    std::string new_host;
+    boost::optional<epee::net_utils::http::login> login;
+    {
+      std::lock_guard<std::recursive_mutex> daemon_mutex(m_daemon_rpc_mutex);
+      new_host = m_daemon_address;
+      login    = m_daemon_login;
+    }
+
+    std::lock_guard<std::recursive_mutex> long_poll_mutex(m_long_poll_mutex);
+    if (new_host != m_long_poll_client.get_host())
+    {
+      if(m_long_poll_client.is_connected())
+        m_long_poll_client.disconnect();
+      m_long_poll_client.set_server(new_host, login, m_long_poll_ssl_options);
+    }
+  }
+
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::request req  = {};
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::response res = {};
   req.long_poll        = true;
@@ -2876,24 +2893,28 @@ bool wallet2::long_poll_pool_state()
     std::lock_guard<decltype(m_long_poll_mutex)> lock(m_long_poll_mutex);
     r = epee::net_utils::invoke_http_json("/get_transaction_pool_hashes.bin", req, res, m_long_poll_client, cryptonote::rpc_long_poll_timeout, "GET");
   }
+
+  bool maxed_out_connections = res.status == CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS;
+  bool timed_out             = res.status == CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT;
+  if (maxed_out_connections || timed_out)
+  {
+    if (maxed_out_connections) std::this_thread::sleep_for(30s);
+    return false;
+  }
+
   THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "get_transaction_pool_hashes.bin");
   THROW_WALLET_EXCEPTION_IF(res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "get_transaction_pool_hashes.bin");
-  THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT &&
-                            res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error, res.status);
+  THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error, res.status);
 
-  bool result = res.status == CORE_RPC_STATUS_OK;
-  if (result)
+  m_long_poll_tx_pool_checksum = {};
+  for (crypto::hash const &hash : res.tx_hashes)
+    crypto::hash_xor(m_long_poll_tx_pool_checksum, hash);
+
   {
-    m_long_poll_tx_pool_checksum = {};
-    for (crypto::hash const &hash : res.tx_hashes)
-      crypto::hash_xor(m_long_poll_tx_pool_checksum, hash);
-
-    {
-      std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
-      m_long_poll_tx_pool_cache = std::move(res.tx_hashes);
-    }
+    std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
+    m_long_poll_tx_pool_cache = std::move(res.tx_hashes);
   }
-  return result;
+  return true;
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::update_pool_state(bool refreshed)
@@ -7493,7 +7514,7 @@ uint64_t wallet2::get_fee_percent(uint32_t priority, int fee_algorithm) const
   if (priority == 0)
     priority = fee_algorithm >= 1 ? 2 : 1;
 
-  if (priority == BLINK_PRIORITY)
+  if (priority == tx_priority_blink)
   {
     THROW_WALLET_EXCEPTION_IF(!use_fork_rules(HF_VERSION_BLINK, 0), error::invalid_priority);
     return BLINK_MINER_TX_FEE_PERCENT + BLINK_BURN_TX_FEE_PERCENT;
@@ -7561,10 +7582,13 @@ uint64_t wallet2::adjust_mixin(uint64_t mixin) const
   return mixin;
 }
 //----------------------------------------------------------------------------------------------------
-uint32_t wallet2::adjust_priority(uint32_t priority, bool blink)
+uint32_t wallet2::adjust_priority(uint32_t priority)
 {
-  if (blink)
-    priority = BLINK_PRIORITY;
+  constexpr uint32_t DEPRECATED_BLINK_PRIORITY = 0x626c6e6b; // "blnk"
+  if (priority == DEPRECATED_BLINK_PRIORITY)
+  {
+    priority = tx_priority_blink;
+  }
   else if (priority == 0 && m_default_priority == 0 && auto_low_priority())
   {
     try
@@ -7644,7 +7668,7 @@ uint32_t wallet2::adjust_priority(uint32_t priority, bool blink)
 loki_construct_tx_params wallet2::construct_params(uint32_t priority)
 {
   loki_construct_tx_params tx_params;
-  if (priority == BLINK_PRIORITY)
+  if (priority == tx_priority_blink)
   {
     tx_params.burn_fixed = BLINK_BURN_FIXED;
     tx_params.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
@@ -8111,7 +8135,7 @@ wallet2::stake_result wallet2::create_stake_tx(const crypto::public_key& service
   {
     priority = adjust_priority(priority);
 
-    if (priority == BLINK_PRIORITY)
+    if (priority == tx_priority_blink)
     {
       result.status = stake_result_status::no_blink;
       result.msg += tr("Service node stakes cannot use blink priority");
@@ -8179,7 +8203,7 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
 
     priority = adjust_priority(priority);
 
-    if (priority == BLINK_PRIORITY)
+    if (priority == tx_priority_blink)
     {
       result.status = register_service_node_result_status::no_blink;
       result.msg += tr("Service node registrations cannot use blink priority");
@@ -14322,7 +14346,7 @@ bool parse_priority(const std::string& arg, uint32_t& priority)
     priority = std::distance(allowed_priority_strings.begin(), priority_pos);
     return true;
   } else if (arg == "blink") {
-    priority = wallet2::BLINK_PRIORITY;
+    priority = tx_priority_blink;
     return true;
   }
   return false;

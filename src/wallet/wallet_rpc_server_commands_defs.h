@@ -480,8 +480,8 @@ namespace wallet_rpc
       std::list<transfer_destination> destinations; // Array of destinations to receive LOKI.
       uint32_t account_index;                       // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
-      uint32_t priority;                            // Set a priority for the transaction. Accepted Values are: default (1), or 0-3 for: unimportant, normal, elevated, priority.
-      bool blink;                                   // Specifies that the tx should be blinked (`priority` will be ignored).
+      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      bool blink;                                   // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
       uint64_t ring_size;                           // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
       uint64_t unlock_time;                         // Number of blocks before the loki can be spent (0 to use the default lock time).
       std::string payment_id;                       // (Optional) Random 64-character hex string to identify a transaction.
@@ -541,9 +541,9 @@ namespace wallet_rpc
       std::list<transfer_destination> destinations; // Array of destinations to receive LOKI:
       uint32_t account_index;                       // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
-      uint32_t priority;                            // Set a priority for the transactions. Accepted Values are: 0-3 for: default, unimportant, normal, elevated, priority.
-      bool blink;                                   // Specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;                           // (Ignored) Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
+      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      bool blink;                                   // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
+      uint64_t ring_size;                           // (Deprecated) Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
       uint64_t unlock_time;                         // Number of blocks before the loki can be spent (0 to not add a lock).
       std::string payment_id;                       // (Optional) Random 32-byte/64-character hex string to identify a transaction.
       bool get_tx_keys;                             // (Optional) Return the transaction keys after sending.
@@ -791,8 +791,8 @@ namespace wallet_rpc
       std::string address;                // Destination public address.
       uint32_t account_index;             // Sweep transactions from this account.
       std::set<uint32_t> subaddr_indices; // (Optional) Sweep from this set of subaddresses in the account.
-      uint32_t priority;                  // (Optional) Priority for sending the sweep transfer, partially determines fee. 
-      bool blink;                         // Specifies that the tx should be blinked (`priority` will be ignored).
+      uint32_t priority;                  // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      bool blink;                         // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
       uint64_t ring_size;                 // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
       uint64_t outputs;                   // 
       uint64_t unlock_time;               // Number of blocks before the loki can be spent (0 to not add a lock). 
@@ -863,8 +863,8 @@ namespace wallet_rpc
     struct request_t
     {
       std::string address;    // Destination public address.
-      uint32_t priority;      // (Optional) Priority for sending the sweep transfer, partially determines fee.
-      bool blink;             // Specifies that the tx should be blinked (`priority` will be ignored).
+      uint32_t priority;      // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      bool blink;             // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
       uint64_t ring_size;     // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
       uint64_t outputs;       // 
       uint64_t unlock_time;   // Number of blocks before the loki can be spent (0 to not add a lock).
@@ -924,7 +924,7 @@ namespace wallet_rpc
     struct request_t
     {
       std::string hex; // Transaction metadata returned from a transfer method with get_tx_metadata set to true.
-      bool blink;      // True if this tx was constructed and should be submitted to the blink quorum
+      bool blink;      // (Optional): True if this tx was constructed with a blink priority and should be submitted to the blink quorum
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(hex)
@@ -2599,7 +2599,7 @@ namespace wallet_rpc
       uint64_t           amount;           // Amount of Loki to stake in atomic units.
       std::set<uint32_t> subaddr_indices;  // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
       std::string        service_node_key; // Service Node Public Address.
-      uint32_t           priority;         // Set a priority for the transaction. Accepted Values are: 0-3 for: default, unimportant, normal, elevated, priority.
+      uint32_t           priority;         // Set a priority for the transaction. Accepted values are: or 0-4 for: default, unimportant, normal, elevated, priority.
       bool               get_tx_key;       // (Optional) Return the transaction key after sending.
       bool               do_not_relay;     // (Optional) If true, the newly created transaction will not be relayed to the loki network. (Defaults to false)
       bool               get_tx_hex;       // Return the transaction as hex string after sending (Defaults to false)

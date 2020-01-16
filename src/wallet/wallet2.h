@@ -303,6 +303,16 @@ private:
     END_KV_SERIALIZE_MAP()
   };
 
+  enum tx_priority
+  {
+    tx_priority_default     = 0,
+    tx_priority_unimportant = 1,
+    tx_priority_normal      = 2,
+    tx_priority_elevated    = 3,
+    tx_priority_priority    = 4,
+    tx_priority_blink       = 5,
+    tx_priority_last
+  };
 
   class wallet_keys_unlocker;
   class wallet2
@@ -312,9 +322,7 @@ private:
     friend class wallet_keys_unlocker;
     friend class wallet_device_callback;
   public:
-    static constexpr uint32_t BLINK_PRIORITY = 0x626c6e6b; // "blnk"
     static constexpr const std::chrono::seconds rpc_timeout = std::chrono::minutes(3) + std::chrono::seconds(30);
-
     enum RefreshType {
       RefreshFull,
       RefreshOptimizeCoinbase,
@@ -1377,7 +1385,7 @@ private:
     cryptonote::byte_and_output_fees get_base_fees() const;
     uint64_t get_fee_quantization_mask() const;
     uint64_t adjust_mixin(uint64_t mixin) const;
-    uint32_t adjust_priority(uint32_t priority, bool blink = false);
+    uint32_t adjust_priority(uint32_t priority);
 
     // Shortcut to set up construction parameters; the returned object is default constructed unless
     // priority is blink in which case the burn values are set appropriately.
@@ -1565,6 +1573,7 @@ private:
     void set_offline(bool offline = true);
 
 
+    bool m_long_poll_disabled = false;
   private:
     /*!
      * \brief  Stores wallet information to wallet file.
@@ -1682,6 +1691,7 @@ private:
     mutable std::mutex                        m_long_poll_tx_pool_cache_mutex;
     std::vector<crypto::hash>                 m_long_poll_tx_pool_cache;
     crypto::hash                              m_long_poll_tx_pool_checksum = {};
+    epee::net_utils::ssl_options_t            m_long_poll_ssl_options = epee::net_utils::ssl_support_t::e_ssl_support_autodetect;
 
     transfer_container m_transfers;
     payment_container m_payments;

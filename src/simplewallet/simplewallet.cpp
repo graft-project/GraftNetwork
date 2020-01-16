@@ -958,7 +958,7 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
   auto hf_version = m_wallet->get_hard_fork_version();
   if (hf_version && *hf_version >= HF_VERSION_BLINK)
   {
-    uint64_t pct = m_wallet->get_fee_percent(tools::wallet2::BLINK_PRIORITY);
+    uint64_t pct = m_wallet->get_fee_percent(tools::tx_priority_blink);
     uint64_t fixed = BLINK_BURN_FIXED;
 
     uint64_t typical_blink_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100 + fixed;
@@ -5712,7 +5712,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
   uint64_t locked_blocks = 0;
   if (transfer_type == Transfer::Locked)
   {
-    if (priority == tools::wallet2::BLINK_PRIORITY)
+    if (priority == tools::tx_priority_blink)
     {
       fail_msg_writer() << tr("blink priority cannot be used for locked transfers");
       return false;
@@ -5866,7 +5866,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
     }
 
     // if we need to check for backlog, check the worst case tx
-    if (m_wallet->confirm_backlog() && priority != tools::wallet2::BLINK_PRIORITY)
+    if (m_wallet->confirm_backlog() && priority != tools::tx_priority_blink)
     {
       std::stringstream prompt;
       double worst_fee_per_byte = std::numeric_limits<double>::max();
@@ -6034,7 +6034,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
           return false;
         }
 
-        commit_or_save(signed_tx.ptx, m_do_not_relay, priority == tools::wallet2::BLINK_PRIORITY);
+        commit_or_save(signed_tx.ptx, m_do_not_relay, priority == tools::tx_priority_blink);
       }
       catch (const std::exception& e)
       {
@@ -6063,7 +6063,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
     }
     else
     {
-      commit_or_save(ptx_vector, m_do_not_relay, priority == tools::wallet2::BLINK_PRIORITY);
+      commit_or_save(ptx_vector, m_do_not_relay, priority == tools::tx_priority_blink);
     }
   }
   catch (const std::exception &e)
@@ -6771,7 +6771,7 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
   priority = m_wallet->adjust_priority(priority);
   uint64_t unlock_block = 0;
   if (transfer_type == Transfer::Locked) {
-    if (priority == tools::wallet2::BLINK_PRIORITY) {
+    if (priority == tools::tx_priority_blink) {
       fail_msg_writer() << tr("blink priority cannot be used for locked transfers");
       return false;
     }
@@ -6900,7 +6900,7 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
   try
   {
     auto ptx_vector = m_wallet->create_transactions_all(below, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block /* unlock_time */, priority, extra, m_current_subaddress_account, subaddr_indices);
-    sweep_main_internal(sweep_type_t::all_or_below, ptx_vector, info, priority == tools::wallet2::BLINK_PRIORITY);
+    sweep_main_internal(sweep_type_t::all_or_below, ptx_vector, info, priority == tools::tx_priority_blink);
   }
   catch (const std::exception &e)
   {
@@ -7035,7 +7035,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
   {
     // figure out what tx will be necessary
     auto ptx_vector = m_wallet->create_transactions_single(ki, info.address, info.is_subaddress, outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra);
-    sweep_main_internal(sweep_type_t::single, ptx_vector, info, priority == tools::wallet2::BLINK_PRIORITY);
+    sweep_main_internal(sweep_type_t::single, ptx_vector, info, priority == tools::tx_priority_blink);
   }
   catch (const std::exception& e)
   {
@@ -8329,17 +8329,23 @@ bool simple_wallet::run()
 
   m_auto_refresh_enabled = m_wallet->auto_refresh();
   m_idle_thread          = boost::thread([&] { wallet_idle_thread(); });
-  m_long_poll_thread     = boost::thread([&] {
-    for (;;)
-    {
-      try
+
+  if (!m_wallet->m_long_poll_disabled)
+  {
+    m_long_poll_thread = boost::thread([&] {
+      for (;;)
       {
-        if (m_auto_refresh_enabled && m_wallet->long_poll_pool_state())
-          m_idle_cond.notify_one();
+        try
+        {
+          if (m_auto_refresh_enabled && m_wallet->long_poll_pool_state())
+            m_idle_cond.notify_one();
+        }
+        catch (...)
+        {
+        }
       }
-      catch (...) { }
-    }
-  });
+    });
+  }
 
   message_writer(console_color_green, false) << "Background refresh thread started";
 
