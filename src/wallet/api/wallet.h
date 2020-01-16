@@ -249,6 +249,8 @@ private:
     boost::mutex        m_refreshMutex2;
     boost::condition_variable m_refreshCV;
     boost::thread       m_refreshThread;
+    boost::thread       m_longPollThread;
+
     // flag indicating wallet is recovering from seed
     // so it shouldn't be considered as new and pull blocks (slow-refresh)
     // instead of pulling hashes (fast-refresh)
