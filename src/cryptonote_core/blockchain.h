@@ -1077,9 +1077,10 @@ namespace cryptonote
 
     BlockchainDB* m_db;
 
-    tx_memory_pool& m_tx_pool;
+    tx_memory_pool&                   m_tx_pool;
     service_nodes::service_node_list& m_service_node_list;
-    lns::name_system_db m_lns_db;
+    lns::name_system_db               m_lns_db;
+    std::map<uint64_t /*height*/, std::vector<cryptonote::tx_extra_loki_name_system>> m_lns_uncommitted_entries;
 
     mutable boost::recursive_mutex m_blockchain_lock; // TODO: add here reader/writer lock
 

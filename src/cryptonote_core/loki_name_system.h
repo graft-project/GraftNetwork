@@ -93,9 +93,6 @@ struct name_system_db
   mapping_record  get_mapping    (uint16_t type, std::string const &name) const;
   settings_record get_settings   () const;
 
-  bool            can_add_or_renew_lns_entry(uint16_t type, char const *name, int name_len, crypto::ed25519_public_key const &owner) const;
-  bool            can_add_or_renew_lns_entry(uint16_t type, char const *name, int name_len, int64_t *user_id = nullptr, bool *exists = nullptr) const;
-
   sqlite3                  *db                     = nullptr;
 private:
   cryptonote::network_type  nettype;
@@ -103,7 +100,6 @@ private:
   sqlite3_stmt             *save_user_sql          = nullptr;
   sqlite3_stmt             *save_mapping_sql       = nullptr;
   sqlite3_stmt             *save_settings_sql      = nullptr;
-  sqlite3_stmt             *force_save_mapping_sql = nullptr;
   sqlite3_stmt             *get_user_by_key_sql    = nullptr;
   sqlite3_stmt             *get_user_by_id_sql     = nullptr;
   sqlite3_stmt             *get_mapping_sql        = nullptr;

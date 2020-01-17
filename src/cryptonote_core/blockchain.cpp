@@ -427,6 +427,15 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
 
   return true;
 }
+static void add_tx_if_lns_to(cryptonote::network_type nettype, std::map<uint64_t, std::vector<cryptonote::tx_extra_loki_name_system>> &map, uint64_t height, cryptonote::transaction const &tx)
+{
+  if (tx.type == txtype::loki_name_system)
+  {
+    cryptonote::tx_extra_loki_name_system entry;
+    if (lns::validate_lns_tx(nettype, tx, &entry))
+      map[height].push_back(std::move(entry));
+  }
+}
 //------------------------------------------------------------------
 //FIXME: possibly move this into the constructor, to avoid accidentally
 //       dereferencing a null BlockchainDB pointer
@@ -602,25 +611,57 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
       return false;
   }
 
-  uint64_t tail_height   = 0;
-  crypto::hash tail_hash = {};
+  if (lns_db) // Initialise LNS
   {
-    checkpoint_t checkpoint;
-    if (m_db->get_immutable_checkpoint(&checkpoint, get_current_blockchain_height()))
+    uint64_t lns_height   = 0;
+    crypto::hash lns_hash = {};
     {
-      tail_height = checkpoint.height;
-      tail_hash   = checkpoint.block_hash;
+      checkpoint_t checkpoint;
+      if (m_db->get_immutable_checkpoint(&checkpoint, get_current_blockchain_height()))
+      {
+        lns_height = checkpoint.height;
+        lns_hash   = checkpoint.block_hash;
+      }
+      else
+      {
+        lns_hash = get_block_id_by_height(0);
+      }
     }
-    else
-    {
-      tail_hash = get_block_id_by_height(0);
-    }
-  }
 
-  if (lns_db && !m_lns_db.init(nettype, lns_db, tail_height, tail_hash))
-  {
-    MERROR("LNS failed to initialise");
-    return false;
+    if (!m_lns_db.init(nettype, lns_db, lns_height, lns_hash))
+    {
+      MERROR("LNS failed to initialise");
+      return false;
+    }
+
+    // Load all the blocks not loaded in LNS DB (i.e. non checkpointed blocks)
+    // and store them so we can check new, incoming TX's and ensure they don't
+    // request the same names.
+    cryptonote::block blk;
+    if (get_block_by_hash(lns_hash, blk) && blk.major_version >= cryptonote::network_version_14_blink_lns)
+    {
+      uint64_t start_height = lns_height + 1;
+      uint64_t end_height   = get_current_blockchain_height();
+      for (uint64_t height = start_height; height < end_height; height++)
+      {
+        std::vector<std::pair<cryptonote::blobdata, block>> blocks;
+        std::vector<cryptonote::blobdata> txs;
+        if (get_blocks(height, 1, blocks, txs))
+        {
+          for (auto const &blob : txs)
+          {
+            cryptonote::transaction tx;
+            if (!cryptonote::parse_and_validate_tx_from_blob(blob, tx))
+            {
+              LOG_ERROR("Invalid transaction, couldn't parse from blob loaded from DB");
+              return false;
+            }
+
+            add_tx_if_lns_to(nettype, m_lns_uncommitted_entries, height, tx);
+          }
+        }
+      }
+    }
   }
 
   hook_block_added(m_checkpoints);
@@ -3404,10 +3445,69 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         return false;
       }
 
-      if (m_lns_db.db && !m_lns_db.can_add_or_renew_lns_entry(data.type, data.name.data(), data.name.size(), data.owner))
+      for (std::pair<uint64_t, std::vector<cryptonote::tx_extra_loki_name_system>> const &pair : m_lns_uncommitted_entries)
       {
-        MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner << ", type = " << (int)data.type << ", name = " << data.name << " can not be renewed.");
-        return false;
+        std::vector<cryptonote::tx_extra_loki_name_system> const &entries = pair.second;
+        for (auto const &entry : entries)
+        {
+          if (data.type == entry.type && data.name == entry.name)
+          {
+            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
+                              << ", type = " << (int)data.type << ", name = " << data.name
+                              << " conflicts with pre-existing entry in blockchain not yet locked in by checkpoints. "
+                                 "Refusing transaction to be conservative.");
+            return false;
+          }
+        }
+      }
+
+      if (m_lns_db.db)
+      {
+        lns::mapping_record mapping = m_lns_db.get_mapping(data.type, data.name.data(), data.name.size());
+        if (mapping)
+        {
+          if (data.type != static_cast<uint16_t>(lns::mapping_type::lokinet))
+          {
+            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
+                              << ", type = " << (int)data.type << ", name = " << data.name
+                              << ", non-lokinet entries can NOT be renewed.");
+            return false;
+          }
+
+          uint64_t renew_window              = 0;
+          uint64_t expiry_blocks             = lns::lokinet_expiry_blocks(nettype(), &renew_window);
+          uint64_t const renew_window_offset = expiry_blocks - renew_window;
+          uint64_t const min_renew_height    = mapping.register_height + renew_window_offset;
+
+          if (min_renew_height >= get_current_blockchain_height())
+            return false; // Trying to renew too early
+
+          // LNS entry can be renewed, check that the request to renew originates from the owner of this mapping
+          lns::user_record requester = m_lns_db.get_user_by_key(data.owner);
+          if (!requester)
+          {
+            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
+                              << ", type = " << (int)data.type << ", name = " << data.name
+                              << " user does not exist, but trying to renew existing mapping, rejected.");
+            return false;
+          }
+
+          lns::user_record owner = m_lns_db.get_user_by_id(mapping.user_id);
+          if (!owner)
+          {
+            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
+                              << ", type = " << (int)data.type << ", name = " << data.name
+                              << " unexpected user_id = " << mapping.user_id << " does not exist");
+            return false;
+          }
+
+          if (requester.id != owner.id)
+            return false;
+        }
+        else
+        {
+          // No pre-existing mapping, user can request this LNS entry
+        }
       }
     }
   }
@@ -4209,6 +4309,17 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
         hook->blockchain_detached(old_height, false /*by_pop_blocks*/);
   });
 
+  bool lns_entries_checkpointed = false;
+  {
+    checkpoint_t checkpoint;
+    if (m_db->get_immutable_checkpoint(&checkpoint, blockchain_height))
+    {
+      auto end_it = m_lns_uncommitted_entries.upper_bound(checkpoint.height);
+      m_lns_uncommitted_entries.erase(m_lns_uncommitted_entries.begin(), end_it);
+      lns_entries_checkpointed = new_height <= checkpoint.height;
+    }
+  }
+
   // TODO(loki): Not nice, making the hook take in a vector of pair<transaction,
   // blobdata> messes with service_node_list::init which only constructs
   // a vector of transactions and then subsequently calls block_added, so the
@@ -4219,12 +4330,15 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   std::vector<transaction> only_txs;
   only_txs.reserve(txs.size());
   for (std::pair<transaction, blobdata> const &tx_pair : txs)
+  {
     only_txs.push_back(tx_pair.first);
+    if (!lns_entries_checkpointed)
+      add_tx_if_lns_to(nettype(), m_lns_uncommitted_entries, new_height, tx_pair.first);
+  }
 
   if (!load_missing_blocks_into_loki_subsystems())
   {
     MERROR("Failed to load new blocks into loki subsystems");
-    pop_block_from_blockchain();
     return false;
   }
 

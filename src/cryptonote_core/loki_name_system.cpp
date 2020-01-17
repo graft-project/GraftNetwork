@@ -432,11 +432,6 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
   char constexpr GET_MAPPING_SQL[] = R"FOO(SELECT * FROM mappings WHERE "type" = ? AND "name" = ?)FOO";
 
   char constexpr SAVE_MAPPING_SQL[] =
-      "INSERT INTO mappings "
-      "(type, name, value, register_height, user_id)"
-      "VALUES (?,?,?,?,?);";
-
-  char constexpr FORCE_SAVE_MAPPING_SQL[] =
       "INSERT OR REPLACE INTO mappings "
       "(type, name, value, register_height, user_id)"
       "VALUES (?,?,?,?,?);";
@@ -452,7 +447,6 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
   if (!sql_compile_statement(db, SAVE_USER_SQL,          loki::array_count(SAVE_USER_SQL),          &save_user_sql)    ||
       !sql_compile_statement(db, SAVE_MAPPING_SQL,       loki::array_count(SAVE_MAPPING_SQL),       &save_mapping_sql) ||
       !sql_compile_statement(db, SAVE_SETTINGS_SQL,      loki::array_count(SAVE_SETTINGS_SQL),      &save_settings_sql) ||
-      !sql_compile_statement(db, FORCE_SAVE_MAPPING_SQL, loki::array_count(FORCE_SAVE_MAPPING_SQL), &force_save_mapping_sql) ||
       !sql_compile_statement(db, GET_USER_BY_KEY_SQL,    loki::array_count(GET_USER_BY_KEY_SQL),    &get_user_by_key_sql) ||
       !sql_compile_statement(db, GET_USER_BY_ID_SQL,     loki::array_count(GET_USER_BY_ID_SQL),     &get_user_by_id_sql) ||
       !sql_compile_statement(db, GET_MAPPING_SQL,        loki::array_count(GET_MAPPING_SQL),        &get_mapping_sql) ||
@@ -522,6 +516,12 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
 
   if (block.major_version >= cryptonote::network_version_14_blink_lns)
   {
+    if (!sql_transaction(db, sql_transaction_type::begin))
+    {
+      MERROR("Failed to initiate transaction for LNS DB");
+      return false;
+    }
+
     for (cryptonote::transaction const &tx : txs)
     {
       if (tx.type != cryptonote::txtype::loki_name_system)
@@ -535,49 +535,39 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
         continue;
       }
 
-      bool transaction_begun = false;
-      int64_t user_id        = 0;
+      int64_t user_id = 0;
       if (user_record user = get_user_by_key(entry.owner)) user_id = user.id;
-
       if (user_id == 0)
       {
-        transaction_begun = sql_transaction(db, sql_transaction_type::begin);
         if (!save_user(entry.owner, &user_id))
         {
           LOG_PRINT_L1("Failed to save LNS user to DB tx: " << cryptonote::get_transaction_hash(tx) << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
-          if (transaction_begun && !sql_transaction(db, sql_transaction_type::rollback))
+          if (!sql_transaction(db, sql_transaction_type::rollback))
           {
             MERROR("Failed to rollback transaction in LNS DB");
             return false;
           }
-
-          continue;
         }
       }
       assert(user_id != 0);
 
-      if (!transaction_begun)
-        transaction_begun = sql_transaction(db, sql_transaction_type::begin);
-
-      if (save_mapping(static_cast<uint16_t>(entry.type), entry.name, entry.value, height, user_id))
-      {
-        if (transaction_begun && !sql_transaction(db, sql_transaction_type::commit))
-        {
-          MERROR("Failed to commit user and or mapping transaction to LNS DB");
-          return false;
-        }
-      }
-      else
+      if (!save_mapping(static_cast<uint16_t>(entry.type), entry.name, entry.value, height, user_id))
       {
         LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << cryptonote::get_transaction_hash(tx)
                                                            << ", type: " << (uint16_t)entry.type
                                                            << ", name: " << entry.name << ", user: " << entry.owner);
-        if (transaction_begun && !sql_transaction(db, sql_transaction_type::rollback))
+        if (!sql_transaction(db, sql_transaction_type::rollback))
         {
           MERROR("Failed to rollback transaction in LNS DB");
           return false;
         }
       }
+    }
+
+    if (!sql_transaction(db, sql_transaction_type::commit))
+    {
+      MERROR("Failed to commit transaction(s) to LNS DB from block" << cryptonote::get_block_hash(block));
+      return false;
     }
 
     if (!expire_mappings(height))
@@ -605,11 +595,6 @@ bool name_system_db::save_user(crypto::ed25519_public_key const &key, int64_t *r
 bool name_system_db::save_mapping(uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id)
 {
   sqlite3_stmt *statement = save_mapping_sql;
-  bool exists = false;
-  if (!can_add_or_renew_lns_entry(type, name.data(), name.size(), &user_id, &exists))
-    return false;
-
-  if (exists) statement = force_save_mapping_sql;
   sqlite3_bind_int  (statement, mapping_record_row_type, type);
   sqlite3_bind_text (statement, mapping_record_row_name, name.data(), name.size(), nullptr /*destructor*/);
   sqlite3_bind_blob (statement, mapping_record_row_value, value.data(), value.size(), nullptr /*destructor*/);
@@ -692,37 +677,4 @@ settings_record name_system_db::get_settings() const
   result.loaded           = sql_run_statement(nettype, lns_sql_type::get_setting, statement, &result);
   return result;
 }
-
-bool name_system_db::can_add_or_renew_lns_entry(uint16_t type, char const *name, int name_len, crypto::ed25519_public_key const &owner) const
-{
-  user_record user = get_user_by_key(owner);
-  bool result      = can_add_or_renew_lns_entry(type, name, name_len, (user) ? &user.id : nullptr);
-  return result;
-}
-
-bool name_system_db::can_add_or_renew_lns_entry(uint16_t type, char const *name, int name_len, int64_t *user_id, bool *exists) const
-{
-  if (exists) *exists = false;
-  mapping_record record = get_mapping(type, name, name_len);
-  if (!record)
-      return true;
-
-  if (exists) *exists = true;
-  if (type != static_cast<uint16_t>(mapping_type::lokinet))
-      return false;
-
-  uint64_t renew_window        = 0;
-  uint64_t expiry_blocks       = lokinet_expiry_blocks(nettype, &renew_window);
-  uint64_t renew_window_offset = expiry_blocks - renew_window;
-  uint64_t min_renew_height    = record.register_height + renew_window_offset;
-
-  if (min_renew_height > (last_processed_height + 1))
-    return false; // Trying to renew too early
-
-  if (user_id && (*user_id != record.user_id))
-    return false; // LNS entry can be renewed, but person renewing is not the same as the one who originally bought the domain
-
-  return true;
-}
-
 }; // namespace service_nodes

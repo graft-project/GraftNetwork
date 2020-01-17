@@ -1163,9 +1163,6 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
 
     gen.create_and_add_next_block({bar, bar2, bar3});
 
-    // TODO(doyle): We need a staging area for lns txs to accumulate because you can submit multiple
-    // LNS txes inbetween waiting for the next immutable checkpoint requesting the same name.
-
     // NOTE: But don't allow duplicates if the type and name are the same (i.e. dupe the messenger entry but different owner)
     cryptonote::transaction bar4 = gen.create_loki_name_system_tx(bob,
                                                                   static_cast<uint16_t>(lns::mapping_type::messenger),
@@ -1214,7 +1211,7 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
     CHECK_EQ(mappings3.loaded, true);
     CHECK_EQ(mappings3.type, custom_type);
     CHECK_EQ(mappings3.name, std::string(messenger_name));
-    CHECK_EQ(mappings3.value, std::string((char *)miner_key.data, sizeof(miner_key)));
+    CHECK_EQ(mappings3.value, std::string(messenger_key, sizeof(messenger_key)));
     CHECK_EQ(mappings3.register_height, height_of_lns_entry);
     CHECK_EQ(mappings3.user_id, user.id);
 
