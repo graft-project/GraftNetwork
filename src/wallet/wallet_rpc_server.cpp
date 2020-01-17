@@ -4281,6 +4281,7 @@ namespace tools
                          res.multisig_txset,
                          res.unsigned_txset,
                          req.do_not_relay,
+                         false /*blink*/,
                          res.tx_hash,
                          req.get_tx_hex,
                          res.tx_blob,
