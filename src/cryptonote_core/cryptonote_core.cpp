@@ -1305,7 +1305,7 @@ namespace cryptonote
       auto mempool_lock = m_mempool.blink_shared_lock();
       for (size_t i = 0; i < blinks.size(); i++)
       {
-        if (want[i] && m_mempool.has_blink(blinks[i].tx_hash, true /*have lock*/))
+        if (want[i] && m_mempool.has_blink(blinks[i].tx_hash))
         {
           MDEBUG("Ignoring blink data for " << blinks[i].tx_hash << ": already have blink signatures");
           want[i] = false; // Already have it, move along
@@ -1402,7 +1402,7 @@ namespace cryptonote
 
     for (auto &b : blinks)
       if (b->approved())
-        if (m_mempool.add_existing_blink(b, true /*have lock*/))
+        if (m_mempool.add_existing_blink(b))
           added++;
 
     MINFO("Added blink signatures for " << added << " blinks");

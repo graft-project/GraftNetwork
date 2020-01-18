@@ -717,7 +717,7 @@ namespace cryptonote
       if (might_be_blink)
       {
         if (!blink_lock) blink_lock.lock();
-        e.blink = pool.has_blink(tx_hash, true /*have lock*/);
+        e.blink = pool.has_blink(tx_hash);
       }
 
       // fill up old style responses too, in case an old wallet asks
