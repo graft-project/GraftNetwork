@@ -1196,21 +1196,17 @@ std::unique_ptr<wallet2> wallet2::make_dummy(const boost::program_options::varia
 //----------------------------------------------------------------------------------------------------
 bool wallet2::set_daemon(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, bool trusted_daemon, epee::net_utils::ssl_options_t ssl_options)
 {
+  std::lock_guard<std::recursive_mutex> daemon_mutex(m_daemon_rpc_mutex);
+
+  if(m_http_client.is_connected())
+    m_http_client.disconnect();
   m_daemon_address        = std::move(daemon_address);
   m_daemon_login          = std::move(daemon_login);
   m_trusted_daemon        = trusted_daemon;
+  m_long_poll_ssl_options = ssl_options;
+
   MINFO("setting daemon to " << get_daemon_address());
-
-  bool result = true;
-  {
-    std::lock_guard<std::recursive_mutex> daemon_mutex(m_daemon_rpc_mutex);
-    m_long_poll_ssl_options = ssl_options;
-    if(m_http_client.is_connected())
-      m_http_client.disconnect();
-    result &= m_http_client.set_server(get_daemon_address(), get_daemon_login(), ssl_options);
-  }
-
-  return result;
+  return m_http_client.set_server(get_daemon_address(), get_daemon_login(), std::move(ssl_options));
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::init(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, boost::asio::ip::tcp::endpoint proxy, uint64_t upper_transaction_weight_limit, bool trusted_daemon, epee::net_utils::ssl_options_t ssl_options)
