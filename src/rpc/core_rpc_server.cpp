@@ -622,9 +622,8 @@ namespace cryptonote
       LOG_PRINT_L2("Found " << found_in_pool << "/" << vh.size() << " transactions in the pool");
     }
 
-    bool blink_enabled = m_core.get_blockchain_storage().get_current_hard_fork_version() >= HF_VERSION_BLINK;
     uint64_t immutable_height = m_core.get_blockchain_storage().get_immutable_height();
-    auto pool_lock = pool.blink_shared_lock(std::defer_lock); // Defer until/unless we actually need it
+    auto blink_lock = pool.blink_shared_lock(std::defer_lock); // Defer until/unless we actually need it
 
     std::vector<std::string>::const_iterator txhi = req.txs_hashes.begin();
     std::vector<crypto::hash>::const_iterator vhi = vh.begin();
@@ -698,7 +697,7 @@ namespace cryptonote
       }
       auto ptx_it = per_tx_pool_tx_info.find(tx_hash);
       e.in_pool = ptx_it != per_tx_pool_tx_info.end();
-      bool might_be_blink = blink_enabled;
+      bool might_be_blink = true;
       if (e.in_pool)
       {
         e.block_height = e.block_timestamp = std::numeric_limits<uint64_t>::max();
@@ -717,8 +716,8 @@ namespace cryptonote
 
       if (might_be_blink)
       {
-        if (!pool_lock) pool_lock.lock();
-        e.blink = pool.has_blink(tx_hash, true /*have lock*/);
+        if (!blink_lock) blink_lock.lock();
+        e.blink = pool.has_blink(tx_hash);
       }
 
       // fill up old style responses too, in case an old wallet asks

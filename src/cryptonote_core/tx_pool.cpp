@@ -508,11 +508,9 @@ namespace cryptonote
     return result;
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::add_existing_blink(std::shared_ptr<blink_tx> blink_ptr, bool have_lock)
+  bool tx_memory_pool::add_existing_blink(std::shared_ptr<blink_tx> blink_ptr)
   {
     assert(blink_ptr && blink_ptr->approved());
-    auto lock = have_lock ? blink_unique_lock(std::defer_lock) : blink_unique_lock();
-
     auto &ptr = m_blinks[blink_ptr->get_txhash()];
     if (ptr)
       return false;
@@ -521,18 +519,16 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------------------------
-  std::shared_ptr<blink_tx> tx_memory_pool::get_blink(const crypto::hash &tx_hash, bool have_lock) const
+  std::shared_ptr<blink_tx> tx_memory_pool::get_blink(const crypto::hash &tx_hash) const
   {
-    auto lock = have_lock ? blink_shared_lock(std::defer_lock) : blink_shared_lock();
     auto it = m_blinks.find(tx_hash);
     if (it != m_blinks.end())
         return it->second;
     return {};
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::has_blink(const crypto::hash &tx_hash, bool have_lock) const
+  bool tx_memory_pool::has_blink(const crypto::hash &tx_hash) const
   {
-    auto lock = have_lock ? blink_shared_lock(std::defer_lock) : blink_shared_lock();
     return m_blinks.find(tx_hash) != m_blinks.end();
   }
 
@@ -616,8 +612,8 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   std::vector<crypto::hash> tx_memory_pool::get_mined_blinks(const std::set<uint64_t> &want_heights) const
   {
-
     std::vector<crypto::hash> result;
+
     auto hnh = get_blink_hashes_and_mined_heights();
     auto &hashes = hnh.first;
     auto &heights = hnh.second;
@@ -778,7 +774,7 @@ namespace cryptonote
         // don't prune the kept_by_block ones, they're likely added because we're adding a block with those
         // don't prune blink txes
         // don't prune the one we just added
-        if (meta.kept_by_block || this->has_blink(txid, true /*have lock*/) || txid == skip)
+        if (meta.kept_by_block || this->has_blink(txid) || txid == skip)
           return true;
 
         if (this->remove_tx(txid, &meta, &del_it))
@@ -1237,17 +1233,15 @@ namespace cryptonote
   //TODO: investigate whether boolean return is appropriate
   bool tx_memory_pool::get_transactions_and_spent_keys_info(std::vector<tx_info>& tx_infos, std::vector<spent_key_image_info>& key_image_infos, bool include_sensitive_data) const
   {
-    auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
+    auto tx_lock = tools::unique_lock(m_transactions_lock, std::defer_lock);
+    auto bc_lock = tools::unique_lock(m_blockchain, std::defer_lock);
+    auto blink_lock = blink_shared_lock(std::defer_lock);
+    boost::lock(tx_lock, bc_lock, blink_lock);
 
     tx_infos.reserve(m_blockchain.get_txpool_tx_count());
     key_image_infos.reserve(m_blockchain.get_txpool_tx_count());
 
-    bool blink_enabled = m_blockchain.get_current_hard_fork_version() >= HF_VERSION_BLINK;
-    auto blink_lock = blink_shared_lock(std::defer_lock);
-    if (blink_enabled)
-      blink_lock.lock();
-
-    m_blockchain.for_all_txpool_txes([&tx_infos, this, blink_enabled, include_sensitive_data](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd){
+    m_blockchain.for_all_txpool_txes([&tx_infos, this, include_sensitive_data](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd){
       transaction tx;
       if (!parse_and_validate_tx_from_blob(*bd, tx))
       {
@@ -1276,7 +1270,7 @@ namespace cryptonote
       txi.last_relayed_time = include_sensitive_data ? meta.last_relayed_time : 0;
       txi.do_not_relay = meta.do_not_relay;
       txi.double_spend_seen = meta.double_spend_seen;
-      txi.blink = blink_enabled && has_blink(txid, true /*have lock*/);
+      txi.blink = has_blink(txid);
       return true;
     }, true, include_sensitive_data);
 
