@@ -229,7 +229,8 @@ class Daemon(RPCDaemon):
 
 
 class Wallet(RPCDaemon):
-    base_args = ('--disable-rpc-login', '--non-interactive', '--password','', '--regtest', '--rpc-ssl=disabled', '--daemon-ssl=disabled')
+    base_args = ('--disable-rpc-login', '--non-interactive', '--password','', '--regtest', '--disable-rpc-long-poll',
+                 '--rpc-ssl=disabled', '--daemon-ssl=disabled')
 
     def __init__(
             self,
