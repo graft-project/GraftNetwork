@@ -58,9 +58,9 @@ struct settings_record
 
 enum struct mapping_type : uint16_t
 {
-  blockchain,
-  lokinet,
-  messenger,
+  blockchain = 0,
+  lokinet    = 1,
+  messenger  = 2,
 };
 
 struct mapping_record
@@ -87,11 +87,12 @@ struct name_system_db
 
   bool            expire_mappings(uint64_t height);
 
-  user_record     get_user_by_key(crypto::ed25519_public_key const &key) const;
-  user_record     get_user_by_id (int64_t user_id) const;
-  mapping_record  get_mapping    (uint16_t type, char const *name, size_t name_len) const;
-  mapping_record  get_mapping    (uint16_t type, std::string const &name) const;
-  settings_record get_settings   () const;
+  user_record                 get_user_by_key     (crypto::ed25519_public_key const &key) const;
+  user_record                 get_user_by_id      (int64_t user_id) const;
+  std::vector<mapping_record> get_mappings_by_user(crypto::ed25519_public_key const &key) const { return {}; }
+  mapping_record              get_mapping         (uint16_t type, char const *name, size_t name_len) const;
+  mapping_record              get_mapping         (uint16_t type, std::string const &name) const;
+  settings_record             get_settings        () const;
 
   sqlite3                  *db                     = nullptr;
 private:

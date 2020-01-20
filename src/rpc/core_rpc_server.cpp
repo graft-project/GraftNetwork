@@ -3324,5 +3324,67 @@ namespace cryptonote
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_lns_name_mapping(const COMMAND_RPC_GET_LNS_NAME_MAPPING::request &req, COMMAND_RPC_GET_LNS_NAME_MAPPING::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx)
+  {
+    lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
+    for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
+    {
+      COMMAND_RPC_GET_LNS_NAME_MAPPING::request_entry const &request = req.entries[request_index];
+      if (lns::mapping_record mapping = db.get_mapping(request.type, request.name))
+      {
+        if (lns::user_record user = db.get_user_by_id(mapping.user_id))
+        {
+          std::string owner = epee::string_tools::pod_to_hex(user.key);
+          res.entries.emplace_back();
+          COMMAND_RPC_GET_LNS_NAME_MAPPING::response_entry &entry = res.entries.back();
+          entry.entry_index     = request_index;
+          entry.owner           = epee::string_tools::pod_to_hex(user.key);
+          entry.pubkey          = mapping.value;
+          entry.register_height = mapping.register_height;
+        }
+        else
+        {
+          error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
+          error_resp.message = "Invalid mapping for name = " + request.name + ", specifies non-existent user with id =  " + std::to_string(mapping.user_id);
+          return false;
+        }
+      }
+    }
 
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_lns_owner_mapping(const COMMAND_RPC_GET_LNS_OWNER_MAPPING::request &req, COMMAND_RPC_GET_LNS_OWNER_MAPPING::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx)
+  {
+    lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
+    for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
+    {
+      std::string const &user = req.entries[request_index];
+      crypto::ed25519_public_key pkey;
+      if (!epee::string_tools::hex_to_pod(user, pkey))
+        continue;
+
+      std::vector<lns::mapping_record> db_mappings = db.get_mappings_by_user(pkey);
+      if (db_mappings.size())
+      {
+        res.entries.emplace_back();
+        COMMAND_RPC_GET_LNS_OWNER_MAPPING::response_entry &entry = res.entries.back();
+        entry.entry_index = request_index;
+        entry.mappings.reserve(db_mappings.size());
+        for (auto const &db_mapping : db_mappings)
+        {
+          entry.mappings.emplace_back();
+          COMMAND_RPC_GET_LNS_OWNER_MAPPING::response_mapping &mapping = entry.mappings.back();
+          mapping.name            = db_mapping.name;
+          mapping.pubkey          = db_mapping.value;
+          mapping.register_height = db_mapping.register_height;
+        }
+      }
+    }
+
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
 }  // namespace cryptonote

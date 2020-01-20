@@ -3415,4 +3415,92 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     };
   };
 
+  LOKI_RPC_DOC_INTROSPECT
+  struct COMMAND_RPC_GET_LNS_NAME_MAPPING
+  {
+    struct request_entry
+    {
+      std::string name; // The name to resolve to a public key via Loki Name Service
+      uint16_t type;    // 0-2 for blockchain, lokinet, messenger names respectively >= 64 for custom types
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(name)
+        KV_SERIALIZE(type)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      std::vector<request_entry> entries;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_entry
+    {
+      uint64_t entry_index;     // The index in request_entry's `entries` array that was resolved via Loki Name Service
+      std::string owner;        // The ed25519 public key that purchased the Loki Name Service entry.
+      std::string pubkey;       // The public key that was resolved from the given name
+      uint64_t register_height; // The height that this Loki Name Service entry was purchased on the Blockchain
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entry_index)
+        KV_SERIALIZE(pubkey)
+        KV_SERIALIZE(register_height)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<response_entry> entries;
+      std::string status; // Generic RPC error code. "OK" is the success value.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  struct COMMAND_RPC_GET_LNS_OWNER_MAPPING
+  {
+    struct request
+    {
+      std::vector<std::string> entries; // The ed25519 public key to find all Loki Name Service entries for.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_mapping
+    {
+      std::string name;         // The ed25519 public key that purchased the Loki Name Service entry.
+      std::string pubkey;       // The public key that the name maps to.
+      uint64_t register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(name)
+        KV_SERIALIZE(pubkey)
+        KV_SERIALIZE(register_height)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_entry
+    {
+      uint64_t entry_index;                   // The index in request_entry's `entries` array that was resolved via Loki Name Service.
+      std::vector<response_mapping> mappings;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entry_index)
+        KV_SERIALIZE(mappings)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<response_entry> entries;
+      std::string status; // Generic RPC error code. "OK" is the success value.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
 }
