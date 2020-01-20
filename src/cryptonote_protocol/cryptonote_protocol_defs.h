@@ -350,46 +350,6 @@ namespace cryptonote
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
-  // TODO(loki) - remove this after HF14
-  struct NOTIFY_NEW_SERVICE_NODE_VOTE_OLD
-  {
-  private:
-    struct alignas(8) blob { unsigned char data[120]; };
-  public:
-    const static int ID = BC_COMMANDS_POOL_BASE + 12;
-    struct request
-    {
-      std::vector<service_nodes::quorum_vote_t> votes;
-
-      BEGIN_KV_SERIALIZE_MAP()
-        auto &votes = this_ref.votes;
-
-        std::vector<blob> vote_blobs;
-        if (is_store) // means: "serializing".  Hate epee 2x: this is both badly named, and gross template parameter misuse.
-        {
-          vote_blobs.resize(votes.size());
-          for (size_t i = 0; i < votes.size(); i++)
-            vote_to_blob(votes[i], vote_blobs[i].data);
-        }
-        // Hate epee some more: this time for deficient serialization macros:
-        //KV_SERIALIZE_CONTAINER_POD_AS_BLOB_N(vote_blobs, "votes");
-        epee::serialization::selector<is_store>::serialize_stl_container_pod_val_as_blob(vote_blobs, stg, hparent_section, "votes");
-        if (!is_store)
-        {
-          // Hate epee even more:
-          auto &v = const_cast<std::vector<service_nodes::quorum_vote_t>&>(votes);
-          v.resize(vote_blobs.size());
-          for (size_t i = 0; i < v.size(); i++)
-            blob_to_vote(vote_blobs[i].data, v[i]);
-        }
-      END_KV_SERIALIZE_MAP()
-    };
-  };
-
-
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
   struct NOTIFY_REQUEST_BLOCK_BLINKS
   {
     constexpr static int ID = BC_COMMANDS_POOL_BASE + 13;

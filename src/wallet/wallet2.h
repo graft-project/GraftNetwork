@@ -1346,9 +1346,9 @@ private:
 
     crypto::hash get_long_poll_tx_pool_checksum() const
     {
-      std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
+      std::lock_guard<decltype(m_long_poll_tx_pool_checksum_mutex)> lock(m_long_poll_tx_pool_checksum_mutex);
       return m_long_poll_tx_pool_checksum;
-    };
+    }
 
     // long_poll_pool_state is blocking and does NOT return to the caller until
     // the daemon detects a change in the contents of the txpool by comparing
@@ -1688,8 +1688,7 @@ private:
 
     std::recursive_mutex                      m_long_poll_mutex;
     epee::net_utils::http::http_simple_client m_long_poll_client;
-    mutable std::mutex                        m_long_poll_tx_pool_cache_mutex;
-    std::vector<crypto::hash>                 m_long_poll_tx_pool_cache;
+    mutable std::mutex                        m_long_poll_tx_pool_checksum_mutex;
     crypto::hash                              m_long_poll_tx_pool_checksum = {};
     epee::net_utils::ssl_options_t            m_long_poll_ssl_options = epee::net_utils::ssl_support_t::e_ssl_support_autodetect;
 

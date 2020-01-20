@@ -40,6 +40,9 @@ using namespace epee;
 
 extern "C" {
 #include <sodium.h>
+#ifdef ENABLE_SYSTEMD
+#  include <systemd/sd-daemon.h>
+#endif
 }
 
 #include "cryptonote_core.h"
@@ -518,6 +521,62 @@ namespace cryptonote
   {
     return m_blockchain_storage.get_alternative_blocks_count();
   }
+
+#ifdef ENABLE_SYSTEMD
+  static std::string time_ago_str(time_t now, time_t then) {
+    if (then >= now)
+      return "now"s;
+    if (then == 0)
+      return "never"s;
+    int seconds = now - then;
+    if (seconds >= 60)
+      return std::to_string(seconds / 60) + "m" + std::to_string(seconds % 60) + "s";
+    return std::to_string(seconds % 60) + "s";
+  }
+
+  // Returns a string for systemd status notifications such as:
+  // Height: 1234567, SN: active, proof: 55m12s, storage: 4m48s, lokinet: 47s
+  static std::string get_systemd_status_string(const core &c)
+  {
+    std::string s;
+    s.reserve(128);
+    s += "Height: ";
+    s += std::to_string(c.get_blockchain_storage().get_current_blockchain_height());
+    s += ", SN: ";
+    auto keys = c.get_service_node_keys();
+    if (!keys)
+      s += "no";
+    else
+    {
+      auto &snl = c.get_service_node_list();
+      auto states = snl.get_service_node_list_state({ keys->pub });
+      if (states.empty())
+        s += "not registered";
+      else
+      {
+        auto &info = *states[0].info;
+        if (!info.is_fully_funded())
+          s += "awaiting contr.";
+        else if (info.is_active())
+          s += "active";
+        else if (info.is_decommissioned())
+          s += "decomm.";
+
+        uint64_t last_proof = 0;
+        snl.access_proof(keys->pub, [&](auto &proof) { last_proof = proof.timestamp; });
+        s += ", proof: ";
+        time_t now = std::time(nullptr);
+        s += time_ago_str(now, last_proof);
+        s += ", storage: ";
+        s += time_ago_str(now, c.m_last_storage_server_ping);
+        s += ", lokinet: ";
+        s += time_ago_str(now, c.m_last_lokinet_ping);
+      }
+    }
+    return s;
+  }
+#endif
+
   //-----------------------------------------------------------------------------------------------
   bool core::init(const boost::program_options::variables_map& vm, const cryptonote::test_options *test_options, const GetCheckpointsCallback& get_checkpoints/* = nullptr */)
   {
@@ -868,6 +927,11 @@ namespace cryptonote
     }
     // Otherwise we may still need quorumnet in remote-only mode, but we construct it on demand
 
+
+#ifdef ENABLE_SYSTEMD
+    sd_notify(0, ("READY=1\nSTATUS=" + get_systemd_status_string(*this)).c_str());
+#endif
+
     return true;
   }
 
@@ -963,6 +1027,9 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::deinit()
   {
+#ifdef ENABLE_SYSTEMD
+    sd_notify(0, "STOPPING=1\nSTATUS=Shutting down");
+#endif
     if (m_quorumnet_obj)
       quorumnet_delete(m_quorumnet_obj);
     m_long_poll_wake_up_clients.notify_all();
@@ -1305,7 +1372,7 @@ namespace cryptonote
       auto mempool_lock = m_mempool.blink_shared_lock();
       for (size_t i = 0; i < blinks.size(); i++)
       {
-        if (want[i] && m_mempool.has_blink(blinks[i].tx_hash, true /*have lock*/))
+        if (want[i] && m_mempool.has_blink(blinks[i].tx_hash))
         {
           MDEBUG("Ignoring blink data for " << blinks[i].tx_hash << ": already have blink signatures");
           want[i] = false; // Already have it, move along
@@ -1402,7 +1469,7 @@ namespace cryptonote
 
     for (auto &b : blinks)
       if (b->approved())
-        if (m_mempool.add_existing_blink(b, true /*have lock*/))
+        if (m_mempool.add_existing_blink(b))
           added++;
 
     MINFO("Added blink signatures for " << added << " blinks");
@@ -1687,20 +1754,10 @@ namespace cryptonote
 
     if (!p2p_votes.empty())
     {
-      if (hf_version >= cryptonote::network_version_14_blink_lns)
-      {
-        NOTIFY_NEW_SERVICE_NODE_VOTE::request req{};
-        req.votes = std::move(p2p_votes);
-        cryptonote_connection_context fake_context{};
-        get_protocol()->relay_service_node_votes(req, fake_context);
-      }
-      else
-      {
-        NOTIFY_NEW_SERVICE_NODE_VOTE_OLD::request req{};
-        req.votes = std::move(p2p_votes);
-        cryptonote_connection_context fake_context{};
-        get_protocol()->relay_service_node_votes(req, fake_context);
-      }
+      NOTIFY_NEW_SERVICE_NODE_VOTE::request req{};
+      req.votes = std::move(p2p_votes);
+      cryptonote_connection_context fake_context{};
+      get_protocol()->relay_service_node_votes(req, fake_context);
     }
 
     return true;
@@ -2069,6 +2126,10 @@ namespace cryptonote
 
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
     loki::integration_test.core_is_idle = true;
+#endif
+
+#ifdef ENABLE_SYSTEMD
+    m_systemd_notify_interval.do_call([this] { sd_notify(0, ("WATCHDOG=1\nSTATUS=" + get_systemd_status_string(*this)).c_str()); });
 #endif
 
     return true;

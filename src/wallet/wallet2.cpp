@@ -1196,21 +1196,17 @@ std::unique_ptr<wallet2> wallet2::make_dummy(const boost::program_options::varia
 //----------------------------------------------------------------------------------------------------
 bool wallet2::set_daemon(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, bool trusted_daemon, epee::net_utils::ssl_options_t ssl_options)
 {
+  std::lock_guard<std::recursive_mutex> daemon_mutex(m_daemon_rpc_mutex);
+
+  if(m_http_client.is_connected())
+    m_http_client.disconnect();
   m_daemon_address        = std::move(daemon_address);
   m_daemon_login          = std::move(daemon_login);
   m_trusted_daemon        = trusted_daemon;
+  m_long_poll_ssl_options = ssl_options;
+
   MINFO("setting daemon to " << get_daemon_address());
-
-  bool result = true;
-  {
-    std::lock_guard<std::recursive_mutex> daemon_mutex(m_daemon_rpc_mutex);
-    m_long_poll_ssl_options = ssl_options;
-    if(m_http_client.is_connected())
-      m_http_client.disconnect();
-    result &= m_http_client.set_server(get_daemon_address(), get_daemon_login(), ssl_options);
-  }
-
-  return result;
+  return m_http_client.set_server(get_daemon_address(), get_daemon_login(), std::move(ssl_options));
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::init(std::string daemon_address, boost::optional<epee::net_utils::http::login> daemon_login, boost::asio::ip::tcp::endpoint proxy, uint64_t upper_transaction_weight_limit, bool trusted_daemon, epee::net_utils::ssl_options_t ssl_options)
@@ -2887,7 +2883,7 @@ bool wallet2::long_poll_pool_state()
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::request req  = {};
   cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::response res = {};
   req.long_poll        = true;
-  req.tx_pool_checksum = m_long_poll_tx_pool_checksum;
+  req.tx_pool_checksum = get_long_poll_tx_pool_checksum();
   bool r               = false;
   {
     std::lock_guard<decltype(m_long_poll_mutex)> lock(m_long_poll_mutex);
@@ -2906,13 +2902,12 @@ bool wallet2::long_poll_pool_state()
   THROW_WALLET_EXCEPTION_IF(res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "get_transaction_pool_hashes.bin");
   THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error, res.status);
 
-  m_long_poll_tx_pool_checksum = {};
+  crypto::hash checksum = crypto::null_hash;
   for (crypto::hash const &hash : res.tx_hashes)
-    crypto::hash_xor(m_long_poll_tx_pool_checksum, hash);
-
+    crypto::hash_xor(checksum, hash);
   {
-    std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
-    m_long_poll_tx_pool_cache = std::move(res.tx_hashes);
+    std::lock_guard<decltype(m_long_poll_tx_pool_checksum_mutex)> lock(m_long_poll_tx_pool_checksum_mutex);
+    m_long_poll_tx_pool_checksum = std::move(checksum);
   }
   return true;
 }
@@ -2922,8 +2917,17 @@ void wallet2::update_pool_state(bool refreshed)
   MTRACE("update_pool_state: take hashes from cache");
   std::vector<crypto::hash> tx_hashes;
   {
-    std::lock_guard<decltype(m_long_poll_tx_pool_cache_mutex)> lock(m_long_poll_tx_pool_cache_mutex);
-    tx_hashes = m_long_poll_tx_pool_cache;
+    // get the pool state
+    cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::request req;
+    cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES_BIN::response res;
+    m_daemon_rpc_mutex.lock();
+    bool r = invoke_http_json("/get_transaction_pool_hashes.bin", req, res, rpc_timeout);
+    m_daemon_rpc_mutex.unlock();
+    THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "get_transaction_pool_hashes.bin");
+    THROW_WALLET_EXCEPTION_IF(res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "get_transaction_pool_hashes.bin");
+    THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error);
+    MTRACE("update_pool_state got pool");
+    tx_hashes = std::move(res.tx_hashes);
   }
 
   auto keys_reencryptor = epee::misc_utils::create_scope_leave_handler([&, this]() {
