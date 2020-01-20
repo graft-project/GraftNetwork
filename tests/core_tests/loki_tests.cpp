@@ -1089,7 +1089,7 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
   return true;
 }
 
-bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry> &events)
+bool loki_name_system_handles_duplicate_in_lns_db::generate(std::vector<test_event_entry> &events)
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
   loki_chain_generator gen(events, hard_forks);
@@ -1098,10 +1098,145 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
   cryptonote::account_base bob   = gen.add_account();
   {
     gen.add_blocks_until_version(hard_forks.back().first);
-    gen.add_n_blocks(30); /// generate some outputs and unlock them
+    gen.add_n_blocks(60); /// generate some outputs and unlock them
     gen.add_mined_money_unlock_blocks();
 
-    cryptonote::transaction transfer = gen.create_and_add_tx(miner, bob.get_keys().m_account_address, MK_COINS(200));
+    cryptonote::transaction transfer = gen.create_and_add_tx(miner, bob.get_keys().m_account_address, MK_COINS(400));
+    gen.create_and_add_next_block({transfer});
+    gen.add_mined_money_unlock_blocks();
+
+    int constexpr NUM_SERVICE_NODES = service_nodes::CHECKPOINT_QUORUM_SIZE;
+    std::vector<cryptonote::transaction> registration_txs(NUM_SERVICE_NODES);
+    for (auto i = 0u; i < NUM_SERVICE_NODES; ++i)
+      registration_txs[i] = gen.create_and_add_registration_tx(gen.first_miner());
+    gen.create_and_add_next_block(registration_txs);
+
+    // NOTE: Add blocks until we get to the first height that has a checkpointing quorum AND there are service nodes in the quorum.
+    int const MAX_TRIES = 16;
+    int tries           = 0;
+    for (; tries < MAX_TRIES; tries++)
+    {
+      gen.add_blocks_until_next_checkpointable_height();
+      std::shared_ptr<const service_nodes::quorum> quorum = gen.get_quorum(service_nodes::quorum_type::checkpointing, gen.height());
+      if (quorum && quorum->validators.size()) break;
+    }
+    assert(tries != MAX_TRIES);
+    gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
+  }
+
+  crypto::ed25519_public_key miner_key;
+  crypto::ed25519_secret_key miner_skey;
+  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
+
+  crypto::ed25519_public_key bob_key;
+  crypto::ed25519_secret_key bob_skey;
+  crypto_sign_ed25519_seed_keypair(bob_key.data, bob_skey.data, reinterpret_cast<const unsigned char *>(bob.get_keys().m_spend_secret_key.data));
+
+  std::string messenger_name                           = "myfriendlydisplayname.loki";
+  char messenger_key[lns::MESSENGER_PUBLIC_KEY_LENGTH] = {};
+  messenger_key[0]                                     = 5;
+  memcpy(messenger_key + 1, miner_key.data, sizeof(miner_key));
+
+  uint16_t custom_type = 3928;
+  {
+    // NOTE: Allow duplicates with the same name but different type
+    cryptonote::transaction bar =
+        gen.create_and_add_loki_name_system_tx(miner,
+                                               static_cast<uint16_t>(lns::mapping_type::messenger),
+                                               messenger_key,
+                                               sizeof(messenger_key),
+                                               messenger_name);
+
+    cryptonote::transaction bar2 =
+        gen.create_and_add_loki_name_system_tx(miner,
+                                               static_cast<uint16_t>(lns::mapping_type::lokinet),
+                                               miner_key.data, // Just need any normal 32 byte ed key, so reuse miner key
+                                               sizeof(miner_key),
+                                               messenger_name);
+
+    cryptonote::transaction bar3 =
+        gen.create_and_add_loki_name_system_tx(miner,
+                                               custom_type,
+                                               messenger_key,
+                                               sizeof(messenger_key),
+                                               messenger_name);
+
+    gen.create_and_add_next_block({bar, bar2, bar3});
+  }
+  uint64_t height_of_lns_entry = gen.height();
+
+  gen.add_blocks_until_next_checkpointable_height();
+  gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
+
+  gen.add_blocks_until_next_checkpointable_height();
+  gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
+
+  gen.create_and_add_next_block(); // 2 checkpoints, commit LNS from all new blocks now checkpointed to db
+  cryptonote::transaction bar6 = gen.create_loki_name_system_tx(bob,
+                                                                static_cast<uint16_t>(lns::mapping_type::messenger),
+                                                                messenger_key,
+                                                                sizeof(messenger_key),
+                                                                messenger_name);
+  gen.add_tx(bar6, false /*can_be_added_to_blockchain*/, "Duplicate name requested by new owner: original already exists in lns db");
+
+  loki_register_callback(events, "check_lns_entries", [&events, height_of_lns_entry, miner_key, bob_key, messenger_key, messenger_name, custom_type](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries");
+    lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
+
+    lns::user_record user = lns_db.get_user_by_key(miner_key);
+    CHECK_EQ(user.loaded, true);
+    CHECK_EQ(user.id, 1);
+    CHECK_EQ(miner_key, user.key);
+
+    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::messenger), messenger_name);
+    CHECK_EQ(mappings.loaded, true);
+    CHECK_EQ(mappings.type, static_cast<uint16_t>(lns::mapping_type::messenger));
+    CHECK_EQ(mappings.name, std::string(messenger_name));
+    CHECK_EQ(mappings.value, std::string(messenger_key, sizeof(messenger_key)));
+    CHECK_EQ(mappings.register_height, height_of_lns_entry);
+    CHECK_EQ(mappings.user_id, user.id);
+
+    lns::mapping_record mappings2 = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), messenger_name);
+    CHECK_EQ(mappings2.loaded, true);
+    CHECK_EQ(mappings2.type, static_cast<uint16_t>(lns::mapping_type::lokinet));
+    CHECK_EQ(mappings2.name, std::string(messenger_name));
+    CHECK_EQ(mappings2.value, std::string((char *)miner_key.data, sizeof(miner_key)));
+    CHECK_EQ(mappings2.register_height, height_of_lns_entry);
+    CHECK_EQ(mappings2.user_id, user.id);
+
+    lns::mapping_record mappings3 = lns_db.get_mapping(custom_type, messenger_name);
+    CHECK_EQ(mappings3.loaded, true);
+    CHECK_EQ(mappings3.type, custom_type);
+    CHECK_EQ(mappings3.name, std::string(messenger_name));
+    CHECK_EQ(mappings3.value, std::string(messenger_key, sizeof(messenger_key)));
+    CHECK_EQ(mappings3.register_height, height_of_lns_entry);
+    CHECK_EQ(mappings3.user_id, user.id);
+
+    // NOTE: Although bob sent a transaction under a new key, it was not
+    // accepted because the name they are reserving in LNS is already taken.
+    // Since we make additions to the DB transactional, his user account should not
+    // be committed to the DB.
+    lns::user_record user2 = lns_db.get_user_by_key(bob_key);
+    CHECK_EQ(user2.loaded, false);
+    return true;
+  });
+  return true;
+}
+
+bool loki_name_system_handles_duplicate_in_staging_area::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  cryptonote::account_base miner = gen.first_miner_;
+  cryptonote::account_base bob   = gen.add_account();
+  {
+    gen.add_blocks_until_version(hard_forks.back().first);
+    gen.add_n_blocks(60); /// generate some outputs and unlock them
+    gen.add_mined_money_unlock_blocks();
+
+    cryptonote::transaction transfer = gen.create_and_add_tx(miner, bob.get_keys().m_account_address, MK_COINS(400));
     gen.create_and_add_next_block({transfer});
     gen.add_mined_money_unlock_blocks();
 
@@ -1163,14 +1298,13 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
 
     gen.create_and_add_next_block({bar, bar2, bar3});
 
-    // NOTE: But don't allow duplicates if the type and name are the same (i.e. dupe the messenger entry but different owner)
-    cryptonote::transaction bar4 = gen.create_loki_name_system_tx(bob,
+    // NOTE: Make duplicate, but not checkpointed yet, so in the staging area should be rejected
+    cryptonote::transaction bar5 = gen.create_loki_name_system_tx(bob,
                                                                   static_cast<uint16_t>(lns::mapping_type::messenger),
                                                                   messenger_key,
                                                                   sizeof(messenger_key),
                                                                   messenger_name);
-
-    gen.add_tx(bar4, false /*can_be_added_to_blockchain*/, "Duplicate name requested by new owner");
+    gen.add_tx(bar5, false /*can_be_added_to_blockchain*/, "Duplicate name requested by new owner: original already exists in staging area");
   }
   uint64_t height_of_lns_entry = gen.height();
 
@@ -1180,7 +1314,145 @@ bool loki_name_system_handles_duplicates::generate(std::vector<test_event_entry>
   gen.add_blocks_until_next_checkpointable_height();
   gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
 
-  gen.create_and_add_next_block();
+  gen.create_and_add_next_block(); // 2 checkpoints, commit LNS from all new blocks now checkpointed to db
+
+  loki_register_callback(events, "check_lns_entries", [&events, height_of_lns_entry, miner_key, bob_key, messenger_key, messenger_name, custom_type](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries");
+    lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
+
+    lns::user_record user = lns_db.get_user_by_key(miner_key);
+    CHECK_EQ(user.loaded, true);
+    CHECK_EQ(user.id, 1);
+    CHECK_EQ(miner_key, user.key);
+
+    lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::messenger), messenger_name);
+    CHECK_EQ(mappings.loaded, true);
+    CHECK_EQ(mappings.type, static_cast<uint16_t>(lns::mapping_type::messenger));
+    CHECK_EQ(mappings.name, std::string(messenger_name));
+    CHECK_EQ(mappings.value, std::string(messenger_key, sizeof(messenger_key)));
+    CHECK_EQ(mappings.register_height, height_of_lns_entry);
+    CHECK_EQ(mappings.user_id, user.id);
+
+    lns::mapping_record mappings2 = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), messenger_name);
+    CHECK_EQ(mappings2.loaded, true);
+    CHECK_EQ(mappings2.type, static_cast<uint16_t>(lns::mapping_type::lokinet));
+    CHECK_EQ(mappings2.name, std::string(messenger_name));
+    CHECK_EQ(mappings2.value, std::string((char *)miner_key.data, sizeof(miner_key)));
+    CHECK_EQ(mappings2.register_height, height_of_lns_entry);
+    CHECK_EQ(mappings2.user_id, user.id);
+
+    lns::mapping_record mappings3 = lns_db.get_mapping(custom_type, messenger_name);
+    CHECK_EQ(mappings3.loaded, true);
+    CHECK_EQ(mappings3.type, custom_type);
+    CHECK_EQ(mappings3.name, std::string(messenger_name));
+    CHECK_EQ(mappings3.value, std::string(messenger_key, sizeof(messenger_key)));
+    CHECK_EQ(mappings3.register_height, height_of_lns_entry);
+    CHECK_EQ(mappings3.user_id, user.id);
+
+    // NOTE: Although bob sent a transaction under a new key, it was not
+    // accepted because the name they are reserving in LNS is already taken.
+    // Since we make additions to the DB transactional, his user account should not
+    // be committed to the DB.
+    lns::user_record user2 = lns_db.get_user_by_key(bob_key);
+    CHECK_EQ(user2.loaded, false);
+    return true;
+  });
+  return true;
+}
+
+bool loki_name_system_handles_duplicate_in_tx_pool::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  cryptonote::account_base miner = gen.first_miner_;
+  cryptonote::account_base bob   = gen.add_account();
+  {
+    gen.add_blocks_until_version(hard_forks.back().first);
+    gen.add_n_blocks(60); /// generate some outputs and unlock them
+    gen.add_mined_money_unlock_blocks();
+
+    cryptonote::transaction transfer = gen.create_and_add_tx(miner, bob.get_keys().m_account_address, MK_COINS(400));
+    gen.create_and_add_next_block({transfer});
+    gen.add_mined_money_unlock_blocks();
+
+    int constexpr NUM_SERVICE_NODES = service_nodes::CHECKPOINT_QUORUM_SIZE;
+    std::vector<cryptonote::transaction> registration_txs(NUM_SERVICE_NODES);
+    for (auto i = 0u; i < NUM_SERVICE_NODES; ++i)
+      registration_txs[i] = gen.create_and_add_registration_tx(gen.first_miner());
+    gen.create_and_add_next_block(registration_txs);
+
+    // NOTE: Add blocks until we get to the first height that has a checkpointing quorum AND there are service nodes in the quorum.
+    int const MAX_TRIES = 16;
+    int tries           = 0;
+    for (; tries < MAX_TRIES; tries++)
+    {
+      gen.add_blocks_until_next_checkpointable_height();
+      std::shared_ptr<const service_nodes::quorum> quorum = gen.get_quorum(service_nodes::quorum_type::checkpointing, gen.height());
+      if (quorum && quorum->validators.size()) break;
+    }
+    assert(tries != MAX_TRIES);
+    gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
+  }
+
+  crypto::ed25519_public_key miner_key;
+  crypto::ed25519_secret_key miner_skey;
+  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
+
+  crypto::ed25519_public_key bob_key;
+  crypto::ed25519_secret_key bob_skey;
+  crypto_sign_ed25519_seed_keypair(bob_key.data, bob_skey.data, reinterpret_cast<const unsigned char *>(bob.get_keys().m_spend_secret_key.data));
+
+  std::string messenger_name                           = "myfriendlydisplayname.loki";
+  char messenger_key[lns::MESSENGER_PUBLIC_KEY_LENGTH] = {};
+  messenger_key[0]                                     = 5;
+  memcpy(messenger_key + 1, miner_key.data, sizeof(miner_key));
+
+  uint16_t custom_type = 3928;
+  {
+    // NOTE: Allow duplicates with the same name but different type
+    cryptonote::transaction bar =
+        gen.create_and_add_loki_name_system_tx(miner,
+                                               static_cast<uint16_t>(lns::mapping_type::messenger),
+                                               messenger_key,
+                                               sizeof(messenger_key),
+                                               messenger_name);
+
+    cryptonote::transaction bar2 =
+        gen.create_and_add_loki_name_system_tx(miner,
+                                               static_cast<uint16_t>(lns::mapping_type::lokinet),
+                                               miner_key.data, // Just need any normal 32 byte ed key, so reuse miner key
+                                               sizeof(miner_key),
+                                               messenger_name);
+
+    cryptonote::transaction bar3 =
+        gen.create_and_add_loki_name_system_tx(miner,
+                                               custom_type,
+                                               messenger_key,
+                                               sizeof(messenger_key),
+                                               messenger_name);
+
+    // NOTE: Make duplicate in the TX pool, this should be rejected
+    cryptonote::transaction bar4 = gen.create_loki_name_system_tx(bob,
+                                                                  static_cast<uint16_t>(lns::mapping_type::messenger),
+                                                                  messenger_key,
+                                                                  sizeof(messenger_key),
+                                                                  messenger_name);
+    gen.add_tx(bar4, false /*can_be_added_to_blockchain*/, "Duplicate name requested by new owner: original already exists in tx pool");
+    gen.create_and_add_next_block({bar, bar2, bar3});
+
+  }
+  uint64_t height_of_lns_entry = gen.height();
+
+  gen.add_blocks_until_next_checkpointable_height();
+  gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
+
+  gen.add_blocks_until_next_checkpointable_height();
+  gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
+
+  gen.create_and_add_next_block(); // 2 checkpoints, commit LNS from all new blocks now checkpointed to db
+
   loki_register_callback(events, "check_lns_entries", [&events, height_of_lns_entry, miner_key, bob_key, messenger_key, messenger_name, custom_type](cryptonote::core &c, size_t ev_index)
   {
     DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries");
