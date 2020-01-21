@@ -1141,7 +1141,7 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
     messenger_key[0]                                     = 5;
     memcpy(messenger_key + 1, bob_key.data, sizeof(bob_key));
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), messenger_key, sizeof(messenger_key), messenger_name1);
-    cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), messenger_key, sizeof(messenger_key), messenger_name2);
+    cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), messenger_key, sizeof(messenger_key), messenger_name2, &bob_key);
     gen.create_and_add_next_block({tx1, tx2});
   }
   uint64_t messenger_height = gen.height();
@@ -1160,7 +1160,7 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
   std::string lokinet_name2 = "ipsum.loki";
   {
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::lokinet), bob_key.data, sizeof(bob_key), lokinet_name1);
-    cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), bob_key.data, sizeof(bob_key), lokinet_name2);
+    cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), bob_key.data, sizeof(bob_key), lokinet_name2, &bob_key);
     gen.create_and_add_next_block({tx1, tx2});
   }
   uint64_t lokinet_height = gen.height();
@@ -1171,7 +1171,7 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
   std::string wallet_name2 = "Wallet2";
   {
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::blockchain), bob_addr.data(), bob_addr.size(), wallet_name1);
-    cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::blockchain), bob_addr.data(), bob_addr.size(), wallet_name2);
+    cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::blockchain), bob_addr.data(), bob_addr.size(), wallet_name2, &bob_key);
     gen.create_and_add_next_block({tx1, tx2});
   }
   uint64_t wallet_height = gen.height();
@@ -1198,19 +1198,19 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
     std::vector<lns::mapping_record> records = lns_db.get_mappings_by_user(bob_pkey);
     CHECK_EQ(records.size(), 6);
 
-    CHECK_EQ(records[0].name, wallet_name2); // NOTE: Sorted order, ties dealt by name sorted order
-    CHECK_EQ(records[1].name, wallet_name1);
+    CHECK_EQ(records[0].name, messenger_name1);
+    CHECK_EQ(records[1].name, messenger_name2);
     CHECK_EQ(records[2].name, lokinet_name1);
     CHECK_EQ(records[3].name, lokinet_name2);
-    CHECK_EQ(records[4].name, messenger_name1);
-    CHECK_EQ(records[5].name, messenger_name2);
+    CHECK_EQ(records[4].name, wallet_name1);
+    CHECK_EQ(records[5].name, wallet_name2);
 
-    CHECK_EQ(records[0].register_height, wallet_height);
-    CHECK_EQ(records[1].register_height, wallet_height);
+    CHECK_EQ(records[0].register_height, messenger_height);
+    CHECK_EQ(records[1].register_height, messenger_height);
     CHECK_EQ(records[2].register_height, lokinet_height);
     CHECK_EQ(records[3].register_height, lokinet_height);
-    CHECK_EQ(records[4].register_height, messenger_height);
-    CHECK_EQ(records[5].register_height, messenger_height);
+    CHECK_EQ(records[4].register_height, wallet_height);
+    CHECK_EQ(records[5].register_height, wallet_height);
 
     auto messenger_value_str = std::string(messenger_key, sizeof(messenger_key));
     auto lokinet_value_str   = std::string((char *)bob_key.data,  sizeof(bob_key));
@@ -1665,7 +1665,6 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
                                              cryptonote::tx_extra_loki_name_system &data,
                                              bool valid,
                                              char const *reason) -> void {
-      data.signature = data.make_signature(miner_skey);
       std::vector<uint8_t> extra;
       cryptonote::add_loki_name_system_to_tx_extra(extra, data);
       cryptonote::add_burned_amount_to_tx_extra(extra, lns::BURN_REQUIREMENT);
@@ -1963,7 +1962,6 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
                                            cryptonote::account_base const &src,
                                            cryptonote::tx_extra_loki_name_system &data) -> void {
 
-    data.signature = data.make_signature(skey);
     std::vector<uint8_t> extra;
     cryptonote::add_loki_name_system_to_tx_extra(extra, data);
     cryptonote::add_burned_amount_to_tx_extra(extra, lns::BURN_REQUIREMENT);

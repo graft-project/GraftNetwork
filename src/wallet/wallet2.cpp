@@ -8544,6 +8544,7 @@ wallet2::request_stake_unlock_result wallet2::can_request_stake_unlock(const cry
 }
 
 std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t type,
+                                                                    std::string const &owner,
                                                                     std::string const &name,
                                                                     std::string const &value,
                                                                     std::string *reason,
@@ -8564,26 +8565,26 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
     return {};
   }
 
-  // TODO(loki): The wallet does something funky with the key storage that the
-  // values have changed, even after decrypting the wallet keys. The ed keys are
-  // different from when we originally derived them, so for now, just re-derive
-  // them every-time.
   crypto::ed25519_public_key pkey;
-  crypto::ed25519_secret_key skey;
-  crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(m_account.get_keys().m_spend_secret_key.data));
+  if (owner.size())
+  {
+    if (!epee::string_tools::hex_to_pod(owner, pkey))
+    {
+      if (reason) *reason = "Failed to convert owner to a ed25519 key, owner = " + owner;
+      return {};
+    }
+  }
+  else
+  {
+    crypto::ed25519_secret_key skey;
+    crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(m_account.get_keys().m_spend_secret_key.data));
+  }
 
   tx_extra_loki_name_system entry = {};
   entry.owner                     = pkey;
   entry.type                      = type;
   entry.name                      = name;
   entry.value                     = value;
-  entry.signature                 = entry.make_signature(skey);
-
-  crypto::hash hash = entry.make_signature_hash();
-  assert(crypto_sign_ed25519_verify_detached(entry.signature.data,
-                                             reinterpret_cast<const unsigned char *>(hash.data),
-                                             sizeof(hash.data),
-                                             entry.owner.data) == 0);
 
   std::vector<uint8_t> extra;
   add_loki_name_system_to_tx_extra(extra, entry);
@@ -8599,6 +8600,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
 }
 
 std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(std::string const &type,
+                                                                    std::string const &owner,
                                                                     std::string const &name,
                                                                     std::string const &value,
                                                                     std::string *reason,
@@ -8610,7 +8612,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(std::string 
   if (!lns::validate_mapping_type(type, &mapping_type, reason))
     return {};
 
-  std::vector<wallet2::pending_tx> result = create_buy_lns_mapping_tx(mapping_type, name, value, reason, priority, account_index, subaddr_indices);
+  std::vector<wallet2::pending_tx> result = create_buy_lns_mapping_tx(mapping_type, owner, name, value, reason, priority, account_index, subaddr_indices);
   return result;
 }
 

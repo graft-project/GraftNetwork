@@ -913,40 +913,6 @@ namespace cryptonote
     return winner.m_service_node_key;
   }
   //---------------------------------------------------------------
-  crypto::hash tx_extra_loki_name_system::make_signature_hash() const
-  {
-    char buf[sizeof(owner.data) + sizeof(type) + lns::GENERIC_NAME_MAX + lns::GENERIC_VALUE_MAX] = {};
-
-    char *buf_ptr = buf;
-    memcpy(buf_ptr, owner.data, sizeof(owner));
-    buf_ptr += sizeof(owner);
-
-    uint16_t type_le = boost::endian::native_to_little(type);
-    memcpy(buf_ptr, &type_le, sizeof(type_le));
-    buf_ptr += sizeof(type_le);
-
-    size_t bytes_to_copy = std::min(lns::GENERIC_NAME_MAX, name.size());
-    memcpy(buf_ptr, name.data(), bytes_to_copy);
-    buf_ptr += bytes_to_copy;
-
-    bytes_to_copy = std::min(lns::GENERIC_VALUE_MAX, value.size());
-    memcpy(buf_ptr, value.data(), bytes_to_copy);
-    buf_ptr += bytes_to_copy;
-
-    size_t buf_size = buf_ptr - buf;
-    crypto::hash result;
-    crypto::cn_fast_hash(buf, buf_size, result);
-    return result;
-  }
-  //---------------------------------------------------------------
-  crypto::ed25519_signature tx_extra_loki_name_system::make_signature(crypto::ed25519_secret_key const &key) const
-  {
-    crypto::hash hash                = make_signature_hash();
-    crypto::ed25519_signature result = {};
-    crypto_sign_ed25519_detached(result.data, nullptr, reinterpret_cast<const unsigned char *>(hash.data), sizeof(hash.data), key.data);
-    return result;
-  }
-  //---------------------------------------------------------------
   bool get_loki_name_system_from_tx_extra(const std::vector<uint8_t> &tx_extra, tx_extra_loki_name_system &entry)
   {
     std::vector<tx_extra_field> tx_extra_fields;

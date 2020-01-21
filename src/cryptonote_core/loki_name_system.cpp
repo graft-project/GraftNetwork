@@ -341,14 +341,6 @@ bool validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction c
     return false;
   }
 
-  // TODO: Validate burn amount in the tx_extra
-  crypto::hash hash = entry->make_signature_hash();
-  if (crypto_sign_ed25519_verify_detached(entry->signature.data, reinterpret_cast<const unsigned char *>(hash.data), sizeof(hash.data), entry->owner.data) != 0)
-  {
-    LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " Failed signature validation");
-    return false;
-  }
-
   return true;
 }
 

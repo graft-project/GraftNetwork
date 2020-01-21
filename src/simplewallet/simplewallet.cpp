@@ -262,7 +262,7 @@ namespace
   const char* USAGE_STAKE("stake [index=<N1>[,<N2>,...]] [<priority>] <service node pubkey> <amount|percent%>");
   const char* USAGE_REQUEST_STAKE_UNLOCK("request_stake_unlock <service_node_pubkey>");
   const char* USAGE_PRINT_LOCKED_STAKES("print_locked_stakes");
-  const char* USAGE_BUY_LNS_MAPPING("buy_lns_mapping [index=<N1>[,<N2>,...]] [<priority>] [blockchain|lokinet|messenger|<custom_type_as_number>] \"<name>\" <value>");
+  const char* USAGE_BUY_LNS_MAPPING("buy_lns_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner] (blockchain|lokinet|messenger|<custom_type_as_number>) \"<name>\" <value>");
 
 #if defined (LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
   std::string input_line(const std::string &prompt, bool yesno = false)
@@ -3210,7 +3210,7 @@ simple_wallet::simple_wallet()
                            tr(USAGE_PRINT_LOCKED_STAKES),
                            tr("Print stakes currently locked on the Service Node network"));
   std::stringstream stream;
-  stream << "Buy a Loki Name Service mapping. You are able to purchase the following mappings\n\n";
+  stream << "Buy a Loki Name Service mapping. Specifying `owner` is optional and defaults to the purchasing wallet if empty or not specified. The `owner` is a ED25519 public key, derived from the wallets spend key. You are able to purchase the following mappings\n\n";
 
   stream << "Blockchain: (max: " << lns::BLOCKCHAIN_NAME_MAX        << " bytes) map a human readable name to a wallet address\n";
   stream << "Lokinet:    (max: " << lns::LOKINET_DOMAIN_NAME_MAX    << " bytes) map a human readable domain name to a <public_key>.loki address on Lokinet\n";
@@ -6513,7 +6513,14 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
   std::set<uint32_t> subaddr_indices  = {};
   if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority)) return false;
 
-  if (args.size() < 3)
+  std::string owner;
+  if (bool has_owner = (local_args.size() == 4))
+  {
+    owner = local_args[0];
+    local_args.erase(local_args.begin());
+  }
+
+  if (local_args.size() < 3)
   {
     PRINT_USAGE(USAGE_BUY_LNS_MAPPING);
     return true;
@@ -6558,7 +6565,7 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
   std::vector<tools::wallet2::pending_tx> ptx_vector;
   try
   {
-    ptx_vector = m_wallet->create_buy_lns_mapping_tx(type, name, value, &reason, priority, m_current_subaddress_account, subaddr_indices);
+    ptx_vector = m_wallet->create_buy_lns_mapping_tx(type, owner, name, value, &reason, priority, m_current_subaddress_account, subaddr_indices);
     if (ptx_vector.empty())
     {
       tools::fail_msg_writer() << reason;

@@ -3502,7 +3502,12 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
           }
 
           if (requester.id != owner.id)
+          {
+            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
+                              << ", type = " << (int)data.type << ", name = " << data.name << " actual owner user_id = "
+                              << mapping.user_id << ", does not match requester's id = " << requester.id);
             return false;
+          }
         }
         else
         {
