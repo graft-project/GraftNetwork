@@ -498,7 +498,6 @@ namespace service_nodes
   private:
     // Note(maxim): private methods don't have to be protected the mutex
     bool m_rescanning = false; /* set to true when doing a rescan so we know not to reset proofs */
-    void rescan_starting_from_curr_state(bool store_to_disk);
     void process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
 
     void reset(bool delete_db_entry = false);
