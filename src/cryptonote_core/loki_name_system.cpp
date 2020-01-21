@@ -30,6 +30,7 @@ enum struct lns_sql_type
   get_user,
   get_setting,
   get_mapping,
+  get_mappings_by_user,
   get_sentinel_end,
 };
 
@@ -104,22 +105,34 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           }
           break;
 
+          case lns_sql_type::get_mappings_by_user: /* FALLTHRU */
           case lns_sql_type::get_mapping:
           {
-            auto *entry = reinterpret_cast<mapping_record *>(context);
-            entry->type = static_cast<uint16_t>(sqlite3_column_int(statement, mapping_record_row_type));
-            entry->register_height = static_cast<uint16_t>(sqlite3_column_int(statement, mapping_record_row_register_height));
-            entry->user_id = sqlite3_column_int(statement, mapping_record_row_user_id);
+            mapping_record tmp_entry = {};
+            tmp_entry.type = static_cast<uint16_t>(sqlite3_column_int(statement, mapping_record_row_type));
+            tmp_entry.register_height = static_cast<uint16_t>(sqlite3_column_int(statement, mapping_record_row_register_height));
+            tmp_entry.user_id = sqlite3_column_int(statement, mapping_record_row_user_id);
 
             int name_len  = sqlite3_column_bytes(statement, mapping_record_row_name);
             auto *name    = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_name));
             int value_len = sqlite3_column_bytes(statement, mapping_record_row_value);
             auto *value   = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_value));
-            if (validate_lns_name_and_value(nettype, entry->type, name, name_len, value, value_len))
+            if (validate_lns_name_and_value(nettype, tmp_entry.type, name, name_len, value, value_len))
             {
-              entry->name  = std::string(name, name_len);
-              entry->value = std::string(value, value_len);
+              tmp_entry.name  = std::string(name, name_len);
+              tmp_entry.value = std::string(value, value_len);
               data_loaded  = true;
+
+              if (type == lns_sql_type::get_mappings_by_user)
+              {
+                auto *records = reinterpret_cast<std::vector<mapping_record> *>(context);
+                records->emplace_back(std::move(tmp_entry));
+              }
+              else
+              {
+                mapping_record *entry = reinterpret_cast<mapping_record *>(context);
+                *entry                = std::move(tmp_entry);
+              }
             }
           }
           break;
@@ -436,22 +449,24 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
       "(type, name, value, register_height, user_id)"
       "VALUES (?,?,?,?,?);";
 
-  char constexpr GET_SETTINGS_SQL[]    = R"FOO(SELECT * FROM settings WHERE "id" = 0)FOO";
-  char constexpr SAVE_USER_SQL[]       = R"FOO(INSERT INTO user (public_key) VALUES (?);)FOO";
-  char constexpr GET_USER_BY_KEY_SQL[] = R"FOO(SELECT * FROM user WHERE "public_key" = ?)FOO";
-  char constexpr GET_USER_BY_ID_SQL[]  = R"FOO(SELECT * FROM user WHERE "id" = ?)FOO";
+  char constexpr GET_SETTINGS_SQL[]         = R"FOO(SELECT * FROM settings WHERE "id" = 0)FOO";
+  char constexpr SAVE_USER_SQL[]            = R"FOO(INSERT INTO user (public_key) VALUES (?);)FOO";
+  char constexpr GET_USER_BY_KEY_SQL[]      = R"FOO(SELECT * FROM user WHERE "public_key" = ?)FOO";
+  char constexpr GET_USER_BY_ID_SQL[]       = R"FOO(SELECT * FROM user WHERE "id" = ?)FOO";
+  char constexpr GET_MAPPINGS_BY_USER_SQL[] = R"FOO(SELECT * FROM mappings WHERE "user_id" = ?)FOO";
 
   if (!build_default_tables(db))
     return false;
 
-  if (!sql_compile_statement(db, SAVE_USER_SQL,          loki::array_count(SAVE_USER_SQL),          &save_user_sql)    ||
-      !sql_compile_statement(db, SAVE_MAPPING_SQL,       loki::array_count(SAVE_MAPPING_SQL),       &save_mapping_sql) ||
-      !sql_compile_statement(db, SAVE_SETTINGS_SQL,      loki::array_count(SAVE_SETTINGS_SQL),      &save_settings_sql) ||
-      !sql_compile_statement(db, GET_USER_BY_KEY_SQL,    loki::array_count(GET_USER_BY_KEY_SQL),    &get_user_by_key_sql) ||
-      !sql_compile_statement(db, GET_USER_BY_ID_SQL,     loki::array_count(GET_USER_BY_ID_SQL),     &get_user_by_id_sql) ||
-      !sql_compile_statement(db, GET_MAPPING_SQL,        loki::array_count(GET_MAPPING_SQL),        &get_mapping_sql) ||
-      !sql_compile_statement(db, GET_SETTINGS_SQL,       loki::array_count(GET_SETTINGS_SQL),       &get_settings_sql) ||
-      !sql_compile_statement(db, EXPIRE_MAPPINGS_SQL,    loki::array_count(EXPIRE_MAPPINGS_SQL),    &expire_mapping_sql)
+  if (!sql_compile_statement(db, SAVE_USER_SQL,            loki::array_count(SAVE_USER_SQL),            &save_user_sql)    ||
+      !sql_compile_statement(db, SAVE_MAPPING_SQL,         loki::array_count(SAVE_MAPPING_SQL),         &save_mapping_sql) ||
+      !sql_compile_statement(db, SAVE_SETTINGS_SQL,        loki::array_count(SAVE_SETTINGS_SQL),        &save_settings_sql) ||
+      !sql_compile_statement(db, GET_USER_BY_KEY_SQL,      loki::array_count(GET_USER_BY_KEY_SQL),      &get_user_by_key_sql) ||
+      !sql_compile_statement(db, GET_USER_BY_ID_SQL,       loki::array_count(GET_USER_BY_ID_SQL),       &get_user_by_id_sql) ||
+      !sql_compile_statement(db, GET_MAPPING_SQL,          loki::array_count(GET_MAPPING_SQL),          &get_mapping_sql) ||
+      !sql_compile_statement(db, GET_SETTINGS_SQL,         loki::array_count(GET_SETTINGS_SQL),         &get_settings_sql) ||
+      !sql_compile_statement(db, EXPIRE_MAPPINGS_SQL,      loki::array_count(EXPIRE_MAPPINGS_SQL),      &expire_mapping_sql) ||
+      !sql_compile_statement(db, GET_MAPPINGS_BY_USER_SQL, loki::array_count(GET_MAPPINGS_BY_USER_SQL), &get_mappings_by_user_sql)
       )
   {
     return false;
@@ -667,6 +682,19 @@ mapping_record name_system_db::get_mapping(uint16_t type, char const *name, size
 mapping_record name_system_db::get_mapping(uint16_t type, std::string const &name) const
 {
   mapping_record result = get_mapping(type, name.data(), name.size());
+  return result;
+}
+
+std::vector<mapping_record> name_system_db::get_mappings_by_user(crypto::ed25519_public_key const &key) const
+{
+  std::vector<mapping_record> result = {};
+  if (lns::user_record user = get_user_by_key(key))
+  {
+    sqlite3_stmt *statement = get_mappings_by_user_sql;
+    sqlite3_clear_bindings(statement);
+    sqlite3_bind_int(statement, 1 /*sql param index*/, user.id);
+    sql_run_statement(nettype, lns_sql_type::get_mappings_by_user, statement, &result);
+  }
   return result;
 }
 

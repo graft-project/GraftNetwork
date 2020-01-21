@@ -89,23 +89,26 @@ struct name_system_db
 
   user_record                 get_user_by_key     (crypto::ed25519_public_key const &key) const;
   user_record                 get_user_by_id      (int64_t user_id) const;
-  std::vector<mapping_record> get_mappings_by_user(crypto::ed25519_public_key const &key) const { return {}; }
   mapping_record              get_mapping         (uint16_t type, char const *name, size_t name_len) const;
   mapping_record              get_mapping         (uint16_t type, std::string const &name) const;
+
+  // return: Array of records in sorted order by their register height, ties dealt by name lexicographiclly
+  std::vector<mapping_record> get_mappings_by_user(crypto::ed25519_public_key const &key) const;
   settings_record             get_settings        () const;
 
   sqlite3                  *db                     = nullptr;
 private:
   cryptonote::network_type  nettype;
-  uint64_t                  last_processed_height  = 0;
-  sqlite3_stmt             *save_user_sql          = nullptr;
-  sqlite3_stmt             *save_mapping_sql       = nullptr;
-  sqlite3_stmt             *save_settings_sql      = nullptr;
-  sqlite3_stmt             *get_user_by_key_sql    = nullptr;
-  sqlite3_stmt             *get_user_by_id_sql     = nullptr;
-  sqlite3_stmt             *get_mapping_sql        = nullptr;
-  sqlite3_stmt             *get_settings_sql       = nullptr;
-  sqlite3_stmt             *expire_mapping_sql     = nullptr;
+  uint64_t                  last_processed_height    = 0;
+  sqlite3_stmt             *save_user_sql            = nullptr;
+  sqlite3_stmt             *save_mapping_sql         = nullptr;
+  sqlite3_stmt             *save_settings_sql        = nullptr;
+  sqlite3_stmt             *get_user_by_key_sql      = nullptr;
+  sqlite3_stmt             *get_user_by_id_sql       = nullptr;
+  sqlite3_stmt             *get_mapping_sql          = nullptr;
+  sqlite3_stmt             *get_settings_sql         = nullptr;
+  sqlite3_stmt             *expire_mapping_sql       = nullptr;
+  sqlite3_stmt             *get_mappings_by_user_sql = nullptr;
 
 };
 
