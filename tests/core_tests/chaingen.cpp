@@ -193,20 +193,20 @@ loki_blockchain_entry &loki_chain_generator::add_block(loki_blockchain_entry con
 
   cryptonote::checkpoint_t immutable_checkpoint = {};
   if (can_be_added_to_blockchain &&
-      entry.block.major_version >= cryptonote::network_version_14_blink_lns &&
+      entry.block.major_version >= cryptonote::network_version_15_lns &&
       db_.get_immutable_checkpoint(&immutable_checkpoint, cryptonote::get_block_height(entry.block)))
   {
-    uint64_t hf14_height = 0;
+    uint64_t hf15_height = 0;
     for (std::pair<uint8_t, uint64_t> hfs : hard_forks_)
     {
-      if (hfs.first == cryptonote::network_version_14_blink_lns)
+      if (hfs.first == cryptonote::network_version_15_lns)
       {
-        hf14_height = hfs.second;
+        hf15_height = hfs.second;
         break;
       }
     }
 
-    uint64_t start_height = std::max(hf14_height, lns_db_.height());
+    uint64_t start_height = std::max(hf15_height, lns_db_.height());
     int64_t num_blocks    = static_cast<int64_t>(immutable_checkpoint.height) - static_cast<int64_t>(start_height);
     for (int64_t i = 0; i < num_blocks; i++)
     {
@@ -1130,7 +1130,7 @@ cryptonote::transaction make_registration_tx(std::vector<test_event_entry>& even
   add_service_node_contributor_to_tx_extra(extra, contributors.at(0));
 
   cryptonote::txtype tx_type = cryptonote::txtype::standard;
-  if (hf_version >= cryptonote::network_version_14_blink_lns) tx_type = cryptonote::txtype::stake; // NOTE: txtype stake was not introduced until HF14
+  if (hf_version >= cryptonote::network_version_15_lns) tx_type = cryptonote::txtype::stake; // NOTE: txtype stake was not introduced until HF14
   loki_tx_builder(events, tx, head, account, account.get_keys().m_account_address, amount, hf_version).with_tx_type(tx_type).with_extra(extra).with_unlock_time(unlock_time).build();
   events.push_back(tx);
   return tx;

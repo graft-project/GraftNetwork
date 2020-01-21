@@ -8559,7 +8559,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
     return {};
   }
 
-  if (priority == BLINK_PRIORITY)
+  if (priority == tools::tx_priority_blink)
   {
     if (reason) *reason = "Can not request a blink TX for Loki Name Service transactions";
     return {};

@@ -78,7 +78,7 @@ namespace service_nodes
 
   static constexpr service_node_info::version_t get_min_service_node_info_version_for_hf(uint8_t hf_version)
   {
-    return hf_version < cryptonote::network_version_14_blink_lns
+    return hf_version < cryptonote::network_version_14_blink
       ? service_node_info::version_t::v2_ed25519
       : service_node_info::version_t::v3_quorumnet;
   }
@@ -1437,7 +1437,7 @@ namespace service_nodes
     for (uint32_t index = 0; index < txs.size(); ++index)
     {
       const cryptonote::transaction& tx = txs[index];
-      if ((hf_version >= cryptonote::network_version_14_blink_lns && tx.type == cryptonote::txtype::stake) ||
+      if ((hf_version >= cryptonote::network_version_15_lns && tx.type == cryptonote::txtype::stake) ||
           (hf_version <= cryptonote::network_version_13_enforce_checkpoints && tx.type == cryptonote::txtype::standard))
       {
         process_registration_tx(nettype, block, tx, index, my_keys);
@@ -2006,7 +2006,7 @@ namespace service_nodes
   };
 
   static constexpr proof_version hf_min_loki_versions[] = {
-    {cryptonote::network_version_14_blink_lns,            {6,1,0}},
+    {cryptonote::network_version_14_blink,                {6,1,0}},
     {cryptonote::network_version_13_enforce_checkpoints,  {5,1,0}},
     {cryptonote::network_version_12_checkpointing,        {4,0,3}},
   };
@@ -2108,7 +2108,7 @@ namespace service_nodes
           || !derived_x25519_pubkey)
         REJECT_PROOF("invalid ed25519 pubkey included in proof (x25519 derivation failed)");
     }
-    if (hf_version >= cryptonote::network_version_14_blink_lns)
+    if (hf_version >= cryptonote::network_version_14_blink)
     {
       if (proof.qnet_port == 0)
         REJECT_PROOF("invalid quorumnet port in uptime proof");

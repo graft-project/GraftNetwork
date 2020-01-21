@@ -58,9 +58,11 @@ struct settings_record
 
 enum struct mapping_type : uint16_t
 {
-  blockchain = 0,
-  lokinet    = 1,
-  messenger  = 2,
+  blockchain     = 0,
+  lokinet        = 1,
+  messenger      = 2,
+  start_reserved = messenger + 1,
+  end_reserved   = 64,
 };
 
 struct mapping_record

@@ -558,7 +558,7 @@ namespace cryptonote
   inline txtype transaction_prefix::get_max_type_for_hf(uint8_t hf_version)
   {
     txtype result = txtype::standard;
-    if      (hf_version >= network_version_14_blink_lns)        result = txtype::loki_name_system;
+    if      (hf_version >= network_version_15_lns)              result = txtype::loki_name_system;
     else if (hf_version >= network_version_11_infinite_staking) result = txtype::key_image_unlock;
     else if (hf_version >= network_version_9_service_nodes)     result = txtype::state_change;
     return result;

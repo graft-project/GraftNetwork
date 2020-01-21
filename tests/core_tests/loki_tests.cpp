@@ -557,7 +557,7 @@ bool loki_core_fee_burning::generate(std::vector<test_event_entry>& events)
   gen.add_blocks_until_version(hard_forks.back().first);
 
   uint8_t newest_hf = hard_forks.back().first;
-  assert(newest_hf >= cryptonote::network_version_14_blink_lns);
+  assert(newest_hf >= cryptonote::network_version_14_blink);
 
   gen.add_n_blocks(60);
   gen.add_mined_money_unlock_blocks();
@@ -989,6 +989,26 @@ bool loki_core_test_state_change_ip_penalty_disallow_dupes::generate(std::vector
     gen.add_tx(state_change_2, true /*can_be_added_to_blockchain*/, "We should be able to accept dupe ip changes if TX is kept by block (i.e. from alt chain) otherwise we can never reorg to that chain", true /*kept_by_block*/);
   }
 
+  return true;
+}
+
+bool loki_name_system_disallow_reserved_type::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  cryptonote::account_base miner = gen.first_miner_;
+  gen.add_blocks_until_version(hard_forks.back().first);
+  gen.add_n_blocks(30); /// generate some outputs and unlock them
+  gen.add_mined_money_unlock_blocks();
+
+  crypto::ed25519_public_key miner_key;
+  crypto::ed25519_secret_key miner_skey;
+  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
+
+  std::string mapping_value = "asdf";
+  cryptonote::transaction tx1 = gen.create_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::start_reserved), mapping_value.data(), mapping_value.size(), "FriendlyName");
+  gen.add_tx(tx1, false /*can_be_added_to_blockchain*/, "Can't create a LNS TX that requests a LNS type that is unused but reserved by the protocol");
   return true;
 }
 

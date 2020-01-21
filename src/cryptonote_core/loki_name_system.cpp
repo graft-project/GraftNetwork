@@ -328,6 +328,12 @@ bool validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction c
     return false;
   }
 
+  if (entry->type >= static_cast<uint16_t>(lns::mapping_type::start_reserved) && entry->type <= static_cast<uint16_t>(mapping_type::end_reserved))
+  {
+    LOG_PRINT_L1("TX: " << tx.type << " " << get_transaction_hash(tx) << " specifying type = " << static_cast<uint16_t>(entry->type) << " that is unused, but reserved by the protocol");
+    return false;
+  }
+
   uint64_t burn = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
   if (!validate_lns_name_and_value(nettype, entry->type, entry->name.data(), static_cast<int>(entry->name.size()), entry->value.data(), static_cast<int>(entry->value.size())))
   {
@@ -521,7 +527,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
   if (last_processed_height >= height)
       return true;
 
-  if (block.major_version >= cryptonote::network_version_14_blink_lns)
+  if (block.major_version >= cryptonote::network_version_15_lns)
   {
     if (!sql_transaction(db, sql_transaction_type::begin))
     {

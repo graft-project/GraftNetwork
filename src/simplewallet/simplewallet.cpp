@@ -3215,7 +3215,7 @@ simple_wallet::simple_wallet()
   stream << "Blockchain: (max: " << lns::BLOCKCHAIN_NAME_MAX        << " bytes) map a human readable name to a wallet address\n";
   stream << "Lokinet:    (max: " << lns::LOKINET_DOMAIN_NAME_MAX    << " bytes) map a human readable domain name to a <public_key>.loki address on Lokinet\n";
   stream << "Messenger:  (max: " << lns::MESSENGER_DISPLAY_NAME_MAX << " bytes) map a human readable name to a messenger public key for Loki Messenger\n";
-  stream << "Custom:     (max: " << lns::GENERIC_NAME_MAX           << " bytes) map a human readable name to an arbitrary integer (note, 0-2 are currently reserved by Loki) in the database for custom applications\n";
+  stream << "Custom:     (max: " << lns::GENERIC_NAME_MAX           << " bytes) map a human readable name to an arbitrary integer (note, [0-64] are currently reserved by Loki) in the database for custom applications\n";
 
   m_cmd_binder.set_handler("buy_lns_mapping",
                            boost::bind(&simple_wallet::buy_lns_mapping, this, _1),
@@ -6577,7 +6577,7 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
     info.address                        = m_wallet->get_subaddress({m_current_subaddress_account, 0});
     info.is_subaddress                  = m_current_subaddress_account != 0;
     dsts.push_back(info);
-    if (!confirm_and_send_tx(dsts, ptx_vector, priority == tools::wallet2::BLINK_PRIORITY))
+    if (!confirm_and_send_tx(dsts, ptx_vector, priority == tools::tx_priority_blink))
       return false;
   }
   catch (const std::exception &e)

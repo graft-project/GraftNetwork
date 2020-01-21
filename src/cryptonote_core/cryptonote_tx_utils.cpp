@@ -470,7 +470,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx_params.burn_fixed && tx_params.hf_version < cryptonote::network_version_14_blink_lns)
+    if (tx_params.burn_fixed && tx_params.hf_version < cryptonote::network_version_14_blink)
     {
       LOG_ERROR("cannot construct tx: burn can not be specified before hard fork 14");
       return false;

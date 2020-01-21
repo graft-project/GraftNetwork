@@ -296,7 +296,7 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
 
   uint64_t chain_height     = m_db->height();
   uint64_t const snl_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_9_service_nodes), m_service_node_list.height() + 1);
-  uint64_t const lns_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_14_blink_lns),    m_lns_db.height() + 1);
+  uint64_t const lns_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_15_lns),          m_lns_db.height() + 1);
   uint64_t lns_end_height   = 0;
 
   if (subsystems & loki_subsystem_lns)
@@ -638,7 +638,7 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
     // and store them so we can check new, incoming TX's and ensure they don't
     // request the same names.
     cryptonote::block blk;
-    if (get_block_by_hash(lns_hash, blk) && blk.major_version >= cryptonote::network_version_14_blink_lns)
+    if (get_block_by_hash(lns_hash, blk) && blk.major_version >= cryptonote::network_version_15_lns)
     {
       uint64_t start_height = lns_height + 1;
       uint64_t end_height   = get_current_blockchain_height();
