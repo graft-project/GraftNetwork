@@ -83,6 +83,11 @@
 #include <boost/filesystem.hpp>
 #endif
 
+extern "C"
+{
+#include <sodium.h>
+}
+
 #ifdef HAVE_READLINE
   #include "readline_buffer.h"
   #define PAUSE_READLINE() \
@@ -263,6 +268,8 @@ namespace
   const char* USAGE_REQUEST_STAKE_UNLOCK("request_stake_unlock <service_node_pubkey>");
   const char* USAGE_PRINT_LOCKED_STAKES("print_locked_stakes");
   const char* USAGE_BUY_LNS_MAPPING("buy_lns_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner] (blockchain|lokinet|messenger|<custom_type_as_number>) \"<name>\" <value>");
+  const char* USAGE_PRINT_LNS_OWNERS_TO_NAMES("print_lns_owners_to_names [<64 hex character ed25519 key>]");
+  const char* USAGE_PRINT_LNS_NAME_TO_OWNERS("print_lns_name_to_owners [type=<N1|all>[,<N2>...]] \"name\"");
 
 #if defined (LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
   std::string input_line(const std::string &prompt, bool yesno = false)
@@ -3210,7 +3217,7 @@ simple_wallet::simple_wallet()
                            tr(USAGE_PRINT_LOCKED_STAKES),
                            tr("Print stakes currently locked on the Service Node network"));
   std::stringstream stream;
-  stream << "Buy a Loki Name Service mapping. Specifying `owner` is optional and defaults to the purchasing wallet if empty or not specified. The `owner` is a ED25519 public key, derived from the wallets spend key. You are able to purchase the following mappings\n\n";
+  stream << "Buy a Loki Name Service mapping. Specifying `owner` is optional and defaults to the purchasing wallet if empty or not specified. The `owner` is an ED25519 public key, by default derived from the wallet's spend key. You are able to purchase the following mappings\n\n";
 
   stream << "Blockchain: (max: " << lns::BLOCKCHAIN_NAME_MAX        << " bytes) map a human readable name to a wallet address\n";
   stream << "Lokinet:    (max: " << lns::LOKINET_DOMAIN_NAME_MAX    << " bytes) map a human readable domain name to a <public_key>.loki address on Lokinet\n";
@@ -3221,6 +3228,17 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::buy_lns_mapping, this, _1),
                            tr(USAGE_BUY_LNS_MAPPING),
                            tr(stream.str().c_str()));
+
+  m_cmd_binder.set_handler("print_lns_owners_to_names",
+                           boost::bind(&simple_wallet::print_lns_owners_to_names, this, _1),
+                           tr(USAGE_PRINT_LNS_OWNERS_TO_NAMES),
+                           tr("Query the Loki Name Service names that the keys have purchased. If no keys are specified, it defaults to the current wallet."));
+
+  m_cmd_binder.set_handler("print_lns_name_to_owners",
+                           boost::bind(&simple_wallet::print_lns_name_to_owners, this, _1),
+                           tr(USAGE_PRINT_LNS_NAME_TO_OWNERS),
+                           tr("Query the keys that own the Loki Name Service names, where types can be a number from [0-65536] or, \"blockchain\", \"lokinet\", \"messenger\". If type is ommitted, all loki name protocols will be queried (blockchain, lokinet and messenger only)\n"
+                              "You may only query 1 custom type per invocation."));
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::set_variable(const std::vector<std::string> &args)
@@ -6506,6 +6524,35 @@ bool simple_wallet::print_locked_stakes(const std::vector<std::string>& /*args*/
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+static bool parse_lns_name_string(std::vector<std::string> const &args, size_t first_word_index, size_t last_word_index, std::string &name)
+{
+  // NOTE: Potentially passed in a valid multi worded quoted string (i.e "String World") as the name to purchase.
+  // Strip the first and last quote, keep everything inbetween, even quotes.
+  std::string const &first_word = args[first_word_index];
+  std::string const &last_word  = args[last_word_index];
+
+  if (first_word.front() != '"' || last_word.back() != '"')
+    return false;
+
+  for (size_t i = first_word_index; i <= last_word_index; i++)
+  {
+    std::string const &word = args[i];
+    if (first_word_index == last_word_index)
+      name.append(word.begin() + 1, word.end() - 1);
+    else if (i == first_word_index)
+      name.append(word.begin() + 1, word.end());
+    else if (i == last_word_index)
+      name.append(word.begin(), word.end() - 1);
+    else
+      name.append(word);
+
+    if (i != last_word_index)
+      name.append(" ");
+  }
+
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
 bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
 {
   std::vector<std::string> local_args = args;
@@ -6529,35 +6576,14 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
   std::string const &type  = local_args[0];
   std::string const &value = local_args[local_args.size() - 1];
   std::string name;
+
+  size_t first_word_index = 1;
+  size_t last_word_index  = local_args.size() - 2;
+  if (!parse_lns_name_string(local_args, first_word_index, last_word_index, name))
   {
-    // NOTE: Potentially passed in a valid multi worded quoted string (i.e "String World") as the name to purchase.
-    // Strip the first and last quote, keep everything inbetween, even quotes.
-    size_t first_word_index       = 1;
-    size_t last_word_index        = local_args.size() - 2;
-    std::string const &first_word = local_args[first_word_index];
-    std::string const &last_word  = local_args[last_word_index];
-
-    if (first_word.front() != '"' || last_word.back() != '"')
-    {
-      PRINT_USAGE(USAGE_BUY_LNS_MAPPING);
-      return false;
-    }
-
-    for (size_t i = first_word_index; i <= last_word_index; i++)
-    {
-      std::string const &word = local_args[i];
-      if (first_word_index == last_word_index)
-        name.append(word.begin() + 1, word.end() - 1);
-      else if (i == first_word_index)
-        name.append(word.begin() + 1, word.end());
-      else if (i == last_word_index)
-        name.append(word.begin(), word.end() - 1);
-      else
-        name.append(word);
-
-      if (i != last_word_index)
-        name.append(" ");
-    }
+    PRINT_USAGE(USAGE_BUY_LNS_MAPPING);
+    fail_msg_writer() << "lns name didn't start or end with quotation marks (')";
+    return false;
   }
 
   SCOPED_WALLET_UNLOCK();
@@ -6592,6 +6618,155 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
     return true;
   }
 
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& args)
+{
+  if (!try_connect_to_daemon())
+    return false;
+
+  if (args.size() < 1)
+  {
+    PRINT_USAGE(USAGE_PRINT_LNS_NAME_TO_OWNERS);
+    return true;
+  }
+
+  std::vector<uint16_t> requested_types;
+  size_t start_of_name = 0;
+  size_t end_of_name   = args.size() - 1;
+
+  // Parse LNS Types
+  {
+    std::string const &first = args[0];
+    char const type_prefix[] = "type=";
+
+    if (first.size() >= loki::char_count(type_prefix))
+    {
+      if (strncmp(first.data(), type_prefix, loki::char_count(type_prefix)) == 0)
+      {
+        start_of_name = 1;
+        std::string type_substr = first.substr(loki::char_count(type_prefix), first.size() - loki::char_count(type_prefix));
+        std::vector<std::string> split_types;
+        boost::split(split_types, type_substr, boost::is_any_of(","));
+
+        for (std::string const &type : split_types)
+        {
+          uint16_t mapping_type = 0;
+          std::string reason;
+          if (!lns::validate_mapping_type(type, &mapping_type, &reason))
+          {
+            fail_msg_writer() << reason;
+            return false;
+          }
+          requested_types.push_back(mapping_type);
+        }
+      }
+    }
+  }
+
+  std::string lns_name;
+  if (!parse_lns_name_string(args, start_of_name, end_of_name, lns_name))
+  {
+    PRINT_USAGE(USAGE_PRINT_LNS_NAME_TO_OWNERS);
+    fail_msg_writer() << "lns name didn't start or end with quotation marks (\")";
+    return false;
+  }
+
+  std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry> names;
+  names.emplace_back();
+  cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry &entry = names.back();
+  entry.name  = lns_name;
+  entry.types = std::move(requested_types);
+
+  if (entry.types.empty())
+  {
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::blockchain));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::lokinet));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::messenger));
+  }
+
+  boost::optional<std::string> failed;
+  std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry> entries = m_wallet->get_lns_names_to_owners(names, failed);
+  if (failed)
+  {
+    fail_msg_writer() << *failed;
+    return false;
+  }
+
+  for (auto const &mapping : entries)
+    tools::msg_writer() << "name=\"" << entry.name << "\", owner=" << mapping.owner << ", type=" << mapping.type << ", height=" << mapping.register_height;
+
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& args)
+{
+  if (!try_connect_to_daemon())
+    return false;
+
+  std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> entries;
+  boost::optional<std::string> failed;
+
+  std::string my_own_ed25519_key;
+  if (args.size() == 0)
+  {
+    // TODO(doyle): I need to make this address visible easily for people, prior
+    // removed because of wallet encrypting/decrypting the secret keys
+    SCOPED_WALLET_UNLOCK();
+    crypto::ed25519_public_key pkey;
+    crypto::ed25519_secret_key skey;
+    crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(m_wallet->get_account().get_keys().m_spend_secret_key.data));
+    my_own_ed25519_key = epee::string_tools::pod_to_hex(pkey);
+    entries = m_wallet->get_lns_owners_to_names({my_own_ed25519_key}, failed);
+  }
+  else
+  {
+    for (std::string const &arg : args)
+    {
+      if (arg.size() != sizeof(crypto::ed25519_public_key) * 2)
+      {
+        fail_msg_writer() << "arg is not a 64 character ed25519 public key, arg = " << arg;
+        return false;
+      }
+
+      for (char c : arg)
+      {
+        if (!loki::char_is_hex(c))
+        {
+          fail_msg_writer() << "arg contains a non-hex character = " << c << ", arg = " << arg;
+          return false;
+        }
+      }
+    }
+    entries = m_wallet->get_lns_owners_to_names(args, failed);
+  }
+
+  if (failed)
+  {
+    fail_msg_writer() << *failed;
+    return false;
+  }
+
+  for (cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry const &entry : entries)
+  {
+    std::string const *owner = &my_own_ed25519_key;
+    if (args.size()) // If specified owner to look up, retrieve it
+    {
+      try
+      {
+        owner = &args.at(entry.entry_index);
+      }
+      catch (std::exception const &e)
+      {
+        fail_msg_writer() << "Daemon returned an invalid owner index = " << entry.entry_index << " skipping mapping";
+        continue;
+      }
+    }
+
+    for (cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_mapping const &mapping : entry.mappings)
+      tools::msg_writer() << "owner=" << *owner << ", height=" << mapping.register_height << ", name=\"" << mapping.name << "\", value=" << mapping.pubkey;
+  }
   return true;
 }
 //----------------------------------------------------------------------------------------------------

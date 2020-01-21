@@ -3141,24 +3141,39 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  static bool exceeds_quantity_limit(const core_rpc_server::connection_context *ctx, epee::json_rpc::error &error_resp, bool restricted, size_t count, size_t max, char const *container_name = nullptr)
+  {
+    if (ctx && restricted)
+    {
+      if (count > max)
+      {
+        error_resp.code     = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+        error_resp.message  = "Number of requested entries ";
+        if (container_name)
+        {
+          error_resp.message += "in ";
+          error_resp.message += container_name;
+          error_resp.message += " ";
+        }
+
+        error_resp.message += "greater than the allowed limit: ";
+        error_resp.message += std::to_string(max);
+        error_resp.message += ", requested: ";
+        error_resp.message += std::to_string(count);
+        return true;
+      }
+    }
+    return false;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_checkpoints(const COMMAND_RPC_GET_CHECKPOINTS::request& req, COMMAND_RPC_GET_CHECKPOINTS::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
   {
     bool bootstrap_daemon_connection_failure = false;
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_GET_CHECKPOINTS>(invoke_http_mode::JON_RPC, "get_checkpoints", req, res, bootstrap_daemon_connection_failure))
       return bootstrap_daemon_connection_failure;
 
-    if (ctx && m_restricted)
-    {
-      if (req.count > COMMAND_RPC_GET_CHECKPOINTS_MAX_COUNT)
-      {
-        error_resp.code     = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-        error_resp.message  = "Number of requested checkpoints greater than the allowed limit: ";
-        error_resp.message += std::to_string(COMMAND_RPC_GET_CHECKPOINTS_MAX_COUNT);
-        error_resp.message += ", requested: ";
-        error_resp.message += std::to_string(req.count);
-        return false;
-      }
-    }
+    if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.count, COMMAND_RPC_GET_CHECKPOINTS_MAX_COUNT))
+      return false;
 
     res.status             = CORE_RPC_STATUS_OK;
     BlockchainDB const &db = m_core.get_blockchain_storage().get_db();
@@ -3325,29 +3340,38 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_get_lns_name_mapping(const COMMAND_RPC_GET_LNS_NAME_MAPPING::request &req, COMMAND_RPC_GET_LNS_NAME_MAPPING::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx)
+  bool core_rpc_server::on_get_lns_names_to_owners(const COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request &req, COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx)
   {
+    if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.entries.size(), COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::MAX_REQUEST_ENTRIES))
+      return false;
+
     lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
     for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
     {
-      COMMAND_RPC_GET_LNS_NAME_MAPPING::request_entry const &request = req.entries[request_index];
-      if (lns::mapping_record mapping = db.get_mapping(request.type, request.name))
+      COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry const &request = req.entries[request_index];
+      if (exceeds_quantity_limit(ctx, error_resp, m_restricted, request.types.size(), COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::MAX_TYPE_REQUEST_ENTRIES, "types"))
+        return false;
+
+      for (uint16_t type : request.types)
       {
-        if (lns::user_record user = db.get_user_by_id(mapping.user_id))
+        if (lns::mapping_record mapping = db.get_mapping(type, request.name))
         {
-          std::string owner = epee::string_tools::pod_to_hex(user.key);
-          res.entries.emplace_back();
-          COMMAND_RPC_GET_LNS_NAME_MAPPING::response_entry &entry = res.entries.back();
-          entry.entry_index     = request_index;
-          entry.owner           = epee::string_tools::pod_to_hex(user.key);
-          entry.pubkey          = mapping.value;
-          entry.register_height = mapping.register_height;
-        }
-        else
-        {
-          error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-          error_resp.message = "Invalid mapping for name = " + request.name + ", specifies non-existent user with id =  " + std::to_string(mapping.user_id);
-          return false;
+          if (lns::user_record user = db.get_user_by_id(mapping.user_id))
+          {
+            res.entries.emplace_back();
+            COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
+            entry.entry_index     = request_index;
+            entry.type            = type;
+            entry.owner           = epee::string_tools::pod_to_hex(user.key);
+            entry.pubkey          = mapping.value;
+            entry.register_height = mapping.register_height;
+          }
+          else
+          {
+            error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
+            error_resp.message = "Invalid mapping for name = " + request.name + ", specifies non-existent user with id =  " + std::to_string(mapping.user_id);
+            return false;
+          }
         }
       }
     }
@@ -3356,8 +3380,11 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_get_lns_owner_mapping(const COMMAND_RPC_GET_LNS_OWNER_MAPPING::request &req, COMMAND_RPC_GET_LNS_OWNER_MAPPING::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx)
+  bool core_rpc_server::on_get_lns_owners_to_names(const COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::request &req, COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx)
   {
+    if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.entries.size(), COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::MAX_REQUEST_ENTRIES))
+      return false;
+
     lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
     for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
     {
@@ -3370,13 +3397,14 @@ namespace cryptonote
       if (db_mappings.size())
       {
         res.entries.emplace_back();
-        COMMAND_RPC_GET_LNS_OWNER_MAPPING::response_entry &entry = res.entries.back();
+        COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry &entry = res.entries.back();
         entry.entry_index = request_index;
         entry.mappings.reserve(db_mappings.size());
         for (auto const &db_mapping : db_mappings)
         {
           entry.mappings.emplace_back();
-          COMMAND_RPC_GET_LNS_OWNER_MAPPING::response_mapping &mapping = entry.mappings.back();
+          COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_mapping &mapping = entry.mappings.back();
+          mapping.type            = db_mapping.type;
           mapping.name            = db_mapping.name;
           mapping.pubkey          = db_mapping.value;
           mapping.register_height = db_mapping.register_height;

@@ -98,7 +98,7 @@ struct name_system_db
   std::vector<mapping_record> get_mappings_by_user(crypto::ed25519_public_key const &key) const;
   settings_record             get_settings        () const;
 
-  sqlite3                  *db                     = nullptr;
+  sqlite3                  *db                       = nullptr;
 private:
   cryptonote::network_type  nettype;
   uint64_t                  last_processed_height    = 0;

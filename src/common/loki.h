@@ -40,6 +40,7 @@ namespace loki
 double      round           (double);
 double      exp2            (double);
 uint64_t    clamp_u64       (uint64_t val, uint64_t min, uint64_t max);
+bool        char_is_hex     (char c);
 
 template <typename lambda_t>
 struct deferred
