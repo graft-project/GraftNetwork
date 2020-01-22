@@ -8552,12 +8552,8 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
                                                                     uint32_t account_index,
                                                                     std::set<uint32_t> subaddr_indices)
 {
-  if (!lns::validate_lns_name_and_value(nettype(), type, name.data(), name.size(), value.data(), value.size()))
-  {
-    // TODO(doyle): Better error messaging
-    if (reason) *reason = "Failed to validate lns name/value argument";
+  if (!lns::validate_lns_name_and_value(nettype(), type, name.data(), name.size(), value.data(), value.size(), reason))
     return {};
-  }
 
   if (priority == tools::tx_priority_blink)
   {

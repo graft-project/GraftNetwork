@@ -33,7 +33,7 @@ constexpr uint64_t GENERIC_VALUE_MAX = 255;
 
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window);
-bool         validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len);
+bool         validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len, std::string *reason = nullptr);
 bool         validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr);
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
 
