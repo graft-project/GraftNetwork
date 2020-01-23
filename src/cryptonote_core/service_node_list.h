@@ -489,7 +489,6 @@ namespace service_nodes
           const service_node_keys *my_keys);
       bool process_key_image_unlock_tx(cryptonote::network_type nettype, uint64_t block_height, const cryptonote::transaction &tx);
       block_winner get_block_winner() const;
-
     };
 
     // Can be set to true (via --dev-allow-local-ips) for debugging a new testnet on a local private network.

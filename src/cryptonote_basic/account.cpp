@@ -54,6 +54,7 @@ DISABLE_VS_WARNINGS(4244 4345)
 
   namespace cryptonote
 {
+
   //-----------------------------------------------------------------
   hw::device& account_keys::get_device() const  {
     return *m_device;
@@ -182,7 +183,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     {
       m_creation_timestamp = time(NULL);
     }
-
     return first;
   }
   //-----------------------------------------------------------------
@@ -203,7 +203,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_creation_timestamp = mktime(&timestamp);
     if (m_creation_timestamp == (uint64_t)-1) // failure
       m_creation_timestamp = 0; // lowest value
-
   }
 
   //-----------------------------------------------------------------
@@ -238,7 +237,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_creation_timestamp = mktime(&timestamp);
     if (m_creation_timestamp == (uint64_t)-1) // failure
       m_creation_timestamp = 0; // lowest value
-
   }
 
   //-----------------------------------------------------------------
@@ -255,8 +253,7 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_keys.m_view_secret_key = view_secret_key;
     m_keys.m_spend_secret_key = spend_secret_key;
     m_keys.m_multisig_keys = multisig_keys;
-    bool result = crypto::secret_key_to_public_key(view_secret_key, m_keys.m_account_address.m_view_public_key);
-    return result;
+    return crypto::secret_key_to_public_key(view_secret_key, m_keys.m_account_address.m_view_public_key);
   }
   //-----------------------------------------------------------------
   void account_base::finalize_multisig(const crypto::public_key &spend_public_key)

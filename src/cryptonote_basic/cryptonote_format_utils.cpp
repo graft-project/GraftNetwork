@@ -45,13 +45,6 @@
 #include "cryptonote_core/service_node_voting.h"
 #include "cryptonote_core/loki_name_system.h"
 
-#include <boost/endian/conversion.hpp>
-
-extern "C"
-{
-#include <sodium.h>
-};
-
 using namespace epee;
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
