@@ -6,7 +6,7 @@
 TEST(loki_name_system, lokinet_domain_names)
 {
 
-  char domain_edkeys[lns::LOKINET_ADDRESS_LENGTH] = {};
+  char domain_edkeys[lns::LOKINET_ADDRESS_BINARY_LENGTH * 2] = {};
   uint16_t const lokinet = static_cast<uint16_t>(lns::mapping_type::lokinet);
 
   // Should work

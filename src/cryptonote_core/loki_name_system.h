@@ -22,19 +22,25 @@ namespace lns
 constexpr uint64_t BURN_REQUIREMENT    = 100 * COIN;
 constexpr uint64_t BLOCKCHAIN_NAME_MAX = 96;
 
-constexpr uint64_t LOKINET_DOMAIN_NAME_MAX = 253;
-constexpr uint64_t LOKINET_ADDRESS_LENGTH  = 32;
+constexpr uint64_t LOKINET_DOMAIN_NAME_MAX       = 253;
+constexpr uint64_t LOKINET_ADDRESS_BINARY_LENGTH = 32;
 
-constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX  = 64;
-constexpr uint64_t MESSENGER_PUBLIC_KEY_LENGTH = 33;
+constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX         = 64;
+constexpr uint64_t MESSENGER_PUBLIC_KEY_BINARY_LENGTH = 33;
 
 constexpr uint64_t GENERIC_NAME_MAX  = 255;
-constexpr uint64_t GENERIC_VALUE_MAX = 255;
+constexpr uint64_t GENERIC_VALUE_MAX = 254;
+
+struct lns_value
+{
+  std::array<uint8_t, lns::GENERIC_VALUE_MAX> buffer;
+  size_t len;
+};
 
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window);
-bool         validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len, std::string *reason = nullptr);
-bool         validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr);
+bool         validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len, lns_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, lns_value *blob = nullptr, std::string *reason = nullptr);
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
 
 struct user_record
@@ -84,7 +90,7 @@ struct name_system_db
   uint64_t        height         () { return last_processed_height; }
 
   bool            save_user      (crypto::ed25519_public_key const &key, int64_t *row_id);
-  bool            save_mapping   (uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id);
+  bool            save_mapping   (uint16_t type, std::string const &name, lns_value const &value, uint64_t height, int64_t user_id);
   bool            save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
 
   bool            expire_mappings(uint64_t height);

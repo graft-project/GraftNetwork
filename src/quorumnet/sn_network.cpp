@@ -1,5 +1,6 @@
 #include "sn_network.h"
 #include "bt_serialize.h"
+#include "common/loki.h"
 #include <ostream>
 #ifdef __cpp_lib_string_view
 #include <string_view>
@@ -73,35 +74,6 @@ std::ostream &operator <<(std::ostream &os, const simple_string_view &s) { retur
 
 using msg_view_t = simple_string_view;
 #endif
-
-
-constexpr char from_hex_digit(char x) {
-    return
-        (x >= '0' && x <= '9') ? x - '0' :
-        (x >= 'a' && x <= 'f') ? x - ('a' - 10):
-        (x >= 'A' && x <= 'F') ? x - ('A' - 10):
-        0;
-}
-
-constexpr char from_hex_pair(char a, char b) { return (from_hex_digit(a) << 4) | from_hex_digit(b); }
-
-// Creates a string from a character sequence of hex digits.  Undefined behaviour if any characters
-// are not in [0-9a-fA-F] or if the input sequence length is not even.
-template <typename It>
-std::string from_hex(It begin, It end) {
-    using std::distance;
-    using std::next;
-    assert(distance(begin, end) % 2 == 0);
-    std::string raw;
-    raw.reserve(distance(begin, end) / 2);
-    while (begin != end) {
-        char a = *begin++;
-        char b = *begin++;
-        raw += from_hex_pair(a, b);
-    }
-    return raw;
-}
-
 
 void SNNetwork::add_pollitem(zmq::socket_t &sock) {
     pollitems.emplace_back();
@@ -962,7 +934,7 @@ void SNNetwork::proxy_to_worker(size_t conn_index, std::list<zmq::message_t> &&p
             const char *pubkey_hex = parts.back().gets("User-Id");
             auto len = std::strlen(pubkey_hex);
             assert(len == 66 && (pubkey_hex[0] == 'S' || pubkey_hex[0] == 'C') && pubkey_hex[1] == ':');
-            pubkey = from_hex(pubkey_hex + 2, pubkey_hex + 66);
+            pubkey = loki::from_hex(pubkey_hex + 2, pubkey_hex + 66);
             remote_is_sn = pubkey_hex[0] == 'S';
         } catch (...) {
             SN_LOG(error, "Internal error: socket User-Id not set or invalid; dropping message");

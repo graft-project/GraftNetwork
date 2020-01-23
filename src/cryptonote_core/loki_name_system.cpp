@@ -115,24 +115,23 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
 
             int name_len  = sqlite3_column_bytes(statement, mapping_record_row_name);
             auto *name    = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_name));
-            int value_len = sqlite3_column_bytes(statement, mapping_record_row_value);
-            auto *value   = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_value));
-            if (validate_lns_name_and_value(nettype, tmp_entry.type, name, name_len, value, value_len))
-            {
-              tmp_entry.name  = std::string(name, name_len);
-              tmp_entry.value = std::string(value, value_len);
-              data_loaded  = true;
 
-              if (type == lns_sql_type::get_mappings_by_user)
-              {
-                auto *records = reinterpret_cast<std::vector<mapping_record> *>(context);
-                records->emplace_back(std::move(tmp_entry));
-              }
-              else
-              {
-                mapping_record *entry = reinterpret_cast<mapping_record *>(context);
-                *entry                = std::move(tmp_entry);
-              }
+            size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, mapping_record_row_value));
+            auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_value));
+
+            tmp_entry.name  = std::string(name, name_len);
+            tmp_entry.value = std::string(value, value_len);
+            data_loaded = true;
+
+            if (type == lns_sql_type::get_mappings_by_user)
+            {
+              auto *records = reinterpret_cast<std::vector<mapping_record> *>(context);
+              records->emplace_back(std::move(tmp_entry));
+            }
+            else
+            {
+              mapping_record *entry = reinterpret_cast<mapping_record *>(context);
+              *entry                = std::move(tmp_entry);
             }
           }
           break;
@@ -227,188 +226,217 @@ static bool char_is_alphanum(char c)
   return result;
 }
 
-bool validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len, std::string *reason)
+bool validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len, lns_value *blob, std::string *reason)
 {
+  if (blob) *blob = {};
+  std::stringstream err_stream;
+  LOKI_DEFER { if (reason) *reason = std::move(err_stream.str()); };
+
+  // NOTE: Validate value length, and convert the value into a blob if blob is given
   int max_name_len = lns::GENERIC_NAME_MAX;
-  if (type == static_cast<uint16_t>(mapping_type::blockchain))
   {
-    max_name_len = BLOCKCHAIN_NAME_MAX;
-    cryptonote::address_parse_info info = {};
-    if (value_len == 0 || !get_account_address_from_str(info, nettype, std::string(value, value_len)))
+    cryptonote::address_parse_info addr_info = {};
+    if (type == static_cast<uint16_t>(mapping_type::blockchain))
     {
-      if (reason)
+      max_name_len = BLOCKCHAIN_NAME_MAX;
+      if (value_len == 0 || !get_account_address_from_str(addr_info, nettype, std::string(value, value_len)))
       {
-        std::stringstream stream;
-        if (value_len == 0)
+        if (reason)
         {
-          stream << "The name=";
-          stream.write(name, name_len);
-          stream << ", mapping into the wallet address, specifies a wallet address of 0 length";
+          if (value_len == 0)
+          {
+            err_stream << "The name=";
+            err_stream.write(name, name_len);
+            err_stream << ", mapping into the wallet address, specifies a wallet address of 0 length";
+          }
+          else
+          {
+            err_stream << "Could not convert the wallet address string, check it is correct, value=";
+            err_stream.write(value, value_len);
+          }
+        }
+        return false;
+      }
+    }
+    else
+    {
+      int max_value_len            = lns::GENERIC_VALUE_MAX;
+      bool value_require_exact_len = true;
+      if (type == static_cast<uint16_t>(mapping_type::lokinet))
+      {
+        max_name_len  = LOKINET_DOMAIN_NAME_MAX;
+        max_value_len = (LOKINET_ADDRESS_BINARY_LENGTH * 2);
+      }
+      else if (type == static_cast<uint16_t>(mapping_type::messenger))
+      {
+        max_name_len  = MESSENGER_DISPLAY_NAME_MAX;
+        max_value_len = (MESSENGER_PUBLIC_KEY_BINARY_LENGTH * 2);
+      }
+      else
+      {
+        value_require_exact_len = false;
+      }
+
+      if (value_require_exact_len)
+      {
+        if (value_len != max_value_len)
+        {
+          if (reason)
+          {
+            err_stream << "LNS type=" << type << ", specifies mapping from name -> value where the value's length=" << value_len << ", does not equal the required length=" << max_value_len << ", given value=";
+            err_stream.write(value, value_len);
+          }
+          return false;
+        }
+      }
+      else
+      {
+        if (value_len > max_value_len || value_len == 0)
+        {
+          if (reason)
+          {
+            err_stream << "LNS type=" << type << ", specifies mapping from name -> value where the value's length=" << value_len << " is 0 or exceeds the maximum length=" << max_value_len << ", given value=";
+            err_stream.write(value, value_len);
+          }
+          return false;
+        }
+      }
+    }
+
+    if (type == static_cast<uint16_t>(mapping_type::blockchain))
+    {
+      if (blob)
+      {
+        blob->len = sizeof(addr_info.address);
+        memcpy(blob->buffer.data(), &addr_info.address, blob->len);
+      }
+    }
+    else
+    {
+      // NOTE: Check value is hex
+      if ((value_len % 2) != 0)
+      {
+        if (reason)
+        {
+          err_stream << "The value=";
+          err_stream.write(value, value_len);
+          err_stream << ", should be a hex string that has an even length to be convertible back into binary, length=" << value_len;
+        }
+        return false;
+      }
+
+      for (int val_index = 0; val_index < value_len; val_index += 2)
+      {
+        char a = value[val_index];
+        char b = value[val_index + 1];
+        if (loki::char_is_hex(a) && loki::char_is_hex(b))
+        {
+          if (blob) // NOTE: Given blob, write the binary output
+            blob->buffer.data()[blob->len++] = loki::from_hex_pair(a, b);
         }
         else
         {
-          stream << "Could not convert the wallet address string, check it is correct, value=";
-          stream.write(value, value_len);
+          if (reason)
+          {
+            err_stream << "LNS type=" << type <<", specifies name -> value mapping where the value is not a hex string given value=";
+            err_stream.write(value, value_len);
+          }
+          return false;
         }
+      }
+    }
+  }
 
-        *reason = std::move(stream.str());
+  // NOTE: Validate name length
+  {
+    if (name_len > max_name_len || name_len == 0)
+    {
+      if (reason)
+      {
+        err_stream << "LNS type=" << type << ", specifies mapping from name -> value where the name's length=" << name_len << " is 0 or exceeds the maximum length=" << max_name_len << ", given name=";
+        err_stream.write(name, name_len);
       }
       return false;
     }
-  }
-  else
-  {
-    int max_value_len            = lns::GENERIC_VALUE_MAX;
-    bool value_require_exact_len = true;
 
-    if (type == static_cast<uint16_t>(mapping_type::lokinet))
+    if (type == static_cast<uint16_t>(mapping_type::messenger))
     {
-      max_name_len  = LOKINET_DOMAIN_NAME_MAX;
-      max_value_len = LOKINET_ADDRESS_LENGTH;
-    }
-    else if (type == static_cast<uint16_t>(mapping_type::messenger))
-    {
-      max_name_len  = MESSENGER_DISPLAY_NAME_MAX;
-      max_value_len = MESSENGER_PUBLIC_KEY_LENGTH;
-    }
-    else
-    {
-      value_require_exact_len = false;
-    }
-
-    if (value_require_exact_len)
-    {
-      if (value_len != max_value_len)
+      // NOTE: Messenger public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
+      if (!(value[0] == '0' && value[1] == '5'))
       {
         if (reason)
         {
-          std::stringstream stream;
-          stream << "LNS type=" << type << ", specifies mapping from name -> value where the value's length=" << value_len << ", does not equal the required length=" << max_value_len << ", given value=";
-          stream.write(value, value_len);
-          *reason = stream.str();
+          err_stream << "LNS type=messenger, specifies mapping from name -> ed25519 key where the key is not prefixed with 53 (0x05), prefix=";
+          err_stream << std::to_string(value[0]) << " (" << value[0] << "), given ed25519=";
+          err_stream.write(value, value_len);
         }
         return false;
       }
     }
-    else
+    else if (type == static_cast<uint16_t>(mapping_type::lokinet))
     {
-      if (value_len > max_value_len || value_len == 0)
+      // Domain has to start with a letter or digit, and can have letters, digits, or hyphens in between and must end with a .loki
+      // ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.loki$
+      {
+        char const SHORTEST_DOMAIN[] = "a.loki";
+        if (name_len < static_cast<int>(loki::char_count(SHORTEST_DOMAIN)))
+        {
+          if (reason)
+          {
+            err_stream << "LNS type=lokinet, specifies mapping from name -> value where the name is shorter than the shortest possible name=" << SHORTEST_DOMAIN << ", given name=";
+            err_stream.write(name, name_len);
+          }
+          return false;
+        }
+      }
+
+      if (!char_is_alphanum(name[0])) // Must start with alphanumeric
       {
         if (reason)
         {
-          std::stringstream stream;
-          stream << "LNS type=" << type << ", specifies mapping from name -> value where the value's length=" << value_len << " is 0 or exceeds the maximum length=" << max_value_len << ", given value=";
-          stream.write(value, value_len);
-          *reason = std::move(stream.str());
+          err_stream << "LNS type=lokinet, specifies mapping from name -> value where the name does not start with an alphanumeric character, name=";
+          err_stream.write(name, name_len);
         }
         return false;
       }
-    }
-  }
 
-  if (name_len > max_name_len || name_len == 0)
-  {
-    if (reason)
-    {
-      std::stringstream stream;
-      stream << "LNS type=" << type << ", specifies mapping from name -> value where the name's length=" << name_len << " is 0 or exceeds the maximum length=" << max_name_len << ", given name=";
-      stream.write(name, name_len);
-      *reason = std::move(stream.str());
-    }
-    return false;
-  }
-
-  if (type == static_cast<uint16_t>(mapping_type::messenger))
-  {
-    // NOTE: Messenger public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
-    if (value[0] != '5')
-    {
-      if (reason)
-      {
-        std::stringstream stream;
-        stream << "LNS type=messenger, specifies mapping from name -> ed25519 key where the key is not prefixed with 53 (0x05), prefix=";
-        stream << std::to_string(value[0]) << " (" << value[0] << "), given ed25519=";
-        stream.write(value, value_len);
-        *reason = stream.str();
-      }
-      return false;
-    }
-  }
-  else if (type == static_cast<uint16_t>(mapping_type::lokinet))
-  {
-    // Domain has to start with a letter or digit, and can have letters, digits, or hyphens in between and must end with a .loki
-    // ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.loki$
-    {
-      char const SHORTEST_DOMAIN[] = "a.loki";
-      if (name_len < static_cast<int>(loki::char_count(SHORTEST_DOMAIN)))
-      if (reason)
-      {
-        std::stringstream stream;
-        stream << "LNS type=lokinet, specifies mapping from name -> value where the name is shorter than the shortest possible name=" << SHORTEST_DOMAIN << ", given name=";
-        stream.write(name, name_len);
-        *reason = std::move(stream.str());
-      }
-      return false;
-    }
-
-    // Must start with alphanumeric
-    if (!char_is_alphanum(name[0]))
-    {
-      if (reason)
-      {
-        std::stringstream stream;
-        stream << "LNS type=lokinet, specifies mapping from name -> value where the name does not start with an alphanumeric character, name=";
-        stream.write(name, name_len);
-        *reason = std::move(stream.str());
-      }
-      return false;
-    }
-
-    // Must end with .loki
-    char const SUFFIX[]     = ".loki";
-    char const *name_suffix = name + (name_len - loki::char_count(SUFFIX));
-    if (memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0)
-    {
-      if (reason)
-      {
-        std::stringstream stream;
-        stream << "LNS type=lokinet, specifies mapping from name -> value where the name does not end with the domain .loki, name=";
-        stream.write(name, name_len);
-        *reason = std::move(stream.str());
-      }
-      return false;
-    }
-
-    // Characted preceeding suffix must be alphanumeric
-    char const *char_preceeding_suffix = name_suffix - 1;
-    if (!char_is_alphanum(char_preceeding_suffix[0]))
-    {
-      if (reason)
-      {
-        std::stringstream stream;
-        stream << "LNS type=lokinet, specifies mapping from name -> value where the character preceeding the <char>.loki is not alphanumeric, char=" << char_preceeding_suffix[0] << ", name=";
-        stream.write(name, name_len);
-        *reason = std::move(stream.str());
-      }
-      return false;
-    }
-
-    // Inbetween start and preceeding suffix, alphanumeric and hyphen characters permitted
-    char const *begin = name + 1;
-    char const *end   = char_preceeding_suffix;
-    for (char const *it = begin; it < end; it++)
-    {
-      char c = it[0];
-      if (!(char_is_alphanum(c) || c == '-'))
+      char const SUFFIX[]     = ".loki";
+      char const *name_suffix = name + (name_len - loki::char_count(SUFFIX));
+      if (memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0) // Must end with .loki
       {
         if (reason)
         {
-          std::stringstream stream;
-          stream << "LNS type=lokinet, specifies mapping from name -> value where the domain name contains more than the permitted alphanumeric or hyphen characters name=";
-          stream.write(name, name_len);
-          *reason = std::move(stream.str());
+          err_stream << "LNS type=lokinet, specifies mapping from name -> value where the name does not end with the domain .loki, name=";
+          err_stream.write(name, name_len);
         }
         return false;
+      }
+
+      char const *char_preceeding_suffix = name_suffix - 1;
+      if (!char_is_alphanum(char_preceeding_suffix[0])) // Characted preceeding suffix must be alphanumeric
+      {
+        if (reason)
+        {
+          err_stream << "LNS type=lokinet, specifies mapping from name -> value where the character preceeding the <char>.loki is not alphanumeric, char=" << char_preceeding_suffix[0] << ", name=";
+          err_stream.write(name, name_len);
+        }
+        return false;
+      }
+
+      char const *begin = name + 1;
+      char const *end   = char_preceeding_suffix;
+      for (char const *it = begin; it < end; it++) // Inbetween start and preceeding suffix, alphanumeric and hyphen characters permitted
+      {
+        char c = it[0];
+        if (!(char_is_alphanum(c) || c == '-'))
+        {
+          if (reason)
+          {
+            err_stream << "LNS type=lokinet, specifies mapping from name -> value where the domain name contains more than the permitted alphanumeric or hyphen characters name=";
+            err_stream.write(name, name_len);
+          }
+          return false;
+        }
       }
     }
   }
@@ -416,33 +444,34 @@ bool validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type
   return true;
 }
 
-bool validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry)
+bool validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry, lns_value *blob, std::string *reason)
 {
   cryptonote::tx_extra_loki_name_system entry_;
   if (!entry) entry = &entry_;
+  std::stringstream err_stream;
 
   if (!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, *entry))
   {
-    LOG_PRINT_L1("TX: " << tx.type << " " << get_transaction_hash(tx) << ", didn't have loki name service in the tx_extra");
+    err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << ", didn't have loki name service in the tx_extra";
+    if (reason) *reason = std::move(err_stream.str());
     return false;
   }
 
   if (entry->type >= static_cast<uint16_t>(lns::mapping_type::start_reserved) && entry->type <= static_cast<uint16_t>(mapping_type::end_reserved))
   {
-    LOG_PRINT_L1("TX: " << tx.type << " " << get_transaction_hash(tx) << " specifying type = " << static_cast<uint16_t>(entry->type) << " that is unused, but reserved by the protocol");
+    err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << " specifying type = " << static_cast<uint16_t>(entry->type) << " that is unused, but reserved by the protocol";
+    if (reason) *reason = std::move(err_stream.str());
     return false;
   }
 
   uint64_t burn = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
-  if (!validate_lns_name_and_value(nettype, entry->type, entry->name.data(), static_cast<int>(entry->name.size()), entry->value.data(), static_cast<int>(entry->value.size())))
-  {
-    LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " Failed name: " << entry->name << " or value: " << entry->value << " validation");
+  if (!validate_lns_name_and_value(nettype, entry->type, entry->name.data(), static_cast<int>(entry->name.size()), entry->value.data(), static_cast<int>(entry->value.size()), blob, reason))
     return false;
-  }
 
   if (burn < BURN_REQUIREMENT)
   {
-    LOG_PRINT_L1("LNS TX " << cryptonote::get_transaction_hash(tx) << " burned insufficient amounts of loki: " << burn << "; require: " << BURN_REQUIREMENT);
+    err_stream << "LNS TX " << cryptonote::get_transaction_hash(tx) << " burned insufficient amounts of loki: " << burn << "; require: " << BURN_REQUIREMENT;
+    if (reason) *reason = std::move(err_stream.str());
     return false;
   }
 
@@ -639,10 +668,12 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       if (tx.type != cryptonote::txtype::loki_name_system)
         continue;
 
+      lns_value entry_value                       = {};
       cryptonote::tx_extra_loki_name_system entry = {};
-      if (!validate_lns_tx(nettype, tx, &entry))
+      std::string fail_reason;
+      if (!validate_lns_tx(nettype, tx, &entry, &entry_value, &fail_reason))
       {
-        LOG_PRINT_L1("LNS TX: Failed to validate for tx: " << get_transaction_hash(tx) << ". This should have failed validation earlier");
+        LOG_PRINT_L1("LNS TX: Failed to validate for tx=" << get_transaction_hash(tx) << ". This should have failed validation earlier reason=" << fail_reason);
         assert("Failed to validate acquire name service. Should already have failed validation prior" == nullptr);
         continue;
       }
@@ -663,7 +694,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       }
       assert(user_id != 0);
 
-      if (!save_mapping(static_cast<uint16_t>(entry.type), entry.name, entry.value, height, user_id))
+      if (!save_mapping(static_cast<uint16_t>(entry.type), entry.name, entry_value, height, user_id))
       {
         LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << cryptonote::get_transaction_hash(tx)
                                                            << ", type: " << (uint16_t)entry.type
@@ -704,12 +735,12 @@ bool name_system_db::save_user(crypto::ed25519_public_key const &key, int64_t *r
   return result;
 }
 
-bool name_system_db::save_mapping(uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id)
+bool name_system_db::save_mapping(uint16_t type, std::string const &name, lns_value const &value, uint64_t height, int64_t user_id)
 {
   sqlite3_stmt *statement = save_mapping_sql;
   sqlite3_bind_int  (statement, mapping_record_row_type, type);
   sqlite3_bind_text (statement, mapping_record_row_name, name.data(), name.size(), nullptr /*destructor*/);
-  sqlite3_bind_blob (statement, mapping_record_row_value, value.data(), value.size(), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, mapping_record_row_value, value.buffer.data(), value.len, nullptr /*destructor*/);
   sqlite3_bind_int64(statement, mapping_record_row_register_height, static_cast<int64_t>(height));
   sqlite3_bind_int64(statement, mapping_record_row_user_id, user_id);
   bool result = sql_run_statement(nettype, lns_sql_type::save_mapping, statement, nullptr);

@@ -3439,9 +3439,10 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     if (tx.type == txtype::loki_name_system)
     {
       cryptonote::tx_extra_loki_name_system data;
-      if (!lns::validate_lns_tx(nettype(), tx, &data))
+      std::string fail_reason;
+      if (!lns::validate_lns_tx(nettype(), tx, &data, nullptr /*lns_value*/, &fail_reason))
       {
-        MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner << ", type = " << (int)data.type << ", name = " << data.name);
+        MERROR_VER("TX type=" << tx.type << ", hash=" << get_transaction_hash(tx) << ", owner=" << data.owner << ", type=" << (int)data.type << ", name=" << data.name << ", reason=" << fail_reason);
         return false;
       }
 

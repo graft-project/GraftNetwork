@@ -297,13 +297,12 @@ void loki_chain_generator::add_tx(cryptonote::transaction const &tx, bool can_be
 cryptonote::transaction
 loki_chain_generator::create_and_add_loki_name_system_tx(cryptonote::account_base const &src,
                                                           uint16_t type,
-                                                          void const *value,
-                                                          size_t value_len,
+                                                          std::string const &value,
                                                           std::string const &name,
                                                           crypto::ed25519_public_key const *owner,
                                                           bool kept_by_block)
 {
-  cryptonote::transaction t = create_loki_name_system_tx(src, type, value, value_len, name, owner);
+  cryptonote::transaction t = create_loki_name_system_tx(src, type, value, name, owner);
   add_tx(t, true /*can_be_added_to_blockchain*/, ""/*fail_msg*/, kept_by_block);
   return t;
 }
@@ -516,8 +515,7 @@ cryptonote::checkpoint_t loki_chain_generator::create_service_node_checkpoint(ui
 
 cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(cryptonote::account_base const &src,
                                                                          uint16_t type,
-                                                                         void const *value,
-                                                                         size_t value_len,
+                                                                         std::string const &value,
                                                                          std::string const &name,
                                                                          crypto::ed25519_public_key const *owner) const
 {
@@ -536,7 +534,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   cryptonote::tx_extra_loki_name_system data = {};
   data.owner                                 = pkey;
   data.type                                  = type;
-  data.value                                 = std::string(reinterpret_cast<char const *>(value), value_len);
+  data.value                                 = value;
   data.name                                  = name;
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
   cryptonote::add_burned_amount_to_tx_extra(extra, lns::BURN_REQUIREMENT);
