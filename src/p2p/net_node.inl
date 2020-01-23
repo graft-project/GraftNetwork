@@ -901,196 +901,240 @@ namespace nodetool
           }
       }
   }
+  
+  // handles broadcast request from p2p
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
   {
-      MDEBUG("P2P Request: handle_broadcast: start");
-
-      m_broadcast_bytes_in += get_command_size(arg);
-
-      if (context.m_state != p2p_connection_context::state_normal) {
-          MWARNING(context << " invalid connection (no handshake)");
-          return 1;
-      }
-
+    MDEBUG("P2P Request: handle_broadcast: start for message: " << arg.message_id);
+    m_broadcast_bytes_in += get_command_size(arg);
+    if (context.m_state != p2p_connection_context::state_normal) {
+      MWARNING(context << " invalid connection (no handshake)");
+      return 1;
+    }
+    
 #ifdef LOCK_RTA_SENDING
     return 1;
 #endif
-
+    
+    // P2P only (NO UDHT)
+    // 1. check if any in receiver_addresses belongs to our supernodes? - if yes, post to 
+    // 2. check if hop > 0; if yes, relay p2p message to peers
+    {
+      MDEBUG("P2P Request: handle_broadcast: lock");
+      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
       {
-          MDEBUG("P2P Request: handle_broadcast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
-          std::string our_addrs;
-          {
-              //prepare sorted sns
-              std::vector<std::string> local_sns;
-              std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); });
-              our_addrs = join(local_sns, ", ");
-          }
-          MDEBUG("P2P Request: handle_broadcast: unlock");
-          MDEBUG("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
-                       << ", our address(es): " << our_addrs);
-          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
-          {
-              MDEBUG("P2P Request: handle_broadcast: post to supernodes");
-              m_supernode_requests_cache.insert(arg.message_id);
-              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
-
-              //prepare sorted sns
-              std::vector<std::string> local_sns;
-              std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); });
-
-              std::vector<std::string> redirect_sns;
-              std::vector<std::string> to_sns;
-              {//prepare redirect_supernode_ids
-                  redirect_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
-                  to_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
-                  for(auto it = m_redirect_supernode_ids.begin(); it != m_redirect_supernode_ids.end();)
-                  {
-                      redirect_records_t& recs = it->second;
-                      auto now = Clock::now();
-                      //erase dead records
-                      recs.erase(std::remove_if(recs.begin(), recs.end(), [now](redirect_record_t& v)->bool{ return v.record_death < now; } ), recs.end());
-                      //erase empty redirector
-                      if(recs.empty())
-                      {
-                          it = m_redirect_supernode_ids.erase(it);
-                          continue;
-                      }
-                      redirect_sns.emplace_back(it->first);
-                      to_sns.emplace_back(recs[0].it_local_sn->first); //choose only the first one
-                      ++it;
-                  }
-              }
-
-              std::vector<std::string> my_addresses, known_addresses, unknown_addresses;
-              if(!arg.receiver_addresses.empty())
-              {
-                  //prepare
-                  std::vector<std::string> addresses;
-                  std::copy(arg.receiver_addresses.begin(), arg.receiver_addresses.end(), std::back_inserter(addresses));
-                  std::sort(addresses.begin(), addresses.end());
-
-                  //find my_addresses = (addresses) && (local_sns)
-                  std::set_intersection(addresses.begin(), addresses.end(),
-                                        local_sns.begin(), local_sns.end(),
-                                        std::back_inserter(my_addresses));
-                  {//(addresses) -= (my_addresses)
-                      std::vector<std::string> diff; diff.reserve(addresses.size());
-                      std::set_difference(addresses.begin(), addresses.end(),
-                                          my_addresses.begin(), my_addresses.end(),
-                                          std::back_inserter(diff));
-                      addresses.swap(diff);
-                  }
-
-                  //find known_addresses redirected supernode ids
-                  std::set_intersection(addresses.begin(), addresses.end(),
-                                        redirect_sns.begin(), redirect_sns.end(),
-                                        std::back_inserter(known_addresses));
-                  //find unknown_addresses
-                  std::set_difference(addresses.begin(), addresses.end(),
-                                      known_addresses.begin(), known_addresses.end(),
-                                      std::back_inserter(unknown_addresses));
-
-                  {//MDEBUG
-                      std::ostringstream oss;
-                      oss << "addresses\n";
-                      for(auto& it : addresses) { oss << it << "\n"; }
-                      oss << "known_addresses\n";
-                      for(auto& it : known_addresses) { oss << it << "\n"; }
-                      oss << "unknown_addresses\n";
-                      for(auto& it : unknown_addresses) { oss << it << "\n"; }
-                      MDEBUG("==> broadcast\n") << oss.str();
-                  }
-              }
-              else
-              {
-                  MDEBUG("==> empty redirect found");
-                  my_addresses = local_sns;
-              }
-
-              if(!my_addresses.empty())
-              {
-                  MDEBUG("handle_broadcast : ") << "arg { receiver_addresses : '" << join(arg.receiver_addresses) << "'\n arg.callback_uri : '" << arg.callback_uri << "'}";
-                  MDEBUG("my_addresses ") << join(my_addresses);
-#ifdef UDHT_INFO
-                  arg.hops = arg.hop;
-#endif
-
-                  for(const auto& id : my_addresses)
-                  {
-                      post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>( m_local_sns[id], "broadcast_to_me", arg, arg.callback_uri);
-                  }
-              }
-
-              if(!known_addresses.empty())
-              {//redirect to known_addresses
-                  cryptonote::COMMAND_RPC_REDIRECT_BROADCAST::request redirect_req;
-#ifdef UDHT_INFO
-                  arg.hops = arg.hop;
-#endif
-                  redirect_req.request = arg;
-                  for(auto& id : known_addresses)
-                  {
-                    auto it = m_redirect_supernode_ids.find(id);
-                    assert(it != m_redirect_supernode_ids.end());
-                    assert(!it->second.empty());
-                    redirect_record_t& rec = it->second[0];
-                    local_sn_t& sn = rec.it_local_sn->second;
-                    std::string callback_url = sn.redirect_uri;
-                    MDEBUG("==> redirect broadcast for \n") << id << "\n url =" << callback_url;
-                    redirect_req.receiver_id = id;
-                    post_request_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "redirect_to_other_supenode", redirect_req, callback_url);
-                  }
-              }
-
-              bool forward_broadcast = true;
-              //modify broadcast addresses
-              if(!arg.receiver_addresses.empty())
-              {
-                  if(unknown_addresses.empty())
-                  {
-                      forward_broadcast = false;
-                  }
-                  else
-                  {
-                      arg.receiver_addresses.clear();
-                      std::copy(unknown_addresses.begin(), unknown_addresses.end(), std::back_inserter(arg.receiver_addresses));
-                  }
-              }
-
-
-              if (forward_broadcast && arg.hop > 0)
-              {
-                  MDEBUG("P2P Request: handle_broadcast: notify broadcast from " << arg.sender_address
-                               << " to peers. Hop level: " << arg.hop);
-                  arg.hop--;
-                  std::string buff;
-                  epee::serialization::store_t_to_binary(arg, buff);
-
-                  m_broadcast_bytes_out += buff.size() * get_connections_count();
-                  relay_notify_to_all(command, buff, context);
-              }
-              else
-              {
-                  if(!forward_broadcast)
-                  {
-                      MDEBUG("P2P Request: handle_broadcast: all recipients found for broadcast");
-                  }
-                  else
-                  {
-                      MDEBUG("P2P Request: handle_broadcast: hop counter ended for broadcast from "
-                                   << arg.sender_address);
-                  }
-              }
-          }
-          MDEBUG("P2P Request: handle_broadcast: clean request cache");
-          remove_old_request_cache();
+        //prepare sorted sns
+        std::vector<std::string> local_sns;
+        std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); });
+        MDEBUG("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
+               << ", local supernodes: " << join(local_sns, ", "));
+        MDEBUG("P2P Request: handle_broadcast: receiver_addresses: " << "receiver addresses: " << join(arg.receiver_addresses, ", "));
       }
-
-      MDEBUG("P2P Request: handle_broadcast: end");
-      return 1;
+      
+      if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end()) 
+      {
+        MDEBUG("P2P Request: handle_broadcast: message '" << arg.message_id << "' was not processed before, processing..");
+        m_supernode_requests_cache.insert(arg.message_id);
+        int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
+        
+        // prepare sorted sns
+        std::vector<std::string> local_sns;
+        std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); });
+        
+        std::vector<std::string> redirect_sns; // TODO: the purpose of this? 
+        {   
+          redirect_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
+          // to_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
+          for(auto it = m_redirect_supernode_ids.begin(); it != m_redirect_supernode_ids.end();)
+          {
+            redirect_records_t& recs = it->second;
+            auto now = Clock::now();
+            
+            //erase dead records
+            recs.erase(std::remove_if(recs.begin(), recs.end(), [now](redirect_record_t& v)->bool{ return v.expiry_time < now; } ), recs.end());
+            
+            //erase empty redirector
+            if(recs.empty())
+            {
+              it = m_redirect_supernode_ids.erase(it);
+              continue;
+            }
+            redirect_sns.emplace_back(it->first);
+            // to_sns.emplace_back(recs[0].it_local_sn->first); //choose only the first one
+            ++it;
+          }
+        }
+        
+        std::vector<std::string> local_addresses, known_addresses, unknown_addresses;
+        
+        for (const std::string &address : arg.receiver_addresses) {
+          if (m_local_sns.find(address) != m_local_sns.end()) 
+            local_addresses.push_back(address);
+          else if (std::find(redirect_sns.begin(), redirect_sns.end(), address) != redirect_sns.end())
+            known_addresses.push_back(address);
+          else 
+            unknown_addresses.push_back(address);
+        }
+        // in case 'receiver_addresses' is empty -> broadcast to all - post to all 
+        if (arg.receiver_addresses.empty()) {
+          MDEBUG("==> broadcast to all, sending to local supernode(s)");
+          local_addresses = local_sns;
+        }
+        
+#if 0        
+        if(!arg.receiver_addresses.empty())
+        {
+          //prepare
+          std::set<std::string> addresses; // destinations from incoming broadcast
+          std::copy(arg.receiver_addresses.begin(), arg.receiver_addresses.end(), std::back_inserter(addresses));
+          
+          //find local_addresses = (addresses) && (local_sns)
+          std::set_intersection(addresses.begin(), addresses.end(),
+                                local_sns.begin(), local_sns.end(),
+                                std::back_inserter(local_addresses));
+          {//(addresses) -= (local_addresses)
+            std::vector<std::string> diff; diff.reserve(addresses.size());
+            std::set_difference(addresses.begin(), addresses.end(),
+                                local_addresses.begin(), local_addresses.end(),
+                                std::back_inserter(diff));
+            addresses.swap(diff);
+          }
+          
+          //find known_addresses redirected supernode ids
+          std::set_intersection(addresses.begin(), addresses.end(),
+                                redirect_sns.begin(), redirect_sns.end(),
+                                std::back_inserter(known_addresses));
+          //find unknown_addresses
+          std::set_difference(addresses.begin(), addresses.end(),
+                              known_addresses.begin(), known_addresses.end(),
+                              std::back_inserter(unknown_addresses));
+          
+          {//MDEBUG
+            std::ostringstream oss;
+            oss << "addresses\n";
+            for(auto& it : addresses) { oss << it << "\n"; }
+            oss << "known_addresses\n";
+            for(auto& it : known_addresses) { oss << it << "\n"; }
+            oss << "unknown_addresses\n";
+            for(auto& it : unknown_addresses) { oss << it << "\n"; }
+            MDEBUG("==> broadcast\n") << oss.str();
+          }
+        }
+        else
+        {
+          MDEBUG("==> broadcast to all, sending to local supernode(s)");
+          local_addresses = local_sns;
+        }
+#endif        
+        {//MDEBUG
+          std::ostringstream oss;
+          oss << "local_addresses\n";
+          for(auto& it : local_addresses) { oss << it << "\n"; }
+          oss << "known_addresses\n";
+          for(auto& it : known_addresses) { oss << it << "\n"; }
+          oss << "unknown_addresses\n";
+          for(auto& it : unknown_addresses) { oss << it << "\n"; }
+          MDEBUG("==> broadcast\n") << oss.str();
+        }
+        if(!local_addresses.empty())
+        {
+          MDEBUG("handle_broadcast: posting to local supernodes: ") << "arg { receiver_addresses : '" << join(arg.receiver_addresses) << "'\n arg.callback_uri : '" << arg.callback_uri << "'}";
+          MDEBUG("local_addresses ") << join(local_addresses);
+#ifdef UDHT_INFO
+          arg.hops = arg.hop;
+#endif
+          
+          for(const auto& id : local_addresses)
+          {
+            // XXX: what is "broadcast_to_me" ? A: is is JSON-RPC method which is unused on supernode side, 
+            // only endpoint spedified in 'arg.callback_uri' used
+            post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>( m_local_sns[id], "broadcast_to_me", arg, arg.callback_uri);
+          }
+        }
+        // TODO: What is the difference in known_addresses vs local_addresses  and why they processed in separate loops?
+        if (!known_addresses.empty())
+        {//redirect to known_addresses
+          // TODO: IK not sure if it needed at all - why it needs to be encapsulated in case
+          
+          MDEBUG("handle_broadcast: posting to known supernodes: ") << "arg { receiver_addresses : '" << join(arg.receiver_addresses) << "'\n arg.callback_uri : '" << arg.callback_uri << "'}";
+          MDEBUG("known_addresses ") << join(known_addresses);
+          
+          cryptonote::COMMAND_RPC_REDIRECT_BROADCAST::request redirect_req;
+#ifdef UDHT_INFO
+          arg.hops = arg.hop;
+#endif
+          redirect_req.request = arg;
+#if 0  // Do not send redirect broadcast for now        
+          for (auto& id : known_addresses)
+          {
+            auto it = m_redirect_supernode_ids.find(id);
+            assert(it != m_redirect_supernode_ids.end());
+            assert(!it->second.empty());
+            redirect_record_t& rec = it->second[0];
+            local_sn_t& sn = rec.it_local_sn->second;
+            std::string callback_url = sn.redirect_uri;
+            MDEBUG("==> redirect broadcast for \n") << id << "\n url =" << callback_url;
+            redirect_req.receiver_id = id;
+            // 2nd argument means 'method' in JSON-RPC but supernode normally doesn't use JSON-RPC but REST, so it's simply ignored on supernode side
+            post_request_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "redirect_to_other_supenode", redirect_req, callback_url);
+          }
+#endif           
+        }
+        // XXX DBG
+        std::copy(known_addresses.begin(), known_addresses.end(), std::back_inserter(unknown_addresses));
+        
+        bool relay_broadcast = true;
+        // modify original destinations - exclude local and known addresses we already processes
+        if(!arg.receiver_addresses.empty())
+        {
+          if(unknown_addresses.empty())
+          {
+            relay_broadcast = false; // do not relay in case all addresses already processed
+          }
+          else
+          {
+            arg.receiver_addresses.clear();
+            std::copy(unknown_addresses.begin(), unknown_addresses.end(), std::back_inserter(arg.receiver_addresses));
+          }
+        }
+        
+        
+        if (relay_broadcast && arg.hop > 0)
+        {
+          MDEBUG("P2P Request: handle_broadcast: notify broadcast from " << arg.sender_address
+                 << " to peers. Hop level: " << arg.hop);
+          arg.hop--;
+          std::string buff;
+          epee::serialization::store_t_to_binary(arg, buff);
+          
+          m_broadcast_bytes_out += buff.size() * get_connections_count();
+          relay_notify_to_all(command, buff, context);
+        }
+        else
+        {
+          if(!relay_broadcast)
+          {
+            MDEBUG("P2P Request: handle_broadcast: all recipients found for broadcast");
+          }
+          else
+          {
+            MDEBUG("P2P Request: handle_broadcast: hop counter ended for broadcast from "
+                   << arg.sender_address);
+          }
+        }
+      }
+      else  // request already processed
+      {
+        MDEBUG("P2P Request: handle_broadcast: message already processed: " << arg.message_id);
+      }
+      MDEBUG("P2P Request: handle_broadcast: clean request cache");
+      remove_old_request_cache();
+    }
+    
+    MDEBUG("P2P Request: handle_broadcast: end");
+    return 1;
   }
 
   //-----------------------------------------------------------------------------------
@@ -2193,6 +2237,7 @@ namespace nodetool
     return true;
   }
   //-----------------------------------------------------------------------------------
+  // handles broadcast request from RPC
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req, uint64_t hop)
   {
@@ -2204,6 +2249,13 @@ namespace nodetool
       std::string data_blob;
       epee::serialization::store_t_to_binary(req, data_blob);
       std::vector<uint8_t> data_vec(data_blob.begin(), data_blob.end());
+      // TODO: add some random nonce to the message hash
+      boost::uuids::basic_random_generator<boost::mt19937> gen;
+      boost::uuids::uuid u = gen();
+      for (boost::uuids::uuid::const_iterator it=u.begin(); it!=u.end(); ++it) {
+        boost::uuids::uuid::value_type v = *it;
+        data_vec.push_back(v);
+      }
       crypto::hash message_hash;
       if (!tools::sha256sum(data_vec.data(), data_vec.size(), message_hash))
       {
@@ -2234,58 +2286,47 @@ namespace nodetool
           m_supernode_requests_cache.insert(p2p_req.message_id);
           int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
           m_supernode_requests_timestamps.insert(std::make_pair(timestamp, p2p_req.message_id));
-
           MDEBUG("P2P Request: do_broadcast: clean request cache");
           remove_old_request_cache();
       }
 
-      MDEBUG("P2P Request: do_broadcast: prepare peerlist");
+      MDEBUG("P2P Request: do_broadcast: relaying to all peers");
 
-      std::string blob;
-      epee::serialization::store_t_to_binary(p2p_req, blob);
-      std::set<peerid_type> announced_peers;
-
-      // send to peers
+      
+      // TODO: replace code below with 
+      // relay_notify_to_all
+      // and 
+      // m_broadcast_bytes_out += buff.size() * get_connections_count();
+      
+      
+      
+      // send to connections (this is simply relay_notify_to_all inlined)
       std::list<connection_info> connections;
       m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-          // TODO: isn't all rta peers have peer_id = 0?
+          // 
           if (context.peer_id == 0) {
               LOG_INFO_CC(context, "invalid connection [COMMAND_BROADCAST]");
               return true;
           }
-
           connections.push_back(
           {context.m_connection_id,
            context.peer_id,
            epee::net_utils::print_connection_context_short(context)} );
           return true;
       });
-
+      
+      std::string blob;
+      epee::serialization::store_t_to_binary(p2p_req, blob);
+      MDEBUG("P2P Request: do_broadcast: relaying message to connections, msg id: " << p2p_req.message_id);
       for (const auto &c: connections) {
           MTRACE("[" << c.info << "] invoking COMMAND_BROADCAST");
           if (m_net_server.get_config_object().notify(COMMAND_BROADCAST::ID, blob, c.id)) {
               MTRACE("[" << c.info << "] COMMAND_BROADCAST invoked, peer_id: " << c.peer_id);
-              announced_peers.insert(c.peer_id);
           }
           else
               LOG_ERROR("[" << c.info << "] failed to invoke COMMAND_BROADCAST");
       }
-      m_broadcast_bytes_out += blob.size() * announced_peers.size();
-
-      std::list<peerlist_entry> peerlist_white, peerlist_gray;
-      m_peerlist.get_peerlist_full(peerlist_gray, peerlist_white);
-      std::vector<peerlist_entry> peers_to_send;
-      for (auto pe :peerlist_white) {
-          if (announced_peers.find(pe.id) != announced_peers.end())
-              continue;
-          peers_to_send.push_back(pe);
-      }
-
-      MDEBUG("P2P Request: do_broadcast: peers_to_send size: " << peers_to_send.size() << ", peerlist_white size: " << peerlist_white.size() << ", announced_peers size: " << announced_peers.size());
-      MDEBUG("P2P Request: do_broadcast: notify_peer_list");
-      notify_peer_list(COMMAND_BROADCAST::ID, blob, peers_to_send);
-      m_broadcast_bytes_out += blob.size() * peers_to_send.size();
-
+      m_broadcast_bytes_out += blob.size() * get_connections_count();
       MDEBUG("P2P Request: do_broadcast: End");
   }
 
