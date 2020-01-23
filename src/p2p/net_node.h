@@ -67,7 +67,7 @@ namespace nodetool
 
   struct local_sn_t
   {
-    std::chrono::steady_clock::time_point sn_death; //death time of this struct
+    std::chrono::steady_clock::time_point expiry_time; // expiry time of this struct
     std::string uri; //base URI (here it is URL without host and port) for forwarding requests to supernode
     std::string redirect_uri; //special uri for UDHT protocol redirection mechanism
     uint32_t redirect_timeout_ms;
@@ -77,7 +77,7 @@ namespace nodetool
   struct redirect_record_t
   {
     typename std::map<sn_id_t, local_sn_t>::iterator it_local_sn;
-    Clock::time_point record_death; //death time of this record
+    Clock::time_point expiry_time; //death time of this record
   };
 
   using redirect_records_t = std::vector<redirect_record_t>;
@@ -203,6 +203,7 @@ namespace nodetool
     int post_request_to_supernode(local_sn_t &local_sn, const std::string &method, const typename request_struct::request &body,
                                   const std::string &endpoint = std::string())
     {
+        // TODO: Why it needs to be json-rpc??
         boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
         epee::json_rpc::request<typename request_struct::request>& req = static_cast<epee::json_rpc::request<typename request_struct::request> &>(init_req);
         req.jsonrpc = "2.0";
@@ -211,6 +212,7 @@ namespace nodetool
         req.params = body;
 
         std::string uri = "/" + method;
+        // TODO: What is this for?
         if (!endpoint.empty())
         {
             uri = endpoint;
@@ -427,7 +429,7 @@ namespace nodetool
       auto it = m_local_sns.find(local_sn);
       if(it == m_local_sns.end()) return sn_id_t();
       local_sn_t& l_sn = it->second;
-      if(l_sn.sn_death < Clock::now())
+      if(l_sn.expiry_time < Clock::now())
       {
         //erase all l_sn references from m_redirect_supernode_ids
         for(auto rit = m_redirect_supernode_ids.begin(), erit = m_redirect_supernode_ids.end(); rit != erit;)
@@ -457,7 +459,7 @@ namespace nodetool
       local_sn_t& sn = m_local_sns[req.supernode_id];
       sn.redirect_uri = req.redirect_uri;
       sn.redirect_timeout_ms = req.redirect_timeout_ms;
-      sn.sn_death = get_death_time(req.supernode_id);
+      sn.expiry_time = get_expiry_time(req.supernode_id);
 
       {//set sn.client & sn.uri
         epee::net_utils::http::url_content parsed{};
@@ -473,21 +475,21 @@ namespace nodetool
         boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
         auto it = m_local_sns.find(my_id);
         if(it == m_local_sns.end()) return;
-        auto death_time = get_death_time(my_id);
+        auto expiry_time = get_expiry_time(my_id);
         redirect_records_t& recs = m_redirect_supernode_ids[id];
         auto it2 = std::find_if(recs.begin(), recs.end(), [it](const redirect_record_t& r)->bool { return r.it_local_sn == it; });
         if(it2 == recs.end())
         {
-          recs.emplace_back(redirect_record_t{it, death_time});
+          recs.emplace_back(redirect_record_t{it, expiry_time});
         }
         else
         {
           assert( it2->it_local_sn == it );
-          it2->record_death = death_time;
+          it2->expiry_time = expiry_time;
         }
     }
 
-    Clock::time_point get_death_time(const sn_id_t& local_sn)
+    Clock::time_point get_expiry_time(const sn_id_t& local_sn)
     {
       boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
       auto it = m_local_sns.find(local_sn);
