@@ -19,17 +19,14 @@ struct account_address;
 
 namespace lns
 {
-constexpr uint64_t BURN_REQUIREMENT    = 100 * COIN;
-constexpr uint64_t BLOCKCHAIN_NAME_MAX = 96;
 
-constexpr uint64_t LOKINET_DOMAIN_NAME_MAX       = 253;
-constexpr uint64_t LOKINET_ADDRESS_BINARY_LENGTH = 32;
-
+constexpr uint64_t BLOCKCHAIN_NAME_MAX                = 96;
+constexpr uint64_t LOKINET_DOMAIN_NAME_MAX            = 253;
+constexpr uint64_t LOKINET_ADDRESS_BINARY_LENGTH      = 32;
 constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX         = 64;
 constexpr uint64_t MESSENGER_PUBLIC_KEY_BINARY_LENGTH = 33;
-
-constexpr uint64_t GENERIC_NAME_MAX  = 255;
-constexpr uint64_t GENERIC_VALUE_MAX = 254;
+constexpr uint64_t GENERIC_NAME_MAX                   = 255;
+constexpr uint64_t GENERIC_VALUE_MAX                  = 254;
 
 struct lns_value
 {
@@ -37,10 +34,11 @@ struct lns_value
   size_t len;
 };
 
+uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version);
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window);
 bool         validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len, lns_value *blob = nullptr, std::string *reason = nullptr);
-bool         validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, lns_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_lns_tx(uint8_t hf_version, cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, lns_value *blob = nullptr, std::string *reason = nullptr);
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
 
 struct user_record
@@ -64,10 +62,10 @@ struct settings_record
 
 enum struct mapping_type : uint16_t
 {
-  blockchain     = 0,
-  lokinet        = 1,
-  messenger      = 2,
-  start_reserved = messenger + 1,
+  messenger      = 0,
+  start_reserved = 1,
+  blockchain     = 2,
+  lokinet        = 3,
   end_reserved   = 64,
 };
 

@@ -427,12 +427,12 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
 
   return true;
 }
-static void add_tx_if_lns_to(cryptonote::network_type nettype, std::map<uint64_t, std::vector<cryptonote::tx_extra_loki_name_system>> &map, uint64_t height, cryptonote::transaction const &tx)
+static void add_tx_if_lns_to(uint8_t hf_version, cryptonote::network_type nettype, std::map<uint64_t, std::vector<cryptonote::tx_extra_loki_name_system>> &map, uint64_t height, cryptonote::transaction const &tx)
 {
   if (tx.type == txtype::loki_name_system)
   {
     cryptonote::tx_extra_loki_name_system entry;
-    if (lns::validate_lns_tx(nettype, tx, &entry))
+    if (lns::validate_lns_tx(hf_version, nettype, tx, &entry))
       map[height].push_back(std::move(entry));
   }
 }
@@ -657,7 +657,7 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
               return false;
             }
 
-            add_tx_if_lns_to(nettype, m_lns_uncommitted_entries, height, tx);
+            add_tx_if_lns_to(blk.major_version, nettype, m_lns_uncommitted_entries, height, tx);
           }
         }
       }
@@ -3440,7 +3440,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     {
       cryptonote::tx_extra_loki_name_system data;
       std::string fail_reason;
-      if (!lns::validate_lns_tx(nettype(), tx, &data, nullptr /*lns_value*/, &fail_reason))
+      if (!lns::validate_lns_tx(hf_version, nettype(), tx, &data, nullptr /*lns_value*/, &fail_reason))
       {
         MERROR_VER("TX type=" << tx.type << ", hash=" << get_transaction_hash(tx) << ", owner=" << data.owner << ", type=" << (int)data.type << ", name=" << data.name << ", reason=" << fail_reason);
         return false;
@@ -4339,7 +4339,7 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   {
     only_txs.push_back(tx_pair.first);
     if (!lns_entries_checkpointed)
-      add_tx_if_lns_to(nettype(), m_lns_uncommitted_entries, new_height, tx_pair.first);
+      add_tx_if_lns_to(bl.major_version, nettype(), m_lns_uncommitted_entries, new_height, tx_pair.first);
   }
 
   if (!load_missing_blocks_into_loki_subsystems())

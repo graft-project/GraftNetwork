@@ -517,7 +517,8 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
                                                                          uint16_t type,
                                                                          std::string const &value,
                                                                          std::string const &name,
-                                                                         crypto::ed25519_public_key const *owner) const
+                                                                         crypto::ed25519_public_key const *owner,
+                                                                         uint64_t burn) const
 {
   crypto::ed25519_public_key pkey;
   if (owner)
@@ -530,6 +531,11 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
     crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(src.get_keys().m_spend_secret_key.data));
   }
 
+  cryptonote::block const &head = top().block;
+  uint64_t new_height           = get_block_height(top().block) + 1;
+  uint8_t new_hf_version        = get_hf_version_at(new_height);
+  if (burn == LNS_AUTO_BURN) burn = lns::burn_requirement_in_atomic_loki(new_hf_version);
+
   std::vector<uint8_t> extra;
   cryptonote::tx_extra_loki_name_system data = {};
   data.owner                                 = pkey;
@@ -537,17 +543,13 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   data.value                                 = value;
   data.name                                  = name;
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
-  cryptonote::add_burned_amount_to_tx_extra(extra, lns::BURN_REQUIREMENT);
-
-  cryptonote::block const &head = top().block;
-  uint64_t new_height           = get_block_height(top().block) + 1;
-  uint8_t new_hf_version        = get_hf_version_at(new_height);
+  cryptonote::add_burned_amount_to_tx_extra(extra, burn);
 
   cryptonote::transaction result = {};
   loki_tx_builder(events_, result, head, src /*from*/, src.get_keys().m_account_address, 0 /*amount*/, new_hf_version)
       .with_tx_type(cryptonote::txtype::loki_name_system)
       .with_extra(extra)
-      .with_fee(lns::BURN_REQUIREMENT + TESTS_DEFAULT_FEE)
+      .with_fee(burn + TESTS_DEFAULT_FEE)
       .build();
 
   return result;

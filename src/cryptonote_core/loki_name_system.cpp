@@ -169,6 +169,12 @@ static bool sql_compile_statement(sqlite3 *db, char const *query, int query_len,
   return result;
 }
 
+uint64_t burn_requirement_in_atomic_loki(uint8_t hf_version)
+{
+  (void)hf_version;
+  return 15;
+}
+
 sqlite3 *init_loki_name_system(char const *file_path)
 {
   sqlite3 *result = nullptr;
@@ -444,7 +450,7 @@ bool validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type
   return true;
 }
 
-bool validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry, lns_value *blob, std::string *reason)
+bool validate_lns_tx(uint8_t hf_version, cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry, lns_value *blob, std::string *reason)
 {
   cryptonote::tx_extra_loki_name_system entry_;
   if (!entry) entry = &entry_;
@@ -468,9 +474,10 @@ bool validate_lns_tx(cryptonote::network_type nettype, cryptonote::transaction c
   if (!validate_lns_name_and_value(nettype, entry->type, entry->name.data(), static_cast<int>(entry->name.size()), entry->value.data(), static_cast<int>(entry->value.size()), blob, reason))
     return false;
 
-  if (burn < BURN_REQUIREMENT)
+  uint64_t const burn_required = burn_requirement_in_atomic_loki(hf_version);
+  if (burn != burn_required)
   {
-    err_stream << "LNS TX " << cryptonote::get_transaction_hash(tx) << " burned insufficient amounts of loki: " << burn << "; require: " << BURN_REQUIREMENT;
+    err_stream << "LNS TX=" << cryptonote::get_transaction_hash(tx) << ", burned insufficient amounts of loki=" << burn << ", require=" << burn_required;
     if (reason) *reason = std::move(err_stream.str());
     return false;
   }
@@ -671,7 +678,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       lns_value entry_value                       = {};
       cryptonote::tx_extra_loki_name_system entry = {};
       std::string fail_reason;
-      if (!validate_lns_tx(nettype, tx, &entry, &entry_value, &fail_reason))
+      if (!validate_lns_tx(block.major_version, nettype, tx, &entry, &entry_value, &fail_reason))
       {
         LOG_PRINT_L1("LNS TX: Failed to validate for tx=" << get_transaction_hash(tx) << ". This should have failed validation earlier reason=" << fail_reason);
         assert("Failed to validate acquire name service. Should already have failed validation prior" == nullptr);

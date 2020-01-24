@@ -132,6 +132,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(loki_name_system_invalid_tx_extra_params);
     GENERATE_AND_PLAY(loki_name_system_name_renewal);
     GENERATE_AND_PLAY(loki_name_system_name_value_max_lengths);
+    GENERATE_AND_PLAY(loki_name_system_wrong_burn);
     GENERATE_AND_PLAY(loki_service_nodes_alt_quorums);
     GENERATE_AND_PLAY(loki_service_nodes_checkpoint_quorum_size);
     GENERATE_AND_PLAY(loki_service_nodes_gen_nodes);

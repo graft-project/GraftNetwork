@@ -7678,7 +7678,7 @@ loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx
   if (tx_type == txtype::loki_name_system)
   {
     assert(priority != tools::tx_priority_blink);
-    tx_params.burn_fixed   = lns::BURN_REQUIREMENT;
+    tx_params.burn_fixed   = lns::burn_requirement_in_atomic_loki(hf_version);
   }
   else if (priority == tools::tx_priority_blink)
   {
