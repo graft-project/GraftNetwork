@@ -37,9 +37,15 @@ struct lns_value
 uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version);
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window);
-bool         validate_lns_name_and_value(cryptonote::network_type nettype, uint16_t type, char const *name, int name_len, char const *value, int value_len, lns_value *blob = nullptr, std::string *reason = nullptr);
-bool         validate_lns_tx(uint8_t hf_version, cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, lns_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_lns_name(uint16_t type, char const *name, int name_len, std::string *reason = nullptr);
+
+// blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
+bool         validate_lns_value(cryptonote::network_type nettype, uint16_t type, char const *value, int value_len, lns_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_lns_value_binary(uint16_t type, char const *value, int value_len, std::string *reason = nullptr);
+
+bool         validate_lns_tx(uint8_t hf_version, cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr);
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
+lns_value    convert_value_to_lns_binary_value(uint16_t type, std::string const &value);
 
 struct user_record
 {
@@ -88,7 +94,7 @@ struct name_system_db
   uint64_t        height         () { return last_processed_height; }
 
   bool            save_user      (crypto::ed25519_public_key const &key, int64_t *row_id);
-  bool            save_mapping   (uint16_t type, std::string const &name, lns_value const &value, uint64_t height, int64_t user_id);
+  bool            save_mapping   (uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id);
   bool            save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
 
   bool            expire_mappings(uint64_t height);

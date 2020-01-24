@@ -387,7 +387,7 @@ namespace cryptonote
     crypto::ed25519_public_key owner;
     uint16_t                   type;
     std::string                name;
-    std::string                value;
+    std::string                value; // binary format of the name->value mapping
 
     BEGIN_SERIALIZE()
       FIELD(owner);

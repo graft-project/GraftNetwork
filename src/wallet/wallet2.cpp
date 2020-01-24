@@ -8552,7 +8552,11 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
                                                                     uint32_t account_index,
                                                                     std::set<uint32_t> subaddr_indices)
 {
-  if (!lns::validate_lns_name_and_value(nettype(), type, name.data(), name.size(), value.data(), value.size(), nullptr /*lns_value*/, reason))
+  if (!lns::validate_lns_name(type, name.data(), name.size(), reason))
+    return {};
+
+  lns::lns_value value_blob;
+  if (!lns::validate_lns_value(nettype(), type, value.data(), value.size(), &value_blob, reason))
     return {};
 
   if (priority == tools::tx_priority_blink)
@@ -8580,7 +8584,8 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
   entry.owner                     = pkey;
   entry.type                      = type;
   entry.name                      = name;
-  entry.value                     = value;
+  entry.value.resize(value_blob.len);
+  memcpy(&entry.value[0], value_blob.buffer.data(), value_blob.len);
 
   std::vector<uint8_t> extra;
   add_loki_name_system_to_tx_extra(extra, entry);

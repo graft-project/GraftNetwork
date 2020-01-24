@@ -1439,6 +1439,7 @@ struct loki_chain_generator
   cryptonote::transaction                              create_state_change_tx(service_nodes::new_state state, const crypto::public_key& pub_key, uint64_t height = -1, const std::vector<uint64_t>& voters = {}, uint64_t fee = 0) const;
   cryptonote::checkpoint_t                             create_service_node_checkpoint(uint64_t block_height, size_t num_votes) const;
 
+  // value: Takes the binary value NOT the human readable version, of the name->value mapping
   static const uint64_t LNS_AUTO_BURN = static_cast<uint64_t>(-1);
   cryptonote::transaction                              create_loki_name_system_tx    (cryptonote::account_base const &src, uint16_t type, std::string const &value, std::string const &name, crypto::ed25519_public_key const *owner = nullptr, uint64_t burn = LNS_AUTO_BURN) const;
 

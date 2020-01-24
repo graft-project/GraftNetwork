@@ -1014,6 +1014,39 @@ static bool lns_mapping_type_enabled(lns::mapping_type type)
   return result;
 }
 
+struct lns_keys_t
+{
+  crypto::ed25519_public_key ed_key;
+  crypto::ed25519_secret_key ed_skey;
+  std::string                blockchain_value; // NOTE: this field is the binary (value) part of the name -> (value) mapping
+  std::string                lokinet_value;
+  std::string                messenger_value;
+
+  std::string                messenger_value_hex; // NOTE: likewise, but represented in hex, except, for blockchain, which is the cryptonote account address
+  std::string                blockchain_value_hex;
+  std::string                lokinet_value_hex;
+};
+
+static lns_keys_t make_lns_keys(cryptonote::account_base const &src)
+{
+  lns_keys_t result = {};
+  crypto_sign_ed25519_seed_keypair(result.ed_key.data, result.ed_skey.data, reinterpret_cast<const unsigned char *>(src.get_keys().m_spend_secret_key.data));
+
+  char messenger_value[lns::MESSENGER_PUBLIC_KEY_BINARY_LENGTH] = {};
+  messenger_value[0]                                            = 5; // prefix with 0x05
+  memcpy(messenger_value + 1, &result.ed_key, sizeof(result.ed_key));
+
+  result.messenger_value  = std::string(messenger_value, sizeof(messenger_value));
+  result.blockchain_value = std::string((char *)&src.get_keys().m_account_address, sizeof(src.get_keys().m_account_address));
+  result.lokinet_value    = std::string((char *)result.ed_key.data, sizeof(result.ed_key.data));
+
+  result.messenger_value_hex  = epee::string_tools::pod_to_hex(messenger_value);
+  result.blockchain_value_hex = cryptonote::get_account_address_as_str(cryptonote::FAKECHAIN, false /*subaddress*/, src.get_keys().m_account_address);
+  result.lokinet_value_hex    = epee::string_tools::pod_to_hex(result.ed_key);
+  return result;
+}
+
+
 bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events)
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
@@ -1044,15 +1077,11 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
     gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   }
 
-  crypto::ed25519_public_key miner_key;
-  crypto::ed25519_secret_key miner_skey;
-  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
-
+  lns_keys_t miner_key = make_lns_keys(miner);
   if (lns_mapping_type_enabled(lns::mapping_type::lokinet))
   {
     char const name[] = "mydomain.loki";
-    std::string miner_key_str  = epee::string_tools::pod_to_hex(miner_key);
-    cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key_str, name);
+    cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value, name);
     gen.create_and_add_next_block({tx});
 
     uint64_t height_of_lns_entry   = gen.height();
@@ -1070,16 +1099,16 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
       DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries");
       lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
 
-      lns::user_record user = lns_db.get_user_by_key(miner_key);
+      lns::user_record user = lns_db.get_user_by_key(miner_key.ed_key);
       CHECK_EQ(user.loaded, true);
       CHECK_EQ(user.id, 1);
-      CHECK_EQ(miner_key, user.key);
+      CHECK_EQ(miner_key.ed_key, user.key);
 
       lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), name, loki::char_count(name));
       CHECK_EQ(mappings.loaded, true);
       CHECK_EQ(mappings.type, static_cast<uint16_t>(lns::mapping_type::lokinet));
       CHECK_EQ(mappings.name, std::string(name));
-      CHECK_EQ(mappings.value, std::string((char *)miner_key.data, sizeof(miner_key)));
+      CHECK_EQ(mappings.value, miner_key.lokinet_value);
       CHECK_EQ(mappings.register_height, height_of_lns_entry);
       CHECK_EQ(mappings.user_id, user.id);
       return true;
@@ -1102,10 +1131,10 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
       lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
 
       // TODO(loki): We should probably expire users that no longer have any mappings remaining
-      lns::user_record user = lns_db.get_user_by_key(miner_key);
+      lns::user_record user = lns_db.get_user_by_key(miner_key.ed_key);
       CHECK_EQ(user.loaded, true);
       CHECK_EQ(user.id, 1);
-      CHECK_EQ(miner_key, user.key);
+      CHECK_EQ(miner_key.ed_key, user.key);
 
       lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), name, loki::char_count(name));
       CHECK_EQ(mappings.loaded, false);
@@ -1155,21 +1184,12 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
     gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   }
 
-  crypto::ed25519_public_key bob_key;
-  crypto::ed25519_secret_key bob_skey;
-  crypto_sign_ed25519_seed_keypair(bob_key.data, bob_skey.data, reinterpret_cast<const unsigned char *>(bob.get_keys().m_spend_secret_key.data));
-
-  // NOTE: Register some messenger names
-  char messenger_key[lns::MESSENGER_PUBLIC_KEY_BINARY_LENGTH] = {};
-  messenger_key[0]                                            = 5;
-  memcpy(messenger_key + 1, &bob_key, sizeof(bob_key));
-
+  lns_keys_t bob_key = make_lns_keys(bob);
   std::string messenger_name1 = "MyName";
   std::string messenger_name2 = "AnotherName";
   {
-    std::string messenger_key_hex = epee::string_tools::pod_to_hex(messenger_key);
-    cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), messenger_key_hex, messenger_name1);
-    cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), messenger_key_hex, messenger_name2, &bob_key);
+    cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value, messenger_name1);
+    cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value, messenger_name2, &bob_key.ed_key);
     gen.create_and_add_next_block({tx1, tx2});
   }
   uint64_t messenger_height = gen.height();
@@ -1178,7 +1198,7 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
   {
     DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries_before_checkpoint");
     lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
-    std::vector<lns::mapping_record> records = lns_db.get_mappings_by_user(bob_key);
+    std::vector<lns::mapping_record> records = lns_db.get_mappings_by_user(bob_key.ed_key);
     CHECK_EQ(records.empty(), true);
     return true;
   });
@@ -1189,9 +1209,8 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
   if (lns_mapping_type_enabled(lns::mapping_type::lokinet))
   {
     {
-      std::string bob_key_str     = epee::string_tools::pod_to_hex(bob_key);
-      cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::lokinet), bob_key_str, lokinet_name1);
-      cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), bob_key_str, lokinet_name2, &bob_key);
+      cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::lokinet), bob_key.lokinet_value, lokinet_name1);
+      cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), bob_key.lokinet_value, lokinet_name2, &bob_key.ed_key);
       gen.create_and_add_next_block({tx1, tx2});
     }
   }
@@ -1204,8 +1223,8 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
   {
     {
       std::string bob_addr = cryptonote::get_account_address_as_str(cryptonote::FAKECHAIN, false, bob.get_keys().m_account_address);
-      cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::blockchain), bob_addr, wallet_name1);
-      cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::blockchain), bob_addr, wallet_name2, &bob_key);
+      cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::blockchain), bob_key.blockchain_value, wallet_name1);
+      cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::blockchain), bob_key.blockchain_value, wallet_name2, &bob_key.ed_key);
       gen.create_and_add_next_block({tx1, tx2});
     }
   }
@@ -1218,19 +1237,15 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
   gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   gen.create_and_add_next_block();
 
-  loki_register_callback(events, "check_lns_entries", [&events, bob, bob_key, messenger_key,
+  loki_register_callback(events, "check_lns_entries", [&events, bob_key,
                                                        wallet_height,    wallet_name1,    wallet_name2,
                                                        messenger_height, messenger_name1, messenger_name2,
                                                        lokinet_height,   lokinet_name1,   lokinet_name2
                                                       ](cryptonote::core &c, size_t ev_index)
   {
-    crypto::ed25519_public_key bob_pkey;
-    crypto::ed25519_secret_key bob_skey;
-    crypto_sign_ed25519_seed_keypair(bob_pkey.data, bob_skey.data, reinterpret_cast<const unsigned char *>(bob.get_keys().m_spend_secret_key.data));
-
     DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries");
     lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
-    std::vector<lns::mapping_record> records = lns_db.get_mappings_by_user(bob_pkey);
+    std::vector<lns::mapping_record> records = lns_db.get_mappings_by_user(bob_key.ed_key);
 
     size_t expected_size = 0;
     if (lns_mapping_type_enabled(lns::mapping_type::messenger)) expected_size += 2;
@@ -1238,18 +1253,14 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
     if (lns_mapping_type_enabled(lns::mapping_type::lokinet)) expected_size += 2;
     CHECK_EQ(records.size(), expected_size);
 
-    auto messenger_value_hex_str = std::string(messenger_key, sizeof(messenger_key));
-    auto lokinet_value_hex_str   = std::string((char *)bob_key.data, sizeof(bob_key));
-    auto wallet_value_str   = std::string((char *)&bob.get_keys().m_account_address, sizeof(bob.get_keys().m_account_address));
-
     if (lns_mapping_type_enabled(lns::mapping_type::messenger))
     {
       CHECK_EQ(records[0].name, messenger_name1);
       CHECK_EQ(records[1].name, messenger_name2);
       CHECK_EQ(records[0].register_height, messenger_height);
       CHECK_EQ(records[1].register_height, messenger_height);
-      CHECK_EQ(records[0].value, messenger_value_hex_str);
-      CHECK_EQ(records[1].value, messenger_value_hex_str);
+      CHECK_EQ(records[0].value, bob_key.messenger_value);
+      CHECK_EQ(records[1].value, bob_key.messenger_value);
       CHECK_EQ(records[0].type, static_cast<uint16_t>(lns::mapping_type::messenger));
       CHECK_EQ(records[1].type, static_cast<uint16_t>(lns::mapping_type::messenger));
     }
@@ -1260,8 +1271,8 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
       CHECK_EQ(records[3].name, lokinet_name2);
       CHECK_EQ(records[2].register_height, lokinet_height);
       CHECK_EQ(records[3].register_height, lokinet_height);
-      CHECK_EQ(records[2].value, lokinet_value_hex_str);
-      CHECK_EQ(records[3].value, lokinet_value_hex_str);
+      CHECK_EQ(records[2].value, bob_key.lokinet_value);
+      CHECK_EQ(records[3].value, bob_key.lokinet_value);
       CHECK_EQ(records[2].type, static_cast<uint16_t>(lns::mapping_type::lokinet));
       CHECK_EQ(records[3].type, static_cast<uint16_t>(lns::mapping_type::lokinet));
     }
@@ -1272,8 +1283,8 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
       CHECK_EQ(records[5].name, wallet_name2);
       CHECK_EQ(records[4].register_height, wallet_height);
       CHECK_EQ(records[5].register_height, wallet_height);
-      CHECK_EQ(records[4].value, wallet_value_str);
-      CHECK_EQ(records[5].value, wallet_value_str);
+      CHECK_EQ(records[4].value, bob_key.blockchain_value);
+      CHECK_EQ(records[5].value, bob_key.blockchain_value);
       CHECK_EQ(records[4].type, static_cast<uint16_t>(lns::mapping_type::blockchain));
       CHECK_EQ(records[5].type, static_cast<uint16_t>(lns::mapping_type::blockchain));
     }
@@ -1281,38 +1292,6 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
   });
 
   return true;
-}
-
-struct lns_keys_t
-{
-  crypto::ed25519_public_key ed_key;
-  crypto::ed25519_secret_key ed_skey;
-  std::string                blockchain_value; // NOTE: this field is the binary (value) part of the name -> (value) mapping
-  std::string                lokinet_value;
-  std::string                messenger_value;
-
-  std::string                messenger_value_hex; // NOTE: likewise, but represented in hex, except, for blockchain, which is the cryptonote account address
-  std::string                blockchain_value_hex;
-  std::string                lokinet_value_hex;
-};
-
-static lns_keys_t make_lns_keys(cryptonote::account_base const &src)
-{
-  lns_keys_t result = {};
-  crypto_sign_ed25519_seed_keypair(result.ed_key.data, result.ed_skey.data, reinterpret_cast<const unsigned char *>(src.get_keys().m_spend_secret_key.data));
-
-  char messenger_value[lns::MESSENGER_PUBLIC_KEY_BINARY_LENGTH] = {};
-  messenger_value[0]                                            = 5; // prefix with 0x05
-  memcpy(messenger_value + 1, &result.ed_key, sizeof(result.ed_key));
-
-  result.messenger_value  = std::string(messenger_value, sizeof(messenger_value));
-  result.blockchain_value = std::string((char *)&src.get_keys().m_account_address, sizeof(src.get_keys().m_account_address));
-  result.lokinet_value    = std::string((char *)result.ed_key.data, sizeof(result.ed_key));
-
-  result.messenger_value_hex  = epee::string_tools::pod_to_hex(messenger_value);
-  result.blockchain_value_hex = cryptonote::get_account_address_as_str(cryptonote::FAKECHAIN, false /*subaddress*/, src.get_keys().m_account_address);
-  result.lokinet_value_hex    = epee::string_tools::pod_to_hex(result.ed_key);
-  return result;
 }
 
 bool loki_name_system_handles_duplicate_in_lns_db::generate(std::vector<test_event_entry> &events)
@@ -1357,12 +1336,12 @@ bool loki_name_system_handles_duplicate_in_lns_db::generate(std::vector<test_eve
   uint16_t custom_type = 3928;
   {
     // NOTE: Allow duplicates with the same name but different type
-    cryptonote::transaction bar = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value_hex, messenger_name);
-    cryptonote::transaction bar2 = gen.create_and_add_loki_name_system_tx(miner, custom_type, bob_key.messenger_value_hex, messenger_name);
+    cryptonote::transaction bar = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value, messenger_name);
+    cryptonote::transaction bar2 = gen.create_and_add_loki_name_system_tx(miner, custom_type, bob_key.messenger_value, messenger_name);
 
     if (lns_mapping_type_enabled(lns::mapping_type::lokinet))
     {
-      cryptonote::transaction bar3 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value_hex, messenger_name);
+      cryptonote::transaction bar3 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value, messenger_name);
       gen.create_and_add_next_block({bar, bar2, bar3});
     }
     else
@@ -1381,7 +1360,7 @@ bool loki_name_system_handles_duplicate_in_lns_db::generate(std::vector<test_eve
   gen.create_and_add_next_block(); // 2 checkpoints, commit LNS from all new blocks now checkpointed to db
 
   {
-    cryptonote::transaction bar6 = gen.create_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value_hex, messenger_name);
+    cryptonote::transaction bar6 = gen.create_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value, messenger_name);
     gen.add_tx(bar6, false /*can_be_added_to_blockchain*/, "Duplicate name requested by new owner: original already exists in lns db");
   }
 
@@ -1471,12 +1450,12 @@ bool loki_name_system_handles_duplicate_in_staging_area::generate(std::vector<te
   uint16_t custom_type = 3928;
   {
     // NOTE: Allow duplicates with the same name but different type
-    cryptonote::transaction bar = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value_hex, messenger_name);
-    cryptonote::transaction bar2 = gen.create_and_add_loki_name_system_tx(miner, custom_type, bob_key.messenger_value_hex, messenger_name);
+    cryptonote::transaction bar = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value, messenger_name);
+    cryptonote::transaction bar2 = gen.create_and_add_loki_name_system_tx(miner, custom_type, bob_key.messenger_value, messenger_name);
 
     if (lns_mapping_type_enabled(lns::mapping_type::lokinet))
     {
-      cryptonote::transaction bar3 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value_hex, messenger_name);
+      cryptonote::transaction bar3 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value, messenger_name);
       gen.create_and_add_next_block({bar, bar2, bar3});
     }
     else
@@ -1485,7 +1464,7 @@ bool loki_name_system_handles_duplicate_in_staging_area::generate(std::vector<te
     }
 
     // NOTE: Make duplicate, but not checkpointed yet, so in the staging area should be rejected
-    cryptonote::transaction bar5 = gen.create_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value_hex, messenger_name);
+    cryptonote::transaction bar5 = gen.create_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value, messenger_name);
     gen.add_tx(bar5, false /*can_be_added_to_blockchain*/, "Duplicate name requested by new owner: original already exists in staging area");
   }
   uint64_t height_of_lns_entry = gen.height();
@@ -1584,16 +1563,16 @@ bool loki_name_system_handles_duplicate_in_tx_pool::generate(std::vector<test_ev
   uint16_t custom_type = 3928;
   {
     // NOTE: Allow duplicates with the same name but different type
-    cryptonote::transaction bar = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value_hex, messenger_name);
-    cryptonote::transaction bar2 = gen.create_and_add_loki_name_system_tx(miner, custom_type, bob_key.messenger_value_hex, messenger_name);
+    cryptonote::transaction bar = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value, messenger_name);
+    cryptonote::transaction bar2 = gen.create_and_add_loki_name_system_tx(miner, custom_type, bob_key.messenger_value, messenger_name);
 
     // NOTE: Make duplicate in the TX pool, this should be rejected
-    cryptonote::transaction bar4 = gen.create_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value_hex, messenger_name);
+    cryptonote::transaction bar4 = gen.create_loki_name_system_tx(bob, static_cast<uint16_t>(lns::mapping_type::messenger), bob_key.messenger_value, messenger_name);
     gen.add_tx(bar4, false /*can_be_added_to_blockchain*/, "Duplicate name requested by new owner: original already exists in tx pool");
 
     if (lns_mapping_type_enabled(lns::mapping_type::lokinet))
     {
-      cryptonote::transaction bar3 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value_hex, messenger_name);
+      cryptonote::transaction bar3 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value, messenger_name);
       gen.create_and_add_next_block({bar, bar2, bar3});
     }
     else
@@ -1665,10 +1644,7 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
   gen.add_n_blocks(30); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
-  crypto::ed25519_public_key miner_key;
-  crypto::ed25519_secret_key miner_skey;
-  crypto_sign_ed25519_seed_keypair(miner_key.data, miner_skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
-
+  lns_keys_t miner_key = make_lns_keys(miner);
   // Manually construct transaction with invalid tx extra
   {
     auto make_lns_tx_with_custom_extra = [&](loki_chain_generator &gen,
@@ -1696,9 +1672,9 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
     };
 
     cryptonote::tx_extra_loki_name_system valid_data = {};
-    valid_data.owner                                 = miner_key;
+    valid_data.owner                                 = miner_key.ed_key;
     valid_data.type                                  = static_cast<uint16_t>(lns::mapping_type::blockchain);
-    valid_data.value                                 = cryptonote::get_account_address_as_str(cryptonote::FAKECHAIN, false, miner.get_keys().m_account_address);
+    valid_data.value                                 = miner_key.blockchain_value;
     valid_data.name                                  = "my_lns_name";
 
     if (lns_mapping_type_enabled(lns::mapping_type::blockchain))
@@ -1770,21 +1746,17 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
     valid_data.type  = static_cast<uint16_t>(lns::mapping_type::messenger);
     {
       cryptonote::tx_extra_loki_name_system data = valid_data;
-      data.value = std::string(reinterpret_cast<char const *>(miner_key.data), sizeof(miner_key));
-      stream << "(Messenger) Key invalid, not prefixed with 0x05: " << data.value;
+      data.value[0]                              = 'a';
+      stream << "(Messenger) Key invalid, not prefixed with 0x05";
       make_lns_tx_with_custom_extra(gen, events, miner, data, false, stream.str().c_str());
       stream.clear();
     }
 
     // Messenger should be valid with this key with a 0x05 prefix
-    char messenger_key[lns::MESSENGER_PUBLIC_KEY_BINARY_LENGTH] = {};
-    messenger_key[0]                                            = 5;
-    memcpy(messenger_key + 1, miner_key.data, sizeof(miner_key));
-    std::string messenger_key_hex = epee::string_tools::pod_to_hex(messenger_key);
-    valid_data.value = messenger_key_hex;
+    valid_data.value = miner_key.messenger_value;
     {
       cryptonote::tx_extra_loki_name_system data = valid_data;
-      stream << "(Messenger) Key should be valid, prefixed with 0x05: " << data.value;
+      stream << "(Messenger) Key should be valid, prefixed with 0x05: " << miner_key.messenger_value_hex;
       make_lns_tx_with_custom_extra(gen, events, miner, data, true, stream.str().c_str());
       stream.clear();
     }
@@ -1889,7 +1861,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
 
   lns_keys_t miner_key = make_lns_keys(miner);
   char const name[]    = "mydomain.loki";
-  cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value_hex, name);
+  cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value, name);
   gen.create_and_add_next_block({tx});
 
   uint64_t height_of_lns_entry = gen.height();
@@ -1928,7 +1900,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     gen.create_and_add_next_block();
 
   // In the renewal window, try and renew the lokinet entry
-  cryptonote::transaction renew_tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value_hex, name);
+  cryptonote::transaction renew_tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value, name);
   gen.create_and_add_next_block({renew_tx});
   uint64_t renewal_height = gen.height();
 
@@ -1973,10 +1945,6 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   gen.add_n_blocks(30); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
-  crypto::ed25519_public_key pkey;
-  crypto::ed25519_secret_key skey;
-  crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(miner.get_keys().m_spend_secret_key.data));
-
   auto make_lns_tx_with_custom_extra = [&](loki_chain_generator &gen,
                                            std::vector<test_event_entry> &events,
                                            cryptonote::account_base const &src,
@@ -2000,16 +1968,16 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
     gen.add_tx(tx, true /*can_be_added_to_blockchain*/, "", false /*kept_by_block*/);
   };
 
+  lns_keys_t miner_key = make_lns_keys(miner);
   cryptonote::tx_extra_loki_name_system data = {};
-  data.owner                                 = pkey;
-  data.value                                 = cryptonote::get_account_address_as_str(cryptonote::FAKECHAIN, false, miner.get_keys().m_account_address);
+  data.owner                                 = miner_key.ed_key;
 
   // Blockchain
   if (lns_mapping_type_enabled(lns::mapping_type::blockchain))
   {
     data.type                                  = static_cast<uint16_t>(lns::mapping_type::blockchain);
     data.name                                  = std::string(lns::BLOCKCHAIN_NAME_MAX, 'A');
-    data.value                                 = miner.get_public_address_str(cryptonote::FAKECHAIN);
+    data.value                                 = miner_key.blockchain_value;
     make_lns_tx_with_custom_extra(gen, events, miner, data);
   }
 
@@ -2018,7 +1986,7 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   {
     data.type                                  = static_cast<uint16_t>(lns::mapping_type::lokinet);
     data.name                                  = "doyle.loki";
-    data.value                                 = std::string(lns::LOKINET_ADDRESS_BINARY_LENGTH * 2, 'a');
+    data.value                                 = std::string(lns::LOKINET_ADDRESS_BINARY_LENGTH, 'a');
     make_lns_tx_with_custom_extra(gen, events, miner, data);
   }
 
@@ -2026,7 +1994,7 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   {
     data.type     = static_cast<uint16_t>(lns::mapping_type::messenger);
     data.name     = std::string(lns::MESSENGER_DISPLAY_NAME_MAX, 'A');
-    data.value    = std::string(lns::MESSENGER_PUBLIC_KEY_BINARY_LENGTH * 2, 'a');
+    data.value    = std::string(lns::MESSENGER_PUBLIC_KEY_BINARY_LENGTH, 'a');
     data.value[0] = '0';
     data.value[1] = '5';
     make_lns_tx_with_custom_extra(gen, events, miner, data);
@@ -2070,17 +2038,17 @@ bool loki_name_system_wrong_burn::generate(std::vector<test_event_entry> &events
 
         if (type == lns::mapping_type::messenger)
         {
-          value = lns_keys.messenger_value_hex;
+          value = lns_keys.messenger_value;
           name  = "My Friendly Messenger Name";
         }
         else if (type == lns::mapping_type::blockchain)
         {
-          value = lns_keys.blockchain_value_hex;
+          value = lns_keys.blockchain_value;
           name = "My Friendly Wallet Name";
         }
         else if (type == lns::mapping_type::lokinet)
         {
-          value = lns_keys.lokinet_value_hex;
+          value = lns_keys.lokinet_value;
           name  = "MyFriendlyLokinetName.loki";
         }
         else
