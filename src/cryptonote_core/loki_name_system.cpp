@@ -172,7 +172,7 @@ static bool sql_compile_statement(sqlite3 *db, char const *query, int query_len,
 uint64_t burn_requirement_in_atomic_loki(uint8_t hf_version)
 {
   (void)hf_version;
-  return 15;
+  return 30 * COIN;
 }
 
 sqlite3 *init_loki_name_system(char const *file_path)
