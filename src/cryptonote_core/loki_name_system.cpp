@@ -495,9 +495,9 @@ bool validate_mapping_type(std::string const &type, uint16_t *mapping_type, std:
   }
 
   uint16_t mapping_type_ = 0;
-  if      (type_lowered == "blockchain") mapping_type_ = static_cast<uint16_t>(mapping_type::blockchain);
-  else if (type_lowered == "lokinet")    mapping_type_ = static_cast<uint16_t>(mapping_type::lokinet);
-  else if (type_lowered == "messenger")  mapping_type_ = static_cast<uint16_t>(mapping_type::messenger);
+  if      (type_lowered == "blockchain") mapping_type_ = static_cast<uint16_t>(lns::mapping_type::blockchain);
+  else if (type_lowered == "lokinet")    mapping_type_ = static_cast<uint16_t>(lns::mapping_type::lokinet);
+  else if (type_lowered == "messenger")  mapping_type_ = static_cast<uint16_t>(lns::mapping_type::messenger);
   else
   {
     try
