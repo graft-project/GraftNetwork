@@ -250,6 +250,10 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bp_tx_invalid_wrong_amount);
     GENERATE_AND_PLAY(gen_bp_tx_invalid_borromean_type);
 
+    // RTA tests
+    GENERATE_AND_PLAY(gen_rta_tests);
+
+
     el::Level level = (failed_tests.empty() ? el::Level::Info : el::Level::Error);
     MLOG(level, "\nREPORT:");
     MLOG(level, "  Test run: " << tests_count);
