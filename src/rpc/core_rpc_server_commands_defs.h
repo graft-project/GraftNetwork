@@ -2435,7 +2435,7 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
   };
-
+  // TODO: why it needed at all? as redirect aka forward is done via DIRECT RPC/REST call?
   struct COMMAND_RPC_REDIRECT_BROADCAST
   {
     struct request
@@ -2500,9 +2500,15 @@ namespace cryptonote
     {
       uint64_t broadcast_bytes_in;
       uint64_t broadcast_bytes_out;
+      uint64_t rta_p2p_messages_count;
+      uint64_t rta_jump_list_local_messages_count;
+      uint64_t rta_jump_list_remote_messages_count;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(broadcast_bytes_in)
         KV_SERIALIZE(broadcast_bytes_out)
+        KV_SERIALIZE(rta_p2p_messages_count)
+        KV_SERIALIZE(rta_jump_list_local_messages_count)
+        KV_SERIALIZE(rta_jump_list_remote_messages_count)
       END_KV_SERIALIZE_MAP()
     };
   };

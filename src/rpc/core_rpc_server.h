@@ -155,10 +155,10 @@ namespace cryptonote
       END_JSON_RPC_MAP()
       // Graft RTA handlers start here
       BEGIN_JSON_RPC_MAP("/json_rpc/rta")
-        MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST)
-        MAP_JON_RPC_WE("wide_broadcast",         on_wide_broadcast,             COMMAND_RPC_BROADCAST)
-        MAP_JON_RPC_WE("register_supernode",     on_register_supernode,         COMMAND_RPC_REGISTER_SUPERNODE)
-        MAP_JON_RPC_WE("redirect_supernode_id",  on_redirect_supernode_id,      COMMAND_RPC_REDIRECT_SUPERNODE_ID)
+        MAP_JON_RPC_WE("broadcast",              on_broadcast,                  COMMAND_RPC_BROADCAST) // ok
+        MAP_JON_RPC_WE("wide_broadcast",         on_wide_broadcast,             COMMAND_RPC_BROADCAST) // rename
+        MAP_JON_RPC_WE("register_supernode",     on_register_supernode,         COMMAND_RPC_REGISTER_SUPERNODE) // ok
+        MAP_JON_RPC_WE("redirect_supernode_id",  on_redirect_supernode_id,      COMMAND_RPC_REDIRECT_SUPERNODE_ID) // rename
         MAP_JON_RPC_WE("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES)
         MAP_JON_RPC_WE("send_supernode_blockchain_based_list", on_supernode_blockchain_based_list,  COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST)
         MAP_JON_RPC_WE("get_stats", on_get_rta_stats,  COMMAND_RPC_RTA_STATS)

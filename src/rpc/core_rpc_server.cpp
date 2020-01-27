@@ -2331,6 +2331,9 @@ namespace cryptonote
   {
       res.broadcast_bytes_in = m_p2p.get_broadcast_bytes_in();
       res.broadcast_bytes_out = m_p2p.get_broadcast_bytes_out();
+      res.rta_p2p_messages_count = m_p2p.get_rta_p2p_msg_count();
+      res.rta_jump_list_local_messages_count  = m_p2p.get_rta_jump_list_local_msg_count();
+      res.rta_jump_list_remote_messages_count = m_p2p.get_rta_jump_list_remote_msg_count();
       return true;
   }
 

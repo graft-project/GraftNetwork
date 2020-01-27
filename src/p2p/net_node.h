@@ -77,7 +77,7 @@ namespace nodetool
   struct redirect_record_t
   {
     typename std::map<sn_id_t, local_sn_t>::iterator it_local_sn;
-    Clock::time_point expiry_time; //death time of this record
+    Clock::time_point expiry_time; // expiry time of this record
   };
 
   using redirect_records_t = std::vector<redirect_record_t>;
@@ -420,6 +420,9 @@ namespace nodetool
 
     uint64_t get_broadcast_bytes_in() const { return m_broadcast_bytes_in; }
     uint64_t get_broadcast_bytes_out() const { return m_broadcast_bytes_out; }
+    uint64_t get_rta_p2p_msg_count() const { return m_rta_msg_p2p_counter; }
+    uint64_t get_rta_jump_list_local_msg_count() const { return m_rta_msg_jump_list_local_counter; }
+    uint64_t get_rta_jump_list_remote_msg_count() const { return m_rta_msg_jump_list_remote_counter; }
 
     //returns empty if sn is not found or dead
     sn_id_t check_supernode_id(const sn_id_t& local_sn)
@@ -452,7 +455,8 @@ namespace nodetool
 
     void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req)
     {
-      if(req.supernode_id.empty()) return;
+      if (req.supernode_id.empty()) 
+        return;
 
       boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
 
@@ -469,7 +473,7 @@ namespace nodetool
         sn.client.set_server(parsed.host, std::to_string(parsed.port), {});
       }
     }
-
+    // TODO: Why cryptonode can't just forward message directly to a supernode?
     void redirect_id_add(const std::string& id, const std::string& my_id)
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
@@ -565,6 +569,13 @@ namespace nodetool
     // traffic counters
     std::atomic<uint64_t> m_broadcast_bytes_in {0};
     std::atomic<uint64_t> m_broadcast_bytes_out {0};
+    
+    // number of RTA messages/requests transferred over p2p
+    std::atomic<uint64_t> m_rta_msg_p2p_counter {0};
+    // number of RTA messages/requests transferred to local supernodes vim pubkey -> network address mapping
+    std::atomic<uint64_t> m_rta_msg_jump_list_local_counter {0};
+    // number of RTA messages/requests transferred to supernodes vim pubkey -> network address mapping
+    std::atomic<uint64_t> m_rta_msg_jump_list_remote_counter {0};
   };
 
   const int64_t default_limit_up = 2048;    // kB/s

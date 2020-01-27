@@ -1045,11 +1045,11 @@ namespace nodetool
 #ifdef UDHT_INFO
           arg.hops = arg.hop;
 #endif
-          
+          m_rta_msg_jump_list_local_counter++;
           for(const auto& id : local_addresses)
           {
             // XXX: what is "broadcast_to_me" ? A: is is JSON-RPC method which is unused on supernode side, 
-            // only endpoint spedified in 'arg.callback_uri' used
+            // only endpoint specified in 'arg.callback_uri' used
             post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>( m_local_sns[id], "broadcast_to_me", arg, arg.callback_uri);
           }
         }
@@ -1057,6 +1057,7 @@ namespace nodetool
         if (!known_addresses.empty())
         {//redirect to known_addresses
           // TODO: IK not sure if it needed at all - why it needs to be encapsulated in case
+          m_rta_msg_jump_list_remote_counter++;
           
           MDEBUG("handle_broadcast: posting to known supernodes: ") << "arg { receiver_addresses : '" << join(arg.receiver_addresses) << "'\n arg.callback_uri : '" << arg.callback_uri << "'}";
           MDEBUG("known_addresses ") << join(known_addresses);
@@ -1110,6 +1111,7 @@ namespace nodetool
           epee::serialization::store_t_to_binary(arg, buff);
           
           m_broadcast_bytes_out += buff.size() * get_connections_count();
+          m_rta_msg_p2p_counter++;
           relay_notify_to_all(command, buff, context);
         }
         else
