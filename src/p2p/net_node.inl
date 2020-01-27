@@ -1067,7 +1067,7 @@ namespace nodetool
           arg.hops = arg.hop;
 #endif
           redirect_req.request = arg;
-#if 0  // Do not send redirect broadcast for now        
+// #if 0  // Do not send redirect broadcast for now        
           for (auto& id : known_addresses)
           {
             auto it = m_redirect_supernode_ids.find(id);
@@ -1081,7 +1081,7 @@ namespace nodetool
             // 2nd argument means 'method' in JSON-RPC but supernode normally doesn't use JSON-RPC but REST, so it's simply ignored on supernode side
             post_request_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "redirect_to_other_supenode", redirect_req, callback_url);
           }
-#endif           
+// #endif           
         }
         // XXX DBG
         std::copy(known_addresses.begin(), known_addresses.end(), std::back_inserter(unknown_addresses));
