@@ -62,13 +62,12 @@ namespace nodetool
 {
   using Uuid = boost::uuids::uuid;
   using Clock = std::chrono::steady_clock;
-  using sn_id_t = std::string;
-  using redirect_id_t = sn_id_t;
+  using SupernodeId = std::string;
 
-  struct local_sn_t
+  struct SupernodeItem
   {
     std::chrono::steady_clock::time_point expiry_time; // expiry time of this struct
-    std::string uri; //base URI (here it is URL without host and port) for forwarding requests to supernode
+    std::string uri; // base URI (here it is URL without host and port) for forwarding requests to supernode
     std::string redirect_uri; //special uri for UDHT protocol redirection mechanism
     uint32_t redirect_timeout_ms;
     epee::net_utils::http::http_simple_client client;
@@ -76,7 +75,7 @@ namespace nodetool
 
   struct redirect_record_t
   {
-    typename std::map<sn_id_t, local_sn_t>::iterator it_local_sn;
+    typename std::map<SupernodeId, SupernodeItem>::iterator it_local_sn;
     Clock::time_point expiry_time; // expiry time of this record
   };
 
@@ -200,7 +199,7 @@ namespace nodetool
     // sometimes supernode gets very busy so it doesn't respond within 1 second, increasing timeout to 3s
     static constexpr size_t SUPERNODE_HTTP_TIMEOUT_MILLIS = 3 * 1000;
     template<class request_struct>
-    int post_request_to_supernode(local_sn_t &local_sn, const std::string &method, const typename request_struct::request &body,
+    int post_request_to_supernode(SupernodeItem &local_sn, const std::string &method, const typename request_struct::request &body,
                                   const std::string &endpoint = std::string())
     {
         // TODO: Why it needs to be json-rpc??
@@ -425,13 +424,19 @@ namespace nodetool
     uint64_t get_rta_jump_list_remote_msg_count() const { return m_rta_msg_jump_list_remote_counter; }
 
     //returns empty if sn is not found or dead
-    sn_id_t check_supernode_id(const sn_id_t& local_sn)
+    SupernodeId check_supernode_id(const SupernodeId& local_sn)
     {
-      if(local_sn.empty()) return local_sn;
+      if (local_sn.empty()) {
+        MERROR("Invalid input: empty id passed");
+        return local_sn;
+      }
       boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
       auto it = m_local_sns.find(local_sn);
-      if(it == m_local_sns.end()) return sn_id_t();
-      local_sn_t& l_sn = it->second;
+      if (it == m_local_sns.end())  {
+        MERROR("Unable to find local supernode with id: " << local_sn);
+        return SupernodeId();
+      }
+      SupernodeItem& l_sn = it->second;
       if(l_sn.expiry_time < Clock::now())
       {
         //erase all l_sn references from m_redirect_supernode_ids
@@ -448,19 +453,22 @@ namespace nodetool
         }
         //erase l_sn
         m_local_sns.erase(it);
-        return sn_id_t();
+        return SupernodeId();
       }
       return local_sn;
     }
 
     void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req)
     {
-      if (req.supernode_id.empty()) 
+      if (req.supernode_id.empty()) {
+        MERROR("Failed to register supernode: empty id");
         return;
+      }
+      MDEBUG("registering supernode: " << req.supernode_id << ", url: " << req.supernode_url);
 
       boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
 
-      local_sn_t& sn = m_local_sns[req.supernode_id];
+      SupernodeItem& sn = m_local_sns[req.supernode_id];
       sn.redirect_uri = req.redirect_uri;
       sn.redirect_timeout_ms = req.redirect_timeout_ms;
       sn.expiry_time = get_expiry_time(req.supernode_id);
@@ -474,11 +482,14 @@ namespace nodetool
       }
     }
     // TODO: Why cryptonode can't just forward message directly to a supernode?
-    void redirect_id_add(const std::string& id, const std::string& my_id)
+    void add_rta_route(const std::string& id, const std::string& my_id)
     {
         boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
         auto it = m_local_sns.find(my_id);
-        if(it == m_local_sns.end()) return;
+        if(it == m_local_sns.end()) {
+          MERROR("Failed to add route: " << my_id << " is unknown supernode"); 
+          return;
+        }
         auto expiry_time = get_expiry_time(my_id);
         redirect_records_t& recs = m_redirect_supernode_ids[id];
         auto it2 = std::find_if(recs.begin(), recs.end(), [it](const redirect_record_t& r)->bool { return r.it_local_sn == it; });
@@ -493,7 +504,7 @@ namespace nodetool
         }
     }
 
-    Clock::time_point get_expiry_time(const sn_id_t& local_sn)
+    Clock::time_point get_expiry_time(const SupernodeId& local_sn)
     {
       boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
       auto it = m_local_sns.find(local_sn);
@@ -511,8 +522,8 @@ namespace nodetool
     boost::recursive_mutex m_request_cache_lock;
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
 
-    std::map<sn_id_t, local_sn_t> m_local_sns;
-    std::map<redirect_id_t, redirect_records_t> m_redirect_supernode_ids; //recipients ids to redirect to the supernode
+    std::map<SupernodeId, SupernodeItem> m_local_sns;
+    std::map<SupernodeId, redirect_records_t> m_redirect_supernode_ids; //recipients ids to redirect to the supernode
     boost::recursive_mutex m_supernodes_lock;
 
     std::string m_config_folder;

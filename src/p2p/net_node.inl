@@ -947,7 +947,7 @@ namespace nodetool
         {   
           redirect_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
           // to_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
-          for(auto it = m_redirect_supernode_ids.begin(); it != m_redirect_supernode_ids.end();)
+          for (auto it = m_redirect_supernode_ids.begin(); it != m_redirect_supernode_ids.end(); ++it)
           {
             redirect_records_t& recs = it->second;
             auto now = Clock::now();
@@ -963,7 +963,6 @@ namespace nodetool
             }
             redirect_sns.emplace_back(it->first);
             // to_sns.emplace_back(recs[0].it_local_sn->first); //choose only the first one
-            ++it;
           }
         }
         
@@ -1050,7 +1049,7 @@ namespace nodetool
           {
             // XXX: what is "broadcast_to_me" ? A: is is JSON-RPC method which is unused on supernode side, 
             // only endpoint specified in 'arg.callback_uri' used
-            post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>( m_local_sns[id], "broadcast_to_me", arg, arg.callback_uri);
+            post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>( m_local_sns[id], "" /* pass to local supernode */, arg, arg.callback_uri);
           }
         }
         // TODO: What is the difference in known_addresses vs local_addresses  and why they processed in separate loops?
@@ -1074,12 +1073,12 @@ namespace nodetool
             assert(it != m_redirect_supernode_ids.end());
             assert(!it->second.empty());
             redirect_record_t& rec = it->second[0];
-            local_sn_t& sn = rec.it_local_sn->second;
+            SupernodeItem& sn = rec.it_local_sn->second;
             std::string callback_url = sn.redirect_uri;
-            MDEBUG("==> redirect broadcast for \n") << id << "\n url =" << callback_url;
+            MDEBUG("==> redirect broadcast for " << id << " > " << sn.client.get_host() << ":" << sn.client.get_port()  << " url =" << callback_url);
             redirect_req.receiver_id = id;
-            // 2nd argument means 'method' in JSON-RPC but supernode normally doesn't use JSON-RPC but REST, so it's simply ignored on supernode side
-            post_request_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "redirect_to_other_supenode", redirect_req, callback_url);
+            // 2nd argument means 'method' in JSON-RPC but supernode doesn't use JSON-RPC but REST instead, so it's simply ignored on supernode side
+            post_request_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "" /*forward to another supernode via local supernode*/, redirect_req, callback_url);
           }
 // #endif           
         }

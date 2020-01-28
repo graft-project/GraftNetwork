@@ -2285,44 +2285,44 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_redirect_supernode_id(const COMMAND_RPC_REDIRECT_SUPERNODE_ID::request& req, COMMAND_RPC_REDIRECT_SUPERNODE_ID::response& res, epee::json_rpc::error& error_resp)
+  bool core_rpc_server::on_add_rta_route(const COMMAND_RPC_ADD_RTA_ROUTE::request& req, COMMAND_RPC_ADD_RTA_ROUTE::response& res, epee::json_rpc::error& error_resp)
   {
-      LOG_PRINT_L0("RPC Request: on_redirect_supernode_id: start");
+      MDEBUG("on_redirect_supernode_id: start");
       // validate input parameters
-      bool id_ok = !req.id.empty();
-      if(id_ok)
+      bool dst_id_ok = !req.dst_id.empty();
+      if(dst_id_ok)
       {
         crypto::public_key id;
-        id_ok = id_ok && epee::string_tools::hex_to_pod(req.id, id);
-        id_ok = id_ok && crypto::check_key(id);
+        dst_id_ok = dst_id_ok && epee::string_tools::hex_to_pod(req.dst_id, id);
+        dst_id_ok = dst_id_ok && crypto::check_key(id);
       }
-      if (!id_ok)
+      if (!dst_id_ok)
       {
         error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-        std::ostringstream oss; oss << "Invalid supernode ID parameter '" << req.id << "' of on_redirect_supernode_id";
+        std::ostringstream oss; oss << "Invalid destination ID parameter '" << req.dst_id << "'";
         error_resp.message = oss.str();
         return false;
       }
 
-      bool my_id_ok = !req.my_id.empty();
-      if(my_id_ok)
+      bool router_id_ok = !req.router_id.empty();
+      if(router_id_ok)
       {
         crypto::public_key my_id;
-        my_id_ok = my_id_ok && epee::string_tools::hex_to_pod(req.my_id, my_id);
-        my_id_ok = my_id_ok && crypto::check_key(my_id);
+        router_id_ok = router_id_ok && epee::string_tools::hex_to_pod(req.router_id, my_id);
+        router_id_ok = router_id_ok && crypto::check_key(my_id);
       }
-      if (!my_id_ok)
+      if (!router_id_ok)
       {
         error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-        std::ostringstream oss; oss << "Invalid local supernode ID parameter '" << req.my_id << "' of on_redirect_supernode_id";
+        std::ostringstream oss; oss << "Invalid router supernode ID parameter '" << req.router_id << "'";
         error_resp.message = oss.str();
         return false;
       }
 
-      m_p2p.redirect_id_add(req.id, req.my_id);
+      m_p2p.add_rta_route(req.dst_id, req.router_id);
 
       res.status = 0;
-      LOG_PRINT_L0("RPC Request: on_redirect_supernode_id: end");
+      MDEBUG("on_redirect_supernode_id: end");
       return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------

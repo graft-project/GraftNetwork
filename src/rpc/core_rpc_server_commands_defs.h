@@ -2360,9 +2360,9 @@ namespace cryptonote
     {
       uint32_t broadcast_hops;
       uint32_t redirect_timeout_ms;
-      std::string supernode_id; //supernode public identification key
-      std::string supernode_url; //base URL for forwarding requests to supernode
-      std::string redirect_uri; //special uri for UDHT protocol redirection mechanism
+      std::string supernode_id;  // supernode public identification key
+      std::string supernode_url; // base URL for forwarding requests to supernode
+      std::string redirect_uri;  // special uri for UDHT protocol redirection mechanism
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(broadcast_hops)
         KV_SERIALIZE(redirect_timeout_ms)
@@ -2382,15 +2382,15 @@ namespace cryptonote
   };
 
 
-  struct COMMAND_RPC_REDIRECT_SUPERNODE_ID
+  struct COMMAND_RPC_ADD_RTA_ROUTE
   {
     struct request
     {
-      std::string id;
-      std::string my_id;
+      std::string dst_id;
+      std::string router_id;
       BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE(id)
-      KV_SERIALIZE(my_id)
+      KV_SERIALIZE(dst_id)
+      KV_SERIALIZE(router_id)
       END_KV_SERIALIZE_MAP()
     };
 
