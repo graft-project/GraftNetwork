@@ -289,51 +289,43 @@ uint64_t Blockchain::get_current_blockchain_height() const
   return m_db->height();
 }
 //------------------------------------------------------------------
-bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsystems)
+bool Blockchain::load_missing_blocks_into_loki_subsystems()
 {
-  if (!subsystems) return true;
-  if (!m_lns_db.db) subsystems = static_cast<decltype(subsystems)>(static_cast<uint8_t>(subsystems) & ~loki_subsystem_lns);
-
   uint64_t chain_height     = m_db->height();
   uint64_t const snl_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_9_service_nodes), m_service_node_list.height() + 1);
   uint64_t const lns_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_15_lns),          m_lns_db.height() + 1);
-  uint64_t lns_end_height   = 0;
-
-  if (subsystems & loki_subsystem_lns)
-  {
-    checkpoint_t immutable_checkpoint = {};
-    if (m_db->get_immutable_checkpoint(&immutable_checkpoint, chain_height))
-      lns_end_height = immutable_checkpoint.height + 1;
-  }
 
   {
-    uint64_t start_height = chain_height;
-    uint64_t end_height   = 0;
-    if (subsystems & loki_subsystem_snl)
+    uint64_t start_height   = std::min(chain_height, snl_height);
+    uint64_t end_height     = chain_height;
+    uint64_t lns_end_height = 0;
+
+    if (m_lns_db.db)
     {
-      start_height = std::min(start_height, snl_height);
-      end_height   = chain_height;
+      checkpoint_t immutable_checkpoint = {};
+      if (m_db->get_immutable_checkpoint(&immutable_checkpoint, chain_height))
+      {
+        start_height   = std::min(start_height, lns_height);
+        lns_end_height = immutable_checkpoint.height + 1;
+      }
     }
 
-    if ((subsystems & loki_subsystem_lns) && (lns_end_height != 0))
+    if (start_height >= end_height)
     {
-      start_height = std::min(start_height, lns_height);
-      end_height   = std::max(end_height, lns_end_height);
-    }
-
-    // NOTE: (end_height > chain_height) can occur when querying immutable checkpoints that are hardcoded in
-    if (start_height >= end_height || end_height > chain_height)
+      MGINFO("start_height=" << start_height << ", end_height=" << end_height << ", chain_height=" << chain_height);
       return true;
+    }
     int64_t const total_blocks = static_cast<int64_t>(end_height) - static_cast<int64_t>(start_height);
 
     if (total_blocks > 1)
       MGINFO("Loading blocks into loki subsystems, scanning blockchain from height: " << start_height << " to: " << end_height);
 
-    int64_t constexpr BLOCK_COUNT                    = 1000;
-    auto work_start                                  = std::chrono::high_resolution_clock::now();
-    auto scan_start                                  = work_start;
-    std::chrono::milliseconds lns_duration           = {}, snl_duration           = {};
-    std::chrono::milliseconds lns_iteration_duration = {}, snl_iteration_duration = {};
+    using clock                   = std::chrono::steady_clock;
+    using work_time               = std::chrono::duration<float>;
+    int64_t constexpr BLOCK_COUNT = 1000;
+    auto work_start               = clock::now();
+    auto scan_start               = work_start;
+    work_time lns_duration{}, snl_duration{}, lns_iteration_duration{}, snl_iteration_duration{};
 
     std::vector<std::pair<cryptonote::blobdata, cryptonote::block>> blocks;
     std::vector<cryptonote::transaction> txs;
@@ -346,14 +338,10 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
     {
       if (index > 0 && (index % 10 == 0))
       {
-        if (subsystems & loki_subsystem_snl) m_service_node_list.store();
-
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - work_start);
-        auto work_s         = duration.count() / 1000.f;
-        auto snl_duration_s = snl_iteration_duration.count() / 1000.f;
-        auto lns_duration_s = lns_iteration_duration.count() / 1000.f;
-        MGINFO("... scanning height " << start_height + (index * BLOCK_COUNT) << " (" << work_s << "s) (snl: " << snl_duration_s << "s; lns: " << lns_duration_s << "s)");
-        work_start = std::chrono::high_resolution_clock::now();
+        m_service_node_list.store();
+        auto duration = work_time{clock::now() - work_start};
+        MGINFO("... scanning height " << start_height + (index * BLOCK_COUNT) << " (" << duration.count() << "s) (snl: " << snl_iteration_duration.count() << "s; lns: " << lns_iteration_duration.count() << "s)");
+        work_start = clock::now();
 
         lns_duration += lns_iteration_duration;
         snl_duration += snl_iteration_duration;
@@ -381,9 +369,9 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
           return false;
         }
 
-        if ((subsystems & loki_subsystem_snl) && (block_height >= snl_height))
+        if (block_height >= snl_height)
         {
-          auto snl_start = std::chrono::high_resolution_clock::now();
+          auto snl_start = clock::now();
 
           checkpoint_t *checkpoint_ptr = nullptr;
           checkpoint_t checkpoint;
@@ -395,33 +383,29 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
             MERROR("Unable to process block for updating service node list: " << cryptonote::get_block_hash(blk));
             return false;
           }
-          snl_iteration_duration += std::chrono::duration_cast<decltype(snl_iteration_duration)>(std::chrono::high_resolution_clock::now() - snl_start);
+          snl_iteration_duration += clock::now() - snl_start;
         }
 
-        if ((subsystems & loki_subsystem_lns) && (block_height >= lns_height) && (block_height < lns_end_height))
+        if (m_lns_db.db && (block_height >= lns_height) && (block_height < lns_end_height))
         {
-          auto lns_start = std::chrono::high_resolution_clock::now();
+          auto lns_start = clock::now();
           if (!m_lns_db.add_block(pair.second, txs))
           {
             MERROR("Unable to process block for updating LNS DB: " << cryptonote::get_block_hash(pair.second));
             return false;
           }
-          lns_iteration_duration += std::chrono::duration_cast<decltype(lns_iteration_duration)>(std::chrono::high_resolution_clock::now() - lns_start);
+          lns_iteration_duration += clock::now() - lns_start;
         }
       }
     }
 
     if (total_blocks > 1)
     {
-      auto scan_end       = std::chrono::high_resolution_clock::now();
-      auto duration       = std::chrono::duration_cast<std::chrono::milliseconds>(scan_end - scan_start);
-      auto work_s         = duration.count() / 1000.f;
-      auto snl_duration_s = snl_duration.count() / 1000.f;
-      auto lns_duration_s = lns_duration.count() / 1000.f;
-      MGINFO("Done recalculating loki subsystems (" << work_s << "s) (snl: " << snl_duration_s << "s; lns: " << lns_duration_s << "s)");
+      auto duration = work_time{clock::now() - scan_start};
+      MGINFO("Done recalculating loki subsystems (" << duration.count() << "s) (snl: " << snl_duration.count() << "s; lns: " << lns_duration.count() << "s)");
     }
 
-    if ((subsystems & loki_subsystem_snl) && total_blocks > 0)
+    if (total_blocks > 0)
       m_service_node_list.store();
   }
 
@@ -797,7 +781,7 @@ void Blockchain::pop_blocks(uint64_t nblocks)
   auto split_height = m_db->height();
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
     hook->blockchain_detached(split_height, true /*by_pop_blocks*/);
-  load_missing_blocks_into_loki_subsystems(loki_subsystem_all);
+  load_missing_blocks_into_loki_subsystems();
 
   if (stop_batch)
     m_db->batch_stop();
@@ -1150,7 +1134,7 @@ bool Blockchain::rollback_blockchain_switching(const std::list<block_and_checkpo
   // Revert all changes from switching to the alt chain before adding the original chain back in
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
     hook->blockchain_detached(rollback_height, false /*by_pop_blocks*/);
-  load_missing_blocks_into_loki_subsystems(loki_subsystem_all);
+  load_missing_blocks_into_loki_subsystems();
 
   // make sure the hard fork object updates its current version
   m_hardfork->reorganize_from_chain_height(rollback_height);
@@ -1216,7 +1200,7 @@ bool Blockchain::switch_to_alternative_blockchain(const std::list<block_extended
   auto split_height = m_db->height();
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
     hook->blockchain_detached(split_height, false /*by_pop_blocks*/);
-  load_missing_blocks_into_loki_subsystems(loki_subsystem_all);
+  load_missing_blocks_into_loki_subsystems();
 
   //connecting new alternative chain
   for(auto alt_ch_iter = alt_chain.begin(); alt_ch_iter != alt_chain.end(); alt_ch_iter++)
