@@ -921,17 +921,7 @@ namespace nodetool
     // 1. check if any in receiver_addresses belongs to our supernodes? - if yes, post to 
     // 2. check if hop > 0; if yes, relay p2p message to peers
     {
-      MDEBUG("P2P Request: handle_broadcast: lock");
-      boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
-      {
-        //prepare sorted sns
-        std::vector<std::string> local_sns;
-        std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); });
-        MDEBUG("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
-               << ", local supernodes: " << join(local_sns, ", "));
-        MDEBUG("P2P Request: handle_broadcast: receiver_addresses: " << "receiver addresses: " << join(arg.receiver_addresses, ", "));
-      }
-      
+   
       if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end()) 
       {
         MDEBUG("P2P Request: handle_broadcast: message '" << arg.message_id << "' was not processed before, processing..");
@@ -939,168 +929,10 @@ namespace nodetool
         int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
         
-        // prepare sorted sns
-        std::vector<std::string> local_sns;
-        std::for_each(m_local_sns.begin(), m_local_sns.end(), [&local_sns](decltype(*m_local_sns.begin())& pair){ local_sns.push_back(pair.first); });
         
-        std::vector<std::string> redirect_sns; // TODO: the purpose of this? 
-        {   
-          redirect_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
-          // to_sns.reserve(m_redirect_supernode_ids.size()); //not exact, but
-          for (auto it = m_redirect_supernode_ids.begin(); it != m_redirect_supernode_ids.end(); ++it)
-          {
-            redirect_records_t& recs = it->second;
-            auto now = Clock::now();
-            
-            //erase dead records
-            recs.erase(std::remove_if(recs.begin(), recs.end(), [now](redirect_record_t& v)->bool{ return v.expiry_time < now; } ), recs.end());
-            
-            //erase empty redirector
-            if(recs.empty())
-            {
-              it = m_redirect_supernode_ids.erase(it);
-              continue;
-            }
-            redirect_sns.emplace_back(it->first);
-            // to_sns.emplace_back(recs[0].it_local_sn->first); //choose only the first one
-          }
-        }
-        
-        std::vector<std::string> local_addresses, known_addresses, unknown_addresses;
-        
-        for (const std::string &address : arg.receiver_addresses) {
-          if (m_local_sns.find(address) != m_local_sns.end()) 
-            local_addresses.push_back(address);
-          else if (std::find(redirect_sns.begin(), redirect_sns.end(), address) != redirect_sns.end())
-            known_addresses.push_back(address);
-          else 
-            unknown_addresses.push_back(address);
-        }
-        // in case 'receiver_addresses' is empty -> broadcast to all - post to all 
-        if (arg.receiver_addresses.empty()) {
-          MDEBUG("==> broadcast to all, sending to local supernode(s)");
-          local_addresses = local_sns;
-        }
-        
-#if 0        
-        if(!arg.receiver_addresses.empty())
-        {
-          //prepare
-          std::set<std::string> addresses; // destinations from incoming broadcast
-          std::copy(arg.receiver_addresses.begin(), arg.receiver_addresses.end(), std::back_inserter(addresses));
-          
-          //find local_addresses = (addresses) && (local_sns)
-          std::set_intersection(addresses.begin(), addresses.end(),
-                                local_sns.begin(), local_sns.end(),
-                                std::back_inserter(local_addresses));
-          {//(addresses) -= (local_addresses)
-            std::vector<std::string> diff; diff.reserve(addresses.size());
-            std::set_difference(addresses.begin(), addresses.end(),
-                                local_addresses.begin(), local_addresses.end(),
-                                std::back_inserter(diff));
-            addresses.swap(diff);
-          }
-          
-          //find known_addresses redirected supernode ids
-          std::set_intersection(addresses.begin(), addresses.end(),
-                                redirect_sns.begin(), redirect_sns.end(),
-                                std::back_inserter(known_addresses));
-          //find unknown_addresses
-          std::set_difference(addresses.begin(), addresses.end(),
-                              known_addresses.begin(), known_addresses.end(),
-                              std::back_inserter(unknown_addresses));
-          
-          {//MDEBUG
-            std::ostringstream oss;
-            oss << "addresses\n";
-            for(auto& it : addresses) { oss << it << "\n"; }
-            oss << "known_addresses\n";
-            for(auto& it : known_addresses) { oss << it << "\n"; }
-            oss << "unknown_addresses\n";
-            for(auto& it : unknown_addresses) { oss << it << "\n"; }
-            MDEBUG("==> broadcast\n") << oss.str();
-          }
-        }
-        else
-        {
-          MDEBUG("==> broadcast to all, sending to local supernode(s)");
-          local_addresses = local_sns;
-        }
-#endif        
-        {//MDEBUG
-          std::ostringstream oss;
-          oss << "local_addresses\n";
-          for(auto& it : local_addresses) { oss << it << "\n"; }
-          oss << "known_addresses\n";
-          for(auto& it : known_addresses) { oss << it << "\n"; }
-          oss << "unknown_addresses\n";
-          for(auto& it : unknown_addresses) { oss << it << "\n"; }
-          MDEBUG("==> broadcast\n") << oss.str();
-        }
-        if(!local_addresses.empty())
-        {
-          MDEBUG("handle_broadcast: posting to local supernodes: ") << "arg { receiver_addresses : '" << join(arg.receiver_addresses) << "'\n arg.callback_uri : '" << arg.callback_uri << "'}";
-          MDEBUG("local_addresses ") << join(local_addresses);
-#ifdef UDHT_INFO
-          arg.hops = arg.hop;
-#endif
-          m_rta_msg_jump_list_local_counter++;
-          for(const auto& id : local_addresses)
-          {
-            // XXX: what is "broadcast_to_me" ? A: is is JSON-RPC method which is unused on supernode side, 
-            // only endpoint specified in 'arg.callback_uri' used
-            post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>( m_local_sns[id], "" /* pass to local supernode */, arg, arg.callback_uri);
-          }
-        }
-        // TODO: What is the difference in known_addresses vs local_addresses  and why they processed in separate loops?
-        if (!known_addresses.empty())
-        {//redirect to known_addresses
-          // TODO: IK not sure if it needed at all - why it needs to be encapsulated in case
-          m_rta_msg_jump_list_remote_counter++;
-          
-          MDEBUG("handle_broadcast: posting to known supernodes: ") << "arg { receiver_addresses : '" << join(arg.receiver_addresses) << "'\n arg.callback_uri : '" << arg.callback_uri << "'}";
-          MDEBUG("known_addresses ") << join(known_addresses);
-          
-          cryptonote::COMMAND_RPC_REDIRECT_BROADCAST::request redirect_req;
-#ifdef UDHT_INFO
-          arg.hops = arg.hop;
-#endif
-          redirect_req.request = arg;
-// #if 0  // Do not send redirect broadcast for now        
-          for (auto& id : known_addresses)
-          {
-            auto it = m_redirect_supernode_ids.find(id);
-            assert(it != m_redirect_supernode_ids.end());
-            assert(!it->second.empty());
-            redirect_record_t& rec = it->second[0];
-            SupernodeItem& sn = rec.it_local_sn->second;
-            std::string callback_url = sn.redirect_uri;
-            MDEBUG("==> redirect broadcast for " << id << " > " << sn.client.get_host() << ":" << sn.client.get_port()  << " url =" << callback_url);
-            redirect_req.receiver_id = id;
-            // 2nd argument means 'method' in JSON-RPC but supernode doesn't use JSON-RPC but REST instead, so it's simply ignored on supernode side
-            post_request_to_supernode<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>( sn, "" /*forward to another supernode via local supernode*/, redirect_req, callback_url);
-          }
-// #endif           
-        }
-        // XXX DBG
-        std::copy(known_addresses.begin(), known_addresses.end(), std::back_inserter(unknown_addresses));
-        
-        bool relay_broadcast = true;
-        // modify original destinations - exclude local and known addresses we already processes
-        if(!arg.receiver_addresses.empty())
-        {
-          if(unknown_addresses.empty())
-          {
-            relay_broadcast = false; // do not relay in case all addresses already processed
-          }
-          else
-          {
-            arg.receiver_addresses.clear();
-            std::copy(unknown_addresses.begin(), unknown_addresses.end(), std::back_inserter(arg.receiver_addresses));
-          }
-        }
-        
-        
+        uint64_t messages_sent{0},  messages_forwarded{0};
+        bool relay_broadcast = false;
+        m_supernode_conn_manager.processBroadcast(arg, relay_broadcast, messages_sent, messages_forwarded);
         if (relay_broadcast && arg.hop > 0)
         {
           MDEBUG("P2P Request: handle_broadcast: notify broadcast from " << arg.sender_address
@@ -2266,7 +2098,7 @@ namespace nodetool
 
       MDEBUG("P2P Request: do_broadcast: broadcast to me");
       {
-          post_request_to_supernode_receivers<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
+        m_supernode_conn_manager.forward<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
       }
 
 #ifdef LOCK_RTA_SENDING
@@ -2670,9 +2502,7 @@ namespace nodetool
   {
     static std::string supernode_endpoint("send_supernode_stakes");
 
-    boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
-
-    if (m_local_sns.empty())
+    if (!m_supernode_conn_manager.has_connections())
       return;
 
     MDEBUG("handle_stakes_update to supernode for block #" << block_height);
@@ -2697,7 +2527,7 @@ namespace nodetool
       request.stakes.emplace_back(std::move(dst_stake));
     }
 
-    post_request_to_supernodes<cryptonote::COMMAND_RPC_SUPERNODE_STAKES>(supernode_endpoint, request);
+    m_supernode_conn_manager.invokeAll<cryptonote::COMMAND_RPC_SUPERNODE_STAKES>(supernode_endpoint, request);
   }
 
   template<class t_payload_net_handler>
@@ -2711,11 +2541,9 @@ namespace nodetool
   {
     static std::string supernode_endpoint("blockchain_based_list");
 
-    boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
-
-    if (m_local_sns.empty())
+    if (!m_supernode_conn_manager.has_connections())
       return;
-
+    
     MDEBUG("handle_blockchain_based_list_update to supernode for block #" << block_height);
 
     cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST::request request;
@@ -2743,12 +2571,25 @@ namespace nodetool
       request.tiers.emplace_back(std::move(dst_tier));
     }
 
-    post_request_to_supernodes<cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST>(supernode_endpoint, request);
+    m_supernode_conn_manager.invokeAll<cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST>(supernode_endpoint, request);
+    
   }
 
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::send_blockchain_based_list_to_supernode(uint64_t last_received_block_height)
   {
     m_payload_handler.get_core().invoke_update_blockchain_based_list_handler(last_received_block_height);
+  }
+  
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req)
+  {
+    m_supernode_conn_manager.register_supernode(req);
+  }
+  // TODO: Why cryptonode can't just forward message directly to a supernode?
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::add_rta_route(const std::string& id, const std::string& router_id)
+  {
+    m_supernode_conn_manager.add_rta_route(id, router_id);
   }
 }
