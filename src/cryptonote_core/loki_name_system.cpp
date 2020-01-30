@@ -34,28 +34,28 @@ enum struct lns_sql_type
   get_sentinel_end,
 };
 
-enum lns_db_setting_row
+enum struct lns_db_setting_row
 {
-  lns_db_setting_row_id,
-  lns_db_setting_row_top_height,
-  lns_db_setting_row_top_hash,
-  lns_db_setting_row_version,
+  id,
+  top_height,
+  top_hash,
+  version,
 };
 
-enum user_record_row
+enum struct user_record_row
 {
-  user_record_row_id,
-  user_record_row_public_key,
+  id,
+  public_key,
 };
 
-enum mapping_record_row
+enum struct mapping_record_row
 {
-  mapping_record_row_id,
-  mapping_record_row_type,
-  mapping_record_row_name,
-  mapping_record_row_value,
-  mapping_record_row_register_height,
-  mapping_record_row_user_id,
+  id,
+  type,
+  name,
+  value,
+  register_height,
+  user_id,
 };
 
 static void sql_copy_blob(sqlite3_stmt *statement, int row, void *dest, int dest_size)
@@ -89,8 +89,8 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           case lns_sql_type::get_user:
           {
             auto *entry = reinterpret_cast<user_record *>(context);
-            entry->id   = sqlite3_column_int(statement, user_record_row_id);
-            sql_copy_blob(statement, user_record_row_public_key, entry->key.data, sizeof(entry->key.data));
+            entry->id   = sqlite3_column_int(statement, static_cast<int>(user_record_row::id));
+            sql_copy_blob(statement, static_cast<int>(user_record_row::public_key), entry->key.data, sizeof(entry->key.data));
             data_loaded = true;
           }
           break;
@@ -98,9 +98,9 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           case lns_sql_type::get_setting:
           {
             auto *entry       = reinterpret_cast<settings_record *>(context);
-            entry->top_height = static_cast<uint64_t>(sqlite3_column_int64(statement, lns_db_setting_row_top_height));
-            sql_copy_blob(statement, lns_db_setting_row_top_hash, entry->top_hash.data, sizeof(entry->top_hash.data));
-            entry->version = sqlite3_column_int(statement, lns_db_setting_row_version);
+            entry->top_height = static_cast<uint64_t>(sqlite3_column_int64(statement, static_cast<int>(lns_db_setting_row::top_height)));
+            sql_copy_blob(statement, static_cast<int>(lns_db_setting_row::top_hash), entry->top_hash.data, sizeof(entry->top_hash.data));
+            entry->version = sqlite3_column_int(statement, static_cast<int>(lns_db_setting_row::version));
             data_loaded = true;
           }
           break;
@@ -109,15 +109,15 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           case lns_sql_type::get_mapping:
           {
             mapping_record tmp_entry = {};
-            tmp_entry.type = static_cast<uint16_t>(sqlite3_column_int(statement, mapping_record_row_type));
-            tmp_entry.register_height = static_cast<uint16_t>(sqlite3_column_int(statement, mapping_record_row_register_height));
-            tmp_entry.user_id = sqlite3_column_int(statement, mapping_record_row_user_id);
+            tmp_entry.type = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_row::type)));
+            tmp_entry.register_height = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_row::register_height)));
+            tmp_entry.user_id = sqlite3_column_int(statement, static_cast<int>(mapping_record_row::user_id));
 
-            int name_len  = sqlite3_column_bytes(statement, mapping_record_row_name);
-            auto *name    = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_name));
+            int name_len  = sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::name));
+            auto *name    = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::name)));
 
-            size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, mapping_record_row_value));
-            auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, mapping_record_row_value));
+            size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::value)));
+            auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::value)));
 
             tmp_entry.name  = std::string(name, name_len);
             tmp_entry.value = std::string(value, value_len);
@@ -614,7 +614,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "name_type_id" ON mappings("name", "type");
   return true;
 }
 
-enum struct db_version : int { v1, };
+enum struct db_version { v1, };
 auto constexpr DB_VERSION = db_version::v1;
 bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash)
 {
@@ -718,7 +718,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       std::string fail_reason;
       if (!validate_lns_tx(block.major_version, nettype, tx, &entry, &fail_reason))
       {
-        LOG_PRINT_L1("LNS TX: Failed to validate for tx=" << get_transaction_hash(tx) << ". This should have failed validation earlier reason=" << fail_reason);
+        LOG_PRINT_L0("LNS TX: Failed to validate for tx=" << get_transaction_hash(tx) << ". This should have failed validation earlier reason=" << fail_reason);
         assert("Failed to validate acquire name service. Should already have failed validation prior" == nullptr);
         continue;
       }
@@ -783,11 +783,11 @@ bool name_system_db::save_user(crypto::ed25519_public_key const &key, int64_t *r
 bool name_system_db::save_mapping(uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id)
 {
   sqlite3_stmt *statement = save_mapping_sql;
-  sqlite3_bind_int  (statement, mapping_record_row_type, type);
-  sqlite3_bind_text (statement, mapping_record_row_name, name.data(), name.size(), nullptr /*destructor*/);
-  sqlite3_bind_blob (statement, mapping_record_row_value, value.data(), value.size(), nullptr /*destructor*/);
-  sqlite3_bind_int64(statement, mapping_record_row_register_height, static_cast<int64_t>(height));
-  sqlite3_bind_int64(statement, mapping_record_row_user_id, user_id);
+  sqlite3_bind_int  (statement, static_cast<int>(mapping_record_row::type), type);
+  sqlite3_bind_text (statement, static_cast<int>(mapping_record_row::name), name.data(), name.size(), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::value), value.data(), value.size(), nullptr /*destructor*/);
+  sqlite3_bind_int64(statement, static_cast<int>(mapping_record_row::register_height), static_cast<int64_t>(height));
+  sqlite3_bind_int64(statement, static_cast<int>(mapping_record_row::user_id), user_id);
   bool result = sql_run_statement(nettype, lns_sql_type::save_mapping, statement, nullptr);
   return result;
 }
@@ -795,9 +795,9 @@ bool name_system_db::save_mapping(uint16_t type, std::string const &name, std::s
 bool name_system_db::save_settings(uint64_t top_height, crypto::hash const &top_hash, int version)
 {
   sqlite3_stmt *statement = save_settings_sql;
-  sqlite3_bind_blob (statement, lns_db_setting_row_top_hash,   top_hash.data, sizeof(top_hash), nullptr /*destructor*/);
-  sqlite3_bind_int64(statement, lns_db_setting_row_top_height, top_height);
-  sqlite3_bind_int  (statement, lns_db_setting_row_version,    version);
+  sqlite3_bind_blob (statement, static_cast<int>(lns_db_setting_row::top_hash),   top_hash.data, sizeof(top_hash), nullptr /*destructor*/);
+  sqlite3_bind_int64(statement, static_cast<int>(lns_db_setting_row::top_height), top_height);
+  sqlite3_bind_int  (statement, static_cast<int>(lns_db_setting_row::version),    version);
   bool result = sql_run_statement(nettype, lns_sql_type::save_setting, statement, nullptr);
   return result;
 }
