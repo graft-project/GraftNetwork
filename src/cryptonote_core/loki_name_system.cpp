@@ -577,7 +577,9 @@ bool validate_mapping_type(std::string const &type, uint16_t *mapping_type, std:
   return true;
 }
 
-constexpr char BUILD_TABLE_SQL[] = R"FOO(
+static bool build_default_tables(sqlite3 *db)
+{
+  constexpr char BUILD_TABLE_SQL[] = R"(
 CREATE TABLE IF NOT EXISTS "user"(
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
     "public_key" BLOB NOT NULL UNIQUE
@@ -595,14 +597,11 @@ CREATE TABLE IF NOT EXISTS "mappings" (
     "name" VARCHAR NOT NULL,
     "value" BLOB NOT NULL,
     "register_height" INTEGER NOT NULL,
-    "user_id" INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES user (id)
+    "user_id" INTEGER NOT NULL REFERENCES "user" ("id")
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "name_type_id" ON mappings(name, type);
-)FOO";
+CREATE UNIQUE INDEX IF NOT EXISTS "name_type_id" ON mappings("name", "type");
+)";
 
-static bool build_default_tables(sqlite3 *db)
-{
   char *table_err_msg = nullptr;
   int table_created   = sqlite3_exec(db, BUILD_TABLE_SQL, nullptr /*callback*/, nullptr /*callback context*/, &table_err_msg);
   if (table_created != SQLITE_OK)
@@ -623,26 +622,15 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
   this->db      = db;
   this->nettype = nettype;
 
-  char constexpr EXPIRE_MAPPINGS_SQL[] = R"FOO(DELETE FROM "mappings" WHERE "type" = ? AND "register_height" < ?)FOO";
-
-  char constexpr SAVE_SETTINGS_SQL[] = R"FOO(
-    INSERT OR REPLACE INTO settings
-    (rowid, top_height, top_hash, version)
-    VALUES (1,?,?,?);
-)FOO";
-
-  char constexpr GET_MAPPING_SQL[] = R"FOO(SELECT * FROM mappings WHERE "type" = ? AND "name" = ?)FOO";
-
-  char constexpr SAVE_MAPPING_SQL[] =
-      "INSERT OR REPLACE INTO mappings "
-      "(type, name, value, register_height, user_id)"
-      "VALUES (?,?,?,?,?);";
-
-  char constexpr GET_SETTINGS_SQL[]         = R"FOO(SELECT * FROM settings WHERE "id" = 0)FOO";
-  char constexpr SAVE_USER_SQL[]            = R"FOO(INSERT INTO user (public_key) VALUES (?);)FOO";
-  char constexpr GET_USER_BY_KEY_SQL[]      = R"FOO(SELECT * FROM user WHERE "public_key" = ?)FOO";
-  char constexpr GET_USER_BY_ID_SQL[]       = R"FOO(SELECT * FROM user WHERE "id" = ?)FOO";
-  char constexpr GET_MAPPINGS_BY_USER_SQL[] = R"FOO(SELECT * FROM mappings WHERE "user_id" = ?)FOO";
+  char constexpr EXPIRE_MAPPINGS_SQL[]      = R"(DELETE FROM "mappings" WHERE "type" = ? AND "register_height" < ?)";
+  char constexpr GET_MAPPING_SQL[]          = R"(SELECT * FROM "mappings" WHERE "type" = ? AND "name" = ?)";
+  char constexpr GET_SETTINGS_SQL[]         = R"(SELECT * FROM settings WHERE "id" = 0)";
+  char constexpr GET_USER_BY_KEY_SQL[]      = R"(SELECT * FROM user WHERE "public_key" = ?)";
+  char constexpr GET_USER_BY_ID_SQL[]       = R"(SELECT * FROM user WHERE "id" = ?)";
+  char constexpr GET_MAPPINGS_BY_USER_SQL[] = R"(SELECT * FROM mappings WHERE "user_id" = ?)";
+  char constexpr SAVE_SETTINGS_SQL[]        = R"(INSERT OR REPLACE INTO "settings" ("rowid", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
+  char constexpr SAVE_MAPPING_SQL[]         = R"(INSERT OR REPLACE INTO "mappings" ("type", "name", "value", "register_height", "user_id") VALUES (?,?,?,?,?))";
+  char constexpr SAVE_USER_SQL[]            = R"(INSERT INTO "user" ("public_key") VALUES (?);)";
 
   if (!build_default_tables(db))
     return false;
@@ -670,12 +658,7 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
     }
     else
     {
-      char constexpr DROP_TABLE_SQL[] = R"FOO(
-DROP TABLE IF EXISTS "user";
-DROP TABLE IF EXISTS "settings";
-DROP TABLE IF EXISTS "mappings";
-)FOO";
-
+      char constexpr DROP_TABLE_SQL[] = R"(DROP TABLE IF EXISTS "user"; DROP TABLE IF EXISTS "settings"; DROP TABLE IF EXISTS "mappings")";
       sqlite3_exec(db, DROP_TABLE_SQL, nullptr /*callback*/, nullptr /*callback context*/, nullptr);
       if (!build_default_tables(db)) return false;
     }
