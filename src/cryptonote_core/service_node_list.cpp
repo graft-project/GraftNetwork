@@ -1366,11 +1366,12 @@ namespace service_nodes
     //
     // Process TXs in the Block
     //
+    cryptonote::txtype max_tx_type     = cryptonote::transaction::get_max_type_for_hf(hf_version);
+    cryptonote::txtype staking_tx_type = (max_tx_type < cryptonote::txtype::stake) ? cryptonote::txtype::standard : cryptonote::txtype::stake;
     for (uint32_t index = 0; index < txs.size(); ++index)
     {
       const cryptonote::transaction& tx = txs[index];
-      if ((hf_version >= cryptonote::network_version_15_lns && tx.type == cryptonote::txtype::stake) ||
-          (hf_version <= cryptonote::network_version_13_enforce_checkpoints && tx.type == cryptonote::txtype::standard))
+      if (tx.type == staking_tx_type)
       {
         process_registration_tx(nettype, block, tx, index, my_keys);
         need_swarm_update += process_contribution_tx(nettype, block, tx, index);

@@ -559,8 +559,10 @@ namespace cryptonote
   {
     txtype result = txtype::standard;
     if      (hf_version >= network_version_15_lns)              result = txtype::loki_name_system;
+    else if (hf_version >= network_version_14_blink)            result = txtype::stake;
     else if (hf_version >= network_version_11_infinite_staking) result = txtype::key_image_unlock;
     else if (hf_version >= network_version_9_service_nodes)     result = txtype::state_change;
+
     return result;
   }
 
