@@ -667,32 +667,55 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
   return true;
 }
 
-enum struct sql_transaction_type
+struct scoped_db_transaction
 {
-    begin,
-    commit,
-    rollback,
-    count,
+  scoped_db_transaction(name_system_db &lns_db);
+  ~scoped_db_transaction();
+  operator bool() const { return initialised; }
+  name_system_db &lns_db;
+  bool commit      = false; // If true, on destruction- END the transaction otherwise ROLLBACK all SQLite events prior for the lns_db
+  bool initialised = false;
 };
 
-static bool sql_transaction(sqlite3 *db, sql_transaction_type type)
+scoped_db_transaction::scoped_db_transaction(name_system_db &lns_db)
+: lns_db(lns_db)
 {
-  char *sql_err            = nullptr;
-  char const *const CMDS[] = {
-      "BEGIN;",
-      "END;",
-      "ROLLBACK;",
-  };
-
-  static_assert(loki::array_count(CMDS) == static_cast<int>(sql_transaction_type::count), "Unexpected enum to string mismatch");
-  if (sqlite3_exec(db, CMDS[static_cast<int>(type)], NULL, NULL, &sql_err) != SQLITE_OK)
+  if (lns_db.transaction_begun)
   {
-    MERROR("Can not execute transactional step: " << CMDS[static_cast<int>(type)] << ", reason: " << (sql_err ? sql_err : "??"));
-    sqlite3_free(sql_err);
-    return false;
+    MERROR("Failed to begin transaction, transaction exists previously that was not closed properly");
+    return;
   }
 
-  return true;
+  char *sql_err = nullptr;
+  if (sqlite3_exec(lns_db.db, "BEGIN;", nullptr, nullptr, &sql_err) != SQLITE_OK)
+  {
+    MERROR("Failed to begin transaction " << ", reason=" << (sql_err ? sql_err : "??"));
+    sqlite3_free(sql_err);
+    return;
+  }
+
+  initialised              = true;
+  lns_db.transaction_begun = true;
+}
+
+scoped_db_transaction::~scoped_db_transaction()
+{
+  if (!initialised) return;
+  if (!lns_db.transaction_begun)
+  {
+    MERROR("Trying to apply non-existent transaction (no prior history of a db transaction beginning) to the LNS DB");
+    return;
+  }
+
+  char *sql_err = nullptr;
+  if (sqlite3_exec(lns_db.db, commit ? "END;" : "ROLLBACK;", NULL, NULL, &sql_err) != SQLITE_OK)
+  {
+    MERROR("Failed to " << (commit ? "end " : "rollback ") << " transaction to LNS DB, reason=" << (sql_err ? sql_err : "??"));
+    sqlite3_free(sql_err);
+    return;
+  }
+
+  lns_db.transaction_begun = false;
 }
 
 bool name_system_db::add_block(const cryptonote::block &block, const std::vector<cryptonote::transaction> &txs)
@@ -703,11 +726,9 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
 
   if (block.major_version >= cryptonote::network_version_15_lns)
   {
-    if (!sql_transaction(db, sql_transaction_type::begin))
-    {
-      MERROR("Failed to initiate transaction for LNS DB");
-      return false;
-    }
+    scoped_db_transaction db_transaction(*this);
+    if (!db_transaction)
+     return false;
 
     for (cryptonote::transaction const &tx : txs)
     {
@@ -720,7 +741,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       {
         LOG_PRINT_L0("LNS TX: Failed to validate for tx=" << get_transaction_hash(tx) << ". This should have failed validation earlier reason=" << fail_reason);
         assert("Failed to validate acquire name service. Should already have failed validation prior" == nullptr);
-        continue;
+        return false;
       }
 
       int64_t user_id = 0;
@@ -730,11 +751,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
         if (!save_user(entry.owner, &user_id))
         {
           LOG_PRINT_L1("Failed to save LNS user to DB tx: " << cryptonote::get_transaction_hash(tx) << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
-          if (!sql_transaction(db, sql_transaction_type::rollback))
-          {
-            MERROR("Failed to rollback transaction in LNS DB");
-            return false;
-          }
+          return false;
         }
       }
       assert(user_id != 0);
@@ -744,18 +761,9 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
         LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << cryptonote::get_transaction_hash(tx)
                                                            << ", type: " << (uint16_t)entry.type
                                                            << ", name: " << entry.name << ", user: " << entry.owner);
-        if (!sql_transaction(db, sql_transaction_type::rollback))
-        {
-          MERROR("Failed to rollback transaction in LNS DB");
-          return false;
-        }
+        return false;
       }
-    }
 
-    if (!sql_transaction(db, sql_transaction_type::commit))
-    {
-      MERROR("Failed to commit transaction(s) to LNS DB from block" << cryptonote::get_block_hash(block));
-      return false;
     }
 
     if (!expire_mappings(height))
@@ -763,6 +771,8 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       MERROR("Failed to expire mappings in LNS DB");
       return false;
     }
+
+    db_transaction.commit = true;
   }
 
   last_processed_height = height;

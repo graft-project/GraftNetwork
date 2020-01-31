@@ -22,11 +22,11 @@ namespace lns
 
 constexpr uint64_t BLOCKCHAIN_NAME_MAX                = 96;
 constexpr uint64_t LOKINET_DOMAIN_NAME_MAX            = 253;
-constexpr uint64_t LOKINET_ADDRESS_BINARY_LENGTH      = 32;
+constexpr uint64_t LOKINET_ADDRESS_BINARY_LENGTH      = sizeof(crypto::ed25519_public_key);
 constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX         = 64;
-constexpr uint64_t MESSENGER_PUBLIC_KEY_BINARY_LENGTH = 33;
+constexpr uint64_t MESSENGER_PUBLIC_KEY_BINARY_LENGTH = 1 + sizeof(crypto::ed25519_public_key); // Messenger keys at prefixed with 0x05 + ed25519 key
 constexpr uint64_t GENERIC_NAME_MAX                   = 255;
-constexpr uint64_t GENERIC_VALUE_MAX                  = 254;
+constexpr uint64_t GENERIC_VALUE_MAX                  = 255;
 
 struct lns_value
 {
@@ -109,6 +109,7 @@ struct name_system_db
   settings_record             get_settings        () const;
 
   sqlite3                  *db                       = nullptr;
+  bool                      transaction_begun        = false;
 private:
   cryptonote::network_type  nettype;
   uint64_t                  last_processed_height    = 0;

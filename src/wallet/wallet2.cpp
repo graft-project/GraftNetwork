@@ -8577,7 +8577,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
   else
   {
     crypto::ed25519_secret_key skey;
-    crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(m_account.get_keys().m_spend_secret_key.data));
+    crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(&m_account.get_keys().m_spend_secret_key));
   }
 
   tx_extra_loki_name_system entry = {};
