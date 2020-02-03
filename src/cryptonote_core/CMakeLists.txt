@@ -73,7 +73,6 @@ loki_add_library(cryptonote_core
   ${cryptonote_core_private_headers})
 target_link_libraries(cryptonote_core
   PUBLIC
-    sqlite
     version
     common
     cncrypto
@@ -88,5 +87,6 @@ target_link_libraries(cryptonote_core
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
   PRIVATE
+    sqlite3
     ${SYSTEMD_LIBRARIES}
     ${EXTRA_LIBRARIES})

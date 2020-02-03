@@ -54,7 +54,6 @@
 #include "cryptonote_basic/cryptonote_boost_serialization.h"
 #include "misc_language.h"
 
-#include "sqlite/sqlite3.h"
 #include "blockchain_db/testdb.h"
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
@@ -1394,7 +1393,7 @@ struct loki_chain_generator
   cryptonote::account_base                                           first_miner_;
 
   loki_chain_generator(std::vector<test_event_entry> &events, const std::vector<std::pair<uint8_t, uint64_t>> &hard_forks);
-  ~loki_chain_generator() { sqlite3_close_v2(lns_db_.db); }
+  ~loki_chain_generator();
 
   uint64_t                                             height()       const { return cryptonote::get_block_height(db_.blocks.back().block); }
   const std::vector<loki_blockchain_entry>&            blocks()       const { return db_.blocks; }

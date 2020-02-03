@@ -7,7 +7,7 @@
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "cryptonote_basic/tx_extra.h"
 
-#include "sqlite/sqlite3.h"
+#include <sqlite3.h>
 
 extern "C"
 {

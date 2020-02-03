@@ -70,6 +70,7 @@ add_executable(core_tests
   ${core_tests_headers})
 target_link_libraries(core_tests
   PRIVATE
+    sqlite3
     multisig
     cryptonote_core
     p2p

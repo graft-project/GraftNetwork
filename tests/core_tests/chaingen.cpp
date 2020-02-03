@@ -54,6 +54,7 @@ extern "C"
 #include <sodium.h>
 }
 
+#include <sqlite3.h>
 void loki_register_callback(std::vector<test_event_entry> &events,
                             std::string const &callback_name,
                             loki_callback callback)
@@ -138,6 +139,11 @@ loki_chain_generator::loki_chain_generator(std::vector<test_event_entry> &events
   event_replay_settings settings = {};
   settings.hard_forks            = hard_forks;
   events_.push_back(settings);
+}
+
+loki_chain_generator::~loki_chain_generator()
+{
+  sqlite3_close_v2(lns_db_.db);
 }
 
 service_nodes::quorum_manager loki_chain_generator::top_quorum() const

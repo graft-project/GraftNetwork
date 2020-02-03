@@ -45,6 +45,8 @@ extern "C" {
 #endif
 }
 
+#include <sqlite3.h>
+
 #include "cryptonote_core.h"
 #include "common/util.h"
 #include "common/updates.h"
@@ -67,7 +69,6 @@ extern "C" {
 #include "common/i18n.h"
 #include "net/local_ip.h"
 #include "cryptonote_protocol/quorumnet.h"
-#include "sqlite/sqlite3.h"
 
 #include "common/loki_integration_test_hooks.h"
 
