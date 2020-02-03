@@ -339,16 +339,6 @@ namespace nodetool
     virtual bool for_connection(const boost::uuids::uuid&, std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool add_host_fail(const epee::net_utils::network_address &address);
     
-    // TODO: Consider to move all Graft/Supernode stuff to the cryptonote_protocol_handler? 
-    // added, non virtual
-    /*!
-     * \brief relay_notify    - send command to remote connection
-     * \param command         - command
-     * \param data_buff       - data buffer to send
-     * \param connection_id   - connection id
-     * \return                - true on success
-     */
-    bool relay_notify(int command, const std::string& data_buff, const std::pair<epee::net_utils::zone, boost::uuids::uuid>& connection_id);
     //----------------- i_connection_filter  --------------------------------------------------------
     virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address);
     //-----------------------------------------------------------------------------------------------
@@ -387,7 +377,6 @@ namespace nodetool
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(cryptonote::network_type nettype) const;
     bool connect_to_seed();
-    bool find_connection_id_by_peer(const peerlist_entry &pe, std::pair<epee::net_utils::zone, boost::uuids::uuid> &conn_id);
     template <class Container>
     bool connect_to_peerlist(const Container& peers);
 
@@ -438,8 +427,6 @@ namespace nodetool
     {
       m_rpc_port = rpc_port;
     }
-
-    bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
 
     void send_stakes_to_supernode();
     void send_blockchain_based_list_to_supernode(uint64_t last_received_block_height);

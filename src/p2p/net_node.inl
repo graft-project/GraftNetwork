@@ -935,48 +935,6 @@ namespace nodetool
     return true;
   }
 
-  template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect)
-  {
-      MDEBUG("P2P Request: notify_peer_list: start notify, total peers: " << peers_to_send.size());
-      for (unsigned i = 0; i < peers_to_send.size(); i++) {
-          const peerlist_entry &pe = peers_to_send[i];
-          std::pair<epee::net_utils::zone, boost::uuids::uuid> conn_id;
-          MDEBUG("P2P Request: notify_peer_list: start notify: looking for existing connection for peer: " << pe.id << ", [" << pe.adr.str() << "]");
-          bool connection_exists = find_connection_id_by_peer(pe, conn_id);
-
-          bool sent = false;
-          MDEBUG("P2P Request: notify_peer_list: senm_bind_ipding to peer: " << pe.adr.str()  << ", already connected: " << connection_exists
-                       << ", try connect: " << try_connect);
-          if (connection_exists) {
-              MDEBUG("P2P Request: notify_peer_list: peer is connected, sending to : " << pe.adr.host_str());
-              sent = relay_notify(command, buf, conn_id);
-              if (!sent)
-                MWARNING("P2P Request: notify_peer_list: peer is connected, sending to : " << pe.adr.host_str() << " FAILED");
-          } else if (try_connect) {
-              MDEBUG("P2P Request: notify_peer_list: connect to notify");
-              const epee::net_utils::network_address& na = pe.adr;
-              
-              for (auto &zone : m_network_zones) {
-                // TODO: Graft: check in runtime if it works
-                auto con = zone.second.m_connect(zone.second, na, m_ssl_support);
-                if (con) {
-                      MDEBUG("P2P Request: notify_peer_list: connected to peer: " << pe.adr.host_str()
-                                   << ", sending command");
-                      sent = relay_notify(command, buf, {zone.first, (*con).m_connection_id});
-                      if (!sent)
-                        MWARNING("P2P Request: notify_peer_list: peer is connected but FAILED to send to: " << pe.adr.host_str());
-                      break; // TODO: Graft: should we continue iterating zones?
-                  } else {
-                      MWARNING("P2P Request: notify_peer_list: failed to connect to peer: " << pe.adr.host_str());
-                  }
-              }
-          }
-      }
-      MDEBUG("P2P Request: notify_peer_list: end notify");
-      return true;
-  }
-  
   //-----------------------------------------------------------------------------------
   template<typename t_payload_net_handler>
   void node_server<t_payload_net_handler>::remove_old_request_cache()
@@ -1604,31 +1562,6 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::find_connection_id_by_peer(const peerlist_entry &pe, std::pair<epee::net_utils::zone, boost::uuids::uuid> &conn_id)
-  {
-    bool found = false;
-    MDEBUG("find_connection_id_by_peer: looking for: " << pe.adr.str());
-    for (auto &zone: m_network_zones) {
-      zone.second.m_net_server.get_config_object().foreach_connection([&pe, &found, &conn_id, &zone](p2p_connection_context& cntxt)
-      {
-        if (cntxt.peer_id == pe.id) {
-          conn_id.second = cntxt.m_connection_id;
-          conn_id.first  = zone.first;
-          found = true;
-          return false; // found connection, stopping foreach_connection loop
-        }
-        return true;
-      });
-      if (found) // TODO: Graft - should we stop iterating here?
-        break;
-    }
-    MDEBUG("find_connection_id_by_peer: done looking for: " << pe.adr.str() << ", found: " << conn_id.second);
-    return found;
-  }
-
-
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::connect_to_seed()
   {
       if (m_seed_nodes.empty() || m_offline || !m_exclusive_peers.empty())
@@ -2090,13 +2023,6 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  bool node_server<t_payload_net_handler>::relay_notify(int command, const std::string& data_buff, const std::pair<epee::net_utils::zone, boost::uuids::uuid>& connection_id)
-  {
-    auto &zone = m_network_zones.at(connection_id.first);  
-    return zone.m_net_server.get_config_object().notify(command, epee::strspan<uint8_t>(data_buff), connection_id.second) >= 0;
-  }
-  //-----------------------------------------------------------------------------------
-  template<class t_payload_net_handler>
   bool node_server<t_payload_net_handler>::relay_notify_to_list(int command, const epee::span<const uint8_t> data_buff, std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>> connections)
   {
     std::sort(connections.begin(), connections.end());
@@ -2375,7 +2301,6 @@ namespace nodetool
       });
     }
 #if 0 // unsupported in production
-
     try_get_support_flags(context, [](p2p_connection_context& flags_context, const uint32_t& support_flags)
     {
       flags_context.support_flags = support_flags;
