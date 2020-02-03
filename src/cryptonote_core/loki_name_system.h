@@ -45,7 +45,6 @@ bool         validate_lns_value_binary(uint16_t type, char const *value, int val
 
 bool         validate_lns_tx(uint8_t hf_version, cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr);
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
-lns_value    convert_value_to_lns_binary_value(uint16_t type, std::string const &value);
 
 struct user_record
 {

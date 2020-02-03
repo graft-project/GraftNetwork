@@ -366,6 +366,10 @@ bool validate_lns_value(cryptonote::network_type nettype, uint16_t type, char co
   std::stringstream err_stream;
 
   cryptonote::address_parse_info addr_info = {};
+
+  static_assert(GENERIC_VALUE_MAX >= MESSENGER_PUBLIC_KEY_BINARY_LENGTH, "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
+  static_assert(GENERIC_VALUE_MAX >= LOKINET_ADDRESS_BINARY_LENGTH,      "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
+  static_assert(GENERIC_VALUE_MAX >= sizeof(addr_info.address),          "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
   if (type == static_cast<uint16_t>(mapping_type::blockchain))
   {
     if (value_len == 0 || !get_account_address_from_str(addr_info, nettype, std::string(value, value_len)))
