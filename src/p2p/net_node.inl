@@ -507,25 +507,28 @@ namespace nodetool
             full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
                               + epee::string_tools::num_to_string_fast(ipv4.port()) );
         }
-    }
-    if (nettype == cryptonote::TESTNET)
+    } else 
     {
-      full_addrs.insert("212.71.237.82:28880");
-      full_addrs.insert("45.79.47.118:28880");
-      full_addrs.insert("139.162.61.111:28880");
+      if (nettype == cryptonote::TESTNET)
+      {
+        full_addrs.insert("212.71.237.82:28880");
+        full_addrs.insert("45.79.47.118:28880");
+        full_addrs.insert("139.162.61.111:28880");
+      }
+      else if (nettype == cryptonote::STAGENET)
+      {
+      }
+      else if (nettype == cryptonote::FAKECHAIN)
+      {
+      }
+      else
+      {
+        full_addrs.insert("109.74.204.179:18980");
+        full_addrs.insert("45.79.42.116:18980");
+        full_addrs.insert("207.148.153.14:18980");
+      }  
     }
-    else if (nettype == cryptonote::STAGENET)
-    {
-    }
-    else if (nettype == cryptonote::FAKECHAIN)
-    {
-    }
-    else
-    {
-      full_addrs.insert("109.74.204.179:18980");
-      full_addrs.insert("45.79.42.116:18980");
-      full_addrs.insert("207.148.153.14:18980");
-    }
+    
     return full_addrs;
   }
   //-----------------------------------------------------------------------------------
