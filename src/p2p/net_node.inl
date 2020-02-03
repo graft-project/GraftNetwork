@@ -2303,12 +2303,12 @@ namespace nodetool
         LOG_DEBUG_CC(context, "PING SUCCESS " << context.m_remote_address.host_str() << ":" << port_l);
       });
     }
-#if 0 // unsupported in production
+
     try_get_support_flags(context, [](p2p_connection_context& flags_context, const uint32_t& support_flags)
     {
       flags_context.support_flags = support_flags;
     });
-#endif
+
     //fill response
     zone.m_peerlist.get_peerlist_head(rsp.local_peerlist_new, true);
     get_local_node_data(rsp.node_data, zone);
