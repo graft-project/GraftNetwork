@@ -3360,11 +3360,13 @@ namespace cryptonote
           {
             res.entries.emplace_back();
             COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
-            entry.entry_index     = request_index;
-            entry.type            = type;
-            entry.owner           = epee::string_tools::pod_to_hex(user.key);
-            entry.pubkey          = mapping.value;
-            entry.register_height = mapping.register_height;
+            entry.entry_index         = request_index;
+            entry.type                = type;
+            entry.owner               = epee::string_tools::pod_to_hex(user.key);
+            entry.pubkey              = mapping.value;
+            entry.register_height     = mapping.register_height;
+            entry.txid                = mapping.txid;
+            entry.prev_txid           = mapping.prev_txid;
           }
           else
           {
@@ -3404,10 +3406,12 @@ namespace cryptonote
         {
           entry.mappings.emplace_back();
           COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_mapping &mapping = entry.mappings.back();
-          mapping.type            = db_mapping.type;
-          mapping.name            = db_mapping.name;
-          mapping.pubkey          = db_mapping.value;
-          mapping.register_height = db_mapping.register_height;
+          mapping.type                = db_mapping.type;
+          mapping.name                = db_mapping.name;
+          mapping.pubkey              = db_mapping.value;
+          mapping.register_height     = db_mapping.register_height;
+          mapping.txid                = db_mapping.txid;
+          mapping.prev_txid           = db_mapping.prev_txid;
         }
       }
     }

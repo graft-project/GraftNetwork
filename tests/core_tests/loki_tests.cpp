@@ -1863,6 +1863,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
   char const name[]    = "mydomain.loki";
   cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value, name);
   gen.create_and_add_next_block({tx});
+  crypto::hash prev_txid = get_transaction_hash(tx);
 
   uint64_t height_of_lns_entry = gen.height();
   uint64_t renew_window        = 0;
@@ -1892,6 +1893,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     CHECK_EQ(mappings.name, std::string(name));
     CHECK_EQ(mappings.value, miner_key.lokinet_value);
     CHECK_EQ(mappings.register_height, height_of_lns_entry);
+    CHECK_EQ(mappings.prev_txid, crypto::null_hash);
     CHECK_EQ(mappings.user_id, user.id);
     return true;
   });
@@ -1912,7 +1914,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
   gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
   gen.create_and_add_next_block();
 
-  loki_register_callback(events, "check_renewed", [&events, renewal_height, miner_key, name](cryptonote::core &c, size_t ev_index)
+  loki_register_callback(events, "check_renewed", [&events, renewal_height, miner_key, name, prev_txid](cryptonote::core &c, size_t ev_index)
   {
     DEFINE_TESTS_ERROR_CONTEXT("check_renewed");
     lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
@@ -1928,6 +1930,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     CHECK_EQ(mappings.name, std::string(name));
     CHECK_EQ(mappings.value, miner_key.lokinet_value);
     CHECK_EQ(mappings.register_height, renewal_height);
+    CHECK_EQ(mappings.prev_txid, prev_txid);
     CHECK_EQ(mappings.user_id, user.id);
     return true;
   });

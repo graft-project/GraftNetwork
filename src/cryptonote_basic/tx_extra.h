@@ -388,12 +388,14 @@ namespace cryptonote
     uint16_t                   type;
     std::string                name;
     std::string                value; // binary format of the name->value mapping
+    crypto::hash               prev_txid; // previous txid that purchased the mapping, only applicable if lokinet
 
     BEGIN_SERIALIZE()
       FIELD(owner);
       FIELD(type);
       FIELD(name);
       FIELD(value);
+      FIELD(prev_txid); // TODO(doyle): Conditional serializing?
     END_SERIALIZE()
   };
 

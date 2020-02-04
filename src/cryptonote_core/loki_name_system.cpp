@@ -54,16 +54,25 @@ enum struct mapping_record_row
   type,
   name,
   value,
+  txid,
+  prev_txid,
   register_height,
   user_id,
 };
 
-static void sql_copy_blob(sqlite3_stmt *statement, int row, void *dest, int dest_size)
+static bool sql_copy_blob(sqlite3_stmt *statement, int row, void *dest, int dest_size)
 {
   void const *blob = sqlite3_column_blob(statement, row);
   int blob_len     = sqlite3_column_bytes(statement, row);
   assert(blob_len == dest_size);
-  memcpy(dest, blob, std::min(dest_size, blob_len));
+  if (blob_len != dest_size)
+  {
+    LOG_PRINT_L0("Unexpected blob size=" << blob_len << ", in LNS DB does not match expected size=" << dest_size);
+    return false;
+  }
+
+  memcpy(dest, blob, blob_len);
+  return true;
 }
 
 static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type type, sqlite3_stmt *statement, void *context)
@@ -90,7 +99,8 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           {
             auto *entry = reinterpret_cast<user_record *>(context);
             entry->id   = sqlite3_column_int(statement, static_cast<int>(user_record_row::id));
-            sql_copy_blob(statement, static_cast<int>(user_record_row::public_key), entry->key.data, sizeof(entry->key.data));
+            if (!sql_copy_blob(statement, static_cast<int>(user_record_row::public_key), entry->key.data, sizeof(entry->key.data)))
+              return false;
             data_loaded = true;
           }
           break;
@@ -99,7 +109,8 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           {
             auto *entry       = reinterpret_cast<settings_record *>(context);
             entry->top_height = static_cast<uint64_t>(sqlite3_column_int64(statement, static_cast<int>(lns_db_setting_row::top_height)));
-            sql_copy_blob(statement, static_cast<int>(lns_db_setting_row::top_hash), entry->top_hash.data, sizeof(entry->top_hash.data));
+            if (!sql_copy_blob(statement, static_cast<int>(lns_db_setting_row::top_hash), entry->top_hash.data, sizeof(entry->top_hash.data)))
+              return false;
             entry->version = sqlite3_column_int(statement, static_cast<int>(lns_db_setting_row::version));
             data_loaded = true;
           }
@@ -121,8 +132,14 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
 
             tmp_entry.name  = std::string(name, name_len);
             tmp_entry.value = std::string(value, value_len);
-            data_loaded = true;
 
+            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_row::txid), tmp_entry.txid.data, sizeof(tmp_entry.txid)))
+              return false;
+
+            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_row::prev_txid), tmp_entry.prev_txid.data, sizeof(tmp_entry.prev_txid)))
+              return false;
+
+            data_loaded = true;
             if (type == lns_sql_type::get_mappings_by_user)
             {
               auto *records = reinterpret_cast<std::vector<mapping_record> *>(context);
@@ -498,7 +515,89 @@ bool validate_lns_value_binary(uint16_t type, char const *value, int value_len, 
   return true;
 }
 
-bool validate_lns_tx(uint8_t hf_version, cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry, std::string *reason)
+static std::stringstream &error_stream_append_tx_msg(std::stringstream &err_stream, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &data)
+{
+  err_stream << "TX type=" << tx.type << ", tx=" << get_transaction_hash(tx) << ", owner=" << data.owner << ", type=" << (int)data.type << ", name=" << data.name << ", ";
+  return err_stream;
+}
+
+static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &data, std::string *reason = nullptr)
+{
+  std::stringstream err_stream;
+  crypto::hash expected_prev_txid = crypto::null_hash;
+  if (lns::mapping_record mapping = lns_db.get_mapping(data.type, data.name.data(), data.name.size()))
+  {
+    expected_prev_txid = mapping.txid;
+    if (data.type != static_cast<uint16_t>(lns::mapping_type::lokinet))
+    {
+      if (reason)
+      {
+        error_stream_append_tx_msg(err_stream, tx, data) << "non-lokinet entries can NOT be renewed.";
+        *reason = err_stream.str();
+      }
+      return false;
+    }
+
+    uint64_t renew_window              = 0;
+    uint64_t expiry_blocks             = lns::lokinet_expiry_blocks(lns_db.network_type(), &renew_window);
+    uint64_t const renew_window_offset = expiry_blocks - renew_window;
+    uint64_t const min_renew_height    = mapping.register_height + renew_window_offset;
+
+    if (min_renew_height >= blockchain_height)
+    {
+      error_stream_append_tx_msg(err_stream, tx, data) << "user does not exist, but trying to renew existing mapping, rejected.";
+      *reason = err_stream.str();
+      return false; // Trying to renew too early
+    }
+
+    // LNS entry can be renewed, check that the request to renew originates from the owner of this mapping
+    lns::user_record requester = lns_db.get_user_by_key(data.owner);
+    if (!requester)
+    {
+      if (reason)
+      {
+        error_stream_append_tx_msg(err_stream, tx, data) << "user does not exist, but trying to renew existing mapping, rejected.";
+        *reason = err_stream.str();
+      }
+      return false;
+    }
+
+    lns::user_record owner = lns_db.get_user_by_id(mapping.user_id);
+    if (!owner)
+    {
+      if (reason)
+      {
+        error_stream_append_tx_msg(err_stream, tx, data) << "unexpected user_id=" << mapping.user_id << " does not exist";
+        *reason = err_stream.str();
+      }
+      return false;
+    }
+
+    if (requester.id != owner.id)
+    {
+      if (reason)
+      {
+        error_stream_append_tx_msg(err_stream, tx, data) << " actual owner user_id=" << mapping.user_id << ", does not match requester's id=" << requester.id;
+        *reason = err_stream.str();
+      }
+      return false;
+    }
+  }
+
+  if (data.prev_txid != expected_prev_txid)
+  {
+    if (reason)
+    {
+      error_stream_append_tx_msg(err_stream, tx, data) << " specified prior owner txid=" << data.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
+      *reason = err_stream.str();
+    }
+    return false;
+  }
+
+  return true;
+}
+
+bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry, std::string *reason) const
 {
   cryptonote::tx_extra_loki_name_system entry_;
   if (!entry) entry = &entry_;
@@ -529,6 +628,9 @@ bool validate_lns_tx(uint8_t hf_version, cryptonote::network_type nettype, crypt
     return false;
 
   if (!validate_lns_value_binary(entry->type, entry->value.data(), static_cast<int>(entry->value.size()), reason))
+    return false;
+
+  if (!validate_against_previous_mapping(*this, blockchain_height, tx, *entry, reason))
     return false;
 
   uint64_t const burn_required = burn_requirement_in_atomic_loki(hf_version);
@@ -600,6 +702,8 @@ CREATE TABLE IF NOT EXISTS "mappings" (
     "type" INTEGER NOT NULL,
     "name" VARCHAR NOT NULL,
     "value" BLOB NOT NULL,
+    "txid" BLOB NOT NULL,
+    "prev_txid" BLOB NOT NULL,
     "register_height" INTEGER NOT NULL,
     "user_id" INTEGER NOT NULL REFERENCES "user" ("id")
 );
@@ -633,7 +737,7 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
   char constexpr GET_USER_BY_ID_SQL[]       = R"(SELECT * FROM user WHERE "id" = ?)";
   char constexpr GET_MAPPINGS_BY_USER_SQL[] = R"(SELECT * FROM mappings WHERE "user_id" = ?)";
   char constexpr SAVE_SETTINGS_SQL[]        = R"(INSERT OR REPLACE INTO "settings" ("rowid", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
-  char constexpr SAVE_MAPPING_SQL[]         = R"(INSERT OR REPLACE INTO "mappings" ("type", "name", "value", "register_height", "user_id") VALUES (?,?,?,?,?))";
+  char constexpr SAVE_MAPPING_SQL[]         = R"(INSERT OR REPLACE INTO "mappings" ("type", "name", "value", "txid", "prev_txid", "register_height", "user_id") VALUES (?,?,?,?,?,?,?))";
   char constexpr SAVE_USER_SQL[]            = R"(INSERT INTO "user" ("public_key") VALUES (?);)";
 
   if (!build_default_tables(db))
@@ -741,33 +845,31 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
 
       cryptonote::tx_extra_loki_name_system entry = {};
       std::string fail_reason;
-      if (!validate_lns_tx(block.major_version, nettype, tx, &entry, &fail_reason))
+      if (!validate_lns_tx(block.major_version, height, tx, &entry, &fail_reason))
       {
         LOG_PRINT_L0("LNS TX: Failed to validate for tx=" << get_transaction_hash(tx) << ". This should have failed validation earlier reason=" << fail_reason);
         assert("Failed to validate acquire name service. Should already have failed validation prior" == nullptr);
         return false;
       }
 
+      crypto::hash const &tx_hash = cryptonote::get_transaction_hash(tx);
       int64_t user_id = 0;
       if (user_record user = get_user_by_key(entry.owner)) user_id = user.id;
       if (user_id == 0)
       {
         if (!save_user(entry.owner, &user_id))
         {
-          LOG_PRINT_L1("Failed to save LNS user to DB tx: " << cryptonote::get_transaction_hash(tx) << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
+          LOG_PRINT_L1("Failed to save LNS user to DB tx: " << tx_hash << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
           return false;
         }
       }
       assert(user_id != 0);
 
-      if (!save_mapping(static_cast<uint16_t>(entry.type), entry.name, entry.value, height, user_id))
+      if (!save_mapping(tx_hash, entry, height, user_id))
       {
-        LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << cryptonote::get_transaction_hash(tx)
-                                                           << ", type: " << (uint16_t)entry.type
-                                                           << ", name: " << entry.name << ", user: " << entry.owner);
+        LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
         return false;
       }
-
     }
 
     if (!expire_mappings(height))
@@ -794,12 +896,14 @@ bool name_system_db::save_user(crypto::ed25519_public_key const &key, int64_t *r
   return result;
 }
 
-bool name_system_db::save_mapping(uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id)
+bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t user_id)
 {
   sqlite3_stmt *statement = save_mapping_sql;
-  sqlite3_bind_int  (statement, static_cast<int>(mapping_record_row::type), type);
-  sqlite3_bind_text (statement, static_cast<int>(mapping_record_row::name), name.data(), name.size(), nullptr /*destructor*/);
-  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::value), value.data(), value.size(), nullptr /*destructor*/);
+  sqlite3_bind_int  (statement, static_cast<int>(mapping_record_row::type), static_cast<uint16_t>(src.type));
+  sqlite3_bind_text (statement, static_cast<int>(mapping_record_row::name), src.name.data(), src.name.size(), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::value), src.value.data(), src.value.size(), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::txid), tx_hash.data, sizeof(tx_hash), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::prev_txid), src.prev_txid.data, sizeof(src.prev_txid), nullptr /*destructor*/);
   sqlite3_bind_int64(statement, static_cast<int>(mapping_record_row::register_height), static_cast<int64_t>(height));
   sqlite3_bind_int64(statement, static_cast<int>(mapping_record_row::user_id), user_id);
   bool result = sql_run_statement(nettype, lns_sql_type::save_mapping, statement, nullptr);

@@ -43,7 +43,6 @@ bool         validate_lns_name(uint16_t type, char const *name, int name_len, st
 bool         validate_lns_value(cryptonote::network_type nettype, uint16_t type, char const *value, int value_len, lns_value *blob = nullptr, std::string *reason = nullptr);
 bool         validate_lns_value_binary(uint16_t type, char const *value, int value_len, std::string *reason = nullptr);
 
-bool         validate_lns_tx(uint8_t hf_version, cryptonote::network_type nettype, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr);
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
 
 struct user_record
@@ -68,9 +67,9 @@ struct settings_record
 enum struct mapping_type : uint16_t
 {
   messenger      = 0,
-  start_reserved = 1,
-  blockchain     = 2,
-  lokinet        = 3,
+  blockchain     = 1,
+  lokinet        = 2,
+  start_reserved = 3,
   end_reserved   = 64,
 };
 
@@ -79,11 +78,13 @@ struct mapping_record
   operator bool() const { return loaded; }
   bool loaded;
 
-  uint16_t    type; // alias to lns::mapping_type
-  std::string name;
-  std::string value;
-  uint64_t    register_height;
-  int64_t     user_id;
+  uint16_t     type; // alias to lns::mapping_type
+  std::string  name;
+  std::string  value;
+  uint64_t     register_height;
+  int64_t      user_id;
+  crypto::hash txid;
+  crypto::hash prev_txid;
 };
 
 struct name_system_db
@@ -93,7 +94,7 @@ struct name_system_db
   uint64_t        height         () { return last_processed_height; }
 
   bool            save_user      (crypto::ed25519_public_key const &key, int64_t *row_id);
-  bool            save_mapping   (uint16_t type, std::string const &name, std::string const &value, uint64_t height, int64_t user_id);
+  bool            save_mapping   (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t user_id);
   bool            save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
 
   bool            expire_mappings(uint64_t height);
@@ -106,6 +107,9 @@ struct name_system_db
   // return: Array of records in sorted order by their register height, ties dealt by name lexicographiclly
   std::vector<mapping_record> get_mappings_by_user(crypto::ed25519_public_key const &key) const;
   settings_record             get_settings        () const;
+
+  bool                        validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr) const;
+  cryptonote::network_type    network_type() const { return nettype; }
 
   sqlite3                  *db                       = nullptr;
   bool                      transaction_begun        = false;

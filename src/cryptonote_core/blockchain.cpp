@@ -411,12 +411,12 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems()
 
   return true;
 }
-static void add_tx_if_lns_to(uint8_t hf_version, cryptonote::network_type nettype, std::map<uint64_t, std::vector<cryptonote::tx_extra_loki_name_system>> &map, uint64_t height, cryptonote::transaction const &tx)
+static void add_tx_if_lns_to(lns::name_system_db const &lns_db, uint8_t hf_version, std::map<uint64_t, std::vector<cryptonote::tx_extra_loki_name_system>> &map, uint64_t height, cryptonote::transaction const &tx)
 {
   if (tx.type == txtype::loki_name_system)
   {
     cryptonote::tx_extra_loki_name_system entry;
-    if (lns::validate_lns_tx(hf_version, nettype, tx, &entry))
+    if (lns_db.validate_lns_tx(hf_version, height, tx, &entry))
       map[height].push_back(std::move(entry));
   }
 }
@@ -641,7 +641,7 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
               return false;
             }
 
-            add_tx_if_lns_to(blk.major_version, nettype, m_lns_uncommitted_entries, height, tx);
+            add_tx_if_lns_to(m_lns_db, blk.major_version, m_lns_uncommitted_entries, height, tx);
           }
         }
       }
@@ -3424,7 +3424,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     {
       cryptonote::tx_extra_loki_name_system data;
       std::string fail_reason;
-      if (!lns::validate_lns_tx(hf_version, nettype(), tx, &data, &fail_reason))
+      if (!m_lns_db.validate_lns_tx(hf_version, get_current_blockchain_height(), tx, &data, &fail_reason))
       {
         MERROR_VER("TX type=" << tx.type << ", hash=" << get_transaction_hash(tx) << ", owner=" << data.owner << ", type=" << (int)data.type << ", name=" << data.name << ", reason=" << fail_reason);
         return false;
@@ -3443,60 +3443,6 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
                                  "Refusing transaction to be conservative.");
             return false;
           }
-        }
-      }
-
-      if (m_lns_db.db)
-      {
-        lns::mapping_record mapping = m_lns_db.get_mapping(data.type, data.name.data(), data.name.size());
-        if (mapping)
-        {
-          if (data.type != static_cast<uint16_t>(lns::mapping_type::lokinet))
-          {
-            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
-                              << ", type = " << (int)data.type << ", name = " << data.name
-                              << ", non-lokinet entries can NOT be renewed.");
-            return false;
-          }
-
-          uint64_t renew_window              = 0;
-          uint64_t expiry_blocks             = lns::lokinet_expiry_blocks(nettype(), &renew_window);
-          uint64_t const renew_window_offset = expiry_blocks - renew_window;
-          uint64_t const min_renew_height    = mapping.register_height + renew_window_offset;
-
-          if (min_renew_height >= get_current_blockchain_height())
-            return false; // Trying to renew too early
-
-          // LNS entry can be renewed, check that the request to renew originates from the owner of this mapping
-          lns::user_record requester = m_lns_db.get_user_by_key(data.owner);
-          if (!requester)
-          {
-            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
-                              << ", type = " << (int)data.type << ", name = " << data.name
-                              << " user does not exist, but trying to renew existing mapping, rejected.");
-            return false;
-          }
-
-          lns::user_record owner = m_lns_db.get_user_by_id(mapping.user_id);
-          if (!owner)
-          {
-            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
-                              << ", type = " << (int)data.type << ", name = " << data.name
-                              << " unexpected user_id = " << mapping.user_id << " does not exist");
-            return false;
-          }
-
-          if (requester.id != owner.id)
-          {
-            MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner
-                              << ", type = " << (int)data.type << ", name = " << data.name << " actual owner user_id = "
-                              << mapping.user_id << ", does not match requester's id = " << requester.id);
-            return false;
-          }
-        }
-        else
-        {
-          // No pre-existing mapping, user can request this LNS entry
         }
       }
     }
@@ -4323,7 +4269,7 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   {
     only_txs.push_back(tx_pair.first);
     if (!lns_entries_checkpointed)
-      add_tx_if_lns_to(bl.major_version, nettype(), m_lns_uncommitted_entries, new_height, tx_pair.first);
+      add_tx_if_lns_to(m_lns_db, bl.major_version, m_lns_uncommitted_entries, new_height, tx_pair.first);
   }
 
   if (!load_missing_blocks_into_loki_subsystems())

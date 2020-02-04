@@ -548,9 +548,16 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   data.type                                  = type;
   data.value                                 = value;
   data.name                                  = name;
+  if (type == static_cast<uint16_t>(lns::mapping_type::lokinet))
+  {
+    if (lns::mapping_record mapping = lns_db_.get_mapping(type, name))
+      data.prev_txid = mapping.txid;
+    else
+      data.prev_txid = crypto::null_hash;
+  }
+
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
   cryptonote::add_burned_amount_to_tx_extra(extra, burn);
-
   cryptonote::transaction result = {};
   loki_tx_builder(events_, result, head, src /*from*/, src.get_keys().m_account_address, 0 /*amount*/, new_hf_version)
       .with_tx_type(cryptonote::txtype::loki_name_system)

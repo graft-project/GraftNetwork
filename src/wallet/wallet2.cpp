@@ -8585,6 +8585,27 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
   entry.type                      = type;
   entry.name                      = name;
   entry.value.resize(value_blob.len);
+  if (type == static_cast<uint16_t>(lns::mapping_type::lokinet))
+  {
+    std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry> request = {};
+    {
+      request.emplace_back();
+      auto request_entry = request.back();
+      request_entry.name = name;
+      request_entry.types.push_back(type);
+    }
+
+    boost::optional<std::string> failed;
+    std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry> response = get_lns_names_to_owners(request, failed);
+    if (failed)
+    {
+      if (reason) *reason = "Failed to query previous owner for lokinet entry, reason=" + *failed;
+      return {};
+    }
+
+    entry.prev_txid = response.empty() ? crypto::null_hash : response[0].txid;
+  }
+
   memcpy(&entry.value[0], value_blob.buffer.data(), value_blob.len);
 
   std::vector<uint8_t> extra;
