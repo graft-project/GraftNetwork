@@ -29,11 +29,10 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
-#include <boost/asio/ip/address_v4.hpp>
-#include <boost/asio.hpp> // cross-platform way to include a header with 'ntohl' 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
+#include "string_tools.h"
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/difficulty.h"
@@ -1187,10 +1186,8 @@ namespace cryptonote
         last_seen_str = boost::posix_time::to_simple_string(boost::posix_time::from_time_t(last_seen));
     }
     peer(uint64_t id, uint32_t ip, uint16_t port, uint64_t last_seen, uint32_t pruning_seed, uint16_t rpc_port)
-      : id(id), host(std::to_string(ip)), ip(ip), port(port), rpc_port(rpc_port), last_seen(last_seen), pruning_seed(pruning_seed)
+      : id(id), host(epee::string_tools::get_ip_string_from_int32(ip)), ip(ip), port(port), rpc_port(rpc_port), last_seen(last_seen), pruning_seed(pruning_seed)
     {
-        auto _ip = boost::asio::ip::address_v4(this->ip);
-        host = _ip.to_string();
         last_seen_str = boost::posix_time::to_simple_string(boost::posix_time::from_time_t(last_seen));
     }
 
