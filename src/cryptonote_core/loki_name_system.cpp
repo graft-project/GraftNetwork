@@ -875,12 +875,12 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
   if (last_processed_height >= height)
       return true;
 
+  scoped_db_transaction db_transaction(*this);
+  if (!db_transaction)
+   return false;
+
   if (block.major_version >= cryptonote::network_version_15_lns)
   {
-    scoped_db_transaction db_transaction(*this);
-    if (!db_transaction)
-     return false;
-
     for (cryptonote::transaction const &tx : txs)
     {
       if (tx.type != cryptonote::txtype::loki_name_system)
@@ -896,14 +896,14 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       }
 
       crypto::hash const &tx_hash = cryptonote::get_transaction_hash(tx);
-      add_lns_entry(*this, height, entry, tx_hash);
+      if (!add_lns_entry(*this, height, entry, tx_hash))
+        return false;
     }
-
-    db_transaction.commit = true;
   }
 
   last_processed_height = height;
   save_settings(height, cryptonote::get_block_hash(block), static_cast<int>(DB_VERSION));
+  db_transaction.commit = true;
   return true;
 }
 
