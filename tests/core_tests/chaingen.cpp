@@ -197,28 +197,9 @@ loki_blockchain_entry &loki_chain_generator::add_block(loki_blockchain_entry con
     db_.tx_table[tx_hash] = tx;
   }
 
-  cryptonote::checkpoint_t immutable_checkpoint = {};
-  if (can_be_added_to_blockchain &&
-      entry.block.major_version >= cryptonote::network_version_15_lns &&
-      db_.get_immutable_checkpoint(&immutable_checkpoint, cryptonote::get_block_height(entry.block)))
+  if (can_be_added_to_blockchain && entry.block.major_version >= cryptonote::network_version_15_lns)
   {
-    uint64_t hf15_height = 0;
-    for (std::pair<uint8_t, uint64_t> hfs : hard_forks_)
-    {
-      if (hfs.first == cryptonote::network_version_15_lns)
-      {
-        hf15_height = hfs.second;
-        break;
-      }
-    }
-
-    uint64_t start_height = std::max(hf15_height, lns_db_.height());
-    int64_t num_blocks    = static_cast<int64_t>(immutable_checkpoint.height) - static_cast<int64_t>(start_height);
-    for (int64_t i = 0; i < num_blocks; i++)
-    {
-      loki_blockchain_entry const &other_entry = db_.blocks[start_height + i];
-      lns_db_.add_block(other_entry.block, other_entry.txs);
-    }
+    lns_db_.add_block(entry.block, entry.txs);
   }
 
   // TODO(loki): State history culling and alt states

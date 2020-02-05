@@ -1396,6 +1396,7 @@ struct loki_chain_generator
   ~loki_chain_generator();
 
   uint64_t                                             height()       const { return cryptonote::get_block_height(db_.blocks.back().block); }
+  uint64_t                                             chain_height() const { return height() + 1; }
   const std::vector<loki_blockchain_entry>&            blocks()       const { return db_.blocks; }
   size_t                                               event_index()  const { return events_.size() - 1; }
 

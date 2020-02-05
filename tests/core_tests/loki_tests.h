@@ -55,9 +55,9 @@ struct loki_name_system_disallow_reserved_type                                  
 struct loki_name_system_expiration                                                   : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_get_mappings_by_user                                         : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_handles_duplicate_in_lns_db                                  : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
-struct loki_name_system_handles_duplicate_in_staging_area                            : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_handles_duplicate_in_tx_pool                                 : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_invalid_tx_extra_params                                      : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
+struct loki_name_system_large_reorg                                                  : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_name_renewal                                                 : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_name_value_max_lengths                                       : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_wrong_burn                                                   : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };

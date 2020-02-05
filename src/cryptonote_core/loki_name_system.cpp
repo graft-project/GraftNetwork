@@ -6,6 +6,7 @@
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "cryptonote_basic/tx_extra.h"
+#include "cryptonote_core/blockchain.h"
 
 #include <sqlite3.h>
 
@@ -24,13 +25,14 @@ enum struct lns_sql_type
   save_user,
   save_setting,
   save_mapping,
-  expire_mapping,
+  pruning,
 
   get_sentinel_start,
   get_user,
   get_setting,
   get_mapping,
   get_mappings_by_user,
+  get_mappings_on_height_and_newer,
   get_sentinel_end,
 };
 
@@ -116,6 +118,7 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           }
           break;
 
+          case lns_sql_type::get_mappings_on_height_and_newer: /* FALLTHRU */
           case lns_sql_type::get_mappings_by_user: /* FALLTHRU */
           case lns_sql_type::get_mapping:
           {
@@ -140,7 +143,7 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
               return false;
 
             data_loaded = true;
-            if (type == lns_sql_type::get_mappings_by_user)
+            if (type == lns_sql_type::get_mappings_by_user || type == lns_sql_type::get_mappings_on_height_and_newer)
             {
               auto *records = reinterpret_cast<std::vector<mapping_record> *>(context);
               records->emplace_back(std::move(tmp_entry));
@@ -176,6 +179,15 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
   sqlite3_reset(statement);
   sqlite3_clear_bindings(statement);
   return result;
+}
+
+bool mapping_record::active(cryptonote::network_type nettype, uint64_t blockchain_height) const
+{
+    if (!loaded) return false;
+    if (type != static_cast<uint16_t>(mapping_type::lokinet)) return true;
+    uint64_t expiry_blocks            = lns::lokinet_expiry_blocks(nettype);
+    uint64_t const last_active_height = register_height + expiry_blocks;
+    return last_active_height >= (blockchain_height - 1);
 }
 
 static bool sql_compile_statement(sqlite3 *db, char const *query, int query_len, sqlite3_stmt **statement)
@@ -532,11 +544,15 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
     {
       if (reason)
       {
-        error_stream_append_tx_msg(err_stream, tx, data) << "non-lokinet entries can NOT be renewed.";
+        lns::user_record user = lns_db.get_user_by_id(mapping.user_id);
+        error_stream_append_tx_msg(err_stream, tx, data) << "non-lokinet entries can NOT be renewed, mapping already exists with name=" << mapping.name << ", owner=" << user.key << ", type=" << mapping.type;
         *reason = err_stream.str();
       }
       return false;
     }
+
+    if (!mapping.active(lns_db.network_type(), blockchain_height))
+      return true;
 
     uint64_t renew_window              = 0;
     uint64_t expiry_blocks             = lns::lokinet_expiry_blocks(lns_db.network_type(), &renew_window);
@@ -545,7 +561,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
 
     if (min_renew_height >= blockchain_height)
     {
-      error_stream_append_tx_msg(err_stream, tx, data) << "user does not exist, but trying to renew existing mapping, rejected.";
+      error_stream_append_tx_msg(err_stream, tx, data) << "trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
       *reason = err_stream.str();
       return false; // Trying to renew too early
     }
@@ -556,7 +572,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
     {
       if (reason)
       {
-        error_stream_append_tx_msg(err_stream, tx, data) << "user does not exist, but trying to renew existing mapping, rejected.";
+        error_stream_append_tx_msg(err_stream, tx, data) << "trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
         *reason = err_stream.str();
       }
       return false;
@@ -577,7 +593,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
     {
       if (reason)
       {
-        error_stream_append_tx_msg(err_stream, tx, data) << " actual owner user_id=" << mapping.user_id << ", does not match requester's id=" << requester.id;
+        error_stream_append_tx_msg(err_stream, tx, data) << " actual owner=" << owner.key << ", with user_id=" << mapping.user_id << ", does not match requester=" << requester.key << ", with id=" << requester.id;
         *reason = err_stream.str();
       }
       return false;
@@ -730,28 +746,32 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
   this->db      = db;
   this->nettype = nettype;
 
-  char constexpr EXPIRE_MAPPINGS_SQL[]      = R"(DELETE FROM "mappings" WHERE "type" = ? AND "register_height" < ?)";
-  char constexpr GET_MAPPING_SQL[]          = R"(SELECT * FROM "mappings" WHERE "type" = ? AND "name" = ?)";
-  char constexpr GET_SETTINGS_SQL[]         = R"(SELECT * FROM settings WHERE "id" = 0)";
-  char constexpr GET_USER_BY_KEY_SQL[]      = R"(SELECT * FROM user WHERE "public_key" = ?)";
-  char constexpr GET_USER_BY_ID_SQL[]       = R"(SELECT * FROM user WHERE "id" = ?)";
-  char constexpr GET_MAPPINGS_BY_USER_SQL[] = R"(SELECT * FROM mappings WHERE "user_id" = ?)";
-  char constexpr SAVE_SETTINGS_SQL[]        = R"(INSERT OR REPLACE INTO "settings" ("rowid", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
-  char constexpr SAVE_MAPPING_SQL[]         = R"(INSERT OR REPLACE INTO "mappings" ("type", "name", "value", "txid", "prev_txid", "register_height", "user_id") VALUES (?,?,?,?,?,?,?))";
-  char constexpr SAVE_USER_SQL[]            = R"(INSERT INTO "user" ("public_key") VALUES (?);)";
+  char constexpr PRUNE_MAPPINGS_SQL[]                   = R"(DELETE FROM "mappings" WHERE "register_height" >= ?)";
+  char constexpr PRUNE_USERS_SQL[]                      = R"(DELETE FROM "user" WHERE "id" NOT IN (SELECT "user_id" FROM "mappings"))";
+  char constexpr GET_MAPPING_SQL[]                      = R"(SELECT * FROM "mappings" WHERE "type" = ? AND "name" = ?)";
+  char constexpr GET_SETTINGS_SQL[]                     = R"(SELECT * FROM "settings" WHERE "id" = 0)";
+  char constexpr GET_USER_BY_KEY_SQL[]                  = R"(SELECT * FROM "user" WHERE "public_key" = ?)";
+  char constexpr GET_USER_BY_ID_SQL[]                   = R"(SELECT * FROM "user" WHERE "id" = ?)";
+  char constexpr GET_MAPPINGS_BY_USER_SQL[]             = R"(SELECT * FROM "mappings" WHERE "user_id" = ?)";
+  char constexpr GET_MAPPINGS_ON_HEIGHT_AND_NEWER_SQL[] = R"(SELECT * FROM mappings WHERE "register_height" >= ?)";
+  char constexpr SAVE_SETTINGS_SQL[]                    = R"(INSERT OR REPLACE INTO "settings" ("rowid", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
+  char constexpr SAVE_MAPPING_SQL[]                     = R"(INSERT OR REPLACE INTO "mappings" ("type", "name", "value", "txid", "prev_txid", "register_height", "user_id") VALUES (?,?,?,?,?,?,?))";
+  char constexpr SAVE_USER_SQL[]                        = R"(INSERT INTO "user" ("public_key") VALUES (?);)";
 
   if (!build_default_tables(db))
     return false;
 
-  if (!sql_compile_statement(db, SAVE_USER_SQL,            loki::array_count(SAVE_USER_SQL),            &save_user_sql)    ||
-      !sql_compile_statement(db, SAVE_MAPPING_SQL,         loki::array_count(SAVE_MAPPING_SQL),         &save_mapping_sql) ||
-      !sql_compile_statement(db, SAVE_SETTINGS_SQL,        loki::array_count(SAVE_SETTINGS_SQL),        &save_settings_sql) ||
-      !sql_compile_statement(db, GET_USER_BY_KEY_SQL,      loki::array_count(GET_USER_BY_KEY_SQL),      &get_user_by_key_sql) ||
-      !sql_compile_statement(db, GET_USER_BY_ID_SQL,       loki::array_count(GET_USER_BY_ID_SQL),       &get_user_by_id_sql) ||
-      !sql_compile_statement(db, GET_MAPPING_SQL,          loki::array_count(GET_MAPPING_SQL),          &get_mapping_sql) ||
-      !sql_compile_statement(db, GET_SETTINGS_SQL,         loki::array_count(GET_SETTINGS_SQL),         &get_settings_sql) ||
-      !sql_compile_statement(db, EXPIRE_MAPPINGS_SQL,      loki::array_count(EXPIRE_MAPPINGS_SQL),      &expire_mapping_sql) ||
-      !sql_compile_statement(db, GET_MAPPINGS_BY_USER_SQL, loki::array_count(GET_MAPPINGS_BY_USER_SQL), &get_mappings_by_user_sql)
+  if (!sql_compile_statement(db, SAVE_USER_SQL,                        loki::array_count(SAVE_USER_SQL),                        &save_user_sql)    ||
+      !sql_compile_statement(db, SAVE_MAPPING_SQL,                     loki::array_count(SAVE_MAPPING_SQL),                     &save_mapping_sql) ||
+      !sql_compile_statement(db, SAVE_SETTINGS_SQL,                    loki::array_count(SAVE_SETTINGS_SQL),                    &save_settings_sql) ||
+      !sql_compile_statement(db, GET_USER_BY_KEY_SQL,                  loki::array_count(GET_USER_BY_KEY_SQL),                  &get_user_by_key_sql) ||
+      !sql_compile_statement(db, GET_USER_BY_ID_SQL,                   loki::array_count(GET_USER_BY_ID_SQL),                   &get_user_by_id_sql) ||
+      !sql_compile_statement(db, GET_MAPPING_SQL,                      loki::array_count(GET_MAPPING_SQL),                      &get_mapping_sql) ||
+      !sql_compile_statement(db, GET_SETTINGS_SQL,                     loki::array_count(GET_SETTINGS_SQL),                     &get_settings_sql) ||
+      !sql_compile_statement(db, PRUNE_MAPPINGS_SQL,                   loki::array_count(PRUNE_MAPPINGS_SQL),                   &prune_mappings_sql) ||
+      !sql_compile_statement(db, PRUNE_USERS_SQL,                      loki::array_count(PRUNE_USERS_SQL),                      &prune_users_sql) ||
+      !sql_compile_statement(db, GET_MAPPINGS_BY_USER_SQL,             loki::array_count(GET_MAPPINGS_BY_USER_SQL),             &get_mappings_by_user_sql) ||
+      !sql_compile_statement(db, GET_MAPPINGS_ON_HEIGHT_AND_NEWER_SQL, loki::array_count(GET_MAPPINGS_ON_HEIGHT_AND_NEWER_SQL), &get_mappings_on_height_and_newer_sql)
       )
   {
     return false;
@@ -826,6 +846,29 @@ scoped_db_transaction::~scoped_db_transaction()
   lns_db.transaction_begun = false;
 }
 
+static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptonote::tx_extra_loki_name_system const &entry, crypto::hash const &tx_hash)
+{
+  int64_t user_id = 0;
+  if (user_record user = lns_db.get_user_by_key(entry.owner)) user_id = user.id;
+  if (user_id == 0)
+  {
+    if (!lns_db.save_user(entry.owner, &user_id))
+    {
+      LOG_PRINT_L1("Failed to save LNS user to DB tx: " << tx_hash << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
+      return false;
+    }
+  }
+  assert(user_id != 0);
+
+  if (!lns_db.save_mapping(tx_hash, entry, height, user_id))
+  {
+    LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
+    return false;
+  }
+
+  return true;
+}
+
 bool name_system_db::add_block(const cryptonote::block &block, const std::vector<cryptonote::transaction> &txs)
 {
   uint64_t height = cryptonote::get_block_height(block);
@@ -853,29 +896,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       }
 
       crypto::hash const &tx_hash = cryptonote::get_transaction_hash(tx);
-      int64_t user_id = 0;
-      if (user_record user = get_user_by_key(entry.owner)) user_id = user.id;
-      if (user_id == 0)
-      {
-        if (!save_user(entry.owner, &user_id))
-        {
-          LOG_PRINT_L1("Failed to save LNS user to DB tx: " << tx_hash << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
-          return false;
-        }
-      }
-      assert(user_id != 0);
-
-      if (!save_mapping(tx_hash, entry, height, user_id))
-      {
-        LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", user: " << entry.owner);
-        return false;
-      }
-    }
-
-    if (!expire_mappings(height))
-    {
-      MERROR("Failed to expire mappings in LNS DB");
-      return false;
+      add_lns_entry(*this, height, entry, tx_hash);
     }
 
     db_transaction.commit = true;
@@ -884,6 +905,99 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
   last_processed_height = height;
   save_settings(height, cryptonote::get_block_hash(block), static_cast<int>(DB_VERSION));
   return true;
+}
+
+static bool get_txid_lns_entry(cryptonote::Blockchain const &blockchain, crypto::hash txid, cryptonote::tx_extra_loki_name_system &extra)
+{
+  std::vector<cryptonote::transaction> txs;
+  std::vector<crypto::hash> missed_txs;
+  if (!blockchain.get_transactions({txid}, txs, missed_txs) || txs.empty())
+    return false;
+
+  return cryptonote::get_loki_name_system_from_tx_extra(txs[0].extra, extra);
+}
+
+static bool find_closest_valid_lns_tx_extra_in_blockchain(cryptonote::Blockchain const &blockchain,
+                                                          lns::mapping_record const &mapping,
+                                                          uint64_t blockchain_height,
+                                                          cryptonote::tx_extra_loki_name_system &extra,
+                                                          crypto::hash &tx_hash,
+                                                          uint64_t &extra_height)
+{
+  uint64_t prev_height                             = static_cast<uint64_t>(-1);
+  crypto::hash prev_txid                           = mapping.prev_txid;
+  cryptonote::tx_extra_loki_name_system prev_entry = {};
+  if (!get_txid_lns_entry(blockchain, prev_txid, prev_entry)) return false;
+
+  for (;;)
+  {
+    std::vector<uint64_t> prev_heights = blockchain.get_transactions_heights({prev_txid});
+    if (prev_heights.empty())
+    {
+        MERROR("Unexpected error querying TXID=" << prev_txid << ", height from DB for LNS");
+      return false;
+    }
+
+    prev_height = prev_heights[0];
+    if (prev_height >= blockchain_height)
+    {
+      // Previous owner of mapping is after the detach height, iterate back to
+      // next prev entry by getting the relevant transaction, extract the LNS
+      // extra and continue searching.
+      if (!get_txid_lns_entry(blockchain, prev_txid, prev_entry))
+          return false;
+      prev_txid = prev_entry.prev_txid;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  bool result = prev_height < blockchain_height && prev_txid != crypto::null_hash;
+  if (result)
+  {
+    tx_hash      = prev_txid;
+    extra        = std::move(prev_entry);
+    extra_height = prev_height;
+  }
+  return result;
+}
+
+void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint64_t height)
+{
+  std::vector<mapping_record> new_mappings = {};
+  {
+    sqlite3_stmt *statement = get_mappings_on_height_and_newer_sql;
+    sqlite3_clear_bindings(statement);
+    sqlite3_bind_int(statement, 1 /*sql param index*/, height);
+    sql_run_statement(nettype, lns_sql_type::get_mappings_on_height_and_newer, statement, &new_mappings);
+  }
+
+  struct lns_parts
+  {
+    uint64_t                              height;
+    crypto::hash                          tx_hash;
+    cryptonote::tx_extra_loki_name_system entry;
+  };
+
+  std::vector<lns_parts> entries;
+  for (auto const &mapping : new_mappings)
+  {
+    cryptonote::tx_extra_loki_name_system entry = {};
+    uint64_t entry_height                       = 0;
+    crypto::hash tx_hash                        = {};
+    if (!find_closest_valid_lns_tx_extra_in_blockchain(blockchain, mapping, height, entry, tx_hash, entry_height)) continue;
+    entries.push_back({entry_height, tx_hash, entry});
+  }
+
+  prune_db(height);
+  for (auto const &lns : entries)
+  {
+    if (!add_lns_entry(*this, lns.height, lns.entry, lns.tx_hash))
+      MERROR("Unexpected failure to add historical LNS into the DB on reorganization from tx=" << lns.tx_hash);
+  }
+
 }
 
 bool name_system_db::save_user(crypto::ed25519_public_key const &key, int64_t *row_id)
@@ -920,20 +1034,20 @@ bool name_system_db::save_settings(uint64_t top_height, crypto::hash const &top_
   return result;
 }
 
-bool name_system_db::expire_mappings(uint64_t height)
+bool name_system_db::prune_db(uint64_t height)
 {
-  uint64_t lifetime = lokinet_expiry_blocks(nettype, nullptr);
-  if (height < lifetime)
-      return true;
+  {
+    sqlite3_stmt *statement = prune_mappings_sql;
+    sqlite3_bind_int64(statement, 1 /*sql param index*/, height);
+    if (!sql_run_statement(nettype, lns_sql_type::pruning, statement, nullptr)) return false;
+  }
 
-  uint64_t expire_height  = height - lifetime;
-  sqlite3_stmt *statement = expire_mapping_sql;
-  sqlite3_clear_bindings(statement);
-  sqlite3_bind_int      (statement, 1 /*sql param index*/, static_cast<int>(mapping_type::lokinet));
-  sqlite3_bind_int64    (statement, 2 /*sql param index*/, expire_height);
+  {
+    sqlite3_stmt *statement = prune_users_sql;
+    if (!sql_run_statement(nettype, lns_sql_type::pruning, statement, nullptr)) return false;
+  }
 
-  bool result = sql_run_statement(nettype, lns_sql_type::expire_mapping, statement, nullptr);
-  return result;
+  return true;
 }
 
 user_record name_system_db::get_user_by_key(crypto::ed25519_public_key const &key) const
