@@ -38,6 +38,7 @@
 #include <boost/optional/optional.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/asio.hpp>
 #include <atomic>
 #include <random>
 #include <boost/algorithm/string/join.hpp> // for logging
@@ -1454,7 +1455,10 @@ namespace nodetool
 
             const epee::net_utils::network_address na = cntxt.m_remote_address;
             const uint32_t actual_ip = na.as<const epee::net_utils::ipv4_network_address>().ip();
-            classB.insert(actual_ip & 0x0000ffff);
+            // Graft: check if address is classB
+            auto addr_helper = boost::asio::ip::address_v4(htonl(actual_ip));
+            if (addr_helper.is_class_b())
+              classB.insert(actual_ip & 0x0000ffff);
           }
           return true;
         });
@@ -1474,7 +1478,10 @@ namespace nodetool
           {
             const epee::net_utils::network_address na = pe.adr;
             uint32_t actual_ip = na.as<const epee::net_utils::ipv4_network_address>().ip();
-            skip = classB.find(actual_ip & 0x0000ffff) != classB.end();
+            // Graft: check if address is classB
+            auto addr_helper = boost::asio::ip::address_v4(htonl(actual_ip));
+            if (addr_helper.is_class_b())
+              skip = classB.find(actual_ip & 0x0000ffff) != classB.end();
           }
           if (skip)
             ++skipped;
@@ -1488,7 +1495,7 @@ namespace nodetool
         if (skipped == 0 || !filtered.empty())
           break;
         if (skipped)
-          MGINFO("Skipping " << skipped << " possible peers as they share a class B with existing peers");
+          MINFO("Skipping " << skipped << " possible peers as they share a class B with existing peers");
       }
       if (filtered.empty())
       {
