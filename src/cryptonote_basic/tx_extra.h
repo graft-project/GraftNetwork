@@ -55,7 +55,7 @@
 #define TX_EXTRA_TAG_TX_KEY_IMAGE_UNLOCK        0x77
 #define TX_EXTRA_TAG_SERVICE_NODE_STATE_CHANGE  0x78
 #define TX_EXTRA_TAG_BURN                       0x79
-#define TX_EXTRA_TAG_LOKI_NAME_SYSTEM           0x80
+#define TX_EXTRA_TAG_LOKI_NAME_SYSTEM           0x7A
 
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG       0xDE
 
