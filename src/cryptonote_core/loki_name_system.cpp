@@ -539,7 +539,6 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
   crypto::hash expected_prev_txid = crypto::null_hash;
   if (lns::mapping_record mapping = lns_db.get_mapping(data.type, data.name.data(), data.name.size()))
   {
-    expected_prev_txid = mapping.txid;
     if (data.type != static_cast<uint16_t>(lns::mapping_type::lokinet))
     {
       if (reason)
@@ -554,6 +553,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
     if (!mapping.active(lns_db.network_type(), blockchain_height))
       return true;
 
+    expected_prev_txid                 = mapping.txid;
     uint64_t renew_window              = 0;
     uint64_t expiry_blocks             = lns::lokinet_expiry_blocks(lns_db.network_type(), &renew_window);
     uint64_t const renew_window_offset = expiry_blocks - renew_window;
@@ -629,11 +629,21 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     return false;
   }
 
+  if (entry->version != 0)
+  {
+    if (reason)
+    {
+      err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << " unexpected version=" << std::to_string(entry->version) << ", expected=0";
+      *reason = err_stream.str();
+    }
+    return false;
+  }
+
   if (entry->type >= static_cast<uint16_t>(lns::mapping_type::start_reserved) && entry->type <= static_cast<uint16_t>(mapping_type::end_reserved))
   {
     if (reason)
     {
-      err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << " specifying type = " << static_cast<uint16_t>(entry->type) << " that is unused, but reserved by the protocol";
+      err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << " specifying type= " << static_cast<uint16_t>(entry->type) << " that is unused, but reserved by the protocol";
       *reason = err_stream.str();
     }
     return false;
@@ -654,7 +664,8 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      err_stream << "LNS TX=" << cryptonote::get_transaction_hash(tx) << ", burned insufficient amounts of loki=" << burn << ", require=" << burn_required;
+      char const *over_or_under = burn > burn_required ? "too much " : "insufficient ";
+      err_stream << "LNS TX=" << cryptonote::get_transaction_hash(tx) << ", burned " << over_or_under << "loki=" << burn << ", require=" << burn_required;
       *reason = err_stream.str();
     }
     return false;

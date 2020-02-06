@@ -999,7 +999,7 @@ bool loki_name_system_disallow_reserved_type::generate(std::vector<test_event_en
 
   cryptonote::account_base miner = gen.first_miner_;
   gen.add_blocks_until_version(hard_forks.back().first);
-  gen.add_n_blocks(30); /// generate some outputs and unlock them
+  gen.add_n_blocks(10); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
   std::string mapping_value = "asdf";
@@ -1054,7 +1054,7 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
   cryptonote::account_base miner = gen.first_miner_;
 
   gen.add_blocks_until_version(hard_forks.back().first);
-  gen.add_n_blocks(30); /// generate some outputs and unlock them
+  gen.add_n_blocks(10); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
   lns_keys_t miner_key = make_lns_keys(miner);
@@ -1126,7 +1126,7 @@ bool loki_name_system_get_mappings_by_user::generate(std::vector<test_event_entr
 
   // NOTE: Fund Bob's wallet
   {
-    gen.add_n_blocks(30); /// generate some outputs and unlock them
+    gen.add_n_blocks(10); /// generate some outputs and unlock them
     gen.add_mined_money_unlock_blocks();
 
     cryptonote::transaction transfer = gen.create_and_add_tx(miner, bob.get_keys().m_account_address, MK_COINS(400));
@@ -1237,7 +1237,7 @@ bool loki_name_system_handles_duplicate_in_lns_db::generate(std::vector<test_eve
   cryptonote::account_base bob   = gen.add_account();
 
   gen.add_blocks_until_version(hard_forks.back().first);
-  gen.add_n_blocks(40); /// generate some outputs and unlock them
+  gen.add_n_blocks(10); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
   cryptonote::transaction transfer = gen.create_and_add_tx(miner, bob.get_keys().m_account_address, MK_COINS(400));
@@ -1323,7 +1323,7 @@ bool loki_name_system_handles_duplicate_in_tx_pool::generate(std::vector<test_ev
   cryptonote::account_base bob   = gen.add_account();
   {
     gen.add_blocks_until_version(hard_forks.back().first);
-    gen.add_n_blocks(60); /// generate some outputs and unlock them
+    gen.add_n_blocks(10); /// generate some outputs and unlock them
     gen.add_mined_money_unlock_blocks();
 
     cryptonote::transaction transfer = gen.create_and_add_tx(miner, bob.get_keys().m_account_address, MK_COINS(400));
@@ -1355,7 +1355,7 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
 
   cryptonote::account_base miner = gen.first_miner_;
   gen.add_blocks_until_version(hard_forks.back().first);
-  gen.add_n_blocks(30); /// generate some outputs and unlock them
+  gen.add_n_blocks(10); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
   lns_keys_t miner_key = make_lns_keys(miner);
@@ -1551,7 +1551,7 @@ bool loki_name_system_large_reorg::generate(std::vector<test_event_entry> &event
   lns_keys_t const bob_key             = make_lns_keys(bob);
   {
     gen.add_blocks_until_version(hard_forks.back().first);
-    gen.add_n_blocks(60); /// generate some outputs and unlock them
+    gen.add_n_blocks(10); /// generate some outputs and unlock them
     gen.add_mined_money_unlock_blocks();
 
     cryptonote::transaction transfer = gen.create_and_add_tx(miner, bob.get_keys().m_account_address, MK_COINS(400));
@@ -1798,7 +1798,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
 
   {
     gen.add_blocks_until_version(hard_forks.back().first);
-    gen.add_n_blocks(30); /// generate some outputs and unlock them
+    gen.add_n_blocks(10); /// generate some outputs and unlock them
     gen.add_mined_money_unlock_blocks();
   }
 
@@ -1873,7 +1873,7 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
 
   cryptonote::account_base miner = gen.first_miner_;
   gen.add_blocks_until_version(hard_forks.back().first);
-  gen.add_n_blocks(30); /// generate some outputs and unlock them
+  gen.add_n_blocks(10); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
   auto make_lns_tx_with_custom_extra = [&](loki_chain_generator &gen,
@@ -1951,7 +1951,7 @@ bool loki_name_system_wrong_burn::generate(std::vector<test_event_entry> &events
 
   // NOTE: Fund Miner's wallet
   {
-    gen.add_n_blocks(30); /// generate some outputs and unlock them
+    gen.add_n_blocks(10); /// generate some outputs and unlock them
     gen.add_mined_money_unlock_blocks();
   }
 
@@ -1996,6 +1996,43 @@ bool loki_name_system_wrong_burn::generate(std::vector<test_event_entry> &events
       }
     }
   }
+  return true;
+}
+
+bool loki_name_system_wrong_version::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  cryptonote::account_base miner = gen.first_miner_;
+  gen.add_blocks_until_version(hard_forks.back().first);
+  gen.add_n_blocks(10); /// generate some outputs and unlock them
+  gen.add_mined_money_unlock_blocks();
+
+  lns_keys_t miner_key                       = make_lns_keys(miner);
+  cryptonote::tx_extra_loki_name_system data = {};
+  data.version                               = 0xFF;
+  data.owner                                 = miner_key.ed_key;
+  data.type                                  = static_cast<uint16_t>(lns::mapping_type::messenger);
+  data.value                                 = miner_key.messenger_value;
+  data.name                                  = "my_lns_name";
+
+  uint64_t new_height       = cryptonote::get_block_height(gen.top().block) + 1;
+  uint8_t new_hf_version    = gen.get_hf_version_at(new_height);
+  uint64_t burn_requirement = lns::burn_requirement_in_atomic_loki(new_hf_version);
+
+  std::vector<uint8_t> extra;
+  cryptonote::add_loki_name_system_to_tx_extra(extra, data);
+  cryptonote::add_burned_amount_to_tx_extra(extra, burn_requirement);
+
+  cryptonote::transaction tx = {};
+  loki_tx_builder(events, tx, gen.top().block, miner /*from*/, miner.get_keys().m_account_address, 0, new_hf_version)
+      .with_tx_type(cryptonote::txtype::loki_name_system)
+      .with_extra(extra)
+      .with_fee(burn_requirement + TESTS_DEFAULT_FEE)
+      .build();
+
+  gen.add_tx(tx, false /*can_be_added_to_blockchain*/, "Incorrect LNS record version specified", false /*kept_by_block*/);
   return true;
 }
 

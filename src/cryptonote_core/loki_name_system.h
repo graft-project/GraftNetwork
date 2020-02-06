@@ -3,6 +3,7 @@
 
 #include "crypto/crypto.h"
 #include "cryptonote_config.h"
+#include "cryptonote_basic/tx_extra.h"
 
 #include <string>
 
@@ -13,7 +14,6 @@ namespace cryptonote
 struct checkpoint_t;
 struct block;
 struct transaction;
-struct tx_extra_loki_name_system;
 struct account_address;
 class Blockchain;
 }; // namespace cryptonote
@@ -63,15 +63,6 @@ struct settings_record
   uint64_t     top_height;
   crypto::hash top_hash;
   int          version;
-};
-
-enum struct mapping_type : uint16_t
-{
-  messenger      = 0,
-  start_reserved = 1,
-  blockchain     = 2,
-  lokinet        = 3,
-  end_reserved   = 64,
 };
 
 struct mapping_record
