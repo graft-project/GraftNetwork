@@ -8875,6 +8875,7 @@ bool simple_wallet::print_address(const std::vector<std::string> &args/* = std::
         return td.m_subaddr_index == cryptonote::subaddress_index{ m_current_subaddress_account, index };
       }) != transfers.end();
     success_msg_writer() << index << "  " << m_wallet->get_subaddress_as_str({m_current_subaddress_account, index}) << "  " << (index == 0 ? tr("Primary address") : m_wallet->get_subaddress_label({m_current_subaddress_account, index})) << " " << (used ? tr("(used)") : "");
+    success_msg_writer() << "0  " << epee::string_tools::pod_to_hex(m_wallet->get_account().get_keys().m_ed25519_public_key) << "  " << tr("Ed25519 Key");
   };
 
   uint32_t index = 0;

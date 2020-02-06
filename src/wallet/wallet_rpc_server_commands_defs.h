@@ -156,10 +156,12 @@ namespace wallet_rpc
     {
       std::string address;                  // (Deprecated) Remains to be compatible with older RPC format
       std::vector<address_info> addresses;  // Addresses informations.
+      std::string ed25519_key;              // The public ed25519 wallet key
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(address)
         KV_SERIALIZE(addresses)
+        KV_SERIALIZE(ed25519_key)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

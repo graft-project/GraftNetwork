@@ -46,6 +46,7 @@ namespace cryptonote
     hw::device *m_device = &hw::get_device("default");
     crypto::chacha_iv m_encryption_iv;
 
+    crypto::ed25519_public_key m_ed25519_public_key; // NOTE: Not serialized, derived at load
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(m_account_address)
       KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_spend_secret_key)
@@ -100,6 +101,7 @@ namespace cryptonote
     void forget_spend_key();
     const std::vector<crypto::secret_key> &get_multisig_keys() const { return m_keys.m_multisig_keys; }
 
+    void generate_public_edkey();
     void encrypt_keys(const crypto::chacha_key &key) { m_keys.encrypt(key); }
     void decrypt_keys(const crypto::chacha_key &key) { m_keys.decrypt(key); }
     void encrypt_viewkey(const crypto::chacha_key &key) { m_keys.encrypt_viewkey(key); }

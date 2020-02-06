@@ -4275,6 +4275,8 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
       m_keys_file_locker.reset();
     }
   }
+
+  m_account.generate_public_edkey();
   const cryptonote::account_keys& keys = m_account.get_keys();
   hw::device &hwdev = m_account.get_device();
   r = r && hwdev.verify_keys(keys.m_view_secret_key,  keys.m_account_address.m_view_public_key);
