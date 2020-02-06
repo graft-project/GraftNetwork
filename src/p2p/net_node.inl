@@ -962,7 +962,7 @@ namespace nodetool
   template<class t_payload_net_handler>
   int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
   {
-    MDEBUG("P2P Request: handle_broadcast: start for message: " << arg.message_id);
+    MDEBUG("handle_broadcast: start for message: " << arg.message_id);
     m_broadcast_bytes_in += get_command_size(arg);
     if (context.m_state != p2p_connection_context::state_normal) {
       MWARNING(context << " invalid connection (no handshake)");
@@ -973,14 +973,14 @@ namespace nodetool
     return 1;
 #endif
     
-    // P2P only (NO UDHT)
-    // 1. check if any in receiver_addresses belongs to our supernodes? - if yes, post to 
-    // 2. check if hop > 0; if yes, relay p2p message to peers
     {
-   
+      MDEBUG("handle_broadcast: locking request cache..");
+      boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
+      MDEBUG("handle_broadcast: request cache locked");
+      
       if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end()) 
       {
-        MDEBUG("P2P Request: handle_broadcast: message '" << arg.message_id << "' was not processed before, processing..");
+        MDEBUG("handle_broadcast: processing '" << arg.message_id << "'");
         m_supernode_requests_cache.insert(arg.message_id);
         int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
@@ -989,10 +989,12 @@ namespace nodetool
         uint64_t messages_sent{0},  messages_forwarded{0};
         bool relay_broadcast = false;
         m_supernode_conn_manager.processBroadcast(arg, relay_broadcast, messages_sent, messages_forwarded);
+        MDEBUG("handle_broadcast: UDHT processed for message: '" << arg.message_id << "',  messages_sent: "  << messages_sent
+               << ", messages_forwarded: " << messages_forwarded << ", relay_broadcast: " << relay_broadcast);
         if (relay_broadcast && arg.hop > 0)
         {
-          MDEBUG("P2P Request: handle_broadcast: notify broadcast from " << arg.sender_address
-                 << " to peers. Hop level: " << arg.hop);
+          MDEBUG("handle_broadcast: about to relay broadcast from " << arg.sender_address
+                 << ", message: '" << arg.message_id << "',  to peers. Hop level: " << arg.hop );
           arg.hop--;
           std::string buff;
           epee::serialization::store_t_to_binary(arg, buff);
@@ -1012,33 +1014,35 @@ namespace nodetool
             });
             
             if (connections.empty())
-              MERROR("Broadcast not relayed - no peers available");
+              MERROR("no connections to relay message: " << arg.message_id);
             else
               relay_notify_to_list(command, epee::strspan<uint8_t>(buff), std::move(connections));
+              MDEBUG("handle_broadcast: relayed broadcast from " << arg.sender_address
+                   << ", message: '" << arg.message_id << "',  to peers. Hop level: " << arg.hop );
           };
         }
-        else
+        else // not relaying, eigher all recipients are handled by UDHT or hop counter reached zero
         {
           if(!relay_broadcast)
           {
-            MDEBUG("P2P Request: handle_broadcast: all recipients found for broadcast");
+            MDEBUG("handle_broadcast: all recipients found for broadcast");
           }
-          else
+          else // hop counter reached 0;
           {
-            MDEBUG("P2P Request: handle_broadcast: hop counter ended for broadcast from "
-                   << arg.sender_address);
+            MDEBUG("handle_broadcast: hop counter reached zero for broadcast from "
+                   << arg.sender_address << ", message_id: " << arg.message_id);
           }
         }
       }
-      else  // request already processed
+      else  // message already processed
       {
-        MDEBUG("P2P Request: handle_broadcast: message already processed: " << arg.message_id);
+        MDEBUG("handle_broadcast: message already processed: " << arg.message_id);
       }
-      MDEBUG("P2P Request: handle_broadcast: clean request cache");
+      MDEBUG("handle_broadcast: clean request cache");
       remove_old_request_cache();
     }
-    
-    MDEBUG("P2P Request: handle_broadcast: end");
+    MDEBUG("handle_broadcast: request cache unlocked");
+    MDEBUG("handle_broadcast: end");
     return 1;
   }
 
@@ -2358,56 +2362,34 @@ namespace nodetool
   {
       MDEBUG("Incoming broadcast request");
 
-      MDEBUG("P2P Request: do_broadcast from: " << req.sender_address <<
-                   " Start");
+      MDEBUG("do_broadcast from: " << req.sender_address << " Start");
 
-      std::string data_blob;
-      epee::serialization::store_t_to_binary(req, data_blob);
-      std::vector<uint8_t> data_vec(data_blob.begin(), data_blob.end());
-      // TODO: add some random nonce to the message hash
-      boost::uuids::basic_random_generator<boost::mt19937> gen;
-      boost::uuids::uuid u = gen();
-      for (boost::uuids::uuid::const_iterator it=u.begin(); it!=u.end(); ++it) {
-        boost::uuids::uuid::value_type v = *it;
-        data_vec.push_back(v);
-      }
-      crypto::hash message_hash;
-      if (!tools::sha256sum(data_vec.data(), data_vec.size(), message_hash))
-      {
-          LOG_ERROR("RTA Broadcast: wrong data format for hashing!");
-          return;
-      }
-
-      MDEBUG("P2P Request: do_broadcast: broadcast to me");
+      MDEBUG("do_broadcast: forwarding broadcast to local supernode");
       {
         m_supernode_conn_manager.forward<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
       }
-
+      MDEBUG("do_broadcast: forwarded broadcast to local supernode");
+      
 #ifdef LOCK_RTA_SENDING
     return;
 #endif
 
       COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
+      
+      // generate random message_id
+      boost::uuids::basic_random_generator<boost::mt19937> gen;
+      boost::uuids::uuid u = gen();
+      p2p_req.message_id = boost::uuids::to_string(u);
       //copy all cryptonote::COMMAND_RPC_BROADCAST::request members
+      
       p2p_req.receiver_addresses = req.receiver_addresses;
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
       p2p_req.data = req.data;
       p2p_req.signature = req.signature;
       p2p_req.hop = (hop)? hop : -1;
-      p2p_req.message_id = epee::string_tools::pod_to_hex(message_hash);
-      {
-          MDEBUG("P2P Request: do_broadcast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
-          MDEBUG("P2P Request: do_broadcast: unlock");
-          m_supernode_requests_cache.insert(p2p_req.message_id);
-          int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-          m_supernode_requests_timestamps.insert(std::make_pair(timestamp, p2p_req.message_id));
-          MDEBUG("P2P Request: do_broadcast: clean request cache");
-          remove_old_request_cache();
-      }
-
-      MDEBUG("P2P Request: do_broadcast: prepare peerlist");
+      
+      MDEBUG("do_broadcast: broadcasting message '" << p2p_req.message_id << "' to connections..");
 
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
@@ -2442,7 +2424,7 @@ namespace nodetool
         }
         m_broadcast_bytes_out += blob.size() * announced_peers.size();
   
-           }
+     }
       
      MDEBUG("P2P Request: do_broadcast: End");
   }
