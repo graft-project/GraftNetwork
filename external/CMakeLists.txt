@@ -40,7 +40,6 @@ find_package(PkgConfig REQUIRED)
 if(NOT STATIC)
   pkg_check_modules(MINIUPNPC miniupnpc>=2.1)
   pkg_check_modules(UNBOUND libunbound)
-  pkg_check_modules(SQLITE3 sqlite3)
 endif()
 
 if(MINIUPNPC_FOUND)
@@ -89,10 +88,6 @@ else()
   else()
     die("Found libunbound includes, but could not find libunbound library. Please make sure you have installed libunbound or libunbound-dev or the equivalent")
   endif()
-endif()
-
-if (NOT SQLITE3_FOUND)
-  die("Could not find SQLite3 library. Please make sure you have installed libsqlite3-dev or the equivalent")
 endif()
 
 add_subdirectory(db_drivers)

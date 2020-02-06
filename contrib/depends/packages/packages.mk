@@ -1,4 +1,4 @@
-packages:=boost openssl zeromq libiconv
+packages:=boost openssl zeromq libiconv sqlite3
 
 native_packages :=
 
