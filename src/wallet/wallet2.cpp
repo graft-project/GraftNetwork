@@ -10020,8 +10020,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_graft(const string
         tx_dsts.push_back(cryptonote::tx_destination_entry(fee_per_destination, address, address_pi.is_subaddress));
     }
     bool allow_zero_fee = true;
+    
+    const size_t fake_outputs_count = this->use_fork_rules(HF_VERSION_MONERO_14) ? 10 : 4; // TODO: test this for pre-v17 version
 
-    return create_transactions_2(tx_dsts, 4, unlock_time, priority, extra, subaddr_account, subaddr_indices, allow_zero_fee);
+    return create_transactions_2(tx_dsts, fake_outputs_count, unlock_time, priority, extra, subaddr_account, subaddr_indices, allow_zero_fee);
 }
 
 bool wallet2::sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, std::vector<cryptonote::tx_destination_entry> dsts) const
