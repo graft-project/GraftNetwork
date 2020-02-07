@@ -2483,13 +2483,13 @@ namespace cryptonote
       uint64_t broadcast_bytes_out;
       uint64_t rta_p2p_messages_count;
       uint64_t rta_jump_list_local_messages_count;
-      uint64_t rta_jump_list_remote_messages_count;
+      uint64_t rta_jump_list_forwarded_messages_count;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(broadcast_bytes_in)
         KV_SERIALIZE(broadcast_bytes_out)
         KV_SERIALIZE(rta_p2p_messages_count)
         KV_SERIALIZE(rta_jump_list_local_messages_count)
-        KV_SERIALIZE(rta_jump_list_remote_messages_count)
+        KV_SERIALIZE(rta_jump_list_forwarded_messages_count)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

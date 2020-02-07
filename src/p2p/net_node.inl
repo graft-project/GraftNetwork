@@ -989,6 +989,9 @@ namespace nodetool
         uint64_t messages_sent{0},  messages_forwarded{0};
         bool relay_broadcast = false;
         m_supernode_conn_manager.processBroadcast(arg, relay_broadcast, messages_sent, messages_forwarded);
+        m_rta_msg_jump_list_local_counter += messages_sent;
+        m_rta_msg_jump_list_forwarded_counter += messages_forwarded;
+        
         MDEBUG("handle_broadcast: UDHT processed for message: '" << arg.message_id << "',  messages_sent: "  << messages_sent
                << ", messages_forwarded: " << messages_forwarded << ", relay_broadcast: " << relay_broadcast);
         if (relay_broadcast && arg.hop > 0)

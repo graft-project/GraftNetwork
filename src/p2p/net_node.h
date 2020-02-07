@@ -435,7 +435,7 @@ namespace nodetool
     uint64_t get_broadcast_bytes_out() const { return m_broadcast_bytes_out; }
     uint64_t get_rta_p2p_msg_count() const { return m_rta_msg_p2p_counter; }
     uint64_t get_rta_jump_list_local_msg_count() const { return m_rta_msg_jump_list_local_counter; }
-    uint64_t get_rta_jump_list_remote_msg_count() const { return m_rta_msg_jump_list_remote_counter; }
+    uint64_t get_rta_jump_list_forwarded_msg_count() const { return m_rta_msg_jump_list_forwarded_counter; }
 
     void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req);
     // TODO: Why cryptonode can't just forward message directly to a supernode?
@@ -526,7 +526,7 @@ namespace nodetool
     // number of RTA messages/requests transferred to local supernodes 
     std::atomic<uint64_t> m_rta_msg_jump_list_local_counter {0};
     // number of RTA messages/requests transferred to supernodes 
-    std::atomic<uint64_t> m_rta_msg_jump_list_remote_counter {0};
+    std::atomic<uint64_t> m_rta_msg_jump_list_forwarded_counter {0};
   };
 
 
