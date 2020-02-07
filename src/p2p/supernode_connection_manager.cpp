@@ -45,23 +45,31 @@ void SupernodeConnectionManager::register_supernode(const cryptonote::COMMAND_RP
 
 void SupernodeConnectionManager::add_rta_route(const std::string &id, const std::string &my_id)
 {
+  MDEBUG("adding/updating route for '" << id << " via '" << my_id << "'");
   boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
-  auto it = m_supernode_connections.find(my_id);
-  if (it == m_supernode_connections.end()) {
+  auto connection = m_supernode_connections.find(my_id);
+  if (connection == m_supernode_connections.end()) {
     MERROR("Failed to add route: " << my_id << " is unknown supernode"); 
     return;
   }
   auto expiry_time = get_expiry_time(my_id);
-  SupernodeRoutes& recs = m_supernode_routes[id];
-  auto it2 = std::find_if(recs.begin(), recs.end(), [it](const SupernodeRoute& r)->bool { return r.supernode_ptr == it; });
-  if (it2 == recs.end())
+  bool route_exists = m_supernode_routes.find(id) != m_supernode_routes.end();
+  SupernodeRoutes& routes = m_supernode_routes[id];
+  if (route_exists) {
+    MDEBUG("route to '" << id <<  "' via '" << my_id << "'  exists, updating");
+  } else {
+    MDEBUG("route to '" << id <<  "' via '" << my_id << "' doesn't exist, adding");
+  }
+  
+  auto route = std::find_if(routes.begin(), routes.end(), [connection](const SupernodeRoute& r)->bool { return r.supernode_ptr == connection; });
+  if (route == routes.end())
   {
-    recs.emplace_back(SupernodeRoute{it, expiry_time});
+    routes.emplace_back(SupernodeRoute{connection, expiry_time});
   }
   else
   {
-    assert(it2->supernode_ptr == it);
-    it2->expiry_time = expiry_time;
+    assert(route->supernode_ptr == connection);
+    route->expiry_time = expiry_time;
   }
 }
 
@@ -80,16 +88,15 @@ std::vector<SupernodeConnectionManager::SupernodeId> SupernodeConnectionManager:
 
 bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BROADCAST::request &arg, bool &relay_broadcast, uint64_t &messages_sent, uint64_t &messages_forwarded)
 {
-  MDEBUG("P2P Request: handle_broadcast: lock");
+  MDEBUG("processBroadcast: begin");
   std::vector<std::string> local_sns;
   boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
   {
     //prepare sorted sns
-    
     std::for_each(m_supernode_connections.begin(), m_supernode_connections.end(), [&local_sns](decltype(*m_supernode_connections.begin())& pair){ local_sns.push_back(pair.first); });
-    MDEBUG("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
+    MDEBUG("processBroadcast: sender_address: " << arg.sender_address
            << ", local supernodes: " << boost::algorithm::join(local_sns, ", "));
-    MDEBUG("P2P Request: handle_broadcast: receiver_addresses: " << "receiver addresses: " << boost::algorithm::join(arg.receiver_addresses, ", "));
+    MDEBUG("processBroadcast: receiver_addresses: " << "receiver addresses: " << boost::algorithm::join(arg.receiver_addresses, ", "));
   }
   
   std::vector<std::string> redirect_sns; // TODO: the purpose of this? 
@@ -98,14 +105,14 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
     // to_sns.reserve(m_supernode_routes.size()); //not exact, but
     for (auto it = m_supernode_routes.begin(); it != m_supernode_routes.end(); ++it)
     {
-      SupernodeRoutes& recs = it->second;
+      SupernodeRoutes& routes = it->second;
       auto now = Clock::now();
       
-      //erase dead records
-      recs.erase(std::remove_if(recs.begin(), recs.end(), [now](SupernodeRoute& v)->bool{ return v.expiry_time < now; } ), recs.end());
+      // erase expired records
+      routes.erase(std::remove_if(routes.begin(), routes.end(), [now](SupernodeRoute& v)->bool{ return v.expiry_time < now; } ), routes.end());
       
       //erase empty redirector
-      if(recs.empty())
+      if(routes.empty())
       {
         it = m_supernode_routes.erase(it);
         continue;
@@ -154,6 +161,7 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
       // only endpoint specified in 'arg.callback_uri' used
       m_supernode_connections[id].callJsonRpc<nodetool::COMMAND_BROADCAST>("" /* pass to local supernode */, arg, arg.callback_uri);
       ++messages_sent;
+      MDEBUG("called local supernode: " << id);
     }
   }
   // TODO: What is the difference in known_addresses vs local_addresses  and why they processed in separate loops?
@@ -210,7 +218,7 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
       std::copy(unknown_addresses.begin(), unknown_addresses.end(), std::back_inserter(arg.receiver_addresses));
     }
   }
-  
+  MDEBUG("processBroadcast: end");
   return true;
 }
 
