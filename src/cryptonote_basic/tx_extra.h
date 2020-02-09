@@ -403,6 +403,16 @@ namespace cryptonote
     std::string                value; // binary format of the name->value mapping
     crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping, only applicable if lokinet
 
+    tx_extra_loki_name_system() = default;
+    tx_extra_loki_name_system(crypto::ed25519_public_key const &owner, uint16_t type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
+    : owner(owner)
+    , type(type)
+    , name(name)
+    , value(value)
+    , prev_txid(prev_txid)
+    {
+    }
+
     BEGIN_SERIALIZE()
       FIELD(version);
       FIELD(owner);

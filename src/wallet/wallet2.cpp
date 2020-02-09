@@ -8582,11 +8582,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
     crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(&m_account.get_keys().m_spend_secret_key));
   }
 
-  tx_extra_loki_name_system entry = {};
-  entry.owner                     = pkey;
-  entry.type                      = type;
-  entry.name                      = name;
-  entry.value.resize(value_blob.len);
+  crypto::hash prev_txid = crypto::null_hash;
   if (type == static_cast<uint16_t>(lns::mapping_type::lokinet))
   {
     std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry> request = {};
@@ -8605,10 +8601,10 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
       return {};
     }
 
-    entry.prev_txid = response.empty() ? crypto::null_hash : response[0].txid;
+    if (response.size()) prev_txid = response[0].txid;
   }
 
-  memcpy(&entry.value[0], value_blob.buffer.data(), value_blob.len);
+  tx_extra_loki_name_system entry(pkey, type, name, value, prev_txid);
 
   std::vector<uint8_t> extra;
   add_loki_name_system_to_tx_extra(extra, entry);
