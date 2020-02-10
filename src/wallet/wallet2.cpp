@@ -8601,7 +8601,19 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
       return {};
     }
 
-    if (response.size()) prev_txid = response[0].txid;
+    if (response.size())
+    {
+      crypto::hash txid_hash;
+      if (epee::string_tools::hex_to_pod(response[0].txid, txid_hash))
+      {
+        prev_txid = txid_hash;
+      }
+      else
+      {
+        if (reason) *reason = "Failed to convert response txid=" + response[0].txid + " from the daemon into a 32 byte hash, it must be a 64 char hex string";
+        return {};
+      }
+    }
   }
 
   tx_extra_loki_name_system entry(pkey, type, name, value, prev_txid);

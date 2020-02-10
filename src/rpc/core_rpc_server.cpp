@@ -3365,8 +3365,8 @@ namespace cryptonote
             entry.owner               = epee::string_tools::pod_to_hex(user.key);
             entry.pubkey              = mapping.value;
             entry.register_height     = mapping.register_height;
-            entry.txid                = mapping.txid;
-            entry.prev_txid           = mapping.prev_txid;
+            entry.txid                = epee::string_tools::pod_to_hex(mapping.txid);
+            entry.prev_txid           = epee::string_tools::pod_to_hex(mapping.prev_txid);
           }
           else
           {
@@ -3410,8 +3410,8 @@ namespace cryptonote
           mapping.name                = db_mapping.name;
           mapping.pubkey              = db_mapping.value;
           mapping.register_height     = db_mapping.register_height;
-          mapping.txid                = db_mapping.txid;
-          mapping.prev_txid           = db_mapping.prev_txid;
+          mapping.txid                = epee::string_tools::pod_to_hex(db_mapping.txid);
+          mapping.prev_txid           = epee::string_tools::pod_to_hex(db_mapping.prev_txid);
         }
       }
     }
