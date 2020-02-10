@@ -8469,7 +8469,7 @@ static bool prepare_tx_extra_loki_name_system_values(cryptonote::network_type ne
 
     if (response.size())
     {
-      crypto::hash txid_hash;
+      crypto::hash txid_hash = {};
       if (epee::string_tools::hex_to_pod(response[0].txid, txid_hash))
       {
         prev_txid = txid_hash;
@@ -8515,7 +8515,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(lns::mapping
     return {};
 
   std::vector<uint8_t> extra;
-  auto entry = cryptonote::tx_extra_loki_name_system::make_buy(pkey, type, name, std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
+  auto entry = cryptonote::tx_extra_loki_name_system::make_buy(pkey, type, lns::name_to_hash(name), std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
   add_loki_name_system_to_tx_extra(extra, entry);
 
   boost::optional<uint8_t> hf_version = get_hard_fork_version();
@@ -8588,7 +8588,7 @@ std::vector<wallet2::pending_tx> wallet2::create_update_lns_mapping_tx(lns::mapp
   }
 
   std::vector<uint8_t> extra;
-  auto entry = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type, name, std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
+  auto entry = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type, lns::name_to_hash(name), std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
   add_loki_name_system_to_tx_extra(extra, entry);
 
   boost::optional<uint8_t> hf_version = get_hard_fork_version();

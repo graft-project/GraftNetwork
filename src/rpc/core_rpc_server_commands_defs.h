@@ -3527,14 +3527,14 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     {
       uint64_t    request_index;   // The index in request's `entries` array that was resolved via Loki Name Service.
       uint16_t    type;            // The category the Loki Name Service entry belongs to, currently only Session whose value is 0.
-      std::string name;            // The name purchased via Loki Name Service
-      std::string value;           // The value that the name maps to
+      std::string name_hash;       // The hash of the name that the owner purchased via Loki Name Service.
+      std::string value;           // The value that the name maps to.
       uint64_t    register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
       std::string txid;            // The txid of who purchases the mapping, null hash if not applicable
       std::string prev_txid;       // The previous txid that purchased the mapping, null hash if not applicable.
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(type)
-        KV_SERIALIZE(name)
+        KV_SERIALIZE(name_hash)
         KV_SERIALIZE(value)
         KV_SERIALIZE(register_height)
         KV_SERIALIZE(txid)

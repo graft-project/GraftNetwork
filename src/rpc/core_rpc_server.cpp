@@ -3402,7 +3402,8 @@ namespace cryptonote
       if (exceeds_quantity_limit(ctx, error_resp, m_restricted, request.types.size(), COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::MAX_TYPE_REQUEST_ENTRIES, "types"))
         return false;
 
-      std::vector<lns::mapping_record> records = db.get_mappings(request.types, request.name);
+      crypto::hash name_hash = lns::name_to_hash(request.name);
+      std::vector<lns::mapping_record> records = db.get_mappings(request.types, name_hash);
       res.entries.reserve(records.size());
       for (auto const &record : records)
       {
@@ -3463,7 +3464,7 @@ namespace cryptonote
 
       entry.request_index   = it->second;
       entry.type            = static_cast<uint16_t>(mapping.type);
-      entry.name            = mapping.name;
+      entry.name_hash       = epee::string_tools::pod_to_hex(mapping.name_hash);
       entry.value           = extract_lns_mapping_value(mapping);
       entry.register_height = mapping.register_height;
       entry.txid            = epee::string_tools::pod_to_hex(mapping.txid);

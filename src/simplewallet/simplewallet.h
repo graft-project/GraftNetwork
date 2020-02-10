@@ -176,7 +176,7 @@ namespace cryptonote
     bool query_locked_stakes(bool print_result);
     bool buy_lns_mapping(const std::vector<std::string> &args);
     bool update_lns_mapping(const std::vector<std::string> &args);
-    bool print_lns_owners_to_names(const std::vector<std::string> &args);
+    bool print_lns_owners_to_name_hashes(const std::vector<std::string> &args);
     bool print_lns_name_to_owners(const std::vector<std::string> &args);
 
     enum class sweep_type_t { stake, register_stake, all_or_below, single };

@@ -65,7 +65,8 @@ bool         validate_lns_name(mapping_type type, std::string const &name, std::
 // blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
 bool         validate_lns_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
 bool         validate_lns_value_binary(mapping_type type, std::string const &value, std::string *reason = nullptr);
-bool         validate_mapping_type(std::string const &mapping_type_str, lns::mapping_type *mapping_type, std::string *reason);
+bool         validate_mapping_type(std::string const &type, lns::mapping_type *mapping_type, std::string *reason);
+crypto::hash name_to_hash(std::string const &name);
 
 struct owner_record
 {
@@ -98,7 +99,7 @@ struct mapping_record
 
   bool                       loaded;
   mapping_type               type;
-  std::string                name;
+  crypto::hash               name_hash;
   std::string                value;
   uint64_t                   register_height;
   int64_t                    owner_id;
@@ -123,8 +124,8 @@ struct name_system_db
 
   owner_record                get_owner_by_key      (crypto::ed25519_public_key const &key) const;
   owner_record                get_owner_by_id       (int64_t owner_id) const;
-  mapping_record              get_mapping           (mapping_type type, std::string const &name) const;
-  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name) const;
+  mapping_record              get_mapping           (mapping_type type, crypto::hash const &name_hash) const;
+  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, crypto::hash const &name) const;
   std::vector<mapping_record> get_mappings_by_owner (crypto::ed25519_public_key const &key) const;
   std::vector<mapping_record> get_mappings_by_owners(std::vector<crypto::ed25519_public_key> const &keys) const;
   settings_record             get_settings          () const;
