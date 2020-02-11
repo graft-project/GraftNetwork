@@ -169,9 +169,9 @@ namespace
   const char* USAGE_PAYMENT_ID("payment_id");
   const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [blink|<priority>] (<URI> | <address> <amount>) [<payment_id>]");
   const char* USAGE_LOCKED_TRANSFER("locked_transfer [index=<N1>[,<N2>,...]] [<priority>] (<URI> | <addr> <amount>) <lockblocks> [<payment_id (obsolete)>]");
-  const char* USAGE_LOCKED_SWEEP_ALL("locked_sweep_all [index=<N1>[,<N2>,...]] [<priority>] <address> <lockblocks> [<payment_id (obsolete)>]");
-  const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...]] [blink|<priority>] [outputs=<N>] <address> [<payment_id (obsolete)>] [use_v1_tx]");
-  const char* USAGE_SWEEP_BELOW("sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [blink|<priority>] <address> [<payment_id (obsolete)>]");
+  const char* USAGE_LOCKED_SWEEP_ALL("locked_sweep_all [index=<N1>[,<N2>,...]] [<priority>] [<address>] <lockblocks> [<payment_id (obsolete)>]");
+  const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...]] [blink|<priority>] [outputs=<N>] [<address> [<payment_id (obsolete)>]] [use_v1_tx]");
+  const char* USAGE_SWEEP_BELOW("sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [blink|<priority>] [<address> [<payment_id (obsolete)>]]");
   const char* USAGE_SWEEP_SINGLE("sweep_single [blink|<priority>] [outputs=<N>] <key_image> <address> [<payment_id (obsolete)>]");
   const char* USAGE_SIGN_TRANSFER("sign_transfer [export_raw]");
   const char* USAGE_SET_LOG("set_log <level>|{+,-,}<categories>");
@@ -2762,19 +2762,19 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("locked_sweep_all",
                            boost::bind(&simple_wallet::locked_sweep_all, this, _1),
                            tr(USAGE_LOCKED_SWEEP_ALL),
-                           tr("Send all unlocked balance to an address and lock it for <lockblocks> (max. 1000000). If the parameter \"index<N1>[,<N2>,...]\" is specified, the wallet sweeps outputs received by those address indices. If omitted, the wallet randomly chooses an address index to be used. <priority> is the priority of the sweep. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used."));
+                           tr("Send all unlocked balance to an address and lock it for <lockblocks> (max. 1000000).If no address is specified the address of the currently selected account will be used. If the parameter \"index<N1>[,<N2>,...]\" is specified, the wallet sweeps outputs received by those address indices. If omitted, the wallet randomly chooses an address index to be used. <priority> is the priority of the sweep. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used."));
   m_cmd_binder.set_handler("sweep_unmixable",
                            boost::bind(&simple_wallet::sweep_unmixable, this, _1),
                            tr("Deprecated"));
   m_cmd_binder.set_handler("sweep_all", boost::bind(&simple_wallet::sweep_all, this, _1),
                            tr(USAGE_SWEEP_ALL),
-                           tr("Send all unlocked balance to an address. If the parameter \"index<N1>[,<N2>,...]\" is specified, the wallet sweeps outputs received by those address indices. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."
+                           tr("Send all unlocked balance to an address.If no address is specified the address of the currently selected account will be used. If the parameter \"index<N1>[,<N2>,...]\" is specified, the wallet sweeps outputs received by those address indices. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."
                               " If \"use_v1_tx\" is placed at the end, sweep_all will include version 1 transactions into the sweeping process as well, otherwise exclude them"
                              ));
   m_cmd_binder.set_handler("sweep_below",
                            boost::bind(&simple_wallet::sweep_below, this, _1),
                            tr(USAGE_SWEEP_BELOW),
-                           tr("Send all unlocked outputs below the threshold to an address."));
+                           tr("Send all unlocked outputs below the threshold to an address. If no address is specified the address of the currently selected account will be used"));
   m_cmd_binder.set_handler("sweep_single",
                            boost::bind(&simple_wallet::sweep_single, this, _1),
                            tr(USAGE_SWEEP_SINGLE),
@@ -6739,12 +6739,6 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
     }
   };
 
-  if (args_.size() == 0)
-  {
-    fail_msg_writer() << tr("No address given");
-    print_usage();
-    return true;
-  }
 
   if (!try_connect_to_daemon())
     return true;
@@ -6777,14 +6771,17 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
     }
     uint64_t locked_blocks = 0;
 
-    if (local_args.size() < 2) {
+    if (local_args.size() < 1) {
       fail_msg_writer() << tr("missing lockedblocks parameter");
       return true;
     }
 
     try
     {
-      locked_blocks = boost::lexical_cast<uint64_t>(local_args[1]);
+      if (local_args.size() == 1) 
+        locked_blocks = boost::lexical_cast<uint64_t>(local_args[0]);
+      else
+        locked_blocks = boost::lexical_cast<uint64_t>(local_args[1]);
     }
     catch (const std::exception &e)
     {
@@ -6856,7 +6853,13 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
   }
 
   cryptonote::address_parse_info info;
-  if (!cryptonote::get_account_address_from_str_or_url(info, m_wallet->nettype(), local_args[0], oa_prompter))
+  std::string addr;
+  if (local_args.size() > 0)
+    addr = local_args[0];
+  else 
+    addr = m_wallet->get_subaddress_as_str({m_current_subaddress_account, 0});
+  
+  if (!cryptonote::get_account_address_from_str_or_url(info, m_wallet->nettype(), addr, oa_prompter))
   {
     fail_msg_writer() << tr("failed to parse address");
     print_usage();
