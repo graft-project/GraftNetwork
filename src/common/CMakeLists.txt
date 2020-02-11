@@ -30,6 +30,7 @@
 include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
 
 set(common_sources
+  base32z.cpp
   base58.cpp
   command_line.cpp
   dns_utils.cpp
@@ -65,6 +66,7 @@ set(common_headers)
 
 set(common_private_headers
   apply_permutation.h
+  base32z.h
   base58.h
   boost_serialization_helper.h
   command_line.h

@@ -126,6 +126,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(loki_name_system_disallow_reserved_type);
     GENERATE_AND_PLAY(loki_name_system_expiration);
     GENERATE_AND_PLAY(loki_name_system_get_mappings_by_user);
+    GENERATE_AND_PLAY(loki_name_system_get_mapping_by_name_and_type);
     GENERATE_AND_PLAY(loki_name_system_handles_duplicate_in_lns_db);
     GENERATE_AND_PLAY(loki_name_system_handles_duplicate_in_tx_pool);
     GENERATE_AND_PLAY(loki_name_system_invalid_tx_extra_params);

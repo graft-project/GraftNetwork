@@ -163,8 +163,8 @@ namespace cryptonote
     bool show_payments(const std::vector<std::string> &args);
     bool show_blockchain_height(const std::vector<std::string> &args);
 
-    // lock_time_in_blocks: Only required if making a locked transfer, it should be the lock time specified by the sender
-    // unlock_block:        Only required if making a locked transfer, the block height the transaction will unlock at
+    // lock_time_in_blocks: Only required if making a locked transfer, only for displaying to the user, it should be the lock time specified by the sender
+    // unlock_block:        Only required if lock_time_in_blocks is specified, only for displaying to the user, the height at which the transfer will unlock
     bool confirm_and_send_tx(std::vector<cryptonote::address_parse_info> const &dests, std::vector<tools::wallet2::pending_tx> &ptx_vector, bool blink, uint64_t lock_time_in_blocks = 0, uint64_t unlock_block = 0, bool called_by_mms = false);
     bool transfer_main(Transfer transfer_type, const std::vector<std::string> &args, bool called_by_mms);
 

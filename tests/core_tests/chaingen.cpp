@@ -521,14 +521,13 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   cryptonote::block const &head = top().block;
   uint64_t new_height           = get_block_height(top().block) + 1;
   uint8_t new_hf_version        = get_hf_version_at(new_height);
-  if (burn == LNS_AUTO_BURN) burn = lns::burn_requirement_in_atomic_loki(new_hf_version);
+  if (burn == LNS_AUTO_BURN)
+    burn = lns::burn_requirement_in_atomic_loki(new_hf_version,
+                                                lns::mapping_type_to_burn_type(static_cast<lns::mapping_type>(type)));
 
   crypto::hash prev_txid = crypto::null_hash;
-  if (type == static_cast<uint16_t>(lns::mapping_type::lokinet))
-  {
-    if (lns::mapping_record mapping = lns_db_.get_mapping(type, name))
-      prev_txid = mapping.txid;
-  }
+  if (lns::mapping_record mapping = lns_db_.get_mapping(type, name))
+    prev_txid = mapping.txid;
 
   std::vector<uint8_t> extra;
   cryptonote::tx_extra_loki_name_system data(pkey, type, name, value, prev_txid);

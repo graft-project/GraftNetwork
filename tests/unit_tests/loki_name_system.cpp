@@ -12,53 +12,53 @@ TEST(loki_name_system, lokinet_domain_names)
 
   // Should work
   {
-    char const name[] = "mydomain.loki";
-    ASSERT_TRUE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "mydomain.loki";
+    ASSERT_TRUE(lns::validate_lns_name(lokinet, name));
   }
 
   {
-    char const name[] = "a.loki";
-    ASSERT_TRUE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "a.loki";
+    ASSERT_TRUE(lns::validate_lns_name(lokinet, name));
   }
 
   {
-    char const name[] = "xn--bcher-kva.loki";
-    ASSERT_TRUE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "xn--bcher-kva.loki";
+    ASSERT_TRUE(lns::validate_lns_name(lokinet, name));
   }
 
   // Should fail
   {
-    char const name[] = "";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "";
+    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
   }
 
   {
-    char const name[] = "mydomain.loki.example";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "mydomain.loki.example";
+    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
   }
 
   {
-    char const name[] = "mydomain.loki.com";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "mydomain.loki.com";
+    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
   }
 
   {
-    char const name[] = "mydomain.com";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "mydomain.com";
+    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
   }
 
   {
-    char const name[] = "mydomain";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "mydomain";
+    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
   }
 
   {
-    char const name[] = "xn--bcher-kva.lok";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "xn--bcher-kva.lok";
+    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
   }
 
   {
-    char const name[] = "a_b_c.loki";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name, loki::char_count(name)));
+    std::string const name = "a_b_c.loki";
+    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
   }
 }

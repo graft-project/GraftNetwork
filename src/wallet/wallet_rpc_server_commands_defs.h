@@ -2870,10 +2870,10 @@ namespace wallet_rpc
   {
     struct request_t
     {
-      std::string        type;             // The mapping type, either "blockchain", "lokinet", "messenger" or if custom, a value between [65-65536] (0-2 map to the predefined mappings listed earlier).
+      std::string        type;             // The mapping type, either "blockchain", "lokinet", "session" or if custom, a value between [65-65536] (0-2 map to the predefined mappings listed earlier).
       std::string        owner;            // (Optional): The owner of the mapping (wallet spend key as ed25519 public key in hex). For Lokinet, the owner has the ability to renew the Loki Name Service entry. By default/if field is empty, it is derived from the wallet purchasing the LNS mapping.
       std::string        name;             // The name to purchase via Loki Name Service
-      std::string        value;            // The value that the name maps to via Loki Name Service, (i.e. For wallets: name -> wallet address. For messenger: display name -> messenger public key. For Lokinet: name -> domain name).
+      std::string        value;            // The value that the name maps to via Loki Name Service, (i.e. For wallets: name -> wallet address. For session: display name -> session public key. For Lokinet: name -> domain name).
 
       uint32_t           account_index;    // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;  // (Optional) Transfer from this set of subaddresses. (Defaults to 0)

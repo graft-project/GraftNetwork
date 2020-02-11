@@ -78,3 +78,4 @@
 
 // Loki:
 #define WALLET_RPC_ERROR_CODE_BLINK_FAILED           -1000
+#define WALLET_RPC_ERROR_CODE_HF_QUERY_FAILED        -1001

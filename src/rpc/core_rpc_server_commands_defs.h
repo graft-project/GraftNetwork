@@ -3416,16 +3416,16 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
   };
 
   LOKI_RPC_DOC_INTROSPECT
-  // Get the name mapping for a Loki Name Service entry. Loki supports mappings
-  // from the Blockchain, Lokinet, Messenger and custom types.
+  // Get the name mapping for a Loki Name Service entry. Loki currently supports mappings
+  // for Session.
   struct COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS
   {
     static size_t const MAX_REQUEST_ENTRIES      = 256;
     static size_t const MAX_TYPE_REQUEST_ENTRIES = 16;
     struct request_entry
     {
-      std::string name; // The name to resolve to a public key via Loki Name Service
-      std::vector<uint16_t> types; // [0-2] for Blockchain, Lokinet and Messenger and [65-65536] for custom types, you may request up to 16 types
+      std::string name;            // The name to resolve to a public key via Loki Name Service
+      std::vector<uint16_t> types; // Set 0 for Session. In future updates more mapping types will be available.
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(name)
         KV_SERIALIZE(types)
@@ -3442,18 +3442,18 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
 
     struct response_entry
     {
-      uint64_t entry_index;       // The index in request_entry's `entries` array that was resolved via Loki Name Service
-      uint16_t type;              // The type of Loki Name Service entry that the owner owns.
-      std::string owner;          // The ed25519 public key that purchased the Loki Name Service entry.
-      std::string pubkey;         // The public key that was resolved from the given name
-      uint64_t register_height;   // The height that this Loki Name Service entry was purchased on the Blockchain
-      std::string txid;          // The txid of who purchased the mapping (only applicable to Lokinet and if the Lokinet entry previously existed), null hash if not applicable
-      std::string prev_txid; // The previous txid that purchased the mapping (only applicable to Lokinet and if the Lokinet entry previously existed), null hash if not applicable
+      uint64_t entry_index;     // The index in request_entry's `entries` array that was resolved via Loki Name Service.
+      uint16_t type;            // The type of Loki Name Service entry that the owner owns.
+      std::string owner;        // The ed25519 public key that purchased the Loki Name Service entry.
+      std::string value;        // The value that the name maps to.
+      uint64_t register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      std::string txid;         // The txid of who purchased the mapping, null hash if not applicable.
+      std::string prev_txid;    // The previous txid that purchased the mapping, null hash if not applicable.
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(entry_index)
         KV_SERIALIZE(type)
         KV_SERIALIZE(owner)
-        KV_SERIALIZE(pubkey)
+        KV_SERIALIZE(value)
         KV_SERIALIZE(register_height)
         KV_SERIALIZE(txid)
         KV_SERIALIZE(prev_txid)
@@ -3472,9 +3472,9 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
   };
 
   LOKI_RPC_DOC_INTROSPECT
-  // Get all the name mappings for the queried owner. The owner should a ED25519
-  // public key, by default this is the purchaser's wallet spend key used to
-  // seed an ED25519 key.
+  // Get all the name mappings for the queried owner. The owner should be
+  // a ed25519 public key; by default this is the public key of an ed25519
+  // keypair derived using the wallet's secret spend key as the seed value.
   struct COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES
   {
     static size_t const MAX_REQUEST_ENTRIES = 256;
@@ -3488,16 +3488,16 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
 
     struct response_mapping
     {
-      uint16_t    type;            // The cateogry the Loki Name Service entry belongs to (blockchain = 0, lokinet = 1, messenger = 2, otherwise custom)
+      uint16_t    type;            // The category the Loki Name Service entry belongs to, currently only Session whose value is 0.
       std::string name;            // The ed25519 public key that purchased the Loki Name Service entry.
-      std::string pubkey;          // The public key that the name maps to.
+      std::string value;           // The value that the name maps to
       uint64_t    register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
-      std::string txid;            // The height that this Loki Name Service entry was purchased on the Blockchain.
-      std::string prev_txid;   // The previous txid that purchased the mapping (only applicable to Lokinet and if the Lokinet entry previously existed), null hash if not applicable
+      std::string txid;            // The txid of who purchases the mapping, null hash if not applicable
+      std::string prev_txid;       // The previous txid that purchased the mapping, null hash if not applicable.
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(type)
         KV_SERIALIZE(name)
-        KV_SERIALIZE(pubkey)
+        KV_SERIALIZE(value)
         KV_SERIALIZE(txid)
         KV_SERIALIZE(prev_txid)
       END_KV_SERIALIZE_MAP()

@@ -1,6 +1,6 @@
 #include "sn_network.h"
 #include "bt_serialize.h"
-#include "common/loki.h"
+#include "common/hex.h"
 #include <ostream>
 #ifdef __cpp_lib_string_view
 #include <string_view>
@@ -934,7 +934,7 @@ void SNNetwork::proxy_to_worker(size_t conn_index, std::list<zmq::message_t> &&p
             const char *pubkey_hex = parts.back().gets("User-Id");
             auto len = std::strlen(pubkey_hex);
             assert(len == 66 && (pubkey_hex[0] == 'S' || pubkey_hex[0] == 'C') && pubkey_hex[1] == ':');
-            pubkey = loki::from_hex(pubkey_hex + 2, pubkey_hex + 66);
+            pubkey = hex::from_hex(pubkey_hex + 2, pubkey_hex + 66);
             remote_is_sn = pubkey_hex[0] == 'S';
         } catch (...) {
             SN_LOG(error, "Internal error: socket User-Id not set or invalid; dropping message");

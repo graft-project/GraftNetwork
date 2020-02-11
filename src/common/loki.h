@@ -36,39 +36,20 @@
 #include <cstdint>
 #include <string>
 #include <iterator>
+#include <cassert>
 
 #define LOKI_RPC_DOC_INTROSPECT
 namespace loki
 {
 double      round           (double);
 double      exp2            (double);
-uint64_t    clamp_u64       (uint64_t val, uint64_t min, uint64_t max);
-bool        char_is_hex     (char c);
 
-constexpr char from_hex_digit(char x) {
-    return
-        (x >= '0' && x <= '9') ? x - '0' :
-        (x >= 'a' && x <= 'f') ? x - ('a' - 10):
-        (x >= 'A' && x <= 'F') ? x - ('A' - 10):
-        0;
-}
-constexpr char from_hex_pair(char a, char b) { return (from_hex_digit(a) << 4) | from_hex_digit(b); }
-
-// Creates a string from a character sequence of hex digits.  Undefined behaviour if any characters
-// are not in [0-9a-fA-F] or if the input sequence length is not even.
-template <typename It>
-std::string from_hex(It begin, It end) {
-    using std::distance;
-    using std::next;
-    assert(distance(begin, end) % 2 == 0);
-    std::string raw;
-    raw.reserve(distance(begin, end) / 2);
-    while (begin != end) {
-        char a = *begin++;
-        char b = *begin++;
-        raw += from_hex_pair(a, b);
-    }
-    return raw;
+constexpr uint64_t clamp_u64(uint64_t val, uint64_t min, uint64_t max)
+{
+  assert(min <= max);
+  if (val < min) val = min;
+  else if (val > max) val = max;
+  return val;
 }
 
 template <typename lambda_t>

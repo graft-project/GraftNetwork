@@ -3,7 +3,6 @@
 
 #include "crypto/crypto.h"
 #include "cryptonote_config.h"
-#include "cryptonote_basic/tx_extra.h"
 
 #include <string>
 
@@ -15,19 +14,20 @@ struct checkpoint_t;
 struct block;
 struct transaction;
 struct account_address;
+struct tx_extra_loki_name_system;
 class Blockchain;
 }; // namespace cryptonote
 
 namespace lns
 {
 
-constexpr uint64_t BLOCKCHAIN_NAME_MAX                = 96;
-constexpr uint64_t LOKINET_DOMAIN_NAME_MAX            = 253;
-constexpr uint64_t LOKINET_ADDRESS_BINARY_LENGTH      = sizeof(crypto::ed25519_public_key);
-constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX         = 64;
-constexpr uint64_t MESSENGER_PUBLIC_KEY_BINARY_LENGTH = 1 + sizeof(crypto::ed25519_public_key); // Messenger keys at prefixed with 0x05 + ed25519 key
-constexpr uint64_t GENERIC_NAME_MAX                   = 255;
-constexpr uint64_t GENERIC_VALUE_MAX                  = 255;
+constexpr size_t WALLET_NAME_MAX                  = 96;
+constexpr size_t LOKINET_DOMAIN_NAME_MAX          = 253;
+constexpr size_t LOKINET_ADDRESS_BINARY_LENGTH    = sizeof(crypto::ed25519_public_key);
+constexpr size_t SESSION_DISPLAY_NAME_MAX         = 64;
+constexpr size_t SESSION_PUBLIC_KEY_BINARY_LENGTH = 1 + sizeof(crypto::ed25519_public_key); // Session keys at prefixed with 0x05 + ed25519 key
+constexpr size_t GENERIC_NAME_MAX                 = 255;
+constexpr size_t GENERIC_VALUE_MAX                = 255;
 
 struct lns_value
 {
@@ -35,14 +35,33 @@ struct lns_value
   size_t len;
 };
 
-uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version);
+enum struct mapping_type : uint16_t
+{
+  session              = 0,
+  wallet               = 1,
+  lokinet              = 2,
+  start_unusable_range = 3,
+  end_unusable_range   = 64,
+};
+
+enum struct burn_type
+{
+  none,
+  lokinet_1year,
+  session,
+  wallet,
+  custom,
+};
+
+burn_type    mapping_type_to_burn_type(mapping_type in);
+uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version, burn_type type);
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window = nullptr);
-bool         validate_lns_name(uint16_t type, char const *name, int name_len, std::string *reason = nullptr);
+bool         validate_lns_name(uint16_t type, std::string const &name, std::string *reason = nullptr);
 
 // blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
-bool         validate_lns_value(cryptonote::network_type nettype, uint16_t type, char const *value, int value_len, lns_value *blob = nullptr, std::string *reason = nullptr);
-bool         validate_lns_value_binary(uint16_t type, char const *value, int value_len, std::string *reason = nullptr);
+bool         validate_lns_value(cryptonote::network_type nettype, uint16_t type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_lns_value_binary(uint16_t type, std::string const &value, std::string *reason = nullptr);
 
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
 
@@ -85,6 +104,13 @@ struct mapping_record
   crypto::hash prev_txid;
 };
 
+struct mapping_and_user_record
+{
+  operator bool() const { return mapping.loaded; }
+  mapping_record mapping;
+  crypto::ed25519_public_key owner;
+};
+
 struct name_system_db
 {
   bool            init        (cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash);
@@ -101,11 +127,11 @@ struct name_system_db
 
   user_record                 get_user_by_key     (crypto::ed25519_public_key const &key) const;
   user_record                 get_user_by_id      (int64_t user_id) const;
-  mapping_record              get_mapping         (uint16_t type, char const *name, size_t name_len) const;
   mapping_record              get_mapping         (uint16_t type, std::string const &name) const;
 
   // return: Array of records in sorted order by their register height, ties dealt by name lexicographiclly
   std::vector<mapping_record> get_mappings_by_user(crypto::ed25519_public_key const &key) const;
+  mapping_and_user_record     get_mapping_by_name_and_type(mapping_type type, std::string const &name) const;
   settings_record             get_settings        () const;
 
   bool                        validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr) const;
@@ -127,6 +153,7 @@ private:
   sqlite3_stmt             *prune_users_sql                      = nullptr;
   sqlite3_stmt             *get_mappings_by_user_sql             = nullptr;
   sqlite3_stmt             *get_mappings_on_height_and_newer_sql = nullptr;
+  sqlite3_stmt             *get_mapping_by_name_and_type_sql     = nullptr;
 
 };
 

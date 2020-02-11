@@ -45,6 +45,7 @@ using namespace epee;
 #include "common/util.h"
 #include "common/perf_timer.h"
 #include "common/random.h"
+#include "common/base32z.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/account.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
@@ -3354,26 +3355,28 @@ namespace cryptonote
 
       for (uint16_t type : request.types)
       {
-        if (lns::mapping_record mapping = db.get_mapping(type, request.name))
+        if (lns::mapping_and_user_record record = db.get_mapping_by_name_and_type(static_cast<lns::mapping_type>(type), request.name))
         {
-          if (lns::user_record user = db.get_user_by_id(mapping.user_id))
+          res.entries.emplace_back();
+          COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
+          entry.entry_index         = request_index;
+          entry.type                = type;
+          entry.owner               = epee::string_tools::pod_to_hex(record.owner);
+
+          if (static_cast<lns::mapping_type>(type) == lns::mapping_type::lokinet)
           {
-            res.entries.emplace_back();
-            COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
-            entry.entry_index         = request_index;
-            entry.type                = type;
-            entry.owner               = epee::string_tools::pod_to_hex(user.key);
-            entry.pubkey              = mapping.value;
-            entry.register_height     = mapping.register_height;
-            entry.txid                = epee::string_tools::pod_to_hex(mapping.txid);
-            entry.prev_txid           = epee::string_tools::pod_to_hex(mapping.prev_txid);
+            char buf[64] = {};
+            base32z::encode(record.mapping.value, buf);
+            entry.value = std::string(buf) + ".loki";
           }
           else
           {
-            error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-            error_resp.message = "Invalid mapping for name = " + request.name + ", specifies non-existent user with id =  " + std::to_string(mapping.user_id);
-            return false;
+            entry.value = record.mapping.value;
           }
+
+          entry.register_height     = record.mapping.register_height;
+          entry.txid                = epee::string_tools::pod_to_hex(record.mapping.txid);
+          entry.prev_txid           = epee::string_tools::pod_to_hex(record.mapping.prev_txid);
         }
       }
     }
@@ -3408,7 +3411,18 @@ namespace cryptonote
           COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_mapping &mapping = entry.mappings.back();
           mapping.type                = db_mapping.type;
           mapping.name                = db_mapping.name;
-          mapping.pubkey              = db_mapping.value;
+
+          if (static_cast<lns::mapping_type>(mapping.type) == lns::mapping_type::lokinet)
+          {
+            char buf[64] = {};
+            base32z::encode(db_mapping.value, buf);
+            mapping.value = std::string(buf) + ".loki";
+          }
+          else
+          {
+            mapping.value = db_mapping.value;
+          }
+
           mapping.register_height     = db_mapping.register_height;
           mapping.txid                = epee::string_tools::pod_to_hex(db_mapping.txid);
           mapping.prev_txid           = epee::string_tools::pod_to_hex(db_mapping.prev_txid);

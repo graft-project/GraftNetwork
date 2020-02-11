@@ -498,17 +498,3 @@ loki::round (double x)
   return z;
 }
 
-uint64_t loki::clamp_u64(uint64_t val, uint64_t min, uint64_t max)
-{
-  assert(min <= max);
-  if (val < min) val = min;
-  else if (val > max) val = max;
-  return val;
-}
-
-bool loki::char_is_hex(char c)
-{
-  bool result = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-  return result;
-}
-

@@ -62,18 +62,6 @@
 #define TX_EXTRA_NONCE_PAYMENT_ID               0x00
 #define TX_EXTRA_NONCE_ENCRYPTED_PAYMENT_ID     0x01
 
-namespace lns
-{
-enum struct mapping_type : uint16_t
-{
-  messenger      = 0,
-  start_reserved = 1,
-  blockchain     = 2,
-  lokinet        = 3,
-  end_reserved   = 64,
-};
-}
-
 namespace service_nodes {
   enum class new_state : uint16_t
   {
@@ -401,7 +389,7 @@ namespace cryptonote
     uint16_t                   type;
     std::string                name;
     std::string                value; // binary format of the name->value mapping
-    crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping, only applicable if lokinet
+    crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping
 
     tx_extra_loki_name_system() = default;
     tx_extra_loki_name_system(crypto::ed25519_public_key const &owner, uint16_t type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
@@ -419,8 +407,7 @@ namespace cryptonote
       FIELD(type);
       FIELD(name);
       FIELD(value);
-      if (type == static_cast<uint16_t>(lns::mapping_type::lokinet))
-        FIELD(prev_txid);
+      FIELD(prev_txid);
     END_SERIALIZE()
   };
 

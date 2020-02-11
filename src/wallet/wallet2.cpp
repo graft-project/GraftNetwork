@@ -7671,7 +7671,8 @@ uint32_t wallet2::adjust_priority(uint32_t priority)
   }
   return priority;
 }
-loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx_type, uint32_t priority)
+
+loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx_type, uint32_t priority, lns::burn_type lns_burn_type)
 {
   loki_construct_tx_params tx_params;
   tx_params.hf_version = hf_version;
@@ -7680,7 +7681,7 @@ loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx
   if (tx_type == txtype::loki_name_system)
   {
     assert(priority != tools::tx_priority_blink);
-    tx_params.burn_fixed   = lns::burn_requirement_in_atomic_loki(hf_version);
+    tx_params.burn_fixed   = lns::burn_requirement_in_atomic_loki(hf_version, lns_burn_type);
   }
   else if (priority == tools::tx_priority_blink)
   {
@@ -7951,12 +7952,6 @@ bool wallet2::is_output_blackballed(const std::pair<uint64_t, uint64_t> &output)
   catch (const std::exception &e) { return false; }
 }
 
-static const char *ERR_MSG_NETWORK_VERSION_QUERY_FAILED = tr("Could not query the current network version, try later");
-static const char *ERR_MSG_NETWORK_HEIGHT_QUERY_FAILED = tr("Could not query the current network block height, try later: ");
-static const char *ERR_MSG_SERVICE_NODE_LIST_QUERY_FAILED = tr("Failed to query daemon for service node list");
-static const char *ERR_MSG_TOO_MANY_TXS_CONSTRUCTED = tr("Constructed too many transations, please sweep_all first");
-static const char *ERR_MSG_EXCEPTION_THROWN = tr("Exception thrown, staking process could not be completed: ");
-
 wallet2::stake_result wallet2::check_stake_allowed(const crypto::public_key& sn_key, const cryptonote::address_parse_info& addr_info, uint64_t& amount, double fraction)
 {
   wallet2::stake_result result = {};
@@ -8165,7 +8160,8 @@ wallet2::stake_result wallet2::create_stake_tx(const crypto::public_key& service
       return result;
     }
 
-    auto ptx_vector      = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_at_block, priority, extra, subaddr_account, subaddr_indices, txtype::stake);
+    loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::stake, priority);
+    auto ptx_vector      = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_at_block, priority, extra, subaddr_account, subaddr_indices, tx_params);
     if (ptx_vector.size() == 1)
     {
       result.status = stake_result_status::success;
@@ -8401,7 +8397,8 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
       cryptonote::address_parse_info dest = {};
       dest.address                        = address;
 
-      auto ptx_vector = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, subaddr_account, subaddr_indices, txtype::stake);
+      loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::stake, priority);
+      auto ptx_vector = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, subaddr_account, subaddr_indices, tx_params);
       if (ptx_vector.size() == 1)
       {
         result.status = register_service_node_result_status::success;
@@ -8554,11 +8551,11 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
                                                                     uint32_t account_index,
                                                                     std::set<uint32_t> subaddr_indices)
 {
-  if (!lns::validate_lns_name(type, name.data(), name.size(), reason))
+  if (!lns::validate_lns_name(type, name, reason))
     return {};
 
   lns::lns_value value_blob;
-  if (!lns::validate_lns_value(nettype(), type, value.data(), value.size(), &value_blob, reason))
+  if (!lns::validate_lns_value(nettype(), type, value, &value_blob, reason))
     return {};
 
   if (priority == tools::tx_priority_blink)
@@ -8583,7 +8580,6 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
   }
 
   crypto::hash prev_txid = crypto::null_hash;
-  if (type == static_cast<uint16_t>(lns::mapping_type::lokinet))
   {
     std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry> request = {};
     {
@@ -8597,7 +8593,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
     std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry> response = get_lns_names_to_owners(request, failed);
     if (failed)
     {
-      if (reason) *reason = "Failed to query previous owner for lokinet entry, reason=" + *failed;
+      if (reason) *reason = "Failed to query previous owner for LNS entry, reason=" + *failed;
       return {};
     }
 
@@ -8616,10 +8612,18 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
     }
   }
 
-  tx_extra_loki_name_system entry(pkey, type, name, value, prev_txid);
+  boost::optional<uint8_t> hf_version = get_hard_fork_version();
+  if (!hf_version)
+  {
+    if (reason) *reason = ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+    return {};
+  }
 
   std::vector<uint8_t> extra;
+  tx_extra_loki_name_system entry(pkey, type, name, value, prev_txid);
   add_loki_name_system_to_tx_extra(extra, entry);
+
+  loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, lns::mapping_type_to_burn_type(static_cast<lns::mapping_type>(type)));
   auto result = create_transactions_2({} /*dests*/,
                                       CRYPTONOTE_DEFAULT_TX_MIXIN,
                                       0 /*unlock_at_block*/,
@@ -8627,7 +8631,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
                                       extra,
                                       account_index,
                                       subaddr_indices,
-                                      txtype::loki_name_system);
+                                      tx_params);
   return result;
 }
 
@@ -10354,7 +10358,7 @@ static constexpr uint64_t BURN_FEE_PLACEHOLDER = (1ULL << (6*7)) - 1;
 // This system allows for sending (almost) the entire balance, since it does
 // not generate spurious change in all txes, thus decreasing the instantaneous
 // usable balance.
-std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, cryptonote::txtype tx_type)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, loki_construct_tx_params &tx_params)
 {
   //ensure device is let in NONE mode in any case
   hw::device &hwdev = m_account.get_device();
@@ -10362,7 +10366,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   hw::reset_mode rst(hwdev);  
 
   auto original_dsts = dsts;
-  if (tx_type == txtype::loki_name_system)
+  if (tx_params.tx_type == txtype::loki_name_system)
   {
     THROW_WALLET_EXCEPTION_IF(dsts.size() != 0, error::wallet_internal_error, "loki name system txs must not have any destinations set, has: " + std::to_string(dsts.size()));
     dsts.emplace_back(0, account_public_address{} /*address*/, false /*is_subaddress*/); // NOTE: Create a dummy dest that gets repurposed into the change output.
@@ -10425,18 +10429,14 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   uint64_t fixed_fee = 0;
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
 
-  boost::optional<uint8_t> hf_version = get_hard_fork_version();
-  THROW_WALLET_EXCEPTION_IF(!hf_version, error::get_hard_fork_version_error, "Failed to query current hard fork version");
-
-  loki_construct_tx_params loki_tx_params = tools::wallet2::construct_params(*hf_version, tx_type, priority);
   uint64_t burn_fixed = 0, burn_percent = 0;
   // Swap these out because we don't want them present for building intermediate temporary tx
   // calculations (which we don't actually use); we'll set them again at the end before we build the
   // real transactions.
-  std::swap(burn_fixed, loki_tx_params.burn_fixed);
-  std::swap(burn_percent, loki_tx_params.burn_percent);
+  std::swap(burn_fixed, tx_params.burn_fixed);
+  std::swap(burn_percent, tx_params.burn_percent);
   bool burning = burn_fixed || burn_percent;
-  THROW_WALLET_EXCEPTION_IF(burning && loki_tx_params.hf_version < HF_VERSION_FEE_BURNING, error::wallet_internal_error, "cannot construct transaction: cannot burn amounts under the current hard fork");
+  THROW_WALLET_EXCEPTION_IF(burning && tx_params.hf_version < HF_VERSION_FEE_BURNING, error::wallet_internal_error, "cannot construct transaction: cannot burn amounts under the current hard fork");
   std::vector<uint8_t> extra_plus; // Copy and modified from input if modification needed
   const std::vector<uint8_t> &extra = burning ? extra_plus : extra_base;
   if (burning)
@@ -10455,14 +10455,14 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   needed_money = 0;
   for(auto& dt: dsts)
   {
-    THROW_WALLET_EXCEPTION_IF(0 == dt.amount && (tx_type != txtype::loki_name_system), error::zero_destination);
+    THROW_WALLET_EXCEPTION_IF(0 == dt.amount && (tx_params.tx_type != txtype::loki_name_system), error::zero_destination);
     needed_money += dt.amount;
     LOG_PRINT_L2("transfer: adding " << print_money(dt.amount) << ", for a total of " << print_money (needed_money));
     THROW_WALLET_EXCEPTION_IF(needed_money < dt.amount, error::tx_sum_overflow, dsts, 0, m_nettype);
   }
 
   // throw if attempting a transaction with no money
-  THROW_WALLET_EXCEPTION_IF(needed_money == 0 && (tx_type != txtype::loki_name_system), error::zero_destination);
+  THROW_WALLET_EXCEPTION_IF(needed_money == 0 && (tx_params.tx_type != txtype::loki_name_system), error::zero_destination);
 
   std::map<uint32_t, std::pair<uint64_t, uint64_t>> unlocked_balance_per_subaddr = unlocked_balance_per_subaddress(subaddr_account);
   std::map<uint32_t, uint64_t> balance_per_subaddr = balance_per_subaddress(subaddr_account);
@@ -10476,7 +10476,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   // early out if we know we can't make it anyway
   // we could also check for being within FEE_PER_KB, but if the fee calculation
   // ever changes, this might be missed, so let this go through
-  const uint64_t num_outputs = tx_type == txtype::loki_name_system ? 1 : 2;
+  const uint64_t num_outputs = tx_params.tx_type == txtype::loki_name_system ? 1 : 2;
   {
     uint64_t min_fee = (
         base_fee.first * estimate_rct_tx_size(1, fake_outs_count, num_outputs, extra.size()) +
@@ -10653,7 +10653,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       idx = pop_back(preferred_inputs);
       pop_if_present(*unused_transfers_indices, idx);
       pop_if_present(*unused_dust_indices, idx);
-    } else if ((dsts.empty() || (dsts[0].amount == 0 && tx_type != txtype::loki_name_system)) && !adding_fee) {
+    } else if ((dsts.empty() || (dsts[0].amount == 0 && tx_params.tx_type != txtype::loki_name_system)) && !adding_fee) {
       // NOTE: A LNS tx sets dsts[0].amount to 0, but this branch is for the
       // 2 inputs/2 outputs. We only have 1 output as LNS transactions are
       // distinguishable, so we actually want the last branch which uses unused
@@ -10771,7 +10771,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       LOG_PRINT_L2("Trying to create a tx now, with " << tx.dsts.size() << " outputs and " <<
         tx.selected_transfers.size() << " inputs");
       transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
-          test_tx, test_ptx, rct_config, loki_tx_params);
+          test_tx, test_ptx, rct_config, tx_params);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
       needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount + (!test_ptx.dust_added_to_fee ? test_ptx.dust : 0);
@@ -10810,7 +10810,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         LOG_PRINT_L2("We made a tx, adjusting fee and saving it, we need " << print_money(needed_fee) << " and we have " << print_money(test_ptx.fee));
         while (needed_fee > test_ptx.fee) {
           transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
-              test_tx, test_ptx, rct_config, loki_tx_params);
+              test_tx, test_ptx, rct_config, tx_params);
           txBlob = t_serializable_object_to_blob(test_ptx.tx);
           needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
           LOG_PRINT_L2("Made an attempt at a  final " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(test_ptx.fee) <<
@@ -10872,9 +10872,9 @@ skip_tx:
     // fee percent)
     if (burning)
     {
-      loki_tx_params.burn_fixed = burn_fixed + tx.needed_fee * burn_percent / fee_percent;
+      tx_params.burn_fixed = burn_fixed + tx.needed_fee * burn_percent / fee_percent;
       // Make sure we can't enlarge the tx because that could make it invalid:
-      THROW_WALLET_EXCEPTION_IF(loki_tx_params.burn_fixed > BURN_FEE_PLACEHOLDER, error::wallet_internal_error, "attempt to burn a larger amount than is internally supported");
+      THROW_WALLET_EXCEPTION_IF(tx_params.burn_fixed > BURN_FEE_PLACEHOLDER, error::wallet_internal_error, "attempt to burn a larger amount than is internally supported");
     }
 
     cryptonote::transaction test_tx;
@@ -10889,7 +10889,7 @@ skip_tx:
                             test_tx,                    /* OUT   cryptonote::transaction& tx, */
                             test_ptx,                   /* OUT   cryptonote::transaction& tx, */
                             rct_config,
-                            loki_tx_params);
+                            tx_params);
     auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
     tx.tx = test_tx;
     tx.ptx = test_ptx;

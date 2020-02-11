@@ -57,6 +57,7 @@
 #include "common/dns_utils.h"
 #include "common/base58.h"
 #include "common/scoped_message_writer.h"
+#include "common/hex.h"
 #include "common/loki_integration_test_hooks.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
 #include "cryptonote_core/service_node_voting.h"
@@ -267,8 +268,8 @@ namespace
   const char* USAGE_STAKE("stake [index=<N1>[,<N2>,...]] [<priority>] <service node pubkey> <amount|percent%>");
   const char* USAGE_REQUEST_STAKE_UNLOCK("request_stake_unlock <service_node_pubkey>");
   const char* USAGE_PRINT_LOCKED_STAKES("print_locked_stakes");
-  const char* USAGE_BUY_LNS_MAPPING("buy_lns_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner] (blockchain|lokinet|messenger|<custom_type_as_number>) \"<name>\" <value>");
-  const char* USAGE_PRINT_LNS_OWNERS_TO_NAMES("print_lns_owners_to_names [<64 hex character ed25519 key>]");
+  const char* USAGE_BUY_LNS_MAPPING("buy_lns_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner] \"<name>\" <value>");
+  const char* USAGE_PRINT_LNS_OWNERS_TO_NAMES("print_lns_owners_to_names [<64 hex character ed25519 public key>]");
   const char* USAGE_PRINT_LNS_NAME_TO_OWNERS("print_lns_name_to_owners [type=<N1|all>[,<N2>...]] \"name\"");
 
 #if defined (LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
@@ -3217,12 +3218,11 @@ simple_wallet::simple_wallet()
                            tr(USAGE_PRINT_LOCKED_STAKES),
                            tr("Print stakes currently locked on the Service Node network"));
   std::stringstream stream;
-  stream << "Buy a Loki Name Service mapping. Specifying `owner` is optional and defaults to the purchasing wallet if empty or not specified. The `owner` is an ED25519 public key, by default derived from the wallet's spend key. You are able to purchase the following mappings\n\n";
-
-  stream << "Blockchain: (max: " << lns::BLOCKCHAIN_NAME_MAX        << " bytes) map a human readable name to a wallet address\n";
-  stream << "Lokinet:    (max: " << lns::LOKINET_DOMAIN_NAME_MAX    << " bytes) map a human readable domain name to a <public_key>.loki address on Lokinet\n";
-  stream << "Messenger:  (max: " << lns::MESSENGER_DISPLAY_NAME_MAX << " bytes) map a human readable name to a messenger public key for Loki Messenger\n";
-  stream << "Custom:     (max: " << lns::GENERIC_NAME_MAX           << " bytes) map a human readable name to an arbitrary integer (note, [0-64] are currently reserved by Loki) in the database for custom applications\n";
+  stream << "Buy a Loki Name Service mapping. Specifying `owner` is optional and defaults to the purchasing wallet if "
+            "empty or not specified. The `owner` should be a ed25519 public key; by default this is the public key of "
+            "an ed25519 keypair derived using the wallet's secret spend key as the seed value. You are currently only "
+            "able to purchase Session mappings\n\n";
+  stream << "Session: (max: " << lns::SESSION_DISPLAY_NAME_MAX << " bytes) map a human readable name to a Session public key.\n";
 
   m_cmd_binder.set_handler("buy_lns_mapping",
                            boost::bind(&simple_wallet::buy_lns_mapping, this, _1),
@@ -3237,8 +3237,7 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("print_lns_name_to_owners",
                            boost::bind(&simple_wallet::print_lns_name_to_owners, this, _1),
                            tr(USAGE_PRINT_LNS_NAME_TO_OWNERS),
-                           tr("Query the keys that own the Loki Name Service names, where types can be a number from [0-65536] or, \"blockchain\", \"lokinet\", \"messenger\". If type is ommitted, all loki name protocols will be queried (blockchain, lokinet and messenger only)\n"
-                              "You may only query 1 custom type per invocation."));
+                           tr("Query the ed25519 public keys that own the Loki Name System names."));
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::set_variable(const std::vector<std::string> &args)
@@ -5721,23 +5720,6 @@ bool simple_wallet::confirm_and_send_tx(std::vector<cryptonote::address_parse_in
         worst_fee_per_byte = fee_per_byte;
       }
     }
-    try
-    {
-      std::vector<std::pair<uint64_t, uint64_t>> nblocks = m_wallet->estimate_backlog({std::make_pair(worst_fee_per_byte, worst_fee_per_byte)});
-      if (nblocks.size() != 1)
-      {
-        prompt << "Internal error checking for backlog. " << tr("Is this okay anyway?");
-      }
-      else
-      {
-        if (nblocks[0].first > m_wallet->get_confirm_backlog_threshold())
-          prompt << (boost::format(tr("There is currently a %u block backlog at that fee level. Is this okay?")) % nblocks[0].first).str();
-      }
-    }
-    catch (const std::exception &e)
-    {
-      prompt << tr("Failed to check for backlog: ") << e.what() << ENDL << tr("Is this okay anyway?");
-    }
 
     std::string prompt_str = prompt.str();
     if (!prompt_str.empty())
@@ -5807,7 +5789,7 @@ bool simple_wallet::confirm_and_send_tx(std::vector<cryptonote::address_parse_in
 
       if (lock_time_in_blocks > 0)
       {
-        float days = lock_time_in_blocks / 720.0f;
+        float days = lock_time_in_blocks / BLOCKS_EXPECTED_IN_DAYS(1.f);
         prompt << boost::format(tr(".\nThis transaction (including %s change) will unlock on block %llu, in approximately %s days (assuming 2 minutes per block)")) % cryptonote::print_money(change) % ((unsigned long long)unlock_block) % days;
       }
 
@@ -6105,7 +6087,16 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
       }
       unlock_block = bc_height + locked_blocks;
     }
-    ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block, priority, extra, m_current_subaddress_account, subaddr_indices);
+
+    boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+    if (!hf_version)
+    {
+      fail_msg_writer() << tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+      return false;
+    }
+
+    loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::standard, priority);
+    ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_block, priority, extra, m_current_subaddress_account, subaddr_indices, tx_params);
 
     if (ptx_vector.empty())
     {
@@ -6573,7 +6564,6 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
     return true;
   }
 
-  std::string const &type  = local_args[0];
   std::string const &value = local_args[local_args.size() - 1];
   std::string name;
 
@@ -6591,7 +6581,14 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
   std::vector<tools::wallet2::pending_tx> ptx_vector;
   try
   {
-    ptx_vector = m_wallet->create_buy_lns_mapping_tx(type, owner, name, value, &reason, priority, m_current_subaddress_account, subaddr_indices);
+    ptx_vector = m_wallet->create_buy_lns_mapping_tx(static_cast<uint16_t>(lns::mapping_type::session),
+                                                     owner,
+                                                     name,
+                                                     value,
+                                                     &reason,
+                                                     priority,
+                                                     m_current_subaddress_account,
+                                                     subaddr_indices);
     if (ptx_vector.empty())
     {
       tools::fail_msg_writer() << reason;
@@ -6681,9 +6678,9 @@ bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& arg
 
   if (entry.types.empty())
   {
-    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::blockchain));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::wallet));
     entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::lokinet));
-    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::messenger));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::session));
   }
 
   boost::optional<std::string> failed;
@@ -6732,7 +6729,7 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
 
       for (char c : arg)
       {
-        if (!loki::char_is_hex(c))
+        if (!hex::char_is_hex(c))
         {
           fail_msg_writer() << "arg contains a non-hex character = " << c << ", arg = " << arg;
           return false;
@@ -6765,7 +6762,7 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
     }
 
     for (cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_mapping const &mapping : entry.mappings)
-      tools::msg_writer() << "owner=" << *owner << ", height=" << mapping.register_height << ", name=\"" << mapping.name << "\", value=" << mapping.pubkey;
+      tools::msg_writer() << "owner=" << *owner << ", height=" << mapping.register_height << ", name=\"" << mapping.name << "\", value=" << mapping.value;
   }
   return true;
 }

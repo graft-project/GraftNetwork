@@ -262,12 +262,6 @@ static bool check_invoke(bool r, T &response, boost::optional<std::string> &fail
     return false;
   }
 
-  if (response.status == CORE_RPC_STATUS_BUSY)
-  {
-    failed = response.status;
-    return false;
-  }
-
   if (response.status != CORE_RPC_STATUS_OK)
   {
     failed = response.status;
