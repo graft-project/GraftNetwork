@@ -3498,6 +3498,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         KV_SERIALIZE(type)
         KV_SERIALIZE(name)
         KV_SERIALIZE(value)
+        KV_SERIALIZE(register_height)
         KV_SERIALIZE(txid)
         KV_SERIALIZE(prev_txid)
       END_KV_SERIALIZE_MAP()
