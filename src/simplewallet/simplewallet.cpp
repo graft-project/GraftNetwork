@@ -6551,23 +6551,23 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
   std::set<uint32_t> subaddr_indices  = {};
   if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority)) return false;
 
-  std::string owner;
-  if (bool has_owner = (local_args.size() == 4))
-  {
-    owner = local_args[0];
-    local_args.erase(local_args.begin());
-  }
-
-  if (local_args.size() < 3)
+  if (local_args.size() < 2)
   {
     PRINT_USAGE(USAGE_BUY_LNS_MAPPING);
     return true;
   }
 
+  std::string owner;
+  if (bool has_owner = (local_args.size() == 3))
+  {
+    owner = local_args[0];
+    local_args.erase(local_args.begin());
+  }
+
   std::string const &value = local_args[local_args.size() - 1];
   std::string name;
 
-  size_t first_word_index = 1;
+  size_t first_word_index = 0;
   size_t last_word_index  = local_args.size() - 2;
   if (!parse_lns_name_string(local_args, first_word_index, last_word_index, name))
   {

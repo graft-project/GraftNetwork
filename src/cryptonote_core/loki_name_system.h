@@ -38,9 +38,9 @@ struct lns_value
 enum struct mapping_type : uint16_t
 {
   session              = 0,
-  wallet               = 1,
-  lokinet              = 2,
-  start_unusable_range = 3,
+  start_unusable_range = 1,
+  wallet               = 2,
+  lokinet              = 3,
   end_unusable_range   = 64,
 };
 

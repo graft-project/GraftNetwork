@@ -3480,7 +3480,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     static size_t const MAX_REQUEST_ENTRIES = 256;
     struct request
     {
-      std::vector<std::string> entries; // The ed25519 public key to find all Loki Name Service entries for.
+      std::vector<std::string> entries; // The owner's public key to find all Loki Name Service entries for.
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(entries)
       END_KV_SERIALIZE_MAP()
@@ -3490,7 +3490,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     {
       uint64_t    request_index;   // The index in request's `entries` array that was resolved via Loki Name Service.
       uint16_t    type;            // The category the Loki Name Service entry belongs to, currently only Session whose value is 0.
-      std::string name;            // The ed25519 public key that purchased the Loki Name Service entry.
+      std::string name;            // The name purchased via Loki Name Service
       std::string value;           // The value that the name maps to
       uint64_t    register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
       std::string txid;            // The txid of who purchases the mapping, null hash if not applicable
@@ -3501,6 +3501,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         KV_SERIALIZE(value)
         KV_SERIALIZE(register_height)
         KV_SERIALIZE(txid)
+        KV_SERIALIZE(prev_txid)
       END_KV_SERIALIZE_MAP()
     };
 

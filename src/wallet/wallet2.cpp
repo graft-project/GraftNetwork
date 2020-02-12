@@ -8619,8 +8619,12 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
     return {};
   }
 
+  lns::lns_value blob;
+  if (!lns::validate_lns_value(nettype(), type, value, &blob, reason))
+    return {};
+
   std::vector<uint8_t> extra;
-  tx_extra_loki_name_system entry(pkey, type, name, value, prev_txid);
+  tx_extra_loki_name_system entry(pkey, type, name, std::string(reinterpret_cast<char const *>(blob.buffer.data()), blob.len), prev_txid);
   add_loki_name_system_to_tx_extra(extra, entry);
 
   loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, lns::mapping_type_to_burn_type(static_cast<lns::mapping_type>(type)));

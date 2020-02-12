@@ -764,6 +764,7 @@ CREATE TABLE IF NOT EXISTS "owner"(
 );
 
 CREATE TABLE IF NOT EXISTS "settings" (
+    "id" INTEGER PRIMARY KEY NOT NULL,
     "top_height" INTEGER NOT NULL,
     "top_hash" VARCHAR NOT NULL,
     "version" INTEGER NOT NULL
@@ -807,12 +808,12 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
   char constexpr GET_MAPPING_SQL[]                      = R"(SELECT * FROM "mappings" JOIN "owner" on "mappings"."owner_id" = "owner"."id" WHERE "type" = ? AND "name" = ?)";
   char constexpr GET_OWNER_BY_ID_SQL[]                  = R"(SELECT * FROM "owner" WHERE "id" = ?)";
   char constexpr GET_OWNER_BY_KEY_SQL[]                 = R"(SELECT * FROM "owner" WHERE "public_key" = ?)";
-  char constexpr GET_SETTINGS_SQL[]                     = R"(SELECT * FROM "settings" WHERE "id" = 0)";
+  char constexpr GET_SETTINGS_SQL[]                     = R"(SELECT * FROM "settings" WHERE "id" = 1)";
   char constexpr PRUNE_MAPPINGS_SQL[]                   = R"(DELETE FROM "mappings" WHERE "register_height" >= ?)";
   char constexpr PRUNE_OWNERS_SQL[]                     = R"(DELETE FROM "owner" WHERE "id" NOT IN (SELECT "owner_id" FROM "mappings"))";
   char constexpr SAVE_MAPPING_SQL[]                     = R"(INSERT OR REPLACE INTO "mappings" ("type", "name", "value", "txid", "prev_txid", "register_height", "owner_id") VALUES (?,?,?,?,?,?,?))";
   char constexpr SAVE_OWNER_SQL[]                       = R"(INSERT INTO "owner" ("public_key") VALUES (?);)";
-  char constexpr SAVE_SETTINGS_SQL[]                    = R"(INSERT OR REPLACE INTO "settings" ("rowid", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
+  char constexpr SAVE_SETTINGS_SQL[]                    = R"(INSERT OR REPLACE INTO "settings" ("id", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
 
   sqlite3_stmt *test;
 
@@ -1086,8 +1087,8 @@ bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_ex
 bool name_system_db::save_settings(uint64_t top_height, crypto::hash const &top_hash, int version)
 {
   sqlite3_stmt *statement = save_settings_sql;
-  sqlite3_bind_blob (statement, static_cast<int>(lns_db_setting_row::top_hash),   top_hash.data, sizeof(top_hash), nullptr /*destructor*/);
   sqlite3_bind_int64(statement, static_cast<int>(lns_db_setting_row::top_height), top_height);
+  sqlite3_bind_blob (statement, static_cast<int>(lns_db_setting_row::top_hash),   top_hash.data, sizeof(top_hash), nullptr /*destructor*/);
   sqlite3_bind_int  (statement, static_cast<int>(lns_db_setting_row::version),    version);
   bool result = sql_run_statement(nettype, lns_sql_type::save_setting, statement, nullptr);
   return result;
@@ -1228,7 +1229,7 @@ std::vector<mapping_record> name_system_db::get_mappings_by_owner(crypto::ed2551
 
 settings_record name_system_db::get_settings() const
 {
-  sqlite3_stmt *statement = get_owner_by_id_sql;
+  sqlite3_stmt *statement = get_settings_sql;
   settings_record result  = {};
   result.loaded           = sql_run_statement(nettype, lns_sql_type::get_setting, statement, &result);
   return result;
