@@ -3353,31 +3353,30 @@ namespace cryptonote
       if (exceeds_quantity_limit(ctx, error_resp, m_restricted, request.types.size(), COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::MAX_TYPE_REQUEST_ENTRIES, "types"))
         return false;
 
-      for (uint16_t type : request.types)
+      std::vector<lns::mapping_record> records = db.get_mappings(request.types, request.name);
+      res.entries.reserve(records.size());
+      for (auto const &record : records)
       {
-        if (lns::mapping_and_user_record record = db.get_mapping_by_name_and_type(static_cast<lns::mapping_type>(type), request.name))
+        res.entries.emplace_back();
+        COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
+        entry.entry_index         = request_index;
+        entry.type                = record.type;
+        entry.owner               = epee::string_tools::pod_to_hex(record.owner);
+
+        if (static_cast<lns::mapping_type>(record.type) == lns::mapping_type::lokinet)
         {
-          res.entries.emplace_back();
-          COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
-          entry.entry_index         = request_index;
-          entry.type                = type;
-          entry.owner               = epee::string_tools::pod_to_hex(record.owner);
-
-          if (static_cast<lns::mapping_type>(type) == lns::mapping_type::lokinet)
-          {
-            char buf[64] = {};
-            base32z::encode(record.mapping.value, buf);
-            entry.value = std::string(buf) + ".loki";
-          }
-          else
-          {
-            entry.value = record.mapping.value;
-          }
-
-          entry.register_height     = record.mapping.register_height;
-          entry.txid                = epee::string_tools::pod_to_hex(record.mapping.txid);
-          entry.prev_txid           = epee::string_tools::pod_to_hex(record.mapping.prev_txid);
+          char buf[64] = {};
+          base32z::encode(record.value, buf);
+          entry.value = std::string(buf) + ".loki";
         }
+        else
+        {
+          entry.value = record.value;
+        }
+
+        entry.register_height = record.register_height;
+        entry.txid            = epee::string_tools::pod_to_hex(record.txid);
+        entry.prev_txid       = epee::string_tools::pod_to_hex(record.prev_txid);
       }
     }
 
@@ -3393,12 +3392,12 @@ namespace cryptonote
     lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
     for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
     {
-      std::string const &user = req.entries[request_index];
+      std::string const &owner = req.entries[request_index];
       crypto::ed25519_public_key pkey;
-      if (!epee::string_tools::hex_to_pod(user, pkey))
+      if (!epee::string_tools::hex_to_pod(owner, pkey))
         continue;
 
-      std::vector<lns::mapping_record> db_mappings = db.get_mappings_by_user(pkey);
+      std::vector<lns::mapping_record> db_mappings = db.get_mappings_by_owner(pkey);
       if (db_mappings.size())
       {
         res.entries.emplace_back();
@@ -3423,9 +3422,9 @@ namespace cryptonote
             mapping.value = db_mapping.value;
           }
 
-          mapping.register_height     = db_mapping.register_height;
-          mapping.txid                = epee::string_tools::pod_to_hex(db_mapping.txid);
-          mapping.prev_txid           = epee::string_tools::pod_to_hex(db_mapping.prev_txid);
+          mapping.register_height = db_mapping.register_height;
+          mapping.txid            = epee::string_tools::pod_to_hex(db_mapping.txid);
+          mapping.prev_txid       = epee::string_tools::pod_to_hex(db_mapping.prev_txid);
         }
       }
     }

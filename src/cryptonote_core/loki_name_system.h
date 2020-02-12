@@ -65,7 +65,7 @@ bool         validate_lns_value_binary(uint16_t type, std::string const &value, 
 
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
 
-struct user_record
+struct owner_record
 {
   operator bool() const { return loaded; }
   bool loaded;
@@ -94,21 +94,15 @@ struct mapping_record
   bool active(cryptonote::network_type nettype, uint64_t blockchain_height) const;
   operator bool() const { return loaded; }
 
-  bool         loaded;
-  uint16_t     type; // alias to lns::mapping_type
-  std::string  name;
-  std::string  value;
-  uint64_t     register_height;
-  int64_t      user_id;
-  crypto::hash txid;
-  crypto::hash prev_txid;
-};
-
-struct mapping_and_user_record
-{
-  operator bool() const { return mapping.loaded; }
-  mapping_record mapping;
+  bool                       loaded;
+  uint16_t                   type; // alias to lns::mapping_type
+  std::string                name;
+  std::string                value;
+  uint64_t                   register_height;
+  int64_t                    owner_id;
   crypto::ed25519_public_key owner;
+  crypto::hash               txid;
+  crypto::hash               prev_txid;
 };
 
 struct name_system_db
@@ -118,20 +112,18 @@ struct name_system_db
   void            block_detach(cryptonote::Blockchain const &blockchain, uint64_t height);
   uint64_t        height      () { return last_processed_height; }
 
-  bool            save_user      (crypto::ed25519_public_key const &key, int64_t *row_id);
-  bool            save_mapping   (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t user_id);
+  bool            save_owner      (crypto::ed25519_public_key const &key, int64_t *row_id);
+  bool            save_mapping   (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id);
   bool            save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
 
-  // NOTE: Delete all mappings that are registered on height or newer followed by deleting all users no longer referenced in the DB
+  // NOTE: Delete all mappings that are registered on height or newer followed by deleting all owners no longer referenced in the DB
   bool            prune_db(uint64_t height);
 
-  user_record                 get_user_by_key     (crypto::ed25519_public_key const &key) const;
-  user_record                 get_user_by_id      (int64_t user_id) const;
+  owner_record                get_owner_by_key     (crypto::ed25519_public_key const &key) const;
+  owner_record                get_owner_by_id      (int64_t owner_id) const;
   mapping_record              get_mapping         (uint16_t type, std::string const &name) const;
-
-  // return: Array of records in sorted order by their register height, ties dealt by name lexicographiclly
-  std::vector<mapping_record> get_mappings_by_user(crypto::ed25519_public_key const &key) const;
-  mapping_and_user_record     get_mapping_by_name_and_type(mapping_type type, std::string const &name) const;
+  std::vector<mapping_record> get_mappings        (std::vector<uint16_t> const &types, std::string const &name) const;
+  std::vector<mapping_record> get_mappings_by_owner(crypto::ed25519_public_key const &key) const;
   settings_record             get_settings        () const;
 
   bool                        validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr) const;
@@ -141,20 +133,18 @@ struct name_system_db
   bool                      transaction_begun        = false;
 private:
   cryptonote::network_type  nettype;
-  uint64_t                  last_processed_height                = 0;
-  sqlite3_stmt             *save_user_sql                        = nullptr;
-  sqlite3_stmt             *save_mapping_sql                     = nullptr;
-  sqlite3_stmt             *save_settings_sql                    = nullptr;
-  sqlite3_stmt             *get_user_by_key_sql                  = nullptr;
-  sqlite3_stmt             *get_user_by_id_sql                   = nullptr;
-  sqlite3_stmt             *get_mapping_sql                      = nullptr;
-  sqlite3_stmt             *get_settings_sql                     = nullptr;
-  sqlite3_stmt             *prune_mappings_sql                   = nullptr;
-  sqlite3_stmt             *prune_users_sql                      = nullptr;
-  sqlite3_stmt             *get_mappings_by_user_sql             = nullptr;
-  sqlite3_stmt             *get_mappings_on_height_and_newer_sql = nullptr;
-  sqlite3_stmt             *get_mapping_by_name_and_type_sql     = nullptr;
-
+  uint64_t last_processed_height                     = 0;
+  sqlite3_stmt *save_owner_sql                       = nullptr;
+  sqlite3_stmt *save_mapping_sql                     = nullptr;
+  sqlite3_stmt *save_settings_sql                    = nullptr;
+  sqlite3_stmt *get_owner_by_key_sql                 = nullptr;
+  sqlite3_stmt *get_owner_by_id_sql                  = nullptr;
+  sqlite3_stmt *get_mapping_sql                      = nullptr;
+  sqlite3_stmt *get_settings_sql                     = nullptr;
+  sqlite3_stmt *prune_mappings_sql                   = nullptr;
+  sqlite3_stmt *prune_owners_sql                     = nullptr;
+  sqlite3_stmt *get_mappings_by_owner_sql            = nullptr;
+  sqlite3_stmt *get_mappings_on_height_and_newer_sql = nullptr;
 };
 
 }; // namespace service_nodes

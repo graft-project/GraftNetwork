@@ -53,8 +53,8 @@ struct loki_core_test_deregister_on_split                                       
 struct loki_core_test_state_change_ip_penalty_disallow_dupes                         : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_disallow_reserved_type                                       : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_expiration                                                   : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
-struct loki_name_system_get_mappings_by_user                                         : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
-struct loki_name_system_get_mapping_by_name_and_type                                 : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
+struct loki_name_system_get_mappings_by_owner                                        : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
+struct loki_name_system_get_mappings                                                 : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_handles_duplicate_in_lns_db                                  : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_handles_duplicate_in_tx_pool                                 : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_invalid_tx_extra_params                                      : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
