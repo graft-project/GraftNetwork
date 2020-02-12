@@ -203,7 +203,13 @@ bool mapping_record::active(cryptonote::network_type nettype, uint64_t blockchai
 
 static bool sql_compile_statement(sqlite3 *db, char const *query, int query_len, sqlite3_stmt **statement, bool optimise_for_multiple_usage = true)
 {
-  int prepare_result = sqlite3_prepare_v3(db, query, query_len, optimise_for_multiple_usage ? SQLITE_PREPARE_PERSISTENT : 0, statement, nullptr /*pzTail*/);
+#if SQLITE_VERSION_NUMBER >= 3020000
+  unsigned int prepare_flags = optimise_for_multiple_usage ? SQLITE_PREPARE_PERSISTENT : 0;
+#else
+  unsigned int prepare_flags = 0;
+#endif
+
+  int prepare_result = sqlite3_prepare_v3(db, query, query_len, prepare_flags, statement, nullptr /*pzTail*/);
   bool result        = prepare_result == SQLITE_OK;
   if (!result) MERROR("Can not compile SQL statement: " << query << ", reason: " << sqlite3_errstr(prepare_result));
   return result;
