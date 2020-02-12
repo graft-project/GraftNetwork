@@ -3486,8 +3486,9 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
       END_KV_SERIALIZE_MAP()
     };
 
-    struct response_mapping
+    struct response_entry
     {
+      uint64_t    request_index;   // The index in request's `entries` array that was resolved via Loki Name Service.
       uint16_t    type;            // The category the Loki Name Service entry belongs to, currently only Session whose value is 0.
       std::string name;            // The ed25519 public key that purchased the Loki Name Service entry.
       std::string value;           // The value that the name maps to
@@ -3500,17 +3501,6 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         KV_SERIALIZE(value)
         KV_SERIALIZE(register_height)
         KV_SERIALIZE(txid)
-        KV_SERIALIZE(prev_txid)
-      END_KV_SERIALIZE_MAP()
-    };
-
-    struct response_entry
-    {
-      uint64_t entry_index;                   // The index in request_entry's `entries` array that was resolved via Loki Name Service.
-      std::vector<response_mapping> mappings;
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(entry_index)
-        KV_SERIALIZE(mappings)
       END_KV_SERIALIZE_MAP()
     };
 

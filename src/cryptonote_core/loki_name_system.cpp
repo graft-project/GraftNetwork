@@ -30,12 +30,13 @@ enum struct lns_sql_type
   pruning,
 
   get_sentinel_start,
-  get_owner,
-  get_setting,
   get_mapping,
   get_mappings,
   get_mappings_by_owner,
+  get_mappings_by_owners,
   get_mappings_on_height_and_newer,
+  get_owner,
+  get_setting,
   get_sentinel_end,
 };
 
@@ -123,6 +124,7 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           break;
 
           case lns_sql_type::get_mappings_on_height_and_newer: /* FALLTHRU */
+          case lns_sql_type::get_mappings_by_owners: /* FALLTHRU */
           case lns_sql_type::get_mappings_by_owner: /* FALLTHRU */
           case lns_sql_type::get_mappings: /* FALLTHRU */
           case lns_sql_type::get_mapping:
@@ -447,7 +449,7 @@ bool validate_lns_value(cryptonote::network_type nettype, uint16_t type, std::st
   {
     int max_value_len            = lns::GENERIC_VALUE_MAX;
     bool value_require_exact_len = true;
-    if (type == static_cast<uint16_t>(mapping_type::lokinet))        max_value_len = (LOKINET_ADDRESS_BINARY_LENGTH * 2);
+    if (type == static_cast<uint16_t>(mapping_type::lokinet))      max_value_len = (LOKINET_ADDRESS_BINARY_LENGTH * 2);
     else if (type == static_cast<uint16_t>(mapping_type::session)) max_value_len = (SESSION_PUBLIC_KEY_BINARY_LENGTH * 2);
     else value_require_exact_len = false;
 
@@ -1178,23 +1180,49 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
   return result;
 }
 
+std::vector<mapping_record> name_system_db::get_mappings_by_owners(std::vector<crypto::ed25519_public_key> const &keys) const
+{
+  std::string sql_statement;
+  // Generate string statement
+  {
+    char constexpr SQL_PREFIX[] = R"(SELECT * FROM "mappings" JOIN "owner" ON "mappings"."owner_id" = "owner"."id" WHERE "public_key" in ()";
+    char constexpr SQL_SUFFIX[] = R"())";
+
+    std::stringstream stream;
+    stream << SQL_PREFIX;
+    for (size_t i = 0; i < keys.size(); i++)
+    {
+      stream << "?";
+      if (i < (keys.size() - 1)) stream << ", ";
+    }
+    stream << SQL_SUFFIX;
+    sql_statement = stream.str();
+  }
+
+  // Compile Statement
+  std::vector<mapping_record> result;
+  sqlite3_stmt *statement = nullptr;
+  if (!sql_compile_statement(db, sql_statement.c_str(), sql_statement.size(), &statement, false /*optimise_for_multiple_usage*/))
+    return result;
+
+  // Bind parameters statements
+  int sql_param_index = 1;
+  for (auto const &key : keys)
+    sqlite3_bind_blob(statement, sql_param_index++, key.data, sizeof(key), nullptr /*destructor*/);
+  assert((sql_param_index - 1) == static_cast<int>(keys.size()));
+
+  // Execute
+  sql_run_statement(nettype, lns_sql_type::get_mappings_by_owners, statement, &result);
+  return result;
+}
+
 std::vector<mapping_record> name_system_db::get_mappings_by_owner(crypto::ed25519_public_key const &key) const
 {
   std::vector<mapping_record> result = {};
-#if 0
-  if (lns::owner_record owner = get_owner_by_key(key))
-  {
-    sqlite3_stmt *statement = get_mappings_by_owner_sql;
-    sqlite3_clear_bindings(statement);
-    sqlite3_bind_int(statement, 1 /*sql param index*/, owner.id);
-    sql_run_statement(nettype, lns_sql_type::get_mappings_by_owner, statement, &result);
-  }
-#else
   sqlite3_stmt *statement = get_mappings_by_owner_sql;
   sqlite3_clear_bindings(statement);
   sqlite3_bind_blob(statement, 1 /*sql param index*/, key.data, sizeof(key), nullptr /*destructor*/);
   sql_run_statement(nettype, lns_sql_type::get_mappings_by_owner, statement, &result);
-#endif
   return result;
 }
 

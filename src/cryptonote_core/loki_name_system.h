@@ -119,12 +119,13 @@ struct name_system_db
   // NOTE: Delete all mappings that are registered on height or newer followed by deleting all owners no longer referenced in the DB
   bool            prune_db(uint64_t height);
 
-  owner_record                get_owner_by_key     (crypto::ed25519_public_key const &key) const;
-  owner_record                get_owner_by_id      (int64_t owner_id) const;
-  mapping_record              get_mapping         (uint16_t type, std::string const &name) const;
-  std::vector<mapping_record> get_mappings        (std::vector<uint16_t> const &types, std::string const &name) const;
-  std::vector<mapping_record> get_mappings_by_owner(crypto::ed25519_public_key const &key) const;
-  settings_record             get_settings        () const;
+  owner_record                get_owner_by_key      (crypto::ed25519_public_key const &key) const;
+  owner_record                get_owner_by_id       (int64_t owner_id) const;
+  mapping_record              get_mapping           (uint16_t type, std::string const &name) const;
+  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name) const;
+  std::vector<mapping_record> get_mappings_by_owner (crypto::ed25519_public_key const &key) const;
+  std::vector<mapping_record> get_mappings_by_owners(std::vector<crypto::ed25519_public_key> const &keys) const;
+  settings_record             get_settings          () const;
 
   bool                        validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr) const;
   cryptonote::network_type    network_type() const { return nettype; }

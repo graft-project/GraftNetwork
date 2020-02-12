@@ -6752,17 +6752,16 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
     {
       try
       {
-        owner = &args.at(entry.entry_index);
+        owner = &args.at(entry.request_index);
       }
       catch (std::exception const &e)
       {
-        fail_msg_writer() << "Daemon returned an invalid owner index = " << entry.entry_index << " skipping mapping";
+        fail_msg_writer() << "Daemon returned an invalid owner index = " << entry.request_index << " skipping mapping";
         continue;
       }
     }
 
-    for (cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_mapping const &mapping : entry.mappings)
-      tools::msg_writer() << "owner=" << *owner << ", height=" << mapping.register_height << ", name=\"" << mapping.name << "\", value=" << mapping.value;
+    tools::msg_writer() << "owner=" << *owner << ", height=" << entry.register_height << ", name=\"" << entry.name << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
   }
   return true;
 }
