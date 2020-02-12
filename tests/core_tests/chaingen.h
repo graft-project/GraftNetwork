@@ -1399,6 +1399,7 @@ struct loki_chain_generator
   uint64_t                                             chain_height() const { return height() + 1; }
   const std::vector<loki_blockchain_entry>&            blocks()       const { return db_.blocks; }
   size_t                                               event_index()  const { return events_.size() - 1; }
+  uint8_t                                              hardfork()     const { return get_hf_version_at(height()); }
 
   const loki_blockchain_entry&                         top() const { return db_.blocks.back(); }
   service_nodes::quorum_manager                        top_quorum() const;

@@ -686,11 +686,11 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     return false;
   }
 
-  if (entry->type >= static_cast<uint16_t>(lns::mapping_type::start_unusable_range) && entry->type <= static_cast<uint16_t>(mapping_type::end_unusable_range))
+  if (!lns::mapping_type_allowed(hf_version, entry->type))
   {
     if (reason)
     {
-      err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << " specifying type= " << static_cast<uint16_t>(entry->type) << " that is unused, but reserved by the protocol";
+      err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << " specifying type=" << static_cast<uint16_t>(entry->type) << " that is disallowed";
       *reason = err_stream.str();
     }
     return false;

@@ -37,12 +37,13 @@ struct lns_value
 
 enum struct mapping_type : uint16_t
 {
-  session              = 0,
-  start_unusable_range = 1,
-  wallet               = 2,
-  lokinet              = 3,
-  end_unusable_range   = 64,
+  session = 0,
+  wallet  = 1,
+  lokinet = 2,
 };
+
+constexpr bool mapping_type_allowed(uint8_t /*hf_version*/, uint16_t type) { return type == static_cast<uint16_t>(mapping_type::session); }
+constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { return mapping_type_allowed(hf_version, static_cast<uint16_t>(type)); }
 
 enum struct burn_type
 {
@@ -62,7 +63,6 @@ bool         validate_lns_name(uint16_t type, std::string const &name, std::stri
 // blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
 bool         validate_lns_value(cryptonote::network_type nettype, uint16_t type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
 bool         validate_lns_value_binary(uint16_t type, std::string const &value, std::string *reason = nullptr);
-
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
 
 struct owner_record
