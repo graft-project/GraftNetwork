@@ -59,6 +59,8 @@ public:
       }
       return 1;
     }
+    
+    bool operator==(const SupernodeConnection &other) const;
   };
   
   struct SupernodeRoute
@@ -125,7 +127,7 @@ public:
   }  
   bool has_connections() const;
   bool has_routes() const;
-
+  
   std::string dump_routes() const;
   std::string dump_connections() const;
 
