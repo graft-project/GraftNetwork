@@ -28,12 +28,11 @@ constexpr size_t LOKINET_DOMAIN_NAME_MAX          = 253;
 constexpr size_t LOKINET_ADDRESS_BINARY_LENGTH    = sizeof(crypto::ed25519_public_key);
 constexpr size_t SESSION_DISPLAY_NAME_MAX         = 64;
 constexpr size_t SESSION_PUBLIC_KEY_BINARY_LENGTH = 1 + sizeof(crypto::ed25519_public_key); // Session keys at prefixed with 0x05 + ed25519 key
-constexpr size_t GENERIC_NAME_MAX                 = 255;
-constexpr size_t GENERIC_VALUE_MAX                = 255;
 
 struct lns_value
 {
-  std::array<uint8_t, lns::GENERIC_VALUE_MAX> buffer;
+  static size_t constexpr BUFFER_SIZE = 255;
+  std::array<uint8_t, BUFFER_SIZE> buffer;
   size_t len;
 };
 

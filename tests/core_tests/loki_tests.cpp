@@ -1638,41 +1638,6 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
       data.name_hash                             = {};
       make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Session) Name empty");
     }
-
-    auto custom_type = static_cast<lns::mapping_type>(1111);
-    if (lns::mapping_type_allowed(gen.hardfork(), custom_type))
-    {
-      cryptonote::tx_extra_loki_name_system data = valid_data;
-      data.type                                  = custom_type;
-
-      // Generic name empty
-      {
-        cryptonote::tx_extra_loki_name_system data = valid_data;
-        data.name_hash                             = {};
-        make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Generic) Name empty");
-      }
-
-      // Generic valid empty
-      {
-        cryptonote::tx_extra_loki_name_system data = valid_data;
-        data.value                                 = {};
-        make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Generic) Value empty");
-      }
-
-      // Generic name too long
-      {
-        cryptonote::tx_extra_loki_name_system data = valid_data;
-        data.name_hash                             = lns::name_to_hash(std::string(lns::GENERIC_NAME_MAX + 1, 'A'));
-        make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Generic) Name empty");
-      }
-
-      // Generic value too long
-      {
-        cryptonote::tx_extra_loki_name_system data = valid_data;
-        data.value                                 = std::string(lns::GENERIC_VALUE_MAX + 1, 'A');
-        make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Generic) Value too long");
-      }
-    }
   }
   return true;
 }

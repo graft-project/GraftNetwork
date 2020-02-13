@@ -273,9 +273,9 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::has
 {
   static_assert(sizeof(crypto::hash) == crypto_generichash_BYTES, "Using libsodium generichash for signature hash, require we fit into crypto::hash");
   crypto::hash result = {};
-  if (blob.size() <= lns::GENERIC_VALUE_MAX)
+  if (blob.size() <= lns_value::BUFFER_SIZE)
   {
-    unsigned char buffer[lns::GENERIC_VALUE_MAX + sizeof(prev_txid)] = {};
+    unsigned char buffer[lns_value::BUFFER_SIZE + sizeof(prev_txid)] = {};
     size_t buffer_len                                                = blob.size() + sizeof(prev_txid);
     memcpy(buffer, blob.data(), blob.size());
     memcpy(buffer + blob.size(), prev_txid.data, sizeof(prev_txid));
@@ -283,7 +283,7 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::has
   }
   else
   {
-    MERROR("Unexpected blob len=" << blob.size() << " greater than the blob backing buffer capacity=" << lns::GENERIC_VALUE_MAX);
+    MERROR("Unexpected blob len=" << blob.size() << " greater than the blob backing buffer capacity=" << lns_value::BUFFER_SIZE);
   }
 
   return result;
@@ -312,10 +312,15 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   std::stringstream err_stream;
   LOKI_DEFER { if (reason) *reason = err_stream.str(); };
 
-  size_t max_name_len = lns::GENERIC_NAME_MAX;
+  size_t max_name_len = 0;
   if (type == mapping_type::session)      max_name_len = lns::SESSION_DISPLAY_NAME_MAX;
   else if (type == mapping_type::wallet)  max_name_len = lns::WALLET_NAME_MAX;
   else if (is_lokinet_type(type))         max_name_len = lns::LOKINET_DOMAIN_NAME_MAX;
+  else
+  {
+    if (reason) err_stream << "LNS type=" << type << ", specifies unhandled mapping type in name validation";
+    return false;
+  }
 
   // NOTE: Validate name length
   if (name.empty() || name.size() > max_name_len)
@@ -396,31 +401,15 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   return true;
 }
 
-static bool check_lengths(mapping_type type, std::string const &value, size_t max, bool require_exact_len, std::string *reason)
+static bool check_lengths(mapping_type type, std::string const &value, size_t max, std::string *reason)
 {
-  bool result = true;
-  if (require_exact_len)
-  {
-    if (value.size() != max)
-      result = false;
-  }
-  else
-  {
-    if (value.size() > max || value.size() == 0)
-    {
-      result = false;
-    }
-  }
-
+  bool result = (value.size() == max);
   if (!result)
   {
     if (reason)
     {
       std::stringstream err_stream;
-      err_stream << "LNS type=" << type << ", specifies mapping from name_hash->value where the value's length=" << value.size();
-      if (require_exact_len) err_stream << ", does not equal the required length=";
-      else                   err_stream <<" is 0 or exceeds the maximum length=";
-      err_stream << max << ", given value=" << value;
+      err_stream << "LNS type=" << type << ", specifies mapping from name_hash->value where the value's length=" << value.size() << ", does not equal the required length=" << max << ", given value=" << value;
       *reason = err_stream.str();
     }
   }
@@ -435,9 +424,9 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
 
   cryptonote::address_parse_info addr_info = {};
 
-  static_assert(GENERIC_VALUE_MAX >= SESSION_PUBLIC_KEY_BINARY_LENGTH, "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
-  static_assert(GENERIC_VALUE_MAX >= LOKINET_ADDRESS_BINARY_LENGTH,      "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
-  static_assert(GENERIC_VALUE_MAX >= sizeof(addr_info.address),          "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
+  static_assert(lns_value::BUFFER_SIZE >= SESSION_PUBLIC_KEY_BINARY_LENGTH, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
+  static_assert(lns_value::BUFFER_SIZE >= LOKINET_ADDRESS_BINARY_LENGTH,    "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
+  static_assert(lns_value::BUFFER_SIZE >= sizeof(addr_info.address),        "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
   if (type == mapping_type::wallet)
   {
     if (value.empty() || !get_account_address_from_str(addr_info, nettype, value))
@@ -460,13 +449,20 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
   }
   else
   {
-    int max_value_len            = lns::GENERIC_VALUE_MAX;
-    bool value_require_exact_len = true;
+    int max_value_len = 0;
     if (is_lokinet_type(type))              max_value_len = (LOKINET_ADDRESS_BINARY_LENGTH * 2);
     else if (type == mapping_type::session) max_value_len = (SESSION_PUBLIC_KEY_BINARY_LENGTH * 2);
-    else value_require_exact_len = false;
+    else
+    {
+      if (reason)
+      {
+        err_stream << "Unhandled type passed into " << __func__;
+        *reason = err_stream.str();
+      }
+      return false;
+    }
 
-    if (!check_lengths(type, value, max_value_len, value_require_exact_len, reason))
+    if (!check_lengths(type, value, max_value_len, reason))
       return false;
   }
 
@@ -553,14 +549,22 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
 
 bool validate_lns_value_binary(mapping_type type, std::string const &value, std::string *reason)
 {
-  int max_value_len            = lns::GENERIC_VALUE_MAX;
-  bool value_require_exact_len = true;
-  if (is_lokinet_type(type))              max_value_len = LOKINET_ADDRESS_BINARY_LENGTH;
+  std::stringstream err_stream;
+  int max_value_len            = 0;
+  if (is_lokinet_type(type)) max_value_len = LOKINET_ADDRESS_BINARY_LENGTH;
   else if (type == mapping_type::session) max_value_len = SESSION_PUBLIC_KEY_BINARY_LENGTH;
   else if (type == mapping_type::wallet)  max_value_len = sizeof(cryptonote::account_public_address);
-  else value_require_exact_len = false;
+  else
+  {
+    if (reason)
+    {
+      err_stream << "Unhandled type passed into " << __func__;
+      *reason = err_stream.str();
+    }
+    return false;
+  }
 
-  if (!check_lengths(type, value, max_value_len, value_require_exact_len, reason))
+  if (!check_lengths(type, value, max_value_len, reason))
     return false;
 
   if (type == lns::mapping_type::wallet)
@@ -572,7 +576,6 @@ bool validate_lns_value_binary(mapping_type type, std::string const &value, std:
     {
       if (reason)
       {
-        std::stringstream err_stream;
         err_stream << "LNS type=" << type << ", specifies mapping from name_hash->wallet address where the wallet address's blob, does not generate valid public spend/view keys";
         *reason = err_stream.str();
       }
