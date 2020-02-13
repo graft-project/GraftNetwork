@@ -126,12 +126,15 @@ public:
   bool has_connections() const;
   bool has_routes() const;
 
+  std::string dump_routes() const;
+  std::string dump_connections() const;
+
 private:
   Clock::time_point get_expiry_time(const SupernodeId& local_sn);  
 
 private:
   std::map<SupernodeId, SupernodeConnection> m_supernode_connections;
-  std::map<SupernodeId, SupernodeRoutes> m_supernode_routes; //recipients ids to redirect to the supernode
+  std::map<SupernodeId, SupernodeRoutes> m_supernode_routes; // recipients ids to redirect to the supernode
   mutable boost::recursive_mutex m_supernodes_lock;
   
 };

@@ -8,6 +8,15 @@
 
 namespace graft {
 
+
+bool SupernodeConnectionManager::SupernodeConnection::operator==(const SupernodeConnection &other) const
+{
+  return this->client.get_host() == other.client.get_host()
+      && this->client.get_port() == other.client.get_port()
+      && this->uri == other.uri
+      && this->redirect_uri == other.redirect_uri;
+}
+
 SupernodeConnectionManager::SupernodeConnectionManager()
 {
   
@@ -232,6 +241,29 @@ bool SupernodeConnectionManager::has_routes() const
 {
   boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
   return !m_supernode_routes.empty();
+}
+
+std::string SupernodeConnectionManager::dump_routes() const
+{
+  std::ostringstream oss;
+  for (const auto & route : m_supernode_routes) {
+    oss << "destination: " << route.first << " can reached via following nodes:\n";
+    oss << "\t\t";
+    for (const auto &destination : route.second) {
+      oss << destination.supernode_ptr->first << " ";
+    }
+    oss << "\n";
+  }
+  return oss.str();
+}
+
+std::string SupernodeConnectionManager::dump_connections() const
+{
+  std::ostringstream oss;
+  for (const auto & conn : m_supernode_connections) {
+    oss << "id: " << conn.first << " is " << conn.second.client.get_host() << ":" << conn.second.client.get_port() << "\n";
+  }
+  return oss.str();
 }
 
 SupernodeConnectionManager::Clock::time_point 
