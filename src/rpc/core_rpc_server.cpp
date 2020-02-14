@@ -2474,18 +2474,12 @@ namespace cryptonote
         error_resp.message = oss.str();
         return false;
       }
-
+      // TODO: rename "router_id" to the "network_address" 
       bool router_id_ok = !req.router_id.empty();
-      if(router_id_ok)
-      {
-        crypto::public_key my_id;
-        router_id_ok = router_id_ok && epee::string_tools::hex_to_pod(req.router_id, my_id);
-        router_id_ok = router_id_ok && crypto::check_key(my_id);
-      }
       if (!router_id_ok)
       {
         error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-        std::ostringstream oss; oss << "Invalid router supernode ID parameter '" << req.router_id << "'";
+        std::ostringstream oss; oss << "Invalid network address '" << req.router_id << "'";
         error_resp.message = oss.str();
         return false;
       }

@@ -76,7 +76,7 @@ public:
   ~SupernodeConnectionManager();
   
   void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req);
-  void add_rta_route(const std::string& dst_id, const std::string& router_id);
+  void add_rta_route(const std::string& dst_id, const std::string& network_addr);
   void remove_expired_routes();
   std::vector<SupernodeId> connections() const;
   
@@ -88,7 +88,7 @@ public:
    * @param messages_forwarded  - number of messages forwarded to remote supernodes
    * @return                    - true on success
    */
-  bool processBroadcast(typename nodetool::COMMAND_BROADCAST::request &arg, bool &relay_broadcast, uint64_t &messages_sent, uint64_t &messages_forwarded);
+  bool processBroadcast(typename nodetool::COMMAND_BROADCAST::request &arg, bool &relay_broadcast, uint64_t &messages_sent);
   
   template<typename request_struct>
   int invokeAll(const std::string &method, const typename request_struct::request &body,
@@ -136,7 +136,7 @@ private:
 
 private:
   std::map<SupernodeId, SupernodeConnection> m_supernode_connections;
-  std::map<SupernodeId, SupernodeRoutes> m_supernode_routes; // recipients ids to redirect to the supernode
+//  std::map<SupernodeId, SupernodeRoutes> m_supernode_routes; // recipients ids to redirect to the supernode
   mutable boost::recursive_mutex m_supernodes_lock;
   
 };
