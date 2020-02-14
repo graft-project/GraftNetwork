@@ -6675,7 +6675,7 @@ bool simple_wallet::print_lns_owners_to_name_hashes(const std::vector<std::strin
       }
     }
 
-    tools::msg_writer() << "owner=" << *owner << ", type=" << entry.type << ", height=" << entry.register_height << ", name_hash=\"" << entry.name_hash << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
+    tools::msg_writer() << "owner=" << *owner << ", type=" << entry.type << ", height=" << entry.register_height << ", name_hash=\"" << entry.name_hash << "\", encrypted_value=" << entry.encrypted_value << ", prev_txid=" << entry.prev_txid;
   }
   return true;
 }

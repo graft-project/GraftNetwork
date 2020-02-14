@@ -5,6 +5,7 @@
 #include "cryptonote_config.h"
 #include "span.h"
 #include "cryptonote_basic/tx_extra.h"
+#include "common/hex.h"
 
 #include <string>
 
@@ -29,27 +30,33 @@ constexpr size_t LOKINET_ADDRESS_BINARY_LENGTH    = sizeof(crypto::ed25519_publi
 constexpr size_t SESSION_DISPLAY_NAME_MAX         = 64;
 constexpr size_t SESSION_PUBLIC_KEY_BINARY_LENGTH = 1 + sizeof(crypto::ed25519_public_key); // Session keys at prefixed with 0x05 + ed25519 key
 
-struct lns_value
+struct mapping_value
 {
   static size_t constexpr BUFFER_SIZE = 255;
   std::array<uint8_t, BUFFER_SIZE> buffer;
   size_t len;
-};
 
-inline std::ostream &operator<<(std::ostream &os, mapping_type type)
+  std::string               to_string() const { return std::string(reinterpret_cast<char const *>(buffer.data()), len); }
+  epee::span<const uint8_t> to_span()   const { return epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(buffer.data()), len); }
+  bool operator==(mapping_value const &other) const { return other.len    == len && memcmp(buffer.data(), other.buffer.data(), len) == 0; }
+  bool operator==(std::string   const &other) const { return other.size() == len && memcmp(buffer.data(), other.data(), len) == 0; }
+};
+inline std::ostream &operator<<(std::ostream &os, mapping_value const &v) { return os << hex::from_hex(v.buffer.begin(), v.buffer.begin() + v.len); }
+
+inline char const *mapping_type_str(mapping_type type)
 {
   switch(type)
   {
-    case mapping_type::lokinet_1year:   os << "lokinet_1year"; break;
-    case mapping_type::lokinet_2years:  os << "lokinet_2years"; break;
-    case mapping_type::lokinet_5years:  os << "lokinet_5years"; break;
-    case mapping_type::lokinet_10years: os << "lokinet_10years"; break;
-    case mapping_type::session:         os << "session"; break;
-    case mapping_type::wallet:          os << "wallet"; break;
-    default: assert(false);             os << "xx_unhandled_type"; break;
+    case mapping_type::lokinet_1year:   return "lokinet_1year";
+    case mapping_type::lokinet_2years:  return "lokinet_2years";
+    case mapping_type::lokinet_5years:  return "lokinet_5years";
+    case mapping_type::lokinet_10years: return "lokinet_10years";
+    case mapping_type::session:         return "session";
+    case mapping_type::wallet:          return "wallet";
+    default: assert(false);             return "xx_unhandled_type";
   }
-  return os;
 }
+inline std::ostream &operator<<(std::ostream &os, mapping_type type) { return os << mapping_type_str(type); }
 
 constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { return type == mapping_type::session; }
 constexpr bool is_lokinet_type     (lns::mapping_type type)                { return type >= mapping_type::lokinet_1year && type <= mapping_type::lokinet_10years; }
@@ -62,10 +69,15 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::has
 bool         validate_lns_name(mapping_type type, std::string const &name, std::string *reason = nullptr);
 
 // blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
-bool         validate_lns_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
-bool         validate_lns_value_binary(mapping_type type, std::string const &value, std::string *reason = nullptr);
+bool         validate_mapping_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, mapping_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_encrypted_mapping_value(mapping_type type, std::string const &value, std::string *reason = nullptr);
 bool         validate_mapping_type(std::string const &type, lns::mapping_type *mapping_type, std::string *reason);
 crypto::hash name_to_hash(std::string const &name);
+
+// Takes a binary value and encrypts it using 'name' as a secret key or vice versa, suitable for storing into the LNS DB.
+// Only basic overflow validation is attempted, values should be pre-validated in the validate* functions
+bool         encrypt_mapping_value(std::string const &name, mapping_value const &value, mapping_value &encrypted_value);
+bool         decrypt_mapping_value(std::string const &name, mapping_value const &encrypted_value, mapping_value &value);
 
 struct owner_record
 {
@@ -99,7 +111,7 @@ struct mapping_record
   bool                       loaded;
   mapping_type               type;
   crypto::hash               name_hash;
-  std::string                value;
+  mapping_value              encrypted_value;
   uint64_t                   register_height;
   int64_t                    owner_id;
   crypto::ed25519_public_key owner;
