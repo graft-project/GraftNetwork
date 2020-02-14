@@ -3346,7 +3346,7 @@ namespace cryptonote
   static std::string extract_lns_mapping_value(lns::mapping_record const &record)
   {
     std::string result;
-    if (static_cast<lns::mapping_type>(record.type) == lns::mapping_type::lokinet)
+    if (lns::is_lokinet_type(record.type))
     {
       char buf[64] = {};
       base32z::encode(record.value, buf);

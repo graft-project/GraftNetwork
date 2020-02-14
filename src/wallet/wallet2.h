@@ -1386,7 +1386,7 @@ private:
 
     // params constructor, accumulates the burn amounts if the priority is
     // a blink and, or a lns tx. If it is a blink TX, lns_burn_type is ignored.
-    static cryptonote::loki_construct_tx_params construct_params(uint8_t hf_version, cryptonote::txtype tx_type, uint32_t priority, lns::burn_type lns_burn_type = lns::burn_type::none);
+    static cryptonote::loki_construct_tx_params construct_params(uint8_t hf_version, cryptonote::txtype tx_type, uint32_t priority, lns::mapping_type lns_burn_type = static_cast<lns::mapping_type>(0));
 
     bool is_unattended() const { return m_unattended; }
 

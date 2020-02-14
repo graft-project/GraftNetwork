@@ -533,7 +533,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   uint64_t new_height           = get_block_height(top().block) + 1;
   uint8_t new_hf_version        = get_hf_version_at(new_height);
   if (burn == LNS_AUTO_BURN)
-    burn = lns::burn_requirement_in_atomic_loki(new_hf_version, lns::mapping_type_to_burn_type(type));
+    burn = lns::burn_requirement_in_atomic_loki(new_hf_version, type);
 
   crypto::hash prev_txid = crypto::null_hash;
   if (lns::mapping_record mapping = lns_db_.get_mapping(type, name))

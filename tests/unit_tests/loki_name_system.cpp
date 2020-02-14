@@ -8,7 +8,7 @@ TEST(loki_name_system, lokinet_domain_names)
 
   char domain_edkeys[lns::LOKINET_ADDRESS_BINARY_LENGTH * 2] = {};
   memset(domain_edkeys, 'a', sizeof(domain_edkeys));
-  lns::mapping_type const lokinet = lns::mapping_type::lokinet;
+  lns::mapping_type const lokinet = lns::mapping_type::lokinet_1year;
 
   // Should work
   {

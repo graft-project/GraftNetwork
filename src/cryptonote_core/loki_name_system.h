@@ -37,40 +37,37 @@ struct lns_value
   size_t len;
 };
 
-enum struct burn_type
-{
-  none,
-  update_record,
-  lokinet_1year,
-  session,
-  wallet,
-  custom,
-};
-
 inline std::ostream &operator<<(std::ostream &os, mapping_type type)
 {
   switch(type)
   {
-    case mapping_type::lokinet: os << "lokinet"; break;
-    case mapping_type::session: os << "session"; break;
-    case mapping_type::wallet:  os << "wallet"; break;
-    default: assert(false);     os << "xx_unhandled_type"; break;
+    case mapping_type::lokinet_1year:   os << "lokinet_1year"; break;
+    case mapping_type::lokinet_2years:  os << "lokinet_2years"; break;
+    case mapping_type::lokinet_5years:  os << "lokinet_5years"; break;
+    case mapping_type::lokinet_10years: os << "lokinet_10years"; break;
+    case mapping_type::session:         os << "session"; break;
+    case mapping_type::wallet:          os << "wallet"; break;
+    default: assert(false);             os << "xx_unhandled_type"; break;
   }
   return os;
 }
 
 constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { return type == mapping_type::session; }
-burn_type    mapping_type_to_burn_type(mapping_type in);
-uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version, burn_type type);
+constexpr bool is_lokinet_type     (lns::mapping_type type)                { return type >= mapping_type::lokinet_1year && type <= mapping_type::lokinet_10years; }
+
+uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version, mapping_type type);
 sqlite3     *init_loki_name_system(char const *file_path);
-uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window = nullptr);
+
+uint64_t constexpr NO_EXPIRY = static_cast<uint64_t>(-1);
+// return: The number of blocks until expiry from the registration height, if there is no expiration NO_EXPIRY is returned.
+uint64_t     expiry_blocks(cryptonote::network_type nettype, mapping_type type, uint64_t *renew_window = nullptr);
 crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::hash const &prev_txid);
 bool         validate_lns_name(mapping_type type, std::string const &name, std::string *reason = nullptr);
 
 // blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
 bool         validate_lns_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
 bool         validate_lns_value_binary(mapping_type type, std::string const &value, std::string *reason = nullptr);
-bool         validate_mapping_type(std::string const &type, lns::mapping_type *mapping_type, std::string *reason);
+bool         validate_mapping_type(std::string const &mapping_type_str, lns::mapping_type *mapping_type, std::string *reason);
 
 struct owner_record
 {
@@ -102,7 +99,7 @@ struct mapping_record
   operator bool() const { return loaded; }
 
   bool                       loaded;
-  mapping_type               type; // alias to lns::mapping_type
+  mapping_type               type;
   std::string                name;
   std::string                value;
   uint64_t                   register_height;
@@ -119,7 +116,7 @@ struct name_system_db
   void            block_detach(cryptonote::Blockchain const &blockchain, uint64_t height);
   uint64_t        height      () { return last_processed_height; }
 
-  bool            save_owner      (crypto::ed25519_public_key const &key, int64_t *row_id);
+  bool            save_owner     (crypto::ed25519_public_key const &key, int64_t *row_id);
   bool            save_mapping   (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id);
   bool            save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
 

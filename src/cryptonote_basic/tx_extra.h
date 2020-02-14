@@ -66,15 +66,20 @@ namespace lns
 {
 enum struct mapping_type : uint16_t
 {
-  session = 0,
-  wallet  = 1,
-  lokinet = 2,
+  session,
+  wallet,
+  lokinet_1year,
+  lokinet_2years,
+  lokinet_5years,
+  lokinet_10years,
   _count,
+  update_record_internal,
 };
+
 enum struct tx_command_t : uint8_t
 {
-  buy    = 0,
-  update = 1,
+  buy,
+  update,
   _count,
 };
 };
