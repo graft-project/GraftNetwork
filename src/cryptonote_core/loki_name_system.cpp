@@ -410,7 +410,7 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   return true;
 }
 
-static bool check_lengths(mapping_type type, std::string const &value, size_t max, std::string *reason)
+static bool check_lengths(mapping_type type, std::string const &value, size_t max, bool binary_val, std::string *reason)
 {
   bool result = (value.size() == max);
   if (!result)
@@ -418,7 +418,9 @@ static bool check_lengths(mapping_type type, std::string const &value, size_t ma
     if (reason)
     {
       std::stringstream err_stream;
-      err_stream << "LNS type=" << type << ", specifies mapping from name_hash->encrypted_value where the value's length=" << value.size() << ", does not equal the required length=" << max << ", given value=" << value;
+      err_stream << "LNS type=" << type << ", specifies mapping from name_hash->encrypted_value where the value's length=" << value.size() << ", does not equal the required length=" << max << ", given value=";
+      if (binary_val) err_stream << epee::to_hex::string(epee::span<const uint8_t>(reinterpret_cast<uint8_t const *>(value.data()), value.size()));
+      else            err_stream << value;
       *reason = err_stream.str();
     }
   }
@@ -468,7 +470,7 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
       return false;
     }
 
-    if (!check_lengths(type, value, max_value_len, reason))
+    if (!check_lengths(type, value, max_value_len, false /*binary_val*/, reason))
       return false;
   }
 
@@ -559,7 +561,7 @@ bool validate_encrypted_mapping_value(mapping_type type, std::string const &valu
   int max_value_len = crypto_secretbox_MACBYTES;
   if (is_lokinet_type(type)) max_value_len              += LOKINET_ADDRESS_BINARY_LENGTH;
   else if (type == mapping_type::session) max_value_len += SESSION_PUBLIC_KEY_BINARY_LENGTH;
-  else if (type == mapping_type::wallet)  max_value_len += sizeof(cryptonote::account_public_address);
+  else if (type == mapping_type::wallet)  max_value_len += WALLET_ACCOUNT_BINARY_LENGTH;
   else
   {
     if (reason)
@@ -570,24 +572,8 @@ bool validate_encrypted_mapping_value(mapping_type type, std::string const &valu
     return false;
   }
 
-  if (!check_lengths(type, value, max_value_len, reason))
+  if (!check_lengths(type, value, max_value_len, true /*binary_val*/, reason))
     return false;
-
-  if (type == lns::mapping_type::wallet)
-  {
-    // TODO(doyle): Better address validation? Is it a valid address, is it a valid nettype address?
-    cryptonote::account_public_address address;
-    memcpy(&address, value.data(), sizeof(address));
-    if (!(crypto::check_key(address.m_spend_public_key) && crypto::check_key(address.m_view_public_key)))
-    {
-      if (reason)
-      {
-        err_stream << "LNS type=" << type << ", specifies mapping from name_hash->wallet address where the wallet address's blob, does not generate valid public spend/view keys";
-        *reason = err_stream.str();
-      }
-      return false;
-    }
-  }
   return true;
 }
 

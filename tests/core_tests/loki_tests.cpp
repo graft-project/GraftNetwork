@@ -1546,12 +1546,12 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
     std::string name = "my_lns_name";
     cryptonote::tx_extra_loki_name_system valid_data = {};
     valid_data.owner                                 = miner_key.ed_key;
-    valid_data.type                                  = lns::mapping_type::wallet;
     valid_data.encrypted_value                       = helper_encrypt_lns_value(name, miner_key.wallet_value).to_string();
     valid_data.name_hash                             = lns::name_to_hash("my_lns_name");
 
     if (lns::mapping_type_allowed(gen.hardfork(), lns::mapping_type::wallet))
     {
+      valid_data.type = lns::mapping_type::wallet;
       // Blockchain name empty
       {
         cryptonote::tx_extra_loki_name_system data = valid_data;
@@ -1560,13 +1560,19 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
         make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Blockchain) Empty wallet name in LNS is invalid");
       }
 
-      // Blockchain value (wallet address) is invalid, clearly too short
+      // Blockchain value (wallet address) is invalid, too short
       {
-        lns::mapping_value value = {};
-        value.len                = miner_key.wallet_value.len - 1;
-
         cryptonote::tx_extra_loki_name_system data = valid_data;
-        data.encrypted_value                       = helper_encrypt_lns_value(name, value).to_string();
+        data.encrypted_value                       = helper_encrypt_lns_value(name, miner_key.wallet_value).to_string();
+        data.encrypted_value.resize(data.encrypted_value.size() - 1);
+        make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Blockchain) Wallet value in LNS too long");
+      }
+
+      // Blockchain value (wallet address) is invalid, too long
+      {
+        cryptonote::tx_extra_loki_name_system data = valid_data;
+        data.encrypted_value                       = helper_encrypt_lns_value(name, miner_key.wallet_value).to_string();
+        data.encrypted_value.resize(data.encrypted_value.size() + 1);
         make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Blockchain) Wallet value in LNS too long");
       }
     }
@@ -1584,43 +1590,38 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
 
       // Lokinet value too short
       {
-        lns::mapping_value value                   = {};
-        value.len                                  = miner_key.lokinet_value.len - 1;
         cryptonote::tx_extra_loki_name_system data = valid_data;
-        data.encrypted_value                       = helper_encrypt_lns_value(name, value).to_string();
+        data.encrypted_value                       = helper_encrypt_lns_value(name, miner_key.lokinet_value).to_string();
+        data.encrypted_value.resize(data.encrypted_value.size() - 1);
         make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Lokinet) Domain value in LNS too long");
       }
 
       // Lokinet value too long
       {
-        lns::mapping_value value                   = {};
-        value.len                                  = miner_key.lokinet_value.len + 1;
         cryptonote::tx_extra_loki_name_system data = valid_data;
-        data.encrypted_value                       = helper_encrypt_lns_value(name, value).to_string();
+        data.encrypted_value                       = helper_encrypt_lns_value(name, miner_key.lokinet_value).to_string();
+        data.encrypted_value.resize(data.encrypted_value.size() + 1);
         make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Lokinet) Domain value in LNS too long");
       }
     }
 
     // Session value too short
     // We added valid tx prior, we should update name to avoid conflict names in session land and test other invalid params
+    valid_data.type      = lns::mapping_type::session;
     name                 = "new_friendly_name";
     valid_data.name_hash = lns::name_to_hash(name);
     {
-      lns::mapping_value value = {};
-      value.len                = miner_key.session_value.len - 1;
-
       cryptonote::tx_extra_loki_name_system data = valid_data;
-      data.encrypted_value                       = helper_encrypt_lns_value(name, value).to_string();
+      data.encrypted_value                       = helper_encrypt_lns_value(name, miner_key.session_value).to_string();
+      data.encrypted_value.resize(data.encrypted_value.size() - 1);
       make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Session) User id, value too short");
     }
 
     // Session value too long
     {
-      lns::mapping_value value = {};
-      value.len                = miner_key.session_value.len - 1;
-
       cryptonote::tx_extra_loki_name_system data = valid_data;
-      data.encrypted_value                       = helper_encrypt_lns_value(name, value).to_string();
+      data.encrypted_value                       = helper_encrypt_lns_value(name, miner_key.session_value).to_string();
+      data.encrypted_value.resize(data.encrypted_value.size() + 1);
       make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Session) User id, value too long");
     }
 
