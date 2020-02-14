@@ -17,6 +17,13 @@ bool SupernodeConnectionManager::SupernodeConnection::operator==(const Supernode
       && this->redirect_uri == other.redirect_uri;
 }
 
+bool SupernodeConnectionManager::SupernodeConnection::isLocal() const
+{
+  // FIXME: introduce 'local' attribute
+  return this->client.get_host() == "0.0.0.0"
+      || this->client.get_host() == "127.0.0.1";
+}
+
 SupernodeConnectionManager::SupernodeConnectionManager()
 {
   
@@ -131,9 +138,6 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
            << ", local supernodes: " << boost::algorithm::join(all_local_supernodes, ", "));
     MDEBUG("processBroadcast: receiver_addresses: " << "receiver addresses: " << boost::algorithm::join(arg.receiver_addresses, ", "));
   }
-  
-  
-  
   std::vector<std::string> known_addresses, unknown_addresses;
   
   for (const std::string &address : arg.receiver_addresses) {
@@ -173,7 +177,7 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
       // only endpoint specified in 'arg.callback_uri' used
       m_supernode_connections[id].callJsonRpc<nodetool::COMMAND_BROADCAST>("" /* pass to local supernode */, arg, arg.callback_uri);
       ++messages_sent;
-      MDEBUG("called local supernode: " << id);
+      MDEBUG("called supernode: " << id);
     }
   }
 

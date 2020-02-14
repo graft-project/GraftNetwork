@@ -61,6 +61,7 @@ public:
     }
     
     bool operator==(const SupernodeConnection &other) const;
+    bool isLocal() const;
   };
   
   struct SupernodeRoute
@@ -91,16 +92,18 @@ public:
   bool processBroadcast(typename nodetool::COMMAND_BROADCAST::request &arg, bool &relay_broadcast, uint64_t &messages_sent);
   
   template<typename request_struct>
-  int invokeAll(const std::string &method, const typename request_struct::request &body,
+  int invokeAllLocal(const std::string &method, const typename request_struct::request &body,
                 const std::string &endpoint = std::string())
   {
     boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
     int ret = 0;
     for (auto& sn : m_supernode_connections)
-      ret += sn.second.callJsonRpc<request_struct>(method, body, endpoint);
+      // FIXME: have a "local" flag
+      if (sn.second.isLocal())
+        ret += sn.second.callJsonRpc<request_struct>(method, body, endpoint);
     return ret;  
   }
-  
+
   template<typename request_struct>
   int forward(const std::string &method, const typename request_struct::request &body,
                                  const std::string &endpoint = std::string())
@@ -124,7 +127,8 @@ public:
       }
     }
     return ret;
-  }  
+  }
+
   bool has_connections() const;
   bool has_routes() const;
   

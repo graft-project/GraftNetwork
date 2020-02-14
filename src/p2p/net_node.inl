@@ -2367,11 +2367,12 @@ namespace nodetool
 
       MDEBUG("do_broadcast from: " << req.sender_address << " Start");
 
-      MDEBUG("do_broadcast: forwarding broadcast to local supernode");
-      {
-        m_supernode_conn_manager.forward<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
-      }
-      MDEBUG("do_broadcast: forwarded broadcast to local supernode");
+//      // Not needed: in case it's broadcast (to all) - we'll get it via p2p
+//      MDEBUG("do_broadcast: forwarding broadcast to local supernode");
+//      {
+//        m_supernode_conn_manager.forward<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
+//      }
+//      MDEBUG("do_broadcast: forwarded broadcast to local supernode");
       
 #ifdef LOCK_RTA_SENDING
     return;
@@ -2848,7 +2849,7 @@ namespace nodetool
       request.stakes.emplace_back(std::move(dst_stake));
     }
 
-    m_supernode_conn_manager.invokeAll<cryptonote::COMMAND_RPC_SUPERNODE_STAKES>(supernode_endpoint, request);
+    m_supernode_conn_manager.invokeAllLocal<cryptonote::COMMAND_RPC_SUPERNODE_STAKES>(supernode_endpoint, request);
   }
 
   template<class t_payload_net_handler>
@@ -2892,7 +2893,7 @@ namespace nodetool
       request.tiers.emplace_back(std::move(dst_tier));
     }
 
-    m_supernode_conn_manager.invokeAll<cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST>(supernode_endpoint, request);
+    m_supernode_conn_manager.invokeAllLocal<cryptonote::COMMAND_RPC_SUPERNODE_BLOCKCHAIN_BASED_LIST>(supernode_endpoint, request);
     
   }
 
