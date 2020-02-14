@@ -431,11 +431,8 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
   if (blob) *blob = {};
   std::stringstream err_stream;
 
+  // Check length of the value
   cryptonote::address_parse_info addr_info = {};
-
-  static_assert(mapping_value::BUFFER_SIZE >= SESSION_PUBLIC_KEY_BINARY_LENGTH, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
-  static_assert(mapping_value::BUFFER_SIZE >= LOKINET_ADDRESS_BINARY_LENGTH,    "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
-  static_assert(mapping_value::BUFFER_SIZE >= sizeof(addr_info.address),        "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
   if (type == mapping_type::wallet)
   {
     if (value.empty() || !get_account_address_from_str(addr_info, nettype, value))
@@ -465,7 +462,7 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
     {
       if (reason)
       {
-        err_stream << "Unhandled type passed into " << __func__;
+        err_stream << "Unhandled type passed into: " << __func__;
         *reason = err_stream.str();
       }
       return false;
@@ -475,6 +472,7 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
       return false;
   }
 
+  // Validate blob contents and generate the binary form if possible
   if (type == mapping_type::wallet)
   {
     if (blob)
@@ -514,6 +512,7 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
   }
   else
   {
+    assert(type == mapping_type::session);
     // NOTE: Check value is hex
     if ((value.size() % 2) != 0)
     {
@@ -540,19 +539,17 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
       lokimq::from_hex(value.begin(), value.end(), blob->buffer.begin());
     }
 
-    if (type == mapping_type::session)
+    if (!(value[0] == '0' && value[1] == '5')) // NOTE: Session public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
     {
-      if (!(value[0] == '0' && value[1] == '5')) // NOTE: Session public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
+      if (reason)
       {
-        if (reason)
-        {
-          err_stream << "LNS type=session, specifies mapping from name_hash->ed25519 key where the key is not prefixed with 53 (0x05), prefix=" << std::to_string(value[0]) << " (" << value[0] << "), given ed25519=" << value;
-          *reason = err_stream.str();
-        }
-        return false;
+        err_stream << "LNS type=session, specifies mapping from name_hash->ed25519 key where the key is not prefixed with 53 (0x05), prefix=" << std::to_string(value[0]) << " (" << value[0] << "), given ed25519=" << value;
+        *reason = err_stream.str();
       }
+      return false;
     }
   }
+
   return true;
 }
 
@@ -872,9 +869,13 @@ static bool name_to_encryption_key(std::string const &name, secretbox_secret_key
   return result;
 }
 
-static unsigned char const ENCRYPTION_NONCE[crypto_secretbox_NONCEBYTES] = {}; // NOTE: Not meant to be secure
+static unsigned char const ENCRYPTION_NONCE[crypto_secretbox_NONCEBYTES] = {}; // NOTE: Not meant to be extremely secure, just use an empty nonce
 bool encrypt_mapping_value(std::string const &name, mapping_value const &value, mapping_value &encrypted_value)
 {
+  static_assert(mapping_value::BUFFER_SIZE >= SESSION_PUBLIC_KEY_BINARY_LENGTH + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
+  static_assert(mapping_value::BUFFER_SIZE >= LOKINET_ADDRESS_BINARY_LENGTH    + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
+  static_assert(mapping_value::BUFFER_SIZE >= WALLET_ACCOUNT_BINARY_LENGTH     + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
+
   bool result                 = false;
   size_t const encryption_len = value.len + crypto_secretbox_MACBYTES;
   if (encryption_len > encrypted_value.buffer.size())
@@ -1186,13 +1187,13 @@ static bool find_closest_valid_lns_tx_extra_in_blockchain(cryptonote::Blockchain
   return result;
 }
 
-void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint64_t height)
+void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height)
 {
   std::vector<mapping_record> new_mappings = {};
   {
     sqlite3_stmt *statement = get_mappings_on_height_and_newer_sql;
     sqlite3_clear_bindings(statement);
-    sqlite3_bind_int(statement, 1 /*sql param index*/, height);
+    sqlite3_bind_int(statement, 1 /*sql param index*/, new_blockchain_height);
     sql_run_statement(nettype, lns_sql_type::get_mappings_on_height_and_newer, statement, &new_mappings);
   }
 
@@ -1209,11 +1210,11 @@ void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint
     cryptonote::tx_extra_loki_name_system entry = {};
     uint64_t entry_height                       = 0;
     crypto::hash tx_hash                        = {};
-    if (!find_closest_valid_lns_tx_extra_in_blockchain(blockchain, mapping, height, entry, tx_hash, entry_height)) continue;
+    if (!find_closest_valid_lns_tx_extra_in_blockchain(blockchain, mapping, new_blockchain_height, entry, tx_hash, entry_height)) continue;
     entries.push_back({entry_height, tx_hash, entry});
   }
 
-  prune_db(height);
+  prune_db(new_blockchain_height);
   for (auto const &lns : entries)
   {
     if (!add_lns_entry(*this, lns.height, lns.entry, lns.tx_hash))
