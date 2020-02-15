@@ -2363,76 +2363,86 @@ namespace nodetool
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::do_broadcast(const cryptonote::COMMAND_RPC_BROADCAST::request &req, uint64_t hop)
   {
-      MDEBUG("Incoming broadcast request");
-
-      MDEBUG("do_broadcast from: " << req.sender_address << " Start");
-
-//      // Not needed: in case it's broadcast (to all) - we'll get it via p2p
-//      MDEBUG("do_broadcast: forwarding broadcast to local supernode");
-//      {
-//        m_supernode_conn_manager.forward<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
-//      }
-//      MDEBUG("do_broadcast: forwarded broadcast to local supernode");
-      
+    MDEBUG("Incoming broadcast request");
+    
+    MDEBUG("do_broadcast from: " << req.sender_address << " Start");
+    
 #ifdef LOCK_RTA_SENDING
     return;
 #endif
-
-      COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
-      
-      // generate random message_id
-      boost::uuids::basic_random_generator<boost::mt19937> gen;
-      boost::uuids::uuid u = gen();
-      p2p_req.message_id = boost::uuids::to_string(u);
-      //copy all cryptonote::COMMAND_RPC_BROADCAST::request members
-      
-      p2p_req.receiver_addresses = req.receiver_addresses;
-      p2p_req.sender_address = req.sender_address;
-      p2p_req.callback_uri = req.callback_uri;
-      p2p_req.data = req.data;
-      p2p_req.signature = req.signature;
-      p2p_req.hop = (hop)? hop : -1;
-      
+    // FIXME: looks like duplicated code with "handle_broadcast"
+    
+    COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
+    
+    // generate random message_id
+    boost::uuids::basic_random_generator<boost::mt19937> gen;
+    boost::uuids::uuid u = gen();
+    p2p_req.message_id = boost::uuids::to_string(u);
+    //copy all cryptonote::COMMAND_RPC_BROADCAST::request members
+    
+    p2p_req.receiver_addresses = req.receiver_addresses;
+    p2p_req.sender_address = req.sender_address;
+    p2p_req.callback_uri = req.callback_uri;
+    p2p_req.data = req.data;
+    p2p_req.signature = req.signature;
+    p2p_req.hop = (hop)? hop : -1;
+    
+    
+    uint64_t messages_sent{0};
+    bool relay_broadcast = false;
+    
+    // processBroadcast only in case unicast/multicast address. Otherwise just relay to p2p
+    if (p2p_req.receiver_addresses.empty()) {
+      relay_broadcast = true;
+    } else {
+      m_supernode_conn_manager.processBroadcast(p2p_req, relay_broadcast, messages_sent);
+      m_rta_msg_jump_list_local_counter += messages_sent;  
+      MDEBUG("do_broadcast: UDHT processed for message: '" << p2p_req.message_id << "',  messages_sent: "  << messages_sent
+             <<  ", relay_broadcast: " << relay_broadcast);
+    }
+    if (relay_broadcast)
+    {
       MDEBUG("do_broadcast: broadcasting message '" << p2p_req.message_id << "' to connections..");
-
+      
+      
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
       std::set<peerid_type> announced_peers;
-
+      
       // send to peers
       // TODO: Graft: print zone id
       for (auto &zone : m_network_zones) {
         std::list<connection_info> connections;
         zone.second.m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& context) {
-            // TODO: isn't all rta peers have peer_id = 0?
-            if (context.peer_id == 0) {
-                LOG_INFO_CC(context, "invalid connection [COMMAND_BROADCAST]");
-                return true;
-            }
-  
-            connections.push_back(
-            {context.m_connection_id,
-             context.peer_id,
-             epee::net_utils::print_connection_context_short(context)} );
+          // TODO: isn't all rta peers have peer_id = 0?
+          if (context.peer_id == 0) {
+            LOG_INFO_CC(context, "invalid connection [COMMAND_BROADCAST]");
             return true;
+          }
+          
+          connections.push_back(
+          {context.m_connection_id,
+           context.peer_id,
+           epee::net_utils::print_connection_context_short(context)} );
+          return true;
         });
-  
+        
         for (const auto &c: connections) {
-            MTRACE("[" << c.info << "] invoking COMMAND_BROADCAST");
-            if (zone.second.m_net_server.get_config_object().notify(COMMAND_BROADCAST::ID, epee::strspan<uint8_t>(blob), c.id)) {
-                MTRACE("[" << c.info << "] COMMAND_BROADCAST invoked, peer_id: " << c.peer_id);
-                announced_peers.insert(c.peer_id);
-            }
-            else
-                LOG_ERROR("[" << c.info << "] failed to invoke COMMAND_BROADCAST");
+          MTRACE("[" << c.info << "] invoking COMMAND_BROADCAST");
+          if (zone.second.m_net_server.get_config_object().notify(COMMAND_BROADCAST::ID, epee::strspan<uint8_t>(blob), c.id)) {
+            MTRACE("[" << c.info << "] COMMAND_BROADCAST invoked, peer_id: " << c.peer_id);
+            announced_peers.insert(c.peer_id);
+          }
+          else
+            LOG_ERROR("[" << c.info << "] failed to invoke COMMAND_BROADCAST");
         }
         m_broadcast_bytes_out += blob.size() * announced_peers.size();
-  
-     }
-      
-     MDEBUG("P2P Request: do_broadcast: End");
+      }
+    }
+    
+    MDEBUG("do_broadcast: End");
   }
-
+  
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   std::string node_server<t_payload_net_handler>::print_connections_container()
