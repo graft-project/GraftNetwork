@@ -428,6 +428,7 @@ namespace tools
         info.address_index = index.minor;
         info.used = std::find_if(transfers.begin(), transfers.end(), [&](const tools::wallet2::transfer_details& td) { return td.m_subaddr_index == index; }) != transfers.end();
       }
+      res.ed25519_key = epee::string_tools::pod_to_hex(m_wallet->get_account().get_keys().m_ed25519_public_key);
       res.address = m_wallet->get_subaddress_as_str({req.account_index, 0});
     }
     catch (const std::exception& e)
@@ -862,7 +863,16 @@ namespace tools
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
       uint32_t priority = m_wallet->adjust_priority(req.priority);
       if (req.blink) priority = tools::tx_priority_blink;
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
+
+      boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+      if (!hf_version)
+      {
+        er.code    = WALLET_RPC_ERROR_CODE_HF_QUERY_FAILED;
+        er.message = tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+        return false;
+      }
+      cryptonote::loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, cryptonote::txtype::standard, priority);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices, tx_params);
 
       if (ptx_vector.empty())
       {
@@ -915,8 +925,18 @@ namespace tools
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
       uint32_t priority = m_wallet->adjust_priority(req.priority);
       if (req.blink) priority = tools::tx_priority_blink;
+
+      boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+      if (!hf_version)
+      {
+        er.code    = WALLET_RPC_ERROR_CODE_HF_QUERY_FAILED;
+        er.message = tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+        return false;
+      }
+
+      cryptonote::loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, cryptonote::txtype::standard, priority);
       LOG_PRINT_L2("on_transfer_split calling create_transactions_2");
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices, tx_params);
       LOG_PRINT_L2("on_transfer_split called create_transactions_2");
 
       return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay, req.blink,
@@ -4252,6 +4272,42 @@ namespace tools
     res.unlocked = unlock_result.success;
     res.msg      = unlock_result.msg;
     return res.unlocked;
+  }
+
+  bool wallet_rpc_server::on_buy_lns_mapping(const wallet_rpc::COMMAND_RPC_BUY_LNS_MAPPING::request& req, wallet_rpc::COMMAND_RPC_BUY_LNS_MAPPING::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_restricted)
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Buying lns mappings is unavailable in restricted mode.";
+      return false;
+    }
+
+    std::string reason;
+    std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_buy_lns_mapping_tx(req.type, req.owner, req.name, req.value, &reason, req.priority, req.account_index, req.subaddr_indices);
+    if (ptx_vector.empty())
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;
+      er.message = "Failed to create LNS transaction: " + reason;
+      return false;
+    }
+
+    return fill_response(ptx_vector,
+                         req.get_tx_key,
+                         res.tx_key,
+                         res.amount,
+                         res.fee,
+                         res.multisig_txset,
+                         res.unsigned_txset,
+                         req.do_not_relay,
+                         false /*blink*/,
+                         res.tx_hash,
+                         req.get_tx_hex,
+                         res.tx_blob,
+                         req.get_tx_metadata,
+                         res.tx_metadata,
+                         er);
   }
 }
 

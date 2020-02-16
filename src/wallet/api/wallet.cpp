@@ -1516,6 +1516,15 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
                 de.is_subaddress = info.is_subaddress;
                 de.is_integrated = info.has_payment_id;
                 dsts.push_back(de);
+                cryptonote::loki_construct_tx_params tx_params;
+
+                boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+                if (!hf_version)
+                {
+                  setStatusError(tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED);
+                  return transaction;
+                }
+                loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::standard, priority);
                 transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
                                                                           adjusted_priority,
                                                                           extra, subaddr_account, subaddr_indices);

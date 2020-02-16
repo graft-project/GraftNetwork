@@ -42,6 +42,7 @@ set(cryptonote_core_sources
   service_node_quorum_cop.cpp
   service_node_swarm.cpp
   tx_blink.cpp
+  loki_name_system.cpp
   tx_pool.cpp
   tx_sanity_check.cpp
   miner.cpp
@@ -55,6 +56,7 @@ set(cryptonote_core_private_headers
   service_node_list.h
   service_node_quorum_cop.h
   service_node_swarm.h
+  loki_name_system.h
   cryptonote_core.h
   service_node_voting.h
   tx_blink.h
@@ -85,5 +87,6 @@ target_link_libraries(cryptonote_core
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
   PRIVATE
+    sqlite3
     ${SYSTEMD_LIBRARIES}
     ${EXTRA_LIBRARIES})

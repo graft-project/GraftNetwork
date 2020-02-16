@@ -3415,4 +3415,104 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     };
   };
 
+  LOKI_RPC_DOC_INTROSPECT
+  // Get the name mapping for a Loki Name Service entry. Loki currently supports mappings
+  // for Session.
+  struct COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS
+  {
+    static size_t const MAX_REQUEST_ENTRIES      = 256;
+    static size_t const MAX_TYPE_REQUEST_ENTRIES = 16;
+    struct request_entry
+    {
+      std::string name;            // The name to resolve to a public key via Loki Name Service
+      std::vector<uint16_t> types; // Set 0 for Session. In future updates more mapping types will be available.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(name)
+        KV_SERIALIZE(types)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      std::vector<request_entry> entries;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_entry
+    {
+      uint64_t entry_index;     // The index in request_entry's `entries` array that was resolved via Loki Name Service.
+      uint16_t type;            // The type of Loki Name Service entry that the owner owns.
+      std::string owner;        // The ed25519 public key that purchased the Loki Name Service entry.
+      std::string value;        // The value that the name maps to.
+      uint64_t register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      std::string txid;         // The txid of who purchased the mapping, null hash if not applicable.
+      std::string prev_txid;    // The previous txid that purchased the mapping, null hash if not applicable.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entry_index)
+        KV_SERIALIZE(type)
+        KV_SERIALIZE(owner)
+        KV_SERIALIZE(value)
+        KV_SERIALIZE(register_height)
+        KV_SERIALIZE(txid)
+        KV_SERIALIZE(prev_txid)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<response_entry> entries;
+      std::string status; // Generic RPC error code. "OK" is the success value.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Get all the name mappings for the queried owner. The owner should be
+  // a ed25519 public key; by default this is the public key of an ed25519
+  // keypair derived using the wallet's secret spend key as the seed value.
+  struct COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES
+  {
+    static size_t const MAX_REQUEST_ENTRIES = 256;
+    struct request
+    {
+      std::vector<std::string> entries; // The owner's public key to find all Loki Name Service entries for.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_entry
+    {
+      uint64_t    request_index;   // The index in request's `entries` array that was resolved via Loki Name Service.
+      uint16_t    type;            // The category the Loki Name Service entry belongs to, currently only Session whose value is 0.
+      std::string name;            // The name purchased via Loki Name Service
+      std::string value;           // The value that the name maps to
+      uint64_t    register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      std::string txid;            // The txid of who purchases the mapping, null hash if not applicable
+      std::string prev_txid;       // The previous txid that purchased the mapping, null hash if not applicable.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(type)
+        KV_SERIALIZE(name)
+        KV_SERIALIZE(value)
+        KV_SERIALIZE(register_height)
+        KV_SERIALIZE(txid)
+        KV_SERIALIZE(prev_txid)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<response_entry> entries;
+      std::string status; // Generic RPC error code. "OK" is the success value.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
 }

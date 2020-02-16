@@ -45,6 +45,8 @@ extern "C" {
 #endif
 }
 
+#include <sqlite3.h>
+
 #include "cryptonote_core.h"
 #include "common/util.h"
 #include "common/updates.h"
@@ -684,17 +686,19 @@ namespace cryptonote
     bool sync_on_blocks = true;
     uint64_t sync_threshold = 1;
 
+    std::string const lns_db_file_path = m_config_folder + "/lns.db";
+#if !defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS) // In integration mode, don't delete the DB. This should be explicitly done in the tests. Otherwise the more likely behaviour is persisting the DB across multiple daemons in the same test.
     if (m_nettype == FAKECHAIN)
     {
-#if !defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS) // In integration mode, don't delete the DB. This should be explicitly done in the tests. Otherwise the more likely behaviour is persisting the DB across multiple daemons in the same test.
       // reset the db by removing the database file before opening it
       if (!db->remove_data_file(filename))
       {
         MERROR("Failed to remove data file in " << filename);
         return false;
       }
-#endif
+      boost::filesystem::remove(lns_db_file_path);
     }
+#endif
 
     try
     {
@@ -830,7 +834,6 @@ namespace cryptonote
       m_service_node_list.set_quorum_history_storage(command_line::get_arg(vm, arg_store_quorum_history));
 
       // NOTE: Implicit dependency. Service node list needs to be hooked before checkpoints.
-      m_blockchain_storage.hook_block_added(m_service_node_list);
       m_blockchain_storage.hook_blockchain_detached(m_service_node_list);
       m_blockchain_storage.hook_init(m_service_node_list);
       m_blockchain_storage.hook_validate_miner_tx(m_service_node_list);
@@ -850,9 +853,11 @@ namespace cryptonote
       m_checkpoints_path = checkpoint_json_hashfile_fullpath.string();
     }
 
-    const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
-    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
+    sqlite3 *lns_db = lns::init_loki_name_system(lns_db_file_path.c_str());
+    if (!lns_db) return false;
 
+    const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
+    r = m_blockchain_storage.init(db.release(), lns_db, m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     if (!command_line::is_arg_defaulted(vm, arg_recalculate_difficulty))
@@ -2059,7 +2064,7 @@ namespace cryptonote
         uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
         if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
         {
-          if (hf_version >= cryptonote::network_version_14_blink_lns)
+          if (hf_version >= cryptonote::network_version_14_blink)
           {
             MGINFO_RED(
                 "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "

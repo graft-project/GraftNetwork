@@ -316,9 +316,9 @@ namespace service_nodes
     bool validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hard_fork_version, cryptonote::block_reward_parts const &base_reward) const override;
     bool alt_block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint) override;
     block_winner get_block_winner() const { std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex); return m_state.get_block_winner(); }
-
     bool is_service_node(const crypto::public_key& pubkey, bool require_active = true) const;
     bool is_key_image_locked(crypto::key_image const &check_image, uint64_t *unlock_height = nullptr, service_node_info::contribution_t *the_locked_contribution = nullptr) const;
+    uint64_t height() const { return m_state.height; }
 
     /// Note(maxim): this should not affect thread-safety as the returned object is const
     ///
@@ -497,7 +497,6 @@ namespace service_nodes
   private:
     // Note(maxim): private methods don't have to be protected the mutex
     bool m_rescanning = false; /* set to true when doing a rescan so we know not to reset proofs */
-    void rescan_starting_from_curr_state(bool store_to_disk);
     void process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
 
     void reset(bool delete_db_entry = false);

@@ -55,6 +55,7 @@
 #define TX_EXTRA_TAG_TX_KEY_IMAGE_UNLOCK        0x77
 #define TX_EXTRA_TAG_SERVICE_NODE_STATE_CHANGE  0x78
 #define TX_EXTRA_TAG_BURN                       0x79
+#define TX_EXTRA_TAG_LOKI_NAME_SYSTEM           0x7A
 
 #define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG       0xDE
 
@@ -381,6 +382,34 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
+  struct tx_extra_loki_name_system
+  {
+    uint8_t                    version = 0;
+    crypto::ed25519_public_key owner;
+    uint16_t                   type;
+    std::string                name;
+    std::string                value; // binary format of the name->value mapping
+    crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping
+
+    tx_extra_loki_name_system() = default;
+    tx_extra_loki_name_system(crypto::ed25519_public_key const &owner, uint16_t type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
+    : owner(owner)
+    , type(type)
+    , name(name)
+    , value(value)
+    , prev_txid(prev_txid)
+    {
+    }
+
+    BEGIN_SERIALIZE()
+      FIELD(version);
+      FIELD(owner);
+      FIELD(type);
+      FIELD(name);
+      FIELD(value);
+      FIELD(prev_txid);
+    END_SERIALIZE()
+  };
 
   // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
   //   varint tag;
@@ -401,7 +430,8 @@ namespace cryptonote
                          tx_extra_tx_secret_key,
                          tx_extra_tx_key_image_proofs,
                          tx_extra_tx_key_image_unlock,
-                         tx_extra_burn
+                         tx_extra_burn,
+                         tx_extra_loki_name_system
                         > tx_extra_field;
 }
 
@@ -424,3 +454,4 @@ VARIANT_TAG(binary_archive, cryptonote::tx_extra_tx_secret_key,               TX
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_tx_key_image_proofs,         TX_EXTRA_TAG_TX_KEY_IMAGE_PROOFS);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_tx_key_image_unlock,         TX_EXTRA_TAG_TX_KEY_IMAGE_UNLOCK);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_burn,                        TX_EXTRA_TAG_BURN);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_loki_name_system,            TX_EXTRA_TAG_LOKI_NAME_SYSTEM);

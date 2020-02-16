@@ -470,7 +470,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx_params.burn_fixed && tx_params.hf_version < cryptonote::network_version_14_blink_lns)
+    if (tx_params.burn_fixed && tx_params.hf_version < cryptonote::network_version_14_blink)
     {
       LOG_ERROR("cannot construct tx: burn can not be specified before hard fork 14");
       return false;
@@ -893,7 +893,7 @@ namespace cryptonote
       {
         if (amount_in < amount_out + tx_params.burn_fixed)
         {
-          LOG_ERROR("invalid burn amount: tx does not have enough unspent funds available");
+          LOG_ERROR("invalid burn amount: tx does not have enough unspent funds available; amount_in: " << std::to_string(amount_in) << "; amount_out + tx_params.burn_fixed: " << std::to_string(amount_out) << " + " << std::to_string(tx_params.burn_fixed));
           return false;
         }
         remove_field_from_tx_extra(tx.extra, typeid(tx_extra_burn)); // doesn't have to be present (but the wallet puts a dummy here as a safety to avoid growing the tx)

@@ -165,6 +165,18 @@ RUN set -ex \
     && make install \
     && ldconfig
 
+# Sqlite3
+ARG SQLITE_VERSION=3310100
+ARG SQLITE_HASH=62284efebc05a76f909c580ffa5c008a7d22a1287285d68b7825a2b6b51949ae
+RUN set -ex \
+    && curl -s -O https://sqlite.org/2020/sqlite-autoconf-${SQLITE_VERSION}.tar.gz \
+    && echo "${SQLITE_HASH}  sqlite-autoconf-${SQLITE_VERSION}.tar.gz" | sha256sum -c \
+    && tar -xzf sqlite-autoconf-${SQLITE_VERSION}.tar.gz \
+    && cd sqlite-autoconf-${SQLITE_VERSION} \
+    && ./configure --disable-shared \
+    && make \
+    && make install
+
 WORKDIR /src
 COPY . .
 
