@@ -384,30 +384,56 @@ namespace cryptonote
 
   struct tx_extra_loki_name_system
   {
+    enum struct command_t : uint8_t
+    {
+      buy    = 0,
+      update = 1,
+    };
+
     uint8_t                    version = 0;
-    crypto::ed25519_public_key owner;
-    uint16_t                   type;
+    uint8_t                    command;
+    crypto::ed25519_public_key owner; // only serialized if command == command_t::buy
+    crypto::ed25519_signature  signature; // only serialized if command == command_t::update
+    uint16_t                   type; // alias to lns::mapping_type
     std::string                name;
     std::string                value; // binary format of the name->value mapping
     crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping
 
-    tx_extra_loki_name_system() = default;
-    tx_extra_loki_name_system(crypto::ed25519_public_key const &owner, uint16_t type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
-    : owner(owner)
-    , type(type)
-    , name(name)
-    , value(value)
-    , prev_txid(prev_txid)
+    static tx_extra_loki_name_system make_buy(crypto::ed25519_public_key const &owner, uint16_t type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
     {
+      tx_extra_loki_name_system result = {};
+      result.owner                     = owner;
+      result.type                      = type;
+      result.name                      = name;
+      result.value                     = value;
+      result.prev_txid                 = prev_txid;
+      result.command                   = static_cast<uint8_t>(tx_extra_loki_name_system::command_t::buy);
+      return result;
+    }
+
+    static tx_extra_loki_name_system make_update(crypto::ed25519_signature const &signature, uint16_t type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
+    {
+      tx_extra_loki_name_system result = {};
+      result.signature                 = signature;
+      result.type                      = type;
+      result.name                      = name;
+      result.value                     = value;
+      result.prev_txid                 = prev_txid;
+      result.command                   = static_cast<uint8_t>(tx_extra_loki_name_system::command_t::update);
+      return result;
     }
 
     BEGIN_SERIALIZE()
-      FIELD(version);
-      FIELD(owner);
-      FIELD(type);
-      FIELD(name);
-      FIELD(value);
-      FIELD(prev_txid);
+      FIELD(version)
+      FIELD(command)
+      if (command == static_cast<uint8_t>(command_t::buy))
+        FIELD(owner)
+      else
+        FIELD(signature)
+      FIELD(type)
+      FIELD(name)
+      FIELD(value)
+      FIELD(prev_txid)
     END_SERIALIZE()
   };
 

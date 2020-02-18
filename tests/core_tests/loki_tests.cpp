@@ -2095,6 +2095,54 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   return true;
 }
 
+bool loki_name_system_update_mapping::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  gen.add_n_blocks(10); /// generate some outputs and unlock them
+  gen.add_mined_money_unlock_blocks();
+
+  cryptonote::account_base miner     = gen.first_miner_;
+  cryptonote::account_base const bob = gen.add_account();
+  lns_keys_t miner_key               = make_lns_keys(miner);
+  lns_keys_t bob_key                 = make_lns_keys(bob);
+
+  crypto::hash session_tx_hash1;
+  std::string session_name1 = "MyName";
+  {
+    cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::session), miner_key.session_value, session_name1);
+    session_tx_hash1 = cryptonote::get_transaction_hash(tx1);
+    gen.create_and_add_next_block({tx1});
+  }
+
+  crypto::hash session_tx_hash2;
+  {
+    cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), bob_key.session_value, session_name1);
+    session_tx_hash2 = cryptonote::get_transaction_hash(tx1);
+    gen.create_and_add_next_block({tx1});
+  }
+  uint64_t session_height2 = gen.height();
+
+  loki_register_callback(events, "check_updated", [&events, miner_key, bob_key, session_height2, session_name1, session_tx_hash1, session_tx_hash2](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("check_updated");
+    lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
+    std::vector<lns::mapping_record> records = lns_db.get_mappings({static_cast<uint16_t>(lns::mapping_type::session)}, session_name1);
+    CHECK_EQ(records.size(), 1);
+    CHECK_EQ(records[0].type, static_cast<uint16_t>(lns::mapping_type::session));
+    CHECK_EQ(records[0].name, session_name1);
+    CHECK_EQ(records[0].value, bob_key.session_value);
+    CHECK_EQ(records[0].register_height, session_height2);
+    CHECK_EQ(records[0].prev_txid, session_tx_hash1);
+    CHECK_EQ(records[0].txid, session_tx_hash2);
+    CHECK_EQ(records[0].owner, miner_key.ed_key);
+    return true;
+  });
+
+  return true;
+}
+
 bool loki_name_system_wrong_burn::generate(std::vector<test_event_entry> &events)
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();

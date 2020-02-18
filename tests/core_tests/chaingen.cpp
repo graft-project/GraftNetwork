@@ -294,6 +294,17 @@ loki_chain_generator::create_and_add_loki_name_system_tx(cryptonote::account_bas
   return t;
 }
 
+cryptonote::transaction loki_chain_generator::create_and_add_loki_name_system_tx_update(cryptonote::account_base const &src,
+                                                                  uint16_t type,
+                                                                  std::string const &value,
+                                                                  std::string const &name,
+                                                                  bool kept_by_block)
+{
+  cryptonote::transaction t = create_loki_name_system_tx_update(src, type, value, name);
+  add_tx(t, true /*can_be_added_to_blockchain*/, ""/*fail_msg*/, kept_by_block);
+  return t;
+}
+
 cryptonote::transaction loki_chain_generator::create_and_add_tx(const cryptonote::account_base &src,
                                                                 const cryptonote::account_public_address &dest,
                                                                 uint64_t amount,
@@ -530,7 +541,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
     prev_txid = mapping.txid;
 
   std::vector<uint8_t> extra;
-  cryptonote::tx_extra_loki_name_system data(pkey, type, name, value, prev_txid);
+  cryptonote::tx_extra_loki_name_system data = cryptonote::tx_extra_loki_name_system::make_buy(pkey, type, name, value, prev_txid);
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
   cryptonote::add_burned_amount_to_tx_extra(extra, burn);
   cryptonote::transaction result = {};
@@ -538,6 +549,41 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
       .with_tx_type(cryptonote::txtype::loki_name_system)
       .with_extra(extra)
       .with_fee(burn + TESTS_DEFAULT_FEE)
+      .build();
+
+  return result;
+}
+
+cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(cryptonote::account_base const &src,
+                                                                                uint16_t type,
+                                                                                std::string const &value,
+                                                                                std::string const &name) const
+{
+  lns::mapping_record mapping = lns_db_.get_mapping(type, name);
+  crypto::hash prev_txid      = mapping.txid;
+  assert(mapping);
+
+  crypto::ed25519_public_key pkey;
+  crypto::ed25519_secret_key skey;
+  crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(&src.get_keys().m_spend_secret_key));
+
+  crypto::ed25519_signature signature_binary;
+  crypto::hash hash = lns::tx_extra_signature_hash();
+  crypto_sign_detached(signature_binary.data, NULL, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), skey.data);
+
+  std::vector<uint8_t> extra;
+  cryptonote::tx_extra_loki_name_system data = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type, name, value, prev_txid);
+  cryptonote::add_loki_name_system_to_tx_extra(extra, data);
+
+  cryptonote::block const &head = top().block;
+  uint64_t new_height           = get_block_height(top().block) + 1;
+  uint8_t new_hf_version        = get_hf_version_at(new_height);
+
+  cryptonote::transaction result = {};
+  loki_tx_builder(events_, result, head, src /*from*/, src.get_keys().m_account_address, 0 /*amount*/, new_hf_version)
+      .with_tx_type(cryptonote::txtype::loki_name_system)
+      .with_extra(extra)
+      .with_fee(TESTS_DEFAULT_FEE)
       .build();
 
   return result;

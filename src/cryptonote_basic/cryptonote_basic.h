@@ -582,12 +582,12 @@ namespace cryptonote
   {
     switch(type)
     {
-      case txtype::standard:          return "standard";
-      case txtype::state_change:      return "state_change";
-      case txtype::key_image_unlock:  return "key_image_unlock";
-      case txtype::stake:             return "stake";
-      case txtype::loki_name_system:  return "loki_name_system";
-      default: assert(false);         return "xx_unhandled_type";
+      case txtype::standard:                return "standard";
+      case txtype::state_change:            return "state_change";
+      case txtype::key_image_unlock:        return "key_image_unlock";
+      case txtype::stake:                   return "stake";
+      case txtype::loki_name_system:        return "loki_name_system";
+      default: assert(false);               return "xx_unhandled_type";
     }
   }
 

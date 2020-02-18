@@ -48,6 +48,7 @@ constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { ret
 enum struct burn_type
 {
   none,
+  update_record,
   lokinet_1year,
   session,
   wallet,
@@ -58,6 +59,7 @@ burn_type    mapping_type_to_burn_type(mapping_type in);
 uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version, burn_type type);
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window = nullptr);
+crypto::hash tx_extra_signature_hash();
 bool         validate_lns_name(uint16_t type, std::string const &name, std::string *reason = nullptr);
 
 // blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.

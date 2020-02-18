@@ -232,6 +232,10 @@ uint64_t burn_requirement_in_atomic_loki(uint8_t /*hf_version*/, burn_type type)
   uint64_t result = 0;
   switch (type)
   {
+    case burn_type::update_record:
+      result = 0;
+      break;
+
     case burn_type::lokinet_1year: /* FALLTHRU */
     case burn_type::session: /* FALLTHRU */
     case burn_type::wallet: /* FALLTHRU */
@@ -278,6 +282,13 @@ uint64_t lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew
   }
 
   if (renew_window) *renew_window = renew_window_;
+  return result;
+}
+
+crypto::hash tx_extra_signature_hash()
+{
+  // TODO(doyle): Make the hash for LNS
+  crypto::hash result = {};
   return result;
 }
 
@@ -579,76 +590,137 @@ bool validate_lns_value_binary(uint16_t type, std::string const &value, std::str
   return true;
 }
 
-static std::stringstream &error_stream_append_tx_msg(std::stringstream &err_stream, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &data)
+static std::stringstream &print_tx(std::stringstream &stream, cryptonote::transaction const &tx)
 {
-  err_stream << "TX type=" << tx.type << ", tx=" << get_transaction_hash(tx) << ", owner=" << data.owner << ", type=" << (int)data.type << ", name=" << data.name << ", ";
-  return err_stream;
+  stream << "TX = {type=" << tx.type << ", hash=" << get_transaction_hash(tx) << "}";
+  return stream;
 }
 
-static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &data, std::string *reason = nullptr)
+static std::stringstream &print_loki_name_system_extra(std::stringstream &stream, cryptonote::tx_extra_loki_name_system const &data)
+{
+  stream << "LNS Extra = {";
+  if (data.command == static_cast<uint8_t>(cryptonote::tx_extra_loki_name_system::command_t::buy))
+    stream << "owner=" << data.owner;
+  else
+    stream << "signature=" << epee::string_tools::pod_to_hex(data.signature);
+
+  stream << ", type=" << (int)data.type << ", name=" << data.name << "}";
+  return stream;
+}
+
+static std::stringstream &print_tx_and_extra(std::stringstream &stream, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &data)
+{
+  print_tx(stream, tx) << ", ";
+  print_loki_name_system_extra(stream, data);
+  return stream;
+}
+
+static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system &data, std::string *reason = nullptr)
 {
   std::stringstream err_stream;
   crypto::hash expected_prev_txid = crypto::null_hash;
-  if (lns::mapping_record mapping = lns_db.get_mapping(data.type, data.name))
+  lns::mapping_record mapping     = lns_db.get_mapping(data.type, data.name);
+
+  const bool updating = data.command == static_cast<uint8_t>(cryptonote::tx_extra_loki_name_system::command_t::update);
+  if (updating && !mapping)
   {
-    if (data.type != static_cast<uint16_t>(lns::mapping_type::lokinet))
+    if (reason)
     {
-      if (reason)
-      {
-        lns::owner_record owner = lns_db.get_owner_by_id(mapping.owner_id);
-        error_stream_append_tx_msg(err_stream, tx, data) << "non-lokinet entries can NOT be renewed, mapping already exists with name=" << mapping.name << ", owner=" << owner.key << ", type=" << mapping.type;
-        *reason = err_stream.str();
-      }
-      return false;
-    }
-
-    if (!mapping.active(lns_db.network_type(), blockchain_height))
-      return true;
-
-    expected_prev_txid                 = mapping.txid;
-    uint64_t renew_window              = 0;
-    uint64_t expiry_blocks             = lns::lokinet_expiry_blocks(lns_db.network_type(), &renew_window);
-    uint64_t const renew_window_offset = expiry_blocks - renew_window;
-    uint64_t const min_renew_height    = mapping.register_height + renew_window_offset;
-
-    if (min_renew_height >= blockchain_height)
-    {
-      error_stream_append_tx_msg(err_stream, tx, data) << "trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
+      print_tx_and_extra(err_stream, tx, data) << ", update requested but mapping does not exist.";
       *reason = err_stream.str();
-      return false; // Trying to renew too early
     }
+    return false;
+  }
 
-    // LNS entry can be renewed, check that the request to renew originates from the owner of this mapping
-    lns::owner_record requester = lns_db.get_owner_by_key(data.owner);
-    if (!requester)
+  if (mapping)
+  {
+    expected_prev_txid = mapping.txid;
+    if (updating)
     {
-      if (reason)
+      if (data.type == static_cast<uint16_t>(lns::mapping_type::lokinet) && !mapping.active(lns_db.network_type(), blockchain_height))
       {
-        error_stream_append_tx_msg(err_stream, tx, data) << "trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
-        *reason = err_stream.str();
+        // Updating, we can always update unless the mapping has expired
+        return false;
       }
-      return false;
+
+      // Validate signature
+      {
+        crypto::hash hash = tx_extra_signature_hash();
+        if (crypto_sign_verify_detached(data.signature.data, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), mapping.owner.data) != 0)
+        {
+          if (reason)
+          {
+            print_tx_and_extra(err_stream, tx, data) << "failed to verify signature for LNS update";
+            *reason = err_stream.str();
+          }
+          return false;
+        }
+      }
+
+      data.owner = mapping.owner;
     }
-
-    lns::owner_record owner = lns_db.get_owner_by_id(mapping.owner_id);
-    if (!owner)
+    else
     {
-      if (reason)
+      if (data.type != static_cast<uint16_t>(lns::mapping_type::lokinet))
       {
-        error_stream_append_tx_msg(err_stream, tx, data) << "unexpected owner_id=" << mapping.owner_id << " does not exist";
-        *reason = err_stream.str();
+        if (reason)
+        {
+          lns::owner_record owner = lns_db.get_owner_by_id(mapping.owner_id);
+          print_tx_and_extra(err_stream, tx, data) << "non-lokinet entries can NOT be renewed, mapping already exists with name=" << mapping.name << ", owner=" << owner.key << ", type=" << mapping.type;
+          *reason = err_stream.str();
+        }
+        return false;
       }
-      return false;
-    }
 
-    if (requester.id != owner.id)
-    {
-      if (reason)
+      uint64_t renew_window              = 0;
+      uint64_t expiry_blocks             = lns::lokinet_expiry_blocks(lns_db.network_type(), &renew_window);
+      uint64_t const renew_window_offset = expiry_blocks - renew_window;
+      uint64_t const min_renew_height    = mapping.register_height + renew_window_offset;
+
+      if (min_renew_height >= blockchain_height)
       {
-        error_stream_append_tx_msg(err_stream, tx, data) << " actual owner=" << owner.key << ", with owner_id=" << mapping.owner_id << ", does not match requester=" << requester.key << ", with id=" << requester.id;
+        print_tx_and_extra(err_stream, tx, data) << "trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
         *reason = err_stream.str();
+        return false; // Trying to renew too early
       }
-      return false;
+
+      if (mapping.active(lns_db.network_type(), blockchain_height))
+      {
+        // Lokinet entry expired i.e. it's no longer active. A purchase for this name is valid
+        // Check that the request originates from the owner of this mapping
+        lns::owner_record const requester = lns_db.get_owner_by_key(data.owner);
+        if (!requester)
+        {
+          if (reason)
+          {
+            print_tx_and_extra(err_stream, tx, data) << "trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
+            *reason = err_stream.str();
+          }
+          return false;
+        }
+
+        lns::owner_record const owner = lns_db.get_owner_by_id(mapping.owner_id);
+        if (!owner)
+        {
+          if (reason)
+          {
+            print_tx_and_extra(err_stream, tx, data) << ", unexpected owner_id=" << mapping.owner_id << " does not exist";
+            *reason = err_stream.str();
+          }
+          return false;
+        }
+
+        if (requester.id != owner.id)
+        {
+          if (reason)
+          {
+            print_tx_and_extra(err_stream, tx, data) << ", actual owner=" << owner.key << ", with owner_id=" << mapping.owner_id << ", does not match requester=" << requester.key << ", with id=" << requester.id;
+            *reason = err_stream.str();
+          }
+          return false;
+        }
+      }
+
     }
   }
 
@@ -656,7 +728,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
   {
     if (reason)
     {
-      error_stream_append_tx_msg(err_stream, tx, data) << " specified prior owner txid=" << data.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
+      print_tx_and_extra(err_stream, tx, data) << " specified prior owner txid=" << data.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
       *reason = err_stream.str();
     }
     return false;
@@ -670,6 +742,16 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   cryptonote::tx_extra_loki_name_system entry_;
   if (!entry) entry = &entry_;
   std::stringstream err_stream;
+
+  if (tx.type != cryptonote::txtype::loki_name_system)
+  {
+    if (reason)
+    {
+      print_tx(err_stream, tx) << ", uses wrong tx type, expected=" << static_cast<int>(cryptonote::txtype::loki_name_system);
+      *reason = err_stream.str();
+    }
+    return false;
+  }
 
   if (!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, *entry))
   {
@@ -700,7 +782,6 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     }
     return false;
   }
-  uint64_t burn = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
   if (!validate_lns_name(entry->type, entry->name, reason))
     return false;
 
@@ -710,8 +791,11 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   if (!validate_against_previous_mapping(*this, blockchain_height, tx, *entry, reason))
     return false;
 
+  uint64_t burn                = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
   auto lns_type                = static_cast<mapping_type>(entry->type);
-  uint64_t const burn_required = burn_requirement_in_atomic_loki(hf_version, mapping_type_to_burn_type(lns_type));
+  uint64_t const burn_required = entry->command == static_cast<uint8_t>(cryptonote::tx_extra_loki_name_system::command_t::buy)
+                                     ? burn_requirement_in_atomic_loki(hf_version, mapping_type_to_burn_type(lns_type))
+                                     : 0;
   if (burn != burn_required)
   {
     if (reason)
@@ -917,6 +1001,12 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
   if (owner_record owner = lns_db.get_owner_by_key(entry.owner)) owner_id = owner.id;
   if (owner_id == 0)
   {
+    if (entry.command == static_cast<uint8_t>(cryptonote::tx_extra_loki_name_system::command_t::update))
+    {
+      MERROR("Owner does not exist but TX received is trying to update an existing mapping (i.e. owner should already exist). TX=" << tx_hash << " should have failed validation prior.");
+      return false;
+    }
+
     if (!lns_db.save_owner(entry.owner, &owner_id))
     {
       LOG_PRINT_L1("Failed to save LNS owner to DB tx: " << tx_hash << ", type: " << (uint16_t)entry.type << ", name: " << entry.name << ", owner: " << entry.owner);
