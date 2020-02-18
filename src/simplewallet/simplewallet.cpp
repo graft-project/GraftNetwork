@@ -2828,49 +2828,45 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("set",
                            boost::bind(&simple_wallet::set_variable, this, _1),
                            tr(USAGE_SET_VARIABLE),
-                           tr("Available options:\n "
-                                  "seed language\n "
-                                  "  Set the wallet's seed language.\n "
-                                  "always-confirm-transfers <1|0>\n "
-                                  "  Whether to confirm unsplit txes.\n "
-                                  "print-ring-members <1|0>\n "
-                                  "  Whether to print detailed information about ring members during confirmation.\n "
-                                  "store-tx-info <1|0>\n "
-                                  "  Whether to store outgoing tx info (destination address, payment ID, tx secret key) for future reference.\n "
-                                  "auto-refresh <1|0>\n "
-                                  "  Whether to automatically synchronize new blocks from the daemon.\n "
-                                  "refresh-type <full|optimize-coinbase|no-coinbase|default>\n "
-                                  "  Set the wallet's refresh behaviour.\n "
-                                  "priority [0|1|2|3|4]\n "
-                                  "  Set the fee to default/unimportant/normal/elevated/priority.\n "
-                                  "ask-password <0|1|2   (or never|action|decrypt)>\n "
-                                  "  action: ask the password before many actions such as transfer, etc\n "
-                                  "  decrypt: same as action, but keeps the spend key encrypted in memory when not needed\n "
-                                  "unit <loki|megarok|kilorok|rok>\n "
-                                  "  Set the default loki (sub-)unit.\n "
-                                  "min-outputs-count [n]\n "
-                                  "  Try to keep at least that many outputs of value at least min-outputs-value.\n "
-                                  "min-outputs-value [n]\n "
-                                  "  Try to keep at least min-outputs-count outputs of at least that value.\n "
-                                  "merge-destinations <1|0>\n "
-                                  "  Whether to merge multiple payments to the same destination address.\n "
-                                  "confirm-backlog <1|0>\n "
-                                  "  Whether to warn if there is transaction backlog.\n "
-                                  "confirm-backlog-threshold [n]\n "
-                                  "  Set a threshold for confirm-backlog to only warn if the transaction backlog is greater than n blocks.\n "
-                                  "refresh-from-block-height [n]\n "
-                                  "  Set the height before which to ignore blocks.\n "
-                                  "auto-low-priority <1|0>\n "
-                                  "  Whether to automatically use the low priority fee level when it's safe to do so.\n "
-                                  "segregate-pre-fork-outputs <1|0>\n "
-                                  "  Set this if you intend to spend outputs on both Loki AND a key reusing fork.\n "
-                                  "key-reuse-mitigation2 <1|0>\n "
-                                  "  Set this if you are not sure whether you will spend on a key reusing Loki fork later.\n"
-                                  "subaddress-lookahead <major>:<minor>\n "
-                                  "  Set the lookahead sizes for the subaddress hash table.\n "
-                                  "  Set this if you are not sure whether you will spend on a key reusing Loki fork later.\n "
-                                  "segregation-height <n>\n "
-                                  "  Set to the height of a key reusing fork you want to use, 0 to use default."));
+                           tr(R"(Available options:
+ seed language
+   Set the wallet's seed language.
+ always-confirm-transfers <1|0>
+   Whether to confirm unsplit txes.
+ print-ring-members <1|0>
+   Whether to print detailed information about ring members during confirmation.
+ store-tx-info <1|0>
+   Whether to store outgoing tx info (destination address, payment ID, tx secret key) for future reference.
+ auto-refresh <1|0>
+   Whether to automatically synchronize new blocks from the daemon.
+ refresh-type <full|optimize-coinbase|no-coinbase|default>
+   Set the wallet's refresh behaviour.
+ priority [0|1|2|3|4]
+   Set the fee to default/unimportant/normal/elevated/priority.
+ ask-password <0|1|2>
+   (or never|action|decrypt)>
+   action: ask the password before many actions such as transfer, etc
+   decrypt: same as action, but keeps the spend key encrypted in memory when not needed
+ unit <loki|megarok|kilorok|rok>
+   Set the default loki (sub-)unit.
+ min-outputs-count [n]
+   Try to keep at least that many outputs of value at least min-outputs-value.
+ min-outputs-value [n]
+   Try to keep at least min-outputs-count outputs of at least that value.
+ merge-destinations <1|0>
+   Whether to merge multiple payments to the same destination address.
+ refresh-from-block-height [n]
+   Set the height before which to ignore blocks.
+ segregate-pre-fork-outputs <1|0>
+   Set this if you intend to spend outputs on both Loki AND a key reusing fork.
+ key-reuse-mitigation2 <1|0>
+   Set this if you are not sure whether you will spend on a key reusing Loki fork later.
+ subaddress-lookahead <major>:<minor>
+   Set the lookahead sizes for the subaddress hash table.
+   Set this if you are not sure whether you will spend on a key reusing Loki fork later.
+ segregation-height <n>
+   Set to the height of a key reusing fork you want to use, 0 to use default.)"));
+
   m_cmd_binder.set_handler("encrypted_seed",
                            boost::bind(&simple_wallet::encrypted_seed, this, _1),
                            tr("Display the encrypted Electrum-style mnemonic seed."));
@@ -2918,15 +2914,17 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("show_transfers",
                            boost::bind(&simple_wallet::show_transfers, this, _1),
                            tr(USAGE_SHOW_TRANSFERS),
-                           // Seemingly broken formatting to compensate for the backslash before the quotes.
-                           tr("Show the incoming/outgoing transfers within an optional height range.\n\n"
-                              "Output format:\n"
-                              "In or Coinbase:    Block Number, \"block\"|\"in\",                Time, Amount,  Transaction Hash, Payment ID, Subaddress Index,                     \"-\", Note\n"
-                              "Out:               Block Number, \"out\",                         Time, Amount*, Transaction Hash, Payment ID, Fee, Destinations, Input addresses**, \"-\", Note\n"
-                              "Pool:                            \"pool\", \"in\",                Time, Amount,  Transaction Hash, Payment Id, Subaddress Index,                     \"-\", Note, Double Spend Note\n"
-                              "Pending or Failed:               \"failed\"|\"pending\", \"out\", Time, Amount*, Transaction Hash, Payment ID, Fee, Input addresses**,               \"-\", Note\n\n"
-                              "* Excluding change and fee.\n"
-                              "** Set of address indices used as inputs in this transfer."));
+                           tr(R"(Show the incoming/outgoing transfers within an optional height range.
+
+Output format:
+In or Coinbase:    Block Number, "block"|"in", Time, Amount,  Transaction Hash, Payment ID, Subaddress Index,                     "-", Note
+Out:               Block Number,        "out", Time, Amount*, Transaction Hash, Payment ID, Fee, Destinations, Input addresses**, "-", Note
+Pool:              "pool",               "in", Time, Amount,  Transaction Hash, Payment ID, Subaddress Index,                     "-", Note, Double Spend Note
+Pending or Failed: "failed"|"pending",  "out", Time, Amount*, Transaction Hash, Payment ID, Fee, Input addresses**,               "-", Note
+
+* Excluding change and fee.
+** Set of address indices used as inputs in this transfer.)"));
+
    m_cmd_binder.set_handler("export_transfers",
                            boost::bind(&simple_wallet::export_transfers, this, _1),
                            tr(USAGE_EXPORT_TRANSFERS),
