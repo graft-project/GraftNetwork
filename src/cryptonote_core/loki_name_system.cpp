@@ -592,13 +592,13 @@ bool validate_lns_value_binary(uint16_t type, std::string const &value, std::str
 
 static std::stringstream &print_tx(std::stringstream &stream, cryptonote::transaction const &tx)
 {
-  stream << "TX = {type=" << tx.type << ", hash=" << get_transaction_hash(tx) << "}";
+  stream << "TX={type=" << tx.type << ", hash=" << get_transaction_hash(tx) << "}";
   return stream;
 }
 
 static std::stringstream &print_loki_name_system_extra(std::stringstream &stream, cryptonote::tx_extra_loki_name_system const &data)
 {
-  stream << "LNS Extra = {";
+  stream << "LNS Extra={";
   if (data.command == static_cast<uint8_t>(cryptonote::tx_extra_loki_name_system::command_t::buy))
     stream << "owner=" << data.owner;
   else
@@ -643,6 +643,16 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         return false;
       }
 
+      if (data.value == mapping.value)
+      {
+        if (reason)
+        {
+          print_tx_and_extra(err_stream, tx, data) << ", value to update to is already the same as the mapping value";
+          *reason = err_stream.str();
+        }
+        return false;
+      }
+
       // Validate signature
       {
         crypto::hash hash = tx_extra_signature_hash();
@@ -650,7 +660,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         {
           if (reason)
           {
-            print_tx_and_extra(err_stream, tx, data) << "failed to verify signature for LNS update";
+            print_tx_and_extra(err_stream, tx, data) << ", failed to verify signature for LNS update";
             *reason = err_stream.str();
           }
           return false;
@@ -666,7 +676,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         if (reason)
         {
           lns::owner_record owner = lns_db.get_owner_by_id(mapping.owner_id);
-          print_tx_and_extra(err_stream, tx, data) << "non-lokinet entries can NOT be renewed, mapping already exists with name=" << mapping.name << ", owner=" << owner.key << ", type=" << mapping.type;
+          print_tx_and_extra(err_stream, tx, data) << ", non-lokinet entries can NOT be renewed, mapping already exists with name=" << mapping.name << ", owner=" << owner.key << ", type=" << mapping.type;
           *reason = err_stream.str();
         }
         return false;
@@ -679,7 +689,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
 
       if (min_renew_height >= blockchain_height)
       {
-        print_tx_and_extra(err_stream, tx, data) << "trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
+        print_tx_and_extra(err_stream, tx, data) << ", trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
         *reason = err_stream.str();
         return false; // Trying to renew too early
       }
@@ -693,7 +703,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         {
           if (reason)
           {
-            print_tx_and_extra(err_stream, tx, data) << "trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
+            print_tx_and_extra(err_stream, tx, data) << ", trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
             *reason = err_stream.str();
           }
           return false;
@@ -728,7 +738,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
   {
     if (reason)
     {
-      print_tx_and_extra(err_stream, tx, data) << " specified prior owner txid=" << data.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
+      print_tx_and_extra(err_stream, tx, data) << ", specified prior owner txid=" << data.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
       *reason = err_stream.str();
     }
     return false;

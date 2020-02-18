@@ -2116,6 +2116,14 @@ bool loki_name_system_update_mapping::generate(std::vector<test_event_entry> &ev
     gen.create_and_add_next_block({tx1});
   }
 
+  // Test update mapping with same name fails
+  {
+    crypto::hash session_tx_hash2;
+    cryptonote::transaction tx1 = gen.create_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), miner_key.session_value, session_name1);
+    gen.add_tx(tx1, false /*can_be_added_to_blockchain*/, "Can not add a LNS TX that re-updates the underlying value to same value");
+    loki_blockchain_entry next_block = gen.create_next_block({tx1});
+  }
+
   crypto::hash session_tx_hash2;
   {
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), bob_key.session_value, session_name1);

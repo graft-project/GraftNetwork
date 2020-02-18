@@ -3356,7 +3356,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       std::string fail_reason;
       if (!m_lns_db.validate_lns_tx(hf_version, get_current_blockchain_height(), tx, &data, &fail_reason))
       {
-        MERROR_VER("Failed to validate LNS TX reason=" << fail_reason);
+        MERROR_VER("Failed to validate LNS TX reason: " << fail_reason);
         return false;
       }
     }
