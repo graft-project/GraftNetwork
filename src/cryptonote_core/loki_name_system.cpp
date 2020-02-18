@@ -640,6 +640,11 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
       if (data.type == static_cast<uint16_t>(lns::mapping_type::lokinet) && !mapping.active(lns_db.network_type(), blockchain_height))
       {
         // Updating, we can always update unless the mapping has expired
+        if (reason)
+        {
+          print_tx_and_extra(err_stream, tx, data) << ", TX requested to update mapping that has already expired";
+          *reason = err_stream.str();
+        }
         return false;
       }
 
@@ -730,7 +735,10 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
           return false;
         }
       }
-
+      else
+      {
+        // NOTE: Mapping has expired, new purchase is valid
+      }
     }
   }
 

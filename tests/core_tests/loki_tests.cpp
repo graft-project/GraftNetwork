@@ -2095,6 +2095,56 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   return true;
 }
 
+bool loki_name_system_update_mapping_after_expiry_fails::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+  cryptonote::account_base miner = gen.first_miner_;
+
+  gen.add_blocks_until_version(hard_forks.back().first);
+  gen.add_n_blocks(10); /// generate some outputs and unlock them
+  gen.add_mined_money_unlock_blocks();
+
+  lns_keys_t miner_key = make_lns_keys(miner);
+  if (lns::mapping_type_allowed(gen.hardfork(), lns::mapping_type::lokinet))
+  {
+    std::string const name     = "mydomain.loki";
+    cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), miner_key.lokinet_value, name);
+    gen.create_and_add_next_block({tx});
+
+    uint64_t height_of_lns_entry   = gen.height();
+    uint64_t expected_expiry_block = height_of_lns_entry + lns::lokinet_expiry_blocks(cryptonote::FAKECHAIN, nullptr);
+
+    while (gen.height() <= expected_expiry_block)
+      gen.create_and_add_next_block();
+
+    lns_keys_t bob_key = make_lns_keys(gen.add_account());
+    cryptonote::transaction tx1 = gen.create_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::lokinet), bob_key.lokinet_value, name);
+    gen.add_tx(tx1, false /*can_be_added_to_blockchain*/, "Can not update a LNS record that is already expired");
+
+    loki_register_callback(events, "check_still_expired", [&events, height_of_lns_entry, miner_key, name](cryptonote::core &c, size_t ev_index)
+    {
+      DEFINE_TESTS_ERROR_CONTEXT("check_still_expired");
+      lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
+
+      lns::owner_record owner = lns_db.get_owner_by_key(miner_key.ed_key);
+      CHECK_EQ(owner.loaded, true);
+      CHECK_EQ(owner.id, 1);
+      CHECK_EQ(miner_key.ed_key, owner.key);
+
+      lns::mapping_record mappings = lns_db.get_mapping(static_cast<uint16_t>(lns::mapping_type::lokinet), name);
+      CHECK_EQ(mappings.loaded, true);
+      CHECK_EQ(mappings.type, static_cast<uint16_t>(lns::mapping_type::lokinet));
+      CHECK_EQ(mappings.name, name);
+      CHECK_EQ(mappings.value, miner_key.lokinet_value);
+      CHECK_EQ(mappings.register_height, height_of_lns_entry);
+      CHECK_EQ(mappings.owner_id, owner.id);
+      return true;
+    });
+  }
+  return true;
+}
+
 bool loki_name_system_update_mapping::generate(std::vector<test_event_entry> &events)
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
@@ -2121,7 +2171,6 @@ bool loki_name_system_update_mapping::generate(std::vector<test_event_entry> &ev
     crypto::hash session_tx_hash2;
     cryptonote::transaction tx1 = gen.create_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), miner_key.session_value, session_name1);
     gen.add_tx(tx1, false /*can_be_added_to_blockchain*/, "Can not add a LNS TX that re-updates the underlying value to same value");
-    loki_blockchain_entry next_block = gen.create_next_block({tx1});
   }
 
   crypto::hash session_tx_hash2;
@@ -2148,6 +2197,43 @@ bool loki_name_system_update_mapping::generate(std::vector<test_event_entry> &ev
     return true;
   });
 
+  return true;
+}
+
+bool loki_name_system_update_mapping_non_existent_name_fails::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  gen.add_n_blocks(5); /// generate some outputs and unlock them
+  gen.add_mined_money_unlock_blocks();
+
+  cryptonote::account_base miner = gen.first_miner_;
+  lns_keys_t miner_key           = make_lns_keys(miner);
+  cryptonote::transaction tx1 = gen.create_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), miner_key.session_value, "Hello World", nullptr /*signature*/, false /*use_asserts*/);
+  gen.add_tx(tx1, false /*can_be_added_to_blockchain*/, "Can not add a updating LNS TX referencing a non-existent LNS entry");
+  return true;
+}
+
+bool loki_name_system_update_mapping_invalid_signature::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  gen.add_n_blocks(5); /// generate some outputs and unlock them
+  gen.add_mined_money_unlock_blocks();
+
+  cryptonote::account_base miner = gen.first_miner_;
+  lns_keys_t miner_key           = make_lns_keys(miner);
+
+  std::string const name = "Hello World";
+  cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::session), miner_key.session_value, name);
+  gen.create_and_add_next_block({tx1});
+
+  lns_keys_t bob_key = make_lns_keys(gen.add_account());
+  crypto::ed25519_signature invalid_signature = {};
+  cryptonote::transaction tx2 = gen.create_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), bob_key.session_value, name, &invalid_signature, false /*use_asserts*/);
+  gen.add_tx(tx2, false /*can_be_added_to_blockchain*/, "Can not add a updating LNS TX with an invalid signature");
   return true;
 }
 

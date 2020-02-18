@@ -557,22 +557,28 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
 cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(cryptonote::account_base const &src,
                                                                                 uint16_t type,
                                                                                 std::string const &value,
-                                                                                std::string const &name) const
+                                                                                std::string const &name,
+                                                                                crypto::ed25519_signature *signature,
+                                                                                bool use_asserts) const
 {
   lns::mapping_record mapping = lns_db_.get_mapping(type, name);
   crypto::hash prev_txid      = mapping.txid;
-  assert(mapping);
+  if (use_asserts) assert(mapping);
 
   crypto::ed25519_public_key pkey;
   crypto::ed25519_secret_key skey;
   crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(&src.get_keys().m_spend_secret_key));
 
-  crypto::ed25519_signature signature_binary;
-  crypto::hash hash = lns::tx_extra_signature_hash();
-  crypto_sign_detached(signature_binary.data, NULL, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), skey.data);
+  crypto::ed25519_signature signature_ = {};
+  if (!signature)
+  {
+    signature = &signature_;
+    crypto::hash hash = lns::tx_extra_signature_hash();
+    crypto_sign_detached(signature->data, NULL, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), skey.data);
+  }
 
   std::vector<uint8_t> extra;
-  cryptonote::tx_extra_loki_name_system data = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type, name, value, prev_txid);
+  cryptonote::tx_extra_loki_name_system data = cryptonote::tx_extra_loki_name_system::make_update(*signature, type, name, value, prev_txid);
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
 
   cryptonote::block const &head = top().block;
