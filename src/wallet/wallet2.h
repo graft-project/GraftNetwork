@@ -1177,8 +1177,6 @@ private:
     void print_ring_members(bool value) { m_print_ring_members = value; }
     bool store_tx_info() const { return m_store_tx_info; }
     void store_tx_info(bool store) { m_store_tx_info = store; }
-    uint32_t default_mixin() const { return m_default_mixin; }
-    void default_mixin(uint32_t m) { m_default_mixin = m; }
     uint32_t get_default_priority() const { return m_default_priority; }
     void set_default_priority(uint32_t p) { m_default_priority = p; }
     bool auto_refresh() const { return m_auto_refresh; }
@@ -1393,7 +1391,6 @@ private:
     uint64_t get_fee_percent(uint32_t priority, int fee_algorithm = -1) const;
     cryptonote::byte_and_output_fees get_base_fees() const;
     uint64_t get_fee_quantization_mask() const;
-    uint64_t adjust_mixin(uint64_t mixin) const;
     uint32_t adjust_priority(uint32_t priority);
 
     // params constructor, accumulates the burn amounts if the priority is
@@ -1740,7 +1737,6 @@ private:
     bool m_always_confirm_transfers;
     bool m_print_ring_members;
     bool m_store_tx_info; /*!< request txkey to be returned in RPC, and store in the wallet cache file */
-    uint32_t m_default_mixin;
     uint32_t m_default_priority;
     RefreshType m_refresh_type;
     bool m_auto_refresh;

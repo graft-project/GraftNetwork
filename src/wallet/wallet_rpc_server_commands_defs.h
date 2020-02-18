@@ -484,7 +484,7 @@ namespace wallet_rpc
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
       uint32_t priority;                            // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
       bool blink;                                   // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;                           // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
+      uint64_t ring_size;                           // (Deprecated) Ignored; Loki ring_size is statically set to 10.
       uint64_t unlock_time;                         // Number of blocks before the loki can be spent (0 to use the default lock time).
       std::string payment_id;                       // (Optional) Random 64-character hex string to identify a transaction.
       bool get_tx_key;                              // (Optional) Return the transaction key after sending.
@@ -545,7 +545,7 @@ namespace wallet_rpc
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
       uint32_t priority;                            // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
       bool blink;                                   // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;                           // (Deprecated) Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
+      uint64_t ring_size;                           // (Deprecated) Ignored. Loki ring_size is statically set to 10.
       uint64_t unlock_time;                         // Number of blocks before the loki can be spent (0 to not add a lock).
       std::string payment_id;                       // (Optional) Random 32-byte/64-character hex string to identify a transaction.
       bool get_tx_keys;                             // (Optional) Return the transaction keys after sending.
@@ -795,7 +795,7 @@ namespace wallet_rpc
       std::set<uint32_t> subaddr_indices; // (Optional) Sweep from this set of subaddresses in the account.
       uint32_t priority;                  // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
       bool blink;                         // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;                 // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
+      uint64_t ring_size;                 // (Deprecated) Ignored; Loki ring_size is statically set to 10.
       uint64_t outputs;                   // 
       uint64_t unlock_time;               // Number of blocks before the loki can be spent (0 to not add a lock). 
       std::string payment_id;             // (Optional) 64-character hex string to identify a transaction.
@@ -867,7 +867,7 @@ namespace wallet_rpc
       std::string address;    // Destination public address.
       uint32_t priority;      // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
       bool blink;             // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;     // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
+      uint64_t ring_size;     // (Deprecated) Ignored; Loki ring_size is statically set to 10.
       uint64_t outputs;       // 
       uint64_t unlock_time;   // Number of blocks before the loki can be spent (0 to not add a lock).
       std::string payment_id; // (Optional) 64-character hex string to identify a transaction.
