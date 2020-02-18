@@ -522,7 +522,7 @@ namespace cryptonote
 
     bool approved = blink.approved();
     auto hf_version = m_blockchain.get_ideal_hard_fork_version(blink.height);
-    bool result = add_tx(tx, tvc, tx_pool_options::new_blink(approved), hf_version);
+    bool result = add_tx(tx, tvc, tx_pool_options::new_blink(approved, hf_version), hf_version);
     if (result && approved)
     {
       auto lock = blink_unique_lock();

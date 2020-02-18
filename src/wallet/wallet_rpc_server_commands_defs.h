@@ -482,7 +482,7 @@ namespace wallet_rpc
       std::list<transfer_destination> destinations; // Array of destinations to receive LOKI.
       uint32_t account_index;                       // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
-      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
       bool blink;                                   // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
       uint64_t ring_size;                           // (Deprecated) Ignored; Loki ring_size is statically set to 10.
       uint64_t unlock_time;                         // Number of blocks before the loki can be spent (0 to use the default lock time).
@@ -543,7 +543,7 @@ namespace wallet_rpc
       std::list<transfer_destination> destinations; // Array of destinations to receive LOKI:
       uint32_t account_index;                       // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
-      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
       bool blink;                                   // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
       uint64_t ring_size;                           // (Deprecated) Ignored. Loki ring_size is statically set to 10.
       uint64_t unlock_time;                         // Number of blocks before the loki can be spent (0 to not add a lock).
@@ -793,7 +793,7 @@ namespace wallet_rpc
       std::string address;                // Destination public address.
       uint32_t account_index;             // Sweep transactions from this account.
       std::set<uint32_t> subaddr_indices; // (Optional) Sweep from this set of subaddresses in the account.
-      uint32_t priority;                  // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      uint32_t priority;                  // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
       bool blink;                         // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
       uint64_t ring_size;                 // (Deprecated) Ignored; Loki ring_size is statically set to 10.
       uint64_t outputs;                   // 
@@ -865,7 +865,7 @@ namespace wallet_rpc
     struct request_t
     {
       std::string address;    // Destination public address.
-      uint32_t priority;      // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      uint32_t priority;      // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
       bool blink;             // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
       uint64_t ring_size;     // (Deprecated) Ignored; Loki ring_size is statically set to 10.
       uint64_t outputs;       // 

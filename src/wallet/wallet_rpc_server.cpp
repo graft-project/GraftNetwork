@@ -860,8 +860,10 @@ namespace tools
 
     try
     {
-      uint32_t priority = m_wallet->adjust_priority(req.priority);
-      if (req.blink) priority = tools::tx_priority_blink;
+      uint32_t priority = req.priority;
+
+      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+        priority = tx_priority_blink;
 
       boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
       if (!hf_version)
@@ -921,8 +923,10 @@ namespace tools
 
     try
     {
-      uint32_t priority = m_wallet->adjust_priority(req.priority);
-      if (req.blink) priority = tools::tx_priority_blink;
+      uint32_t priority = req.priority;
+
+      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+        priority = tx_priority_blink;
 
       boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
       if (!hf_version)
@@ -1341,8 +1345,11 @@ namespace tools
 
     try
     {
-      uint32_t priority = m_wallet->adjust_priority(req.priority);
-      if (req.blink) priority = tools::tx_priority_blink;
+      uint32_t priority = req.priority;
+
+      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+        priority = tx_priority_blink;
+
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, dsts[0].is_subaddress, req.outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
 
       return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay, priority == tx_priority_blink,
@@ -1396,9 +1403,11 @@ namespace tools
 
     try
     {
-      uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority);
-      if (req.blink) priority = tools::tx_priority_blink;
+      uint32_t priority = req.priority;
+
+      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+        priority = tx_priority_blink;
+
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_single(ki, dsts[0].addr, dsts[0].is_subaddress, req.outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra);
 
       if (ptx_vector.empty())
