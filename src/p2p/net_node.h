@@ -231,7 +231,8 @@ namespace nodetool
         m_offline(false),
         m_save_graph(false),
         is_closing(false),
-        m_network_id()
+        m_network_id(),
+        m_supernode_conn_manager(payload_handler.get_core().get_stake_tx_processor())
     {}
     virtual ~node_server();
 
@@ -289,7 +290,7 @@ namespace nodetool
 
      if (is_filtered_command(context.m_remote_address, command))
         return LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED;
-      
+      // TODO: Graft: consider to move "BROADCAST" and related stuff to the cryptonode_protocol_handler as we don't have tunnelling anymore
       HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_broadcast)
       HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
       HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)

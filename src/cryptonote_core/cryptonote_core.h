@@ -849,6 +849,14 @@ namespace cryptonote
       * @return true on success, false otherwise
       */
      bool check_blockchain_pruning();
+     
+     /**
+      * @brief get_stake_tx_processor - returns stake tx processor reference
+      *
+      * @return 
+      */
+     StakeTransactionProcessor &get_stake_tx_processor() { return  m_graft_stake_transaction_processor; }
+     
 
    private:
 

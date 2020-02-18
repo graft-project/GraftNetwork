@@ -13,6 +13,10 @@
 #include <string>
 #include <vector>
 
+namespace cryptonote {
+class StakeTransactionProcessor;
+}
+
 
 namespace graft {
 
@@ -72,7 +76,7 @@ public:
   using SupernodeRoutes = std::vector<SupernodeRoute>;
   
   
-  SupernodeConnectionManager();
+  SupernodeConnectionManager(cryptonote::StakeTransactionProcessor &stp);
   ~SupernodeConnectionManager();
   
   void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req);
@@ -138,6 +142,7 @@ private:
   std::map<SupernodeId, SupernodeConnection> m_supernode_connections;
   std::map<SupernodeId, SupernodeRoutes> m_supernode_routes; // recipients ids to redirect to the supernode
   mutable boost::recursive_mutex m_supernodes_lock;
+  cryptonote::StakeTransactionProcessor &m_stp;
   
 };
 

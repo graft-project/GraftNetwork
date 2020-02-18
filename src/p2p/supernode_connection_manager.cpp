@@ -1,5 +1,6 @@
 #include "supernode_connection_manager.h"
 #include "storages/http_abstract_invoke.h"
+#include "cryptonote_core/stake_transaction_processor.h"
 
 #include <boost/algorithm/string/join.hpp>
 
@@ -7,6 +8,45 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "net.p2p.supernode"
 
 namespace graft {
+
+namespace {
+
+void getBroadcastHash(const nodetool::COMMAND_BROADCAST::request &req, crypto::hash &hash)
+{
+  // TODO: forward slashes in callback_uri are escaped as \/ so signature wont match while processing it;
+  // either a) escape on the sender side or b) unescape on receiver side or c) exclude it from hash
+  // (quick-and-dirty, picking "c" for now)
+  
+  std::string msg = /*boost::algorithm::join(req.receiver_addresses, "") +*/ req.sender_address /*+ req.callback_uri*/
+      + req.data;
+  hash = crypto::cn_fast_hash(msg.data(), msg.length());
+}
+
+bool verifyBroadcastMessage(const nodetool::COMMAND_BROADCAST::request &request)
+{
+  crypto::hash hash;
+  getBroadcastHash(request, hash);
+  
+  MDEBUG("Verifying hash: " << hash << " with pkey: " << request.sender_address);
+  crypto::signature sign;
+  if (!epee::string_tools::hex_to_pod(request.signature, sign)) {
+    LOG_ERROR("Failed to deserialize signature from: " << request.signature << ", request: " 
+              << epee::serialization::store_t_to_json(request));
+    return false;
+  }
+  crypto::public_key pkey;
+  if (!epee::string_tools::hex_to_pod(request.sender_address, pkey)) {
+    LOG_ERROR("Failed to deserialize public key from: " << request.sender_address);
+    return false;
+  }
+  
+  return crypto::check_signature(hash, pkey, sign);
+}
+
+
+  
+
+}
 
 
 bool SupernodeConnectionManager::SupernodeConnection::operator==(const SupernodeConnection &other) const
@@ -17,7 +57,10 @@ bool SupernodeConnectionManager::SupernodeConnection::operator==(const Supernode
       && this->redirect_uri == other.redirect_uri;
 }
 
-SupernodeConnectionManager::SupernodeConnectionManager()
+
+
+SupernodeConnectionManager::SupernodeConnectionManager(cryptonote::StakeTransactionProcessor &stp)
+  : m_stp(stp)
 {
   
 }
@@ -26,6 +69,7 @@ SupernodeConnectionManager::~SupernodeConnectionManager()
 {
   
 }
+
 
 void SupernodeConnectionManager::register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request &req)
 {
@@ -99,6 +143,24 @@ std::vector<SupernodeConnectionManager::SupernodeId> SupernodeConnectionManager:
 bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BROADCAST::request &arg, bool &relay_broadcast, uint64_t &messages_sent, uint64_t &messages_forwarded)
 {
   MDEBUG("processBroadcast: begin");
+  relay_broadcast = false;
+  // check if stake tx processing is enabled; if not - we can't process this broadcast
+  if (!m_stp.is_enabled()) {
+    MWARNING("Stake transaction processing disabled");
+    return false;
+  }
+  // check if sender is a valid supernode
+  if (!m_stp.is_supernode_valid(arg.sender_address, m_stp.get_current_blockchain_height())) {
+    MWARNING("BROADCAST from invalid supernode");
+    return false;
+  }
+  
+  // check if sender's signature valud
+  if (!verifyBroadcastMessage(arg)) {
+    MWARNING("Sender's signature verification failed: " << arg.sender_address << ", " << arg.signature);
+    return false;
+  }
+  
   std::vector<std::string> all_local_supernodes;
   boost::lock_guard<boost::recursive_mutex> guard(m_supernodes_lock);
   {
