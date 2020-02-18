@@ -181,7 +181,7 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
   }
   // TODO: Q: What is the difference in known_addresses vs local_addresses  and why they processed in separate loops?
   //       A: Difference is the messages to local and known supernodes are delivered via different RPC 
-  if (!known_addresses.empty()) // disable UDHT
+  if (/*!known_addresses.empty()*/false) // XXX: disable UDHT for now, only using p2p
   {// forward to local supernode which knows destination network address
     // TODO: IK not sure if it needed at all - why it needs to be encapsulated into different message
     MDEBUG("handle_broadcast: posting to known supernodes: " << "arg { receiver_addresses : '" << boost::algorithm::join(arg.receiver_addresses, "\n") << "'\n arg.callback_uri : '" << arg.callback_uri << "'}");
@@ -216,7 +216,7 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
     }
 // #endif           
   }
-  // XXX DBG
+  // XXX disable UDHT for now
   std::copy(known_addresses.begin(), known_addresses.end(), std::back_inserter(unknown_addresses));
   
   relay_broadcast = true;
