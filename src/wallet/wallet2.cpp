@@ -9592,42 +9592,49 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
 
   // we still keep a copy, since we want to keep dsts free of change for user feedback purposes
   std::vector<cryptonote::tx_destination_entry> splitted_dsts = dsts;
-  uint64_t const change_amount                                = found_money - needed_money;
-  cryptonote::tx_destination_entry empty_change_dts           = {};
-  cryptonote::tx_destination_entry *change_dts_ptr            = &empty_change_dts;
-  if (change_amount == 0)
+  cryptonote::tx_destination_entry change_dts                 = {};
+  change_dts.amount                                           = found_money - needed_money;
+  bool update_splitted_dsts                                   = true;
+  if (change_dts.amount == 0)
   {
-    if (tx_params.tx_type == txtype::loki_name_system || splitted_dsts.size() == 1)
+    if (splitted_dsts.size() == 1 || tx.type == txtype::loki_name_system)
     {
-      // NOTE: If LNS, there's already a dummy destination entry in there (for
-      // fake calculating the TX fees and parts) that we repurpose for change
-      // after the fact.
-      if (tx_params.tx_type != txtype::loki_name_system)
-        splitted_dsts.emplace_back();
-      change_dts_ptr  = &splitted_dsts.back();
-      *change_dts_ptr = {};
-
       // If the change is 0, send it to a random address, to avoid confusing
       // the sender with a 0 amount output. We send a 0 amount in order to avoid
       // letting the destination be able to work out which of the inputs is the
       // real one in our rings
+
       LOG_PRINT_L2("generating dummy address for 0 change");
       cryptonote::account_base dummy;
       dummy.generate();
       LOG_PRINT_L2("generated dummy address for 0 change");
-
-      change_dts_ptr->addr = dummy.get_keys().m_account_address;
+      change_dts.addr = dummy.get_keys().m_account_address;
+    }
+    else
+    {
+      update_splitted_dsts = false;
     }
   }
   else
   {
-    if (tx_params.tx_type != txtype::loki_name_system)
-      splitted_dsts.emplace_back();
-    change_dts_ptr = &splitted_dsts.back();
+    change_dts.addr = get_subaddress({subaddr_account, 0});
+    change_dts.is_subaddress = subaddr_account != 0;
+  }
 
-    change_dts_ptr->addr          = get_subaddress({subaddr_account, 0});
-    change_dts_ptr->is_subaddress = subaddr_account != 0;
-    change_dts_ptr->amount        = change_amount;
+  if (update_splitted_dsts)
+  {
+    // NOTE: If LNS, there's already a dummy destination entry in there that
+    // we placed in (for fake calculating the TX fees and parts) that we
+    // repurpose for change after the fact.
+    if (tx_params.tx_type == txtype::loki_name_system)
+    {
+      assert(splitted_dsts.size() == 1);
+      splitted_dsts.back() = change_dts;
+    }
+    else
+    {
+      splitted_dsts.push_back(change_dts);
+    }
   }
 
   crypto::secret_key tx_key;
@@ -9635,7 +9642,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
   rct::multisig_out msout;
   LOG_PRINT_L2("constructing tx");
   auto sources_copy = sources;
-  bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sources, splitted_dsts, *change_dts_ptr, extra, tx, unlock_time, tx_key, additional_tx_keys, rct_config, m_multisig ? &msout : NULL, tx_params);
+  bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sources, splitted_dsts, change_dts, extra, tx, unlock_time, tx_key, additional_tx_keys, rct_config, m_multisig ? &msout : NULL, tx_params);
 
   LOG_PRINT_L2("constructed tx, r="<<r);
   THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sources, dsts, unlock_time, m_nettype);
@@ -9686,7 +9693,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
                                                       m_subaddresses,
                                                       sources_copy_copy,
                                                       splitted_dsts,
-                                                      *change_dts_ptr,
+                                                      change_dts,
                                                       extra,
                                                       ms_tx,
                                                       unlock_time,
@@ -9725,7 +9732,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
   ptx.dust = 0;
   ptx.dust_added_to_fee = false;
   ptx.tx = tx;
-  ptx.change_dts = *change_dts_ptr;
+  ptx.change_dts = change_dts;
   ptx.selected_transfers = selected_transfers;
   tools::apply_permutation(ins_order, ptx.selected_transfers);
   ptx.tx_key = tx_key;
@@ -9733,7 +9740,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
   ptx.dests = dsts;
   ptx.multisig_sigs = multisig_sigs;
   ptx.construction_data.sources = sources_copy;
-  ptx.construction_data.change_dts = *change_dts_ptr;
+  ptx.construction_data.change_dts = change_dts;
   ptx.construction_data.splitted_dsts = splitted_dsts;
   ptx.construction_data.selected_transfers = ptx.selected_transfers;
   ptx.construction_data.extra = tx.extra;
@@ -10480,7 +10487,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   // early out if we know we can't make it anyway
   // we could also check for being within FEE_PER_KB, but if the fee calculation
   // ever changes, this might be missed, so let this go through
-  const uint64_t num_outputs = tx_params.tx_type == txtype::loki_name_system ? 1 : 2;
+  const uint64_t num_outputs = tx_params.tx_type == cryptonote::txtype::loki_name_system ? 1 : 2; // if lns, only request the change output
   {
     uint64_t min_fee = (
         base_fee.first * estimate_rct_tx_size(1, fake_outs_count, num_outputs, extra.size()) +
@@ -11227,6 +11234,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
       tx.ptx = test_ptx;
       tx.weight = get_transaction_weight(test_tx, txBlob.size());
       tx.outs = outs;
+      tx.needed_fee = test_ptx.fee;
+      accumulated_fee += test_ptx.fee;
       accumulated_change += test_ptx.change_dts.amount;
       if (!unused_transfers_indices.empty() || !unused_dust_indices.empty())
       {
