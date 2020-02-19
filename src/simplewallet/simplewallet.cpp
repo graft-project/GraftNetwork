@@ -6787,7 +6787,7 @@ bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& arg
   }
 
   for (auto const &mapping : response)
-    tools::msg_writer() << "name=\"" << entry.name << "\", owner=" << mapping.owner << ", type=" << mapping.type << ", height=" << mapping.register_height;
+    tools::msg_writer() << "name=\"" << entry.name << "\", owner=" << mapping.owner << ", type=" << static_cast<lns::mapping_type>(mapping.type) << ", height=" << mapping.register_height;
 
   return true;
 }
@@ -6857,7 +6857,7 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
       }
     }
 
-    tools::msg_writer() << "owner=" << *owner << "type=" << entry.type << "height=" << entry.register_height << ", name=\"" << entry.name << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
+    tools::msg_writer() << "owner=" << *owner << ", type=" << static_cast<lns::mapping_type>(entry.type) << ", height=" << entry.register_height << ", name=\"" << entry.name << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
   }
   return true;
 }
