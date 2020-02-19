@@ -151,7 +151,7 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
   }
   // check if sender is a valid supernode
   if (!m_stp.is_supernode_valid(arg.sender_address, m_stp.get_current_blockchain_height())) {
-    MWARNING("BROADCAST from invalid supernode");
+    MWARNING("BROADCAST from invalid supernode: " << arg.sender_address);
     return false;
   }
   
