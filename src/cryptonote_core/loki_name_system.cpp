@@ -870,7 +870,19 @@ bool validate_mapping_type(std::string const &type, lns::mapping_type *mapping_t
     }
     catch (std::exception const &)
     {
-      if (reason) *reason = "Failed to convert lns mapping (was not proper integer, or not one of the recognised: \"session\"), string was=" + type;
+      if (reason) 
+      {
+          *reason = "Failed to convert lns mapping (was not proper integer, or not one of the recognised: \"session\"), string was";
+          if (type.empty())
+          {
+            *reason += " empty.";
+          }
+          else
+          {
+            *reason += "=";
+            *reason += type;
+          }
+      }
       return false;
     }
   }

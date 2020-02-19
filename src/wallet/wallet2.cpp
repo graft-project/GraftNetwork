@@ -8669,14 +8669,14 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(std::string 
   return result;
 }
 
-std::vector<wallet2::pending_tx> wallet2::update_lns_mapping_tx(lns::mapping_type type,
-                                                                std::string const &name,
-                                                                std::string const &value,
-                                                                std::string const *signature,
-                                                                std::string *reason,
-                                                                uint32_t priority,
-                                                                uint32_t account_index,
-                                                                std::set<uint32_t> subaddr_indices)
+std::vector<wallet2::pending_tx> wallet2::create_update_lns_mapping_tx(lns::mapping_type type,
+                                                                       std::string const &name,
+                                                                       std::string const &value,
+                                                                       std::string const *signature,
+                                                                       std::string *reason,
+                                                                       uint32_t priority,
+                                                                       uint32_t account_index,
+                                                                       std::set<uint32_t> subaddr_indices)
 {
   crypto::hash prev_txid;
   lns::lns_value value_blob;
@@ -8722,6 +8722,23 @@ std::vector<wallet2::pending_tx> wallet2::update_lns_mapping_tx(lns::mapping_typ
                                       account_index,
                                       subaddr_indices,
                                       tx_params);
+  return result;
+}
+
+std::vector<wallet2::pending_tx> wallet2::create_update_lns_mapping_tx(std::string const &type,
+                                                                       std::string const &name,
+                                                                       std::string const &value,
+                                                                       std::string const *signature,
+                                                                       std::string *reason,
+                                                                       uint32_t priority,
+                                                                       uint32_t account_index,
+                                                                       std::set<uint32_t> subaddr_indices)
+{
+  lns::mapping_type mapping_type = lns::mapping_type::session;
+  if (!lns::validate_mapping_type(type, &mapping_type, reason))
+    return {};
+
+  std::vector<wallet2::pending_tx> result = create_update_lns_mapping_tx(mapping_type, name, value, signature, reason, priority, account_index, subaddr_indices);
   return result;
 }
 

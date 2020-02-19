@@ -4309,6 +4309,51 @@ namespace tools
                          res.tx_metadata,
                          er);
   }
+
+  bool wallet_rpc_server::on_update_lns_mapping(const wallet_rpc::COMMAND_RPC_UPDATE_LNS_MAPPING::request &req, wallet_rpc::COMMAND_RPC_UPDATE_LNS_MAPPING::response &res, epee::json_rpc::error &er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_restricted)
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Updating lns mappings is unavailable in restricted mode.";
+      return false;
+    }
+
+    std::string reason;
+    std::vector<wallet2::pending_tx> ptx_vector =
+        m_wallet->create_update_lns_mapping_tx(req.type,
+                                               req.name,
+                                               req.value,
+                                               req.signature.empty() ? nullptr : &req.signature,
+                                               &reason,
+                                               req.priority,
+                                               req.account_index,
+                                               req.subaddr_indices);
+
+    if (ptx_vector.empty())
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;
+      er.message = "Failed to create LNS update transaction: " + reason;
+      return false;
+    }
+
+    return fill_response(ptx_vector,
+                         req.get_tx_key,
+                         res.tx_key,
+                         res.amount,
+                         res.fee,
+                         res.multisig_txset,
+                         res.unsigned_txset,
+                         req.do_not_relay,
+                         false /*blink*/,
+                         res.tx_hash,
+                         req.get_tx_hex,
+                         res.tx_blob,
+                         req.get_tx_metadata,
+                         res.tx_metadata,
+                         er);
+  }
 }
 
 class t_daemon

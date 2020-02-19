@@ -6678,14 +6678,14 @@ bool simple_wallet::update_lns_mapping(const std::vector<std::string>& args)
   std::vector<tools::wallet2::pending_tx> ptx_vector;
   try
   {
-    ptx_vector = m_wallet->update_lns_mapping_tx(lns::mapping_type::session,
-                                                 name,
-                                                 *value,
-                                                 signature,
-                                                 &reason,
-                                                 priority,
-                                                 m_current_subaddress_account,
-                                                 subaddr_indices);
+    ptx_vector = m_wallet->create_update_lns_mapping_tx(lns::mapping_type::session,
+                                                        name,
+                                                        *value,
+                                                        signature,
+                                                        &reason,
+                                                        priority,
+                                                        m_current_subaddress_account,
+                                                        subaddr_indices);
     if (ptx_vector.empty())
     {
       tools::fail_msg_writer() << reason;

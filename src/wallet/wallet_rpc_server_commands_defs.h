@@ -2877,7 +2877,7 @@ namespace wallet_rpc
 
       uint32_t           account_index;    // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;  // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
-      uint32_t           priority;         // Set a priority for the transaction. Accepted Values are: 0-3 for: default, unimportant, normal, elevated, priority.
+      uint32_t           priority;         // Set a priority for the transaction. Accepted values are: or 0-4 for: default, unimportant, normal, elevated, priority.
       bool               get_tx_key;       // (Optional) Return the transaction key after sending.
       bool               do_not_relay;     // (Optional) If true, the newly created transaction will not be relayed to the loki network. (Defaults to false)
       bool               get_tx_hex;       // Return the transaction as hex string after sending (Defaults to false)
@@ -2888,6 +2888,67 @@ namespace wallet_rpc
         KV_SERIALIZE_OPT(owner, std::string(""));
         KV_SERIALIZE    (name);
         KV_SERIALIZE    (value);
+        KV_SERIALIZE_OPT(account_index,   (uint32_t)0);
+        KV_SERIALIZE_OPT(subaddr_indices, {});
+        KV_SERIALIZE_OPT(priority,        (uint32_t)0);
+        KV_SERIALIZE    (get_tx_key)
+        KV_SERIALIZE_OPT(do_not_relay,    false)
+        KV_SERIALIZE_OPT(get_tx_hex,      false)
+        KV_SERIALIZE_OPT(get_tx_metadata, false)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string tx_hash;        // Publically searchable transaction hash.
+      std::string tx_key;         // Transaction key if `get_tx_key` is `true`, otherwise, blank string.
+      uint64_t amount;            // Amount transferred for the transaction in atomic units.
+      uint64_t fee;               // Value in atomic units of the fee charged for the tx.
+      std::string tx_blob;        // Raw transaction represented as hex string, if get_tx_hex is true.
+      std::string tx_metadata;    // Set of transaction metadata needed to relay this transfer later, if `get_tx_metadata` is `true`.
+      std::string multisig_txset; // Set of multisig transactions in the process of being signed (empty for non-multisig).
+      std::string unsigned_txset; // Set of unsigned tx for cold-signing purposes.
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(tx_hash)
+        KV_SERIALIZE(tx_key)
+        KV_SERIALIZE(amount)
+        KV_SERIALIZE(fee)
+        KV_SERIALIZE(tx_blob)
+        KV_SERIALIZE(tx_metadata)
+        KV_SERIALIZE(multisig_txset)
+        KV_SERIALIZE(unsigned_txset)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Update the underlying value in the name->value mapping via Loki Name Service.
+  struct COMMAND_RPC_UPDATE_LNS_MAPPING
+  {
+    struct request_t
+    {
+      std::string        type;      // The mapping type, currently only "session" is supported.
+      std::string        name;      // The name to update via Loki Name Service
+      std::string        value;     // The new value that the name maps to via Loki Name Service, (i.e. For session: display name -> session public key).
+      std::string        signature; // (Optional): Signature derived from the hash of the previous txid blob and previous value blob of the mapping. By default this is signed using the wallet's spend key as an ed25519 keypair, if signature is empty.
+
+      uint32_t           account_index;    // (Optional) Transfer from this account index. (Defaults to 0)
+      std::set<uint32_t> subaddr_indices;  // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
+      uint32_t           priority;         // Set a priority for the transaction. Accepted values are: 0-4 for: default, unimportant, normal, elevated, priority.
+      bool               get_tx_key;       // (Optional) Return the transaction key after sending.
+      bool               do_not_relay;     // (Optional) If true, the newly created transaction will not be relayed to the loki network. (Defaults to false)
+      bool               get_tx_hex;       // Return the transaction as hex string after sending (Defaults to false)
+      bool               get_tx_metadata;  // Return the metadata needed to relay the transaction. (Defaults to false)
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE    (type);
+        KV_SERIALIZE    (name);
+        KV_SERIALIZE    (value);
+        KV_SERIALIZE_OPT(signature, std::string(""));
+
         KV_SERIALIZE_OPT(account_index,   (uint32_t)0);
         KV_SERIALIZE_OPT(subaddr_indices, {});
         KV_SERIALIZE_OPT(priority,        (uint32_t)0);
