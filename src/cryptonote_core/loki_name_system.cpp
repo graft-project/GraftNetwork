@@ -789,7 +789,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << ", didn't have loki name service in the tx_extra";
+      print_tx(err_stream, tx) << ", didn't have loki name service in the tx_extra";
       *reason = err_stream.str();
     }
     return false;
@@ -799,7 +799,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << " unexpected version=" << std::to_string(entry->version) << ", expected=0";
+      print_tx_and_extra(err_stream, tx, *entry) << ", unexpected version=" << std::to_string(entry->version) << ", expected=0";
       *reason = err_stream.str();
     }
     return false;
@@ -809,7 +809,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      err_stream << "TX: " << tx.type << " " << get_transaction_hash(tx) << " specifying type=" << static_cast<uint16_t>(entry->type) << " that is disallowed";
+      print_tx_and_extra(err_stream, tx, *entry) << ", specifying type=" << static_cast<uint16_t>(entry->type) << " that is disallowed";
       *reason = err_stream.str();
     }
     return false;
@@ -833,7 +833,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     if (reason)
     {
       char const *over_or_under = burn > burn_required ? "too much " : "insufficient ";
-      err_stream << "LNS TX=" << cryptonote::get_transaction_hash(tx) << ", burned " << over_or_under << "loki=" << burn << ", require=" << burn_required;
+      print_tx_and_extra(err_stream, tx, *entry) << ", burned " << over_or_under << "loki=" << burn << ", require=" << burn_required;
       *reason = err_stream.str();
     }
     return false;
