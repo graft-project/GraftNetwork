@@ -66,6 +66,7 @@ struct loki_name_system_update_mapping_after_expiry_fails                       
 struct loki_name_system_update_mapping                                               : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_update_mapping_non_existent_name_fails                       : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_update_mapping_invalid_signature                             : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
+struct loki_name_system_update_mapping_replay                                        : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_wrong_burn                                                   : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_name_system_wrong_version                                                : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_service_nodes_alt_quorums                                                : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };

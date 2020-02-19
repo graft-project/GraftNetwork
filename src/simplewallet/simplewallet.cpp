@@ -6797,10 +6797,10 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
   if (!try_connect_to_daemon())
     return false;
 
-  std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> entries;
   boost::optional<std::string> failed;
 
   std::string my_own_ed25519_key;
+  cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::request request = {};
   if (args.size() == 0)
   {
     // TODO(doyle): I need to make this address visible easily for people, prior
@@ -6810,7 +6810,7 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
     crypto::ed25519_secret_key skey;
     crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(m_wallet->get_account().get_keys().m_spend_secret_key.data));
     my_own_ed25519_key = epee::string_tools::pod_to_hex(pkey);
-    entries = m_wallet->get_lns_owners_to_names({my_own_ed25519_key}, failed);
+    request.entries.push_back(my_own_ed25519_key);
   }
   else
   {
@@ -6830,10 +6830,11 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
           return false;
         }
       }
+      request.entries.push_back(arg);
     }
-    entries = m_wallet->get_lns_owners_to_names(args, failed);
   }
 
+  std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> entries = m_wallet->get_lns_owners_to_names(request, failed);
   if (failed)
   {
     fail_msg_writer() << *failed;

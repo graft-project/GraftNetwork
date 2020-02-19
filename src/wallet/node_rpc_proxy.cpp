@@ -406,7 +406,7 @@ std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::ent
   return result;
 }
 
-std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> NodeRPCProxy::get_lns_owners_to_names(std::vector<std::string> const &owners, boost::optional<std::string> &failed) const
+std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> NodeRPCProxy::get_lns_owners_to_names(cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::request const &request, boost::optional<std::string> &failed) const
 {
   if (m_offline)
   {
@@ -414,12 +414,10 @@ std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> Nod
     return {};
   }
 
-  cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::request req  = {};
   cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response res = {};
-  req.entries = owners;
   {
     std::lock_guard<std::recursive_mutex> lock(m_daemon_rpc_mutex);
-    bool r = epee::net_utils::invoke_http_json_rpc("/json_rpc", "get_lns_owners_to_names", req, res, m_http_client, rpc_timeout);
+    bool r = epee::net_utils::invoke_http_json_rpc("/json_rpc", "get_lns_owners_to_names", request, res, m_http_client, rpc_timeout);
     if (!check_invoke(r, res, failed))
       return {};
   }

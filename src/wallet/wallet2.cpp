@@ -8681,6 +8681,12 @@ std::vector<wallet2::pending_tx> wallet2::update_lns_mapping_tx(lns::mapping_typ
                                                                 uint32_t account_index,
                                                                 std::set<uint32_t> subaddr_indices)
 {
+  uint16_t type16 = static_cast<uint16_t>(type);
+  crypto::hash prev_txid;
+  lns::lns_value value_blob;
+  if (!prepare_tx_extra_loki_name_system_values(nettype(), type16, priority, name, value, *this, prev_txid, value_blob, reason))
+    return {};
+
   crypto::ed25519_public_key pkey;
   crypto::ed25519_signature signature_binary;
   if (signature)
@@ -8696,15 +8702,9 @@ std::vector<wallet2::pending_tx> wallet2::update_lns_mapping_tx(lns::mapping_typ
     crypto::ed25519_secret_key skey;
     crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(&m_account.get_keys().m_spend_secret_key));
 
-    crypto::hash hash = lns::tx_extra_signature_hash();
+    crypto::hash hash = lns::tx_extra_signature_hash(epee::span<const uint8_t>(value_blob.buffer.data(), value_blob.len), prev_txid);
     crypto_sign_detached(signature_binary.data, NULL, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), skey.data);
   }
-
-  uint16_t type16 = static_cast<uint16_t>(type);
-  crypto::hash prev_txid;
-  lns::lns_value value_blob;
-  if (!prepare_tx_extra_loki_name_system_values(nettype(), type16, priority, name, value, *this, prev_txid, value_blob, reason))
-    return {};
 
   std::vector<uint8_t> extra;
   auto entry = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type16, name, std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);

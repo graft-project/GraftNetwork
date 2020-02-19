@@ -2149,7 +2149,7 @@ bool loki_name_system_update_mapping::generate(std::vector<test_event_entry> &ev
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
   loki_chain_generator gen(events, hard_forks);
-
+  gen.add_blocks_until_version(hard_forks.back().first);
   gen.add_n_blocks(10); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
@@ -2204,7 +2204,7 @@ bool loki_name_system_update_mapping_non_existent_name_fails::generate(std::vect
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
   loki_chain_generator gen(events, hard_forks);
-
+  gen.add_blocks_until_version(hard_forks.back().first);
   gen.add_n_blocks(5); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
@@ -2219,7 +2219,7 @@ bool loki_name_system_update_mapping_invalid_signature::generate(std::vector<tes
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
   loki_chain_generator gen(events, hard_forks);
-
+  gen.add_blocks_until_version(hard_forks.back().first);
   gen.add_n_blocks(5); /// generate some outputs and unlock them
   gen.add_mined_money_unlock_blocks();
 
@@ -2234,6 +2234,55 @@ bool loki_name_system_update_mapping_invalid_signature::generate(std::vector<tes
   crypto::ed25519_signature invalid_signature = {};
   cryptonote::transaction tx2 = gen.create_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), bob_key.session_value, name, &invalid_signature, false /*use_asserts*/);
   gen.add_tx(tx2, false /*can_be_added_to_blockchain*/, "Can not add a updating LNS TX with an invalid signature");
+  return true;
+}
+
+bool loki_name_system_update_mapping_replay::generate(std::vector<test_event_entry> &events)
+{
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+  gen.add_blocks_until_version(hard_forks.back().first);
+  gen.add_n_blocks(5); /// generate some outputs and unlock them
+  gen.add_mined_money_unlock_blocks();
+
+  cryptonote::account_base miner = gen.first_miner_;
+  lns_keys_t miner_key           = make_lns_keys(miner);
+  lns_keys_t bob_key             = make_lns_keys(gen.add_account());
+  lns_keys_t alice_key           = make_lns_keys(gen.add_account());
+
+  std::string const name = "Hello World";
+  // Make LNS Mapping
+  {
+    cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(miner, static_cast<uint16_t>(lns::mapping_type::session), miner_key.session_value, name);
+    gen.create_and_add_next_block({tx1});
+  }
+
+  // (1) Update LNS Mapping
+  cryptonote::tx_extra_loki_name_system lns_entry = {};
+  {
+    cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), bob_key.session_value, name);
+    gen.create_and_add_next_block({tx1});
+    assert(cryptonote::get_loki_name_system_from_tx_extra(tx1.extra, lns_entry));
+  }
+
+  // Replay the (1)st update mapping, should fail because the update is to the same session value
+  {
+    cryptonote::transaction tx1 = gen.create_loki_name_system_tx_update_w_extra(miner, lns_entry);
+    gen.add_tx(tx1, false /*can_be_added_to_blockchain*/, "Can not replay an older update mapping to the same session value");
+  }
+
+  // (2) Update Again
+  {
+    cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx_update(miner, static_cast<uint16_t>(lns::mapping_type::session), alice_key.session_value, name);
+    gen.create_and_add_next_block({tx1});
+  }
+
+  // Replay the (1)st update mapping, should fail now even though it's not to the same session value, but that the signature no longer matches so you can't replay.
+  {
+    cryptonote::transaction tx1 = gen.create_loki_name_system_tx_update_w_extra(miner, lns_entry);
+    gen.add_tx(tx1, false /*can_be_added_to_blockchain*/, "Can not replay an older update mapping, should fail signature verification");
+  }
+  
   return true;
 }
 

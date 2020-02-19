@@ -1023,7 +1023,7 @@ private:
     std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> get_all_service_nodes(boost::optional<std::string> &failed)                                             const { return m_node_rpc_proxy.get_all_service_nodes(failed); }
     std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> get_service_nodes    (std::vector<std::string> const &pubkeys, boost::optional<std::string> &failed)    const { return m_node_rpc_proxy.get_service_nodes(pubkeys, failed); }
     std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::entry> get_service_node_blacklisted_key_images(boost::optional<std::string> &failed)               const { return m_node_rpc_proxy.get_service_node_blacklisted_key_images(failed); }
-    std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> get_lns_owners_to_names(std::vector<std::string> const &owners, boost::optional<std::string> &failed) const { return m_node_rpc_proxy.get_lns_owners_to_names(owners, failed); }
+    std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> get_lns_owners_to_names(cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::request const &request, boost::optional<std::string> &failed) const { return m_node_rpc_proxy.get_lns_owners_to_names(request, failed); }
     std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry> get_lns_names_to_owners(cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request const &request, boost::optional<std::string> &failed) const { return m_node_rpc_proxy.get_lns_names_to_owners(request, failed); }
 
     uint64_t get_blockchain_current_height() const { return m_light_wallet_blockchain_height ? m_light_wallet_blockchain_height : m_blockchain.size(); }

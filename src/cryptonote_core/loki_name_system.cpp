@@ -3,7 +3,9 @@
 #include "checkpoints/checkpoints.h"
 #include "common/loki.h"
 #include "common/hex.h"
+#include "common/util.h"
 #include "common/base32z.h"
+#include "crypto/hash.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
@@ -285,10 +287,22 @@ uint64_t lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew
   return result;
 }
 
-crypto::hash tx_extra_signature_hash()
+crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::hash const &prev_txid)
 {
-  // TODO(doyle): Make the hash for LNS
   crypto::hash result = {};
+  if (blob.size() <= lns::GENERIC_VALUE_MAX)
+  {
+    char buffer[lns::GENERIC_VALUE_MAX + sizeof(prev_txid)] = {};
+    size_t buffer_len                                       = blob.size() + sizeof(prev_txid);
+    memcpy(buffer, blob.data(), blob.size());
+    memcpy(buffer + blob.size(), prev_txid.data, sizeof(prev_txid));
+    result = crypto::cn_fast_hash(buffer, buffer_len);
+  }
+  else
+  {
+    MERROR("Unexpected blob len=" << blob.size() << " greater than the blob backing buffer capacity=" << lns::GENERIC_VALUE_MAX);
+  }
+
   return result;
 }
 
@@ -660,7 +674,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
 
       // Validate signature
       {
-        crypto::hash hash = tx_extra_signature_hash();
+        crypto::hash hash = tx_extra_signature_hash(epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(data.value.data()), data.value.size()), expected_prev_txid);
         if (crypto_sign_verify_detached(data.signature.data, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), mapping.owner.data) != 0)
         {
           if (reason)

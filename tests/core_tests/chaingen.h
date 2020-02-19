@@ -1445,6 +1445,7 @@ struct loki_chain_generator
   static const uint64_t LNS_AUTO_BURN = static_cast<uint64_t>(-1);
   cryptonote::transaction                              create_loki_name_system_tx    (cryptonote::account_base const &src, uint16_t type, std::string const &value, std::string const &name, crypto::ed25519_public_key const *owner = nullptr, uint64_t burn = LNS_AUTO_BURN) const;
   cryptonote::transaction                              create_loki_name_system_tx_update(cryptonote::account_base const &src, uint16_t type, std::string const &value, std::string const &name, crypto::ed25519_signature *signature = nullptr, bool use_asserts = false) const;
+  cryptonote::transaction                              create_loki_name_system_tx_update_w_extra(cryptonote::account_base const &src, cryptonote::tx_extra_loki_name_system const &lns_extra) const;
 
   loki_blockchain_entry                                create_genesis_block(const cryptonote::account_base &miner, uint64_t timestamp);
   loki_blockchain_entry                                create_next_block(const std::vector<cryptonote::transaction>& txs = {}, cryptonote::checkpoint_t const *checkpoint = nullptr, uint64_t total_fee = 0);

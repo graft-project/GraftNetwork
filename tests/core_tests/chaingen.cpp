@@ -573,7 +573,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(
   if (!signature)
   {
     signature = &signature_;
-    crypto::hash hash = lns::tx_extra_signature_hash();
+    crypto::hash hash = lns::tx_extra_signature_hash(epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(value.data()), value.size()), prev_txid);
     crypto_sign_detached(signature->data, NULL, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), skey.data);
   }
 
@@ -592,6 +592,25 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(
       .with_fee(TESTS_DEFAULT_FEE)
       .build();
 
+  return result;
+}
+
+cryptonote::transaction
+loki_chain_generator::create_loki_name_system_tx_update_w_extra(cryptonote::account_base const &src, cryptonote::tx_extra_loki_name_system const &lns_extra) const
+{
+  std::vector<uint8_t> extra;
+  cryptonote::add_loki_name_system_to_tx_extra(extra, lns_extra);
+
+  cryptonote::block const &head = top().block;
+  uint64_t new_height           = get_block_height(top().block) + 1;
+  uint8_t new_hf_version        = get_hf_version_at(new_height);
+
+  cryptonote::transaction result = {};
+  loki_tx_builder(events_, result, head, src /*from*/, src.get_keys().m_account_address, 0 /*amount*/, new_hf_version)
+      .with_tx_type(cryptonote::txtype::loki_name_system)
+      .with_extra(extra)
+      .with_fee(TESTS_DEFAULT_FEE)
+      .build();
   return result;
 }
 
