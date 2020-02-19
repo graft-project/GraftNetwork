@@ -101,7 +101,7 @@ uint64_t get_transaction_amount(const transaction& tx, const account_public_addr
             crypto::secret_key scalar1;
             crypto::derivation_to_scalar(derivation, n, scalar1);
             rct::ecdhTuple ecdh_info = tx.rct_signatures.ecdhInfo[n];
-            rct::ecdhDecode(ecdh_info, rct::sk2rct(scalar1));
+            rct::ecdhDecode(ecdh_info, rct::sk2rct(scalar1), tx.rct_signatures.type == rct::RCTTypeBulletproof2);
             rct::key C = tx.rct_signatures.outPk[n].mask;
             rct::addKeys2(Ctmp, ecdh_info.mask, ecdh_info.amount, rct::H);
             if (rct::equalKeys(C, Ctmp))
@@ -501,4 +501,11 @@ void StakeTransactionProcessor::set_enabled(bool arg)
 bool StakeTransactionProcessor::is_enabled() const
 {
   return m_enabled;
+}
+
+bool StakeTransactionProcessor::is_supernode_valid(const std::string &id, uint64_t height)
+{
+  supernode_stake * stake = const_cast<supernode_stake*>(find_supernode_stake(height, id));
+  MDEBUG("stake for supernode: " << id << " and height: " << height << " is: " << (stake ? print_money(stake->amount) : "N/A"));
+  return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
 }

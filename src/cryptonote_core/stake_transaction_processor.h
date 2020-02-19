@@ -48,6 +48,10 @@ public:
 
 
   bool is_enabled() const;
+  
+  bool is_supernode_valid(const std::string &id, uint64_t height);
+  
+  uint64_t get_current_blockchain_height() const { return m_blockchain.get_current_blockchain_height(); }
 
 private:
   void init_storages_impl();

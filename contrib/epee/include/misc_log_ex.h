@@ -32,9 +32,9 @@
 
 #include "easylogging++.h"
 
-#ifndef MONERO_DEFAULT_LOG_CATEGORY
+#undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "default"
-#endif
+
 #define MAX_LOG_FILE_SIZE 104850000 // 100 MB - 7600 bytes
 #define MAX_LOG_FILES 50
 
@@ -70,18 +70,24 @@ extern bool mlog_syslog;
 #define INITIALIZE_SYSLOG(id)
 
 #define CLOGX(LEVEL,cat) CLOG(LEVEL,cat)
-#define MCLOG(level,cat,x) ELPP_WRITE_LOG(el::base::Writer, level, el::base::DispatchAction::NormalLog, cat) << x
 #define MCLOG_COLOR(level,cat,color,x) MCLOG(level,cat,"\033[1;" color "m" << x << "\033[0m")
 #endif //ELPP_SYSLOG
 
-#define MCFATAL(cat,x) CLOGX(FATAL,cat) << x
-#define MCERROR(cat,x) CLOGX(ERROR,cat) << x
-#define MCWARNING(cat,x) CLOGX(WARNING,cat) << x
-#define MCINFO(cat,x) CLOGX(INFO,cat) << x
-#define MCDEBUG(cat,x) CLOGX(DEBUG,cat) << x
-#define MCTRACE(cat,x) CLOGX(TRACE,cat) << x
+#define MCLOG_TYPE(level, cat, type, x) do { \
+    if (ELPP->vRegistry()->allowed(level, cat)) { \
+      el::base::Writer(level, __FILE__, __LINE__, ELPP_FUNC, type).construct(cat) << x; \
+    } \
+  } while (0)
 
-#define MCLOG_FILE(level,cat,x) ELPP_WRITE_LOG(el::base::Writer, level, el::base::DispatchAction::FileOnlyLog, cat) << x
+#define MCLOG(level, cat, x) MCLOG_TYPE(level, cat, el::base::DispatchAction::NormalLog, x)
+#define MCLOG_FILE(level, cat, x) MCLOG_TYPE(level, cat, el::base::DispatchAction::FileOnlyLog, x)
+
+#define MCFATAL(cat,x) MCLOG(el::Level::Fatal,cat, x)
+#define MCERROR(cat,x) MCLOG(el::Level::Error,cat, x)
+#define MCWARNING(cat,x) MCLOG(el::Level::Warning,cat, x)
+#define MCINFO(cat,x) MCLOG(el::Level::Info,cat, x)
+#define MCDEBUG(cat,x) MCLOG(el::Level::Debug,cat, x)
+#define MCTRACE(cat,x) MCLOG(el::Level::Trace,cat, x)
 
 #define MCLOG_RED(level,cat,x) MCLOG_COLOR(level,cat,"31",x)
 #define MCLOG_GREEN(level,cat,x) MCLOG_COLOR(level,cat,"32",x)
@@ -112,6 +118,16 @@ extern bool mlog_syslog;
 #define MGINFO_BLUE(x) MCLOG_BLUE(el::Level::Info, "global",x)
 #define MGINFO_MAGENTA(x) MCLOG_MAGENTA(el::Level::Info, "global",x)
 #define MGINFO_CYAN(x) MCLOG_CYAN(el::Level::Info, "global",x)
+
+#define IFLOG(level, cat, type, init, x) \
+  do { \
+    if (ELPP->vRegistry()->allowed(level, cat)) { \
+      init; \
+      el::base::Writer(level, __FILE__, __LINE__, ELPP_FUNC, type).construct(cat) << x; \
+    } \
+  } while(0)
+#define MIDEBUG(init, x) IFLOG(el::Level::Debug, MONERO_DEFAULT_LOG_CATEGORY, el::base::DispatchAction::NormalLog, init, x)
+
 
 #define LOG_ERROR(x) MERROR(x)
 #define LOG_PRINT_L0(x) MWARNING(x)
