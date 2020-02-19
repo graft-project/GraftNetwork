@@ -506,5 +506,6 @@ bool StakeTransactionProcessor::is_enabled() const
 bool StakeTransactionProcessor::is_supernode_valid(const std::string &id, uint64_t height)
 {
   supernode_stake * stake = const_cast<supernode_stake*>(find_supernode_stake(height, id));
+  MDEBUG("stake for supernode: " << id << " and height: " << height << " is: " << (stake ? print_money(stake->amount) : "N/A"));
   return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
 }
