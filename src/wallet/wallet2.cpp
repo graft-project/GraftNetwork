@@ -8582,9 +8582,6 @@ static bool prepare_tx_extra_loki_name_system_values(cryptonote::network_type ne
       return false;
     }
 
-    std::cout << "response.size()=" << response.size();
-    std::cout << "type=" << type;
-    std::cout << "name=" << name;
     if (response.size())
     {
       crypto::hash txid_hash;

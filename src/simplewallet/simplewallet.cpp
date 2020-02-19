@@ -6697,7 +6697,7 @@ bool simple_wallet::update_lns_mapping(const std::vector<std::string>& args)
     info.address                        = m_wallet->get_subaddress({m_current_subaddress_account, 0});
     info.is_subaddress                  = m_current_subaddress_account != 0;
     dsts.push_back(info);
-    if (!confirm_and_send_tx(dsts, ptx_vector, priority == tools::tx_priority_blink))
+    if (!confirm_and_send_tx(dsts, ptx_vector, false /*blink*/))
       return false;
   }
   catch (const std::exception &e)
