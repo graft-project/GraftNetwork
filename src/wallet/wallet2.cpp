@@ -7502,7 +7502,7 @@ uint64_t wallet2::get_fee_percent(uint32_t priority, txtype type) const
   if (priority == tx_priority_blink)
   {
     if (!blinkable)
-      THROW_WALLET_EXCEPTION(error::invalid_priority, "Blink priority can only be used for regular transactions");
+      THROW_WALLET_EXCEPTION(error::invalid_priority);
 
     uint64_t burn_pct;
     if (use_fork_rules(network_version_15_lns, 0))
