@@ -283,7 +283,7 @@ void loki_chain_generator::add_tx(cryptonote::transaction const &tx, bool can_be
 
 cryptonote::transaction
 loki_chain_generator::create_and_add_loki_name_system_tx(cryptonote::account_base const &src,
-                                                          uint16_t type,
+                                                          lns::mapping_type type,
                                                           std::string const &value,
                                                           std::string const &name,
                                                           crypto::ed25519_public_key const *owner,
@@ -295,7 +295,7 @@ loki_chain_generator::create_and_add_loki_name_system_tx(cryptonote::account_bas
 }
 
 cryptonote::transaction loki_chain_generator::create_and_add_loki_name_system_tx_update(cryptonote::account_base const &src,
-                                                                  uint16_t type,
+                                                                  lns::mapping_type type,
                                                                   std::string const &value,
                                                                   std::string const &name,
                                                                   bool kept_by_block)
@@ -512,7 +512,7 @@ cryptonote::checkpoint_t loki_chain_generator::create_service_node_checkpoint(ui
 }
 
 cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(cryptonote::account_base const &src,
-                                                                         uint16_t type,
+                                                                         lns::mapping_type type,
                                                                          std::string const &value,
                                                                          std::string const &name,
                                                                          crypto::ed25519_public_key const *owner,
@@ -533,8 +533,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   uint64_t new_height           = get_block_height(top().block) + 1;
   uint8_t new_hf_version        = get_hf_version_at(new_height);
   if (burn == LNS_AUTO_BURN)
-    burn = lns::burn_requirement_in_atomic_loki(new_hf_version,
-                                                lns::mapping_type_to_burn_type(static_cast<lns::mapping_type>(type)));
+    burn = lns::burn_requirement_in_atomic_loki(new_hf_version, lns::mapping_type_to_burn_type(type));
 
   crypto::hash prev_txid = crypto::null_hash;
   if (lns::mapping_record mapping = lns_db_.get_mapping(type, name))
@@ -555,7 +554,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
 }
 
 cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(cryptonote::account_base const &src,
-                                                                                uint16_t type,
+                                                                                lns::mapping_type type,
                                                                                 std::string const &value,
                                                                                 std::string const &name,
                                                                                 crypto::ed25519_signature *signature,

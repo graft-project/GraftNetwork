@@ -8543,7 +8543,7 @@ wallet2::request_stake_unlock_result wallet2::can_request_stake_unlock(const cry
 }
 
 static bool prepare_tx_extra_loki_name_system_values(cryptonote::network_type nettype,
-                                                     uint16_t type,
+                                                     lns::mapping_type type,
                                                      uint32_t priority,
                                                      std::string const &name,
                                                      std::string const &value,
@@ -8571,7 +8571,7 @@ static bool prepare_tx_extra_loki_name_system_values(cryptonote::network_type ne
       request.entries.emplace_back();
       auto &request_entry = request.entries.back();
       request_entry.name = name;
-      request_entry.types.push_back(type);
+      request_entry.types.push_back(static_cast<uint16_t>(type));
     }
 
     boost::optional<std::string> failed;
@@ -8600,7 +8600,7 @@ static bool prepare_tx_extra_loki_name_system_values(cryptonote::network_type ne
   return true;
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t type,
+std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(lns::mapping_type type,
                                                                     std::string const &owner,
                                                                     std::string const &name,
                                                                     std::string const &value,
@@ -8661,7 +8661,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(std::string 
                                                                     uint32_t account_index,
                                                                     std::set<uint32_t> subaddr_indices)
 {
-  uint16_t mapping_type = 0;
+  lns::mapping_type mapping_type = lns::mapping_type::session;
   if (!lns::validate_mapping_type(type, &mapping_type, reason))
     return {};
 
@@ -8678,10 +8678,9 @@ std::vector<wallet2::pending_tx> wallet2::update_lns_mapping_tx(lns::mapping_typ
                                                                 uint32_t account_index,
                                                                 std::set<uint32_t> subaddr_indices)
 {
-  uint16_t type16 = static_cast<uint16_t>(type);
   crypto::hash prev_txid;
   lns::lns_value value_blob;
-  if (!prepare_tx_extra_loki_name_system_values(nettype(), type16, priority, name, value, *this, prev_txid, value_blob, reason))
+  if (!prepare_tx_extra_loki_name_system_values(nettype(), type, priority, name, value, *this, prev_txid, value_blob, reason))
     return {};
 
   crypto::ed25519_public_key pkey;
@@ -8704,7 +8703,7 @@ std::vector<wallet2::pending_tx> wallet2::update_lns_mapping_tx(lns::mapping_typ
   }
 
   std::vector<uint8_t> extra;
-  auto entry = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type16, name, std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
+  auto entry = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type, name, std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
   add_loki_name_system_to_tx_extra(extra, entry);
 
   boost::optional<uint8_t> hf_version = get_hard_fork_version();

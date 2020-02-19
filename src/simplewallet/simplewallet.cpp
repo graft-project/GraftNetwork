@@ -6746,14 +6746,14 @@ bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& arg
 
         for (std::string const &type : split_types)
         {
-          uint16_t mapping_type = 0;
+          lns::mapping_type mapping_type;
           std::string reason;
           if (!lns::validate_mapping_type(type, &mapping_type, &reason))
           {
             fail_msg_writer() << reason;
             return false;
           }
-          requested_types.push_back(mapping_type);
+          requested_types.push_back(static_cast<uint16_t>(mapping_type));
         }
       }
     }

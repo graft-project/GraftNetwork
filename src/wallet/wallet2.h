@@ -1550,7 +1550,7 @@ private:
       pending_tx  ptx;
     };
     request_stake_unlock_result can_request_stake_unlock(const crypto::public_key &sn_key);
-    std::vector<wallet2::pending_tx> create_buy_lns_mapping_tx(uint16_t type, std::string const &owner, std::string const &name, std::string const &value, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
+    std::vector<wallet2::pending_tx> create_buy_lns_mapping_tx(lns::mapping_type type, std::string const &owner, std::string const &name, std::string const &value, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
     std::vector<wallet2::pending_tx> create_buy_lns_mapping_tx(std::string const &type, std::string const &owner, std::string const &name, std::string const &value, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
     std::vector<wallet2::pending_tx> update_lns_mapping_tx(lns::mapping_type type, std::string const &name, std::string const &value, std::string const *signature, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
 

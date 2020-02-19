@@ -62,6 +62,17 @@
 #define TX_EXTRA_NONCE_PAYMENT_ID               0x00
 #define TX_EXTRA_NONCE_ENCRYPTED_PAYMENT_ID     0x01
 
+namespace lns
+{
+enum struct mapping_type : uint16_t
+{
+  session = 0,
+  wallet  = 1,
+  lokinet = 2,
+  _count,
+};
+};
+
 namespace service_nodes {
   enum class new_state : uint16_t
   {
@@ -388,18 +399,19 @@ namespace cryptonote
     {
       buy    = 0,
       update = 1,
+      _count,
     };
 
     uint8_t                    version = 0;
-    uint8_t                    command;
+    command_t                  command;
+    lns::mapping_type          type; // alias to lns::mapping_type
     crypto::ed25519_public_key owner; // only serialized if command == command_t::buy
     crypto::ed25519_signature  signature; // only serialized if command == command_t::update
-    uint16_t                   type; // alias to lns::mapping_type
     std::string                name;
     std::string                value; // binary format of the name->value mapping
     crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping
 
-    static tx_extra_loki_name_system make_buy(crypto::ed25519_public_key const &owner, uint16_t type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
+    static tx_extra_loki_name_system make_buy(crypto::ed25519_public_key const &owner, lns::mapping_type type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
     {
       tx_extra_loki_name_system result = {};
       result.owner                     = owner;
@@ -407,11 +419,11 @@ namespace cryptonote
       result.name                      = name;
       result.value                     = value;
       result.prev_txid                 = prev_txid;
-      result.command                   = static_cast<uint8_t>(tx_extra_loki_name_system::command_t::buy);
+      result.command                   = tx_extra_loki_name_system::command_t::buy;
       return result;
     }
 
-    static tx_extra_loki_name_system make_update(crypto::ed25519_signature const &signature, uint16_t type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
+    static tx_extra_loki_name_system make_update(crypto::ed25519_signature const &signature, lns::mapping_type type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
     {
       tx_extra_loki_name_system result = {};
       result.signature                 = signature;
@@ -419,18 +431,18 @@ namespace cryptonote
       result.name                      = name;
       result.value                     = value;
       result.prev_txid                 = prev_txid;
-      result.command                   = static_cast<uint8_t>(tx_extra_loki_name_system::command_t::update);
+      result.command                   = tx_extra_loki_name_system::command_t::update;
       return result;
     }
 
     BEGIN_SERIALIZE()
       FIELD(version)
-      FIELD(command)
-      if (command == static_cast<uint8_t>(command_t::buy))
+      ENUM_FIELD(type, type < lns::mapping_type::_count)
+      ENUM_FIELD(command, command < command_t::_count)
+      if (command == command_t::buy)
         FIELD(owner)
       else
         FIELD(signature)
-      FIELD(type)
       FIELD(name)
       FIELD(value)
       FIELD(prev_txid)
