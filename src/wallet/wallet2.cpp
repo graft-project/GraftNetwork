@@ -7501,6 +7501,9 @@ uint64_t wallet2::get_fee_percent(uint32_t priority, txtype type) const
 
   if (priority == tx_priority_blink)
   {
+    if (!blinkable)
+      THROW_WALLET_EXCEPTION(error::invalid_priority, "Blink priority can only be used for regular transactions");
+
     uint64_t burn_pct;
     if (use_fork_rules(network_version_15_lns, 0))
       burn_pct = BLINK_BURN_TX_FEE_PERCENT;
@@ -7511,7 +7514,9 @@ uint64_t wallet2::get_fee_percent(uint32_t priority, txtype type) const
     return BLINK_MINER_TX_FEE_PERCENT + burn_pct;
   }
 
-  THROW_WALLET_EXCEPTION_IF(priority > percents.size(), error::invalid_priority);
+  if (priority > percents.size())
+    THROW_WALLET_EXCEPTION(error::invalid_priority);
+
   return percents[priority-1];
 }
 //----------------------------------------------------------------------------------------------------
