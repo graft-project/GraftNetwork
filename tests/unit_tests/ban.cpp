@@ -94,6 +94,8 @@ public:
   typedef cryptonote::StakeTransactionProcessor::blockchain_based_list_update_handler blockchain_based_list_update_handler;
   void set_update_blockchain_based_list_handler(const blockchain_based_list_update_handler&) {}
   void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height) {}
+  cryptonote::StakeTransactionProcessor & get_stake_tx_processor() { return reinterpret_cast<cryptonote::StakeTransactionProcessor&>(*
+          reinterpret_cast<cryptonote::StakeTransactionProcessor*>(0)); }
 };
 
 typedef nodetool::node_server<cryptonote::t_cryptonote_protocol_handler<test_core>> Server;
