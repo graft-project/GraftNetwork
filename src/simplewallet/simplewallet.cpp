@@ -174,12 +174,12 @@ namespace
   const char* USAGE_INCOMING_TRANSFERS("incoming_transfers [available|unavailable] [verbose] [uses] [index=<N1>[,<N2>[,...]]]");
   const char* USAGE_PAYMENTS("payments <PID_1> [<PID_2> ... <PID_N>]");
   const char* USAGE_PAYMENT_ID("payment_id");
-  const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [blink|<priority>] (<URI> | <address> <amount>) [<payment_id>]");
+  const char* USAGE_TRANSFER("transfer [index=<N1>[,<N2>,...]] [blink|unimportant] (<URI> | <address> <amount>) [<payment_id>]");
   const char* USAGE_LOCKED_TRANSFER("locked_transfer [index=<N1>[,<N2>,...]] [<priority>] (<URI> | <addr> <amount>) <lockblocks> [<payment_id (obsolete)>]");
   const char* USAGE_LOCKED_SWEEP_ALL("locked_sweep_all [index=<N1>[,<N2>,...]] [<priority>] [<address>] <lockblocks> [<payment_id (obsolete)>]");
-  const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...]] [blink|<priority>] [outputs=<N>] [<address> [<payment_id (obsolete)>]] [use_v1_tx]");
-  const char* USAGE_SWEEP_BELOW("sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [blink|<priority>] [<address> [<payment_id (obsolete)>]]");
-  const char* USAGE_SWEEP_SINGLE("sweep_single [blink|<priority>] [outputs=<N>] <key_image> <address> [<payment_id (obsolete)>]");
+  const char* USAGE_SWEEP_ALL("sweep_all [index=<N1>[,<N2>,...]] [blink|unimportant] [outputs=<N>] [<address> [<payment_id (obsolete)>]] [use_v1_tx]");
+  const char* USAGE_SWEEP_BELOW("sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [blink|unimportant] [<address> [<payment_id (obsolete)>]]");
+  const char* USAGE_SWEEP_SINGLE("sweep_single [blink|unimportant] [outputs=<N>] <key_image> <address> [<payment_id (obsolete)>]");
   const char* USAGE_SIGN_TRANSFER("sign_transfer [export_raw]");
   const char* USAGE_SET_LOG("set_log <level>|{+,-,}<categories>");
   const char* USAGE_ACCOUNT("account\n"
@@ -916,59 +916,21 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
     return true;
   const auto base_fee = m_wallet->get_base_fees();
   const uint64_t typical_size = 2500, typical_outs = 2;
-  message_writer() << (boost::format(tr("Current fee is %s %s per byte + %s %s per output")) %
+  message_writer() << (boost::format(tr("Current base fee is %s %s per byte + %s %s per output")) %
           print_money(base_fee.first) % cryptonote::get_unit(cryptonote::get_default_decimal_point()) %
           print_money(base_fee.second) % cryptonote::get_unit(cryptonote::get_default_decimal_point())).str();
 
   std::vector<uint64_t> fees;
   std::ostringstream typical_fees;
-  for (uint32_t priority = 1; priority <= 4; ++priority)
-  {
-    uint64_t pct = m_wallet->get_fee_percent(priority);
-    uint64_t typical_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100;
-    fees.push_back(typical_fee);
-    if (priority > 1) typical_fees << ", ";
-    typical_fees << print_money(typical_fee) << " (" << tools::allowed_priority_strings[priority] << ")";
-  }
-  std::vector<std::pair<uint64_t, uint64_t>> blocks;
-  try
-  {
-    blocks = m_wallet->estimate_backlog(typical_size, typical_size, fees);
-  }
-  catch (const std::exception &e)
-  {
-    fail_msg_writer() << tr("Error: failed to estimate backlog array size: ") << e.what();
-    return true;
-  }
-  if (blocks.size() != 4)
-  {
-    fail_msg_writer() << tr("Error: bad estimated backlog array size");
-    return true;
-  }
-
-  for (uint32_t priority = 1; priority <= 4; ++priority)
-  {
-    uint64_t nblocks_low = blocks[priority - 1].first;
-    uint64_t nblocks_high = blocks[priority - 1].second;
-    if (nblocks_low > 0)
-    {
-      std::string msg;
-      if (priority == m_wallet->get_default_priority() || (m_wallet->get_default_priority() == 0 && priority == 2))
-        msg = tr(" (current)");
-      uint64_t minutes_low = nblocks_low * DIFFICULTY_TARGET_V2 / 60, minutes_high = nblocks_high * DIFFICULTY_TARGET_V2 / 60;
-      if (nblocks_high == nblocks_low)
-        message_writer() << (boost::format(tr("%u block (%u minutes) backlog at priority %u%s")) % nblocks_low % minutes_low % priority % msg).str();
-      else
-        message_writer() << (boost::format(tr("%u to %u block (%u to %u minutes) backlog at priority %u")) % nblocks_low % nblocks_high % minutes_low % minutes_high % priority).str();
-    }
-    else
-      message_writer() << tr("No backlog at priority ") << priority;
-  }
+  uint64_t pct = m_wallet->get_fee_percent(1, txtype::standard);
+  uint64_t typical_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100;
+  fees.push_back(typical_fee);
+  typical_fees << print_money(typical_fee) << " (" << tools::allowed_priority_strings[1] << ")";
 
   auto hf_version = m_wallet->get_hard_fork_version();
   if (hf_version && *hf_version >= HF_VERSION_BLINK)
   {
-    uint64_t pct = m_wallet->get_fee_percent(tools::tx_priority_blink);
+    uint64_t pct = m_wallet->get_fee_percent(tools::tx_priority_blink, txtype::standard);
     uint64_t fixed = BLINK_BURN_FIXED;
 
     uint64_t typical_blink_fee = (base_fee.first * typical_size + base_fee.second * typical_outs) * pct / 100 + fixed;
@@ -2276,51 +2238,28 @@ bool simple_wallet::set_store_tx_info(const std::vector<std::string> &args/* = s
 
 bool simple_wallet::set_default_priority(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
 {
-  uint32_t priority = 0;
-  try
+  int priority = -1;
+  if (args[1].size() == 1 && args[1][0] >= '0' && args[1][0] <= '5')
+    priority = args[1][0] - '0';
+  else
   {
-    if (strchr(args[1].c_str(), '-'))
-    {
-      fail_msg_writer() << tr("priority must be either 0, 1, 2, 3, or 4, or one of: ") << join_priority_strings(", ");
-      return true;
-    }
-    if (args[1] == "0")
-    {
-      priority = 0;
-    }
-    else
-    {
-      bool found = false;
-      for (size_t n = 0; n < tools::allowed_priority_strings.size(); ++n)
-      {
-        if (tools::allowed_priority_strings[n] == args[1])
-        {
-          found = true;
-          priority = n;
-        }
-      }
-      if (!found)
-      {
-        priority = boost::lexical_cast<int>(args[1]);
-        if (priority < 1 || priority > 4)
-        {
-          fail_msg_writer() << tr("priority must be either 0, 1, 2, 3, or 4, or one of: ") << join_priority_strings(", ");
-          return true;
-        }
-      }
-    }
- 
+    auto it = std::find(tools::allowed_priority_strings.begin(), tools::allowed_priority_strings.end(), args[1]);
+    if (it != tools::allowed_priority_strings.end())
+      priority = it - tools::allowed_priority_strings.begin();
+  }
+  if (priority == -1)
+  {
+    fail_msg_writer() << tr("priority must be a 0-5 value or one of: ") << join_priority_strings(", ");
+    return true;
+  }
+
+  try {
     const auto pwd_container = get_and_verify_password();
     if (pwd_container)
     {
       m_wallet->set_default_priority(priority);
       m_wallet->rewrite(m_wallet_file, pwd_container->password());
     }
-    return true;
-  }
-  catch(const boost::bad_lexical_cast &)
-  {
-    fail_msg_writer() << tr("priority must be either 0, 1, 2, 3, or 4, or one of: ") << join_priority_strings(", ");
     return true;
   }
   catch(...)
@@ -2362,21 +2301,6 @@ bool simple_wallet::set_refresh_type(const std::vector<std::string> &args/* = st
   {
     m_wallet->set_refresh_type(refresh_type);
     m_wallet->rewrite(m_wallet_file, pwd_container->password());
-  }
-  return true;
-}
-
-bool simple_wallet::set_confirm_missing_payment_id(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
-{
-  LONG_PAYMENT_ID_SUPPORT_CHECK();
-
-  const auto pwd_container = get_and_verify_password();
-  if (pwd_container)
-  {
-    parse_bool_and_use(args[1], [&](bool r) {
-      m_wallet->confirm_missing_payment_id(r);
-      m_wallet->rewrite(m_wallet_file, pwd_container->password());
-    });
   }
   return true;
 }
@@ -2490,37 +2414,6 @@ bool simple_wallet::set_merge_destinations(const std::vector<std::string> &args/
   return true;
 }
 
-bool simple_wallet::set_confirm_backlog(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
-{
-  const auto pwd_container = get_and_verify_password();
-  if (pwd_container)
-  {
-    parse_bool_and_use(args[1], [&](bool r) {
-      m_wallet->confirm_backlog(r);
-      m_wallet->rewrite(m_wallet_file, pwd_container->password());
-    });
-  }
-  return true;
-}
-
-bool simple_wallet::set_confirm_backlog_threshold(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
-{
-  uint32_t threshold;
-  if (!string_tools::get_xtype_from_string(threshold, args[1]))
-  {
-    fail_msg_writer() << tr("invalid count: must be an unsigned integer");
-    return true;
-  }
-
-  const auto pwd_container = get_and_verify_password();
-  if (pwd_container)
-  {
-    m_wallet->set_confirm_backlog_threshold(threshold);
-    m_wallet->rewrite(m_wallet_file, pwd_container->password());
-  }
-  return true;
-}
-
 bool simple_wallet::set_confirm_export_overwrite(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
 {
   const auto pwd_container = get_and_verify_password();
@@ -2547,19 +2440,6 @@ bool simple_wallet::set_refresh_from_block_height(const std::vector<std::string>
     }
     m_wallet->set_refresh_from_block_height(height);
     m_wallet->rewrite(m_wallet_file, pwd_container->password());
-  }
-  return true;
-}
-
-bool simple_wallet::set_auto_low_priority(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
-{
-  const auto pwd_container = get_and_verify_password();
-  if (pwd_container)
-  {
-    parse_bool_and_use(args[1], [&](bool r) {
-      m_wallet->auto_low_priority(r);
-      m_wallet->rewrite(m_wallet_file, pwd_container->password());
-    });
   }
   return true;
 }
@@ -2843,50 +2723,47 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("set",
                            boost::bind(&simple_wallet::set_variable, this, _1),
                            tr(USAGE_SET_VARIABLE),
-                           tr("Available options:\n "
-                                  "seed language\n "
-                                  "  Set the wallet's seed language.\n "
-                                  "always-confirm-transfers <1|0>\n "
-                                  "  Whether to confirm unsplit txes.\n "
-                                  "print-ring-members <1|0>\n "
-                                  "  Whether to print detailed information about ring members during confirmation.\n "
-                                  "store-tx-info <1|0>\n "
-                                  "  Whether to store outgoing tx info (destination address, payment ID, tx secret key) for future reference.\n "
-                                  "auto-refresh <1|0>\n "
-                                  "  Whether to automatically synchronize new blocks from the daemon.\n "
-                                  "refresh-type <full|optimize-coinbase|no-coinbase|default>\n "
-                                  "  Set the wallet's refresh behaviour.\n "
-                                  "priority [0|1|2|3|4]\n "
-                                  "  Set the fee to default/unimportant/normal/elevated/priority.\n "
-                                  "confirm-missing-payment-id <1|0> (obsolete)\n "
-                                  "ask-password <0|1|2   (or never|action|decrypt)>\n "
-                                  "  action: ask the password before many actions such as transfer, etc\n "
-                                  "  decrypt: same as action, but keeps the spend key encrypted in memory when not needed\n "
-                                  "unit <loki|megarok|kilorok|rok>\n "
-                                  "  Set the default loki (sub-)unit.\n "
-                                  "min-outputs-count [n]\n "
-                                  "  Try to keep at least that many outputs of value at least min-outputs-value.\n "
-                                  "min-outputs-value [n]\n "
-                                  "  Try to keep at least min-outputs-count outputs of at least that value.\n "
-                                  "merge-destinations <1|0>\n "
-                                  "  Whether to merge multiple payments to the same destination address.\n "
-                                  "confirm-backlog <1|0>\n "
-                                  "  Whether to warn if there is transaction backlog.\n "
-                                  "confirm-backlog-threshold [n]\n "
-                                  "  Set a threshold for confirm-backlog to only warn if the transaction backlog is greater than n blocks.\n "
-                                  "refresh-from-block-height [n]\n "
-                                  "  Set the height before which to ignore blocks.\n "
-                                  "auto-low-priority <1|0>\n "
-                                  "  Whether to automatically use the low priority fee level when it's safe to do so.\n "
-                                  "segregate-pre-fork-outputs <1|0>\n "
-                                  "  Set this if you intend to spend outputs on both Loki AND a key reusing fork.\n "
-                                  "key-reuse-mitigation2 <1|0>\n "
-                                  "  Set this if you are not sure whether you will spend on a key reusing Loki fork later.\n"
-                                  "subaddress-lookahead <major>:<minor>\n "
-                                  "  Set the lookahead sizes for the subaddress hash table.\n "
-                                  "  Set this if you are not sure whether you will spend on a key reusing Loki fork later.\n "
-                                  "segregation-height <n>\n "
-                                  "  Set to the height of a key reusing fork you want to use, 0 to use default."));
+                           tr(R"(Available options:
+ seed language
+   Set the wallet's seed language.
+ always-confirm-transfers <1|0>
+   Whether to confirm unsplit txes.
+ print-ring-members <1|0>
+   Whether to print detailed information about ring members during confirmation.
+ store-tx-info <1|0>
+   Whether to store outgoing tx info (destination address, payment ID, tx secret key) for future reference.
+ auto-refresh <1|0>
+   Whether to automatically synchronize new blocks from the daemon.
+ refresh-type <full|optimize-coinbase|no-coinbase|default>
+   Set the wallet's refresh behaviour.
+ priority <0|1|2|3|4|5>
+ priority <default|unimportant|normal|elevated|priority|blink>
+   Set the default transaction priority to the given numeric or string value.  Note that
+   for ordinary transactions, all values other than 1/"unimportant" will result in blink
+   transactions.
+ ask-password <0|1|2>
+ ask-password <never|action|decrypt>
+   action: ask the password before many actions such as transfer, etc
+   decrypt: same as action, but keeps the spend key encrypted in memory when not needed
+ unit <loki|megarok|kilorok|rok>
+   Set the default loki (sub-)unit.
+ min-outputs-count [n]
+   Try to keep at least that many outputs of value at least min-outputs-value.
+ min-outputs-value [n]
+   Try to keep at least min-outputs-count outputs of at least that value.
+ merge-destinations <1|0>
+   Whether to merge multiple payments to the same destination address.
+ refresh-from-block-height [n]
+   Set the height before which to ignore blocks.
+ segregate-pre-fork-outputs <1|0>
+   Set this if you intend to spend outputs on both Loki AND a key reusing fork.
+ key-reuse-mitigation2 <1|0>
+   Set this if you are not sure whether you will spend on a key reusing Loki fork later.
+ subaddress-lookahead <major>:<minor>
+   Set the lookahead sizes for the subaddress hash table.
+ segregation-height <n>
+   Set to the height of a key reusing fork you want to use, 0 to use default.)"));
+
   m_cmd_binder.set_handler("encrypted_seed",
                            boost::bind(&simple_wallet::encrypted_seed, this, _1),
                            tr("Display the encrypted Electrum-style mnemonic seed."));
@@ -2934,15 +2811,17 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("show_transfers",
                            boost::bind(&simple_wallet::show_transfers, this, _1),
                            tr(USAGE_SHOW_TRANSFERS),
-                           // Seemingly broken formatting to compensate for the backslash before the quotes.
-                           tr("Show the incoming/outgoing transfers within an optional height range.\n\n"
-                              "Output format:\n"
-                              "In or Coinbase:    Block Number, \"block\"|\"in\",                Time, Amount,  Transaction Hash, Payment ID, Subaddress Index,                     \"-\", Note\n"
-                              "Out:               Block Number, \"out\",                         Time, Amount*, Transaction Hash, Payment ID, Fee, Destinations, Input addresses**, \"-\", Note\n"
-                              "Pool:                            \"pool\", \"in\",                Time, Amount,  Transaction Hash, Payment Id, Subaddress Index,                     \"-\", Note, Double Spend Note\n"
-                              "Pending or Failed:               \"failed\"|\"pending\", \"out\", Time, Amount*, Transaction Hash, Payment ID, Fee, Input addresses**,               \"-\", Note\n\n"
-                              "* Excluding change and fee.\n"
-                              "** Set of address indices used as inputs in this transfer."));
+                           tr(R"(Show the incoming/outgoing transfers within an optional height range.
+
+Output format:
+In or Coinbase:    Block Number, "block"|"in", Time, Amount,  Transaction Hash, Payment ID, Subaddress Index,                     "-", Note
+Out:               Block Number,        "out", Time, Amount*, Transaction Hash, Payment ID, Fee, Destinations, Input addresses**, "-", Note
+Pool:              "pool",               "in", Time, Amount,  Transaction Hash, Payment ID, Subaddress Index,                     "-", Note, Double Spend Note
+Pending or Failed: "failed"|"pending",  "out", Time, Amount*, Transaction Hash, Payment ID, Fee, Input addresses**,               "-", Note
+
+* Excluding change and fee.
+** Set of address indices used as inputs in this transfer.)"));
+
    m_cmd_binder.set_handler("export_transfers",
                            boost::bind(&simple_wallet::export_transfers, this, _1),
                            tr(USAGE_EXPORT_TRANSFERS),
@@ -3022,7 +2901,7 @@ simple_wallet::simple_wallet()
                            tr("Generate a new random full size payment id (obsolete). These will be unencrypted on the blockchain, see integrated_address for encrypted short payment ids."));
   m_cmd_binder.set_handler("fee",
                            boost::bind(&simple_wallet::print_fee_info, this, _1),
-                           tr("Print the information about the current fee and transaction backlog."));
+                           tr("Print information about the current transaction fees."));
   m_cmd_binder.set_handler("prepare_multisig", boost::bind(&simple_wallet::prepare_multisig, this, _1),
                            tr("Export data needed to create a multisig wallet"));
   m_cmd_binder.set_handler("make_multisig", boost::bind(&simple_wallet::make_multisig, this, _1),
@@ -3272,17 +3151,13 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
     success_msg_writer() << "auto-refresh = " << m_wallet->auto_refresh();
     success_msg_writer() << "refresh-type = " << get_refresh_type_name(m_wallet->get_refresh_type());
     success_msg_writer() << "priority = " << priority<< " (" << priority_string << ")";
-    success_msg_writer() << "confirm-missing-payment-id = " << m_wallet->confirm_missing_payment_id();
     success_msg_writer() << "ask-password = " << m_wallet->ask_password() << " (" << ask_password_string << ")";
     success_msg_writer() << "unit = " << cryptonote::get_unit(cryptonote::get_default_decimal_point());
     success_msg_writer() << "min-outputs-count = " << m_wallet->get_min_output_count();
     success_msg_writer() << "min-outputs-value = " << cryptonote::print_money(m_wallet->get_min_output_value());
     success_msg_writer() << "merge-destinations = " << m_wallet->merge_destinations();
-    success_msg_writer() << "confirm-backlog = " << m_wallet->confirm_backlog();
-    success_msg_writer() << "confirm-backlog-threshold = " << m_wallet->get_confirm_backlog_threshold();
     success_msg_writer() << "confirm-export-overwrite = " << m_wallet->confirm_export_overwrite();
     success_msg_writer() << "refresh-from-block-height = " << m_wallet->get_refresh_from_block_height();
-    success_msg_writer() << "auto-low-priority = " << m_wallet->auto_low_priority();
     success_msg_writer() << "segregate-pre-fork-outputs = " << m_wallet->segregate_pre_fork_outputs();
     success_msg_writer() << "key-reuse-mitigation2 = " << m_wallet->key_reuse_mitigation2();
     const std::pair<size_t, size_t> lookahead = m_wallet->get_subaddress_lookahead();
@@ -3329,18 +3204,14 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
     CHECK_SIMPLE_VARIABLE("store-tx-info", set_store_tx_info, tr("0 or 1"));
     CHECK_SIMPLE_VARIABLE("auto-refresh", set_auto_refresh, tr("0 or 1"));
     CHECK_SIMPLE_VARIABLE("refresh-type", set_refresh_type, tr("full (slowest, no assumptions); optimize-coinbase (fast, assumes the whole coinbase is paid to a single address); no-coinbase (fastest, assumes we receive no coinbase transaction), default (same as optimize-coinbase)"));
-    CHECK_SIMPLE_VARIABLE("priority", set_default_priority, tr("0, 1, 2, 3, or 4, or one of ") << join_priority_strings(", "));
-    CHECK_SIMPLE_VARIABLE("confirm-missing-payment-id", set_confirm_missing_payment_id, tr("0 or 1"));
+    CHECK_SIMPLE_VARIABLE("priority", set_default_priority, tr("0-5 or one of ") << join_priority_strings(", "));
     CHECK_SIMPLE_VARIABLE("ask-password", set_ask_password, tr("0|1|2 (or never|action|decrypt)"));
     CHECK_SIMPLE_VARIABLE("unit", set_unit, tr("loki, megarok, kilorok, rok"));
     CHECK_SIMPLE_VARIABLE("min-outputs-count", set_min_output_count, tr("unsigned integer"));
     CHECK_SIMPLE_VARIABLE("min-outputs-value", set_min_output_value, tr("amount"));
     CHECK_SIMPLE_VARIABLE("merge-destinations", set_merge_destinations, tr("0 or 1"));
-    CHECK_SIMPLE_VARIABLE("confirm-backlog", set_confirm_backlog, tr("0 or 1"));
-    CHECK_SIMPLE_VARIABLE("confirm-backlog-threshold", set_confirm_backlog_threshold, tr("unsigned integer"));
     CHECK_SIMPLE_VARIABLE("confirm-export-overwrite", set_confirm_export_overwrite, tr("0 or 1"));
     CHECK_SIMPLE_VARIABLE("refresh-from-block-height", set_refresh_from_block_height, tr("block height"));
-    CHECK_SIMPLE_VARIABLE("auto-low-priority", set_auto_low_priority, tr("0 or 1"));
     CHECK_SIMPLE_VARIABLE("segregate-pre-fork-outputs", set_segregate_pre_fork_outputs, tr("0 or 1"));
     CHECK_SIMPLE_VARIABLE("key-reuse-mitigation2", set_key_reuse_mitigation2, tr("0 or 1"));
     CHECK_SIMPLE_VARIABLE("subaddress-lookahead", set_subaddress_lookahead, tr("<major>:<minor>"));
@@ -5697,7 +5568,6 @@ static bool parse_subaddr_indices_and_priority(tools::wallet2 &wallet, std::vect
   if (args.size() > 0 && tools::parse_priority(args[0], priority))
     args.erase(args.begin());
 
-  priority = wallet.adjust_priority(priority);
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -5705,36 +5575,6 @@ bool simple_wallet::confirm_and_send_tx(std::vector<cryptonote::address_parse_in
 {
   if (ptx_vector.empty())
     return false;
-
-  // if we need to check for backlog, check the worst case tx
-  if (m_wallet->confirm_backlog() && !blink)
-  {
-    std::stringstream prompt;
-    double worst_fee_per_byte = std::numeric_limits<double>::max();
-    for (size_t n = 0; n < ptx_vector.size(); ++n)
-    {
-      const uint64_t blob_size = cryptonote::tx_to_blob(ptx_vector[n].tx).size();
-      const double fee_per_byte = ptx_vector[n].fee / (double)blob_size;
-      if (fee_per_byte < worst_fee_per_byte)
-      {
-        worst_fee_per_byte = fee_per_byte;
-      }
-    }
-
-    std::string prompt_str = prompt.str();
-    if (!prompt_str.empty())
-    {
-      std::string accepted = input_line(prompt_str, true);
-      if (std::cin.eof())
-        return false;
-      if (!command_line::is_yes(accepted))
-      {
-        fail_msg_writer() << tr("transaction cancelled.");
-
-        return false; 
-      }
-    }
-  }
 
   // if more than one tx necessary, prompt user to confirm
   if (m_wallet->always_confirm_transfers() || ptx_vector.size() > 1)
@@ -6053,20 +5893,6 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
     }
 
     dsts.push_back(de);
-  }
-
-  // prompt is there is no payment id and confirmation is required
-  if (m_long_payment_id_support && !payment_id_seen && m_wallet->confirm_missing_payment_id() && dsts.size() > num_subaddresses)
-  {
-     std::string accepted = input_line(tr("No payment id is included with this transaction. Is this okay?"), true);
-     if (std::cin.eof())
-       return false;
-     if (!command_line::is_yes(accepted))
-     {
-       fail_msg_writer() << tr("transaction cancelled.");
-
-       return false;
-     }
   }
 
   SCOPED_WALLET_UNLOCK_ON_BAD_PASSWORD(return false;);
@@ -7152,20 +6978,6 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
     payment_id_seen = true;
   }
 
-  // prompt is there is no payment id and confirmation is required
-  if (m_long_payment_id_support && !payment_id_seen && m_wallet->confirm_missing_payment_id() && !info.is_subaddress)
-  {
-     std::string accepted = input_line(tr("No payment id is included with this transaction. Is this okay?"), true);
-     if (std::cin.eof())
-       return true;
-     if (!command_line::is_yes(accepted))
-     {
-       fail_msg_writer() << tr("transaction cancelled.");
-
-       return true; 
-     }
-  }
-
   SCOPED_WALLET_UNLOCK();
   try
   {
@@ -7195,8 +7007,6 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
   uint32_t priority = 0;
   if (local_args.size() > 0 && tools::parse_priority(local_args[0], priority))
     local_args.erase(local_args.begin());
-
-  priority = m_wallet->adjust_priority(priority);
 
   size_t outputs = 1;
   if (local_args.size() > 0 && local_args[0].substr(0, 8) == "outputs=")
@@ -7281,22 +7091,6 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
       return true;
     }
     payment_id_seen = true;
-  }
-
-  // prompt if there is no payment id and confirmation is required
-  if (m_long_payment_id_support && !payment_id_seen && m_wallet->confirm_missing_payment_id() && !info.is_subaddress)
-  {
-     std::string accepted = input_line(tr("No payment id is included with this transaction. Is this okay?"), true);
-     if (std::cin.eof())
-       return true;
-     if (!command_line::is_yes(accepted))
-     {
-       fail_msg_writer() << tr("transaction cancelled.");
-
-       // would like to return false, because no tx made, but everything else returns true
-       // and I don't know what returning false might adversely affect.  *sigh*
-       return true; 
-     }
   }
 
   SCOPED_WALLET_UNLOCK();

@@ -52,9 +52,7 @@
 #define MAX_NUMBER_OF_CONTRIBUTORS                      4
 #define MIN_PORTIONS                                    (STAKING_PORTIONS / MAX_NUMBER_OF_CONTRIBUTORS)
 
-static_assert(STAKING_PORTIONS % MAX_NUMBER_OF_CONTRIBUTORS == 0, "Use a multiple of four, so that it divides easily by max number of contributors.");
-static_assert(STAKING_PORTIONS % 2 == 0, "Use a multiple of two, so that it divides easily by two contributors.");
-static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it divides easily by three contributors.");
+static_assert(STAKING_PORTIONS % 12 == 0, "Use a multiple of twelve, so that it divides evenly by two, three, or four contributors.");
 
 #define STAKING_AUTHORIZATION_EXPIRATION_WINDOW         (60*60*24*7*2)  // 2 weeks
 
@@ -104,7 +102,11 @@ static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it di
 // and the miner including the tx includes MINER_TX_FEE_PERCENT * [minimum tx fee]; the rest must be left unclaimed.
 #define BLINK_MINER_TX_FEE_PERCENT                      100 // The blink miner tx fee (as a percentage of the minimum tx fee)
 #define BLINK_BURN_FIXED                                0   // A fixed amount (in atomic currency units) that the sender must burn
-#define BLINK_BURN_TX_FEE_PERCENT                       400 // A percentage of the minimum miner tx fee that the sender must burn.  (Adds to BLINK_BURN_FIXED)
+#define BLINK_BURN_TX_FEE_PERCENT                       150 // A percentage of the minimum miner tx fee that the sender must burn.  (Adds to BLINK_BURN_FIXED)
+// FIXME: can remove this post-fork 15; the burned amount only matters for mempool acceptance and
+// blink quorum signing, but isn't part of the blockchain concensus rules (so we don't actually have
+// to keep it around in the code for syncing the chain).
+#define BLINK_BURN_TX_FEE_PERCENT_OLD                   400 // A percentage of the minimum miner tx fee that the sender must burn.  (Adds to BLINK_BURN_FIXED)
 
 static_assert(BLINK_MINER_TX_FEE_PERCENT >= 100, "blink miner fee cannot be smaller than the base tx fee");
 static_assert(BLINK_BURN_FIXED >= 0, "fixed blink burn amount cannot be negative");

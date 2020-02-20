@@ -1045,14 +1045,12 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
   m_always_confirm_transfers(true),
   m_print_ring_members(false),
   m_store_tx_info(true),
-  m_default_mixin(0),
   m_default_priority(0),
   m_refresh_type(RefreshOptimizeCoinbase),
   m_auto_refresh(true),
   m_first_refresh_done(false),
   m_refresh_from_block_height(0),
   m_explicit_refresh_from_block_height(true),
-  m_confirm_missing_payment_id(true),
   m_confirm_non_default_ring_size(true),
   m_ask_password(AskPasswordToDecrypt),
   m_min_output_count(0),
@@ -1061,7 +1059,6 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
   m_confirm_backlog(true),
   m_confirm_backlog_threshold(0),
   m_confirm_export_overwrite(true),
-  m_auto_low_priority(true),
   m_segregate_pre_fork_outputs(true),
   m_key_reuse_mitigation2(true),
   m_segregation_height(0),
@@ -3795,9 +3792,6 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
   value2.SetInt(m_store_tx_info ? 1 :0);
   json.AddMember("store_tx_info", value2, json.GetAllocator());
 
-  value2.SetUint(m_default_mixin);
-  json.AddMember("default_mixin", value2, json.GetAllocator());
-
   value2.SetUint(m_default_priority);
   json.AddMember("default_priority", value2, json.GetAllocator());
 
@@ -3809,9 +3803,6 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
 
   value2.SetUint64(m_refresh_from_block_height);
   json.AddMember("refresh_height", value2, json.GetAllocator());
-
-  value2.SetInt(m_confirm_missing_payment_id ? 1 :0);
-  json.AddMember("confirm_missing_payment_id", value2, json.GetAllocator());
 
   value2.SetInt(m_confirm_non_default_ring_size ? 1 :0);
   json.AddMember("confirm_non_default_ring_size", value2, json.GetAllocator());
@@ -3839,9 +3830,6 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
 
   value2.SetInt(m_confirm_export_overwrite ? 1 :0);
   json.AddMember("confirm_export_overwrite", value2, json.GetAllocator());
-
-  value2.SetInt(m_auto_low_priority ? 1 : 0);
-  json.AddMember("auto_low_priority", value2, json.GetAllocator());
 
   value2.SetUint(m_nettype);
   json.AddMember("nettype", value2, json.GetAllocator());
@@ -3993,12 +3981,10 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     m_always_confirm_transfers = false;
     m_print_ring_members = false;
     m_store_tx_info = true;
-    m_default_mixin = 0;
     m_default_priority = 0;
     m_auto_refresh = true;
     m_refresh_type = RefreshType::RefreshDefault;
     m_refresh_from_block_height = 0;
-    m_confirm_missing_payment_id = true;
     m_confirm_non_default_ring_size = true;
     m_ask_password = AskPasswordToDecrypt;
     cryptonote::set_default_decimal_point(CRYPTONOTE_DISPLAY_DECIMAL_POINT);
@@ -4008,7 +3994,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     m_confirm_backlog = true;
     m_confirm_backlog_threshold = 0;
     m_confirm_export_overwrite = true;
-    m_auto_low_priority = true;
     m_segregate_pre_fork_outputs = true;
     m_key_reuse_mitigation2 = true;
     m_segregation_height = 0;
@@ -4103,8 +4088,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, store_tx_keys, int, Int, false, true);
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, store_tx_info, int, Int, false, true);
     m_store_tx_info = ((field_store_tx_keys != 0) || (field_store_tx_info != 0));
-    GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_mixin, unsigned int, Uint, false, 0);
-    m_default_mixin = field_default_mixin;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_priority, unsigned int, Uint, false, 0);
     if (field_default_priority_found)
     {
@@ -4131,8 +4114,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     }
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, refresh_height, uint64_t, Uint64, false, 0);
     m_refresh_from_block_height = field_refresh_height;
-    GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_missing_payment_id, int, Int, false, true);
-    m_confirm_missing_payment_id = field_confirm_missing_payment_id;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_non_default_ring_size, int, Int, false, true);
     m_confirm_non_default_ring_size = field_confirm_non_default_ring_size;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ask_password, AskPasswordType, Int, false, AskPasswordToDecrypt);
@@ -4151,8 +4132,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     m_confirm_backlog_threshold = field_confirm_backlog_threshold;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_export_overwrite, int, Int, false, true);
     m_confirm_export_overwrite = field_confirm_export_overwrite;
-    GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, auto_low_priority, int, Int, false, true);
-    m_auto_low_priority = field_auto_low_priority;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, nettype, uint8_t, Uint, false, static_cast<uint8_t>(m_nettype));
     // The network type given in the program argument is inconsistent with the network type saved in the wallet
     THROW_WALLET_EXCEPTION_IF(static_cast<uint8_t>(m_nettype) != field_nettype, error::wallet_internal_error,
@@ -7503,34 +7482,42 @@ bool wallet2::sign_multisig_tx_from_file(const std::string &filename, std::vecto
   return sign_multisig_tx_to_file(exported_txs, filename, txids);
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::get_fee_percent(uint32_t priority, int fee_algorithm) const
+uint64_t wallet2::get_fee_percent(uint32_t priority, txtype type) const
 {
-  static constexpr std::array<std::array<uint64_t, 4>, 3> percents = {{
-    {{100, 400, 2000, 16600}},
-    {{100, 500, 2500, 100000}},
-    {{100, 500, 2500, 12500}},
-  }};
+  static constexpr std::array<uint64_t, 4> percents{{100, 500, 2500, 12500}};
 
-  if (fee_algorithm == -1)
-    fee_algorithm = get_fee_algorithm();
+  const bool blinkable = type == txtype::standard;
 
-  // 0 -> default (here, x1 till fee algorithm 2, x4 from it)
   if (priority == 0)
+  {
     priority = m_default_priority;
-  if (priority == 0)
-    priority = fee_algorithm >= 1 ? 2 : 1;
+    if ((priority == tx_priority_blink && !blinkable) || priority == 0)
+      priority = tx_priority_unimportant;
+  }
+
+  // If it's a blinkable tx then we only have two relevant priorities: unimportant, and blink.
+  if (blinkable && priority != tx_priority_unimportant)
+    priority = tx_priority_blink;
 
   if (priority == tx_priority_blink)
   {
-    THROW_WALLET_EXCEPTION_IF(!use_fork_rules(HF_VERSION_BLINK, 0), error::invalid_priority);
-    return BLINK_MINER_TX_FEE_PERCENT + BLINK_BURN_TX_FEE_PERCENT;
+    if (!blinkable)
+      THROW_WALLET_EXCEPTION(error::invalid_priority);
+
+    uint64_t burn_pct;
+    if (use_fork_rules(network_version_15_lns, 0))
+      burn_pct = BLINK_BURN_TX_FEE_PERCENT;
+    else if (use_fork_rules(network_version_14_blink, 0))
+      burn_pct = BLINK_BURN_TX_FEE_PERCENT_OLD;
+    else
+      THROW_WALLET_EXCEPTION(error::invalid_priority);
+    return BLINK_MINER_TX_FEE_PERCENT + burn_pct;
   }
 
-  THROW_WALLET_EXCEPTION_IF(
-      fee_algorithm < 0 || fee_algorithm >= (int)percents.size() ||
-      priority < 1 || priority > percents[0].size(),
-      error::invalid_priority);
-  return percents[fee_algorithm][priority-1];
+  if (priority > percents.size())
+    THROW_WALLET_EXCEPTION(error::invalid_priority);
+
+  return percents[priority-1];
 }
 //----------------------------------------------------------------------------------------------------
 byte_and_output_fees wallet2::get_dynamic_base_fee_estimate() const
@@ -7570,107 +7557,6 @@ uint64_t wallet2::get_fee_quantization_mask() const
     return 1;
   return fee_quantization_mask;
 }
-//----------------------------------------------------------------------------------------------------
-int wallet2::get_fee_algorithm() const
-{
-  // changes at v13
-  if (use_fork_rules(HF_VERSION_PER_OUTPUT_FEE, 0))
-    return 2;
-  return 1; // last changed at v10
-}
-//------------------------------------------------------------------------------------------------------------------------------
-uint64_t wallet2::adjust_mixin(uint64_t mixin) const
-{
-  if (mixin != 9) {
-    MWARNING("Requested ring size " << (mixin + 1) << " incorrect for loki, using 10");
-    mixin = 9;
-  }
-  return mixin;
-}
-//----------------------------------------------------------------------------------------------------
-uint32_t wallet2::adjust_priority(uint32_t priority)
-{
-  constexpr uint32_t DEPRECATED_BLINK_PRIORITY = 0x626c6e6b; // "blnk"
-  if (priority == DEPRECATED_BLINK_PRIORITY)
-  {
-    priority = tx_priority_blink;
-  }
-  else if (priority == 0 && m_default_priority == 0 && auto_low_priority())
-  {
-    try
-    {
-      // check if there's a backlog in the tx pool
-      const uint64_t base_fee = get_base_fees().first;
-      const uint64_t fee_percent = get_fee_percent(1);
-      const double fee_level = base_fee * fee_percent / 100;
-      // NOTE (Loki): We don't include the per-output fee here because we typically don't actually
-      // know how many outputs we will need yet, but it's okay: fee_level being too low will just
-      // make us a little over-cautious about using low-priority but will still work fine when the
-      // pool is empty.
-      const std::vector<std::pair<uint64_t, uint64_t>> blocks = estimate_backlog({std::make_pair(fee_level, fee_level)});
-      if (blocks.size() != 1)
-      {
-        MERROR("Bad estimated backlog array size");
-        return priority;
-      }
-      else if (blocks[0].first > 0)
-      {
-        MINFO("We don't use the low priority because there's a backlog in the tx pool.");
-        return priority;
-      }
-
-      // get the current full reward zone
-      uint64_t block_weight_limit = 0;
-      const auto result = m_node_rpc_proxy.get_block_weight_limit(block_weight_limit);
-      throw_on_rpc_response_error(result, "get_info");
-      const uint64_t full_reward_zone = block_weight_limit / 2;
-
-      // get the last N block headers and sum the block sizes
-      const size_t N = 10;
-      if (m_blockchain.size() < N)
-      {
-        MERROR("The blockchain is too short");
-        return priority;
-      }
-      cryptonote::COMMAND_RPC_GET_BLOCK_HEADERS_RANGE::request getbh_req{};
-      cryptonote::COMMAND_RPC_GET_BLOCK_HEADERS_RANGE::response getbh_res{};
-      m_daemon_rpc_mutex.lock();
-      getbh_req.start_height = m_blockchain.size() - N;
-      getbh_req.end_height = m_blockchain.size() - 1;
-      bool r = invoke_http_json_rpc("/json_rpc", "getblockheadersrange", getbh_req, getbh_res, rpc_timeout);
-      m_daemon_rpc_mutex.unlock();
-      THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "getblockheadersrange");
-      THROW_WALLET_EXCEPTION_IF(getbh_res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "getblockheadersrange");
-      THROW_WALLET_EXCEPTION_IF(getbh_res.status != CORE_RPC_STATUS_OK, error::get_blocks_error, get_rpc_status(getbh_res.status));
-      if (getbh_res.headers.size() != N)
-      {
-        MERROR("Bad blockheaders size");
-        return priority;
-      }
-      size_t block_weight_sum = 0;
-      for (const cryptonote::block_header_response &i : getbh_res.headers)
-      {
-        block_weight_sum += i.block_weight;
-      }
-
-      // estimate how 'full' the last N blocks are
-      const size_t P = 100 * block_weight_sum / (N * full_reward_zone);
-      MINFO((boost::format("The last %d blocks fill roughly %d%% of the full reward zone.") % N % P).str());
-      if (P > 80)
-      {
-        MINFO("We don't use the low priority because recent blocks are quite full.");
-        return priority;
-      }
-      MINFO("We'll use the low priority because probably it's safe to do so.");
-      return 1;
-    }
-    catch (const std::exception &e)
-    {
-      MERROR(e.what());
-    }
-  }
-  return priority;
-}
 
 loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx_type, uint32_t priority, lns::burn_type lns_burn_type)
 {
@@ -7686,7 +7572,9 @@ loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx
   else if (priority == tools::tx_priority_blink)
   {
     tx_params.burn_fixed   = BLINK_BURN_FIXED;
-    tx_params.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
+    tx_params.burn_percent = hf_version <= network_version_14_blink
+        ? BLINK_BURN_TX_FEE_PERCENT_OLD
+        : BLINK_BURN_TX_FEE_PERCENT;
   }
 
   return tx_params;
@@ -8143,8 +8031,6 @@ wallet2::stake_result wallet2::create_stake_tx(const crypto::public_key& service
 
   try
   {
-    priority = adjust_priority(priority);
-
     if (priority == tx_priority_blink)
     {
       result.status = stake_result_status::no_blink;
@@ -8211,8 +8097,6 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
 
     if (local_args.size() > 0 && parse_priority(local_args[0], priority))
       local_args.erase(local_args.begin());
-
-    priority = adjust_priority(priority);
 
     if (priority == tx_priority_blink)
     {
@@ -10353,7 +10237,6 @@ bool wallet2::light_wallet_key_image_is_ours(const crypto::key_image& key_image,
 // time), and 5 bytes (max 34.3 LOKI) might conceivable not be enough.
 static constexpr uint64_t BURN_FEE_PLACEHOLDER = (1ULL << (6*7)) - 1;
 
-
 // Another implementation of transaction creation that is hopefully better
 // While there is anything left to pay, it goes through random outputs and tries
 // to fill the next destination/amount. If it fully fills it, it will use the
@@ -10436,7 +10319,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 2 };
 
   const auto base_fee = get_base_fees();
-  const uint64_t fee_percent = get_fee_percent(priority, get_fee_algorithm());
+  const uint64_t fee_percent = get_fee_percent(priority, tx_params.tx_type);
   uint64_t fixed_fee = 0;
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
 
@@ -11096,7 +10979,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
 
   const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 2 };
   const auto base_fee = get_base_fees();
-  const uint64_t fee_percent = get_fee_percent(priority, get_fee_algorithm());
+  const uint64_t fee_percent = get_fee_percent(priority, tx_type);
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
   uint64_t fixed_fee = 0;
 
@@ -14193,77 +14076,6 @@ bool wallet2::is_synced() const
   return get_blockchain_current_height() >= height;
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<std::pair<uint64_t, uint64_t>> wallet2::estimate_backlog(const std::vector<std::pair<double, double>> &fee_levels)
-{
-  for (const auto &fee_level: fee_levels)
-  {
-    THROW_WALLET_EXCEPTION_IF(fee_level.first == 0.0, error::wallet_internal_error, "Invalid 0 fee");
-    THROW_WALLET_EXCEPTION_IF(fee_level.second == 0.0, error::wallet_internal_error, "Invalid 0 fee");
-  }
-
-  // get txpool backlog
-  cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG::request req{};
-  cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG::response res{};
-  m_daemon_rpc_mutex.lock();
-  bool r = invoke_http_json_rpc("/json_rpc", "get_txpool_backlog", req, res, rpc_timeout);
-  m_daemon_rpc_mutex.unlock();
-  THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "Failed to connect to daemon");
-  THROW_WALLET_EXCEPTION_IF(res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "get_txpool_backlog");
-  THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error);
-
-  uint64_t block_weight_limit = 0;
-  const auto result = m_node_rpc_proxy.get_block_weight_limit(block_weight_limit);
-  throw_on_rpc_response_error(result, "get_info");
-  uint64_t full_reward_zone = block_weight_limit / 2;
-  THROW_WALLET_EXCEPTION_IF(full_reward_zone == 0, error::wallet_internal_error, "Invalid block weight limit from daemon");
-
-  std::vector<std::pair<uint64_t, uint64_t>> blocks;
-  for (const auto &fee_level: fee_levels)
-  {
-    const double our_fee_byte_min = fee_level.first;
-    const double our_fee_byte_max = fee_level.second;
-    uint64_t priority_weight_min = 0, priority_weight_max = 0;
-    for (const auto &i: res.backlog)
-    {
-      if (i.weight == 0)
-      {
-        MWARNING("Got 0 weight tx from txpool, ignored");
-        continue;
-      }
-      double this_fee_byte = i.fee / (double)i.weight;
-      if (this_fee_byte >= our_fee_byte_min)
-        priority_weight_min += i.weight;
-      if (this_fee_byte >= our_fee_byte_max)
-        priority_weight_max += i.weight;
-    }
-
-    uint64_t nblocks_min = priority_weight_min / full_reward_zone;
-    uint64_t nblocks_max = priority_weight_max / full_reward_zone;
-    MDEBUG("estimate_backlog: priority_weight " << priority_weight_min << " - " << priority_weight_max << " for "
-        << our_fee_byte_min << " - " << our_fee_byte_max << " rok byte fee, "
-        << nblocks_min << " - " << nblocks_max << " blocks at block weight " << full_reward_zone);
-    blocks.push_back(std::make_pair(nblocks_min, nblocks_max));
-  }
-  return blocks;
-}
-//----------------------------------------------------------------------------------------------------
-std::vector<std::pair<uint64_t, uint64_t>> wallet2::estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees)
-{
-  THROW_WALLET_EXCEPTION_IF(min_tx_weight == 0, error::wallet_internal_error, "Invalid 0 fee");
-  THROW_WALLET_EXCEPTION_IF(max_tx_weight == 0, error::wallet_internal_error, "Invalid 0 fee");
-  for (uint64_t fee: fees)
-  {
-    THROW_WALLET_EXCEPTION_IF(fee == 0, error::wallet_internal_error, "Invalid 0 fee");
-  }
-  std::vector<std::pair<double, double>> fee_levels;
-  for (uint64_t fee: fees)
-  {
-    double our_fee_byte_min = fee / (double)min_tx_weight, our_fee_byte_max = fee / (double)max_tx_weight;
-    fee_levels.emplace_back(our_fee_byte_min, our_fee_byte_max);
-  }
-  return estimate_backlog(fee_levels);
-}
-//----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_segregation_fork_height() const
 {
   if (m_nettype == TESTNET)
@@ -14460,7 +14272,6 @@ uint64_t wallet2::hash_m_transfers(int64_t transfer_height, crypto::hash &hash) 
   return current_height;
 }
 
-constexpr std::array<const char* const, 5> allowed_priority_strings = {{"default", "unimportant", "normal", "elevated", "priority"}};
 bool parse_subaddress_indices(const std::string& arg, std::set<uint32_t>& subaddr_indices, std::string *err_msg)
 {
   subaddr_indices.clear();
@@ -14493,9 +14304,6 @@ bool parse_priority(const std::string& arg, uint32_t& priority)
     arg);
   if(priority_pos != allowed_priority_strings.end()) {
     priority = std::distance(allowed_priority_strings.begin(), priority_pos);
-    return true;
-  } else if (arg == "blink") {
-    priority = tx_priority_blink;
     return true;
   }
   return false;

@@ -52,8 +52,6 @@
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
-// Hardcode Monero's donation address (see #1447)
-constexpr const char MONERO_DONATION_ADDR[] = "44AFFq5kSiGBoZ4NMDwYtN18obc8AemS33DBLWs3H7otXft3XjrpDtQGv7SqSsaBYBb98uNbr2VBBEt7f2wfn3RVGQBEP3A";
 
 /*!
  * \namespace cryptonote
@@ -142,7 +140,6 @@ namespace cryptonote
     bool set_confirm_backlog_threshold(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_confirm_export_overwrite(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_refresh_from_block_height(const std::vector<std::string> &args = std::vector<std::string>());
-    bool set_auto_low_priority(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_segregate_pre_fork_outputs(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_key_reuse_mitigation2(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_subaddress_lookahead(const std::vector<std::string> &args = std::vector<std::string>());
