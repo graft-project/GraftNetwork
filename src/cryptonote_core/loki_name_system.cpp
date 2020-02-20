@@ -293,14 +293,15 @@ uint64_t lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew
 
 crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::hash const &prev_txid)
 {
+  static_assert(sizeof(crypto::hash) == crypto_generichash_BYTES, "Using libsodium generichash for signature hash, require we fit into crypto::hash");
   crypto::hash result = {};
   if (blob.size() <= lns::GENERIC_VALUE_MAX)
   {
-    char buffer[lns::GENERIC_VALUE_MAX + sizeof(prev_txid)] = {};
-    size_t buffer_len                                       = blob.size() + sizeof(prev_txid);
+    unsigned char buffer[lns::GENERIC_VALUE_MAX + sizeof(prev_txid)] = {};
+    size_t buffer_len                                                = blob.size() + sizeof(prev_txid);
     memcpy(buffer, blob.data(), blob.size());
     memcpy(buffer + blob.size(), prev_txid.data, sizeof(prev_txid));
-    result = crypto::cn_fast_hash(buffer, buffer_len);
+    crypto_generichash(reinterpret_cast<unsigned char *>(result.data), sizeof(result), buffer, buffer_len, NULL /*key*/, 0 /*key_len*/);
   }
   else
   {

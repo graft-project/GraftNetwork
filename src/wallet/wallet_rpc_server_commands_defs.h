@@ -2933,7 +2933,7 @@ namespace wallet_rpc
       std::string        type;      // The mapping type, currently only "session" is supported.
       std::string        name;      // The name to update via Loki Name Service
       std::string        value;     // The new value that the name maps to via Loki Name Service, (i.e. For session: display name -> session public key).
-      std::string        signature; // (Optional): Signature derived from the hash of the previous txid blob and previous value blob of the mapping. By default this is signed using the wallet's spend key as an ed25519 keypair, if signature is empty.
+      std::string        signature; // (Optional): Signature derived using libsodium generichash on {current txid blob, new value blob} of the mapping to update. By default the hash is signed using the wallet's spend key as an ed25519 keypair, if signature is specified.
 
       uint32_t           account_index;    // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;  // (Optional) Transfer from this set of subaddresses. (Defaults to 0)

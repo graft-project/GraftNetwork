@@ -3236,7 +3236,7 @@ simple_wallet::simple_wallet()
   stream << "Update a Loki Name Service mapping's value field in the name->value mapping, you must be the owner of the the mapping by providing a signature that can be verified by the owner's public key."
          << OWNER_KEY_EXPLANATION
          << AVAILABLE_LNS_RECORDS
-         << "The signature is derived from the hash of the current {txid blob, value} of the mapping to update. By default signature is an optional field and is signed using the wallet's spend key as an ed25519 keypair";
+         << "The signature is derived using libsodium generichash on the {current txid blob, new value blob} of the mapping to update. Signature is an optional field and is signed using the wallet's spend key as an ed25519 keypair if it is not specified.";
   m_cmd_binder.set_handler("update_lns_mapping",
                            boost::bind(&simple_wallet::update_lns_mapping, this, _1),
                            tr(USAGE_UPDATE_LNS_MAPPING),
