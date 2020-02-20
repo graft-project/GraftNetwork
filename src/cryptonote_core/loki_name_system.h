@@ -14,7 +14,7 @@ namespace cryptonote
 {
 struct checkpoint_t;
 struct block;
-struct transaction;
+class transaction;
 struct account_address;
 struct tx_extra_loki_name_system;
 class Blockchain;

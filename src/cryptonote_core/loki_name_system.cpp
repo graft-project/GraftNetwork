@@ -608,28 +608,15 @@ bool validate_lns_value_binary(mapping_type type, std::string const &value, std:
   return true;
 }
 
-static std::stringstream &print_tx(std::stringstream &stream, cryptonote::transaction const &tx)
-{
-  stream << "TX={type=" << tx.type << ", hash=" << get_transaction_hash(tx) << "}";
-  return stream;
-}
-
-static std::stringstream &print_loki_name_system_extra(std::stringstream &stream, cryptonote::tx_extra_loki_name_system const &data)
+static std::ostream &operator<<(std::ostream &stream, cryptonote::tx_extra_loki_name_system const &data)
 {
   stream << "LNS Extra={";
-  if (data.command == cryptonote::tx_extra_loki_name_system::command_t::buy)
+  if (data.command == lns::tx_command_t::buy)
     stream << "owner=" << data.owner;
   else
     stream << "signature=" << epee::string_tools::pod_to_hex(data.signature);
 
   stream << ", type=" << data.type << ", name=" << data.name << "}";
-  return stream;
-}
-
-static std::stringstream &print_tx_and_extra(std::stringstream &stream, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &data)
-{
-  print_tx(stream, tx) << ", ";
-  print_loki_name_system_extra(stream, data);
   return stream;
 }
 
@@ -639,12 +626,12 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
   crypto::hash expected_prev_txid = crypto::null_hash;
   lns::mapping_record mapping     = lns_db.get_mapping(data.type, data.name);
 
-  const bool updating = data.command == cryptonote::tx_extra_loki_name_system::command_t::update;
+  const bool updating = data.command == lns::tx_command_t::update;
   if (updating && !mapping)
   {
     if (reason)
     {
-      print_tx_and_extra(err_stream, tx, data) << ", update requested but mapping does not exist.";
+      err_stream <<  tx << ", " << data << ", update requested but mapping does not exist.";
       *reason = err_stream.str();
     }
     return false;
@@ -660,7 +647,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         // Updating, we can always update unless the mapping has expired
         if (reason)
         {
-          print_tx_and_extra(err_stream, tx, data) << ", TX requested to update mapping that has already expired";
+          err_stream << tx << ", " << data << ", TX requested to update mapping that has already expired";
           *reason = err_stream.str();
         }
         return false;
@@ -670,7 +657,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
       {
         if (reason)
         {
-          print_tx_and_extra(err_stream, tx, data) << ", value to update to is already the same as the mapping value";
+          err_stream << tx << ", " <<  data << ", value to update to is already the same as the mapping value";
           *reason = err_stream.str();
         }
         return false;
@@ -683,7 +670,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         {
           if (reason)
           {
-            print_tx_and_extra(err_stream, tx, data) << ", failed to verify signature for LNS update";
+            err_stream << tx << ", " << data << ", failed to verify signature for LNS update";
             *reason = err_stream.str();
           }
           return false;
@@ -699,7 +686,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         if (reason)
         {
           lns::owner_record owner = lns_db.get_owner_by_id(mapping.owner_id);
-          print_tx_and_extra(err_stream, tx, data) << ", non-lokinet entries can NOT be renewed, mapping already exists with name=" << mapping.name << ", owner=" << owner.key << ", type=" << mapping.type;
+          err_stream << tx << ", " << data << ", non-lokinet entries can NOT be renewed, mapping already exists with name=" << mapping.name << ", owner=" << owner.key << ", type=" << mapping.type;
           *reason = err_stream.str();
         }
         return false;
@@ -712,7 +699,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
 
       if (min_renew_height >= blockchain_height)
       {
-        print_tx_and_extra(err_stream, tx, data) << ", trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
+        err_stream << tx << ", " << data << ", trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
         *reason = err_stream.str();
         return false; // Trying to renew too early
       }
@@ -726,7 +713,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         {
           if (reason)
           {
-            print_tx_and_extra(err_stream, tx, data) << ", trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
+            err_stream << tx << ", " << data << ", trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
             *reason = err_stream.str();
           }
           return false;
@@ -737,7 +724,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         {
           if (reason)
           {
-            print_tx_and_extra(err_stream, tx, data) << ", unexpected owner_id=" << mapping.owner_id << " does not exist";
+            err_stream << tx << ", " << data << ", unexpected owner_id=" << mapping.owner_id << " does not exist";
             *reason = err_stream.str();
           }
           return false;
@@ -747,16 +734,13 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         {
           if (reason)
           {
-            print_tx_and_extra(err_stream, tx, data) << ", actual owner=" << owner.key << ", with owner_id=" << mapping.owner_id << ", does not match requester=" << requester.key << ", with id=" << requester.id;
+            err_stream << tx << ", " << data << ", actual owner=" << owner.key << ", with owner_id=" << mapping.owner_id << ", does not match requester=" << requester.key << ", with id=" << requester.id;
             *reason = err_stream.str();
           }
           return false;
         }
       }
-      else
-      {
-        // NOTE: Mapping has expired, new purchase is valid
-      }
+      // else mapping has expired, new purchase is valid
     }
   }
 
@@ -764,7 +748,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
   {
     if (reason)
     {
-      print_tx_and_extra(err_stream, tx, data) << ", specified prior owner txid=" << data.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
+      err_stream << tx << ", " << data << ", specified prior owner txid=" << data.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
       *reason = err_stream.str();
     }
     return false;
@@ -783,7 +767,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      print_tx(err_stream, tx) << ", uses wrong tx type, expected=" << static_cast<int>(cryptonote::txtype::loki_name_system);
+      err_stream << tx << ", uses wrong tx type, expected=" << cryptonote::txtype::loki_name_system;
       *reason = err_stream.str();
     }
     return false;
@@ -793,7 +777,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      print_tx(err_stream, tx) << ", didn't have loki name service in the tx_extra";
+      err_stream << tx << ", didn't have loki name service in the tx_extra";
       *reason = err_stream.str();
     }
     return false;
@@ -803,7 +787,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      print_tx_and_extra(err_stream, tx, *entry) << ", unexpected version=" << std::to_string(entry->version) << ", expected=0";
+      err_stream << tx << ", " << *entry << ", unexpected version=" << std::to_string(entry->version) << ", expected=0";
       *reason = err_stream.str();
     }
     return false;
@@ -813,7 +797,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      print_tx_and_extra(err_stream, tx, *entry) << ", specifying type=" << entry->type << " that is disallowed";
+      err_stream << tx << ", " << *entry << ", specifying type=" << entry->type << " that is disallowed";
       *reason = err_stream.str();
     }
     return false;
@@ -828,7 +812,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     return false;
 
   uint64_t burn                = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
-  uint64_t const burn_required = entry->command == cryptonote::tx_extra_loki_name_system::command_t::buy
+  uint64_t const burn_required = entry->command == lns::tx_command_t::buy
                                      ? burn_requirement_in_atomic_loki(hf_version, mapping_type_to_burn_type(entry->type))
                                      : 0;
   if (burn != burn_required)
@@ -836,7 +820,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     if (reason)
     {
       char const *over_or_under = burn > burn_required ? "too much " : "insufficient ";
-      print_tx_and_extra(err_stream, tx, *entry) << ", burned " << over_or_under << "loki=" << burn << ", require=" << burn_required;
+      err_stream << tx << ", " << *entry << ", burned " << over_or_under << "loki=" << burn << ", require=" << burn_required;
       *reason = err_stream.str();
     }
     return false;
@@ -1048,7 +1032,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
   if (owner_record owner = lns_db.get_owner_by_key(entry.owner)) owner_id = owner.id;
   if (owner_id == 0)
   {
-    if (entry.command == cryptonote::tx_extra_loki_name_system::command_t::update)
+    if (entry.command == lns::tx_command_t::update)
     {
       MERROR("Owner does not exist but TX received is trying to update an existing mapping (i.e. owner should already exist). TX=" << tx_hash << " should have failed validation prior.");
       return false;

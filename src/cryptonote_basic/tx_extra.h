@@ -71,6 +71,12 @@ enum struct mapping_type : uint16_t
   lokinet = 2,
   _count,
 };
+enum struct tx_command_t : uint8_t
+{
+  buy    = 0,
+  update = 1,
+  _count,
+};
 };
 
 namespace service_nodes {
@@ -395,18 +401,11 @@ namespace cryptonote
 
   struct tx_extra_loki_name_system
   {
-    enum struct command_t : uint8_t
-    {
-      buy    = 0,
-      update = 1,
-      _count,
-    };
-
     uint8_t                    version = 0;
-    command_t                  command;
+    lns::tx_command_t          command;
     lns::mapping_type          type; // alias to lns::mapping_type
-    crypto::ed25519_public_key owner; // only serialized if command == command_t::buy
-    crypto::ed25519_signature  signature; // only serialized if command == command_t::update
+    crypto::ed25519_public_key owner; // only serialized if command == tx_command_t::buy
+    crypto::ed25519_signature  signature; // only serialized if command == tx_command_t::update
     std::string                name;
     std::string                value; // binary format of the name->value mapping
     crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping
@@ -419,7 +418,7 @@ namespace cryptonote
       result.name                      = name;
       result.value                     = value;
       result.prev_txid                 = prev_txid;
-      result.command                   = tx_extra_loki_name_system::command_t::buy;
+      result.command                   = lns::tx_command_t::buy;
       return result;
     }
 
@@ -431,15 +430,15 @@ namespace cryptonote
       result.name                      = name;
       result.value                     = value;
       result.prev_txid                 = prev_txid;
-      result.command                   = tx_extra_loki_name_system::command_t::update;
+      result.command                   = lns::tx_command_t::update;
       return result;
     }
 
     BEGIN_SERIALIZE()
       FIELD(version)
       ENUM_FIELD(type, type < lns::mapping_type::_count)
-      ENUM_FIELD(command, command < command_t::_count)
-      if (command == command_t::buy)
+      ENUM_FIELD(command, command < lns::tx_command_t::_count)
+      if (command == lns::tx_command_t::buy)
         FIELD(owner)
       else
         FIELD(signature)

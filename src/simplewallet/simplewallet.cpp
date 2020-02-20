@@ -3220,7 +3220,7 @@ simple_wallet::simple_wallet()
                            tr("Print stakes currently locked on the Service Node network"));
 
   char const OWNER_KEY_EXPLANATION[] = "By default this is the public key of an ed25519 keypair derived using the wallet's secret spend key as the seed value. ";
-  char const AVAILABLE_LNS_RECORDS[] = "You care currenly only able to purchase Session mappings. ";
+  char const AVAILABLE_LNS_RECORDS[] = "You are currenly only able to purchase Session mappings. ";
   std::stringstream stream;
   stream << "Buy a Loki Name Service mapping. Specifying `owner` is optional and defaults to the purchasing wallet if empty or not specified. The `owner` should be a ed25519 public key. "
             << OWNER_KEY_EXPLANATION
@@ -3235,11 +3235,12 @@ simple_wallet::simple_wallet()
   stream.clear();
   stream << "Update a Loki Name Service mapping's value field in the name->value mapping, you must be the owner of the the mapping by providing a signature that can be verified by the owner's public key."
          << OWNER_KEY_EXPLANATION
-         << AVAILABLE_LNS_RECORDS;
+         << AVAILABLE_LNS_RECORDS
+         << "The signature is derived from the hash of the current {txid blob, value} of the mapping to update. By default signature is an optional field and is signed using the wallet's spend key as an ed25519 keypair";
   m_cmd_binder.set_handler("update_lns_mapping",
                            boost::bind(&simple_wallet::update_lns_mapping, this, _1),
                            tr(USAGE_UPDATE_LNS_MAPPING),
-                           tr("Update a Loki Name Service mapping's value field in the name->value mapping, you must be the owner of the the mapping by providing a signature that can be verified by the owner's public key."));
+                           tr(stream.str().c_str()));
 
   m_cmd_binder.set_handler("print_lns_owners_to_names",
                            boost::bind(&simple_wallet::print_lns_owners_to_names, this, _1),
@@ -6593,7 +6594,7 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
   std::vector<tools::wallet2::pending_tx> ptx_vector;
   try
   {
-    ptx_vector = m_wallet->create_buy_lns_mapping_tx(static_cast<uint16_t>(lns::mapping_type::session),
+    ptx_vector = m_wallet->create_buy_lns_mapping_tx(lns::mapping_type::session,
                                                      owner,
                                                      name,
                                                      value,
