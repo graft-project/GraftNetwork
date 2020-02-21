@@ -33,7 +33,7 @@
 #include "supernode_common_struct.h"
 #include "serialization/keyvalue_serialization.h"
 #include "storages/portable_storage_base.h"
-
+#include "wallet/wallet_rpc_server_commands_defs.h"
 
 namespace supernode {
 	class FSN_ServantBase;
@@ -57,6 +57,7 @@ namespace supernode {
 		extern const string WalletProxyGetPosData;
 
         extern const string GetWalletBalance;
+        extern const string GetWalletTransactions;
 
         extern const string CreateAccount;
         extern const string GetSeed;
@@ -383,6 +384,38 @@ namespace supernode {
                 END_KV_SERIALIZE_MAP()
             };
         };
+        
+        struct GET_WALLET_TRANSACTIONS {
+            struct request {
+                std::string Account;
+                std::string Password;
+                uint64_t MinHeight;
+                uint64_t MaxHeight;
+                // TODO: implement me
+                uint32_t AccountIndex;
+                std::set<uint32_t> SubaddrIndices;
+                
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Account)
+                    KV_SERIALIZE(Password)
+                    KV_SERIALIZE(MinHeight)
+                    KV_SERIALIZE_OPT(MaxHeight, (uint64_t)CRYPTONOTE_MAX_BLOCK_NUMBER)
+                    KV_SERIALIZE_OPT(AccountIndex, (uint32_t)0)
+                    KV_SERIALIZE_OPT(SubaddrIndices, std::set<uint32_t>{})
+                END_KV_SERIALIZE_MAP()
+            };
+            struct response {
+                int64_t Result;
+                std::list<tools::wallet_rpc::transfer_entry> Transfers;
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Result)
+                    KV_SERIALIZE(Transfers)
+                END_KV_SERIALIZE_MAP()
+            };
+        };
+        
+        
+        
 
         // ----------- Temporal ------------------
         struct CREATE_ACCOUNT {

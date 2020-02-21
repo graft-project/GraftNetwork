@@ -37,6 +37,108 @@
 
 static const std::string scWalletCachePath("/cache/");
 
+namespace  {
+void set_confirmations(tools::wallet_rpc::transfer_entry &entry, uint64_t blockchain_height, uint64_t block_reward)
+{
+  if (entry.height >= blockchain_height)
+  {
+    entry.confirmations = 0;
+    entry.suggested_confirmations_threshold = 0;
+    return;
+  }
+  entry.confirmations = blockchain_height - entry.height;
+  if (block_reward == 0)
+    entry.suggested_confirmations_threshold = 0;
+  else
+    entry.suggested_confirmations_threshold = (entry.amount + block_reward - 1) / block_reward;
+}
+
+void fill_transfer_entry(tools::GraftWallet * wallet, tools::wallet_rpc::transfer_entry &entry, const crypto::hash &txid, const crypto::hash &payment_id, const tools::wallet2::payment_details &pd)
+{
+  entry.txid = epee::string_tools::pod_to_hex(pd.m_tx_hash);
+  entry.payment_id = epee::string_tools::pod_to_hex(payment_id);
+  if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
+    entry.payment_id = entry.payment_id.substr(0,16);
+  entry.height = pd.m_block_height;
+  entry.timestamp = pd.m_timestamp;
+  entry.amount = pd.m_amount;
+  entry.unlock_time = pd.m_unlock_time;
+  entry.fee = pd.m_fee;
+  entry.note = wallet->get_tx_note(pd.m_tx_hash);
+  entry.type = pd.m_coinbase ? "block" : "in";
+  entry.subaddr_index = pd.m_subaddr_index;
+  entry.address = wallet->get_subaddress_as_str(pd.m_subaddr_index);
+  set_confirmations(entry, wallet->get_blockchain_current_height(), wallet->get_last_block_reward());
+}
+//------------------------------------------------------------------------------------------------------------------------------
+void fill_transfer_entry(tools::GraftWallet * wallet, tools::wallet_rpc::transfer_entry &entry, const crypto::hash &txid, const tools::wallet2::confirmed_transfer_details &pd)
+{
+  entry.txid = epee::string_tools::pod_to_hex(txid);
+  entry.payment_id = epee::string_tools::pod_to_hex(pd.m_payment_id);
+  if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
+    entry.payment_id = entry.payment_id.substr(0,16);
+  entry.height = pd.m_block_height;
+  entry.timestamp = pd.m_timestamp;
+  entry.unlock_time = pd.m_unlock_time;
+  entry.fee = pd.m_amount_in - pd.m_amount_out;
+  uint64_t change = pd.m_change == (uint64_t)-1 ? 0 : pd.m_change; // change may not be known
+  entry.amount = pd.m_amount_in - change - entry.fee;
+  entry.note = wallet->get_tx_note(txid);
+
+  for (const auto &d: pd.m_dests) {
+    entry.destinations.push_back(tools::wallet_rpc::transfer_destination());
+    tools::wallet_rpc::transfer_destination &td = entry.destinations.back();
+    td.amount = d.amount;
+    td.address = get_account_address_as_str(wallet->nettype(), d.is_subaddress, d.addr);
+  }
+
+  entry.type = "out";
+  entry.subaddr_index = { pd.m_subaddr_account, 0 };
+  entry.address = wallet->get_subaddress_as_str({pd.m_subaddr_account, 0});
+  set_confirmations(entry, wallet->get_blockchain_current_height(), wallet->get_last_block_reward());
+}
+//------------------------------------------------------------------------------------------------------------------------------
+void fill_transfer_entry(tools::GraftWallet * wallet, tools::wallet_rpc::transfer_entry &entry, const crypto::hash &txid, const tools::wallet2::unconfirmed_transfer_details &pd)
+{
+  bool is_failed = pd.m_state == tools::wallet2::unconfirmed_transfer_details::failed;
+  entry.txid = epee::string_tools::pod_to_hex(txid);
+  entry.payment_id = epee::string_tools::pod_to_hex(pd.m_payment_id);
+  entry.payment_id = epee::string_tools::pod_to_hex(pd.m_payment_id);
+  if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
+    entry.payment_id = entry.payment_id.substr(0,16);
+  entry.height = 0;
+  entry.timestamp = pd.m_timestamp;
+  entry.fee = pd.m_amount_in - pd.m_amount_out;
+  entry.amount = pd.m_amount_in - pd.m_change - entry.fee;
+  entry.unlock_time = pd.m_tx.unlock_time;
+  entry.note = wallet->get_tx_note(txid);
+  entry.type = is_failed ? "failed" : "pending";
+  entry.subaddr_index = { pd.m_subaddr_account, 0 };
+  entry.address = wallet->get_subaddress_as_str({pd.m_subaddr_account, 0});
+  set_confirmations(entry, wallet->get_blockchain_current_height(), wallet->get_last_block_reward());
+}
+//------------------------------------------------------------------------------------------------------------------------------
+void fill_transfer_entry(tools::GraftWallet * wallet, tools::wallet_rpc::transfer_entry &entry, const crypto::hash &payment_id, const tools::wallet2::pool_payment_details &ppd)
+{
+  const tools::wallet2::payment_details &pd = ppd.m_pd;
+  entry.txid = epee::string_tools::pod_to_hex(pd.m_tx_hash);
+  entry.payment_id = epee::string_tools::pod_to_hex(payment_id);
+  if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
+    entry.payment_id = entry.payment_id.substr(0,16);
+  entry.height = 0;
+  entry.timestamp = pd.m_timestamp;
+  entry.amount = pd.m_amount;
+  entry.unlock_time = pd.m_unlock_time;
+  entry.fee = pd.m_fee;
+  entry.note = wallet->get_tx_note(pd.m_tx_hash);
+  entry.double_spend_seen = ppd.m_double_spend_seen;
+  entry.type = "pool";
+  entry.subaddr_index = pd.m_subaddr_index;
+  entry.address = wallet->get_subaddress_as_str(pd.m_subaddr_index);
+  set_confirmations(entry, wallet->get_blockchain_current_height(), wallet->get_last_block_reward());
+}
+}
+
 template<class Src, class Dst>
 void copy_seed(const Src& src, Dst& dst)
 {
@@ -52,6 +154,7 @@ supernode::BaseClientProxy::BaseClientProxy()
 void supernode::BaseClientProxy::Init()
 {
     m_DAPIServer->ADD_DAPI_HANDLER(GetWalletBalance, rpc_command::GET_WALLET_BALANCE, BaseClientProxy);
+    m_DAPIServer->ADD_DAPI_HANDLER(GetWalletTransactions, rpc_command::GET_WALLET_TRANSACTIONS, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(CreateAccount, rpc_command::CREATE_ACCOUNT, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(GetSeed, rpc_command::GET_SEED, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(RestoreAccount, rpc_command::RESTORE_ACCOUNT, BaseClientProxy);
@@ -80,6 +183,77 @@ bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::
         out.Result = ERROR_BALANCE_NOT_AVAILABLE;
         return false;
     }
+    out.Result = STATUS_OK;
+    return true;
+}
+
+
+
+
+bool supernode::BaseClientProxy::GetWalletTransactions(const supernode::rpc_command::GET_WALLET_TRANSACTIONS::request &in, supernode::rpc_command::GET_WALLET_TRANSACTIONS::response &out)
+{
+    MINFO("BaseClientProxy::GetWalletTransactions: " << in.Account);
+    std::unique_ptr<tools::GraftWallet> wallet = initWallet(base64_decode(in.Account), in.Password, false);
+    if (!wallet)
+    {
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+    try
+    {
+        // copy-pasted from wallet_rpc_server.cpp
+        // TODO: refactor to avoid code duplication or use wallet2_api.h interfaces
+        wallet->refresh(wallet->is_trusted_daemon());
+        // incoming
+        {
+          std::list<std::pair<crypto::hash, tools::wallet2::payment_details>> payments;
+          wallet->get_payments(payments, in.MinHeight, in.MaxHeight, in.AccountIndex, in.SubaddrIndices);
+          for (std::list<std::pair<crypto::hash, tools::wallet2::payment_details>>::const_iterator i = payments.begin(); i != payments.end(); ++i) {
+            out.Transfers.push_back(tools::wallet_rpc::transfer_entry());
+            fill_transfer_entry(wallet.get(), out.Transfers.back(), i->second.m_tx_hash, i->first, i->second);
+          }
+        }
+    
+        // outgoing
+        {
+          std::list<std::pair<crypto::hash, tools::wallet2::confirmed_transfer_details>> payments;
+          wallet->get_payments_out(payments, in.MinHeight, in.MaxHeight, in.AccountIndex, in.SubaddrIndices);
+          for (std::list<std::pair<crypto::hash, tools::wallet2::confirmed_transfer_details>>::const_iterator i = payments.begin(); i != payments.end(); ++i) {
+            out.Transfers.push_back(tools::wallet_rpc::transfer_entry());
+            fill_transfer_entry(wallet.get(), out.Transfers.back(), i->first, i->second);
+          }
+        }
+        // pending or failed
+        {
+          std::list<std::pair<crypto::hash, tools::wallet2::unconfirmed_transfer_details>> upayments;
+          wallet->get_unconfirmed_payments_out(upayments, in.AccountIndex, in.SubaddrIndices);
+          for (std::list<std::pair<crypto::hash, tools::wallet2::unconfirmed_transfer_details>>::const_iterator i = upayments.begin(); i != upayments.end(); ++i) {
+            const tools::wallet2::unconfirmed_transfer_details &pd = i->second;
+            out.Transfers.push_back(tools::wallet_rpc::transfer_entry());
+            fill_transfer_entry(wallet.get(), out.Transfers.back(), i->first, i->second);
+          }
+        }
+        // pool
+        {
+          wallet->update_pool_state();
+    
+          std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>> payments;
+          wallet->get_unconfirmed_payments(payments, in.AccountIndex, in.SubaddrIndices);
+          for (std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>>::const_iterator i = payments.begin(); i != payments.end(); ++i) {
+            out.Transfers.push_back(tools::wallet_rpc::transfer_entry());
+            fill_transfer_entry(wallet.get(), out.Transfers.back(), i->first, i->second);
+          }
+        }
+        
+        storeWalletState(wallet.get());
+    }
+    catch (const std::exception& e)
+    {
+        MERROR("Exception while retrieving transaction history: " << e.what());
+        out.Result = ERROR_TX_HISTORY_NOT_AVAILABLE;
+        return false;
+    }
+    MINFO("Returning transactions: " << out.Transfers.size());
     out.Result = STATUS_OK;
     return true;
 }
