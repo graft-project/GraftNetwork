@@ -3378,7 +3378,7 @@ namespace cryptonote
         res.entries.emplace_back();
         COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
         entry.entry_index         = request_index;
-        entry.type                = record.type;
+        entry.type                = static_cast<uint16_t>(record.type);
         entry.owner               = epee::string_tools::pod_to_hex(record.owner);
         entry.value               = extract_lns_mapping_value(record);
         entry.register_height     = record.register_height;
@@ -3431,7 +3431,7 @@ namespace cryptonote
       }
 
       entry.request_index   = it->second;
-      entry.type            = mapping.type;
+      entry.type            = static_cast<uint16_t>(mapping.type);
       entry.name            = mapping.name;
       entry.value           = extract_lns_mapping_value(mapping);
       entry.register_height = mapping.register_height;

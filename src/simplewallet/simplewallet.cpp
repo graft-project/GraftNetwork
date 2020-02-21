@@ -269,6 +269,7 @@ namespace
   const char* USAGE_REQUEST_STAKE_UNLOCK("request_stake_unlock <service_node_pubkey>");
   const char* USAGE_PRINT_LOCKED_STAKES("print_locked_stakes");
   const char* USAGE_BUY_LNS_MAPPING("buy_lns_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner] \"<name>\" <value>");
+  const char* USAGE_UPDATE_LNS_MAPPING("update_lns_mapping [index=<N1>[,<N2>,...]] [<priority>] \"<name>\" <value> [<signature>]");
   const char* USAGE_PRINT_LNS_OWNERS_TO_NAMES("print_lns_owners_to_names [<64 hex character ed25519 public key>]");
   const char* USAGE_PRINT_LNS_NAME_TO_OWNERS("print_lns_name_to_owners [type=<N1|all>[,<N2>...]] \"name\"");
 
@@ -3096,16 +3097,28 @@ Pending or Failed: "failed"|"pending",  "out", Time, Amount*, Transaction Hash, 
                            boost::bind(&simple_wallet::print_locked_stakes, this, _1),
                            tr(USAGE_PRINT_LOCKED_STAKES),
                            tr("Print stakes currently locked on the Service Node network"));
+
+  char const OWNER_KEY_EXPLANATION[] = "By default this is the public key of an ed25519 keypair derived using the wallet's secret spend key as the seed value. ";
+  char const AVAILABLE_LNS_RECORDS[] = "You are currenly only able to purchase Session mappings. ";
   std::stringstream stream;
-  stream << "Buy a Loki Name Service mapping. Specifying `owner` is optional and defaults to the purchasing wallet if "
-            "empty or not specified. The `owner` should be a ed25519 public key; by default this is the public key of "
-            "an ed25519 keypair derived using the wallet's secret spend key as the seed value. You are currently only "
-            "able to purchase Session mappings\n\n";
+  stream << "Buy a Loki Name Service mapping. Specifying `owner` is optional and defaults to the purchasing wallet if empty or not specified. The `owner` should be a ed25519 public key. "
+            << OWNER_KEY_EXPLANATION
+            << AVAILABLE_LNS_RECORDS << "\n\n";
   stream << "Session: (max: " << lns::SESSION_DISPLAY_NAME_MAX << " bytes) map a human readable name to a Session public key.\n";
 
   m_cmd_binder.set_handler("buy_lns_mapping",
                            boost::bind(&simple_wallet::buy_lns_mapping, this, _1),
                            tr(USAGE_BUY_LNS_MAPPING),
+                           tr(stream.str().c_str()));
+
+  stream.clear();
+  stream << "Update a Loki Name Service mapping's value field in the name->value mapping, you must be the owner of the the mapping by providing a signature that can be verified by the owner's public key."
+         << OWNER_KEY_EXPLANATION
+         << AVAILABLE_LNS_RECORDS
+         << "The signature is derived using libsodium generichash on the {current txid blob, new value blob} of the mapping to update. Signature is an optional field and is signed using the wallet's spend key as an ed25519 keypair if it is not specified.";
+  m_cmd_binder.set_handler("update_lns_mapping",
+                           boost::bind(&simple_wallet::update_lns_mapping, this, _1),
+                           tr(USAGE_UPDATE_LNS_MAPPING),
                            tr(stream.str().c_str()));
 
   m_cmd_binder.set_handler("print_lns_owners_to_names",
@@ -6407,7 +6420,7 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
   std::vector<tools::wallet2::pending_tx> ptx_vector;
   try
   {
-    ptx_vector = m_wallet->create_buy_lns_mapping_tx(static_cast<uint16_t>(lns::mapping_type::session),
+    ptx_vector = m_wallet->create_buy_lns_mapping_tx(lns::mapping_type::session,
                                                      owner,
                                                      name,
                                                      value,
@@ -6427,6 +6440,91 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
     info.is_subaddress                  = m_current_subaddress_account != 0;
     dsts.push_back(info);
     if (!confirm_and_send_tx(dsts, ptx_vector, priority == tools::tx_priority_blink))
+      return false;
+  }
+  catch (const std::exception &e)
+  {
+    handle_transfer_exception(std::current_exception(), m_wallet->is_trusted_daemon());
+    return true;
+  }
+  catch (...)
+  {
+    LOG_ERROR("unknown error");
+    fail_msg_writer() << tr("unknown error");
+    return true;
+  }
+
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::update_lns_mapping(const std::vector<std::string>& args)
+{
+  std::vector<std::string> local_args = args;
+  uint32_t priority = 0;
+  std::set<uint32_t> subaddr_indices  = {};
+  if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority)) return false;
+
+  if (local_args.size() < 2)
+  {
+    PRINT_USAGE(USAGE_UPDATE_LNS_MAPPING);
+    return true;
+  }
+
+  std::string const *signature = nullptr;
+  std::string const *value     = nullptr;
+  std::string const &last_word = local_args[local_args.size() - 1];
+  if (last_word.size() == (sizeof(crypto::signature) * 2))
+  {
+    if (local_args.size() == 2)
+    {
+      PRINT_USAGE(USAGE_UPDATE_LNS_MAPPING);
+      fail_msg_writer() << "Detected signature=" << last_word << ", but only 2 arguments given- missing either <value> or \"<name>\".";
+      return true;
+    }
+
+    signature = &last_word;
+    value     = &local_args[local_args.size() - 2];
+  }
+  else
+  {
+    value = &last_word;
+  }
+
+  std::string name;
+  size_t first_word_index = 0;
+  size_t last_word_index  = local_args.size() - 2;
+  if (!parse_lns_name_string(local_args, first_word_index, last_word_index, name))
+  {
+    PRINT_USAGE(USAGE_UPDATE_LNS_MAPPING);
+    fail_msg_writer() << "lns name didn't start or end with quotation marks (')";
+    return false;
+  }
+
+  SCOPED_WALLET_UNLOCK();
+  std::string reason;
+  std::vector<tools::wallet2::pending_tx> ptx_vector;
+  try
+  {
+    ptx_vector = m_wallet->create_update_lns_mapping_tx(lns::mapping_type::session,
+                                                        name,
+                                                        *value,
+                                                        signature,
+                                                        &reason,
+                                                        priority,
+                                                        m_current_subaddress_account,
+                                                        subaddr_indices);
+    if (ptx_vector.empty())
+    {
+      tools::fail_msg_writer() << reason;
+      return true;
+    }
+
+    std::vector<cryptonote::address_parse_info> dsts;
+    cryptonote::address_parse_info info = {};
+    info.address                        = m_wallet->get_subaddress({m_current_subaddress_account, 0});
+    info.is_subaddress                  = m_current_subaddress_account != 0;
+    dsts.push_back(info);
+    if (!confirm_and_send_tx(dsts, ptx_vector, false /*blink*/))
       return false;
   }
   catch (const std::exception &e)
@@ -6475,14 +6573,14 @@ bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& arg
 
         for (std::string const &type : split_types)
         {
-          uint16_t mapping_type = 0;
+          lns::mapping_type mapping_type;
           std::string reason;
           if (!lns::validate_mapping_type(type, &mapping_type, &reason))
           {
             fail_msg_writer() << reason;
             return false;
           }
-          requested_types.push_back(mapping_type);
+          requested_types.push_back(static_cast<uint16_t>(mapping_type));
         }
       }
     }
@@ -6496,12 +6594,10 @@ bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& arg
     return false;
   }
 
-  std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry> names;
-  names.emplace_back();
-  cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry &entry = names.back();
-  entry.name  = lns_name;
-  entry.types = std::move(requested_types);
+  cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request request = {};
+  request.entries.push_back({lns_name, std::move(requested_types)});
 
+  cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry &entry = request.entries.back();
   if (entry.types.empty())
   {
     entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::wallet));
@@ -6510,15 +6606,15 @@ bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& arg
   }
 
   boost::optional<std::string> failed;
-  std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry> entries = m_wallet->get_lns_names_to_owners(names, failed);
+  std::vector<cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::response_entry> response = m_wallet->get_lns_names_to_owners(request, failed);
   if (failed)
   {
     fail_msg_writer() << *failed;
     return false;
   }
 
-  for (auto const &mapping : entries)
-    tools::msg_writer() << "name=\"" << entry.name << "\", owner=" << mapping.owner << ", type=" << mapping.type << ", height=" << mapping.register_height;
+  for (auto const &mapping : response)
+    tools::msg_writer() << "name=\"" << entry.name << "\", owner=" << mapping.owner << ", type=" << static_cast<lns::mapping_type>(mapping.type) << ", height=" << mapping.register_height;
 
   return true;
 }
@@ -6528,10 +6624,10 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
   if (!try_connect_to_daemon())
     return false;
 
-  std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> entries;
   boost::optional<std::string> failed;
 
   std::string my_own_ed25519_key;
+  cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::request request = {};
   if (args.size() == 0)
   {
     // TODO(doyle): I need to make this address visible easily for people, prior
@@ -6541,7 +6637,7 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
     crypto::ed25519_secret_key skey;
     crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(m_wallet->get_account().get_keys().m_spend_secret_key.data));
     my_own_ed25519_key = epee::string_tools::pod_to_hex(pkey);
-    entries = m_wallet->get_lns_owners_to_names({my_own_ed25519_key}, failed);
+    request.entries.push_back(my_own_ed25519_key);
   }
   else
   {
@@ -6561,10 +6657,11 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
           return false;
         }
       }
+      request.entries.push_back(arg);
     }
-    entries = m_wallet->get_lns_owners_to_names(args, failed);
   }
 
+  std::vector<cryptonote::COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry> entries = m_wallet->get_lns_owners_to_names(request, failed);
   if (failed)
   {
     fail_msg_writer() << *failed;
@@ -6587,7 +6684,7 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
       }
     }
 
-    tools::msg_writer() << "owner=" << *owner << ", height=" << entry.register_height << ", name=\"" << entry.name << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
+    tools::msg_writer() << "owner=" << *owner << ", type=" << static_cast<lns::mapping_type>(entry.type) << ", height=" << entry.register_height << ", name=\"" << entry.name << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
   }
   return true;
 }

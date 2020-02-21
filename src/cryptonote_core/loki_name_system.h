@@ -3,6 +3,8 @@
 
 #include "crypto/crypto.h"
 #include "cryptonote_config.h"
+#include "span.h"
+#include "cryptonote_basic/tx_extra.h"
 
 #include <string>
 
@@ -12,7 +14,7 @@ namespace cryptonote
 {
 struct checkpoint_t;
 struct block;
-struct transaction;
+class transaction;
 struct account_address;
 struct tx_extra_loki_name_system;
 class Blockchain;
@@ -35,35 +37,40 @@ struct lns_value
   size_t len;
 };
 
-enum struct mapping_type : uint16_t
-{
-  session = 0,
-  wallet  = 1,
-  lokinet = 2,
-};
-
-constexpr bool mapping_type_allowed(uint8_t /*hf_version*/, uint16_t type) { return type == static_cast<uint16_t>(mapping_type::session); }
-constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { return mapping_type_allowed(hf_version, static_cast<uint16_t>(type)); }
-
 enum struct burn_type
 {
   none,
+  update_record,
   lokinet_1year,
   session,
   wallet,
   custom,
 };
 
+inline std::ostream &operator<<(std::ostream &os, mapping_type type)
+{
+  switch(type)
+  {
+    case mapping_type::lokinet: os << "lokinet"; break;
+    case mapping_type::session: os << "session"; break;
+    case mapping_type::wallet:  os << "wallet"; break;
+    default: assert(false);     os << "xx_unhandled_type"; break;
+  }
+  return os;
+}
+
+constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { return type == mapping_type::session; }
 burn_type    mapping_type_to_burn_type(mapping_type in);
 uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version, burn_type type);
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window = nullptr);
-bool         validate_lns_name(uint16_t type, std::string const &name, std::string *reason = nullptr);
+crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::hash const &prev_txid);
+bool         validate_lns_name(mapping_type type, std::string const &name, std::string *reason = nullptr);
 
 // blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
-bool         validate_lns_value(cryptonote::network_type nettype, uint16_t type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
-bool         validate_lns_value_binary(uint16_t type, std::string const &value, std::string *reason = nullptr);
-bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
+bool         validate_lns_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_lns_value_binary(mapping_type type, std::string const &value, std::string *reason = nullptr);
+bool         validate_mapping_type(std::string const &type, lns::mapping_type *mapping_type, std::string *reason);
 
 struct owner_record
 {
@@ -95,7 +102,7 @@ struct mapping_record
   operator bool() const { return loaded; }
 
   bool                       loaded;
-  uint16_t                   type; // alias to lns::mapping_type
+  mapping_type               type; // alias to lns::mapping_type
   std::string                name;
   std::string                value;
   uint64_t                   register_height;
@@ -121,7 +128,7 @@ struct name_system_db
 
   owner_record                get_owner_by_key      (crypto::ed25519_public_key const &key) const;
   owner_record                get_owner_by_id       (int64_t owner_id) const;
-  mapping_record              get_mapping           (uint16_t type, std::string const &name) const;
+  mapping_record              get_mapping           (mapping_type type, std::string const &name) const;
   std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name) const;
   std::vector<mapping_record> get_mappings_by_owner (crypto::ed25519_public_key const &key) const;
   std::vector<mapping_record> get_mappings_by_owners(std::vector<crypto::ed25519_public_key> const &keys) const;

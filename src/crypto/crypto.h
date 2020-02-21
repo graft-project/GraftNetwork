@@ -284,6 +284,7 @@ EPEE_TYPE_IS_SPANNABLE(crypto::public_key)
 EPEE_TYPE_IS_SPANNABLE(crypto::key_derivation)
 EPEE_TYPE_IS_SPANNABLE(crypto::key_image)
 EPEE_TYPE_IS_SPANNABLE(crypto::signature)
+EPEE_TYPE_IS_SPANNABLE(crypto::ed25519_signature)
 EPEE_TYPE_IS_SPANNABLE(crypto::ed25519_public_key)
 EPEE_TYPE_IS_SPANNABLE(crypto::x25519_public_key)
 
