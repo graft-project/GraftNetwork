@@ -5762,14 +5762,17 @@ bool simple_wallet::transfer_main(int transfer_type, const std::vector<std::stri
       return false;
     }
     local_args.pop_back();
-
-    std::string accepted = input_line(tr("Stake amount will be locked. If you don't have exact amount for stake transaction, remaining amount also may be locked. Is this okay?  (Y/Yes/N/No): "));
-    if (std::cin.eof())
-      return true;
-    if (!command_line::is_yes(accepted))
+    
+    if (transfer_type == TransferStake) 
     {
-      fail_msg_writer() << tr("transaction cancelled.");
-      return true; 
+      std::string accepted = input_line(tr("Stake amount will be locked. If you don't have exact amount for stake transaction, remaining amount also may be locked. Is this okay?  (Y/Yes/N/No): "));
+      if (std::cin.eof())
+        return true;
+      if (!command_line::is_yes(accepted))
+      {
+        fail_msg_writer() << tr("transaction cancelled.");
+        return true; 
+      }
     }
   }
 
