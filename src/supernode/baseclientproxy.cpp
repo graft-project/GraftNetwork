@@ -194,6 +194,7 @@ bool supernode::BaseClientProxy::GetWalletTransactions(const supernode::rpc_comm
 {
     MINFO("BaseClientProxy::GetWalletTransactions: " << in.Account);
     std::unique_ptr<tools::GraftWallet> wallet = initWallet(base64_decode(in.Account), in.Password, false);
+    MINFO("BaseClientProxy::GetWalletTransactions: initWallet done");
     if (!wallet)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
@@ -203,36 +204,44 @@ bool supernode::BaseClientProxy::GetWalletTransactions(const supernode::rpc_comm
     {
         // copy-pasted from wallet_rpc_server.cpp
         // TODO: refactor to avoid code duplication or use wallet2_api.h interfaces
+        MINFO("BaseClientProxy::GetWalletTransactions: about to call 'refresh()'");
         wallet->refresh(wallet->is_trusted_daemon());
+        MINFO("BaseClientProxy::GetWalletTransactions: 'refresh()' done");
         // incoming
+        
         {
           std::list<std::pair<crypto::hash, tools::wallet2::payment_details>> payments;
           wallet->get_payments(payments, in.MinHeight, in.MaxHeight, in.AccountIndex, in.SubaddrIndices);
           for (std::list<std::pair<crypto::hash, tools::wallet2::payment_details>>::const_iterator i = payments.begin(); i != payments.end(); ++i) {
-            out.Transfers.push_back(tools::wallet_rpc::transfer_entry());
-            fill_transfer_entry(wallet.get(), out.Transfers.back(), i->second.m_tx_hash, i->first, i->second);
+            out.TransfersIn.push_back(tools::wallet_rpc::transfer_entry());
+            fill_transfer_entry(wallet.get(), out.TransfersIn.back(), i->second.m_tx_hash, i->first, i->second);
           }
         }
+        MINFO("BaseClientProxy::GetWalletTransactions: 'incoming payments' done");
     
         // outgoing
         {
           std::list<std::pair<crypto::hash, tools::wallet2::confirmed_transfer_details>> payments;
           wallet->get_payments_out(payments, in.MinHeight, in.MaxHeight, in.AccountIndex, in.SubaddrIndices);
           for (std::list<std::pair<crypto::hash, tools::wallet2::confirmed_transfer_details>>::const_iterator i = payments.begin(); i != payments.end(); ++i) {
-            out.Transfers.push_back(tools::wallet_rpc::transfer_entry());
-            fill_transfer_entry(wallet.get(), out.Transfers.back(), i->first, i->second);
+            out.TransfersOut.push_back(tools::wallet_rpc::transfer_entry());
+            fill_transfer_entry(wallet.get(), out.TransfersOut.back(), i->first, i->second);
           }
         }
+        MINFO("BaseClientProxy::GetWalletTransactions: 'outgoing payments' done");
         // pending or failed
         {
           std::list<std::pair<crypto::hash, tools::wallet2::unconfirmed_transfer_details>> upayments;
           wallet->get_unconfirmed_payments_out(upayments, in.AccountIndex, in.SubaddrIndices);
           for (std::list<std::pair<crypto::hash, tools::wallet2::unconfirmed_transfer_details>>::const_iterator i = upayments.begin(); i != upayments.end(); ++i) {
             const tools::wallet2::unconfirmed_transfer_details &pd = i->second;
-            out.Transfers.push_back(tools::wallet_rpc::transfer_entry());
-            fill_transfer_entry(wallet.get(), out.Transfers.back(), i->first, i->second);
+            bool is_failed = pd.m_state == tools::wallet2::unconfirmed_transfer_details::failed;
+            std::list<tools::wallet_rpc::transfer_entry> &entries = is_failed ? out.TransfersFailed : out.TransfersPending;
+            entries.push_back(tools::wallet_rpc::transfer_entry());
+            fill_transfer_entry(wallet.get(), entries.back(), i->first, i->second);
           }
         }
+        MINFO("BaseClientProxy::GetWalletTransactions: 'unconfirmed payments' done");
         // pool
         {
           wallet->update_pool_state();
@@ -240,10 +249,11 @@ bool supernode::BaseClientProxy::GetWalletTransactions(const supernode::rpc_comm
           std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>> payments;
           wallet->get_unconfirmed_payments(payments, in.AccountIndex, in.SubaddrIndices);
           for (std::list<std::pair<crypto::hash, tools::wallet2::pool_payment_details>>::const_iterator i = payments.begin(); i != payments.end(); ++i) {
-            out.Transfers.push_back(tools::wallet_rpc::transfer_entry());
-            fill_transfer_entry(wallet.get(), out.Transfers.back(), i->first, i->second);
+            out.TransfersPool.push_back(tools::wallet_rpc::transfer_entry());
+            fill_transfer_entry(wallet.get(), out.TransfersPool.back(), i->first, i->second);
           }
         }
+        MINFO("BaseClientProxy::GetWalletTransactions: 'pool payments' done");
         
         storeWalletState(wallet.get());
     }
@@ -253,7 +263,8 @@ bool supernode::BaseClientProxy::GetWalletTransactions(const supernode::rpc_comm
         out.Result = ERROR_TX_HISTORY_NOT_AVAILABLE;
         return false;
     }
-    MINFO("Returning transactions: " << out.Transfers.size());
+    MINFO("Returning transactions: " << out.TransfersIn.size() + out.TransfersOut.size() + out.TransfersFailed.size()
+          + out.TransfersPending.size());
     out.Result = STATUS_OK;
     return true;
 }

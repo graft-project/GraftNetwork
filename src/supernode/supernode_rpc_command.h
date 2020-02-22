@@ -406,10 +406,19 @@ namespace supernode {
             };
             struct response {
                 int64_t Result;
-                std::list<tools::wallet_rpc::transfer_entry> Transfers;
+                std::list<tools::wallet_rpc::transfer_entry> TransfersIn;
+                std::list<tools::wallet_rpc::transfer_entry> TransfersOut;
+                std::list<tools::wallet_rpc::transfer_entry> TransfersPending;
+                std::list<tools::wallet_rpc::transfer_entry> TransfersFailed;
+                std::list<tools::wallet_rpc::transfer_entry> TransfersPool;
+                
                 BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(Result)
-                    KV_SERIALIZE(Transfers)
+                    KV_SERIALIZE(TransfersIn)
+                    KV_SERIALIZE(TransfersOut)
+                    KV_SERIALIZE(TransfersPending)
+                    KV_SERIALIZE(TransfersFailed)
+                    KV_SERIALIZE(TransfersPool)
                 END_KV_SERIALIZE_MAP()
             };
         };
