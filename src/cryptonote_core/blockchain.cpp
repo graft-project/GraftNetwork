@@ -129,7 +129,7 @@ static const struct {
   // hf 15 increase stake period to 32 days, 2019-08-12@15:00:00+00
   { 16, 412780, 0, 1565622000 },
   // hf 17 corresponds monero 14, block and date to be specified
-  { 17, 500000, 0, 1577750400 },
+  //{ 17, 500000, 0, 1577750400 },
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -175,7 +175,7 @@ static const struct {
   // hf 16 increase stake period to 32 days, 2019-08-05T@09:00:00+00
   { 16, 381520, 0, 1564995600 },
  // hf 17 corresponds monero 14, block and date to be specified
-  { 17, 468615, 0, 1576587000 },
+  { 17, 489630, 0, 1582747200 },
 
 };
 
