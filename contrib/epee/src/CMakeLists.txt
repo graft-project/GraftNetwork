@@ -1,21 +1,21 @@
-# Copyright (c) 2014-2018, The Monero Project
-# 
+# Copyright (c) 2014-2019, The Monero Project
+#
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without modification, are
 # permitted provided that the following conditions are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright notice, this list of
 #    conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright notice, this list
 #    of conditions and the following disclaimer in the documentation and/or other
 #    materials provided with the distribution.
-# 
+#
 # 3. Neither the name of the copyright holder nor the names of its contributors may be
 #    used to endorse or promote products derived from this software without specific
 #    prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 # MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -26,13 +26,11 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp net_helper.cpp net_utils_base.cpp string_tools.cpp wipeable_string.cpp memwipe.c
+    connection_basic.cpp network_throttle.cpp network_throttle-detail.cpp mlocker.cpp buffer.cpp net_ssl.cpp) 
+
 if (USE_READLINE AND GNU_READLINE_FOUND)
   add_library(epee_readline STATIC readline_buffer.cpp)
-    add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp net_utils_base.cpp string_tools.cpp wipeable_string.cpp memwipe.c
-    connection_basic.cpp network_throttle.cpp network_throttle-detail.cpp mlocker.cpp async_state_machine.cpp readline_buffer.cpp)
-else()
-  add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp net_utils_base.cpp string_tools.cpp wipeable_string.cpp memwipe.c
-    connection_basic.cpp network_throttle.cpp network_throttle-detail.cpp mlocker.cpp async_state_machine.cpp)
 endif()
 
 if(HAVE_C11)

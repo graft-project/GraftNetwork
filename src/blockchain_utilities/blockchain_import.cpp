@@ -1,5 +1,5 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -38,6 +38,7 @@
 #include "misc_log_ex.h"
 #include "bootstrap_file.h"
 #include "bootstrap_serialization.h"
+#include "blocks/blocks.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "serialization/binary_utils.h" // dump_binary(), parse_binary()
 #include "serialization/json_utils.h" // dump_json()
@@ -193,8 +194,20 @@ int check_flush(cryptonote::core &core, std::vector<block_complete_entry> &block
   }
   core.prevalidate_block_hashes(core.get_blockchain_storage().get_db().height(), hashes);
 
-  core.prepare_handle_incoming_blocks(blocks);
+  std::vector<block> pblocks;
+  if (!core.prepare_handle_incoming_blocks(blocks, pblocks))
+  {
+    MERROR("Failed to prepare to add blocks");
+    return 1;
+  }
+  if (!pblocks.empty() && pblocks.size() != blocks.size())
+  {
+    MERROR("Unexpected parsed blocks size");
+    core.cleanup_handle_incoming_blocks();
+    return 1;
+  }
 
+  size_t blockidx = 0;
   for(const block_complete_entry& block_entry: blocks)
   {
     // process transactions
@@ -215,7 +228,7 @@ int check_flush(cryptonote::core &core, std::vector<block_complete_entry> &block
 
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
 
-    core.handle_incoming_block(block_entry.block, bvc, false); // <--- process block
+    core.handle_incoming_block(block_entry.block, pblocks.empty() ? NULL : &pblocks[blockidx++], bvc, false); // <--- process block
 
     if(bvc.m_verifivation_failed)
     {
@@ -396,7 +409,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
     {
       std::cout << refresh_string << "block " << h-1
         << " / " << block_stop
-        << std::flush;
+        << "\r" << std::flush;
       std::cout << ENDL << ENDL;
       MINFO("Specified block number reached - stopping.  block: " << h-1 << "  total blocks: " << h);
       quit = 1;
@@ -432,7 +445,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
         {
           std::cout << refresh_string << "block " << h-1
             << " / " << block_stop
-            << std::flush;
+            << "\r" << std::flush;
         }
 
         if (opt_verify)
@@ -455,7 +468,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
         }
         else
         {
-          std::vector<transaction> txs;
+          std::vector<std::pair<transaction, blobdata>> txs;
           std::vector<transaction> archived_txs;
 
           archived_txs = bp.txs;
@@ -472,7 +485,7 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
             // because add_block() calls
             // add_transaction(blk_hash, blk.miner_tx) first, and
             // then a for loop for the transactions in txs.
-            txs.push_back(tx);
+            txs.push_back(std::make_pair(tx, tx_to_blob(tx)));
           }
 
           size_t block_weight;
@@ -485,7 +498,8 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
 
           try
           {
-            core.get_blockchain_storage().get_db().add_block(b, block_weight, cumulative_difficulty, coins_generated, txs);
+            uint64_t long_term_block_weight = core.get_blockchain_storage().get_next_long_term_block_weight(block_weight);
+            core.get_blockchain_storage().get_db().add_block(std::make_pair(b, block_to_blob(b)), block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, txs);
           }
           catch (const std::exception& e)
           {
@@ -759,7 +773,12 @@ int main(int argc, char* argv[])
   {
 
   core.disable_dns_checkpoints(true);
-  if (!core.init(vm, NULL))
+#if defined(PER_BLOCK_CHECKPOINT)
+  const GetCheckpointsCallback& get_checkpoints = blocks::GetCheckpointsData;
+#else
+  const GetCheckpointsCallback& get_checkpoints = nullptr;
+#endif
+  if (!core.init(vm, nullptr, get_checkpoints))
   {
     std::cerr << "Failed to initialize core" << ENDL;
     return 1;

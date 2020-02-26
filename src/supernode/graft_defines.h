@@ -54,6 +54,7 @@
 #define ERROR_CANNOT_REJECT_PAY             -17
 
 #define ERROR_NOT_ENOUGH_COINS              -20
+#define ERROR_TX_HISTORY_NOT_AVAILABLE      -22
 
 
 #endif // GRAFT_DEFINES_H

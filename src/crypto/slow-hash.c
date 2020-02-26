@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -35,10 +35,13 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "common/int-util.h"
+#include "int-util.h"
 #include "hash-ops.h"
 #include "oaes_lib.h"
 #include "variant2_int_sqrt.h"
+
+#include <errno.h>
+#include <string.h>
 
 #define MEMORY         (1 << 21) // 2MB scratchpad
 #define ITER           (1 << 20)
@@ -47,8 +50,8 @@
 #define INIT_SIZE_BLK   8
 #define INIT_SIZE_BYTE (INIT_SIZE_BLK * AES_BLOCK_SIZE)
 
-extern int aesb_single_round(const uint8_t *in, uint8_t*out, const uint8_t *expandedKey);
-extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
+extern void aesb_single_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
+extern void aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
 
 #define VARIANT1_1(p) \
   do if (variant == 1) \
@@ -109,14 +112,14 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
     memcpy(b + AES_BLOCK_SIZE, state.hs.b + 64, AES_BLOCK_SIZE); \
     xor64(b + AES_BLOCK_SIZE, state.hs.b + 80); \
     xor64(b + AES_BLOCK_SIZE + 8, state.hs.b + 88); \
-    division_result = state.hs.w[12]; \
-    sqrt_result = state.hs.w[13]; \
+    division_result = SWAP64LE(state.hs.w[12]); \
+    sqrt_result = SWAP64LE(state.hs.w[13]); \
   } while (0)
 
 #define VARIANT2_SHUFFLE_ADD_SSE2(base_ptr, offset, reverse) \
   do if (variant >= 2) \
   { \
-    const __m128i chunk1 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ (reverse ? 0x30 : 0x10)))); \
+    __m128i chunk1 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ (reverse ? 0x30 : 0x10)))); \
     const __m128i chunk2 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ 0x20))); \
     const __m128i chunk3 = _mm_load_si128((__m128i *)((base_ptr) + ((offset) ^ (reverse ? 0x10 : 0x30)))); \
     _mm_store_si128((__m128i *)((base_ptr) + ((offset) ^ 0x10)), _mm_add_epi64(chunk3, _b1)); \
@@ -127,7 +130,7 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
 #define VARIANT2_SHUFFLE_ADD_NEON(base_ptr, offset, reverse) \
   do if (variant >= 2) \
   { \
-    const uint64x2_t chunk1 = vld1q_u64(U64((base_ptr) + ((offset) ^ (reverse ? 0x30 : 0x10)))); \
+    uint64x2_t chunk1 = vld1q_u64(U64((base_ptr) + ((offset) ^ (reverse ? 0x30 : 0x10)))); \
     const uint64x2_t chunk2 = vld1q_u64(U64((base_ptr) + ((offset) ^ 0x20))); \
     const uint64x2_t chunk3 = vld1q_u64(U64((base_ptr) + ((offset) ^ (reverse ? 0x10 : 0x30)))); \
     vst1q_u64(U64((base_ptr) + ((offset) ^ 0x10)), vaddq_u64(chunk3, vreinterpretq_u64_u8(_b1))); \
@@ -135,43 +138,46 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
     vst1q_u64(U64((base_ptr) + ((offset) ^ 0x30)), vaddq_u64(chunk2, vreinterpretq_u64_u8(_a))); \
   } while (0)
 
-#define VARIANT2_PORTABLE_SHUFFLE_ADD(base_ptr, offset, reverse) \
+#define VARIANT2_PORTABLE_SHUFFLE_ADD(out, a_, base_ptr, offset, reverse) \
   do if (variant >= 2) \
   { \
     uint64_t* chunk1 = U64((base_ptr) + ((offset) ^ (reverse ? 0x30 : 0x10))); \
     uint64_t* chunk2 = U64((base_ptr) + ((offset) ^ 0x20)); \
     uint64_t* chunk3 = U64((base_ptr) + ((offset) ^ (reverse ? 0x10 : 0x30))); \
     \
-    const uint64_t chunk1_old[2] = { chunk1[0], chunk1[1] }; \
+    uint64_t chunk1_old[2] = { SWAP64LE(chunk1[0]), SWAP64LE(chunk1[1]) }; \
+    const uint64_t chunk2_old[2] = { SWAP64LE(chunk2[0]), SWAP64LE(chunk2[1]) }; \
+    const uint64_t chunk3_old[2] = { SWAP64LE(chunk3[0]), SWAP64LE(chunk3[1]) }; \
     \
     uint64_t b1[2]; \
-    memcpy(b1, b + 16, 16); \
-    chunk1[0] = chunk3[0] + b1[0]; \
-    chunk1[1] = chunk3[1] + b1[1]; \
+    memcpy_swap64le(b1, b + 16, 2); \
+    chunk1[0] = SWAP64LE(chunk3_old[0] + b1[0]); \
+    chunk1[1] = SWAP64LE(chunk3_old[1] + b1[1]); \
     \
     uint64_t a0[2]; \
-    memcpy(a0, a, 16); \
-    chunk3[0] = chunk2[0] + a0[0]; \
-    chunk3[1] = chunk2[1] + a0[1]; \
+    memcpy_swap64le(a0, a_, 2); \
+    chunk3[0] = SWAP64LE(chunk2_old[0] + a0[0]); \
+    chunk3[1] = SWAP64LE(chunk2_old[1] + a0[1]); \
     \
     uint64_t b0[2]; \
-    memcpy(b0, b, 16); \
-    chunk2[0] = chunk1_old[0] + b0[0]; \
-    chunk2[1] = chunk1_old[1] + b0[1]; \
+    memcpy_swap64le(b0, b, 2); \
+    chunk2[0] = SWAP64LE(chunk1_old[0] + b0[0]); \
+    chunk2[1] = SWAP64LE(SWAP64LE(chunk1_old[1]) + b0[1]); \
   } while (0)
 
 #define VARIANT2_INTEGER_MATH_DIVISION_STEP(b, ptr) \
-  ((uint64_t*)(b))[0] ^= division_result ^ (sqrt_result << 32); \
+  uint64_t tmpx = division_result ^ (sqrt_result << 32); \
+  ((uint64_t*)(b))[0] ^= SWAP64LE(tmpx); \
   { \
-    const uint64_t dividend = ((uint64_t*)(ptr))[1]; \
-    const uint32_t divisor = (((uint64_t*)(ptr))[0] + (uint32_t)(sqrt_result << 1)) | 0x80000001UL; \
+    const uint64_t dividend = SWAP64LE(((uint64_t*)(ptr))[1]); \
+    const uint32_t divisor = (SWAP64LE(((uint64_t*)(ptr))[0]) + (uint32_t)(sqrt_result << 1)) | 0x80000001UL; \
     division_result = ((uint32_t)(dividend / divisor)) + \
                      (((uint64_t)(dividend % divisor)) << 32); \
   } \
-  const uint64_t sqrt_input = ((uint64_t*)(ptr))[0] + division_result
+  const uint64_t sqrt_input = SWAP64LE(((uint64_t*)(ptr))[0]) + division_result
 
 #define VARIANT2_INTEGER_MATH_SSE2(b, ptr) \
-  do if (variant >= 2) \
+  do if ((variant == 2) || (variant == 3)) \
   { \
     VARIANT2_INTEGER_MATH_DIVISION_STEP(b, ptr); \
     VARIANT2_INTEGER_MATH_SQRT_STEP_SSE2(); \
@@ -207,10 +213,10 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
 #define VARIANT2_2() \
   do if (variant >= 2) \
   { \
-    *U64(hp_state + (j ^ 0x10)) ^= hi; \
-    *(U64(hp_state + (j ^ 0x10)) + 1) ^= lo; \
-    hi ^= *U64(hp_state + (j ^ 0x20)); \
-    lo ^= *(U64(hp_state + (j ^ 0x20)) + 1); \
+    *U64(local_hp_state + (j ^ 0x10)) ^= SWAP64LE(hi); \
+    *(U64(local_hp_state + (j ^ 0x10)) + 1) ^= SWAP64LE(lo); \
+    hi ^= SWAP64LE(*U64(local_hp_state + (j ^ 0x20))); \
+    lo ^= SWAP64LE(*(U64(local_hp_state + (j ^ 0x20)) + 1)); \
   } while (0)
 
 
@@ -276,7 +282,7 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
 
 #define pre_aes() \
   j = state_index(a); \
-  _c = _mm_load_si128(R128(&hp_state[j])); \
+  _c = _mm_load_si128(R128(&local_hp_state[j])); \
   _a = _mm_load_si128(R128(a)); \
 
 /*
@@ -289,19 +295,19 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
  * This code is based upon an optimized implementation by dga.
  */
 #define post_aes(reverse) \
-  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j, reverse); \
+  VARIANT2_SHUFFLE_ADD_SSE2(local_hp_state, j, reverse); \
   _mm_store_si128(R128(c), _c); \
-  _mm_store_si128(R128(&hp_state[j]), _mm_xor_si128(_b, _c)); \
-  VARIANT1_1(&hp_state[j]); \
+  _mm_store_si128(R128(&local_hp_state[j]), _mm_xor_si128(_b, _c)); \
+  VARIANT1_1(&local_hp_state[j]); \
   j = state_index(c); \
-  p = U64(&hp_state[j]); \
+  p = U64(&local_hp_state[j]); \
   b[0] = p[0]; b[1] = p[1]; \
   VARIANT2_INTEGER_MATH_SSE2(b, c); \
   __mul(); \
   VARIANT2_2(); \
-  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j, reverse); \
+  VARIANT2_SHUFFLE_ADD_SSE2(local_hp_state, j, reverse); \
   a[0] += hi; a[1] += lo; \
-  p = U64(&hp_state[j]); \
+  p = U64(&local_hp_state[j]); \
   p[0] = a[0];  p[1] = a[1]; \
   a[0] ^= b[0]; a[1] ^= b[1]; \
   VARIANT1_2(p + 1); \
@@ -623,10 +629,10 @@ void slow_hash_allocate_state(void)
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
   defined(__DragonFly__) || defined(__NetBSD__)
     hp_state = mmap(0, MEMORY, PROT_READ | PROT_WRITE,
-                    MAP_PRIVATE | MAP_ANON, 0, 0);
+                    MAP_PRIVATE | MAP_ANON, -1, 0);
 #else
     hp_state = mmap(0, MEMORY, PROT_READ | PROT_WRITE,
-                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, 0, 0);
+                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
 #endif
     if(hp_state == MAP_FAILED)
         hp_state = NULL;
@@ -719,6 +725,9 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     if(hp_state == NULL)
         slow_hash_allocate_state();
 
+    // locals to avoid constant TLS dereferencing
+    uint8_t *local_hp_state = hp_state;
+
     /* CryptoNight Step 1:  Use Keccak1600 to initialize the 'state' (and 'text') buffers from the data. */
     if (prehashed) {
         memcpy(&state.hs, data, length);
@@ -740,7 +749,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
         for(i = 0; i < MEMORY / INIT_SIZE_BYTE; i++)
         {
             aes_pseudo_round(text, text, expandedKey, INIT_SIZE_BLK);
-            memcpy(&hp_state[i * INIT_SIZE_BYTE], text, INIT_SIZE_BYTE);
+            memcpy(&local_hp_state[i * INIT_SIZE_BYTE], text, INIT_SIZE_BYTE);
         }
     }
     else
@@ -752,7 +761,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
             for(j = 0; j < INIT_SIZE_BLK; j++)
                 aesb_pseudo_round(&text[AES_BLOCK_SIZE * j], &text[AES_BLOCK_SIZE * j], aes_ctx->key->exp_data);
 
-            memcpy(&hp_state[i * INIT_SIZE_BYTE], text, INIT_SIZE_BYTE);
+            memcpy(&local_hp_state[i * INIT_SIZE_BYTE], text, INIT_SIZE_BYTE);
         }
     }
 
@@ -825,7 +834,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
         for(i = 0; i < MEMORY / INIT_SIZE_BYTE; i++)
         {
             // add the xor to the pseudo round
-            aes_pseudo_round_xor(text, text, expandedKey, &hp_state[i * INIT_SIZE_BYTE], INIT_SIZE_BLK);
+            aes_pseudo_round_xor(text, text, expandedKey, &local_hp_state[i * INIT_SIZE_BYTE], INIT_SIZE_BLK);
         }
     }
     else
@@ -835,7 +844,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
         {
             for(j = 0; j < INIT_SIZE_BLK; j++)
             {
-                xor_blocks(&text[j * AES_BLOCK_SIZE], &hp_state[i * INIT_SIZE_BYTE + j * AES_BLOCK_SIZE]);
+                xor_blocks(&text[j * AES_BLOCK_SIZE], &local_hp_state[i * INIT_SIZE_BYTE + j * AES_BLOCK_SIZE]);
                 aesb_pseudo_round(&text[AES_BLOCK_SIZE * j], &text[AES_BLOCK_SIZE * j], aes_ctx->key->exp_data);
             }
         }
@@ -879,6 +888,7 @@ void slow_hash_free_state(void)
 
 #define U64(x) ((uint64_t *) (x))
 
+
 STATIC INLINE void xor64(uint64_t *a, const uint64_t b)
 {
     *a ^= b;
@@ -913,23 +923,24 @@ union cn_slow_hash_state
 
 #define pre_aes() \
   j = state_index(a); \
-  _c = vld1q_u8(&hp_state[j]); \
+  _c = vld1q_u8(&local_hp_state[j]); \
   _a = vld1q_u8((const uint8_t *)a); \
 
 #define post_aes(reverse) \
-  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j, reverse); \
+  VARIANT2_SHUFFLE_ADD_NEON(local_hp_state, j, reverse); \
   vst1q_u8((uint8_t *)c, _c); \
-  vst1q_u8(&hp_state[j], veorq_u8(_b, _c)); \
-  VARIANT1_1(&hp_state[j]); \
+  vst1q_u8(&local_hp_state[j], veorq_u8(_b, _c)); \
+  VARIANT1_1(&local_hp_state[j]); \
   j = state_index(c); \
-  p = U64(&hp_state[j]); \
+  p = U64(&local_hp_state[j]); \
   b[0] = p[0]; b[1] = p[1]; \
   VARIANT2_PORTABLE_INTEGER_MATH(b, c); \
+  VARIANT4_RANDOM_MATH(a, b, r, &_b, &_b1); \
   __mul(); \
   VARIANT2_2(); \
-  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j, reverse); \
+  VARIANT2_SHUFFLE_ADD_NEON(local_hp_state, j, reverse); \
   a[0] += hi; a[1] += lo; \
-  p = U64(&hp_state[j]); \
+  p = U64(&local_hp_state[j]); \
   p[0] = a[0];  p[1] = a[1]; \
   a[0] ^= b[0]; a[1] ^= b[1]; \
   VARIANT1_2(p + 1); \
@@ -943,9 +954,9 @@ union cn_slow_hash_state
 */
 static void aes_expand_key(const uint8_t *key, uint8_t *expandedKey) {
 static const int rcon[] = {
-  0x01,0x01,0x01,0x01,
-  0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,	// rotate-n-splat
-  0x1b,0x1b,0x1b,0x1b };
+    0x01,0x01,0x01,0x01,
+    0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,	// rotate-n-splat
+    0x1b,0x1b,0x1b,0x1b };
 __asm__(
 "	eor	v0.16b,v0.16b,v0.16b\n"
 "	ld1	{v3.16b},[%0],#16\n"
@@ -1092,9 +1103,9 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     RDATA_ALIGN16 uint8_t expandedKey[240];
 
 #ifndef FORCE_USE_HEAP
-    RDATA_ALIGN16 uint8_t hp_state[MEMORY];
+    RDATA_ALIGN16 uint8_t local_hp_state[MEMORY];
 #else
-    uint8_t *hp_state = (uint8_t *)aligned_malloc(MEMORY,16);
+    uint8_t *local_hp_state = (uint8_t *)aligned_malloc(MEMORY,16);
 #endif
 
     uint8_t text[INIT_SIZE_BYTE];
@@ -1133,7 +1144,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     for(i = 0; i < MEMORY / INIT_SIZE_BYTE; i++)
     {
         aes_pseudo_round(text, text, expandedKey, INIT_SIZE_BLK);
-        memcpy(&hp_state[i * INIT_SIZE_BYTE], text, INIT_SIZE_BYTE);
+        memcpy(&local_hp_state[i * INIT_SIZE_BYTE], text, INIT_SIZE_BYTE);
     }
 
     U64(a)[0] = U64(&state.k[0])[0] ^ U64(&state.k[32])[0];
@@ -1184,7 +1195,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     for(i = 0; i < MEMORY / INIT_SIZE_BYTE; i++)
     {
         // add the xor to the pseudo round
-        aes_pseudo_round_xor(text, text, expandedKey, &hp_state[i * INIT_SIZE_BYTE], INIT_SIZE_BLK);
+        aes_pseudo_round_xor(text, text, expandedKey, &local_hp_state[i * INIT_SIZE_BYTE], INIT_SIZE_BLK);
     }
 
     /* CryptoNight Step 5:  Apply Keccak to the state again, and then
@@ -1199,7 +1210,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     extra_hashes[state.hs.b[0] & 3](&state, 200, hash);
 
 #ifdef FORCE_USE_HEAP
-    aligned_free(hp_state);
+    aligned_free(local_hp_state);
 #endif
 }
 #else /* aarch64 && crypto */
@@ -1384,7 +1395,6 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
       j = state_index(a);
       p = &long_state[j];
       aesb_single_round(p, p, a);
-      copy_block(c1, p);
 
       VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j, isReverse);
       xor_blocks(p, b);
@@ -1452,10 +1462,7 @@ static void (*const extra_hashes[4])(const void *, size_t, char *) = {
   hash_extra_blake, hash_extra_groestl, hash_extra_jh, hash_extra_skein
 };
 
-extern int aesb_single_round(const uint8_t *in, uint8_t*out, const uint8_t *expandedKey);
-extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
-
-static size_t e2i(const uint8_t* a, size_t count) { return (*((uint64_t*)a) / AES_BLOCK_SIZE) & (count - 1); }
+static size_t e2i(const uint8_t* a, size_t count) { return (SWAP64LE(*((uint64_t*)a)) / AES_BLOCK_SIZE) & (count - 1); }
 
 static void mul(const uint8_t* a, const uint8_t* b, uint8_t* res) {
   uint64_t a0, b0;
@@ -1595,7 +1602,6 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int variant, int 
     xor_blocks(c1, c2);
     VARIANT1_2(c2 + 8);
     copy_block(&long_state[j], c2);
-    assert(j == e2i(a, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE);
     if (variant >= 2) {
       copy_block(b + AES_BLOCK_SIZE, b);
     }

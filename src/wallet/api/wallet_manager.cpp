@@ -1,5 +1,5 @@
-// Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2018-2019, The Graft Project
+// Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -66,9 +66,14 @@ Wallet *WalletManagerImpl::createNewWallet(const std::string &password, const st
     return wallet;
 }
 
-Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds)
+Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds, WalletListener * listener)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
+    wallet->setListener(listener);
+    if (listener){
+        listener->onSetWallet(wallet);
+    }
+
     wallet->open(path, password);
     //Refresh addressBook
     wallet->addressBook()->refresh(); 
@@ -141,11 +146,19 @@ Wallet *WalletManagerImpl::createWalletFromDevice(const std::string &path,
                                                   const std::string &deviceName,
                                                   uint64_t restoreHeight,
                                                   const std::string &subaddressLookahead,
-                                                  uint64_t kdf_rounds)
+                                                  uint64_t kdf_rounds,
+                                                  WalletListener * listener)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
+    wallet->setListener(listener);
+    if (listener){
+        listener->onSetWallet(wallet);
+    }
+
     if(restoreHeight > 0){
         wallet->setRefreshFromBlockHeight(restoreHeight);
+    } else {
+        wallet->setRefreshFromBlockHeight(wallet->estimateBlockChainHeight());
     }
     auto lookahead = tools::parse_subaddress_lookahead(subaddressLookahead);
     if (lookahead)

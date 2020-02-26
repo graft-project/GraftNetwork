@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <stdexcept>
 
+#include "misc_log_ex.h"
 #include "cryptonote_config.h"
 #include "cryptonote_basic/difficulty.h"
 
@@ -44,6 +45,7 @@ using namespace std;
 #define DEFAULT_TEST_DIFFICULTY_TARGET        120
 
 int main(int argc, char *argv[]) {
+
     if (argc != 2) {
         cerr << "Wrong arguments" << endl;
         return 1;
@@ -80,4 +82,5 @@ int main(int argc, char *argv[]) {
         data.clear(fstream::badbit);
     }
     return 0;
+
 }

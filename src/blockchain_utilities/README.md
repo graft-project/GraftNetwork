@@ -1,6 +1,6 @@
 # Monero Blockchain Utilities
 
-Copyright (c) 2014-2018, The Monero Project
+Copyright (c) 2014-2019, The Monero Project
 
 ## Introduction
 
@@ -79,7 +79,7 @@ LMDB flags (more than one may be specified):
 
 ## Examples:
 
-```
+```bash
 $ graft-blockchain-import --database lmdb#fastest
 
 $ graft-blockchain-import --database lmdb#nosync
