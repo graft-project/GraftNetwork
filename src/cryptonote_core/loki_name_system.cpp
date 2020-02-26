@@ -1482,6 +1482,14 @@ std::vector<mapping_record> name_system_db::get_mappings_by_owners(std::vector<c
       if (i < (keys.size() - 1)) stream << ", ";
     }
     stream << SQL_SUFFIX;
+
+    stream << SQL_MIDDLE;
+    for (size_t i = 0; i < keys.size(); i++)
+    {
+      stream << "?";
+      if (i < (keys.size() - 1)) stream << ", ";
+    }
+    stream << SQL_SUFFIX;
     sql_statement = stream.str();
   }
 
@@ -1508,6 +1516,7 @@ std::vector<mapping_record> name_system_db::get_mappings_by_owner(crypto::generi
   sqlite3_stmt *statement = get_mappings_by_owner_sql;
   sqlite3_clear_bindings(statement);
   sqlite3_bind_blob(statement, 1 /*sql param index*/, key.data, sizeof(key), nullptr /*destructor*/);
+  sqlite3_bind_blob(statement, 2 /*sql param index*/, key.data, sizeof(key), nullptr /*destructor*/);
   sql_run_statement(nettype, lns_sql_type::get_mappings_by_owner, statement, &result);
   return result;
 }
