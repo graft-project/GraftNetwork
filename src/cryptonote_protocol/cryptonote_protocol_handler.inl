@@ -416,6 +416,7 @@ namespace cryptonote
     hshd.top_version = m_core.get_ideal_hard_fork_version(hshd.current_height);
     hshd.cumulative_difficulty = m_core.get_block_cumulative_difficulty(hshd.current_height);
     hshd.pruning_seed = m_core.get_blockchain_pruning_seed();
+    hshd.current_height += 1;
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------
