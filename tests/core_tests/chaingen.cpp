@@ -285,13 +285,13 @@ void loki_chain_generator::add_tx(cryptonote::transaction const &tx, bool can_be
 cryptonote::transaction
 loki_chain_generator::create_and_add_loki_name_system_tx(cryptonote::account_base const &src,
                                                          lns::mapping_type type,
-                                                         lns::mapping_value const &value,
                                                          std::string const &name,
+                                                         lns::mapping_value const &value,
                                                          crypto::generic_public_key const *owner,
                                                          crypto::generic_public_key const *backup_owner,
                                                          bool kept_by_block)
 {
-  cryptonote::transaction t = create_loki_name_system_tx(src, type, value, name, owner, backup_owner);
+  cryptonote::transaction t = create_loki_name_system_tx(src, type, name, value, owner, backup_owner);
   add_tx(t, true /*can_be_added_to_blockchain*/, ""/*fail_msg*/, kept_by_block);
   return t;
 }
@@ -299,12 +299,14 @@ loki_chain_generator::create_and_add_loki_name_system_tx(cryptonote::account_bas
 cryptonote::transaction
 loki_chain_generator::create_and_add_loki_name_system_tx_update(cryptonote::account_base const &src,
                                                                 lns::mapping_type type,
-                                                                lns::mapping_value const &value,
                                                                 std::string const &name,
+                                                                lns::mapping_value const *value,
+                                                                crypto::generic_public_key const *owner,
+                                                                crypto::generic_public_key const *backup_owner,
                                                                 crypto::generic_signature *signature,
                                                                 bool kept_by_block)
 {
-  cryptonote::transaction t = create_loki_name_system_tx_update(src, type, value, name, signature);
+  cryptonote::transaction t = create_loki_name_system_tx_update(src, type, name, value, owner, backup_owner, signature);
   add_tx(t, true /*can_be_added_to_blockchain*/, ""/*fail_msg*/, kept_by_block);
   return t;
 }
@@ -517,8 +519,8 @@ cryptonote::checkpoint_t loki_chain_generator::create_service_node_checkpoint(ui
 
 cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(cryptonote::account_base const &src,
                                                                          lns::mapping_type type,
-                                                                         lns::mapping_value const &value,
                                                                          std::string const &name,
+                                                                         lns::mapping_value const &value,
                                                                          crypto::generic_public_key const *owner,
                                                                          crypto::generic_public_key const *backup_owner,
                                                                          uint64_t burn) const
@@ -565,8 +567,10 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
 
 cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(cryptonote::account_base const &src,
                                                                                 lns::mapping_type type,
-                                                                                lns::mapping_value const &value,
                                                                                 std::string const &name,
+                                                                                lns::mapping_value const *value,
+                                                                                crypto::generic_public_key const *owner,
+                                                                                crypto::generic_public_key const *backup_owner,
                                                                                 crypto::generic_signature *signature,
                                                                                 bool use_asserts) const
 {
@@ -576,20 +580,25 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(
   crypto::hash prev_txid       = mapping.txid;
   if (use_asserts) assert(mapping);
 
-  lns::mapping_value encrypted_value = {};
-  bool encrypted                     = lns::encrypt_mapping_value(name, value, encrypted_value);
-  if (use_asserts) assert(encrypted);
+  epee::span<const uint8_t> value_span = {};
+  if (value)
+  {
+    lns::mapping_value encrypted_value = {};
+    bool encrypted                     = lns::encrypt_mapping_value(name, *value, encrypted_value);
+    if (use_asserts) assert(encrypted);
+    value_span = encrypted_value.to_span();
+  }
 
   crypto::generic_signature signature_ = {};
   if (!signature)
   {
     signature = &signature_;
-    crypto::hash hash = lns::tx_extra_signature_hash(epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(encrypted_value.buffer.data()), encrypted_value.len), prev_txid);
+    crypto::hash hash = lns::tx_extra_signature_hash(value_span, owner, backup_owner, prev_txid);
     crypto::generate_signature(hash, src.get_keys().m_account_address.m_spend_public_key, src.get_keys().m_spend_secret_key, signature->monero);
   }
 
   std::vector<uint8_t> extra;
-  cryptonote::tx_extra_loki_name_system data = cryptonote::tx_extra_loki_name_system::make_update(*signature, type, name_hash, encrypted_value.to_string(), prev_txid);
+  cryptonote::tx_extra_loki_name_system data = cryptonote::tx_extra_loki_name_system::make_update(*signature, type, name_hash, value_span, owner, backup_owner, prev_txid);
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
 
   cryptonote::block const &head = top().block;

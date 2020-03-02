@@ -4293,7 +4293,7 @@ namespace tools
     std::string reason;
     std::vector<wallet2::pending_tx> ptx_vector = m_wallet->lns_create_buy_mapping_tx(req.type,
                                                                                       req.owner,
-                                                                                      req.backup_owner,
+                                                                                      req.backup_owner.size() ? &req.backup_owner : nullptr,
                                                                                       req.name,
                                                                                       req.value,
                                                                                       &reason,
@@ -4338,8 +4338,10 @@ namespace tools
     std::vector<wallet2::pending_tx> ptx_vector =
         m_wallet->lns_create_update_mapping_tx(req.type,
                                                req.name,
-                                               req.value,
-                                               req.signature.empty() ? nullptr : &req.signature,
+                                               req.value.empty()        ? nullptr : &req.value,
+                                               req.owner.empty()        ? nullptr : &req.owner,
+                                               req.backup_owner.empty() ? nullptr : &req.backup_owner,
+                                               req.signature.empty()    ? nullptr : &req.signature,
                                                &reason,
                                                req.priority,
                                                req.account_index,
@@ -4389,7 +4391,13 @@ namespace tools
     }
 
     crypto::generic_signature signature;
-    if (!m_wallet->lns_make_update_mapping_signature(type, req.name, req.value, signature, &reason))
+    if (!m_wallet->lns_make_update_mapping_signature(type,
+                                                     req.name,
+                                                     req.value.size() ? &req.value : nullptr,
+                                                     req.owner.size() ? &req.owner : nullptr,
+                                                     req.backup_owner.size() ? &req.backup_owner : nullptr,
+                                                     signature,
+                                                     &reason))
     {
       er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;
       er.message = "Failed to create signature for LNS update transaction: " + reason;

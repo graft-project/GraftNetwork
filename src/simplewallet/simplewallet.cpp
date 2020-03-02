@@ -271,11 +271,12 @@ namespace
   const char* USAGE_REQUEST_STAKE_UNLOCK("request_stake_unlock <service_node_pubkey>");
   const char* USAGE_PRINT_LOCKED_STAKES("print_locked_stakes");
 
-  const char* USAGE_LNS_BUY_MAPPING("lns_buy_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=] [backup_owner=] \"<name>\" <value>");
-  const char* USAGE_LNS_UPDATE_MAPPING("lns_update_mapping [index=<N1>[,<N2>,...]] [<priority>] \"<name>\" <value> [<signature>]");
+  const char* USAGE_LNS_BUY_MAPPING("lns_buy_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<pub_key>] [backup_owner=<pub_key>] \"<name>\" <value>");
+  const char* USAGE_LNS_UPDATE_MAPPING(
+          "lns_update_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<pub_key>] [backup_owner=<pub_key>] [value=<lns_value>] [signature=<hex_signature>] \"<name>\"");
 
   // TODO(loki): Currently defaults to session, in future allow specifying Lokinet and Wallet when they are enabled
-  const char* USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE("lns_make_update_mapping_signature \"<name>\" <new_value>");
+  const char* USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE("lns_make_update_mapping_signature [owner=<pub_key>] [backup_owner=<pub_key>] [value=<lns_value>] \"<name>\"");
   const char* USAGE_LNS_PRINT_OWNERS_TO_NAMES("lns_print_owners_to_names [<64 hex character ed25519 public key>]");
   const char* USAGE_LNS_PRINT_NAME_TO_OWNERS("lns_print_name_to_owners [type=<N1|all>[,<N2>...]] \"name\"");
 
@@ -6343,15 +6344,26 @@ bool simple_wallet::print_locked_stakes(const std::vector<std::string>& /*args*/
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-static bool parse_lns_name_string(std::vector<std::string> const &args, size_t first_word_index, size_t last_word_index, std::string &name)
+static bool parse_lns_name_string(const char *usage, std::vector<std::string> const &args, size_t first_word_index, size_t last_word_index, std::string &name)
 {
+  if (args.empty())
+  {
+    PRINT_USAGE(usage);
+    fail_msg_writer() << "Missing name argument in args (args is empty)";
+    return false;
+  }
+
   // NOTE: Potentially passed in a valid multi worded quoted string (i.e "String World") as the name to purchase.
   // Strip the first and last quote, keep everything inbetween, even quotes.
   std::string const &first_word = args[first_word_index];
   std::string const &last_word  = args[last_word_index];
 
   if (first_word.front() != '"' || last_word.back() != '"')
+  {
+    PRINT_USAGE(usage);
+    fail_msg_writer() << "lns name didn't start or end with quotation marks (\"), first word in name=" << first_word << ", last word=" << last_word;
     return false;
+  }
 
   for (size_t i = first_word_index; i <= last_word_index; i++)
   {
@@ -6372,6 +6384,26 @@ static bool parse_lns_name_string(std::vector<std::string> const &args, size_t f
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+std::string eat_named_argument(std::vector<std::string> &args, char const *prefix, size_t prefix_len)
+{
+  std::string result = {};
+  for (auto it = args.begin(); it != args.end(); it++)
+  {
+    if (it->size() > prefix_len && memcmp(it->data(), prefix, prefix_len) == 0)
+    {
+      result = it->substr(prefix_len, it->size() - prefix_len);
+      args.erase(it);
+      break;
+    }
+  }
+
+  return result;
+}
+//----------------------------------------------------------------------------------------------------
+constexpr char const LNS_OWNER_PREFIX[]        = "owner=";
+constexpr char const LNS_BACKUP_OWNER_PREFIX[] = "backup_owner=";
+constexpr char const LNS_VALUE_PREFIX[]        = "value=";
+constexpr char const LNS_SIGNATURE_PREFIX[]    = "signature=";
 bool simple_wallet::lns_buy_mapping(const std::vector<std::string>& args)
 {
   std::vector<std::string> local_args = args;
@@ -6385,42 +6417,15 @@ bool simple_wallet::lns_buy_mapping(const std::vector<std::string>& args)
     return true;
   }
 
-  std::string owner        = {};
-  std::string backup_owner = {};
-  {
-    char const OWNER_PREFIX[]        = "owner=";
-    char const BACKUP_OWNER_PREFIX[] = "backup_owner=";
-    for (auto it = local_args.begin(); it != local_args.end();)
-    {
-      // Check prefix of argument is <owner>= and extract keys out
-      if (it->size() > loki::char_count(OWNER_PREFIX) && memcmp(it->data(), OWNER_PREFIX, loki::char_count(OWNER_PREFIX)) == 0)
-      {
-        owner = it->substr(loki::char_count(OWNER_PREFIX), it->size() - loki::char_count(OWNER_PREFIX));
-        it    = local_args.erase(it);
-      }
-      else if (it->size() > loki::char_count(BACKUP_OWNER_PREFIX) && memcmp(it->data(), BACKUP_OWNER_PREFIX, loki::char_count(BACKUP_OWNER_PREFIX)) == 0)
-      {
-        backup_owner = it->substr(loki::char_count(BACKUP_OWNER_PREFIX), it->size() - loki::char_count(BACKUP_OWNER_PREFIX));
-        it = local_args.erase(it);
-      }
-      else
-      {
-        it++;
-      }
-    }
-  }
-
+  std::string owner        = eat_named_argument(local_args, LNS_OWNER_PREFIX, loki::char_count(LNS_OWNER_PREFIX));
+  std::string backup_owner = eat_named_argument(local_args, LNS_BACKUP_OWNER_PREFIX, loki::char_count(LNS_BACKUP_OWNER_PREFIX));
   std::string const &value = local_args[local_args.size() - 1];
   std::string name;
 
   size_t first_word_index = 0;
   size_t last_word_index  = local_args.size() - 2;
-  if (!parse_lns_name_string(local_args, first_word_index, last_word_index, name))
-  {
-    PRINT_USAGE(USAGE_LNS_BUY_MAPPING);
-    fail_msg_writer() << "lns name didn't start or end with quotation marks (\"), first word in name is=\"" << local_args[first_word_index] << "\"";
+  if (!parse_lns_name_string(USAGE_LNS_BUY_MAPPING, local_args, first_word_index, last_word_index, name))
     return false;
-  }
 
   SCOPED_WALLET_UNLOCK();
   std::string reason;
@@ -6429,7 +6434,7 @@ bool simple_wallet::lns_buy_mapping(const std::vector<std::string>& args)
   {
     ptx_vector = m_wallet->lns_create_buy_mapping_tx(lns::mapping_type::session,
                                                      owner,
-                                                     backup_owner,
+                                                     backup_owner.size() ? &backup_owner : nullptr,
                                                      name,
                                                      value,
                                                      &reason,
@@ -6472,41 +6477,15 @@ bool simple_wallet::lns_update_mapping(const std::vector<std::string>& args)
   std::set<uint32_t> subaddr_indices  = {};
   if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority)) return false;
 
-  if (local_args.size() < 2)
-  {
-    PRINT_USAGE(USAGE_LNS_UPDATE_MAPPING);
-    return true;
-  }
 
-  std::string const *signature = nullptr;
-  std::string const *value     = nullptr;
-  std::string const &last_word = local_args[local_args.size() - 1];
-  if (last_word.size() == (sizeof(crypto::signature) * 2))
-  {
-    if (local_args.size() == 2)
-    {
-      PRINT_USAGE(USAGE_LNS_UPDATE_MAPPING);
-      fail_msg_writer() << "Detected signature=" << last_word << ", but only 2 arguments given- missing either <value> or \"<name>\".";
-      return true;
-    }
-
-    signature = &last_word;
-    value     = &local_args[local_args.size() - 2];
-  }
-  else
-  {
-    value = &last_word;
-  }
+  std::string owner        = eat_named_argument(local_args, LNS_OWNER_PREFIX, loki::char_count(LNS_OWNER_PREFIX));
+  std::string backup_owner = eat_named_argument(local_args, LNS_BACKUP_OWNER_PREFIX, loki::char_count(LNS_BACKUP_OWNER_PREFIX));
+  std::string value        = eat_named_argument(local_args, LNS_VALUE_PREFIX, loki::char_count(LNS_VALUE_PREFIX));
+  std::string signature    = eat_named_argument(local_args, LNS_SIGNATURE_PREFIX, loki::char_count(LNS_SIGNATURE_PREFIX));
 
   std::string name;
-  size_t first_word_index = 0;
-  size_t last_word_index  = local_args.size() - 2;
-  if (!parse_lns_name_string(local_args, first_word_index, last_word_index, name))
-  {
-    PRINT_USAGE(USAGE_LNS_UPDATE_MAPPING);
-    fail_msg_writer() << "lns name didn't start or end with quotation marks (')";
+  if (!parse_lns_name_string(USAGE_LNS_UPDATE_MAPPING, local_args, 0, local_args.size() - 1, name))
     return false;
-  }
 
   SCOPED_WALLET_UNLOCK();
   std::string reason;
@@ -6515,8 +6494,10 @@ bool simple_wallet::lns_update_mapping(const std::vector<std::string>& args)
   {
     ptx_vector = m_wallet->lns_create_update_mapping_tx(lns::mapping_type::session,
                                                         name,
-                                                        *value,
-                                                        signature,
+                                                        value.size() ? &value : nullptr,
+                                                        owner.size() ? &owner : nullptr,
+                                                        backup_owner.size() ? &backup_owner : nullptr,
+                                                        signature.size() ? &signature : nullptr,
                                                         &reason,
                                                         priority,
                                                         m_current_subaddress_account,
@@ -6555,26 +6536,26 @@ bool simple_wallet::lns_make_update_mapping_signature(const std::vector<std::str
   if (!try_connect_to_daemon())
     return true;
 
-  if (args.size() < 2)
-  {
-    PRINT_USAGE(USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE);
-    return true;
-  }
+  std::vector<std::string> local_args = args;
+  std::string owner        = eat_named_argument(local_args, LNS_OWNER_PREFIX, loki::char_count(LNS_OWNER_PREFIX));
+  std::string backup_owner = eat_named_argument(local_args, LNS_BACKUP_OWNER_PREFIX, loki::char_count(LNS_BACKUP_OWNER_PREFIX));
+  std::string value        = eat_named_argument(local_args, LNS_VALUE_PREFIX, loki::char_count(LNS_VALUE_PREFIX));
 
-  std::string const &new_value = args.back();
   std::string name;
-  if (!parse_lns_name_string(args, 0, (args.size() - 2), name))
-  {
-    PRINT_USAGE(USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE);
-    fail_msg_writer() << "lns name didn't start or end with quotation marks (\")";
+  if (!parse_lns_name_string(USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE, local_args, 0, local_args.size() - 1, name))
     return true;
-  }
 
   SCOPED_WALLET_UNLOCK();
-  crypto::generic_signature signature;
+  crypto::generic_signature signature_binary;
   std::string reason;
-  if (m_wallet->lns_make_update_mapping_signature(lns::mapping_type::session, name, new_value, signature, &reason))
-    tools::success_msg_writer() << "signature=" << epee::string_tools::pod_to_hex(signature);
+  if (m_wallet->lns_make_update_mapping_signature(lns::mapping_type::session,
+                                                  name,
+                                                  value.size() ? &value : nullptr,
+                                                  owner.size() ? &owner : nullptr,
+                                                  backup_owner.size() ? &backup_owner : nullptr,
+                                                  signature_binary,
+                                                  &reason))
+    tools::success_msg_writer() << "signature=" << epee::string_tools::pod_to_hex(signature_binary);
   else
     fail_msg_writer() << reason;
 
@@ -6627,12 +6608,8 @@ bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& arg
   }
 
   std::string lns_name;
-  if (!parse_lns_name_string(args, start_of_name, end_of_name, lns_name))
-  {
-    PRINT_USAGE(USAGE_LNS_PRINT_NAME_TO_OWNERS);
-    fail_msg_writer() << "lns name didn't start or end with quotation marks (\")";
+  if (!parse_lns_name_string(USAGE_LNS_PRINT_NAME_TO_OWNERS, args, start_of_name, end_of_name, lns_name))
     return false;
-  }
 
   cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::request request = {};
   request.entries.push_back({lns_name, std::move(requested_types)});

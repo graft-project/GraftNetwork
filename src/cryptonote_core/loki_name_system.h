@@ -65,7 +65,7 @@ sqlite3       *init_loki_name_system(char const *file_path);
 uint64_t constexpr NO_EXPIRY = static_cast<uint64_t>(-1);
 // return: The number of blocks until expiry from the registration height, if there is no expiration NO_EXPIRY is returned.
 uint64_t     expiry_blocks(cryptonote::network_type nettype, mapping_type type, uint64_t *renew_window = nullptr);
-crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::hash const &prev_txid);
+crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> value, crypto::generic_public_key const *owner, crypto::generic_public_key const *backup_owner, crypto::hash const &prev_txid);
 bool         validate_lns_name(mapping_type type, std::string const &name, std::string *reason = nullptr);
 
 // Validate a human readable mapping value representation in 'value' and write the binary form into 'blob'.
