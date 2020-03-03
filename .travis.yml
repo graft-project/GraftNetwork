@@ -77,7 +77,7 @@ script:
       # The wallet code is too bloated to be compiled at -j2 with only 4GB ram, so do the huge ones
       # at -j1 and the rest at -j2.
       #
-      make -j1 obj_rpc obj_wallet # core_rpc_server.cpp and wallet2.cpp are hogs
+      make -j1 rpc wallet # core_rpc_server.cpp and wallet2.cpp are hogs
       make -j2 daemon device_trezor # covers most things
       make -j1 wallet_rpc_server # another hog, which depends on much of the above
       make -j2 # everything else

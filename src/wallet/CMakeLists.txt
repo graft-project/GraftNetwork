@@ -27,11 +27,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# include (${PROJECT_SOURCE_DIR}/cmake/libutils.cmake)
-
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-
-set(wallet_sources
+add_library(wallet
   wallet2.cpp
   wallet_args.cpp
   ringdb.cpp
@@ -40,83 +36,60 @@ set(wallet_sources
   message_transporter.cpp
 )
 
-set(wallet_private_headers
-  wallet2.h
-  wallet_args.h
-  wallet_errors.h
-  wallet_rpc_server.h
-  wallet_rpc_server_commands_defs.h
-  wallet_rpc_server_error_codes.h
-  ringdb.h
-  node_rpc_proxy.h
-  message_store.h
-  message_transporter.h)
-
-loki_private_headers(wallet
-  ${wallet_private_headers})
-loki_add_library(wallet
-  ${wallet_sources}
-  ${wallet_private_headers})
 target_link_libraries(wallet
   PUBLIC
     multisig
-    common
     cryptonote_core
     mnemonics
     device_trezor
     net
-    ${LMDB_LIBRARY}
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_SERIALIZATION_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_REGEX_LIBRARY}
+    lmdb
+    Boost::chrono
+    Boost::serialization
+    Boost::filesystem
+    Boost::thread
   PRIVATE
-    ${EXTRA_LIBRARIES})
+    extra)
 
-if (NOT LOKI_DAEMON_AND_WALLET_ONLY)
-  set(wallet_rpc_sources
-    wallet_rpc_server.cpp)
+loki_add_executable(wallet_rpc_server "loki-wallet-rpc"
+  wallet_rpc_server.cpp
+  )
 
-  set(wallet_rpc_headers)
+target_link_libraries(wallet_rpc_server
+  PRIVATE
+    wallet
+    rpc_base
+    daemonizer
+    epee_readline
+    Boost::program_options
+    Boost::regex
+    extra)
 
-  set(wallet_rpc_private_headers
-    wallet_rpc_server.h)
 
-  loki_private_headers(wallet_rpc_server
-    ${wallet_rpc_private_headers})
-  loki_add_executable(wallet_rpc_server
-    ${wallet_rpc_sources}
-    ${wallet_rpc_headers}
-    ${wallet_rpc_private_headers})
+function(combine_archives output_archive)
+    set(mri_file ${CMAKE_CURRENT_BINARY_DIR}/${output_archive}.mri)
+    set(FULL_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}/lib${output_archive}.a)
+    set(mri_content "create ${FULL_OUTPUT_PATH}\n")
+    FOREACH(in_archive ${ARGN})
+        string(APPEND mri_content "addlib $<TARGET_FILE:${in_archive}>\n")
+    ENDFOREACH()
+    string(APPEND mri_content "save\nend\n")
+    file(GENERATE OUTPUT ${mri_file} CONTENT "${mri_content}")
 
-  target_link_libraries(wallet_rpc_server
-    PRIVATE
-      wallet
-      rpc_base
-      cryptonote_core
-      cncrypto
-      common
-      version
-      daemonizer
-      ${EPEE_READLINE}
-      ${Boost_CHRONO_LIBRARY}
-      ${Boost_PROGRAM_OPTIONS_LIBRARY}
-      ${Boost_FILESYSTEM_LIBRARY}
-      ${Boost_THREAD_LIBRARY}
-      ${CMAKE_THREAD_LIBS_INIT}
-      ${EXTRA_LIBRARIES})
-  set_property(TARGET wallet_rpc_server
-    PROPERTY
-      OUTPUT_NAME "loki-wallet-rpc")
-  install(TARGETS wallet_rpc_server DESTINATION bin)
-endif()
+    set(output_archive_dummy_file ${CMAKE_CURRENT_BINARY_DIR}/${output_archive}.dummy.cpp)
+    add_custom_command(OUTPUT ${output_archive_dummy_file}
+                       COMMAND touch ${output_archive_dummy_file}
+                       DEPENDS ${ARGN})
 
+    add_library(${output_archive} STATIC ${output_archive_dummy_file})
+    add_custom_command(TARGET ${output_archive}
+                       POST_BUILD
+                       COMMAND ar -M < ${mri_file})
+endfunction(combine_archives)
 
 # build and install libwallet_merged only if we building for GUI
-if (BUILD_GUI_DEPS)
-    set(libs_to_merge
+if (BUILD_GUI_DEPS AND STATIC)
+    combine_archives(wallet_merged
             wallet_api
             wallet
             multisig
@@ -133,10 +106,6 @@ if (BUILD_GUI_DEPS)
             net
             device_trezor)
 
-    foreach(lib ${libs_to_merge})
-        list(APPEND objlibs $<TARGET_OBJECTS:obj_${lib}>) # matches naming convention in src/CMakeLists.txt
-    endforeach()
-    add_library(wallet_merged STATIC ${objlibs})
     if(IOS)
         set(lib_folder lib-${ARCH})
     else()

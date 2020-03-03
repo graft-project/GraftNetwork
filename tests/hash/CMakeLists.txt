@@ -26,20 +26,13 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(hash_sources
-  main.cpp)
-
-set(hash_headers)
-
 add_executable(hash-tests
-  ${hash_sources}
-  ${hash_headers})
+  main.cpp)
 target_link_libraries(hash-tests
   PRIVATE
     cryptonote_core
     common
-    cncrypto
-    ${EXTRA_LIBRARIES})
+    extra)
 set_property(TARGET hash-tests
   PROPERTY
     FOLDER "tests")

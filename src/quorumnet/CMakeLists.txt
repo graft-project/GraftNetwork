@@ -26,23 +26,8 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(quorumnet_sources
+add_library(quorumnet
   sn_network.cpp
-  bt_serialize.cpp)
-
-set(quorumnet_headers
-    )
-
-set(quorumnet_private_headers
-  sn_network.h
-  bt_serialize.h
-  common.h
-  conn_matrix.h)
-
-loki_private_headers(quorumnet
-  ${quorumnet_private_headers})
-loki_add_library(quorumnet
-  ${quorumnet_sources}
-  ${quorumnet_headers}
-  ${quorumnet_private_headers})
+  bt_serialize.cpp
+  )
 target_link_libraries(quorumnet PRIVATE ${ZMQ_LIBRARIES})

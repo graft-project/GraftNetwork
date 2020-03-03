@@ -29,8 +29,15 @@
 add_library(epee STATIC hex.cpp http_auth.cpp mlog.cpp net_helper.cpp net_utils_base.cpp string_tools.cpp wipeable_string.cpp memwipe.c
     connection_basic.cpp network_throttle.cpp network_throttle-detail.cpp mlocker.cpp buffer.cpp net_ssl.cpp)
 
-if (USE_READLINE AND (GNU_READLINE_FOUND OR DEPENDS AND NOT MINGW))
+if (USE_READLINE AND (GNU_READLINE_FOUND OR (DEPENDS AND NOT MINGW)))
   add_library(epee_readline STATIC readline_buffer.cpp)
+  target_link_libraries(epee_readline
+      PUBLIC
+      easylogging
+      readline
+      )
+else()
+  add_library(epee_readline INTERFACE)
 endif()
 
 if(HAVE_C11)
@@ -55,17 +62,9 @@ endif()
 target_link_libraries(epee
   PUBLIC
     easylogging
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
   PRIVATE
-    ${OPENSSL_LIBRARIES}
-    ${EXTRA_LIBRARIES})
-
-if (USE_READLINE AND (GNU_READLINE_FOUND OR DEPENDS AND NOT MINGW))
-  target_link_libraries(epee_readline
-    PUBLIC
-      easylogging
-    PRIVATE
-    ${GNU_READLINE_LIBRARY})
-endif()
+    Boost::filesystem
+    Boost::thread
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    extra)

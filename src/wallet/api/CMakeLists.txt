@@ -27,11 +27,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# include (${PROJECT_SOURCE_DIR}/cmake/libutils.cmake)
-
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-
-set(wallet_api_sources
+add_library(wallet_api
   wallet.cpp
   wallet_manager.cpp
   transaction_info.cpp
@@ -43,45 +39,21 @@ set(wallet_api_sources
   subaddress_account.cpp
   unsigned_transaction.cpp)
 
-set(wallet_api_headers
-    wallet2_api.h)
-
-set(wallet_api_private_headers
-  wallet.h
-  wallet_manager.h
-  transaction_info.h
-  transaction_history.h
-  pending_transaction.h
-  common_defines.h
-  address_book.h
-  subaddress.h
-  subaddress_account.h
-  unsigned_transaction.h)
-
-loki_private_headers(wallet_api
-  ${wallet_api_private_headers})
-loki_add_library(wallet_api
-  ${wallet_api_sources}
-  ${wallet_api_headers}
-  ${wallet_api_private_headers})
 target_link_libraries(wallet_api
   PUBLIC
     wallet
-    common
     cryptonote_core
     mnemonics
-    ${LMDB_LIBRARY}
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_SERIALIZATION_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_REGEX_LIBRARY}
+    lmdb
+    Boost::chrono
+    Boost::serialization
+    Boost::filesystem
+    Boost::thread
+    Boost::regex
   PRIVATE
-    ${EXTRA_LIBRARIES})
+    extra)
 
 set_property(TARGET wallet_api PROPERTY EXCLUDE_FROM_ALL TRUE)
-set_property(TARGET obj_wallet_api PROPERTY EXCLUDE_FROM_ALL TRUE)
 
 if(IOS)
     set(lib_folder lib-${ARCH})
