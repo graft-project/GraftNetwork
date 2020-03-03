@@ -74,6 +74,23 @@ enum struct mapping_record_column
   _count,
 };
 
+static char const *mapping_record_column_string(mapping_record_column col)
+{
+  switch (col)
+  {
+    case mapping_record_column::id: return "id";
+    case mapping_record_column::type: return "type";
+    case mapping_record_column::name_hash: return "name_hash";
+    case mapping_record_column::encrypted_value: return "encrypted_value";
+    case mapping_record_column::txid: return "txid";
+    case mapping_record_column::prev_txid: return "prev_txid";
+    case mapping_record_column::register_height: return "register_height";
+    case mapping_record_column::owner_id: return "owner_id";
+    case mapping_record_column::backup_owner_id: return "backup_owner_id";
+    default: return "xx_invalid";
+  }
+}
+
 static bool sql_copy_blob(sqlite3_stmt *statement, int column, void *dest, int dest_size)
 {
   void const *blob = sqlite3_column_blob(statement, column);
@@ -687,9 +704,6 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         if (!verify_lns_signature(hash, lns_extra.signature, mapping.owner) && !verify_lns_signature(hash, lns_extra.signature, mapping.backup_owner))
           ERROR_RETURN(tx, lns_extra, "failed to verify signature for LNS update, current owner=" << mapping.owner << ", backup owner=" << mapping.backup_owner);
       }
-
-      lns_extra.owner        = mapping.owner;
-      lns_extra.backup_owner = mapping.backup_owner;
     }
     else
     {
@@ -1117,12 +1131,6 @@ static int64_t add_or_get_owner_id(lns::name_system_db &lns_db, crypto::hash con
   if (owner_record owner = lns_db.get_owner_by_key(key)) result = owner.id;
   if (result == 0)
   {
-    if (entry.is_updating())
-    {
-      MERROR("Owner does not exist but TX received is trying to update an existing mapping (i.e. owner should already exist). TX=" << tx_hash << " should have failed validation prior.");
-      return result;
-    }
-
     if (!lns_db.save_owner(key, &result))
     {
       LOG_PRINT_L1("Failed to save LNS owner to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner);
@@ -1134,29 +1142,127 @@ static int64_t add_or_get_owner_id(lns::name_system_db &lns_db, crypto::hash con
 
 static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptonote::tx_extra_loki_name_system const &entry, crypto::hash const &tx_hash)
 {
-  int64_t owner_id = add_or_get_owner_id(lns_db, tx_hash, entry, entry.owner);
-  if (owner_id == 0)
+  // -----------------------------------------------------------------------------------------------
+  // New Mapping Insert or Completely Replace
+  // -----------------------------------------------------------------------------------------------
+  if (entry.is_buying())
   {
-    assert(owner_id != 0);
-    return false;
-  }
-
-  int64_t backup_owner_id = 0;
-  if (entry.backup_owner)
-  {
-    backup_owner_id = add_or_get_owner_id(lns_db, tx_hash, entry, entry.backup_owner);
-    if (backup_owner_id == 0)
+    int64_t owner_id = add_or_get_owner_id(lns_db, tx_hash, entry, entry.owner);
+    if (owner_id == 0)
     {
-      assert(backup_owner_id != 0);
-      LOG_PRINT_L1("Failed to save LNS backup owner to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner);
+      MERROR("Failed to add or get owner with key=" << entry.owner);
+      assert(owner_id != 0);
+      return false;
+    }
+
+    int64_t backup_owner_id = 0;
+    if (entry.backup_owner)
+    {
+      backup_owner_id = add_or_get_owner_id(lns_db, tx_hash, entry, entry.backup_owner);
+      if (backup_owner_id == 0)
+      {
+        MERROR("Failed to add or get backup owner with key=" << entry.backup_owner);
+        assert(backup_owner_id != 0);
+        return false;
+      }
+    }
+
+    if (!lns_db.save_mapping(tx_hash, entry, height, owner_id, backup_owner_id))
+    {
+      LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner);
       return false;
     }
   }
-
-  if (!lns_db.save_mapping(tx_hash, entry, height, owner_id, backup_owner_id))
+  // -----------------------------------------------------------------------------------------------
+  // Update Mapping, do a SQL command of the type
+  // UPDATE "mappings" SET <field> = entry.<field>, ...  WHERE type = entry.type AND name = entry.name
+  // -----------------------------------------------------------------------------------------------
+  else
   {
-    LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner);
-    return false;
+    // Generate the SQL command
+    std::string sql_statement;
+    int64_t owner_id        = 0;
+    int64_t backup_owner_id = 0;
+    size_t column_count     = 0;
+    std::array<mapping_record_column, tools::enum_count<mapping_record_column>> columns; // Enumerate the columns we're going to update
+    {
+      columns[column_count++] = mapping_record_column::prev_txid;
+      columns[column_count++] = mapping_record_column::txid;
+
+      if (entry.field_is_set(lns::extra_field::owner))
+      {
+        columns[column_count++] = mapping_record_column::owner_id;
+        owner_id                = add_or_get_owner_id(lns_db, tx_hash, entry, entry.owner);
+        if (owner_id == 0)
+        {
+          MERROR("Failed to add or get owner with key=" << entry.owner);
+          assert(owner_id != 0);
+          return false;
+        }
+      }
+
+      if (entry.field_is_set(lns::extra_field::backup_owner))
+      {
+        columns[column_count++] = mapping_record_column::backup_owner_id;
+        backup_owner_id         = add_or_get_owner_id(lns_db, tx_hash, entry, entry.backup_owner);
+        if (backup_owner_id == 0)
+        {
+          MERROR("Failed to add or get backup owner with key=" << entry.backup_owner);
+          assert(backup_owner_id != 0);
+          return false;
+        }
+      }
+
+      if (entry.field_is_set(lns::extra_field::encrypted_value))
+        columns[column_count++] = mapping_record_column::encrypted_value;
+
+      // Build the SQL statement
+      std::stringstream stream;
+      stream << R"(UPDATE "mappings" SET )";
+      for (size_t i = 0; i < column_count; i++)
+      {
+        auto column_type = columns[i];
+        stream << "\"" << mapping_record_column_string(column_type) << "\" = ?";
+        if (column_type != columns[column_count - 1]) stream << ", ";
+      }
+
+      columns[column_count++] = mapping_record_column::type;
+      columns[column_count++] = mapping_record_column::name_hash;
+      stream << R"( WHERE "type" = ? AND "name" = ?;)";
+      sql_statement = stream.str();
+    }
+
+    // Compile sql statement && bind parameters to statement
+    sqlite3_stmt *statement = nullptr;
+    {
+      if (!sql_compile_statement(lns_db.db, sql_statement.c_str(), sql_statement.size(), &statement, false /*optimise_for_multiple_usage*/))
+      {
+        MERROR("Failed to compile SQL statement for updating LNS record=" << sql_statement);
+        return false;
+      }
+
+      // Bind step
+      std::string name_hash = hash_to_base64(entry.name_hash);
+      int sql_param_index = 1;
+      for (size_t i = 0; i < column_count; i++)
+      {
+        auto column_type = columns[i];
+        switch (column_type)
+        {
+          case mapping_record_column::type:            sqlite3_bind_int  (statement, sql_param_index++, static_cast<uint16_t>(entry.type)); break;
+          case mapping_record_column::name_hash:       sqlite3_bind_text (statement, sql_param_index++, name_hash.data(), name_hash.size(), nullptr /*destructor*/); break;
+          case mapping_record_column::encrypted_value: sqlite3_bind_blob (statement, sql_param_index++, entry.encrypted_value.data(), entry.encrypted_value.size(), nullptr /*destructor*/); break;
+          case mapping_record_column::txid:            sqlite3_bind_blob (statement, sql_param_index++, tx_hash.data, sizeof(tx_hash), nullptr /*destructor*/); break;
+          case mapping_record_column::prev_txid:       sqlite3_bind_blob (statement, sql_param_index++, entry.prev_txid.data, sizeof(entry.prev_txid), nullptr /*destructor*/); break;
+          case mapping_record_column::owner_id:        sqlite3_bind_int64(statement, sql_param_index++, owner_id); break;
+          case mapping_record_column::backup_owner_id: sqlite3_bind_int64(statement, sql_param_index++, backup_owner_id); break;
+          default: assert(false); return false;
+        }
+      }
+    }
+
+    if (!sql_run_statement(lns_db.network_type(), lns_sql_type::save_mapping, statement, nullptr))
+      return false;
   }
 
   return true;
@@ -1227,7 +1333,7 @@ static bool find_closest_valid_lns_tx_extra_in_blockchain(cryptonote::Blockchain
     std::vector<uint64_t> prev_heights = blockchain.get_transactions_heights({prev_txid});
     if (prev_heights.empty())
     {
-        MERROR("Unexpected error querying TXID=" << prev_txid << ", height from DB for LNS");
+      MERROR("Unexpected error querying TXID=" << prev_txid << ", height from DB for LNS");
       return false;
     }
 
@@ -1305,7 +1411,10 @@ bool name_system_db::save_owner(crypto::generic_public_key const &key, int64_t *
 
 bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id, int64_t backup_owner_id)
 {
-  std::string name_hash   = hash_to_base64(src.name_hash);
+  if (!src.is_buying())
+    return false;
+
+  std::string name_hash = hash_to_base64(src.name_hash);
   sqlite3_stmt *statement = save_mapping_sql;
   sqlite3_bind_int  (statement, static_cast<int>(mapping_record_column::type), static_cast<uint16_t>(src.type));
   sqlite3_bind_text (statement, static_cast<int>(mapping_record_column::name_hash), name_hash.data(), name_hash.size(), nullptr /*destructor*/);
