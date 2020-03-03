@@ -1308,6 +1308,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
 
 static bool get_txid_lns_entry(cryptonote::Blockchain const &blockchain, crypto::hash txid, cryptonote::tx_extra_loki_name_system &extra)
 {
+  if (txid == crypto::null_hash) return false;
   std::vector<cryptonote::transaction> txs;
   std::vector<crypto::hash> missed_txs;
   if (!blockchain.get_transactions({txid}, txs, missed_txs) || txs.empty())
@@ -1316,50 +1317,119 @@ static bool get_txid_lns_entry(cryptonote::Blockchain const &blockchain, crypto:
   return cryptonote::get_loki_name_system_from_tx_extra(txs[0].extra, extra);
 }
 
-static bool find_closest_valid_lns_tx_extra_in_blockchain(cryptonote::Blockchain const &blockchain,
-                                                          lns::mapping_record const &mapping,
-                                                          uint64_t blockchain_height,
-                                                          cryptonote::tx_extra_loki_name_system &extra,
-                                                          crypto::hash &tx_hash,
-                                                          uint64_t &extra_height)
+struct lns_update_history
 {
-  uint64_t prev_height                             = static_cast<uint64_t>(-1);
-  crypto::hash prev_txid                           = mapping.prev_txid;
-  cryptonote::tx_extra_loki_name_system prev_entry = {};
-  if (!get_txid_lns_entry(blockchain, prev_txid, prev_entry)) return false;
+  uint64_t value_last_update_height        = static_cast<uint64_t>(-1);
+  uint64_t owner_last_update_height        = static_cast<uint64_t>(-1);
+  uint64_t backup_owner_last_update_height = static_cast<uint64_t>(-1);
 
-  for (;;)
+  void     update(uint64_t height, cryptonote::tx_extra_loki_name_system const &lns_extra);
+  uint64_t newest_update_height() const;
+};
+
+void lns_update_history::update(uint64_t height, cryptonote::tx_extra_loki_name_system const &lns_extra)
+{
+  if (lns_extra.field_is_set(lns::extra_field::encrypted_value))
+    value_last_update_height = height;
+
+  if (lns_extra.field_is_set(lns::extra_field::owner))
+    owner_last_update_height = height;
+
+  if (lns_extra.field_is_set(lns::extra_field::backup_owner))
+    backup_owner_last_update_height = height;
+}
+
+uint64_t lns_update_history::newest_update_height() const
+{
+  uint64_t result = std::max(std::max(value_last_update_height, owner_last_update_height), backup_owner_last_update_height);
+  return result;
+}
+
+struct replay_lns_tx
+{
+  uint64_t                              height;
+  crypto::hash                          tx_hash;
+  cryptonote::tx_extra_loki_name_system entry;
+};
+
+static std::vector<replay_lns_tx> find_lns_txs_to_replay(cryptonote::Blockchain const &blockchain, lns::mapping_record const &mapping, uint64_t blockchain_height)
+{
+  /*
+     -----------------------------------------------------------------------------------------------
+     Detach Logic: Simple Case
+     -----------------------------------------------------------------------------------------------
+     LNS Buy    @ Height 100: LNS Record={field1=a1, field2=b1, field3=c1}
+     LNS Update @ Height 200: LNS Record={field1=a2                      }
+     LNS Update @ Height 300: LNS Record={           field2=b2           }
+     LNS Update @ Height 400: LNS Record={                      field3=c2}
+
+     Blockchain detaches to height 301, the target LNS record now looks like
+                                         {field1=a2, field2=b2, field3=c1}
+
+     Our current LNS record looks like
+                                         {field1=a2, field2=b2, field3=c3}
+
+     To rebuild our record, find the closest LNS Update that is earlier than the
+     detach height. If we run out of transactions to run back to, then the LNS
+     entry is just deleted.
+
+     -----------------------------------------------------------------------------------------------
+     Detach Logic: Advance Case
+     -----------------------------------------------------------------------------------------------
+     LNS Buy    @ Height 100: LNS Record={field1=a1, field2=b1, field3=c1}
+     LNS Update @ Height 200: LNS Record={field1=a2                      }
+     LNS Update @ Height 300: LNS Record={           field2=b2           }
+     LNS Update @ Height 400: LNS Record={                      field3=c2}
+     LNS Update @ Height 500: LNS Record={field1=a3, field2=b3, field3=c3}
+     LNS Update @ Height 600: LNS Record={                      field3=c4}
+
+     Blockchain detaches to height 401, the target LNS record now looks like
+                                         {field1=a2, field2=b2, field3=c2}
+
+     Our current LNS record looks like
+                                         {field1=a3, field2=b3, field3=c4}
+
+     To get all the fields back, we can't just replay the latest LNS update
+     transactions in reverse chronological order back to the detach height,
+     otherwise we miss the update to field1=a2 and field2=b2.
+
+     To rebuild our LNS record, we need to iterate back until we find all the
+     TX's that updated the LNS field(s) until all fields have been reverted to
+     a state representative of pre-detach height.
+
+     i.e. Go back to the closest LNS record to the detach height, at height 300.
+     Next, iterate back until all LNS fields have been updated at a point in
+     time before the detach height (i.e. height 200 with field=a2).
+  */
+
+  std::vector<replay_lns_tx> result;
+  lns_update_history update_history = {};
+  for (crypto::hash curr_txid = mapping.prev_txid;
+       update_history.newest_update_height() >= blockchain_height;
+      )
   {
-    std::vector<uint64_t> prev_heights = blockchain.get_transactions_heights({prev_txid});
-    if (prev_heights.empty())
+    cryptonote::tx_extra_loki_name_system curr_lns_extra = {};
+    if (!get_txid_lns_entry(blockchain, curr_txid, curr_lns_extra))
     {
-      MERROR("Unexpected error querying TXID=" << prev_txid << ", height from DB for LNS");
-      return false;
+      if (curr_txid != crypto::null_hash)
+        MERROR("Unexpected error querying TXID=" << curr_txid << ", from DB for LNS");
+      return result;
     }
 
-    prev_height = prev_heights[0];
-    if (prev_height >= blockchain_height)
+    std::vector<uint64_t> curr_heights = blockchain.get_transactions_heights({curr_txid});
+    if (curr_heights.empty())
     {
-      // Previous owner of mapping is after the detach height, iterate back to
-      // next prev entry by getting the relevant transaction, extract the LNS
-      // extra and continue searching.
-      if (!get_txid_lns_entry(blockchain, prev_txid, prev_entry))
-          return false;
-      prev_txid = prev_entry.prev_txid;
+      MERROR("Unexpected error querying TXID=" << curr_txid << ", height from DB for LNS");
+      return result;
     }
-    else
-    {
-      break;
-    }
+
+    if (curr_heights[0] < blockchain_height)
+      result.push_back({curr_heights[0], curr_txid, curr_lns_extra});
+
+    update_history.update(curr_heights[0], curr_lns_extra);
+    curr_txid = curr_lns_extra.prev_txid;
   }
 
-  bool result = prev_height < blockchain_height && prev_txid != crypto::null_hash;
-  if (result)
-  {
-    tx_hash      = prev_txid;
-    extra        = std::move(prev_entry);
-    extra_height = prev_height;
-  }
   return result;
 }
 
@@ -1373,30 +1443,20 @@ void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint
     sql_run_statement(nettype, lns_sql_type::get_mappings_on_height_and_newer, statement, &new_mappings);
   }
 
-  struct lns_parts
-  {
-    uint64_t                              height;
-    crypto::hash                          tx_hash;
-    cryptonote::tx_extra_loki_name_system entry;
-  };
-
-  std::vector<lns_parts> entries;
+  std::vector<replay_lns_tx> txs_to_replay;
   for (auto const &mapping : new_mappings)
   {
-    cryptonote::tx_extra_loki_name_system entry = {};
-    uint64_t entry_height                       = 0;
-    crypto::hash tx_hash                        = {};
-    if (!find_closest_valid_lns_tx_extra_in_blockchain(blockchain, mapping, new_blockchain_height, entry, tx_hash, entry_height)) continue;
-    entries.push_back({entry_height, tx_hash, entry});
+    std::vector<replay_lns_tx> replay_txs = find_lns_txs_to_replay(blockchain, mapping, new_blockchain_height);
+    txs_to_replay.reserve(txs_to_replay.size() + replay_txs.size());
+    txs_to_replay.insert(txs_to_replay.end(), replay_txs.begin(), replay_txs.end());
   }
 
   prune_db(new_blockchain_height);
-  for (auto const &lns : entries)
+  for (auto it = txs_to_replay.rbegin(); it != txs_to_replay.rend(); it++)
   {
-    if (!add_lns_entry(*this, lns.height, lns.entry, lns.tx_hash))
-      MERROR("Unexpected failure to add historical LNS into the DB on reorganization from tx=" << lns.tx_hash);
+    if (!add_lns_entry(*this, it->height, it->entry, it->tx_hash))
+      MERROR("Unexpected failure to add historical LNS into the DB on reorganization from tx=" << it->tx_hash);
   }
-
 }
 
 bool name_system_db::save_owner(crypto::generic_public_key const &key, int64_t *row_id)
