@@ -8538,7 +8538,7 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
 }
 
 std::vector<wallet2::pending_tx> wallet2::lns_create_buy_mapping_tx(lns::mapping_type type,
-                                                                    std::string const &owner,
+                                                                    std::string const *owner,
                                                                     std::string const *backup_owner,
                                                                     std::string const &name,
                                                                     std::string const &value,
@@ -8547,7 +8547,7 @@ std::vector<wallet2::pending_tx> wallet2::lns_create_buy_mapping_tx(lns::mapping
                                                                     uint32_t account_index,
                                                                     std::set<uint32_t> subaddr_indices)
 {
-  lns_prepared_args prepared_args = prepare_tx_extra_loki_name_system_values(*this, type, priority, name, &value, &owner, backup_owner, false /*make_signature*/, reason);
+  lns_prepared_args prepared_args = prepare_tx_extra_loki_name_system_values(*this, type, priority, name, &value, owner, backup_owner, false /*make_signature*/, reason);
   if (!prepared_args)
     return {};
 
@@ -8581,7 +8581,7 @@ std::vector<wallet2::pending_tx> wallet2::lns_create_buy_mapping_tx(lns::mapping
 }
 
 std::vector<wallet2::pending_tx> wallet2::lns_create_buy_mapping_tx(std::string const &type,
-                                                                    std::string const &owner,
+                                                                    std::string const *owner,
                                                                     std::string const *backup_owner,
                                                                     std::string const &name,
                                                                     std::string const &value,

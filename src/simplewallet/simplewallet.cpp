@@ -6433,7 +6433,7 @@ bool simple_wallet::lns_buy_mapping(const std::vector<std::string>& args)
   try
   {
     ptx_vector = m_wallet->lns_create_buy_mapping_tx(lns::mapping_type::session,
-                                                     owner,
+                                                     owner.size() ? &owner : nullptr,
                                                      backup_owner.size() ? &backup_owner : nullptr,
                                                      name,
                                                      value,

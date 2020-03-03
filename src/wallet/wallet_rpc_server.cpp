@@ -4292,7 +4292,7 @@ namespace tools
 
     std::string reason;
     std::vector<wallet2::pending_tx> ptx_vector = m_wallet->lns_create_buy_mapping_tx(req.type,
-                                                                                      req.owner,
+                                                                                      req.owner.size() ? &req.owner : nullptr,
                                                                                       req.backup_owner.size() ? &req.backup_owner : nullptr,
                                                                                       req.name,
                                                                                       req.value,
