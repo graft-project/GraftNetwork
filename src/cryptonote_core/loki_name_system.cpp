@@ -46,7 +46,7 @@ enum struct lns_sql_type
   get_sentinel_end,
 };
 
-enum struct lns_db_setting_row
+enum struct lns_db_setting_column
 {
   id,
   top_height,
@@ -54,13 +54,13 @@ enum struct lns_db_setting_row
   version,
 };
 
-enum struct owner_record_row
+enum struct owner_record_column
 {
   id,
   public_key,
 };
 
-enum struct mapping_record_row
+enum struct mapping_record_column
 {
   id,
   type,
@@ -74,10 +74,10 @@ enum struct mapping_record_row
   _count,
 };
 
-static bool sql_copy_blob(sqlite3_stmt *statement, int row, void *dest, int dest_size)
+static bool sql_copy_blob(sqlite3_stmt *statement, int column, void *dest, int dest_size)
 {
-  void const *blob = sqlite3_column_blob(statement, row);
-  int blob_len     = sqlite3_column_bytes(statement, row);
+  void const *blob = sqlite3_column_blob(statement, column);
+  int blob_len     = sqlite3_column_bytes(statement, column);
   assert(blob_len == dest_size);
   if (blob_len != dest_size)
   {
@@ -112,8 +112,8 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           case lns_sql_type::get_owner:
           {
             auto *entry = reinterpret_cast<owner_record *>(context);
-            entry->id   = sqlite3_column_int(statement, static_cast<int>(owner_record_row::id));
-            if (!sql_copy_blob(statement, static_cast<int>(owner_record_row::public_key), entry->key.data, sizeof(entry->key.data)))
+            entry->id   = sqlite3_column_int(statement, static_cast<int>(owner_record_column::id));
+            if (!sql_copy_blob(statement, static_cast<int>(owner_record_column::public_key), entry->key.data, sizeof(entry->key.data)))
               return false;
             data_loaded = true;
           }
@@ -122,10 +122,10 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           case lns_sql_type::get_setting:
           {
             auto *entry       = reinterpret_cast<settings_record *>(context);
-            entry->top_height = static_cast<uint64_t>(sqlite3_column_int64(statement, static_cast<int>(lns_db_setting_row::top_height)));
-            if (!sql_copy_blob(statement, static_cast<int>(lns_db_setting_row::top_hash), entry->top_hash.data, sizeof(entry->top_hash.data)))
+            entry->top_height = static_cast<uint64_t>(sqlite3_column_int64(statement, static_cast<int>(lns_db_setting_column::top_height)));
+            if (!sql_copy_blob(statement, static_cast<int>(lns_db_setting_column::top_hash), entry->top_hash.data, sizeof(entry->top_hash.data)))
               return false;
-            entry->version = sqlite3_column_int(statement, static_cast<int>(lns_db_setting_row::version));
+            entry->version = sqlite3_column_int(statement, static_cast<int>(lns_db_setting_column::version));
             data_loaded = true;
           }
           break;
@@ -137,19 +137,19 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           case lns_sql_type::get_mapping:
           {
             mapping_record tmp_entry = {};
-            int type_int = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_row::type)));
+            int type_int = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::type)));
             if (type_int >= tools::enum_count<mapping_type>)
               return false;
 
             tmp_entry.type            = static_cast<mapping_type>(type_int);
-            tmp_entry.register_height = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_row::register_height)));
-            tmp_entry.owner_id        = sqlite3_column_int(statement, static_cast<int>(mapping_record_row::owner_id));
-            tmp_entry.backup_owner_id = sqlite3_column_int(statement, static_cast<int>(mapping_record_row::backup_owner_id));
+            tmp_entry.register_height = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::register_height)));
+            tmp_entry.owner_id        = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::owner_id));
+            tmp_entry.backup_owner_id = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::backup_owner_id));
 
             // Copy encrypted_value
             {
-              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::encrypted_value)));
-              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::encrypted_value)));
+              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::encrypted_value)));
+              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::encrypted_value)));
               if (value_len > tmp_entry.encrypted_value.buffer.size())
               {
                   MERROR("Unexpected encrypted value blob with size=" << value_len << ", in LNS db larger than the available size=" << tmp_entry.encrypted_value.buffer.size());
@@ -161,18 +161,18 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
 
             // Copy name hash
             {
-              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::name_hash)));
-              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::name_hash)));
+              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::name_hash)));
+              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::name_hash)));
               tmp_entry.name_hash.append(value, value_len);
             }
 
-            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_row::txid), tmp_entry.txid.data, sizeof(tmp_entry.txid)))
+            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_column::txid), tmp_entry.txid.data, sizeof(tmp_entry.txid)))
               return false;
 
-            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_row::prev_txid), tmp_entry.prev_txid.data, sizeof(tmp_entry.prev_txid)))
+            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_column::prev_txid), tmp_entry.prev_txid.data, sizeof(tmp_entry.prev_txid)))
               return false;
 
-            int owner_column = tools::enum_count<mapping_record_row>;
+            int owner_column = tools::enum_count<mapping_record_column>;
             if (!sql_copy_blob(statement, owner_column, tmp_entry.owner.data, sizeof(tmp_entry.owner)))
               return false;
 
@@ -1307,16 +1307,16 @@ bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_ex
 {
   std::string name_hash   = hash_to_base64(src.name_hash);
   sqlite3_stmt *statement = save_mapping_sql;
-  sqlite3_bind_int  (statement, static_cast<int>(mapping_record_row::type), static_cast<uint16_t>(src.type));
-  sqlite3_bind_text (statement, static_cast<int>(mapping_record_row::name_hash), name_hash.data(), name_hash.size(), nullptr /*destructor*/);
-  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::encrypted_value), src.encrypted_value.data(), src.encrypted_value.size(), nullptr /*destructor*/);
-  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::txid), tx_hash.data, sizeof(tx_hash), nullptr /*destructor*/);
-  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::prev_txid), src.prev_txid.data, sizeof(src.prev_txid), nullptr /*destructor*/);
-  sqlite3_bind_int64(statement, static_cast<int>(mapping_record_row::register_height), static_cast<int64_t>(height));
-  sqlite3_bind_int64(statement, static_cast<int>(mapping_record_row::owner_id), owner_id);
+  sqlite3_bind_int  (statement, static_cast<int>(mapping_record_column::type), static_cast<uint16_t>(src.type));
+  sqlite3_bind_text (statement, static_cast<int>(mapping_record_column::name_hash), name_hash.data(), name_hash.size(), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_column::encrypted_value), src.encrypted_value.data(), src.encrypted_value.size(), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_column::txid), tx_hash.data, sizeof(tx_hash), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_column::prev_txid), src.prev_txid.data, sizeof(src.prev_txid), nullptr /*destructor*/);
+  sqlite3_bind_int64(statement, static_cast<int>(mapping_record_column::register_height), static_cast<int64_t>(height));
+  sqlite3_bind_int64(statement, static_cast<int>(mapping_record_column::owner_id), owner_id);
   if (backup_owner_id != 0)
   {
-    sqlite3_bind_int64(statement, static_cast<int>(mapping_record_row::backup_owner_id), backup_owner_id);
+    sqlite3_bind_int64(statement, static_cast<int>(mapping_record_column::backup_owner_id), backup_owner_id);
   }
   bool result = sql_run_statement(nettype, lns_sql_type::save_mapping, statement, nullptr);
   return result;
@@ -1325,9 +1325,9 @@ bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_ex
 bool name_system_db::save_settings(uint64_t top_height, crypto::hash const &top_hash, int version)
 {
   sqlite3_stmt *statement = save_settings_sql;
-  sqlite3_bind_int64(statement, static_cast<int>(lns_db_setting_row::top_height), top_height);
-  sqlite3_bind_blob (statement, static_cast<int>(lns_db_setting_row::top_hash),   top_hash.data, sizeof(top_hash), nullptr /*destructor*/);
-  sqlite3_bind_int  (statement, static_cast<int>(lns_db_setting_row::version),    version);
+  sqlite3_bind_int64(statement, static_cast<int>(lns_db_setting_column::top_height), top_height);
+  sqlite3_bind_blob (statement, static_cast<int>(lns_db_setting_column::top_hash),   top_hash.data, sizeof(top_hash), nullptr /*destructor*/);
+  sqlite3_bind_int  (statement, static_cast<int>(lns_db_setting_column::version),    version);
   bool result = sql_run_statement(nettype, lns_sql_type::save_setting, statement, nullptr);
   return result;
 }
