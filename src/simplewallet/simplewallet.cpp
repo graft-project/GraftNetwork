@@ -50,6 +50,8 @@
 #include <boost/format.hpp>
 #include <boost/regex.hpp>
 #include <boost/range/adaptor/transformed.hpp>
+#include <lokimq/hex.h>
+#include <lokimq/string_view.h>
 #include "include_base_utils.h"
 #include "common/i18n.h"
 #include "common/command_line.h"
@@ -57,7 +59,6 @@
 #include "common/dns_utils.h"
 #include "common/base58.h"
 #include "common/scoped_message_writer.h"
-#include "common/hex.h"
 #include "common/loki_integration_test_hooks.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
 #include "cryptonote_core/service_node_voting.h"
@@ -650,14 +651,9 @@ namespace
 
   void print_secret_key(const crypto::secret_key &k)
   {
-    static constexpr const char hex[] = u8"0123456789abcdef";
-    const uint8_t *ptr = (const uint8_t*)k.data;
-    for (size_t i = 0, sz = sizeof(k); i < sz; ++i)
-    {
-      putchar(hex[*ptr >> 4]);
-      putchar(hex[*ptr & 15]);
-      ++ptr;
-    }
+    lokimq::string_view data{reinterpret_cast<const char*>(k.data), sizeof(k.data)};
+    std::ostream_iterator<char> osi{std::cout};
+    lokimq::to_hex(data.begin(), data.end(), osi);
   }
 }
 
@@ -713,9 +709,9 @@ bool simple_wallet::viewkey(const std::vector<std::string> &args/* = std::vector
     std::cout << "secret: On device. Not available" << std::endl;
   } else {
     SCOPED_WALLET_UNLOCK();
-    printf("secret: ");
+    std::cout << "secret: ";
     print_secret_key(m_wallet->get_account().get_keys().m_view_secret_key);
-    putchar('\n');
+    std::cout << '\n';
   }
   std::cout << "public: " << string_tools::pod_to_hex(m_wallet->get_account().get_keys().m_account_address.m_view_public_key) << std::endl;
 
@@ -735,9 +731,9 @@ bool simple_wallet::spendkey(const std::vector<std::string> &args/* = std::vecto
     std::cout << "secret: On device. Not available" << std::endl;
   } else {
     SCOPED_WALLET_UNLOCK();
-    printf("secret: ");
+    std::cout << "secret: ";
     print_secret_key(m_wallet->get_account().get_keys().m_spend_secret_key);
-    putchar('\n');
+    std::cout << '\n';
   }
   std::cout << "public: " << string_tools::pod_to_hex(m_wallet->get_account().get_keys().m_account_address.m_spend_public_key) << std::endl;
 
@@ -4208,7 +4204,7 @@ boost::optional<epee::wipeable_string> simple_wallet::new_wallet(const boost::pr
     PAUSE_READLINE();
     std::cout << tr("View key: ");
     print_secret_key(m_wallet->get_account().get_keys().m_view_secret_key);
-    putchar('\n');
+    std::cout << '\n';
   }
   catch (const std::exception& e)
   {
@@ -6644,14 +6640,10 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
         fail_msg_writer() << "arg is not a 64 character ed25519 public key, arg = " << arg;
         return false;
       }
-
-      for (char c : arg)
+      if (!lokimq::is_hex(arg))
       {
-        if (!hex::char_is_hex(c))
-        {
-          fail_msg_writer() << "arg contains a non-hex character = " << c << ", arg = " << arg;
-          return false;
-        }
+        fail_msg_writer() << "arg contains non-hex characters: " << arg;
+        return false;
       }
       request.entries.push_back(arg);
     }

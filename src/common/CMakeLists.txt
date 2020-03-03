@@ -68,6 +68,7 @@ add_dependencies(common generate_translations_header)
 target_link_libraries(common
   PUBLIC
     cncrypto
+    lokimq::lokimq
   PRIVATE
     libunbound
     Boost::regex

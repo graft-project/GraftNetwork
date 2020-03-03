@@ -183,8 +183,18 @@ if(NOT MANUAL_SUBMODULES)
       if (upToDate)
         message(STATUS "Submodule '${relative_path}' is up-to-date")
       else()
-        message(FATAL_ERROR "Submodule '${relative_path}' is not up-to-date. Please update with\ngit submodule update --init --force ${relative_path}\nor run cmake with -DMANUAL_SUBMODULES=1")
+        message(FATAL_ERROR "Submodule '${relative_path}' is not up-to-date. Please update with\ngit submodule update --init --recursive\nor run cmake with -DMANUAL_SUBMODULES=1")
       endif()
+
+      # Extra arguments check nested submodules
+      foreach(submod ${ARGN})
+        execute_process(COMMAND git rev-parse "HEAD" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${relative_path}/${submod} OUTPUT_VARIABLE localHead)
+        execute_process(COMMAND git rev-parse "HEAD:${submod}" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${relative_path} OUTPUT_VARIABLE checkedHead)
+        string(COMPARE EQUAL "${localHead}" "${checkedHead}" upToDate)
+        if (NOT upToDate)
+          message(FATAL_ERROR "Nested submodule '${relative_path}/${submod}' is not up-to-date. Please update with\ngit submodule update --init --recursive\nor run cmake with -DMANUAL_SUBMODULES=1")
+        endif()
+      endforeach()
     endfunction ()
     
     message(STATUS "Checking submodules")
@@ -193,6 +203,7 @@ if(NOT MANUAL_SUBMODULES)
     check_submodule(external/rapidjson)
     check_submodule(external/trezor-common)
     check_submodule(external/randomx)
+    check_submodule(external/loki-mq mapbox-variant cppzmq)
   endif()
 endif()
 
@@ -275,7 +286,7 @@ endif()
 # elseif(CMAKE_SYSTEM_NAME MATCHES ".*BSDI.*")
 #   set(BSDI TRUE)
 
-include_directories(external/rapidjson/include src contrib/epee/include external/cppzmq external)
+include_directories(external/rapidjson/include src contrib/epee/include external)
 
 if(APPLE)
   include_directories(SYSTEM /usr/include/malloc)
@@ -853,10 +864,6 @@ if (LOKI_DEBUG_SHORT_PROOFS)
   add_definitions(-DUPTIME_PROOF_BASE_MINUTE=3) # 20x faster uptime proofs
 endif()
 
-if(NOT ZMQ_LIBRARIES) # may be already set (such as by contrib/depends toolchain)
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(ZMQ REQUIRED libzmq)
-endif()
 
 add_library(sodium INTERFACE)
 if(NOT SODIUM_LIBRARIES)

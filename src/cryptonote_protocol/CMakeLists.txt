@@ -38,7 +38,6 @@ target_link_libraries(cryptonote_protocol
   PUBLIC
     p2p
   PRIVATE
-    quorumnet
     miniupnpc
     easylogging
     extra)
