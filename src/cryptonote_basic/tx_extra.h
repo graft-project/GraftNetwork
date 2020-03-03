@@ -67,13 +67,16 @@ namespace lns
 {
 enum struct extra_field : uint8_t
 {
-  owner           = 1 << 0,
-  backup_owner    = 1 << 1,
-  signature       = 1 << 2,
-  encrypted_value = 1 << 3,
-  buy_no_backup   = (extra_field::owner | extra_field::encrypted_value),
-  buy             = (extra_field::buy_no_backup | extra_field::backup_owner),
-  all             = (extra_field::buy | extra_field::signature),
+  owner         = 1 << 0,
+  backup_owner  = 1 << 1,
+  signature     = 1 << 2,
+  encrypted_value         = 1 << 3,
+
+  // Bit Masks
+  updatable_fields = (extra_field::owner | extra_field::backup_owner | extra_field::encrypted_value),
+  buy_no_backup    = (extra_field::owner | extra_field::encrypted_value),
+  buy              = (extra_field::buy_no_backup | extra_field::backup_owner),
+  all              = (extra_field::updatable_fields | extra_field::signature),
 };
 };
 
@@ -404,16 +407,17 @@ namespace cryptonote
     crypto::hash               name_hash;
     crypto::hash               prev_txid = crypto::null_hash;  // previous txid that purchased the mapping
     lns::extra_field           fields;
-    crypto::generic_public_key owner        = {}; // only serialized if command == tx_command::buy
-    crypto::generic_public_key backup_owner = {}; // only serialized if command == tx_command::buy
-    crypto::generic_signature  signature    = {}; // only serialized if command == tx_command::update
-    std::string                encrypted_value; // encrypted binary format of the value in the name->value mapping
-    constexpr void unset_bit_field  (lns::extra_field bit)       { fields = static_cast<lns::extra_field>(static_cast<uint8_t>(fields) & ~static_cast<uint8_t>(bit)); }
-    constexpr void set_bit_field    (lns::extra_field bit)       { fields = static_cast<lns::extra_field>(static_cast<uint8_t>(fields) | static_cast<uint8_t>(bit)); }
-    constexpr bool bit_field_is_set (lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)); }
-    constexpr bool bit_field_match  (lns::extra_field bit) const { return ((static_cast<uint8_t>(fields) ^ static_cast<uint8_t>(bit)) == 0); }
-    constexpr bool is_updating      ()                     const { return bit_field_is_set(lns::extra_field::signature); }
-    constexpr bool is_buying        ()                     const { return !is_updating() && (bit_field_is_set(lns::extra_field::buy) || bit_field_is_set(lns::extra_field::buy_no_backup)); }
+    crypto::generic_public_key owner        = {};
+    crypto::generic_public_key backup_owner = {};
+    crypto::generic_signature  signature    = {};
+    std::string                encrypted_value; // binary format of the name->value mapping
+
+    constexpr void set_field    (lns::extra_field bit)       { fields = static_cast<lns::extra_field>(static_cast<uint8_t>(fields) | static_cast<uint8_t>(bit)); }
+    constexpr bool field_is_set (lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)) == static_cast<uint8_t>(bit); }
+    constexpr bool field_any_set(lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)) > 0; }
+
+    constexpr bool is_updating() const { return field_is_set(lns::extra_field::signature) && field_any_set(lns::extra_field::updatable_fields); }
+    constexpr bool is_buying()   const { return (fields == lns::extra_field::buy || fields == lns::extra_field::buy_no_backup); }
 
     static tx_extra_loki_name_system make_buy(crypto::generic_public_key const &owner, crypto::generic_public_key const *backup_owner, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
     {
@@ -445,23 +449,23 @@ namespace cryptonote
       result.signature                 = signature;
       result.type                      = type;
       result.name_hash                 = name_hash;
-      result.set_bit_field(lns::extra_field::signature);
+      result.set_field(lns::extra_field::signature);
 
       if (encrypted_value.size())
       {
-        result.set_bit_field(lns::extra_field::encrypted_value);
+        result.set_field(lns::extra_field::encrypted_value);
         result.encrypted_value = std::string(reinterpret_cast<char const *>(encrypted_value.data()), encrypted_value.size());
       }
 
       if (owner)
       {
-        result.set_bit_field(lns::extra_field::owner);
+        result.set_field(lns::extra_field::owner);
         result.owner = *owner;
       }
 
       if (backup_owner)
       {
-        result.set_bit_field(lns::extra_field::backup_owner);
+        result.set_field(lns::extra_field::backup_owner);
         result.backup_owner = *backup_owner;
       }
 
@@ -475,10 +479,10 @@ namespace cryptonote
       FIELD(name_hash)
       FIELD(prev_txid)
       ENUM_FIELD(fields, fields <= lns::extra_field::all)
-      if (bit_field_is_set(lns::extra_field::owner)) FIELD(owner);
-      if (bit_field_is_set(lns::extra_field::backup_owner)) FIELD(backup_owner);
-      if (bit_field_is_set(lns::extra_field::signature)) FIELD(signature);
-      if (bit_field_is_set(lns::extra_field::encrypted_value)) FIELD(encrypted_value);
+      if (field_is_set(lns::extra_field::owner)) FIELD(owner);
+      if (field_is_set(lns::extra_field::backup_owner)) FIELD(backup_owner);
+      if (field_is_set(lns::extra_field::signature)) FIELD(signature);
+      if (field_is_set(lns::extra_field::encrypted_value)) FIELD(encrypted_value);
     END_SERIALIZE()
   };
 

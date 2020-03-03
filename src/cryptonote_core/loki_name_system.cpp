@@ -640,155 +640,152 @@ static bool verify_lns_signature(crypto::hash const &hash, crypto::generic_signa
   return true;
 }
 
-static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system &data, std::string *reason = nullptr)
+static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system &lns_extra, std::string *reason = nullptr)
 {
   std::stringstream err_stream;
   LOKI_DEFER { if (reason && reason->empty()) *reason = err_stream.str(); };
 
   crypto::hash expected_prev_txid = crypto::null_hash;
-  std::string name_hash           = hash_to_base64(data.name_hash);
-  lns::mapping_record mapping     = lns_db.get_mapping(data.type, name_hash);
-  if (data.is_updating() && !mapping)
+  std::string name_hash           = hash_to_base64(lns_extra.name_hash);
+  lns::mapping_record mapping     = lns_db.get_mapping(lns_extra.type, name_hash);
+  if (lns_extra.is_updating() && !mapping)
   {
-    if (reason) err_stream <<  tx << ", " << data << ", update requested but mapping does not exist.";
+    if (reason) err_stream <<  tx << ", " << lns_extra << ", update requested but mapping does not exist.";
     return false;
   }
 
   if (mapping)
   {
     expected_prev_txid = mapping.txid;
-    if (data.is_updating())
+    if (lns_extra.is_updating())
     {
       char const SPECIFYING_SAME_VALUE_ERR[]         = ", field to update is specifying the same mapping ";
       char const VALUE_SPECIFIED_BUT_NOT_REQUESTED[] = ", given field to update but field is not requested to be serialised=";
-      if (is_lokinet_type(data.type) && !mapping.active(lns_db.network_type(), blockchain_height))
+      if (is_lokinet_type(lns_extra.type) && !mapping.active(lns_db.network_type(), blockchain_height))
       {
-        if (reason) err_stream << tx << ", " << data << ", TX requested to update mapping that has already expired";
+        if (reason) err_stream << tx << ", " << lns_extra << ", TX requested to update mapping that has already expired";
         return false;
       }
 
-      if (!data.bit_field_is_set(lns::extra_field::owner) &&
-          !data.bit_field_is_set(lns::extra_field::encrypted_value) &&
-          !data.bit_field_is_set(lns::extra_field::backup_owner))
+      if (!lns_extra.field_is_set(lns::extra_field::owner) &&
+          !lns_extra.field_is_set(lns::extra_field::encrypted_value) &&
+          !lns_extra.field_is_set(lns::extra_field::backup_owner))
       {
-        if (reason) err_stream << tx << ", " << data << ", TX requested to update but specified no fields to update";
+        if (reason) err_stream << tx << ", " << lns_extra << ", TX requested to update but specified no fields to update";
         return false;
       }
 
-      if (data.bit_field_is_set(lns::extra_field::encrypted_value))
+      if (lns_extra.field_is_set(lns::extra_field::encrypted_value))
       {
-        if (mapping.encrypted_value == data.encrypted_value)
+        auto span_a = epee::strspan<uint8_t>(lns_extra.encrypted_value);
+        auto span_b = mapping.encrypted_value.to_span();
+        if (span_a.size() == span_b.size() && memcmp(span_a.data(), span_b.data(), span_a.size()) == 0)
         {
-          if (reason) err_stream << tx << ", " <<  data << SPECIFYING_SAME_VALUE_ERR << "value";
+          if (reason) err_stream << tx << ", " <<  lns_extra << SPECIFYING_SAME_VALUE_ERR << "value";
           return false;
         }
       }
-      else if (data.encrypted_value.size())
+      else if (lns_extra.encrypted_value.size())
       {
-        if (reason) err_stream << tx << ", " << data << VALUE_SPECIFIED_BUT_NOT_REQUESTED << "value";
+        if (reason) err_stream << tx << ", " << lns_extra << VALUE_SPECIFIED_BUT_NOT_REQUESTED << "value";
         return false;
       }
 
-      if (data.bit_field_is_set(lns::extra_field::owner))
+      if (lns_extra.field_is_set(lns::extra_field::owner))
       {
-        if (data.owner == mapping.owner)
+        if (lns_extra.owner == mapping.owner)
         {
-          if (reason) err_stream << tx << ", " << data << SPECIFYING_SAME_VALUE_ERR << "owner";
+          if (reason) err_stream << tx << ", " << lns_extra << SPECIFYING_SAME_VALUE_ERR << "owner";
           return false;
         }
       }
-      else if (data.owner.ed25519)
+      else if (lns_extra.owner.ed25519)
       {
-        if (reason) err_stream << tx << ", " << data << VALUE_SPECIFIED_BUT_NOT_REQUESTED << "owner";
+        if (reason) err_stream << tx << ", " << lns_extra << VALUE_SPECIFIED_BUT_NOT_REQUESTED << "owner";
         return false;
       }
 
-      if (data.bit_field_is_set(lns::extra_field::backup_owner))
+      if (lns_extra.field_is_set(lns::extra_field::backup_owner))
       {
-        if (data.backup_owner == mapping.backup_owner)
+        if (lns_extra.backup_owner == mapping.backup_owner)
         {
-          if (reason) err_stream << tx << ", " <<  data << SPECIFYING_SAME_VALUE_ERR << "backup owner";
+          if (reason) err_stream << tx << ", " <<  lns_extra << SPECIFYING_SAME_VALUE_ERR << "backup owner";
           return false;
         }
       }
-      else if (data.backup_owner)
+      else if (lns_extra.backup_owner)
       {
-        if (reason) err_stream << tx << ", " <<  data << VALUE_SPECIFIED_BUT_NOT_REQUESTED << "backup owner";
+        if (reason) err_stream << tx << ", " <<  lns_extra << VALUE_SPECIFIED_BUT_NOT_REQUESTED << "backup owner";
         return false;
       }
 
       // Validate signature
       {
-        auto value = epee::strspan<uint8_t>(data.encrypted_value);
+        auto value = epee::strspan<uint8_t>(lns_extra.encrypted_value);
         crypto::hash hash = tx_extra_signature_hash(value,
-                                                    data.bit_field_is_set(lns::extra_field::owner) ? &data.owner : nullptr,
-                                                    data.bit_field_is_set(lns::extra_field::backup_owner) ? &data.backup_owner : nullptr,
+                                                    lns_extra.field_is_set(lns::extra_field::owner) ? &lns_extra.owner : nullptr,
+                                                    lns_extra.field_is_set(lns::extra_field::backup_owner) ? &lns_extra.backup_owner : nullptr,
                                                     expected_prev_txid);
-        if (!verify_lns_signature(hash, data.signature, mapping.owner) && !verify_lns_signature(hash, data.signature, mapping.backup_owner))
+        if (!verify_lns_signature(hash, lns_extra.signature, mapping.owner) && !verify_lns_signature(hash, lns_extra.signature, mapping.backup_owner))
         {
-          if (reason) err_stream << tx << ", " << data << ", failed to verify signature for LNS update";
+          if (reason) err_stream << tx << ", " << lns_extra << ", failed to verify signature for LNS update";
           return false;
         }
       }
 
-      data.owner        = mapping.owner;
-      data.backup_owner = mapping.backup_owner;
+      lns_extra.owner        = mapping.owner;
+      lns_extra.backup_owner = mapping.backup_owner;
     }
     else
     {
-      if (!is_lokinet_type(data.type))
+      if (!is_lokinet_type(lns_extra.type))
       {
         if (reason)
         {
           lns::owner_record owner = lns_db.get_owner_by_id(mapping.owner_id);
-          err_stream << tx << ", " << data << ", non-lokinet entries can NOT be renewed, mapping already exists with name_hash=" << mapping.name_hash << ", owner=" << owner.key << ", type=" << mapping.type;
-          *reason = err_stream.str();
+          err_stream << tx << ", " << lns_extra << ", non-lokinet entries can NOT be renewed, mapping already exists with name_hash=" << mapping.name_hash << ", owner=" << owner.key << ", type=" << mapping.type;
         }
         return false;
       }
 
-      if (!(data.bit_field_match(lns::extra_field::buy) || data.bit_field_match(lns::extra_field::buy_no_backup)))
+      if (!(lns_extra.field_is_set(lns::extra_field::buy) || lns_extra.field_is_set(lns::extra_field::buy_no_backup)))
       {
-        if (reason) err_stream << tx << ", " << data << ", TX is buying mapping but serialized unexpected fields not relevant for buying";
+        if (reason) err_stream << tx << ", " << lns_extra << ", TX is buying mapping but serialized unexpected fields not relevant for buying";
         return false;
       }
 
       uint64_t renew_window              = 0;
-      uint64_t expiry_blocks             = lns::expiry_blocks(lns_db.network_type(), data.type, &renew_window);
+      uint64_t expiry_blocks             = lns::expiry_blocks(lns_db.network_type(), lns_extra.type, &renew_window);
       uint64_t const renew_window_offset = expiry_blocks - renew_window;
       uint64_t const min_renew_height    = mapping.register_height + renew_window_offset;
 
       if (min_renew_height >= blockchain_height)
       {
-        if (reason)
-        {
-          err_stream << tx << ", " << data << ", trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
-          *reason = err_stream.str();
-        }
-        return false; // Trying to renew too early
+        if (reason) err_stream << tx << ", " << lns_extra << ", trying to renew too early, the earliest renew height=" << min_renew_height << ", urrent height=" << blockchain_height;
+        return false;
       }
 
       if (mapping.active(lns_db.network_type(), blockchain_height))
       {
         // Lokinet entry expired i.e. it's no longer active. A purchase for this name is valid
         // Check that the request originates from the owner of this mapping
-        lns::owner_record const requester = lns_db.get_owner_by_key(data.owner);
+        lns::owner_record const requester = lns_db.get_owner_by_key(lns_extra.owner);
         if (!requester)
         {
-          if (reason) err_stream << tx << ", " << data << ", trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
+          if (reason) err_stream << tx << ", " << lns_extra << ", trying to renew existing mapping but owner specified in LNS extra does not exist, rejected";
           return false;
         }
 
         lns::owner_record const owner = lns_db.get_owner_by_id(mapping.owner_id);
         if (!owner)
         {
-          if (reason) err_stream << tx << ", " << data << ", unexpected owner_id=" << mapping.owner_id << " does not exist";
+          if (reason) err_stream << tx << ", " << lns_extra << ", unexpected owner_id=" << mapping.owner_id << " does not exist";
           return false;
         }
 
         if (requester.id != owner.id)
         {
-          if (reason) err_stream << tx << ", " << data << ", actual owner=" << owner.key << ", with owner_id=" << mapping.owner_id << ", does not match requester=" << requester.key << ", with id=" << requester.id;
+          if (reason) err_stream << tx << ", " << lns_extra << ", actual owner=" << owner.key << ", with owner_id=" << mapping.owner_id << ", does not match requester=" << requester.key << ", with id=" << requester.id;
           return false;
         }
       }
@@ -796,22 +793,22 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
     }
   }
 
-  if (data.prev_txid != expected_prev_txid)
+  if (lns_extra.prev_txid != expected_prev_txid)
   {
-    if (reason) err_stream << tx << ", " << data << ", specified prior owner txid=" << data.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
+    if (reason) err_stream << tx << ", " << lns_extra << ", specified prior owner txid=" << lns_extra.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed";
     return false;
   }
 
   return true;
 }
 
-bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry, std::string *reason) const
+bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *lns_extra, std::string *reason) const
 {
   std::stringstream err_stream;
   LOKI_DEFER { if (reason && reason->empty()) *reason = err_stream.str(); };
 
-  cryptonote::tx_extra_loki_name_system entry_;
-  if (!entry) entry = &entry_;
+  cryptonote::tx_extra_loki_name_system lns_extra_;
+  if (!lns_extra) lns_extra = &lns_extra_;
 
   if (tx.type != cryptonote::txtype::loki_name_system)
   {
@@ -819,43 +816,43 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     return false;
   }
 
-  if (!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, *entry))
+  if (!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, *lns_extra))
   {
     if (reason) err_stream << tx << ", didn't have loki name service in the tx_extra";
     return false;
   }
 
-  if (entry->version != 0)
+  if (lns_extra->version != 0)
   {
-    if (reason) err_stream << tx << ", " << *entry << ", unexpected version=" << std::to_string(entry->version) << ", expected=0";
+    if (reason) err_stream << tx << ", " << *lns_extra << ", unexpected version=" << std::to_string(lns_extra->version) << ", expected=0";
     return false;
   }
 
-  if (!lns::mapping_type_allowed(hf_version, entry->type))
+  if (!lns::mapping_type_allowed(hf_version, lns_extra->type))
   {
-    if (reason) err_stream << tx << ", " << *entry << ", specifying type=" << entry->type << " that is disallowed";
+    if (reason) err_stream << tx << ", " << *lns_extra << ", specifying type=" << lns_extra->type << " that is disallowed";
     return false;
   }
 
-  if (entry->is_buying())
+  if (lns_extra->is_buying())
   {
-    if (!entry->owner)
+    if (!lns_extra->owner)
     {
-      if (reason) err_stream << tx << ", " << *entry << ", can't specify LNS extra without owner";
+      if (reason) err_stream << tx << ", " << *lns_extra << ", can't specify LNS extra without owner";
       return false;
     }
 
-    if (entry->owner == entry->backup_owner)
+    if (lns_extra->owner == lns_extra->backup_owner)
     {
-      if (reason) err_stream << tx << ", " << *entry << ", specifying owner the same as the backup owner";
+      if (reason) err_stream << tx << ", " << *lns_extra << ", specifying owner the same as the backup owner";
       return false;
     }
   }
-  else if (entry->is_updating())
+  else if (lns_extra->is_updating())
   {
-    if (!entry->signature)
+    if (!lns_extra->signature)
     {
-      if (reason) err_stream << tx << ", " << *entry << ", signature to validate is the null-signature";
+      if (reason) err_stream << tx << ", " << *lns_extra << ", signature to validate is the null-signature";
       return false;
     }
   }
@@ -863,21 +860,21 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   {
     if (reason)
     {
-      err_stream << tx << ", " << *entry
+      err_stream << tx << ", " << *lns_extra
                  << ", TX extra does not specify valid combination of bits in serialized fields="
-                 << std::bitset<sizeof(entry->fields) * 8>(static_cast<size_t>(entry->fields));
+                 << std::bitset<sizeof(lns_extra->fields) * 8>(static_cast<size_t>(lns_extra->fields));
     }
     return false;
   }
 
-  if (!validate_encrypted_mapping_value(entry->type, entry->encrypted_value, reason))
+  if (!validate_encrypted_mapping_value(lns_extra->type, lns_extra->encrypted_value, reason))
       return false;
 
-  if (!validate_against_previous_mapping(*this, blockchain_height, tx, *entry, reason))
+  if (!validate_against_previous_mapping(*this, blockchain_height, tx, *lns_extra, reason))
     return false;
 
   static const crypto::hash null_name_hash = name_to_hash(""); // Sanity check the empty name hash
-  if (entry->name_hash == null_name_hash || entry->name_hash == crypto::null_hash)
+  if (lns_extra->name_hash == null_name_hash || lns_extra->name_hash == crypto::null_hash)
   {
     if (reason)
     {
@@ -888,16 +885,11 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   }
 
   uint64_t burn                = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
-  uint64_t const burn_required = entry->is_buying() ? burn_needed(hf_version, entry->type) : 0;
+  uint64_t const burn_required = lns_extra->is_buying() ? burn_needed(hf_version, lns_extra->type) : 0;
   if (burn != burn_required)
   {
-    if (reason)
-    {
-      char const *over_or_under = burn > burn_required ? "too much " : "insufficient ";
-      err_stream << tx << ", " << *entry << ", burned " << over_or_under << "loki=" << burn << ", require=" << burn_required;
-      if (!entry->is_buying()) err_stream << ", updating requires just the ordinary transaction fee";
-      *reason = err_stream.str();
-    }
+    char const *over_or_under = burn > burn_required ? "too much " : "insufficient ";
+    if (reason) err_stream << tx << ", " << *lns_extra << ", burned " << over_or_under << "loki=" << burn << ", require=" << burn_required;
     return false;
   }
 
