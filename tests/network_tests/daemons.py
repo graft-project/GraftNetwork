@@ -123,7 +123,7 @@ class RPCDaemon:
 
 
 class Daemon(RPCDaemon):
-    base_args = ('--dev-allow-local-ips', '--fixed-difficulty=1', '--regtest', '--non-interactive', '--rpc-ssl=disabled')
+    base_args = ('--dev-allow-local-ips', '--fixed-difficulty=1', '--regtest', '--non-interactive', '--rpc-ssl=disabled', '--rpc-long-poll-connections=0')
 
     def __init__(self, *,
             lokid='lokid',
