@@ -35,6 +35,7 @@
 #include "serialization/variant.h"
 #include "crypto/crypto.h"
 #include <boost/variant.hpp>
+#include "loki_economy.h"
 
 
 #define TX_EXTRA_PADDING_MAX_COUNT              255
@@ -64,18 +65,6 @@
 
 namespace lns
 {
-enum struct mapping_type : uint16_t
-{
-  session,
-  wallet,
-  lokinet_1year,
-  lokinet_2years,
-  lokinet_5years,
-  lokinet_10years,
-  _count,
-  update_record_internal,
-};
-
 enum struct tx_command_t : uint8_t
 {
   buy,

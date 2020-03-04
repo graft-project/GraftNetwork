@@ -84,6 +84,7 @@ using namespace epee;
 #include "cryptonote_core/service_node_rules.h"
 #include "common/loki.h"
 #include "common/loki_integration_test_hooks.h"
+#include "loki_economy.h"
 
 extern "C"
 {
@@ -7567,7 +7568,7 @@ loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx
   if (tx_type == txtype::loki_name_system)
   {
     assert(priority != tools::tx_priority_blink);
-    tx_params.burn_fixed   = lns::burn_requirement_in_atomic_loki(hf_version, type);
+    tx_params.burn_fixed   = lns::burn_needed(hf_version, type);
   }
   else if (priority == tools::tx_priority_blink)
   {

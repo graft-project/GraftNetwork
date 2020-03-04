@@ -1521,7 +1521,7 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
                                              char const *reason) -> void {
       uint64_t new_height    = cryptonote::get_block_height(gen.top().block) + 1;
       uint8_t new_hf_version = gen.get_hf_version_at(new_height);
-      uint64_t burn_requirement = lns::burn_requirement_in_atomic_loki(new_hf_version, static_cast<lns::mapping_type>(data.type));
+      uint64_t burn_requirement = lns::burn_needed(new_hf_version, static_cast<lns::mapping_type>(data.type));
 
       std::vector<uint8_t> extra;
       cryptonote::add_loki_name_system_to_tx_extra(extra, data);
@@ -2039,7 +2039,7 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
 
     uint64_t new_height    = cryptonote::get_block_height(gen.top().block) + 1;
     uint8_t new_hf_version = gen.get_hf_version_at(new_height);
-    uint64_t burn_requirement = lns::burn_requirement_in_atomic_loki(new_hf_version, static_cast<lns::mapping_type>(data.type));
+    uint64_t burn_requirement = lns::burn_needed(new_hf_version, static_cast<lns::mapping_type>(data.type));
     std::vector<uint8_t> extra;
     cryptonote::add_loki_name_system_to_tx_extra(extra, data);
     cryptonote::add_burned_amount_to_tx_extra(extra, burn_requirement);
@@ -2334,7 +2334,7 @@ bool loki_name_system_wrong_burn::generate(std::vector<test_event_entry> &events
 
         uint64_t new_height      = cryptonote::get_block_height(gen.top().block) + 1;
         uint8_t new_hf_version   = gen.get_hf_version_at(new_height);
-        uint64_t burn            = lns::burn_requirement_in_atomic_loki(new_hf_version, type);
+        uint64_t burn            = lns::burn_needed(new_hf_version, type);
         if (under_burn) burn -= 1;
         else            burn += 1;
 
@@ -2366,7 +2366,7 @@ bool loki_name_system_wrong_version::generate(std::vector<test_event_entry> &eve
 
   uint64_t new_height       = cryptonote::get_block_height(gen.top().block) + 1;
   uint8_t new_hf_version    = gen.get_hf_version_at(new_height);
-  uint64_t burn_requirement = lns::burn_requirement_in_atomic_loki(new_hf_version, lns::mapping_type::session);
+  uint64_t burn_requirement = lns::burn_needed(new_hf_version, lns::mapping_type::session);
 
   std::vector<uint8_t> extra;
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);

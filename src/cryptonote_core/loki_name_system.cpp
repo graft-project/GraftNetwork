@@ -11,6 +11,7 @@
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/blockchain.h"
+#include "loki_economy.h"
 
 #include <sqlite3.h>
 
@@ -216,29 +217,6 @@ static bool sql_compile_statement(sqlite3 *db, char const *query, int query_len,
 
   bool result        = prepare_result == SQLITE_OK;
   if (!result) MERROR("Can not compile SQL statement: " << query << ", reason: " << sqlite3_errstr(prepare_result));
-  return result;
-}
-
-uint64_t burn_requirement_in_atomic_loki(uint8_t /*hf_version*/, mapping_type type)
-{
-  uint64_t result = 0;
-  switch (type)
-  {
-    case mapping_type::update_record_internal:
-      result = 0;
-      break;
-
-    case mapping_type::lokinet_1year: /* FALLTHRU */
-    case mapping_type::session: /* FALLTHRU */
-    case mapping_type::wallet: /* FALLTHRU */
-    default:
-      result = 20 * COIN;
-      break;
-
-    case mapping_type::lokinet_2years: result = 40 * COIN; break;
-    case mapping_type::lokinet_5years: result = 80 * COIN; break;
-    case mapping_type::lokinet_10years: result = 120 * COIN; break;
-  }
   return result;
 }
 
@@ -814,7 +792,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
 
   const bool updating    = entry->command == lns::tx_command_t::update;
   uint64_t burn          = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
-  uint64_t burn_required = updating ? 0 : burn_requirement_in_atomic_loki(hf_version, static_cast<lns::mapping_type>(entry->type));
+  uint64_t burn_required = updating ? 0 : burn_needed(hf_version, static_cast<lns::mapping_type>(entry->type));
   if (burn != burn_required)
   {
     if (reason)

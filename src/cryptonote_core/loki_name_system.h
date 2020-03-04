@@ -54,9 +54,7 @@ inline std::ostream &operator<<(std::ostream &os, mapping_type type)
 
 constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { return type == mapping_type::session; }
 constexpr bool is_lokinet_type     (lns::mapping_type type)                { return type >= mapping_type::lokinet_1year && type <= mapping_type::lokinet_10years; }
-
-uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version, mapping_type type);
-sqlite3     *init_loki_name_system(char const *file_path);
+sqlite3       *init_loki_name_system(char const *file_path);
 
 uint64_t constexpr NO_EXPIRY = static_cast<uint64_t>(-1);
 // return: The number of blocks until expiry from the registration height, if there is no expiration NO_EXPIRY is returned.
