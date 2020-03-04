@@ -412,12 +412,12 @@ namespace cryptonote
     crypto::generic_signature  signature    = {};
     std::string                encrypted_value; // binary format of the name->value mapping
 
-    constexpr void set_field    (lns::extra_field bit)       { fields = static_cast<lns::extra_field>(static_cast<uint8_t>(fields) | static_cast<uint8_t>(bit)); }
-    constexpr bool field_is_set (lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)) == static_cast<uint8_t>(bit); }
-    constexpr bool field_any_set(lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)) > 0; }
+    void set_field    (lns::extra_field bit)       { fields = static_cast<lns::extra_field>(static_cast<uint8_t>(fields) | static_cast<uint8_t>(bit)); }
+    bool field_is_set (lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)) == static_cast<uint8_t>(bit); }
+    bool field_any_set(lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)) > 0; }
 
-    constexpr bool is_updating() const { return field_is_set(lns::extra_field::signature) && field_any_set(lns::extra_field::updatable_fields); }
-    constexpr bool is_buying()   const { return (fields == lns::extra_field::buy || fields == lns::extra_field::buy_no_backup); }
+    bool is_updating() const { return field_is_set(lns::extra_field::signature) && field_any_set(lns::extra_field::updatable_fields); }
+    bool is_buying()   const { return (fields == lns::extra_field::buy || fields == lns::extra_field::buy_no_backup); }
 
     static tx_extra_loki_name_system make_buy(crypto::generic_public_key const &owner, crypto::generic_public_key const *backup_owner, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
     {
