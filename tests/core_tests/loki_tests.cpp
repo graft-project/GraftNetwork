@@ -1055,60 +1055,65 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
   gen.add_mined_money_unlock_blocks();
 
   lns_keys_t miner_key = make_lns_keys(miner);
-  if (lns::mapping_type_allowed(gen.hardfork(), lns::mapping_type::lokinet_1year))
+  for (auto mapping_type = lns::mapping_type::lokinet_1year;
+       mapping_type     <= lns::mapping_type::lokinet_10years;
+       mapping_type      = static_cast<lns::mapping_type>(static_cast<uint16_t>(mapping_type) + 1))
   {
-    std::string const name     = "mydomain.loki";
-    auto mapping_type = lns::mapping_type::lokinet_1year;
-    cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, mapping_type, miner_key.lokinet_value, name);
-    gen.create_and_add_next_block({tx});
-
-    uint64_t height_of_lns_entry   = gen.height();
-    uint64_t expected_expiry_block = height_of_lns_entry + lns::expiry_blocks(cryptonote::FAKECHAIN, mapping_type, nullptr);
-
-    loki_register_callback(events, "check_lns_entries", [&events, height_of_lns_entry, miner_key, name](cryptonote::core &c, size_t ev_index)
+    if (lns::mapping_type_allowed(gen.hardfork(), mapping_type))
     {
-      DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries");
-      lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
+      std::string const name     = "mydomain.loki";
+      cryptonote::transaction tx = gen.create_and_add_loki_name_system_tx(miner, mapping_type, miner_key.lokinet_value, name);
+      gen.create_and_add_next_block({tx});
 
-      lns::owner_record owner = lns_db.get_owner_by_key(miner_key.ed_key);
-      CHECK_EQ(owner.loaded, true);
-      CHECK_EQ(owner.id, 1);
-      CHECK_EQ(miner_key.ed_key, owner.key);
+      uint64_t height_of_lns_entry   = gen.height();
+      uint64_t expected_expiry_block = height_of_lns_entry + lns::expiry_blocks(cryptonote::FAKECHAIN, mapping_type, nullptr);
 
-      lns::mapping_record mappings = lns_db.get_mapping(lns::mapping_type::lokinet_1year, name);
-      CHECK_EQ(mappings.loaded, true);
-      CHECK_EQ(mappings.type, lns::mapping_type::lokinet_1year);
-      CHECK_EQ(mappings.name, name);
-      CHECK_EQ(mappings.value, miner_key.lokinet_value);
-      CHECK_EQ(mappings.register_height, height_of_lns_entry);
-      CHECK_EQ(mappings.owner_id, owner.id);
-      return true;
-    });
+      loki_register_callback(events, "check_lns_entries", [=](cryptonote::core &c, size_t ev_index)
+      {
+        DEFINE_TESTS_ERROR_CONTEXT("check_lns_entries");
+        lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
 
-    while (gen.height() <= expected_expiry_block)
-      gen.create_and_add_next_block();
+        lns::owner_record owner = lns_db.get_owner_by_key(miner_key.ed_key);
+        CHECK_EQ(owner.loaded, true);
+        CHECK_EQ(owner.id, 1);
+        CHECK_EQ(miner_key.ed_key, owner.key);
 
-    loki_register_callback(events, "check_expired", [&events, blockchain_height = gen.chain_height(), height_of_lns_entry, miner_key, name](cryptonote::core &c, size_t ev_index)
-    {
-      DEFINE_TESTS_ERROR_CONTEXT("check_expired");
-      lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
+        lns::mapping_record mappings = lns_db.get_mapping(mapping_type, name);
+        CHECK_EQ(mappings.loaded, true);
+        CHECK_EQ(mappings.type, mapping_type);
+        CHECK_EQ(mappings.name, name);
+        CHECK_EQ(mappings.value, miner_key.lokinet_value);
+        CHECK_EQ(mappings.register_height, height_of_lns_entry);
+        CHECK_EQ(mappings.owner_id, owner.id);
+        return true;
+      });
 
-      // TODO(loki): We should probably expire owners that no longer have any mappings remaining
-      lns::owner_record owner = lns_db.get_owner_by_key(miner_key.ed_key);
-      CHECK_EQ(owner.loaded, true);
-      CHECK_EQ(owner.id, 1);
-      CHECK_EQ(miner_key.ed_key, owner.key);
+      while (gen.height() <= expected_expiry_block)
+        gen.create_and_add_next_block();
 
-      lns::mapping_record mappings = lns_db.get_mapping(lns::mapping_type::lokinet_1year, name);
-      CHECK_EQ(mappings.loaded, true);
-      CHECK_EQ(mappings.active(cryptonote::FAKECHAIN, blockchain_height), false);
-      CHECK_EQ(mappings.type, lns::mapping_type::lokinet_1year);
-      CHECK_EQ(mappings.name, name);
-      CHECK_EQ(mappings.value, miner_key.lokinet_value);
-      CHECK_EQ(mappings.register_height, height_of_lns_entry);
-      CHECK_EQ(mappings.owner_id, owner.id);
-      return true;
-    });
+      uint64_t blockchain_height = gen.chain_height();
+      loki_register_callback(events, "check_expired", [=](cryptonote::core &c, size_t ev_index)
+      {
+        DEFINE_TESTS_ERROR_CONTEXT("check_expired");
+        lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
+
+        // TODO(loki): We should probably expire owners that no longer have any mappings remaining
+        lns::owner_record owner = lns_db.get_owner_by_key(miner_key.ed_key);
+        CHECK_EQ(owner.loaded, true);
+        CHECK_EQ(owner.id, 1);
+        CHECK_EQ(miner_key.ed_key, owner.key);
+
+        lns::mapping_record mappings = lns_db.get_mapping(mapping_type, name);
+        CHECK_EQ(mappings.loaded, true);
+        CHECK_EQ(mappings.active(cryptonote::FAKECHAIN, blockchain_height), false);
+        CHECK_EQ(mappings.type, mapping_type);
+        CHECK_EQ(mappings.name, name);
+        CHECK_EQ(mappings.value, miner_key.lokinet_value);
+        CHECK_EQ(mappings.register_height, height_of_lns_entry);
+        CHECK_EQ(mappings.owner_id, owner.id);
+        return true;
+      });
+    }
   }
   return true;
 }

@@ -830,15 +830,14 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   return true;
 }
 
-static std::string lowercase_string(std::string const &src)
+static std::string lowercase_string(std::string src)
 {
-  std::string result = src;
-  for (char &ch : result)
+  for (char &ch : src)
   {
     if (ch >= 'A' && ch <= 'Z')
       ch = ch + ('a' - 'A');
   }
-  return result;
+  return src;
 }
 
 bool validate_mapping_type(std::string const &mapping_type_str, lns::mapping_type *mapping_type, std::string *reason)
