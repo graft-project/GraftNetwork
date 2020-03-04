@@ -2372,6 +2372,7 @@ namespace nodetool
       MDEBUG("Incoming broadcast request");
 
       MDEBUG("do_broadcast from: " << req.sender_address << " Start");
+      
 
       MDEBUG("do_broadcast: forwarding broadcast to local supernode");
       {
@@ -2382,7 +2383,13 @@ namespace nodetool
 #ifdef LOCK_RTA_SENDING
     return;
 #endif
-
+      if (req.sender_address.empty() || req.signature.empty())
+      {
+        MWARNING("do_broadcast: wrong sender address or signature: " << epee::serialization::store_t_to_json(req));
+        return;
+      }
+    
+    
       COMMAND_BROADCAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
       
       // generate random message_id
