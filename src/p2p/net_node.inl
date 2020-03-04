@@ -1007,23 +1007,27 @@ namespace nodetool
           m_broadcast_bytes_out += buff.size() * get_connections_count();
           m_rta_msg_p2p_counter++;
           // Graft: removed in Monero, inlining: relay_notify_to_all(command, buff, context);
+          std::ostringstream dbg_peers;
           for (auto &zone : m_network_zones) {
             std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>> connections;
             zone.second.m_net_server.get_config_object().foreach_connection([&](p2p_connection_context& cntxt) {
               const bool broadcast_to_peer = zone.first == epee::net_utils::zone::public_ 
                   && cntxt.peer_id 
                   && context.m_connection_id != cntxt.m_connection_id;
-              if (broadcast_to_peer)
-                connections.push_back({zone.first, context.m_connection_id});
+              if (broadcast_to_peer) {
+                connections.push_back({zone.first, cntxt.m_connection_id});
+                dbg_peers << cntxt.m_remote_address.host_str() << ", ";
+              }
               return true;
             });
             
             if (connections.empty())
               MERROR("no connections to relay message: " << arg.message_id);
-            else
+            else {
               relay_notify_to_list(command, epee::strspan<uint8_t>(buff), std::move(connections));
               MDEBUG("handle_broadcast: relayed broadcast from " << arg.sender_address
-                   << ", message: '" << arg.message_id << "',  to peers. Hop level: " << arg.hop );
+                   << ", message: '" << arg.message_id << "',  to peers: " << dbg_peers.str());
+            }
           };
         }
         else // not relaying, eigher all recipients are handled by UDHT or hop counter reached zero
@@ -2394,7 +2398,7 @@ namespace nodetool
       p2p_req.signature = req.signature;
       p2p_req.hop = (hop)? hop : -1;
       
-      MDEBUG("do_broadcast: broadcasting message '" << p2p_req.message_id << "' to connections..");
+      MDEBUG("do_broadcast: broadcasting message '" << p2p_req.message_id << " from '" << p2p_req.sender_address << "' to connections..");
 
       std::string blob;
       epee::serialization::store_t_to_binary(p2p_req, blob);
@@ -2864,8 +2868,10 @@ namespace nodetool
   {
     static std::string supernode_endpoint("blockchain_based_list");
 
-    if (!m_supernode_conn_manager.has_connections())
+    if (!m_supernode_conn_manager.has_connections()) {
+      MWARNING("no local supernodes connected..");
       return;
+    }
     
     MDEBUG("handle_blockchain_based_list_update to supernode for block #" << block_height);
 
