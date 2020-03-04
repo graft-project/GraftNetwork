@@ -371,7 +371,7 @@ def chuck_double_spend(net, alice, mike, chuck):
     # Now we disconnect chuck's bridge node, which will isolate the hidden node.
     chuck.bridge.stop()
 
-    tx_blink = chuck.transfer(alice, coins(95), blink=True)
+    tx_blink = chuck.transfer(alice, coins(95), priority=5)
     assert len(tx_blink['tx_hash_list']) == 1
     blink_hash = tx_blink['tx_hash_list'][0]
 
@@ -379,7 +379,7 @@ def chuck_double_spend(net, alice, mike, chuck):
 
     # ... but it shouldn't have propagated here because this is disconnected, so we can submit a
     # conflicting tx:
-    tx_hidden = chuck.hidden.transfer(chuck, coins(95), blink=False)
+    tx_hidden = chuck.hidden.transfer(chuck, coins(95), priority=1)
     assert len(tx_hidden['tx_hash_list']) == 1
     hidden_hash = tx_hidden['tx_hash_list'][0]
     assert hidden_hash != blink_hash
