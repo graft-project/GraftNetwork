@@ -3462,7 +3462,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     struct request_entry
     {
       std::string name;            // The name to resolve to a public key via Loki Name Service
-      std::vector<uint16_t> types; // Set 0 for Session. In future updates more mapping types will be available.
+      std::vector<uint16_t> types; // If empty, query all types. Currently only Session(0). In future updates more mapping types will be available.
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(name)
         KV_SERIALIZE(types)

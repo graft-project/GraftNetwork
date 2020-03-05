@@ -6596,9 +6596,12 @@ bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& arg
   cryptonote::COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::request_entry &entry = request.entries.back();
   if (entry.types.empty())
   {
-    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::wallet));
-    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::lokinet));
     entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::session));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::wallet));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::lokinet_1year));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::lokinet_2years));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::lokinet_5years));
+    entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::lokinet_10years));
   }
 
   boost::optional<std::string> failed;

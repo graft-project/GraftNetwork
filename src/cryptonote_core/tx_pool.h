@@ -47,6 +47,7 @@
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "rpc/message_data_structs.h"
 #include "tx_blink.h"
+#include "loki_economy.h"
 
 namespace cryptonote
 {

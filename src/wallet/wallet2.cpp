@@ -84,6 +84,7 @@ using namespace epee;
 #include "cryptonote_core/service_node_rules.h"
 #include "common/loki.h"
 #include "common/loki_integration_test_hooks.h"
+#include "loki_economy.h"
 
 extern "C"
 {
@@ -7558,7 +7559,7 @@ uint64_t wallet2::get_fee_quantization_mask() const
   return fee_quantization_mask;
 }
 
-loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx_type, uint32_t priority, lns::burn_type lns_burn_type)
+loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx_type, uint32_t priority, lns::mapping_type type)
 {
   loki_construct_tx_params tx_params;
   tx_params.hf_version = hf_version;
@@ -7567,7 +7568,7 @@ loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx
   if (tx_type == txtype::loki_name_system)
   {
     assert(priority != tools::tx_priority_blink);
-    tx_params.burn_fixed   = lns::burn_requirement_in_atomic_loki(hf_version, lns_burn_type);
+    tx_params.burn_fixed   = lns::burn_needed(hf_version, type);
   }
   else if (priority == tools::tx_priority_blink)
   {
@@ -8523,8 +8524,8 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(lns::mapping
     if (reason) *reason = ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
     return {};
   }
-  loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, lns::mapping_type_to_burn_type(static_cast<lns::mapping_type>(type)));
 
+  loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, type);
   auto result = create_transactions_2({} /*dests*/,
                                       CRYPTONOTE_DEFAULT_TX_MIXIN,
                                       0 /*unlock_at_block*/,
@@ -8549,7 +8550,7 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(std::string 
   if (!lns::validate_mapping_type(type, &mapping_type, reason))
     return {};
 
-  std::vector<wallet2::pending_tx> result = create_buy_lns_mapping_tx(mapping_type, owner, name, value, reason, priority, account_index, subaddr_indices);
+  std::vector<wallet2::pending_tx> result = create_buy_lns_mapping_tx(type, owner, name, value, reason, priority, account_index, subaddr_indices);
   return result;
 }
 
@@ -8596,7 +8597,7 @@ std::vector<wallet2::pending_tx> wallet2::create_update_lns_mapping_tx(lns::mapp
     if (reason) *reason = ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
     return {};
   }
-  loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, lns::burn_type::update_record);
+  loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, lns::mapping_type::update_record_internal);
 
   auto result = create_transactions_2({} /*dests*/,
                                       CRYPTONOTE_DEFAULT_TX_MIXIN,

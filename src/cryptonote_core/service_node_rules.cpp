@@ -9,7 +9,7 @@
 
 namespace service_nodes {
 
-
+// TODO(loki): Move to loki_economy, this will also need access to loki::exp2
 uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t height, uint8_t hf_version)
 {
   if (m_nettype == cryptonote::TESTNET || m_nettype == cryptonote::FAKECHAIN)

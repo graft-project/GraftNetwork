@@ -11,6 +11,7 @@
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/blockchain.h"
+#include "loki_economy.h"
 
 #include <sqlite3.h>
 
@@ -200,11 +201,10 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
 
 bool mapping_record::active(cryptonote::network_type nettype, uint64_t blockchain_height) const
 {
-    if (!loaded) return false;
-    if (type != mapping_type::lokinet) return true;
-    uint64_t expiry_blocks            = lns::lokinet_expiry_blocks(nettype);
-    uint64_t const last_active_height = register_height + expiry_blocks;
-    return last_active_height >= (blockchain_height - 1);
+  if (!loaded) return false;
+  uint64_t expiry_blocks = lns::expiry_blocks(nettype, static_cast<lns::mapping_type>(type));
+  uint64_t const last_active_height = expiry_blocks == NO_EXPIRY ? NO_EXPIRY : (register_height + expiry_blocks);
+  return last_active_height >= (blockchain_height - 1);
 }
 
 static bool sql_compile_statement(sqlite3 *db, char const *query, int query_len, sqlite3_stmt **statement, bool optimise_for_multiple_usage = true)
@@ -217,38 +217,6 @@ static bool sql_compile_statement(sqlite3 *db, char const *query, int query_len,
 
   bool result        = prepare_result == SQLITE_OK;
   if (!result) MERROR("Can not compile SQL statement: " << query << ", reason: " << sqlite3_errstr(prepare_result));
-  return result;
-}
-
-burn_type mapping_type_to_burn_type(mapping_type in)
-{
-  burn_type result = burn_type::custom;
-  switch (in)
-  {
-    case mapping_type::lokinet: result = burn_type::lokinet_1year; break;
-    case mapping_type::session: result = burn_type::session; break;
-    case mapping_type::wallet: result = burn_type::wallet; break;
-    default: break;
-  }
-  return result;
-}
-
-uint64_t burn_requirement_in_atomic_loki(uint8_t /*hf_version*/, burn_type type)
-{
-  uint64_t result = 0;
-  switch (type)
-  {
-    case burn_type::update_record:
-      result = 0;
-      break;
-
-    case burn_type::lokinet_1year: /* FALLTHRU */
-    case burn_type::session: /* FALLTHRU */
-    case burn_type::wallet: /* FALLTHRU */
-    case burn_type::custom: /* FALLTHRU */
-    default: result = 30 * COIN;
-      break;
-  }
   return result;
 }
 
@@ -272,19 +240,30 @@ sqlite3 *init_loki_name_system(char const *file_path)
   return result;
 }
 
-uint64_t lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window)
+uint64_t expiry_blocks(cryptonote::network_type nettype, mapping_type type, uint64_t *renew_window)
 {
-  uint64_t renew_window_ = BLOCKS_EXPECTED_IN_DAYS(31);
-  uint64_t result        = BLOCKS_EXPECTED_IN_YEARS(1) + renew_window_;
-  if (nettype == cryptonote::FAKECHAIN)
+  uint64_t renew_window_ = 0;
+  uint64_t result        = NO_EXPIRY;
+  if (is_lokinet_type(type))
   {
-    renew_window_ = 10;
-    result        = 10 + renew_window_;
-  }
-  else if (nettype == cryptonote::TESTNET)
-  {
-    renew_window_ = BLOCKS_EXPECTED_IN_DAYS(1);
-    result        = BLOCKS_EXPECTED_IN_DAYS(1) + renew_window_;
+    renew_window_ = BLOCKS_EXPECTED_IN_DAYS(31);
+
+    if (type == mapping_type::lokinet_1year)        result = BLOCKS_EXPECTED_IN_YEARS(1);
+    else if (type == mapping_type::lokinet_2years)  result = BLOCKS_EXPECTED_IN_YEARS(2);
+    else if (type == mapping_type::lokinet_5years)  result = BLOCKS_EXPECTED_IN_YEARS(5);
+    else if (type == mapping_type::lokinet_10years) result = BLOCKS_EXPECTED_IN_YEARS(10);
+
+    result += renew_window_;
+    if (nettype == cryptonote::FAKECHAIN)
+    {
+      renew_window_ = 10;
+      result        = 10 + renew_window_;
+    }
+    else if (nettype == cryptonote::TESTNET)
+    {
+      renew_window_ = BLOCKS_EXPECTED_IN_DAYS(1);
+      result        = BLOCKS_EXPECTED_IN_DAYS(1) + renew_window_;
+    }
   }
 
   if (renew_window) *renew_window = renew_window_;
@@ -337,7 +316,7 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   size_t max_name_len = lns::GENERIC_NAME_MAX;
   if (type == mapping_type::session)      max_name_len = lns::SESSION_DISPLAY_NAME_MAX;
   else if (type == mapping_type::wallet)  max_name_len = lns::WALLET_NAME_MAX;
-  else if (type == mapping_type::lokinet) max_name_len = lns::LOKINET_DOMAIN_NAME_MAX;
+  else if (is_lokinet_type(type))         max_name_len = lns::LOKINET_DOMAIN_NAME_MAX;
 
   // NOTE: Validate name length
   if (name.empty() || name.size() > max_name_len)
@@ -353,7 +332,7 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   if (type == mapping_type::session)
   {
   }
-  else if (type == mapping_type::lokinet)
+  else if (is_lokinet_type(type))
   {
     // Domain has to start with a letter or digit, and can have letters, digits, or hyphens in between and must end with a .loki
     // ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.loki$
@@ -484,7 +463,7 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
   {
     int max_value_len            = lns::GENERIC_VALUE_MAX;
     bool value_require_exact_len = true;
-    if (type == mapping_type::lokinet)      max_value_len = (LOKINET_ADDRESS_BINARY_LENGTH * 2);
+    if (is_lokinet_type(type))              max_value_len = (LOKINET_ADDRESS_BINARY_LENGTH * 2);
     else if (type == mapping_type::session) max_value_len = (SESSION_PUBLIC_KEY_BINARY_LENGTH * 2);
     else value_require_exact_len = false;
 
@@ -500,7 +479,7 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
       memcpy(blob->buffer.data(), &addr_info.address, blob->len);
     }
   }
-  else if (type == mapping_type::lokinet)
+  else if (is_lokinet_type(type))
   {
     if (value.size() != 52)
     {
@@ -582,7 +561,7 @@ bool validate_lns_value_binary(mapping_type type, std::string const &value, std:
 {
   int max_value_len            = lns::GENERIC_VALUE_MAX;
   bool value_require_exact_len = true;
-  if (type == mapping_type::lokinet)      max_value_len = LOKINET_ADDRESS_BINARY_LENGTH;
+  if (is_lokinet_type(type))              max_value_len = LOKINET_ADDRESS_BINARY_LENGTH;
   else if (type == mapping_type::session) max_value_len = SESSION_PUBLIC_KEY_BINARY_LENGTH;
   else if (type == mapping_type::wallet)  max_value_len = sizeof(cryptonote::account_public_address);
   else value_require_exact_len = false;
@@ -641,11 +620,10 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
   if (mapping)
   {
     expected_prev_txid = mapping.txid;
-    if (updating)
+    if (updating) // We can always update unless the mapping has expired
     {
-      if (data.type == lns::mapping_type::lokinet && !mapping.active(lns_db.network_type(), blockchain_height))
+      if (!mapping.active(lns_db.network_type(), blockchain_height))
       {
-        // Updating, we can always update unless the mapping has expired
         if (reason)
         {
           err_stream << tx << ", " << data << ", TX requested to update mapping that has already expired";
@@ -682,7 +660,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
     }
     else
     {
-      if (data.type != lns::mapping_type::lokinet)
+      if (!is_lokinet_type(data.type))
       {
         if (reason)
         {
@@ -694,7 +672,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
       }
 
       uint64_t renew_window              = 0;
-      uint64_t expiry_blocks             = lns::lokinet_expiry_blocks(lns_db.network_type(), &renew_window);
+      uint64_t expiry_blocks             = lns::expiry_blocks(lns_db.network_type(), data.type, &renew_window);
       uint64_t const renew_window_offset = expiry_blocks - renew_window;
       uint64_t const min_renew_height    = mapping.register_height + renew_window_offset;
 
@@ -812,16 +790,16 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   if (!validate_against_previous_mapping(*this, blockchain_height, tx, *entry, reason))
     return false;
 
-  uint64_t burn                = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
-  uint64_t const burn_required = entry->command == lns::tx_command_t::buy
-                                     ? burn_requirement_in_atomic_loki(hf_version, mapping_type_to_burn_type(entry->type))
-                                     : 0;
+  const bool updating    = entry->command == lns::tx_command_t::update;
+  uint64_t burn          = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
+  uint64_t burn_required = updating ? 0 : burn_needed(hf_version, static_cast<lns::mapping_type>(entry->type));
   if (burn != burn_required)
   {
     if (reason)
     {
       char const *over_or_under = burn > burn_required ? "too much " : "insufficient ";
       err_stream << tx << ", " << *entry << ", burned " << over_or_under << "loki=" << burn << ", require=" << burn_required;
+      if (updating) err_stream << ", updating requires just the ordinary transaction fee";
       *reason = err_stream.str();
     }
     return false;
@@ -830,49 +808,29 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   return true;
 }
 
-bool validate_mapping_type(std::string const &type, lns::mapping_type *mapping_type, std::string *reason)
+static std::string lowercase_string(std::string src)
 {
-  std::string type_lowered = type;
-  for (char &ch : type_lowered)
+  for (char &ch : src)
   {
     if (ch >= 'A' && ch <= 'Z')
       ch = ch + ('a' - 'A');
   }
+  return src;
+}
 
-  lns::mapping_type mapping_type_ = lns::mapping_type::session;
-  if (type_lowered == "session") mapping_type_ = lns::mapping_type::session;
+bool validate_mapping_type(std::string const &mapping_type_str, lns::mapping_type *mapping_type, std::string *reason)
+{
+  std::string mapping = lowercase_string(mapping_type_str);
+
+  lns::mapping_type mapping_type_;
+  if (mapping == "session") mapping_type_ = lns::mapping_type::session;
   else
   {
-    try
-    {
-      size_t value = std::stoul(type_lowered);
-      if (value > tools::enum_count<lns::mapping_type>)
-      {
-        if (reason) *reason = "LNS type specifies value too large, must be from [0-" + std::to_string(tools::enum_count<lns::mapping_type>) + "): " + std::to_string(value);
-        return false;
-      }
-      mapping_type_ = static_cast<lns::mapping_type>(value);
-    }
-    catch (std::exception const &)
-    {
-      if (reason) 
-      {
-          *reason = "Failed to convert lns mapping (was not proper integer, or not one of the recognised: \"session\"), string was";
-          if (type.empty())
-          {
-            *reason += " empty.";
-          }
-          else
-          {
-            *reason += "=";
-            *reason += type;
-          }
-      }
-      return false;
-    }
+    if (reason) *reason = "Failed to convert lns mapping (was not proper integer, or not one of the recognised: \"session\"), string was=" + mapping_type_str;
+    return false;
   }
 
-  if (mapping_type) *mapping_type = mapping_type_;
+  if (mapping_type) *mapping_type = static_cast<lns::mapping_type>(mapping_type_);
   return true;
 }
 
@@ -1275,6 +1233,8 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
 {
   std::string sql_statement;
   // Generate string statement
+
+  if (types.size())
   {
     char constexpr SQL_PREFIX[] = R"(SELECT * FROM "mappings" JOIN "owner" ON "mappings"."owner_id" = "owner"."id" WHERE "name" = ? AND "type" in ()";
     char constexpr SQL_SUFFIX[] = R"())";
@@ -1288,6 +1248,10 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
     }
     stream << SQL_SUFFIX;
     sql_statement = stream.str();
+  }
+  else
+  {
+    sql_statement = R"(SELECT * FROM "mappings" JOIN "owner" ON "mappings"."owner_id" = "owner"."id" WHERE "name" = ?)";
   }
 
   // Compile Statement
