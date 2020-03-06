@@ -26,16 +26,8 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(libwallet_api_tests_sources
-  main.cpp
-)
-
-set(libwallet_api_tests_headers
-  )
-
 add_executable(libwallet_api_tests
-  ${libwallet_api_tests_sources}
-  ${libwallet_api_tests_headers})
+  main.cpp)
 
 target_link_libraries(libwallet_api_tests
   PUBLIC
@@ -45,16 +37,13 @@ target_link_libraries(libwallet_api_tests
     wallet
     version
     epee
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_SERIALIZATION_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_LOCALE_LIBRARY}
-    ${ICU_LIBRARIES}
+    Boost::chrono
+    Boost::serialization
+    Boost::filesystem
+    Boost::locale
+    icu
     ${GTEST_LIBRARIES}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
+    extra)
 
 set_property(TARGET libwallet_api_tests
   PROPERTY

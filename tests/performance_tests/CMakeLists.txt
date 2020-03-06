@@ -26,47 +26,18 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(performance_tests_sources
-  main.cpp)
-
-set(performance_tests_headers
-  check_tx_signature.h
-  cn_slow_hash.h
-  construct_tx.h
-  derive_public_key.h
-  derive_secret_key.h
-  ge_frombytes_vartime.h
-  generate_key_derivation.h
-  generate_key_image.h
-  generate_key_image_helper.h
-  generate_keypair.h
-  signature.h
-  is_out_to_acc.h
-  subaddress_expand.h
-  range_proof.h
-  bulletproof.h
-  crypto_ops.h
-  sc_reduce32.h
-  sc_check.h
-  multiexp.h
-  multi_tx_test_base.h
-  performance_tests.h
-  performance_utils.h
-  single_tx_test_base.h)
-
 add_executable(performance_tests
-  ${performance_tests_sources}
-  ${performance_tests_headers})
+  main.cpp)
 target_link_libraries(performance_tests
   PRIVATE
     wallet
     cryptonote_core
     common
-    cncrypto
     epee
-    ${Boost_CHRONO_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
+    Boost::chrono
+    Boost::program_options
+    Boost::regex
+    extra)
 set_property(TARGET performance_tests
   PROPERTY
     FOLDER "tests")

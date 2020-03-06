@@ -26,19 +26,13 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(block_weight_sources
-  block_weight.cpp)
-
-set(block_weight_headers)
-
 add_executable(block_weight
-  ${block_weight_sources}
-  ${block_weight_headers})
+  block_weight.cpp)
 target_link_libraries(block_weight
   PRIVATE
     cryptonote_core
     blockchain_db
-    ${EXTRA_LIBRARIES})
+    extra)
 
 add_test(
   NAME    block_weight

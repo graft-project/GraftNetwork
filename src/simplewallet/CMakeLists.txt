@@ -27,41 +27,22 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(simplewallet_sources
-  simplewallet.cpp)
-
-set(simplewallet_headers)
-
-set(simplewallet_private_headers
-  simplewallet.h)
-
-loki_private_headers(simplewallet
-  ${simplewallet_private_headers})
-loki_add_executable(simplewallet
-  ${simplewallet_sources}
-  ${simplewallet_headers}
-  ${simplewallet_private_headers})
+loki_add_executable(simplewallet "loki-wallet-cli"
+  simplewallet.cpp
+  )
 target_link_libraries(simplewallet
   PRIVATE
     wallet
     daemonizer
     rpc_base
     cryptonote_core
-    cncrypto
-    common
     mnemonics
-    ${EPEE_READLINE}
-    version
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_LOCALE_LIBRARY}
-    ${ICU_LIBRARIES}
-    ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${GNU_READLINE_LIBRARY}
-    ${EXTRA_LIBRARIES})
-set_property(TARGET simplewallet
-  PROPERTY
-    OUTPUT_NAME "loki-wallet-cli")
-install(TARGETS simplewallet DESTINATION bin)
+    epee_readline
+    Boost::chrono
+    Boost::program_options
+    Boost::filesystem
+    Boost::locale
+    Boost::regex
+    icu
+    Boost::thread
+    extra)

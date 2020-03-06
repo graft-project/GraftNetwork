@@ -68,11 +68,11 @@ for s in states:
     socket.connect("tcp://{}:{}".format(ip, port))
     print("Ping {}:{} (for SN {})".format(ip, port, pk))
     bt_tag = bytes("i{}e".format(tag), "utf-8")
-    socket.send_multipart((b"ping", b"d1:!" + bt_tag + b"e"))
+    socket.send_multipart((b"ping.ping", b"d1:!" + bt_tag + b"e"))
     ponged = False
     while socket.poll(timeout=5000):
         m = socket.recv_multipart()
-        if len(m) == 2 and m[0] == b'pong':
+        if len(m) == 2 and m[0] == b'ping.pong':
             ponged = True
             if m[1] == b'd1:!' + bt_tag + b'2:sni1ee':
                 print("Received pong, we were recognized as a SN")

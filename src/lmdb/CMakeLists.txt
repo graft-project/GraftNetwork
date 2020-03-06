@@ -26,8 +26,10 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(lmdb_sources database.cpp error.cpp table.cpp value_stream.cpp)
-set(lmdb_headers database.h error.h key_stream.h table.h transaction.h util.h value_stream.h)
+add_library(lmdb_lib
+  database.cpp
+  error.cpp
+  table.cpp
+  value_stream.cpp)
 
-loki_add_library(lmdb_lib ${lmdb_sources} ${lmdb_headers})
-target_link_libraries(lmdb_lib common ${LMDB_LIBRARY})
+target_link_libraries(lmdb_lib PRIVATE common lmdb)

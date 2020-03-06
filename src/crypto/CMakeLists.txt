@@ -27,7 +27,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(crypto_sources
+add_library(cncrypto
   aesb.c
   blake256.c
   chacha.c
@@ -53,53 +53,42 @@ set(crypto_sources
   rx-slow-hash.c
   tree-hash.c)
 
-include_directories(${RANDOMX_INCLUDE})
-
-set(crypto_headers)
-
-set(crypto_private_headers
-  blake256.h
-  chacha.h
-  crypto-ops.h
-  crypto.h
-  generic-ops.h
-  groestl.h
-  groestl_tables.h
-  hash-ops.h
-  hash.h
-  hmac-keccak.h
-  initializer.h
-  jh.h
-  keccak.h
-  oaes_config.h
-  oaes_lib.h
-  random.h
-  skein.h
-  skein_port.h
-  cn_heavy_hash.hpp)
-
-loki_private_headers(cncrypto
-  ${crypto_private_headers})
-loki_add_library(cncrypto
-  ${crypto_sources}
-  ${crypto_headers}
-  ${crypto_private_headers})
 target_link_libraries(cncrypto
   PUBLIC
     epee
     randomx
-    ${Boost_SYSTEM_LIBRARY}
-    ${SODIUM_LIBRARIES}
+    Boost::system
+    Boost::thread
+    sodium
   PRIVATE
-    ${EXTRA_LIBRARIES})
+    extra)
 
 # Because of the way Qt works on android with JNI, the code does not live in the main android thread
 # So this code runs with a 1 MB default stack size. 
 # This will force the use of the heap for the allocation of the scratchpad
 if (ANDROID OR IOS)
   if( BUILD_GUI_DEPS )
-    add_definitions(-DFORCE_USE_HEAP=1)
+    target_compile_definitions(cncrypto PUBLIC FORCE_USE_HEAP=1)
   endif()
 endif()
 
+option(NO_AES "Explicitly disable AES support" ${NO_AES})
+
+if(NO_AES)
+  message(STATUS "AES support explicitly disabled")
+  target_compile_definitions(cncrypto PRIVATE NO_AES)
+elseif(NOT ARM AND NOT PPC64LE AND NOT PPC64 AND NOT PPC AND NOT S390X)
+  message(STATUS "AES support enabled")
+  target_compile_options(cncrypto PRIVATE "-maes")
+elseif(PPC64LE OR PPC64 OR PPC)
+  message(STATUS "AES support not available on POWER")
+elseif(S390X)
+  message(STATUS "AES support not available on s390x")
+elseif(ARM6)
+  message(STATUS "AES support not available on ARMv6")
+elseif(ARM7)
+  message(STATUS "AES support not available on ARMv7")
+else()
+  message(STATUS "AES support disabled")
+endif()
 

@@ -26,18 +26,12 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(difficulty_sources
-  difficulty.cpp)
-
-set(difficulty_headers)
-
 add_executable(difficulty-tests
-  ${difficulty_sources}
-  ${difficulty_headers})
+  difficulty.cpp)
 target_link_libraries(difficulty-tests
   PRIVATE
     cryptonote_core
-    ${EXTRA_LIBRARIES})
+    extra)
 set_property(TARGET difficulty-tests
   PROPERTY
     FOLDER "tests")

@@ -27,46 +27,23 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(cn_deserialize_sources
+loki_add_executable(cn_deserialize "loki-utils-deserialize"
   cn_deserialize.cpp
   )
 
-loki_add_executable(cn_deserialize
-  ${cn_deserialize_sources}
-  ${cn_deserialize_private_headers})
-
 target_link_libraries(cn_deserialize
-  LINK_PRIVATE
-    cryptonote_core
-    blockchain_db
-    device
-    ringct
+  PRIVATE
+    Boost::program_options
     p2p
-    epee
-    ${CMAKE_THREAD_LIBS_INIT})
+    extra)
 
-set_property(TARGET cn_deserialize
-	PROPERTY
-	OUTPUT_NAME "loki-utils-deserialize")
-
-
-set(object_sizes_sources
+loki_add_executable(object_sizes "loki-utils-object-sizes"
   object_sizes.cpp
   )
 
-loki_add_executable(object_sizes
-  ${object_sizes_sources}
-  ${object_sizes_private_headers})
-
 target_link_libraries(object_sizes
-  LINK_PRIVATE
-    cryptonote_core
-    blockchain_db
+  PRIVATE
+    lmdb
     p2p
-    epee
-    ${CMAKE_THREAD_LIBS_INIT})
-
-set_property(TARGET object_sizes
-	PROPERTY
-	OUTPUT_NAME "loki-utils-object-sizes")
-
+    extra
+    )

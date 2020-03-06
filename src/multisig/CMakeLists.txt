@@ -27,27 +27,12 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(multisig_sources
+add_library(multisig
   multisig.cpp)
 
-set(multisig_headers)
-
-set(multisig_private_headers
-  multisig.h)
-
-loki_private_headers(multisig
-  ${multisig_private_headers})
-
-loki_add_library(multisig
-  ${multisig_sources}
-  ${multisig_headers}
-  ${multisig_private_headers})
-
 target_link_libraries(multisig
-  PUBLIC
+  PRIVATE
     ringct
     cryptonote_basic
     common
-    cncrypto
-  PRIVATE
-    ${EXTRA_LIBRARIES})
+    extra)

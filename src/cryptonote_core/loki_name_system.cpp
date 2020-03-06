@@ -2,7 +2,6 @@
 
 #include "checkpoints/checkpoints.h"
 #include "common/loki.h"
-#include "common/hex.h"
 #include "common/util.h"
 #include "common/base32z.h"
 #include "crypto/hash.h"
@@ -12,6 +11,8 @@
 #include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/blockchain.h"
 #include "loki_economy.h"
+
+#include <lokimq/hex.h>
 
 #include <sqlite3.h>
 
@@ -520,25 +521,20 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
       }
       return false;
     }
-
-    for (size_t val_index = 0; val_index < value.size(); val_index += 2)
+    if (!lokimq::is_hex(value))
     {
-      char a = value[val_index];
-      char b = value[val_index + 1];
-      if (hex::char_is_hex(a) && hex::char_is_hex(b))
+      if (reason)
       {
-        if (blob) // NOTE: Given blob, write the binary output
-          blob->buffer.data()[blob->len++] = hex::from_hex_pair(a, b);
+        err_stream << "LNS type=" << type <<", specifies name -> value mapping where the value is not a hex string given value=" << value;
+        *reason = err_stream.str();
       }
-      else
-      {
-        if (reason)
-        {
-          err_stream << "LNS type=" << type <<", specifies name -> value mapping where the value is not a hex string given value=" << value;
-          *reason = err_stream.str();
-        }
-        return false;
-      }
+      return false;
+    }
+    if (blob) // NOTE: Given blob, write the binary output
+    {
+      blob->len = value.size() / 2;
+      assert(blob->len <= blob->buffer.size());
+      lokimq::from_hex(value.begin(), value.end(), blob->buffer.begin());
     }
 
     if (type == mapping_type::session)
