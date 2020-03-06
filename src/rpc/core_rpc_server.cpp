@@ -3386,7 +3386,7 @@ namespace cryptonote
       if (exceeds_quantity_limit(ctx, error_resp, m_restricted, request.types.size(), COMMAND_RPC_GET_LNS_NAMES_TO_OWNERS::MAX_TYPE_REQUEST_ENTRIES, "types"))
         return false;
 
-      crypto::hash name_hash = lns::name_to_hash(request.name);
+      std::string name_hash = lns::name_to_base64_hash(request.name);
       std::vector<lns::mapping_record> records = db.get_mappings(request.types, name_hash);
       res.entries.reserve(records.size());
       for (auto const &record : records)
@@ -3433,7 +3433,7 @@ namespace cryptonote
 
     lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
     std::vector<lns::mapping_record> records = db.get_mappings_by_owners(keys);
-    for (auto const &record : records)
+    for (auto &record : records)
     {
       res.entries.emplace_back();
       COMMAND_RPC_GET_LNS_OWNERS_TO_NAMES::response_entry &entry = res.entries.back();
@@ -3448,7 +3448,7 @@ namespace cryptonote
 
       entry.request_index   = it->second;
       entry.type            = static_cast<uint16_t>(record.type);
-      entry.name_hash       = epee::string_tools::pod_to_hex(record.name_hash);
+      entry.name_hash       = std::move(record.name_hash);
       entry.encrypted_value = epee::to_hex::string(epee::span<const uint8_t>(record.encrypted_value.buffer.data(), record.encrypted_value.len));
       entry.register_height = record.register_height;
       entry.txid            = epee::string_tools::pod_to_hex(record.txid);

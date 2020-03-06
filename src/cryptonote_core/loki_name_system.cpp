@@ -11,6 +11,7 @@
 #include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/blockchain.h"
 #include "loki_economy.h"
+#include "string_coding.h"
 
 #include <lokimq/hex.h>
 
@@ -155,8 +156,12 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
               memcpy(&tmp_entry.encrypted_value.buffer[0], value, value_len);
             }
 
-            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_row::name_hash), tmp_entry.name_hash.data, sizeof(tmp_entry.name_hash)))
-              return false;
+            // Copy name hash
+            {
+              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::name_hash)));
+              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::name_hash)));
+              tmp_entry.name_hash.append(value, value_len);
+            }
 
             if (!sql_copy_blob(statement, static_cast<int>(mapping_record_row::txid), tmp_entry.txid.data, sizeof(tmp_entry.txid)))
               return false;
@@ -589,11 +594,18 @@ static std::ostream &operator<<(std::ostream &stream, cryptonote::tx_extra_loki_
   return stream;
 }
 
+static std::string hash_to_base64(crypto::hash const &hash)
+{
+  std::string result = epee::string_encoding::base64_encode(reinterpret_cast<unsigned char const *>(hash.data), sizeof(hash));
+  return result;
+}
+
 static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system &data, std::string *reason = nullptr)
 {
   std::stringstream err_stream;
   crypto::hash expected_prev_txid = crypto::null_hash;
-  lns::mapping_record mapping     = lns_db.get_mapping(data.type, data.name_hash);
+  std::string name_hash           = hash_to_base64(data.name_hash);
+  lns::mapping_record mapping     = lns_db.get_mapping(data.type, name_hash);
   const bool updating = data.command == lns::tx_command_t::update;
   if (updating && !mapping)
   {
@@ -844,6 +856,13 @@ crypto::hash name_to_hash(std::string const &name)
   return result;
 }
 
+std::string name_to_base64_hash(std::string const &name)
+{
+  crypto::hash hash  = name_to_hash(name);
+  std::string result = hash_to_base64(hash);
+  return result;
+}
+
 struct alignas(size_t) secretbox_secret_key_ { unsigned char data[crypto_secretbox_KEYBYTES]; };
 using secretbox_secret_key = epee::mlocked<tools::scrubbed<secretbox_secret_key_>>;
 
@@ -916,7 +935,7 @@ CREATE TABLE IF NOT EXISTS "settings" (
 CREATE TABLE IF NOT EXISTS "mappings" (
     "id" INTEGER PRIMARY KEY NOT NULL,
     "type" INTEGER NOT NULL,
-    "name_hash" BLOB NOT NULL,
+    "name_hash" VARCHAR NOT NULL,
     "encrypted_value" BLOB NOT NULL,
     "txid" BLOB NOT NULL,
     "prev_txid" BLOB NOT NULL,
@@ -1221,9 +1240,10 @@ bool name_system_db::save_owner(crypto::ed25519_public_key const &key, int64_t *
 
 bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id)
 {
+  std::string name_hash   = hash_to_base64(src.name_hash);
   sqlite3_stmt *statement = save_mapping_sql;
   sqlite3_bind_int  (statement, static_cast<int>(mapping_record_row::type), static_cast<uint16_t>(src.type));
-  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::name_hash), src.name_hash.data, sizeof(src.name_hash), nullptr /*destructor*/);
+  sqlite3_bind_text (statement, static_cast<int>(mapping_record_row::name_hash), name_hash.data(), name_hash.size(), nullptr /*destructor*/);
   sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::encrypted_value), src.encrypted_value.data(), src.encrypted_value.size(), nullptr /*destructor*/);
   sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::txid), tx_hash.data, sizeof(tx_hash), nullptr /*destructor*/);
   sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::prev_txid), src.prev_txid.data, sizeof(src.prev_txid), nullptr /*destructor*/);
@@ -1281,19 +1301,19 @@ owner_record name_system_db::get_owner_by_id(int64_t owner_id) const
   return result;
 }
 
-mapping_record name_system_db::get_mapping(mapping_type type, crypto::hash const &name_hash) const
+mapping_record name_system_db::get_mapping(mapping_type type, std::string const &name_base64_hash) const
 {
   sqlite3_stmt *statement = get_mapping_sql;
   sqlite3_clear_bindings(statement);
   sqlite3_bind_int(statement, 1 /*sql param index*/, static_cast<uint16_t>(type));
-  sqlite3_bind_blob(statement, 2 /*sql param index*/, name_hash.data, sizeof(name_hash), nullptr /*destructor*/);
+  sqlite3_bind_text(statement, 2 /*sql param index*/, name_base64_hash.data(), name_base64_hash.size(), nullptr /*destructor*/);
 
   mapping_record result = {};
   result.loaded         = sql_run_statement(nettype, lns_sql_type::get_mapping, statement, &result);
   return result;
 }
 
-std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> const &types, crypto::hash const &name_hash) const
+std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> const &types, std::string const &name_base64_hash) const
 {
   std::string sql_statement;
   // Generate string statement
@@ -1326,7 +1346,7 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
 
   // Bind parameters statements
   int sql_param_index = 1;
-  sqlite3_bind_blob(statement, sql_param_index++, name_hash.data, sizeof(name_hash), nullptr /*destructor*/);
+  sqlite3_bind_text(statement, sql_param_index++, name_base64_hash.data(), name_base64_hash.size(), nullptr /*destructor*/);
   for (auto type : types)
     sqlite3_bind_int(statement, sql_param_index++, type);
   assert((sql_param_index - 1) == static_cast<int>(1 /*name*/ + types.size()));

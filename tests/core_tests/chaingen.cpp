@@ -537,9 +537,10 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   if (burn == LNS_AUTO_BURN)
     burn = lns::burn_needed(new_hf_version, type);
 
-  crypto::hash name_hash = lns::name_to_hash(name);
+  crypto::hash name_hash       = lns::name_to_hash(name);
+  std::string name_base64_hash = lns::name_to_base64_hash(name);
   crypto::hash prev_txid = crypto::null_hash;
-  if (lns::mapping_record mapping = lns_db_.get_mapping(type, name_hash))
+  if (lns::mapping_record mapping = lns_db_.get_mapping(type, name_base64_hash))
     prev_txid = mapping.txid;
 
   lns::mapping_value encrypted_value = {};
@@ -567,9 +568,10 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(
                                                                                 crypto::ed25519_signature *signature,
                                                                                 bool use_asserts) const
 {
-  crypto::hash name_hash      = lns::name_to_hash(name);
-  lns::mapping_record mapping = lns_db_.get_mapping(type, name_hash);
-  crypto::hash prev_txid      = mapping.txid;
+  crypto::hash name_hash       = lns::name_to_hash(name);
+  std::string name_base64_hash = lns::name_to_base64_hash(name);
+  lns::mapping_record mapping  = lns_db_.get_mapping(type, name_base64_hash);
+  crypto::hash prev_txid       = mapping.txid;
   if (use_asserts) assert(mapping);
 
   crypto::ed25519_public_key pkey;

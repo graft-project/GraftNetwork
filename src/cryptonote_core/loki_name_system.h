@@ -69,7 +69,7 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::has
 bool         validate_lns_name(mapping_type type, std::string const &name, std::string *reason = nullptr);
 
 // Validate a human readable mapping value representation in 'value' and write the binary form into 'blob'.
-// value: if type is session, 64 character hex string of an ed25519 public key
+// value: if type is session, 66 character hex string of an ed25519 public key
 //                   lokinet, 52 character base32z string of an ed25519 public key
 //                   wallet,  the wallet public address string
 // blob: (optional) if function returns true, validate_mapping_value will convert the 'value' into a binary format suitable for encryption in encrypt_mapping_value(...)
@@ -81,8 +81,8 @@ bool         validate_encrypted_mapping_value(mapping_type type, std::string con
 // mapping_type: (optional) if function returns true, the uint16_t value of the 'type' will be set
 bool         validate_mapping_type(std::string const &type, mapping_type *mapping_type, std::string *reason);
 
-// Takes a human readable mapping name and converts to a hash suitable for storing into the LNS DB.
-crypto::hash name_to_hash(std::string const &name);
+crypto::hash name_to_hash(std::string const &name);        // Takes a human readable name and hashes it.
+std::string  name_to_base64_hash(std::string const &name); // Takes a human readable name, hashes it and returns a base64 representation of the hash, suitable for storage into the LNS DB.
 
 // Takes a binary value and encrypts it using 'name' as a secret key or vice versa, suitable for storing into the LNS DB.
 // Only basic overflow validation is attempted, values should be pre-validated in the validate* functions.
@@ -120,7 +120,7 @@ struct mapping_record
 
   bool                       loaded;
   mapping_type               type;
-  crypto::hash               name_hash;
+  std::string                name_hash; // name hashed and represented in base64 encoding
   mapping_value              encrypted_value;
   uint64_t                   register_height;
   int64_t                    owner_id;
@@ -149,8 +149,8 @@ struct name_system_db
 
   owner_record                get_owner_by_key      (crypto::ed25519_public_key const &key) const;
   owner_record                get_owner_by_id       (int64_t owner_id) const;
-  mapping_record              get_mapping           (mapping_type type, crypto::hash const &name_hash) const;
-  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, crypto::hash const &name) const;
+  mapping_record              get_mapping           (mapping_type type, std::string const &name_base64_hash) const;
+  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name_base64_hash) const;
   std::vector<mapping_record> get_mappings_by_owner (crypto::ed25519_public_key const &key) const;
   std::vector<mapping_record> get_mappings_by_owners(std::vector<crypto::ed25519_public_key> const &keys) const;
   settings_record             get_settings          () const;
