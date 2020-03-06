@@ -106,6 +106,47 @@ static bool sql_copy_blob(sqlite3_stmt *statement, int column, void *dest, int d
   return true;
 }
 
+static mapping_record sql_get_mapping_from_statement(sqlite3_stmt *statement)
+{
+  mapping_record result = {};
+  int type_int = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::type)));
+  if (type_int >= tools::enum_count<mapping_type>)
+    return result;
+
+  result.type            = static_cast<mapping_type>(type_int);
+  result.register_height = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::register_height)));
+  result.owner_id        = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::owner_id));
+  result.backup_owner_id = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::backup_owner_id));
+
+  int name_len  = sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::name));
+  auto *name    = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::name)));
+
+  size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::value)));
+  auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::value)));
+
+  result.name  = std::string(name, name_len);
+  result.value = std::string(value, value_len);
+
+  if (!sql_copy_blob(statement, static_cast<int>(mapping_record_column::txid), result.txid.data, sizeof(result.txid)))
+    return result;
+
+  if (!sql_copy_blob(statement, static_cast<int>(mapping_record_column::prev_txid), result.prev_txid.data, sizeof(result.prev_txid)))
+    return result;
+
+  int owner_column = tools::enum_count<mapping_record_column>;
+  if (!sql_copy_blob(statement, owner_column, result.owner.data, sizeof(result.owner)))
+    return result;
+
+  if (result.backup_owner_id > 0)
+  {
+    if (!sql_copy_blob(statement, owner_column + 1, result.backup_owner.data, sizeof(result.backup_owner)))
+      return result;
+  }
+
+  result.loaded = true;
+  return result;
+}
+
 static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type type, sqlite3_stmt *statement, void *context)
 {
   bool data_loaded = false;
@@ -153,63 +194,19 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           case lns_sql_type::get_mappings: /* FALLTHRU */
           case lns_sql_type::get_mapping:
           {
-            mapping_record tmp_entry = {};
-            int type_int = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::type)));
-            if (type_int >= tools::enum_count<mapping_type>)
-              return false;
-
-            tmp_entry.type            = static_cast<mapping_type>(type_int);
-            tmp_entry.register_height = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::register_height)));
-            tmp_entry.owner_id        = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::owner_id));
-            tmp_entry.backup_owner_id = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::backup_owner_id));
-
-            // Copy encrypted_value
+            if (mapping_record tmp_entry = sql_get_mapping_from_statement(statement))
             {
-              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::encrypted_value)));
-              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::encrypted_value)));
-              if (value_len > tmp_entry.encrypted_value.buffer.size())
+              data_loaded = true;
+              if (type == lns_sql_type::get_mapping)
               {
-                  MERROR("Unexpected encrypted value blob with size=" << value_len << ", in LNS db larger than the available size=" << tmp_entry.encrypted_value.buffer.size());
-                  return false;
+                auto *entry = reinterpret_cast<mapping_record *>(context);
+                *entry      = std::move(tmp_entry);
               }
-              tmp_entry.encrypted_value.len = value_len;
-              memcpy(&tmp_entry.encrypted_value.buffer[0], value, value_len);
-            }
-
-            // Copy name hash
-            {
-              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::name_hash)));
-              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::name_hash)));
-              tmp_entry.name_hash.append(value, value_len);
-            }
-
-            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_column::txid), tmp_entry.txid.data, sizeof(tmp_entry.txid)))
-              return false;
-
-            if (!sql_copy_blob(statement, static_cast<int>(mapping_record_column::prev_txid), tmp_entry.prev_txid.data, sizeof(tmp_entry.prev_txid)))
-              return false;
-
-            int owner_column = tools::enum_count<mapping_record_column>;
-            if (!sql_copy_blob(statement, owner_column, tmp_entry.owner.data, sizeof(tmp_entry.owner)))
-              return false;
-
-            if (tmp_entry.backup_owner_id > 0)
-            {
-              if (!sql_copy_blob(statement, owner_column + 1, tmp_entry.backup_owner.data, sizeof(tmp_entry.backup_owner)))
-                return false;
-            }
-
-            tmp_entry.loaded = true;
-            data_loaded      = true;
-            if (type == lns_sql_type::get_mapping)
-            {
-              auto *entry = reinterpret_cast<mapping_record *>(context);
-              *entry      = std::move(tmp_entry);
-            }
-            else
-            {
-              auto *records = reinterpret_cast<std::vector<mapping_record> *>(context);
-              records->emplace_back(std::move(tmp_entry));
+              else
+              {
+                auto *records = reinterpret_cast<std::vector<mapping_record> *>(context);
+                records->emplace_back(std::move(tmp_entry));
+              }
             }
           }
           break;
