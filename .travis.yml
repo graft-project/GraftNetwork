@@ -66,7 +66,7 @@ script:
   - mkdir build
   - cd build
   - if [ -z "$CMAKE_BUILD_TYPE" ]; then CMAKE_BUILD_TYPE=Release; fi
-  - CMAKE_OPTS="$CMAKE_OPTS -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE"
+  - CMAKE_OPTS="$CMAKE_OPTS -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE -D DOWNLOAD_SODIUM=ON"
   - if [ -n "$BUILD_TESTS" ]; then CMAKE_OPTS="$CMAKE_OPTS -DBUILD_TESTS=$BUILD_TESTS"; fi
   - cmake $CMAKE_OPTS ..
   - |
