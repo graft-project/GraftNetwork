@@ -118,14 +118,25 @@ static mapping_record sql_get_mapping_from_statement(sqlite3_stmt *statement)
   result.owner_id        = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::owner_id));
   result.backup_owner_id = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::backup_owner_id));
 
-  int name_len  = sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::name));
-  auto *name    = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::name)));
+  // Copy encrypted_value
+  {
+    size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::encrypted_value)));
+    auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::encrypted_value)));
+    if (value_len > result.encrypted_value.buffer.size())
+    {
+      MERROR("Unexpected encrypted value blob with size=" << value_len << ", in LNS db larger than the available size=" << result.encrypted_value.buffer.size());
+      return result;
+    }
+    result.encrypted_value.len = value_len;
+    memcpy(&result.encrypted_value.buffer[0], value, value_len);
+  }
 
-  size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::value)));
-  auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::value)));
-
-  result.name  = std::string(name, name_len);
-  result.value = std::string(value, value_len);
+  // Copy name hash
+  {
+    size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_column::name_hash)));
+    auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_column::name_hash)));
+    result.name_hash.append(value, value_len);
+  }
 
   if (!sql_copy_blob(statement, static_cast<int>(mapping_record_column::txid), result.txid.data, sizeof(result.txid)))
     return result;
@@ -360,6 +371,21 @@ static bool char_is_alphanum(char c)
   return result;
 }
 
+template <typename... T>
+static bool check_condition(bool condition, std::string* reason, T&&... args) {
+  if (condition && reason)
+  {
+    std::ostringstream os;
+#ifdef __cpp_fold_expressions // C++17
+    (os << ... << std::forward<T>(args));
+#else
+    (void) std::initializer_list<int>{(os << std::forward<T>(args), 0)...};
+#endif
+    *reason = os.str();
+  }
+  return condition;
+}
+
 bool validate_lns_name(mapping_type type, std::string const &name, std::string *reason)
 {
   std::stringstream err_stream;
@@ -376,14 +402,8 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   }
 
   // NOTE: Validate name length
-  if (name.empty() || name.size() > max_name_len)
-  {
-    if (reason)
-    {
-      err_stream << "LNS type=" << type << ", specifies mapping from name -> value where the name's length=" << name.size() << " is 0 or exceeds the maximum length=" << max_name_len << ", given name=" << name;
-    }
+  if (check_condition((name.empty() || name.size() > max_name_len), reason, "LNS type=", type, ", specifies mapping from name -> value where the name's length=", name.size(), " is 0 or exceeds the maximum length=", max_name_len, ", given name=", name))
     return false;
-  }
 
   // NOTE: Validate domain specific requirements
   if (type == mapping_type::session)
@@ -395,59 +415,32 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
     // ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.loki$
     {
       char const SHORTEST_DOMAIN[] = "a.loki";
-      if (name.size() < static_cast<int>(loki::char_count(SHORTEST_DOMAIN)))
-      {
-        if (reason)
-        {
-          err_stream << "LNS type=lokinet, specifies mapping from name -> value where the name is shorter than the shortest possible name=" << SHORTEST_DOMAIN << ", given name=" << name;
-        }
+      if (check_condition((name.size() < static_cast<int>(loki::char_count(SHORTEST_DOMAIN))), reason, "LNS type=lokinet, specifies mapping from name -> value where the name is shorter than the shortest possible name=", SHORTEST_DOMAIN, ", given name=", name))
         return false;
-      }
     }
 
-    if (!char_is_alphanum(name[0])) // Must start with alphanumeric
-    {
-      if (reason)
-      {
-        err_stream << "LNS type=lokinet, specifies mapping from name -> value where the name does not start with an alphanumeric character, name=" << name;
-      }
+    // Must start with alphanumeric
+    if (check_condition(!char_is_alphanum(name[0]), reason, "LNS type=lokinet, specifies mapping from name -> value where the name does not start with an alphanumeric character, name=", name))
       return false;
-    }
 
+    // Must end with .loki
     char const SUFFIX[]     = ".loki";
     char const *name_suffix = name.data() + (name.size() - loki::char_count(SUFFIX));
-    if (memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0) // Must end with .loki
-    {
-      if (reason)
-      {
-        err_stream << "LNS type=lokinet, specifies mapping from name -> value where the name does not end with the domain .loki, name=" << name;
-      }
+    if (check_condition((memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0), reason, "LNS type=lokinet, specifies mapping from name -> value where the name does not end with the domain .loki, name=", name))
       return false;
-    }
 
+    // Characted preceeding suffix must be alphanumeric
     char const *char_preceeding_suffix = name_suffix - 1;
-    if (!char_is_alphanum(char_preceeding_suffix[0])) // Characted preceeding suffix must be alphanumeric
-    {
-      if (reason)
-      {
-        err_stream << "LNS type=lokinet, specifies mapping from name -> value where the character preceeding the <char>.loki is not alphanumeric, char=" << char_preceeding_suffix[0] << ", name=" << name;
-      }
+    if (check_condition(!char_is_alphanum(char_preceeding_suffix[0]), reason, "LNS type=lokinet, specifies mapping from name -> value where the character preceeding the <char>.loki is not alphanumeric, char=", char_preceeding_suffix[0], ", name=", name))
       return false;
-    }
 
     char const *begin = name.data() + 1;
     char const *end   = char_preceeding_suffix;
     for (char const *it = begin; it < end; it++) // Inbetween start and preceeding suffix, alphanumeric and hyphen characters permitted
     {
       char c = it[0];
-      if (!(char_is_alphanum(c) || c == '-'))
-      {
-        if (reason)
-        {
-          err_stream << "LNS type=lokinet, specifies mapping from name -> value where the domain name contains more than the permitted alphanumeric or hyphen characters name=" << name;
-        }
+      if (check_condition(!(char_is_alphanum(c) || c == '-'), reason, "LNS type=lokinet, specifies mapping from name -> value where the domain name contains more than the permitted alphanumeric or hyphen characters name=", name))
         return false;
-      }
     }
   }
 
@@ -475,9 +468,9 @@ static bool check_lengths(mapping_type type, std::string const &value, size_t ma
 bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, mapping_value *blob, std::string *reason)
 {
   if (blob) *blob = {};
-  std::stringstream err_stream;
 
   // Check length of the value
+  std::stringstream err_stream;
   cryptonote::address_parse_info addr_info = {};
   if (type == mapping_type::wallet)
   {
@@ -529,26 +522,12 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
   }
   else if (is_lokinet_type(type))
   {
-    if (value.size() != 52)
-    {
-      if (reason)
-      {
-        err_stream << "The lokinet value=" << value << ", should be a 52 char base32z string, length=" << value.size();
-        *reason = err_stream.str();
-      }
+    if (check_condition(value.size() != 52, reason, "The lokinet value=", value, ", should be a 52 char base32z string, length=", value.size()))
       return false;
-    }
 
     crypto::ed25519_public_key pkey;
-    if (!base32z::decode(value, pkey))
-    {
-      if (reason)
-      {
-        err_stream << "The value=" << value << ", was not a decodable base32z value.";
-        *reason = err_stream.str();
-      }
+    if (check_condition(!base32z::decode(value, pkey), reason, "The value=", value, ", was not a decodable base32z value."))
       return false;
-    }
 
     if (blob)
     {
@@ -560,24 +539,12 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
   {
     assert(type == mapping_type::session);
     // NOTE: Check value is hex
-    if ((value.size() % 2) != 0)
-    {
-      if (reason)
-      {
-        err_stream << "The value=" << value << ", should be a hex string that has an even length to be convertible back into binary, length=" << value.size();
-        *reason = err_stream.str();
-      }
+    if (check_condition((value.size() % 2) != 0, reason, "The value=", value, ", should be a hex string that has an even length to be convertible back into binary, length=", value.size()))
       return false;
-    }
-    if (!lokimq::is_hex(value))
-    {
-      if (reason)
-      {
-        err_stream << "LNS type=" << type <<", specifies name -> value mapping where the value is not a hex string given value=" << value;
-        *reason = err_stream.str();
-      }
+
+    if (check_condition(!lokimq::is_hex(value), reason, ", specifies name -> value mapping where the value is not a hex string given value="))
       return false;
-    }
+
     if (blob) // NOTE: Given blob, write the binary output
     {
       blob->len = value.size() / 2;
@@ -585,15 +552,9 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
       lokimq::from_hex(value.begin(), value.end(), blob->buffer.begin());
     }
 
-    if (!(value[0] == '0' && value[1] == '5')) // NOTE: Session public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
-    {
-      if (reason)
-      {
-        err_stream << "LNS type=session, specifies mapping from name_hash->ed25519 key where the key is not prefixed with 53 (0x05), prefix=" << std::to_string(value[0]) << " (" << value[0] << "), given ed25519=" << value;
-        *reason = err_stream.str();
-      }
+    // NOTE: Session public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
+    if (check_condition(!(value[0] == '0' && value[1] == '5'), reason, "LNS type=session, specifies mapping from name -> ed25519 key where the key is not prefixed with 53 (0x05), prefix=", std::to_string(value[0]), " (", value[0], "), given ed25519=", value))
       return false;
-    }
   }
 
   return true;
@@ -654,13 +615,7 @@ static bool verify_lns_signature(crypto::hash const &hash, crypto::generic_signa
   return true;
 }
 
-#define ERROR_RETURN(tx, lns_extra, msg)                                                                               \
-  do                                                                                                                   \
-  {                                                                                                                    \
-    if (reason) err_stream << tx << ", " << lns_extra << ", " << msg;                                                  \
-    return false;                                                                                                      \
-  } while (false)
-static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system &lns_extra, std::string *reason = nullptr)
+static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &lns_extra, std::string *reason = nullptr)
 {
   std::stringstream err_stream;
   LOKI_DEFER { if (reason && reason->empty()) *reason = err_stream.str(); };
@@ -668,28 +623,29 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
   crypto::hash expected_prev_txid = crypto::null_hash;
   std::string name_hash           = hash_to_base64(lns_extra.name_hash);
   lns::mapping_record mapping     = lns_db.get_mapping(lns_extra.type, name_hash);
-  if (lns_extra.is_updating() && !mapping)
-    ERROR_RETURN(tx, lns_extra, "update requested but mapping does not exist.");
+
+  if (check_condition(lns_extra.is_updating() && !mapping, reason, tx, ", ", lns_extra, " update requested but mapping does not exist."))
+    return false;
 
   if (mapping)
   {
     expected_prev_txid = mapping.txid;
     if (lns_extra.is_updating())
     {
-      if (is_lokinet_type(lns_extra.type) && !mapping.active(lns_db.network_type(), blockchain_height))
-        ERROR_RETURN(tx, lns_extra, "TX requested to update mapping that has already expired");
+      if (check_condition(is_lokinet_type(lns_extra.type) && !mapping.active(lns_db.network_type(), blockchain_height), reason, tx, ", ", lns_extra, " TX requested to update mapping that has already expired"))
+        return false;
 
       auto span_a = epee::strspan<uint8_t>(lns_extra.encrypted_value);
       auto span_b = mapping.encrypted_value.to_span();
-      char const SPECIFYING_SAME_VALUE_ERR[] = "field to update is specifying the same mapping ";
-      if (lns_extra.field_is_set(lns::extra_field::encrypted_value) && (span_a.size() == span_b.size() && memcmp(span_a.data(), span_b.data(), span_a.size()) == 0))
-        ERROR_RETURN(tx, lns_extra, SPECIFYING_SAME_VALUE_ERR << "value");
+      char const SPECIFYING_SAME_VALUE_ERR[] = " field to update is specifying the same mapping ";
+      if (check_condition(lns_extra.field_is_set(lns::extra_field::encrypted_value) && (span_a.size() == span_b.size() && memcmp(span_a.data(), span_b.data(), span_a.size()) == 0), reason, tx, ", ", lns_extra, SPECIFYING_SAME_VALUE_ERR, "value"))
+        return false;
 
-      if (lns_extra.field_is_set(lns::extra_field::owner) && lns_extra.owner == mapping.owner)
-        ERROR_RETURN(tx, lns_extra, SPECIFYING_SAME_VALUE_ERR << "owner");
+      if (check_condition(lns_extra.field_is_set(lns::extra_field::owner) && lns_extra.owner == mapping.owner, reason, tx, ", ", lns_extra, SPECIFYING_SAME_VALUE_ERR, "owner"))
+        return false;
 
-      if (lns_extra.field_is_set(lns::extra_field::backup_owner) && lns_extra.backup_owner == mapping.backup_owner)
-        ERROR_RETURN(tx, lns_extra, SPECIFYING_SAME_VALUE_ERR << "backup_owner");
+      if (check_condition(lns_extra.field_is_set(lns::extra_field::backup_owner) && lns_extra.backup_owner == mapping.backup_owner, reason, tx, ", ", lns_extra, SPECIFYING_SAME_VALUE_ERR, "backup_owner"))
+          return false;
 
       // Validate signature
       {
@@ -698,8 +654,12 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
                                                     lns_extra.field_is_set(lns::extra_field::owner) ? &lns_extra.owner : nullptr,
                                                     lns_extra.field_is_set(lns::extra_field::backup_owner) ? &lns_extra.backup_owner : nullptr,
                                                     expected_prev_txid);
-        if (!verify_lns_signature(hash, lns_extra.signature, mapping.owner) && !verify_lns_signature(hash, lns_extra.signature, mapping.backup_owner))
-          ERROR_RETURN(tx, lns_extra, "failed to verify signature for LNS update, current owner=" << mapping.owner << ", backup owner=" << mapping.backup_owner);
+        if (check_condition(!verify_lns_signature(hash, lns_extra.signature, mapping.owner) &&
+                            !verify_lns_signature(hash, lns_extra.signature, mapping.backup_owner), reason,
+                            tx, ", ", lns_extra, " failed to verify signature for LNS update, current owner=", mapping.owner, ", backup owner=", mapping.backup_owner))
+        {
+          return false;
+        }
       }
     }
     else
@@ -707,68 +667,63 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
       if (!is_lokinet_type(lns_extra.type))
       {
         lns::owner_record owner = lns_db.get_owner_by_id(mapping.owner_id);
-        ERROR_RETURN(tx, lns_extra, "non-lokinet entries can NOT be renewed, mapping already exists with name_hash=" << mapping.name_hash << ", owner=" << owner.key << ", type=" << mapping.type);
+        if (check_condition(true, reason, tx, ", ", lns_extra, " non-lokinet entries can NOT be renewed, mapping already exists with name_hash=", mapping.name_hash, ", owner=", owner.key, ", type=", mapping.type))
+          return false;
       }
 
-      if (!(lns_extra.field_is_set(lns::extra_field::buy) || lns_extra.field_is_set(lns::extra_field::buy_no_backup)))
-        ERROR_RETURN(tx, lns_extra, "TX is buying mapping but serialized unexpected fields not relevant for buying");
+      if (check_condition(!(lns_extra.field_is_set(lns::extra_field::buy) || lns_extra.field_is_set(lns::extra_field::buy_no_backup)), reason,
+                          " TX is buying mapping but serialized unexpected fields not relevant for buying"))
+      {
+        return false;
+      }
 
       uint64_t renew_window              = 0;
       uint64_t expiry_blocks             = lns::expiry_blocks(lns_db.network_type(), lns_extra.type, &renew_window);
       uint64_t const renew_window_offset = expiry_blocks - renew_window;
       uint64_t const min_renew_height    = mapping.register_height + renew_window_offset;
 
-      if (min_renew_height >= blockchain_height)
-        ERROR_RETURN(tx, lns_extra, "trying to renew too early, the earliest renew height=" << min_renew_height << ", current height=" << blockchain_height);
+      if (check_condition(min_renew_height >= blockchain_height, reason, tx, ", ", lns_extra, " trying to renew too early, the earliest renew height=", min_renew_height, ", current height=", blockchain_height))
+          return false;
 
       if (mapping.active(lns_db.network_type(), blockchain_height))
       {
         // Lokinet entry expired i.e. it's no longer active. A purchase for this name is valid
         // Check that the request originates from the owner of this mapping
         lns::owner_record const requester = lns_db.get_owner_by_key(lns_extra.owner);
-        if (!requester)
-          ERROR_RETURN(tx, lns_extra, "trying to renew existing mapping but owner specified in LNS extra does not exist, rejected");
+        if (check_condition(requester, reason, tx, ", ", lns_extra, " trying to renew existing mapping but owner specified in LNS extra does not exist, rejected"))
+          return false;
 
         lns::owner_record const owner = lns_db.get_owner_by_id(mapping.owner_id);
-        if (!owner)
-          ERROR_RETURN(tx, lns_extra, "unexpected owner_id=" << mapping.owner_id << " does not exist");
+        if (check_condition(owner, reason, tx, ", ", lns_extra, " unexpected owner_id=", mapping.owner_id, " does not exist"))
+          return false;
 
-        if (requester.id != owner.id)
-          ERROR_RETURN(tx, lns_extra, "actual owner=" << owner.key << ", with owner_id=" << mapping.owner_id << ", does not match requester=" << requester.key << ", with id=" << requester.id);
+        if (check_condition(requester.id != owner.id, reason, tx, ", ", lns_extra, " actual owner=",  owner.key, ", with owner_id=", mapping.owner_id, ", does not match requester=", requester.key, ", with id=", requester.id))
+          return false;
 
       }
       // else mapping has expired, new purchase is valid
     }
   }
 
-  if (lns_extra.prev_txid != expected_prev_txid)
-    ERROR_RETURN(tx, lns_extra, "specified prior owner txid=" << lns_extra.prev_txid << ", but LNS DB reports=" << expected_prev_txid << ", possible competing TX was submitted and accepted before this TX was processed");
+  if (check_condition(lns_extra.prev_txid != expected_prev_txid, reason, tx, ", ", lns_extra, " specified prior owner txid=", lns_extra.prev_txid, ", but LNS DB reports=", expected_prev_txid, ", possible competing TX was submitted and accepted before this TX was processed"))
+    return false;
 
   return true;
 }
 
 bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *lns_extra, std::string *reason) const
 {
-  std::stringstream err_stream;
-  LOKI_DEFER { if (reason && reason->empty()) *reason = err_stream.str(); };
-
   // -----------------------------------------------------------------------------------------------
   // Pull out LNS Extra from TX
   // -----------------------------------------------------------------------------------------------
   cryptonote::tx_extra_loki_name_system lns_extra_;
   {
     if (!lns_extra) lns_extra = &lns_extra_;
-    if (tx.type != cryptonote::txtype::loki_name_system)
-    {
-      if (reason) err_stream << tx << ", uses wrong tx type, expected=" << cryptonote::txtype::loki_name_system;
+    if (check_condition(tx.type != cryptonote::txtype::loki_name_system, reason, tx, ", uses wrong tx type, expected=", cryptonote::txtype::loki_name_system))
       return false;
-    }
 
-    if (!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, *lns_extra))
-    {
-      if (reason) err_stream << tx << ", didn't have loki name service in the tx_extra";
+    if (check_condition(!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, *lns_extra), reason, tx, ", didn't have loki name service in the tx_extra"))
       return false;
-    }
   }
 
 
@@ -777,41 +732,41 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   // -----------------------------------------------------------------------------------------------
   {
     char const VALUE_SPECIFIED_BUT_NOT_REQUESTED[] = ", given field but field is not requested to be serialised=";
-    if (!lns_extra->field_is_set(lns::extra_field::encrypted_value) && lns_extra->encrypted_value.size())
-      ERROR_RETURN(tx, lns_extra, VALUE_SPECIFIED_BUT_NOT_REQUESTED << "value");
+    if (check_condition(!lns_extra->field_is_set(lns::extra_field::encrypted_value) && lns_extra->encrypted_value.size(), reason, tx, ", ", *lns_extra, VALUE_SPECIFIED_BUT_NOT_REQUESTED, "encrypted_value"))
+      return false;
 
-    if (!lns_extra->field_is_set(lns::extra_field::owner) && lns_extra->owner)
-      ERROR_RETURN(tx, lns_extra, VALUE_SPECIFIED_BUT_NOT_REQUESTED << "owner");
+    if (check_condition(!lns_extra->field_is_set(lns::extra_field::owner) && lns_extra->owner, reason, tx, ", ", *lns_extra, VALUE_SPECIFIED_BUT_NOT_REQUESTED, "owner"))
+      return false;
 
-    if (!lns_extra->field_is_set(lns::extra_field::backup_owner) && lns_extra->backup_owner)
-      ERROR_RETURN(tx, lns_extra, VALUE_SPECIFIED_BUT_NOT_REQUESTED << "backup_owner");
+    if (check_condition(!lns_extra->field_is_set(lns::extra_field::backup_owner) && lns_extra->backup_owner, reason, tx, ", ", *lns_extra, VALUE_SPECIFIED_BUT_NOT_REQUESTED, "backup_owner"))
+      return false;
 
-    if (!lns_extra->field_is_set(lns::extra_field::signature) && lns_extra->signature)
-      ERROR_RETURN(tx, lns_extra, VALUE_SPECIFIED_BUT_NOT_REQUESTED << "signature");
+    if (check_condition(!lns_extra->field_is_set(lns::extra_field::signature) && lns_extra->signature, reason, tx, ", ", *lns_extra, VALUE_SPECIFIED_BUT_NOT_REQUESTED, "signature"))
+      return false;
   }
 
   // -----------------------------------------------------------------------------------------------
   // Simple LNS Extra Validation
   // -----------------------------------------------------------------------------------------------
   {
-    if (lns_extra->version != 0)
-      ERROR_RETURN(tx, lns_extra, "unexpected version=" << std::to_string(lns_extra->version) << ", expected=0");
+    if (check_condition(lns_extra->version != 0, reason, tx, ", ", *lns_extra, " unexpected version=", std::to_string(lns_extra->version), ", expected=0"))
+      return false;
 
-    if (!lns::mapping_type_allowed(hf_version, lns_extra->type))
-      ERROR_RETURN(tx, lns_extra, "specifying type=" << lns_extra->type << " that is disallowed");
+    if (check_condition(!lns::mapping_type_allowed(hf_version, lns_extra->type), reason, tx, ", ", *lns_extra, " specifying type=", lns_extra->type, " that is disallowed"))
+      return false;
 
     // -----------------------------------------------------------------------------------------------
     // Serialized Values Check
     // -----------------------------------------------------------------------------------------------
-    char const VALUE_REQUIRED_BUT_NOT_SPECIFIED[] = ", given field but field is not requested to be serialised=";
-    if (!(lns_extra->is_buying() || lns_extra->is_updating()))
-      ERROR_RETURN(tx, lns_extra, "TX extra does not specify valid combination of bits for serialized fields=" << std::bitset<sizeof(lns_extra->fields) * 8>(static_cast<size_t>(lns_extra->fields)));
+    if (check_condition(!lns_extra->is_buying() && !lns_extra->is_updating(), reason, tx, ", ", *lns_extra, " TX extra does not specify valid combination of bits for serialized fields=", std::bitset<sizeof(lns_extra->fields) * 8>(static_cast<size_t>(lns_extra->fields)).to_string()))
+      return false;
 
-    if (lns_extra->field_is_set(lns::extra_field::owner) &&
-        lns_extra->field_is_set(lns::extra_field::backup_owner) &&
-        lns_extra->owner == lns_extra->backup_owner)
+    if (check_condition(lns_extra->field_is_set(lns::extra_field::owner) &&
+                        lns_extra->field_is_set(lns::extra_field::backup_owner) &&
+                        lns_extra->owner == lns_extra->backup_owner,
+                        reason, tx, ", ", *lns_extra, " specifying owner the same as the backup owner=", lns_extra->backup_owner))
     {
-      ERROR_RETURN(tx, lns_extra, "specifying owner the same as the backup owner=" << lns_extra->backup_owner);
+      return false;
     }
    }
 
@@ -820,8 +775,8 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   // -----------------------------------------------------------------------------------------------
   {
     static const crypto::hash null_name_hash = name_to_hash(""); // Sanity check the empty name hash
-    if (lns_extra->name_hash == null_name_hash || lns_extra->name_hash == crypto::null_hash)
-      ERROR_RETURN(tx, lns_extra, "specified the null name hash");
+    if (check_condition((lns_extra->name_hash == null_name_hash || lns_extra->name_hash == crypto::null_hash), reason, tx, ", ", *lns_extra, " specified the null name hash"))
+        return false;
 
     if (lns_extra->field_is_set(lns::extra_field::encrypted_value))
     {
@@ -842,7 +797,8 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     if (burn != burn_required)
     {
       char const *over_or_under = burn > burn_required ? "too much " : "insufficient ";
-      ERROR_RETURN(tx, lns_extra, "burned " << over_or_under << "loki=" << burn << ", require=" << burn_required);
+      if (check_condition(true, reason, tx, ", ", *lns_extra, " burned ", over_or_under, "loki=", burn, ", require=", burn_required))
+        return false;
     }
   }
 
