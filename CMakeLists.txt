@@ -864,15 +864,29 @@ if (LOKI_DEBUG_SHORT_PROOFS)
   add_definitions(-DUPTIME_PROOF_BASE_MINUTE=3) # 20x faster uptime proofs
 endif()
 
-
 add_library(sodium INTERFACE)
-if(NOT SODIUM_LIBRARIES)
+
+# Allow -DDOWNLOAD_SODIUM=FORCE to download without even checking for a local libsodium
+option(DOWNLOAD_SODIUM "Allow libsodium to be downloaded and built locally if not found on the system" OFF)
+if(NOT SODIUM_LIBRARIES AND NOT DOWNLOAD_SODIUM STREQUAL "FORCE")
   find_package(PkgConfig REQUIRED)
-  pkg_check_modules(SODIUM REQUIRED libsodium)
+  pkg_check_modules(SODIUM REQUIRED libsodium>=1.0.18)
+
+  find_library(sodium_link_libs NAMES ${SODIUM_LIBRARIES} PATHS ${SODIUM_LIBRARY_DIRS})
+  target_link_libraries(sodium INTERFACE ${sodium_link_libs})
+  target_include_directories(sodium INTERFACE ${SODIUM_INCLUDE_DIRS})
 endif()
-find_library(sodium_link_libs NAMES ${SODIUM_LIBRARIES} PATHS ${SODIUM_LIBRARY_DIRS})
-target_link_libraries(sodium INTERFACE ${sodium_link_libs})
-target_include_directories(sodium INTERFACE ${SODIUM_INCLUDE_DIRS})
+
+if (NOT sodium_FOUND)
+  if (DOWNLOAD_SODIUM)
+    message(STATUS "Sodium >= 1.0.18 not found, but DOWNLOAD_SODIUM specified, so downloading it")
+    include(DownloadLibSodium)
+    target_link_libraries(sodium INTERFACE sodium_vendor)
+    target_include_directories(sodium INTERFACE sodium_vendor)
+  else()
+    message(FATAL_ERROR "Could not find libsodium >= 1.0.18; either install it on your system or use -DDOWNLOAD_SODIUM=ON to download and build an internal copy")
+  endif()
+endif()
 
 
 add_library(sqlite3 INTERFACE)
