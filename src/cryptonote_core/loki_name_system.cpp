@@ -1221,9 +1221,9 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
       stream << R"(UPDATE "mappings" SET )";
       for (size_t i = 0; i < column_count; i++)
       {
+        if (i) stream << ", ";
         auto column_type = columns[i];
         stream << "\"" << mapping_record_column_string(column_type) << "\" = ?";
-        if (column_type != columns[column_count - 1]) stream << ", ";
       }
 
       columns[column_count++] = mapping_record_column::type;
@@ -1355,26 +1355,7 @@ struct replay_lns_tx
 static std::vector<replay_lns_tx> find_lns_txs_to_replay(cryptonote::Blockchain const &blockchain, lns::mapping_record const &mapping, uint64_t blockchain_height)
 {
   /*
-     -----------------------------------------------------------------------------------------------
-     Detach Logic: Simple Case
-     -----------------------------------------------------------------------------------------------
-     LNS Buy    @ Height 100: LNS Record={field1=a1, field2=b1, field3=c1}
-     LNS Update @ Height 200: LNS Record={field1=a2                      }
-     LNS Update @ Height 300: LNS Record={           field2=b2           }
-     LNS Update @ Height 400: LNS Record={                      field3=c2}
-
-     Blockchain detaches to height 301, the target LNS record now looks like
-                                         {field1=a2, field2=b2, field3=c1}
-
-     Our current LNS record looks like
-                                         {field1=a2, field2=b2, field3=c3}
-
-     To rebuild our record, find the closest LNS Update that is earlier than the
-     detach height. If we run out of transactions to run back to, then the LNS
-     entry is just deleted.
-
-     -----------------------------------------------------------------------------------------------
-     Detach Logic: Advance Case
+     Detach Logic
      -----------------------------------------------------------------------------------------------
      LNS Buy    @ Height 100: LNS Record={field1=a1, field2=b1, field3=c1}
      LNS Update @ Height 200: LNS Record={field1=a2                      }
@@ -1398,8 +1379,9 @@ static std::vector<replay_lns_tx> find_lns_txs_to_replay(cryptonote::Blockchain 
      a state representative of pre-detach height.
 
      i.e. Go back to the closest LNS record to the detach height, at height 300.
-     Next, iterate back until all LNS fields have been updated at a point in
-     time before the detach height (i.e. height 200 with field=a2).
+     Next, iterate back until all LNS fields have been touched at a point in
+     time before the detach height (i.e. height 200 with field=a2). Replay the
+     transactions.
   */
 
   std::vector<replay_lns_tx> result;

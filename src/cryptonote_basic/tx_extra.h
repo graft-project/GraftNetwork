@@ -67,10 +67,11 @@ namespace lns
 {
 enum struct extra_field : uint8_t
 {
-  owner         = 1 << 0,
-  backup_owner  = 1 << 1,
-  signature     = 1 << 2,
-  encrypted_value         = 1 << 3,
+  none            = 0,
+  owner           = 1 << 0,
+  backup_owner    = 1 << 1,
+  signature       = 1 << 2,
+  encrypted_value = 1 << 3,
 
   // Bit Masks
   updatable_fields = (extra_field::owner | extra_field::backup_owner | extra_field::encrypted_value),
@@ -78,7 +79,12 @@ enum struct extra_field : uint8_t
   buy              = (extra_field::buy_no_backup | extra_field::backup_owner),
   all              = (extra_field::updatable_fields | extra_field::signature),
 };
-};
+
+constexpr inline extra_field operator|(extra_field a, extra_field b) { return static_cast<extra_field>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b)); }
+constexpr inline extra_field operator&(extra_field a, extra_field b) { return static_cast<extra_field>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b)); }
+constexpr inline extra_field& operator|=(extra_field& a, extra_field b) { return a = a | b; }
+constexpr inline extra_field& operator&=(extra_field& a, extra_field b) { return a = a & b; }
+}
 
 namespace service_nodes {
   enum class new_state : uint16_t
@@ -412,9 +418,8 @@ namespace cryptonote
     crypto::generic_signature  signature    = {};
     std::string                encrypted_value; // binary format of the name->value mapping
 
-    void set_field    (lns::extra_field bit)       { fields = static_cast<lns::extra_field>(static_cast<uint8_t>(fields) | static_cast<uint8_t>(bit)); }
-    bool field_is_set (lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)) == static_cast<uint8_t>(bit); }
-    bool field_any_set(lns::extra_field bit) const { return (static_cast<uint8_t>(fields) & static_cast<uint8_t>(bit)) > 0; }
+    bool field_is_set (lns::extra_field bit) const { return (fields & bit) == bit; }
+    bool field_any_set(lns::extra_field bit) const { return (fields & bit) != lns::extra_field::none; }
 
     bool is_updating() const { return field_is_set(lns::extra_field::signature) && field_any_set(lns::extra_field::updatable_fields); }
     bool is_buying()   const { return (fields == lns::extra_field::buy || fields == lns::extra_field::buy_no_backup); }
@@ -449,23 +454,23 @@ namespace cryptonote
       result.signature                 = signature;
       result.type                      = type;
       result.name_hash                 = name_hash;
-      result.set_field(lns::extra_field::signature);
+      result.fields |= lns::extra_field::signature;
 
       if (encrypted_value.size())
       {
-        result.set_field(lns::extra_field::encrypted_value);
+        result.fields |= lns::extra_field::encrypted_value;
         result.encrypted_value = std::string(reinterpret_cast<char const *>(encrypted_value.data()), encrypted_value.size());
       }
 
       if (owner)
       {
-        result.set_field(lns::extra_field::owner);
+        result.fields |= lns::extra_field::owner;
         result.owner = *owner;
       }
 
       if (backup_owner)
       {
-        result.set_field(lns::extra_field::backup_owner);
+        result.fields |= lns::extra_field::backup_owner;
         result.backup_owner = *backup_owner;
       }
 
