@@ -8434,7 +8434,7 @@ static bool prepare_tx_extra_loki_name_system_values(cryptonote::network_type ne
                                                      std::string const &value,
                                                      wallet2 const &wallet,
                                                      crypto::hash &prev_txid,
-                                                     lns::lns_value &value_blob,
+                                                     lns::mapping_value &encrypted_value,
                                                      std::string *reason)
 {
   if (priority == tools::tx_priority_blink)
@@ -8443,11 +8443,38 @@ static bool prepare_tx_extra_loki_name_system_values(cryptonote::network_type ne
     return false;
   }
 
-  if (!lns::validate_lns_name(type, name, reason))
+  boost::optional<uint8_t> hf_version = wallet.get_hard_fork_version();
+  if (!hf_version)
+  {
+    if (reason) *reason = ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
     return false;
+  }
 
-  if (!lns::validate_lns_value(nettype, type, value, &value_blob, reason))
-    return false;
+  // Make encrypted value
+  {
+    if (!lns::validate_lns_name(type, name, reason))
+      return false;
+
+    if (!lns::mapping_type_allowed(*hf_version, type))
+    {
+      if (reason)
+      {
+        *reason = "Mapping type not allowed=";
+        reason->append(lns::mapping_type_str(type));
+      }
+      return false;
+    }
+
+    lns::mapping_value blob = {};
+    if (!lns::validate_mapping_value(nettype, type, value, &blob, reason))
+      return false;
+
+    if (!lns::encrypt_mapping_value(name, blob, encrypted_value))
+    {
+      if (reason) *reason = "Failed to encrypt LNS value=" + value;
+       return false;
+    }
+  }
 
   prev_txid = crypto::null_hash;
   {
@@ -8469,7 +8496,7 @@ static bool prepare_tx_extra_loki_name_system_values(cryptonote::network_type ne
 
     if (response.size())
     {
-      crypto::hash txid_hash;
+      crypto::hash txid_hash = {};
       if (epee::string_tools::hex_to_pod(response[0].txid, txid_hash))
       {
         prev_txid = txid_hash;
@@ -8509,13 +8536,13 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(lns::mapping
     crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(&m_account.get_keys().m_spend_secret_key));
   }
 
-  lns::lns_value value_blob;
+  lns::mapping_value encrypted_value;
   crypto::hash prev_txid;
-  if (!prepare_tx_extra_loki_name_system_values(nettype(), type, priority, name, value, *this, prev_txid, value_blob, reason))
+  if (!prepare_tx_extra_loki_name_system_values(nettype(), type, priority, name, value, *this, prev_txid, encrypted_value, reason))
     return {};
 
   std::vector<uint8_t> extra;
-  auto entry = cryptonote::tx_extra_loki_name_system::make_buy(pkey, type, name, std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
+  auto entry = cryptonote::tx_extra_loki_name_system::make_buy(pkey, type, lns::name_to_hash(name), encrypted_value.to_string(), prev_txid);
   add_loki_name_system_to_tx_extra(extra, entry);
 
   boost::optional<uint8_t> hf_version = get_hard_fork_version();
@@ -8564,7 +8591,7 @@ std::vector<wallet2::pending_tx> wallet2::create_update_lns_mapping_tx(lns::mapp
                                                                        std::set<uint32_t> subaddr_indices)
 {
   crypto::hash prev_txid;
-  lns::lns_value value_blob;
+  lns::mapping_value value_blob;
   if (!prepare_tx_extra_loki_name_system_values(nettype(), type, priority, name, value, *this, prev_txid, value_blob, reason))
     return {};
 
@@ -8588,7 +8615,7 @@ std::vector<wallet2::pending_tx> wallet2::create_update_lns_mapping_tx(lns::mapp
   }
 
   std::vector<uint8_t> extra;
-  auto entry = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type, name, std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
+  auto entry = cryptonote::tx_extra_loki_name_system::make_update(signature_binary, type, lns::name_to_hash(name), std::string(reinterpret_cast<char const *>(value_blob.buffer.data()), value_blob.len), prev_txid);
   add_loki_name_system_to_tx_extra(extra, entry);
 
   boost::optional<uint8_t> hf_version = get_hard_fork_version();

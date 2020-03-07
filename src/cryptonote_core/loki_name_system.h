@@ -5,6 +5,7 @@
 #include "cryptonote_config.h"
 #include "span.h"
 #include "cryptonote_basic/tx_extra.h"
+#include <lokimq/hex.h>
 
 #include <string>
 
@@ -24,34 +25,39 @@ namespace lns
 {
 
 constexpr size_t WALLET_NAME_MAX                  = 96;
+constexpr size_t WALLET_ACCOUNT_BINARY_LENGTH     = 2 * sizeof(crypto::public_key);
 constexpr size_t LOKINET_DOMAIN_NAME_MAX          = 253;
 constexpr size_t LOKINET_ADDRESS_BINARY_LENGTH    = sizeof(crypto::ed25519_public_key);
 constexpr size_t SESSION_DISPLAY_NAME_MAX         = 64;
 constexpr size_t SESSION_PUBLIC_KEY_BINARY_LENGTH = 1 + sizeof(crypto::ed25519_public_key); // Session keys at prefixed with 0x05 + ed25519 key
-constexpr size_t GENERIC_NAME_MAX                 = 255;
-constexpr size_t GENERIC_VALUE_MAX                = 255;
 
-struct lns_value
+struct mapping_value
 {
-  std::array<uint8_t, lns::GENERIC_VALUE_MAX> buffer;
+  static size_t constexpr BUFFER_SIZE = 255;
+  std::array<uint8_t, BUFFER_SIZE> buffer;
   size_t len;
-};
 
-inline std::ostream &operator<<(std::ostream &os, mapping_type type)
+  std::string               to_string() const { return std::string(reinterpret_cast<char const *>(buffer.data()), len); }
+  epee::span<const uint8_t> to_span()   const { return epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(buffer.data()), len); }
+  bool operator==(mapping_value const &other) const { return other.len    == len && memcmp(buffer.data(), other.buffer.data(), len) == 0; }
+  bool operator==(std::string   const &other) const { return other.size() == len && memcmp(buffer.data(), other.data(), len) == 0; }
+};
+inline std::ostream &operator<<(std::ostream &os, mapping_value const &v) { return os << lokimq::to_hex({reinterpret_cast<char const *>(v.buffer.data()), v.len}); }
+
+inline char const *mapping_type_str(mapping_type type)
 {
   switch(type)
   {
-    case mapping_type::lokinet_1year:   os << "lokinet_1year"; break;
-    case mapping_type::lokinet_2years:  os << "lokinet_2years"; break;
-    case mapping_type::lokinet_5years:  os << "lokinet_5years"; break;
-    case mapping_type::lokinet_10years: os << "lokinet_10years"; break;
-    case mapping_type::session:         os << "session"; break;
-    case mapping_type::wallet:          os << "wallet"; break;
-    default: assert(false);             os << "xx_unhandled_type"; break;
+    case mapping_type::lokinet_1year:   return "lokinet_1year";
+    case mapping_type::lokinet_2years:  return "lokinet_2years";
+    case mapping_type::lokinet_5years:  return "lokinet_5years";
+    case mapping_type::lokinet_10years: return "lokinet_10years";
+    case mapping_type::session:         return "session";
+    case mapping_type::wallet:          return "wallet";
+    default: assert(false);             return "xx_unhandled_type";
   }
-  return os;
 }
-
+inline std::ostream &operator<<(std::ostream &os, mapping_type type) { return os << mapping_type_str(type); }
 constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { return type == mapping_type::session; }
 constexpr bool is_lokinet_type     (lns::mapping_type type)                { return type >= mapping_type::lokinet_1year && type <= mapping_type::lokinet_10years; }
 sqlite3       *init_loki_name_system(char const *file_path);
@@ -62,10 +68,26 @@ uint64_t     expiry_blocks(cryptonote::network_type nettype, mapping_type type, 
 crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::hash const &prev_txid);
 bool         validate_lns_name(mapping_type type, std::string const &name, std::string *reason = nullptr);
 
-// blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
-bool         validate_lns_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
-bool         validate_lns_value_binary(mapping_type type, std::string const &value, std::string *reason = nullptr);
-bool         validate_mapping_type(std::string const &mapping_type_str, lns::mapping_type *mapping_type, std::string *reason);
+// Validate a human readable mapping value representation in 'value' and write the binary form into 'blob'.
+// value: if type is session, 66 character hex string of an ed25519 public key
+//                   lokinet, 52 character base32z string of an ed25519 public key
+//                   wallet,  the wallet public address string
+// blob: (optional) if function returns true, validate_mapping_value will convert the 'value' into a binary format suitable for encryption in encrypt_mapping_value(...)
+bool         validate_mapping_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, mapping_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_encrypted_mapping_value(mapping_type type, std::string const &value, std::string *reason = nullptr);
+
+// Converts a human readable case-insensitive string denoting the mapping type into a value suitable for storing into the LNS DB.
+// Currently only accepts "session"
+// mapping_type: (optional) if function returns true, the uint16_t value of the 'type' will be set
+bool         validate_mapping_type(std::string const &type, mapping_type *mapping_type, std::string *reason);
+
+crypto::hash name_to_hash(std::string const &name);        // Takes a human readable name and hashes it.
+std::string  name_to_base64_hash(std::string const &name); // Takes a human readable name, hashes it and returns a base64 representation of the hash, suitable for storage into the LNS DB.
+
+// Takes a binary value and encrypts it using 'name' as a secret key or vice versa, suitable for storing into the LNS DB.
+// Only basic overflow validation is attempted, values should be pre-validated in the validate* functions.
+bool         encrypt_mapping_value(std::string const &name, mapping_value const &value, mapping_value &encrypted_value);
+bool         decrypt_mapping_value(std::string const &name, mapping_value const &encrypted_value, mapping_value &value);
 
 struct owner_record
 {
@@ -98,8 +120,8 @@ struct mapping_record
 
   bool                       loaded;
   mapping_type               type;
-  std::string                name;
-  std::string                value;
+  std::string                name_hash; // name hashed and represented in base64 encoding
+  mapping_value              encrypted_value;
   uint64_t                   register_height;
   int64_t                    owner_id;
   crypto::ed25519_public_key owner;
@@ -109,33 +131,37 @@ struct mapping_record
 
 struct name_system_db
 {
-  bool            init        (cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash);
-  bool            add_block   (const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
-  void            block_detach(cryptonote::Blockchain const &blockchain, uint64_t height);
-  uint64_t        height      () { return last_processed_height; }
+  bool                        init        (cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash);
+  bool                        add_block   (const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
 
-  bool            save_owner     (crypto::ed25519_public_key const &key, int64_t *row_id);
-  bool            save_mapping   (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id);
-  bool            save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
+  cryptonote::network_type    network_type() const { return nettype; }
+  uint64_t                    height      () const { return last_processed_height; }
 
-  // NOTE: Delete all mappings that are registered on height or newer followed by deleting all owners no longer referenced in the DB
-  bool            prune_db(uint64_t height);
+  // Signifies the blockchain has reorganized commences the rollback and pruning procedures.
+  void                        block_detach(cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height);
+
+  bool                        save_owner   (crypto::ed25519_public_key const &key, int64_t *row_id);
+  bool                        save_mapping (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id);
+  bool                        save_settings(uint64_t top_height, crypto::hash const &top_hash, int version);
+
+  // Delete all mappings that are registered on height or newer followed by deleting all owners no longer referenced in the DB
+  bool                        prune_db(uint64_t height);
 
   owner_record                get_owner_by_key      (crypto::ed25519_public_key const &key) const;
   owner_record                get_owner_by_id       (int64_t owner_id) const;
-  mapping_record              get_mapping           (mapping_type type, std::string const &name) const;
-  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name) const;
+  mapping_record              get_mapping           (mapping_type type, std::string const &name_base64_hash) const;
+  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name_base64_hash) const;
   std::vector<mapping_record> get_mappings_by_owner (crypto::ed25519_public_key const &key) const;
   std::vector<mapping_record> get_mappings_by_owners(std::vector<crypto::ed25519_public_key> const &keys) const;
   settings_record             get_settings          () const;
 
-  bool                        validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr) const;
-  cryptonote::network_type    network_type() const { return nettype; }
+  // entry: (optional) if function returns true, the Loki Name System entry in the TX extra is copied into 'entry'
+  bool                        validate_lns_tx       (uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr) const;
 
-  sqlite3                  *db                       = nullptr;
-  bool                      transaction_begun        = false;
+  sqlite3 *db               = nullptr;
+  bool    transaction_begun = false;
 private:
-  cryptonote::network_type  nettype;
+  cryptonote::network_type nettype;
   uint64_t last_processed_height                     = 0;
   sqlite3_stmt *save_owner_sql                       = nullptr;
   sqlite3_stmt *save_mapping_sql                     = nullptr;

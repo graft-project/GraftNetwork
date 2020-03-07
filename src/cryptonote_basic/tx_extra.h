@@ -400,29 +400,29 @@ namespace cryptonote
     lns::mapping_type          type; // alias to lns::mapping_type
     crypto::ed25519_public_key owner; // only serialized if command == tx_command_t::buy
     crypto::ed25519_signature  signature; // only serialized if command == tx_command_t::update
-    std::string                name;
-    std::string                value; // binary format of the name->value mapping
+    crypto::hash               name_hash;
+    std::string                encrypted_value; // encrypted binary format of the value in the name->value mapping
     crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping
 
-    static tx_extra_loki_name_system make_buy(crypto::ed25519_public_key const &owner, lns::mapping_type type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
+    static tx_extra_loki_name_system make_buy(crypto::ed25519_public_key const &owner, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
     {
       tx_extra_loki_name_system result = {};
       result.owner                     = owner;
       result.type                      = type;
-      result.name                      = name;
-      result.value                     = value;
+      result.name_hash                 = name_hash;
+      result.encrypted_value           = encrypted_value;
       result.prev_txid                 = prev_txid;
       result.command                   = lns::tx_command_t::buy;
       return result;
     }
 
-    static tx_extra_loki_name_system make_update(crypto::ed25519_signature const &signature, lns::mapping_type type, std::string const &name, std::string const &value, crypto::hash const &prev_txid)
+    static tx_extra_loki_name_system make_update(crypto::ed25519_signature const &signature, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
     {
       tx_extra_loki_name_system result = {};
       result.signature                 = signature;
       result.type                      = type;
-      result.name                      = name;
-      result.value                     = value;
+      result.name_hash                 = name_hash;
+      result.encrypted_value           = encrypted_value;
       result.prev_txid                 = prev_txid;
       result.command                   = lns::tx_command_t::update;
       return result;
@@ -436,8 +436,8 @@ namespace cryptonote
         FIELD(owner)
       else
         FIELD(signature)
-      FIELD(name)
-      FIELD(value)
+      FIELD(name_hash)
+      FIELD(encrypted_value)
       FIELD(prev_txid)
     END_SERIALIZE()
   };

@@ -11,6 +11,7 @@
 #include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/blockchain.h"
 #include "loki_economy.h"
+#include "string_coding.h"
 
 #include <lokimq/hex.h>
 
@@ -18,7 +19,7 @@
 
 extern "C"
 {
-#include "sodium.h"
+#include <sodium.h>
 }
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
@@ -62,8 +63,8 @@ enum struct mapping_record_row
 {
   id,
   type,
-  name,
-  value,
+  name_hash,
+  encrypted_value,
   txid,
   prev_txid,
   register_height,
@@ -142,14 +143,25 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
             tmp_entry.register_height = static_cast<uint16_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_row::register_height)));
             tmp_entry.owner_id = sqlite3_column_int(statement, static_cast<int>(mapping_record_row::owner_id));
 
-            int name_len  = sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::name));
-            auto *name    = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::name)));
+            // Copy encrypted_value
+            {
+              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::encrypted_value)));
+              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::encrypted_value)));
+              if (value_len > tmp_entry.encrypted_value.buffer.size())
+              {
+                  MERROR("Unexpected encrypted value blob with size=" << value_len << ", in LNS db larger than the available size=" << tmp_entry.encrypted_value.buffer.size());
+                  return false;
+              }
+              tmp_entry.encrypted_value.len = value_len;
+              memcpy(&tmp_entry.encrypted_value.buffer[0], value, value_len);
+            }
 
-            size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::value)));
-            auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::value)));
-
-            tmp_entry.name  = std::string(name, name_len);
-            tmp_entry.value = std::string(value, value_len);
+            // Copy name hash
+            {
+              size_t value_len = static_cast<size_t>(sqlite3_column_bytes(statement, static_cast<int>(mapping_record_row::name_hash)));
+              auto *value      = reinterpret_cast<char const *>(sqlite3_column_text(statement, static_cast<int>(mapping_record_row::name_hash)));
+              tmp_entry.name_hash.append(value, value_len);
+            }
 
             if (!sql_copy_blob(statement, static_cast<int>(mapping_record_row::txid), tmp_entry.txid.data, sizeof(tmp_entry.txid)))
               return false;
@@ -275,9 +287,9 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::has
 {
   static_assert(sizeof(crypto::hash) == crypto_generichash_BYTES, "Using libsodium generichash for signature hash, require we fit into crypto::hash");
   crypto::hash result = {};
-  if (blob.size() <= lns::GENERIC_VALUE_MAX)
+  if (blob.size() <= mapping_value::BUFFER_SIZE)
   {
-    unsigned char buffer[lns::GENERIC_VALUE_MAX + sizeof(prev_txid)] = {};
+    unsigned char buffer[mapping_value::BUFFER_SIZE + sizeof(prev_txid)] = {};
     size_t buffer_len                                                = blob.size() + sizeof(prev_txid);
     memcpy(buffer, blob.data(), blob.size());
     memcpy(buffer + blob.size(), prev_txid.data, sizeof(prev_txid));
@@ -285,7 +297,7 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::has
   }
   else
   {
-    MERROR("Unexpected blob len=" << blob.size() << " greater than the blob backing buffer capacity=" << lns::GENERIC_VALUE_MAX);
+    MERROR("Unexpected blob len=" << blob.size() << " greater than the blob backing buffer capacity=" << mapping_value::BUFFER_SIZE);
   }
 
   return result;
@@ -314,10 +326,15 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   std::stringstream err_stream;
   LOKI_DEFER { if (reason) *reason = err_stream.str(); };
 
-  size_t max_name_len = lns::GENERIC_NAME_MAX;
+  size_t max_name_len = 0;
   if (type == mapping_type::session)      max_name_len = lns::SESSION_DISPLAY_NAME_MAX;
   else if (type == mapping_type::wallet)  max_name_len = lns::WALLET_NAME_MAX;
   else if (is_lokinet_type(type))         max_name_len = lns::LOKINET_DOMAIN_NAME_MAX;
+  else
+  {
+    if (reason) err_stream << "LNS type=" << type << ", specifies unhandled mapping type in name validation";
+    return false;
+  }
 
   // NOTE: Validate name length
   if (name.empty() || name.size() > max_name_len)
@@ -398,31 +415,17 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   return true;
 }
 
-static bool check_lengths(mapping_type type, std::string const &value, size_t max, bool require_exact_len, std::string *reason)
+static bool check_lengths(mapping_type type, std::string const &value, size_t max, bool binary_val, std::string *reason)
 {
-  bool result = true;
-  if (require_exact_len)
-  {
-    if (value.size() != max)
-      result = false;
-  }
-  else
-  {
-    if (value.size() > max || value.size() == 0)
-    {
-      result = false;
-    }
-  }
-
+  bool result = (value.size() == max);
   if (!result)
   {
     if (reason)
     {
       std::stringstream err_stream;
-      err_stream << "LNS type=" << type << ", specifies mapping from name -> value where the value's length=" << value.size();
-      if (require_exact_len) err_stream << ", does not equal the required length=";
-      else                   err_stream <<" is 0 or exceeds the maximum length=";
-      err_stream << max << ", given value=" << value;
+      err_stream << "LNS type=" << type << ", specifies mapping from name_hash->encrypted_value where the value's length=" << value.size() << ", does not equal the required length=" << max << ", given value=";
+      if (binary_val) err_stream << epee::to_hex::string(epee::span<const uint8_t>(reinterpret_cast<uint8_t const *>(value.data()), value.size()));
+      else            err_stream << value;
       *reason = err_stream.str();
     }
   }
@@ -430,16 +433,13 @@ static bool check_lengths(mapping_type type, std::string const &value, size_t ma
   return result;
 }
 
-bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, lns_value *blob, std::string *reason)
+bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, mapping_value *blob, std::string *reason)
 {
   if (blob) *blob = {};
   std::stringstream err_stream;
 
+  // Check length of the value
   cryptonote::address_parse_info addr_info = {};
-
-  static_assert(GENERIC_VALUE_MAX >= SESSION_PUBLIC_KEY_BINARY_LENGTH, "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
-  static_assert(GENERIC_VALUE_MAX >= LOKINET_ADDRESS_BINARY_LENGTH,      "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
-  static_assert(GENERIC_VALUE_MAX >= sizeof(addr_info.address),          "lns_value assumes the largest blob size required, all other values should be able to fit into this buffer");
   if (type == mapping_type::wallet)
   {
     if (value.empty() || !get_account_address_from_str(addr_info, nettype, value))
@@ -462,16 +462,24 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
   }
   else
   {
-    int max_value_len            = lns::GENERIC_VALUE_MAX;
-    bool value_require_exact_len = true;
+    int max_value_len = 0;
     if (is_lokinet_type(type))              max_value_len = (LOKINET_ADDRESS_BINARY_LENGTH * 2);
     else if (type == mapping_type::session) max_value_len = (SESSION_PUBLIC_KEY_BINARY_LENGTH * 2);
-    else value_require_exact_len = false;
+    else
+    {
+      if (reason)
+      {
+        err_stream << "Unhandled type passed into: " << __func__;
+        *reason = err_stream.str();
+      }
+      return false;
+    }
 
-    if (!check_lengths(type, value, max_value_len, value_require_exact_len, reason))
+    if (!check_lengths(type, value, max_value_len, false /*binary_val*/, reason))
       return false;
   }
 
+  // Validate blob contents and generate the binary form if possible
   if (type == mapping_type::wallet)
   {
     if (blob)
@@ -511,6 +519,7 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
   }
   else
   {
+    assert(type == mapping_type::session);
     // NOTE: Check value is hex
     if ((value.size() % 2) != 0)
     {
@@ -537,50 +546,39 @@ bool validate_lns_value(cryptonote::network_type nettype, mapping_type type, std
       lokimq::from_hex(value.begin(), value.end(), blob->buffer.begin());
     }
 
-    if (type == mapping_type::session)
-    {
-      if (!(value[0] == '0' && value[1] == '5')) // NOTE: Session public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
-      {
-        if (reason)
-        {
-          err_stream << "LNS type=session, specifies mapping from name -> ed25519 key where the key is not prefixed with 53 (0x05), prefix=" << std::to_string(value[0]) << " (" << value[0] << "), given ed25519=" << value;
-          *reason = err_stream.str();
-        }
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-bool validate_lns_value_binary(mapping_type type, std::string const &value, std::string *reason)
-{
-  int max_value_len            = lns::GENERIC_VALUE_MAX;
-  bool value_require_exact_len = true;
-  if (is_lokinet_type(type))              max_value_len = LOKINET_ADDRESS_BINARY_LENGTH;
-  else if (type == mapping_type::session) max_value_len = SESSION_PUBLIC_KEY_BINARY_LENGTH;
-  else if (type == mapping_type::wallet)  max_value_len = sizeof(cryptonote::account_public_address);
-  else value_require_exact_len = false;
-
-  if (!check_lengths(type, value, max_value_len, value_require_exact_len, reason))
-    return false;
-
-  if (type == lns::mapping_type::wallet)
-  {
-    // TODO(doyle): Better address validation? Is it a valid address, is it a valid nettype address?
-    cryptonote::account_public_address address;
-    memcpy(&address, value.data(), sizeof(address));
-    if (!(crypto::check_key(address.m_spend_public_key) && crypto::check_key(address.m_view_public_key)))
+    if (!(value[0] == '0' && value[1] == '5')) // NOTE: Session public keys are 33 bytes, with the first byte being 0x05 and the remaining 32 being the public key.
     {
       if (reason)
       {
-        std::stringstream err_stream;
-        err_stream << "LNS type=" << type << ", specifies mapping from name -> wallet address where the wallet address's blob, does not generate valid public spend/view keys";
+        err_stream << "LNS type=session, specifies mapping from name_hash->ed25519 key where the key is not prefixed with 53 (0x05), prefix=" << std::to_string(value[0]) << " (" << value[0] << "), given ed25519=" << value;
         *reason = err_stream.str();
       }
       return false;
     }
   }
+
+  return true;
+}
+
+bool validate_encrypted_mapping_value(mapping_type type, std::string const &value, std::string *reason)
+{
+  std::stringstream err_stream;
+  int max_value_len = crypto_secretbox_MACBYTES;
+  if (is_lokinet_type(type)) max_value_len              += LOKINET_ADDRESS_BINARY_LENGTH;
+  else if (type == mapping_type::session) max_value_len += SESSION_PUBLIC_KEY_BINARY_LENGTH;
+  else if (type == mapping_type::wallet)  max_value_len += WALLET_ACCOUNT_BINARY_LENGTH;
+  else
+  {
+    if (reason)
+    {
+      err_stream << "Unhandled type passed into " << __func__;
+      *reason = err_stream.str();
+    }
+    return false;
+  }
+
+  if (!check_lengths(type, value, max_value_len, true /*binary_val*/, reason))
+    return false;
   return true;
 }
 
@@ -592,16 +590,22 @@ static std::ostream &operator<<(std::ostream &stream, cryptonote::tx_extra_loki_
   else
     stream << "signature=" << epee::string_tools::pod_to_hex(data.signature);
 
-  stream << ", type=" << data.type << ", name=" << data.name << "}";
+  stream << ", type=" << data.type << ", name_hash=" << data.name_hash << "}";
   return stream;
+}
+
+static std::string hash_to_base64(crypto::hash const &hash)
+{
+  std::string result = epee::string_encoding::base64_encode(reinterpret_cast<unsigned char const *>(hash.data), sizeof(hash));
+  return result;
 }
 
 static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system &data, std::string *reason = nullptr)
 {
   std::stringstream err_stream;
   crypto::hash expected_prev_txid = crypto::null_hash;
-  lns::mapping_record mapping     = lns_db.get_mapping(data.type, data.name);
-
+  std::string name_hash           = hash_to_base64(data.name_hash);
+  lns::mapping_record mapping     = lns_db.get_mapping(data.type, name_hash);
   const bool updating = data.command == lns::tx_command_t::update;
   if (updating && !mapping)
   {
@@ -628,7 +632,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         return false;
       }
 
-      if (data.value == mapping.value)
+      if (mapping.encrypted_value == data.encrypted_value)
       {
         if (reason)
         {
@@ -640,7 +644,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
 
       // Validate signature
       {
-        crypto::hash hash = tx_extra_signature_hash(epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(data.value.data()), data.value.size()), expected_prev_txid);
+        crypto::hash hash = tx_extra_signature_hash(epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(data.encrypted_value.data()), data.encrypted_value.size()), expected_prev_txid);
         if (crypto_sign_verify_detached(data.signature.data, reinterpret_cast<unsigned char *>(hash.data), sizeof(hash.data), mapping.owner.data) != 0)
         {
           if (reason)
@@ -661,7 +665,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         if (reason)
         {
           lns::owner_record owner = lns_db.get_owner_by_id(mapping.owner_id);
-          err_stream << tx << ", " << data << ", non-lokinet entries can NOT be renewed, mapping already exists with name=" << mapping.name << ", owner=" << owner.key << ", type=" << mapping.type;
+          err_stream << tx << ", " << data << ", non-lokinet entries can NOT be renewed, mapping already exists with name_hash=" << mapping.name_hash << ", owner=" << owner.key << ", type=" << mapping.type;
           *reason = err_stream.str();
         }
         return false;
@@ -777,18 +781,27 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     }
     return false;
   }
-  if (!validate_lns_name(entry->type, entry->name, reason))
-    return false;
 
-  if (!validate_lns_value_binary(entry->type, entry->value, reason))
-    return false;
+  if (!validate_encrypted_mapping_value(entry->type, entry->encrypted_value, reason))
+      return false;
 
   if (!validate_against_previous_mapping(*this, blockchain_height, tx, *entry, reason))
     return false;
 
+  static const crypto::hash null_name_hash = name_to_hash(""); // Sanity check the empty name hash
+  if (entry->name_hash == null_name_hash || entry->name_hash == crypto::null_hash)
+  {
+    if (reason)
+    {
+      err_stream << "LNS TX=" << cryptonote::get_transaction_hash(tx) << ", specified the null name hash";
+      *reason = err_stream.str();
+    }
+    return false;
+  }
+
   const bool updating    = entry->command == lns::tx_command_t::update;
   uint64_t burn          = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
-  uint64_t burn_required = updating ? 0 : burn_needed(hf_version, static_cast<lns::mapping_type>(entry->type));
+  uint64_t burn_required = updating ? 0 : burn_needed(hf_version, entry->type);
   if (burn != burn_required)
   {
     if (reason)
@@ -830,6 +843,80 @@ bool validate_mapping_type(std::string const &mapping_type_str, lns::mapping_typ
   return true;
 }
 
+crypto::hash name_to_hash(std::string const &name)
+{
+  crypto::hash result = {};
+  static_assert(sizeof(result) >= crypto_generichash_BYTES, "Sodium can generate arbitrary length hashes, but recommend the minimum size for a secure hash must be >= crypto_generichash_BYTES");
+  crypto_generichash_blake2b(reinterpret_cast<unsigned char *>(result.data),
+                             sizeof(result),
+                             reinterpret_cast<const unsigned char *>(name.data()),
+                             static_cast<unsigned long long>(name.size()),
+                             nullptr /*key*/,
+                             0 /*keylen*/);
+  return result;
+}
+
+std::string name_to_base64_hash(std::string const &name)
+{
+  crypto::hash hash  = name_to_hash(name);
+  std::string result = hash_to_base64(hash);
+  return result;
+}
+
+struct alignas(size_t) secretbox_secret_key_ { unsigned char data[crypto_secretbox_KEYBYTES]; };
+using secretbox_secret_key = epee::mlocked<tools::scrubbed<secretbox_secret_key_>>;
+
+static bool name_to_encryption_key(std::string const &name, secretbox_secret_key &out)
+{
+  static_assert(sizeof(out) >= crypto_secretbox_KEYBYTES, "Encrypting key needs to have sufficient space for running encryption functions via libsodium");
+  static unsigned char constexpr SALT[crypto_pwhash_SALTBYTES] = {};
+  bool result = (crypto_pwhash(out.data, sizeof(out), name.data(), name.size(), SALT, crypto_pwhash_OPSLIMIT_MODERATE, crypto_pwhash_MEMLIMIT_MODERATE, crypto_pwhash_ALG_ARGON2ID13) == 0);
+  return result;
+}
+
+static unsigned char const ENCRYPTION_NONCE[crypto_secretbox_NONCEBYTES] = {}; // NOTE: Not meant to be extremely secure, just use an empty nonce
+bool encrypt_mapping_value(std::string const &name, mapping_value const &value, mapping_value &encrypted_value)
+{
+  static_assert(mapping_value::BUFFER_SIZE >= SESSION_PUBLIC_KEY_BINARY_LENGTH + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
+  static_assert(mapping_value::BUFFER_SIZE >= LOKINET_ADDRESS_BINARY_LENGTH    + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
+  static_assert(mapping_value::BUFFER_SIZE >= WALLET_ACCOUNT_BINARY_LENGTH     + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
+
+  bool result                 = false;
+  size_t const encryption_len = value.len + crypto_secretbox_MACBYTES;
+  if (encryption_len > encrypted_value.buffer.size())
+  {
+    MERROR("Encrypted value pre-allocated buffer too small=" << encrypted_value.buffer.size() << ", required=" << encryption_len);
+    return result;
+  }
+
+  encrypted_value     = {};
+  encrypted_value.len = encryption_len;
+
+  secretbox_secret_key skey;
+  if (name_to_encryption_key(name, skey))
+    result = (crypto_secretbox_easy(encrypted_value.buffer.data(), value.buffer.data(), value.len, ENCRYPTION_NONCE, reinterpret_cast<unsigned char *>(&skey)) == 0);
+  return result;
+}
+
+bool decrypt_mapping_value(std::string const &name, mapping_value const &encrypted_value, mapping_value &value)
+{
+  bool result = false;
+  if (encrypted_value.len <= crypto_secretbox_MACBYTES)
+  {
+    MERROR("Encrypted value is too short=" << encrypted_value.len << ", at least required=" << crypto_secretbox_MACBYTES + 1);
+    return result;
+  }
+
+  value     = {};
+  value.len = encrypted_value.len - crypto_secretbox_MACBYTES;
+
+  secretbox_secret_key skey;
+  if (name_to_encryption_key(name, skey))
+    result = crypto_secretbox_open_easy(value.buffer.data(), encrypted_value.buffer.data(), encrypted_value.len, ENCRYPTION_NONCE, reinterpret_cast<unsigned char *>(&skey)) == 0;
+  return result;
+}
+
+
 static bool build_default_tables(sqlite3 *db)
 {
   constexpr char BUILD_TABLE_SQL[] = R"(
@@ -848,14 +935,14 @@ CREATE TABLE IF NOT EXISTS "settings" (
 CREATE TABLE IF NOT EXISTS "mappings" (
     "id" INTEGER PRIMARY KEY NOT NULL,
     "type" INTEGER NOT NULL,
-    "name" VARCHAR NOT NULL,
-    "value" BLOB NOT NULL,
+    "name_hash" VARCHAR NOT NULL,
+    "encrypted_value" BLOB NOT NULL,
     "txid" BLOB NOT NULL,
     "prev_txid" BLOB NOT NULL,
     "register_height" INTEGER NOT NULL,
     "owner_id" INTEGER NOT NULL REFERENCES "owner" ("id")
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "name_type_id" ON mappings("name", "type");
+CREATE UNIQUE INDEX IF NOT EXISTS "name_hash_type_id" ON mappings("name_hash", "type");
 )";
 
   char *table_err_msg = nullptr;
@@ -880,13 +967,13 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
 
   char constexpr GET_MAPPINGS_BY_OWNER_SQL[]            = R"(SELECT * FROM "mappings" JOIN "owner" ON "mappings"."owner_id" = "owner"."id" WHERE "public_key" = ?)";
   char constexpr GET_MAPPINGS_ON_HEIGHT_AND_NEWER_SQL[] = R"(SELECT * FROM "mappings" JOIN "owner" on "mappings"."owner_id" = "owner"."id" WHERE "register_height" >= ?)";
-  char constexpr GET_MAPPING_SQL[]                      = R"(SELECT * FROM "mappings" JOIN "owner" on "mappings"."owner_id" = "owner"."id" WHERE "type" = ? AND "name" = ?)";
+  char constexpr GET_MAPPING_SQL[]                      = R"(SELECT * FROM "mappings" JOIN "owner" on "mappings"."owner_id" = "owner"."id" WHERE "type" = ? AND "name_hash" = ?)";
   char constexpr GET_OWNER_BY_ID_SQL[]                  = R"(SELECT * FROM "owner" WHERE "id" = ?)";
   char constexpr GET_OWNER_BY_KEY_SQL[]                 = R"(SELECT * FROM "owner" WHERE "public_key" = ?)";
   char constexpr GET_SETTINGS_SQL[]                     = R"(SELECT * FROM "settings" WHERE "id" = 1)";
   char constexpr PRUNE_MAPPINGS_SQL[]                   = R"(DELETE FROM "mappings" WHERE "register_height" >= ?)";
   char constexpr PRUNE_OWNERS_SQL[]                     = R"(DELETE FROM "owner" WHERE "id" NOT IN (SELECT "owner_id" FROM "mappings"))";
-  char constexpr SAVE_MAPPING_SQL[]                     = R"(INSERT OR REPLACE INTO "mappings" ("type", "name", "value", "txid", "prev_txid", "register_height", "owner_id") VALUES (?,?,?,?,?,?,?))";
+  char constexpr SAVE_MAPPING_SQL[]                     = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "owner_id") VALUES (?,?,?,?,?,?,?))";
   char constexpr SAVE_OWNER_SQL[]                       = R"(INSERT INTO "owner" ("public_key") VALUES (?);)";
   char constexpr SAVE_SETTINGS_SQL[]                    = R"(INSERT OR REPLACE INTO "settings" ("id", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
 
@@ -995,7 +1082,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
 
     if (!lns_db.save_owner(entry.owner, &owner_id))
     {
-      LOG_PRINT_L1("Failed to save LNS owner to DB tx: " << tx_hash << ", type: " << entry.type << ", name: " << entry.name << ", owner: " << entry.owner);
+      LOG_PRINT_L1("Failed to save LNS owner to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner);
       return false;
     }
   }
@@ -1003,7 +1090,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
 
   if (!lns_db.save_mapping(tx_hash, entry, height, owner_id))
   {
-    LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << entry.type << ", name: " << entry.name << ", owner: " << entry.owner);
+    LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner);
     return false;
   }
 
@@ -1105,13 +1192,13 @@ static bool find_closest_valid_lns_tx_extra_in_blockchain(cryptonote::Blockchain
   return result;
 }
 
-void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint64_t height)
+void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height)
 {
   std::vector<mapping_record> new_mappings = {};
   {
     sqlite3_stmt *statement = get_mappings_on_height_and_newer_sql;
     sqlite3_clear_bindings(statement);
-    sqlite3_bind_int(statement, 1 /*sql param index*/, height);
+    sqlite3_bind_int(statement, 1 /*sql param index*/, new_blockchain_height);
     sql_run_statement(nettype, lns_sql_type::get_mappings_on_height_and_newer, statement, &new_mappings);
   }
 
@@ -1128,11 +1215,11 @@ void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint
     cryptonote::tx_extra_loki_name_system entry = {};
     uint64_t entry_height                       = 0;
     crypto::hash tx_hash                        = {};
-    if (!find_closest_valid_lns_tx_extra_in_blockchain(blockchain, mapping, height, entry, tx_hash, entry_height)) continue;
+    if (!find_closest_valid_lns_tx_extra_in_blockchain(blockchain, mapping, new_blockchain_height, entry, tx_hash, entry_height)) continue;
     entries.push_back({entry_height, tx_hash, entry});
   }
 
-  prune_db(height);
+  prune_db(new_blockchain_height);
   for (auto const &lns : entries)
   {
     if (!add_lns_entry(*this, lns.height, lns.entry, lns.tx_hash))
@@ -1153,10 +1240,11 @@ bool name_system_db::save_owner(crypto::ed25519_public_key const &key, int64_t *
 
 bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id)
 {
+  std::string name_hash   = hash_to_base64(src.name_hash);
   sqlite3_stmt *statement = save_mapping_sql;
   sqlite3_bind_int  (statement, static_cast<int>(mapping_record_row::type), static_cast<uint16_t>(src.type));
-  sqlite3_bind_text (statement, static_cast<int>(mapping_record_row::name), src.name.data(), src.name.size(), nullptr /*destructor*/);
-  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::value), src.value.data(), src.value.size(), nullptr /*destructor*/);
+  sqlite3_bind_text (statement, static_cast<int>(mapping_record_row::name_hash), name_hash.data(), name_hash.size(), nullptr /*destructor*/);
+  sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::encrypted_value), src.encrypted_value.data(), src.encrypted_value.size(), nullptr /*destructor*/);
   sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::txid), tx_hash.data, sizeof(tx_hash), nullptr /*destructor*/);
   sqlite3_bind_blob (statement, static_cast<int>(mapping_record_row::prev_txid), src.prev_txid.data, sizeof(src.prev_txid), nullptr /*destructor*/);
   sqlite3_bind_int64(statement, static_cast<int>(mapping_record_row::register_height), static_cast<int64_t>(height));
@@ -1213,26 +1301,26 @@ owner_record name_system_db::get_owner_by_id(int64_t owner_id) const
   return result;
 }
 
-mapping_record name_system_db::get_mapping(mapping_type type, std::string const &name) const
+mapping_record name_system_db::get_mapping(mapping_type type, std::string const &name_base64_hash) const
 {
   sqlite3_stmt *statement = get_mapping_sql;
   sqlite3_clear_bindings(statement);
-  sqlite3_bind_int(statement, 1 /*sql param index*/, static_cast<int>(type));
-  sqlite3_bind_text(statement, 2 /*sql param index*/, name.data(), name.size(), nullptr /*destructor*/);
+  sqlite3_bind_int(statement, 1 /*sql param index*/, static_cast<uint16_t>(type));
+  sqlite3_bind_text(statement, 2 /*sql param index*/, name_base64_hash.data(), name_base64_hash.size(), nullptr /*destructor*/);
 
   mapping_record result = {};
   result.loaded         = sql_run_statement(nettype, lns_sql_type::get_mapping, statement, &result);
   return result;
 }
 
-std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> const &types, std::string const &name) const
+std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> const &types, std::string const &name_base64_hash) const
 {
   std::string sql_statement;
   // Generate string statement
 
   if (types.size())
   {
-    char constexpr SQL_PREFIX[] = R"(SELECT * FROM "mappings" JOIN "owner" ON "mappings"."owner_id" = "owner"."id" WHERE "name" = ? AND "type" in ()";
+    char constexpr SQL_PREFIX[] = R"(SELECT * FROM "mappings" JOIN "owner" ON "mappings"."owner_id" = "owner"."id" WHERE "name_hash" = ? AND "type" in ()";
     char constexpr SQL_SUFFIX[] = R"())";
 
     std::stringstream stream;
@@ -1258,7 +1346,7 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
 
   // Bind parameters statements
   int sql_param_index = 1;
-  sqlite3_bind_text(statement, sql_param_index++, name.data(), name.size(), nullptr /*destructor*/);
+  sqlite3_bind_text(statement, sql_param_index++, name_base64_hash.data(), name_base64_hash.size(), nullptr /*destructor*/);
   for (auto type : types)
     sqlite3_bind_int(statement, sql_param_index++, type);
   assert((sql_param_index - 1) == static_cast<int>(1 /*name*/ + types.size()));

@@ -62,3 +62,41 @@ TEST(loki_name_system, lokinet_domain_names)
     ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
   }
 }
+
+TEST(loki_name_system, value_encrypt_and_decrypt)
+{
+  std::string name         = "my lns name";
+  lns::mapping_value value = {};
+  value.len                = 32;
+  memset(&value.buffer[0], 'a', value.len);
+
+  // Encryption and Decryption success
+  {
+    lns::mapping_value encrypted_value = {};
+    lns::mapping_value decrypted_value = {};
+    ASSERT_TRUE(lns::encrypt_mapping_value(name, value, encrypted_value));
+    ASSERT_TRUE(lns::decrypt_mapping_value(name, encrypted_value, decrypted_value));
+    ASSERT_TRUE(value == decrypted_value);
+  }
+
+  // Decryption Fail: Encrypted value was modified
+  {
+    lns::mapping_value encrypted_value = {};
+    ASSERT_TRUE(lns::encrypt_mapping_value(name, value, encrypted_value));
+
+    encrypted_value.buffer[0] = 'Z';
+    lns::mapping_value decrypted_value;
+    ASSERT_FALSE(lns::decrypt_mapping_value(name, encrypted_value, decrypted_value));
+  }
+
+  // Decryption Fail: Name was modified
+  {
+    std::string name_copy = name;
+    lns::mapping_value encrypted_value = {};
+    ASSERT_TRUE(lns::encrypt_mapping_value(name_copy, value, encrypted_value));
+
+    name_copy[0] = 'Z';
+    lns::mapping_value decrypted_value;
+    ASSERT_FALSE(lns::decrypt_mapping_value(name_copy, encrypted_value, decrypted_value));
+  }
+}
