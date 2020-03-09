@@ -877,7 +877,7 @@ if(NOT SODIUM_LIBRARIES AND NOT DOWNLOAD_SODIUM STREQUAL "FORCE")
   target_include_directories(sodium INTERFACE ${SODIUM_INCLUDE_DIRS})
 endif()
 
-if (NOT sodium_FOUND)
+if (NOT SODIUM_FOUND)
   if (DOWNLOAD_SODIUM)
     message(STATUS "Sodium >= 1.0.18 not found, but DOWNLOAD_SODIUM specified, so downloading it")
     include(DownloadLibSodium)
