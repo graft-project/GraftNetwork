@@ -45,6 +45,7 @@ struct loki_checkpointing_service_node_checkpoints_check_reorg_windows          
 struct loki_core_block_reward_unpenalized                                            : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_core_fee_burning                                                         : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_core_governance_batched_reward                                           : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
+struct loki_core_block_rewards_lrc6                                                  : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_core_test_deregister_preferred                                           : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_core_test_deregister_safety_buffer                                       : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };
 struct loki_core_test_deregister_too_old                                             : public test_chain_unit_base { bool generate(std::vector<test_event_entry>& events); };

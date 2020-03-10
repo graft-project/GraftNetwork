@@ -447,7 +447,7 @@ static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
 
     uint64_t governance_reward = 0;
     if (already_generated_coins != 0) {
-        governance_reward = governance_reward_formula(block_reward);
+        governance_reward = governance_reward_formula(block_reward, hard_fork_version);
         block_reward -= governance_reward;
     }
 

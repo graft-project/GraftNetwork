@@ -701,6 +701,74 @@ bool loki_core_governance_batched_reward::generate(std::vector<test_event_entry>
   return true;
 }
 
+bool loki_core_block_rewards_lrc6::generate(std::vector<test_event_entry>& events)
+{
+  auto& network = cryptonote::get_config(cryptonote::FAKECHAIN, cryptonote::network_version_16);
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_15_lns);
+  hard_forks.emplace_back(cryptonote::network_version_16, hard_forks.back().second + network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS + 10);
+  loki_chain_generator batched_governance_generator(events, hard_forks);
+  batched_governance_generator.add_blocks_until_version(cryptonote::network_version_16);
+  batched_governance_generator.add_n_blocks(network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS);
+
+  uint64_t hf15_height = 0, hf16_height = 0;
+  for (const auto &hf : hard_forks)
+  {
+    if (hf.first == cryptonote::network_version_15_lns)
+      hf15_height = hf.second;
+    else if (hf.first == cryptonote::network_version_16)
+    {
+      hf16_height = hf.second;
+      break;
+    }
+  }
+
+  loki_register_callback(events, "check_lrc6_block_rewards", [hf15_height, hf16_height, interval=network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("check_lrc6_block_rewards");
+
+    uint64_t height = c.get_current_blockchain_height();
+    std::vector<cryptonote::block> blockchain;
+    if (!c.get_blocks((uint64_t)0, (size_t)height, blockchain))
+      return false;
+
+    int hf15_gov = 0, hf16_gov = 0;
+    for (size_t block_height = hf15_height; block_height < hf16_height; ++block_height)
+    {
+      const cryptonote::block &block = blockchain[block_height];
+      CHECK_EQ(block.miner_tx.vout.at(0).amount, MINER_REWARD_HF15);
+      CHECK_EQ(block.miner_tx.vout.at(1).amount, SN_REWARD_HF15);
+      if (cryptonote::block_has_governance_output(cryptonote::FAKECHAIN, block))
+      {
+        hf15_gov++;
+        CHECK_EQ(block.miner_tx.vout.at(2).amount, FOUNDATION_REWARD_HF15 * interval);
+        CHECK_EQ(block.miner_tx.vout.size(), 3);
+      }
+      else
+        CHECK_EQ(block.miner_tx.vout.size(), 2);
+    }
+    for (size_t block_height = hf16_height; block_height < height; ++block_height)
+    {
+      const cryptonote::block &block = blockchain[block_height];
+      CHECK_EQ(block.miner_tx.vout.at(0).amount, 0);
+      CHECK_EQ(block.miner_tx.vout.at(1).amount, SN_REWARD_HF16);
+      if (cryptonote::block_has_governance_output(cryptonote::FAKECHAIN, block))
+      {
+        hf16_gov++;
+        CHECK_EQ(block.miner_tx.vout.at(2).amount, FOUNDATION_REWARD_HF16 * interval);
+        CHECK_EQ(block.miner_tx.vout.size(), 3);
+      }
+      else
+        CHECK_EQ(block.miner_tx.vout.size(), 2);
+    }
+    CHECK_EQ(hf15_gov, 1);
+    CHECK_EQ(hf16_gov, 1);
+
+    return true;
+  });
+
+  return true;
+}
+
 bool loki_core_test_deregister_preferred::generate(std::vector<test_event_entry> &events)
 {
   std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_9_service_nodes);

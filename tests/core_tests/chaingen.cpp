@@ -749,13 +749,20 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
     uint64_t num_blocks                 = network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS;
     uint64_t start_height               = height - num_blocks;
 
-    for (int i = (int)get_block_height(prev.block), count = 0;
-         i >= 0 && count <= (int)num_blocks;
-         i--, count++)
+    if (hf_version == cryptonote::network_version_15_lns)
+      miner_tx_context.batched_governance = FOUNDATION_REWARD_HF15 * num_blocks;
+    else if (hf_version == cryptonote::network_version_16)
+      miner_tx_context.batched_governance = FOUNDATION_REWARD_HF16 * num_blocks;
+    else
     {
-      loki_blockchain_entry const &historical_entry = db_.blocks[i];
-      if (historical_entry.block.major_version < cryptonote::network_version_10_bulletproofs) break;
-      miner_tx_context.batched_governance += cryptonote::derive_governance_from_block_reward(cryptonote::FAKECHAIN, historical_entry.block);
+      for (int i = (int)get_block_height(prev.block), count = 0;
+           i >= 0 && count <= (int)num_blocks;
+           i--, count++)
+      {
+        loki_blockchain_entry const &historical_entry = db_.blocks[i];
+        if (historical_entry.block.major_version < cryptonote::network_version_10_bulletproofs) break;
+        miner_tx_context.batched_governance += cryptonote::derive_governance_from_block_reward(cryptonote::FAKECHAIN, historical_entry.block, hf_version);
+      }
     }
   }
 
@@ -969,6 +976,12 @@ static void manual_calc_batched_governance(const test_generator &generator,
     uint64_t num_blocks                 = network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS;
     uint64_t start_height               = height - num_blocks;
 
+    if (hard_fork_version >= cryptonote::network_version_15_lns)
+    {
+      miner_tx_context.batched_governance = num_blocks * cryptonote::governance_reward_formula(0, hard_fork_version);
+      return;
+    }
+
     if (height < num_blocks)
     {
       start_height = 0;
@@ -986,7 +999,7 @@ static void manual_calc_batched_governance(const test_generator &generator,
         continue;
 
       if (entry.major_version >= cryptonote::network_version_10_bulletproofs)
-        miner_tx_context.batched_governance += cryptonote::derive_governance_from_block_reward(cryptonote::FAKECHAIN, entry);
+        miner_tx_context.batched_governance += cryptonote::derive_governance_from_block_reward(cryptonote::FAKECHAIN, entry, hard_fork_version);
     }
   }
 }
