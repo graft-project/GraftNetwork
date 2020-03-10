@@ -42,13 +42,13 @@ namespace cryptonote
   bool     get_deterministic_output_key         (const account_public_address& address, const keypair& tx_key, size_t output_index, crypto::public_key& output_key);
   bool     validate_governance_reward_key       (uint64_t height, const std::string& governance_wallet_address_str, size_t output_index, const crypto::public_key& output_key, const cryptonote::network_type nettype);
 
-  uint64_t governance_reward_formula            (uint64_t base_reward);
+  uint64_t governance_reward_formula            (uint64_t base_reward, uint8_t hf_version);
   bool     block_has_governance_output          (network_type nettype, cryptonote::block const &block);
-  bool     height_has_governance_output         (network_type nettype, int hard_fork_version, uint64_t height);
-  uint64_t derive_governance_from_block_reward  (network_type nettype, const cryptonote::block &block);
+  bool     height_has_governance_output         (network_type nettype, uint8_t hard_fork_version, uint64_t height);
+  uint64_t derive_governance_from_block_reward  (network_type nettype, const cryptonote::block &block, uint8_t hf_version);
 
   uint64_t get_portion_of_reward                (uint64_t portions, uint64_t total_service_node_reward);
-  uint64_t service_node_reward_formula          (uint64_t base_reward, int hard_fork_version);
+  uint64_t service_node_reward_formula          (uint64_t base_reward, uint8_t hard_fork_version);
 
   struct loki_miner_tx_context // NOTE(loki): All the custom fields required by Loki to use construct_miner_tx
   {
