@@ -574,31 +574,32 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(
                                                                                 crypto::generic_signature *signature,
                                                                                 bool use_asserts) const
 {
-  crypto::hash name_hash       = lns::name_to_hash(name);
-  std::string name_base64_hash = lns::name_to_base64_hash(name);
-  lns::mapping_record mapping  = lns_db_.get_mapping(type, name_base64_hash);
-  crypto::hash prev_txid       = mapping.txid;
-  if (use_asserts) assert(mapping);
+  crypto::hash name_hash = lns::name_to_hash(name);
+  crypto::hash prev_txid = {};
+  {
+    std::string name_base64_hash = lns::name_to_base64_hash(name);
+    lns::mapping_record mapping  = lns_db_.get_mapping(type, name_base64_hash);
+    if (use_asserts) assert(mapping);
+    prev_txid = mapping.txid;
+  }
 
-  epee::span<const uint8_t> value_span = {};
+  lns::mapping_value encrypted_value = {};
   if (value)
   {
-    lns::mapping_value encrypted_value = {};
-    bool encrypted                     = lns::encrypt_mapping_value(name, *value, encrypted_value);
+    bool encrypted = lns::encrypt_mapping_value(name, *value, encrypted_value);
     if (use_asserts) assert(encrypted);
-    value_span = encrypted_value.to_span();
   }
 
   crypto::generic_signature signature_ = {};
   if (!signature)
   {
     signature = &signature_;
-    crypto::hash hash = lns::tx_extra_signature_hash(value_span, owner, backup_owner, prev_txid);
+    crypto::hash hash = lns::tx_extra_signature_hash(encrypted_value.to_span(), owner, backup_owner, prev_txid);
     crypto::generate_signature(hash, src.get_keys().m_account_address.m_spend_public_key, src.get_keys().m_spend_secret_key, signature->monero);
   }
 
   std::vector<uint8_t> extra;
-  cryptonote::tx_extra_loki_name_system data = cryptonote::tx_extra_loki_name_system::make_update(*signature, type, name_hash, value_span, owner, backup_owner, prev_txid);
+  cryptonote::tx_extra_loki_name_system data = cryptonote::tx_extra_loki_name_system::make_update(*signature, type, name_hash, encrypted_value.to_span(), owner, backup_owner, prev_txid);
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
 
   cryptonote::block const &head = top().block;

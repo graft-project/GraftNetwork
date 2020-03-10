@@ -645,7 +645,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         return false;
 
       if (check_condition(lns_extra.field_is_set(lns::extra_field::backup_owner) && lns_extra.backup_owner == mapping.backup_owner, reason, tx, ", ", lns_extra, SPECIFYING_SAME_VALUE_ERR, "backup_owner"))
-          return false;
+        return false;
 
       // Validate signature
       {
@@ -705,7 +705,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
     }
   }
 
-  if (check_condition(lns_extra.prev_txid != expected_prev_txid, reason, tx, ", ", lns_extra, " specified prior owner txid=", lns_extra.prev_txid, ", but LNS DB reports=", expected_prev_txid, ", possible competing TX was submitted and accepted before this TX was processed"))
+  if (check_condition(lns_extra.prev_txid != expected_prev_txid, reason, tx, ", ", lns_extra, " specified prior txid=", lns_extra.prev_txid, ", but LNS DB reports=", expected_prev_txid, ", possible competing TX was submitted and accepted before this TX was processed"))
     return false;
 
   return true;
@@ -971,7 +971,7 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
 
   std::string const get_mappings_by_owner_str            = sql_cmd_combine_mappings_and_owner_table(R"(WHERE ? IN ("o1"."public_key", "o2"."public_key"))");
   std::string const get_mappings_on_height_and_newer_str = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "register_height" >= ?)");
-  std::string const get_mapping_str                      = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "type" = ? AND "name" = ?)");
+  std::string const get_mapping_str                      = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "type" = ? AND "name_hash" = ?)");
 
   char constexpr GET_OWNER_BY_ID_STR[]  = R"(SELECT * FROM "owner" WHERE "id" = ?)";
   char constexpr GET_OWNER_BY_KEY_STR[] = R"(SELECT * FROM "owner" WHERE "public_key" = ?)";
@@ -983,7 +983,7 @@ R"(DELETE FROM "owner"
 WHERE NOT EXISTS (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."owner_id")
 AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."backup_owner_id"))";
 
-  char constexpr SAVE_MAPPING_STR[]     = R"(INSERT OR REPLACE INTO "mappings" ("type", "name", "value", "txid", "prev_txid", "register_height", "owner_id", "backup_owner_id") VALUES (?,?,?,?,?,?,?,?))";
+  char constexpr SAVE_MAPPING_STR[]     = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "owner_id", "backup_owner_id") VALUES (?,?,?,?,?,?,?,?))";
   char constexpr SAVE_OWNER_STR[]       = R"(INSERT INTO "owner" ("public_key") VALUES (?))";
   char constexpr SAVE_SETTINGS_STR[]    = R"(INSERT OR REPLACE INTO "settings" ("id", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
 
@@ -1128,7 +1128,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
   }
   // -----------------------------------------------------------------------------------------------
   // Update Mapping, do a SQL command of the type
-  // UPDATE "mappings" SET <field> = entry.<field>, ...  WHERE type = entry.type AND name = entry.name
+  // UPDATE "mappings" SET <field> = entry.<field>, ...  WHERE type = entry.type AND name_hash = name_hash_base64
   // -----------------------------------------------------------------------------------------------
   else
   {
@@ -1181,11 +1181,12 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
 
       columns[column_count++] = mapping_record_column::type;
       columns[column_count++] = mapping_record_column::name_hash;
-      stream << R"( WHERE "type" = ? AND "name" = ?;)";
+      stream << R"( WHERE "type" = ? AND "name_hash" = ?)";
       sql_statement = stream.str();
     }
 
     // Compile sql statement && bind parameters to statement
+    std::string const name_hash   = hash_to_base64(entry.name_hash);
     sqlite3_stmt *statement = nullptr;
     {
       if (!sql_compile_statement(lns_db.db, sql_statement.c_str(), sql_statement.size(), &statement, false /*optimise_for_multiple_usage*/))
@@ -1195,7 +1196,6 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
       }
 
       // Bind step
-      std::string name_hash = hash_to_base64(entry.name_hash);
       int sql_param_index = 1;
       for (size_t i = 0; i < column_count; i++)
       {
@@ -1494,7 +1494,7 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
 
   if (types.size())
   {
-    sql_statement += sql_cmd_combine_mappings_and_owner_table(R"(WHERE "name" = ? AND "type" in ()");
+    sql_statement += sql_cmd_combine_mappings_and_owner_table(R"(WHERE "name_hash" = ? AND "type" in ()");
     for (size_t i = 0; i < types.size(); i++)
     {
       sql_statement += std::to_string(types[i]);
@@ -1504,7 +1504,7 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
   }
   else
   {
-    sql_statement = R"(SELECT * FROM "mappings" JOIN "owner" ON "mappings"."owner_id" = "owner"."id" WHERE "name" = ?)";
+    sql_statement = R"(SELECT * FROM "mappings" JOIN "owner" ON "mappings"."owner_id" = "owner"."id" WHERE "name_hash" = ?)";
   }
 
   // Compile Statement
