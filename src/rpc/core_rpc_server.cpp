@@ -2865,6 +2865,7 @@ namespace cryptonote
         entry.service_node_version     = proof.version;
         entry.public_ip                = string_tools::get_ip_string_from_int32(proof.public_ip);
         entry.storage_port             = proof.storage_port;
+        entry.storage_lmq_port         = proof.storage_lmq_port;
         entry.storage_server_reachable = proof.storage_server_reachable;
         entry.pubkey_ed25519           = proof.pubkey_ed25519 ? string_tools::pod_to_hex(proof.pubkey_ed25519) : "";
         entry.pubkey_x25519            = proof.pubkey_x25519 ? string_tools::pod_to_hex(proof.pubkey_x25519) : "";
@@ -3151,6 +3152,9 @@ namespace cryptonote
     if (handle_ping({req.version_major, req.version_minor, req.version_patch}, service_nodes::MIN_STORAGE_SERVER_VERSION,
           "Storage Server", m_core.m_last_storage_server_ping, STORAGE_SERVER_PING_LIFETIME, res))
       m_core.reset_proof_interval();
+
+      m_core.m_storage_lmq_port = req.storage_lmq_port;
+
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------

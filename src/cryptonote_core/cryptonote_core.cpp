@@ -462,6 +462,7 @@ namespace cryptonote
 
       MGINFO("Storage server endpoint is set to: "
              << (epee::net_utils::ipv4_network_address{ m_sn_public_ip, m_storage_port }).str());
+
     }
 
     epee::debug::g_test_dbg_lock_sleep() = command_line::get_arg(vm, arg_test_dbg_lock_sleep);
@@ -1717,7 +1718,7 @@ namespace cryptonote
     if (!m_service_node_keys)
       return true;
 
-    NOTIFY_UPTIME_PROOF::request req = m_service_node_list.generate_uptime_proof(*m_service_node_keys, m_sn_public_ip, m_storage_port, m_quorumnet_port);
+    NOTIFY_UPTIME_PROOF::request req = m_service_node_list.generate_uptime_proof(*m_service_node_keys, m_sn_public_ip, m_storage_port, m_storage_lmq_port, m_quorumnet_port);
 
     cryptonote_connection_context fake_context{};
     bool relayed = get_protocol()->relay_uptime_proof(req, fake_context);
