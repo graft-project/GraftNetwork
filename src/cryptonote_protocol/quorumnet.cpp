@@ -80,10 +80,10 @@ struct SNNWrapper {
     struct blink_metadata {
         std::shared_ptr<blink_tx> btxptr;
         pending_signature_set pending_sigs;
-        std::string reply_pubkey;
+        ConnectionID reply_conn;
         uint64_t reply_tag = 0;
     };
-    // { height => { txhash => {blink_tx,sigs,reply}, ... }, ... }
+    // { height => { txhash => {blink_tx,conn,reply}, ... }, ... }
     std::map<uint64_t, std::unordered_map<crypto::hash, blink_metadata>> blinks;
 
     // FIXME:
@@ -646,7 +646,7 @@ std::string debug_known_signatures(blink_tx &btx, quorum_array &blink_quorums) {
 /// tx; otherwise signatures are stored until we learn about the tx and then processed.
 void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &btxptr, quorum_array &blink_quorums, uint64_t quorum_checksum, std::list<pending_signature> &&signatures,
         uint64_t reply_tag, // > 0 if we are expected to send a status update if it becomes accepted/rejected
-        const std::string reply_pubkey, // who we are supposed to send the status update to
+        ConnectionID reply_conn, // who we are supposed to send the status update to
         const std::string &received_from = ""s /* x25519 of the peer that sent this, if available (to avoid trying to pointlessly relay back to them) */) {
 
     auto &btx = *btxptr;
@@ -794,13 +794,13 @@ void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &
 
     MTRACE("Done blink signature relay");
 
-    if (reply_tag && !reply_pubkey.empty()) {
+    if (reply_tag && reply_conn) {
         if (became_approved) {
             MINFO("Blink tx became approved; sending result back to originating node");
-            snw.lmq.send(reply_pubkey, "bl_good", bt_serialize(bt_dict{{"!", reply_tag}}), send_option::optional{});
+            snw.lmq.send(reply_conn, "bl_good", bt_serialize(bt_dict{{"!", reply_tag}}), send_option::optional{});
         } else if (became_rejected) {
             MINFO("Blink tx became rejected; sending result back to originating node");
-            snw.lmq.send(reply_pubkey, "bl_bad", bt_serialize(bt_dict{{"!", reply_tag}}), send_option::optional{});
+            snw.lmq.send(reply_conn, "bl_bad", bt_serialize(bt_dict{{"!", reply_tag}}), send_option::optional{});
         }
     }
 }
@@ -919,7 +919,7 @@ void handle_blink(lokimq::Message& m, SNNWrapper& snw) {
                         // the reply until a signature comes in that flips it to approved/rejected
                         // status.
                         it->second.reply_tag = tag;
-                        it->second.reply_pubkey = m.conn.pubkey();
+                        it->second.reply_conn = m.conn;
                         return;
                     }
                 } else {
@@ -1018,7 +1018,7 @@ void handle_blink(lokimq::Message& m, SNNWrapper& snw) {
         bl_info.pending_sigs.clear();
         if (tag > 0) {
             bl_info.reply_tag = tag;
-            bl_info.reply_pubkey = m.conn.pubkey();
+            bl_info.reply_conn = m.conn;
         }
     }
     MTRACE("Accepted new blink tx for verification");
@@ -1190,7 +1190,7 @@ void handle_blink_signature(Message& m, SNNWrapper& snw) {
     auto blink_quorums = get_blink_quorums(blink_height, snw.core.get_service_node_list(), &checksum); // throws if bad quorum or checksum mismatch
 
     uint64_t reply_tag = 0;
-    std::string reply_pubkey;
+    ConnectionID reply_conn;
     std::shared_ptr<blink_tx> btxptr;
     auto find_blink = [&]() {
         auto height_it = snw.blinks.find(blink_height);
@@ -1203,7 +1203,7 @@ void handle_blink_signature(Message& m, SNNWrapper& snw) {
         auto &b_meta = it->second;
         btxptr = b_meta.btxptr;
         reply_tag = b_meta.reply_tag;
-        reply_pubkey = b_meta.reply_pubkey;
+        reply_conn = b_meta.reply_conn;
     };
 
     {
@@ -1231,7 +1231,7 @@ void handle_blink_signature(Message& m, SNNWrapper& snw) {
 
     MINFO("Found blink tx in local blink cache");
 
-    process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), reply_tag, reply_pubkey, m.conn.pubkey());
+    process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), reply_tag, reply_conn, m.conn.pubkey());
 }
 
 
