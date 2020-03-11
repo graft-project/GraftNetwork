@@ -749,7 +749,8 @@ bool loki_core_block_rewards_lrc6::generate(std::vector<test_event_entry>& event
     for (size_t block_height = hf16_height; block_height < height; ++block_height)
     {
       const cryptonote::block &block = blockchain[block_height];
-      CHECK_EQ(block.miner_tx.vout.at(0).amount, 0);
+      // TODO: this 1 sat miner fee is just a placeholder until we address this properly in HF16.
+      CHECK_EQ(block.miner_tx.vout.at(0).amount, 1);
       CHECK_EQ(block.miner_tx.vout.at(1).amount, SN_REWARD_HF16);
       if (cryptonote::block_has_governance_output(cryptonote::FAKECHAIN, block))
       {
