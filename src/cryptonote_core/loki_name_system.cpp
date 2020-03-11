@@ -91,6 +91,21 @@ static char const *mapping_record_column_string(mapping_record_column col)
   }
 }
 
+static std::ostream &operator<<(std::ostream &stream, cryptonote::tx_extra_loki_name_system const &data)
+{
+  stream << "LNS Extra={";
+  if (data.is_buying())
+  {
+    stream << "owner=" << data.owner;
+    if (data.backup_owner) stream << "backup_owner=" << data.backup_owner;
+  }
+  else
+    stream << "signature=" << epee::string_tools::pod_to_hex(data.signature);
+
+  stream << ", type=" << data.type << ", name_hash=" << data.name_hash << "}";
+  return stream;
+}
+
 static bool sql_copy_blob(sqlite3_stmt *statement, int column, void *dest, int dest_size)
 {
   void const *blob = sqlite3_column_blob(statement, column);
@@ -613,21 +628,6 @@ bool validate_encrypted_mapping_value(mapping_type type, std::string const &valu
   if (!check_lengths(type, value, max_value_len, true /*binary_val*/, reason))
     return false;
   return true;
-}
-
-static std::ostream &operator<<(std::ostream &stream, cryptonote::tx_extra_loki_name_system const &data)
-{
-  stream << "LNS Extra={";
-  if (data.is_buying())
-  {
-    stream << "owner=" << data.owner;
-    if (data.backup_owner) stream << "backup_owner=" << data.backup_owner;
-  }
-  else
-    stream << "signature=" << epee::string_tools::pod_to_hex(data.signature);
-
-  stream << ", type=" << data.type << ", name_hash=" << data.name_hash << "}";
-  return stream;
 }
 
 static std::string hash_to_base64(crypto::hash const &hash)
