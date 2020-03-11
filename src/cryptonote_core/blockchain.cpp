@@ -4684,7 +4684,7 @@ uint64_t Blockchain::prevalidate_block_hashes(uint64_t height, const std::vector
 bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &reward) const
 {
   reward = 0;
-  int hard_fork_version = get_ideal_hard_fork_version(height);
+  auto hard_fork_version = get_ideal_hard_fork_version(height);
   if (hard_fork_version <= network_version_9_service_nodes)
   {
     return true;
@@ -4698,12 +4698,21 @@ bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &rewar
   // Ignore governance reward and payout instead the last
   // GOVERNANCE_BLOCK_REWARD_INTERVAL number of blocks governance rewards.  We
   // come back for this height's rewards in the next interval. The reward is
-  // 0 if it's not time to pay out the batched payments
+  // 0 if it's not time to pay out the batched payments (in which case we
+  // already returned, above).
 
   const cryptonote::config_t &network = cryptonote::get_config(nettype(), hard_fork_version);
   size_t num_blocks                   = network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS;
-  uint64_t start_height               = height - num_blocks;
 
+  // Fixed reward starting at HF15
+  if (hard_fork_version >= network_version_15_lns)
+  {
+    reward = num_blocks * (
+        hard_fork_version >= network_version_16 ? FOUNDATION_REWARD_HF16 : FOUNDATION_REWARD_HF15);
+    return true;
+  }
+
+  uint64_t start_height = height - num_blocks;
   if (height < num_blocks)
   {
     start_height = 0;
@@ -4721,7 +4730,7 @@ bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &rewar
   {
     cryptonote::block const &block = it.second;
     if (block.major_version >= network_version_10_bulletproofs)
-      reward += derive_governance_from_block_reward(nettype(), block);
+      reward += derive_governance_from_block_reward(nettype(), block, hard_fork_version);
   }
 
   return true;
