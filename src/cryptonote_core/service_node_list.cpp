@@ -1936,18 +1936,6 @@ namespace service_nodes
   }
 #endif
 
-  struct proof_version
-  {
-    uint8_t hardfork;
-    std::array<uint16_t, 3> version;
-  };
-
-  static constexpr proof_version hf_min_loki_versions[] = {
-    {cryptonote::network_version_14_blink,                {6,1,0}},
-    {cryptonote::network_version_13_enforce_checkpoints,  {5,1,0}},
-    {cryptonote::network_version_12_checkpointing,        {4,0,3}},
-  };
-
   template <typename T>
   static bool update_val(T &val, const T &to) {
     if (val != to) {
@@ -2025,7 +2013,7 @@ namespace service_nodes
     if ((proof.timestamp < now - UPTIME_PROOF_BUFFER_IN_SECONDS) || (proof.timestamp > now + UPTIME_PROOF_BUFFER_IN_SECONDS))
       REJECT_PROOF("timestamp is too far from now");
 
-    for (auto &min : hf_min_loki_versions)
+    for (auto const &min : MIN_UPTIME_PROOF_VERSIONS)
       if (hf_version >= min.hardfork && proof.snode_version < min.version)
         REJECT_PROOF("v" << min.version[0] << "." << min.version[1] << "." << min.version[2] << "+ loki version is required for v" << std::to_string(hf_version) << "+ network proofs");
 
