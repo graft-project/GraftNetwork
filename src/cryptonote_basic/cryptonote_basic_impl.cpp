@@ -99,14 +99,6 @@ namespace cryptonote {
     return result;
   }
 
-  constexpr uint64_t block_reward_unpenalized_formula_v15() {
-    return BLOCK_REWARD_HF15;
-  }
-
-  constexpr uint64_t block_reward_unpenalized_formula_v16() {
-    return BLOCK_REWARD_HF15;
-  }
-
   bool get_base_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint64_t &reward_unpenalized, uint8_t version, uint64_t height) {
 
     //premine reward
