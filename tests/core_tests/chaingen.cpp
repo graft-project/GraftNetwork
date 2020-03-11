@@ -70,7 +70,17 @@ loki_generate_sequential_hard_fork_table(uint8_t max_hf_version)
   std::vector<std::pair<uint8_t, uint64_t>> result = {};
   uint64_t version_height = 0;
   for (uint8_t version = cryptonote::network_version_7; version <= max_hf_version; version++)
-    result.emplace_back(std::make_pair(version, version_height++));
+  {
+    if (version == cryptonote::network_version_15_lns)
+    {
+      version_height += 60;
+      result.emplace_back(std::make_pair(version, version_height++));
+    }
+    else
+    {
+      result.emplace_back(std::make_pair(version, version_height++));
+    }
+  }
   return result;
 }
 
@@ -1539,7 +1549,9 @@ void fill_tx_sources_and_multi_destinations(const std::vector<test_event_entry>&
     total_amount += amount[i];
 
   if (!fill_tx_sources(sources, events, blk_head, from, total_amount, nmix))
+  {
     throw std::runtime_error("couldn't fill transaction sources");
+  }
 
   for (int i = 0; i < num_amounts; ++i)
   {
@@ -1912,7 +1924,9 @@ bool construct_tx_to_key(const std::vector<test_event_entry>& events, cryptonote
   uint64_t amount = sum_amount(destinations);
 
   if (!fill_tx_sources(sources, events, blk_head, from, amount + fee, nmix))
+  {
     throw std::runtime_error("couldn't fill transaction sources");
+  }
 
   fill_tx_destinations(from, destinations, fee, sources, destinations_all, true);
 

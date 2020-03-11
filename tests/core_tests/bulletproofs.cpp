@@ -179,7 +179,7 @@ bool gen_bp_tx_validation_base::generate_with(std::vector<test_event_entry>& eve
                                            true,
                                            &change_amount);
 
-    tx_destination_entry change_addr{change_amount, from.get_keys().m_account_address, false /* is subaddr */ };
+    tx_destination_entry change_addr{0, from.get_keys().m_account_address, false /* is subaddr */ };
 
     // NOTE(loki): Monero tests presume the generated TX doesn't have change so remove it from our output.
     for (auto it = destinations.begin(); it != destinations.end(); ++it)
@@ -302,22 +302,17 @@ bool gen_bp_tx_validation_base::check_bp(const cryptonote::transaction &tx, size
 // TODO(doyle): Revisit this. Is there some rule prohibiting a tx fee greater
 // than the block reward? Monero is unaffected because they have multiple
 // outputs of varying sizes in their miner tx, so the tx fee (inputs-outputs)
-// (because they don't use a change addr) doesn't eclipse the reward and doesn't
-// trigger the "base reward calculation bug" assert, whereas we do since we only
-// have 1 output. So my fix is to make it so we don't generate a tx that makes
-// too high of a fee from the change amount.
+// (because they don't use a change addr in the tests, the remainder from
+// sending can't be greater than the block reward) doesn't eclipse the reward
+// and doesn't trigger the "base reward calculation bug" assert, whereas we do
+// since we only have 1 output. So my fix is to make it so we don't generate
+// a tx that makes too high of a fee from the change amount.
 
-// Further addendum. In Loki hardfork 10, we also introduce batching governance
-// payments- so most block heights will remove the governance output from the
-// reward. So if we send less than the governance amount (~6ish loki from the
-// start of the chain), then we'll eclipse the reward again and overflow, so
-// most of these tests have again been modified to ensure that we use atleast
-// 6 loki from the block reward.
 //  - 2018/10/29
 
 bool gen_bp_tx_valid_1::generate(std::vector<test_event_entry>& events) const
 {
-  const uint64_t amounts_paid[] = {MK_COINS(10), (uint64_t)-1};
+  const uint64_t amounts_paid[] = {MK_COINS(120), (uint64_t)-1};
   const size_t bp_sizes[] = {1, (size_t)-1};
   const rct::RCTConfig rct_config[] = { { rct::RangeProofPaddedBulletproof, 0 } };
   return generate_with(events, 1, amounts_paid, true, rct_config, NULL, [&](const cryptonote::transaction &tx, size_t tx_idx){ return check_bp(tx, tx_idx, bp_sizes, "gen_bp_tx_valid_1"); });
@@ -332,7 +327,7 @@ bool gen_bp_tx_invalid_1_1::generate(std::vector<test_event_entry>& events) cons
 
 bool gen_bp_tx_valid_2::generate(std::vector<test_event_entry>& events) const
 {
-  const uint64_t amounts_paid[] = {MK_COINS(5), MK_COINS(5), (uint64_t)-1};
+  const uint64_t amounts_paid[] = {MK_COINS(60), MK_COINS(60), (uint64_t)-1};
   const size_t bp_sizes[] = {2, (size_t)-1};
   const rct::RCTConfig rct_config[] = { { rct::RangeProofPaddedBulletproof, 0 } };
   return generate_with(events, 1, amounts_paid, true, rct_config, NULL, [&](const cryptonote::transaction &tx, size_t tx_idx){ return check_bp(tx, tx_idx, bp_sizes, "gen_bp_tx_valid_2"); });
@@ -341,7 +336,7 @@ bool gen_bp_tx_valid_2::generate(std::vector<test_event_entry>& events) const
 bool gen_bp_tx_valid_3::generate(std::vector<test_event_entry>& events) const
 {
   // const uint64_t amounts_paid[] = {50, 50, 50, (uint64_t)-1};
-  const uint64_t amounts_paid[] = {MK_COINS(28), MK_COINS(28), MK_COINS(28), (uint64_t)-1};
+  const uint64_t amounts_paid[] = {MK_COINS(40), MK_COINS(40), MK_COINS(40), (uint64_t)-1};
   const size_t bp_sizes[] = {4, (size_t)-1};
   const rct::RCTConfig rct_config[] = { { rct::RangeProofPaddedBulletproof , 0 } };
   return generate_with(events, 1, amounts_paid, true, rct_config, NULL, [&](const cryptonote::transaction &tx, size_t tx_idx){ return check_bp(tx, tx_idx, bp_sizes, "gen_bp_tx_valid_3"); });
@@ -350,7 +345,7 @@ bool gen_bp_tx_valid_3::generate(std::vector<test_event_entry>& events) const
 bool gen_bp_tx_valid_16::generate(std::vector<test_event_entry>& events) const
 {
   // const uint64_t amounts_paid[] = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, (uint64_t)-1};
-  const uint64_t amounts_paid[] = {MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), MK_COINS(1), (uint64_t)-1};
+  const uint64_t amounts_paid[] = {MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), MK_COINS(15), (uint64_t)-1};
   const size_t bp_sizes[] = {16, (size_t)-1};
   const rct::RCTConfig rct_config[] = { { rct::RangeProofPaddedBulletproof , 0 } };
   return generate_with(events, 1, amounts_paid, true, rct_config, NULL, [&](const cryptonote::transaction &tx, size_t tx_idx){ return check_bp(tx, tx_idx, bp_sizes, "gen_bp_tx_valid_16"); });
@@ -373,7 +368,7 @@ bool gen_bp_tx_invalid_16_16::generate(std::vector<test_event_entry>& events) co
 bool gen_bp_txs_valid_2_and_2::generate(std::vector<test_event_entry>& events) const
 {
   //const uint64_t amounts_paid[] = {1000, 1000, (size_t)-1, 1000, 1000, (uint64_t)-1};
-  const uint64_t amounts_paid[] = {MK_COINS(50), MK_COINS(50), (size_t)-1, MK_COINS(50), MK_COINS(50), (uint64_t)-1};
+  const uint64_t amounts_paid[] = {MK_COINS(60), MK_COINS(60), (size_t)-1, MK_COINS(60), MK_COINS(60), (uint64_t)-1};
 
   const size_t bp_sizes[] = {2, (size_t)-1, 2, (size_t)-1};
   const rct::RCTConfig rct_config[] = { { rct::RangeProofPaddedBulletproof, 0 }, {rct::RangeProofPaddedBulletproof, 0 } };
@@ -389,9 +384,8 @@ bool gen_bp_txs_invalid_2_and_8_2_and_16_16_1::generate(std::vector<test_event_e
 
 bool gen_bp_txs_valid_2_and_3_and_2_and_4::generate(std::vector<test_event_entry>& events) const
 {
-  // TODO(doyle): See valid_2_and_2 comment
   // const uint64_t amounts_paid[] = {11111115000, 11111115000, (uint64_t)-1, 11111115000, 11111115000, 11111115001, (uint64_t)-1, 11111115000, 11111115002, (uint64_t)-1, 11111115000, 11111115000, 11111115000, 11111115003, (uint64_t)-1};
-  const uint64_t amounts_paid[] = {MK_COINS(50), MK_COINS(50), (uint64_t)-1, MK_COINS(5), MK_COINS(50), MK_COINS(51), (uint64_t)-1, MK_COINS(50), MK_COINS(52), (uint64_t)-1, MK_COINS(5), MK_COINS(50), MK_COINS(53), MK_COINS(6), (uint64_t)-1};
+  const uint64_t amounts_paid[] = {MK_COINS(60), MK_COINS(60), (uint64_t)-1, MK_COINS(40), MK_COINS(40), MK_COINS(40), (uint64_t)-1, MK_COINS(60), MK_COINS(60), (uint64_t)-1, MK_COINS(30), MK_COINS(30), MK_COINS(30), MK_COINS(30), (uint64_t)-1};
 
   const rct::RCTConfig rct_config[] = {{rct::RangeProofPaddedBulletproof, 0}, {rct::RangeProofPaddedBulletproof, 0}, {rct::RangeProofPaddedBulletproof, 0}, {rct::RangeProofPaddedBulletproof, 0}};
   const size_t bp_sizes[] = {2, (size_t)-1, 4, (size_t)-1, 2, (size_t)-1, 4, (size_t)-1};
