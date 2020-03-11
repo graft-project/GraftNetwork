@@ -125,22 +125,34 @@ namespace crypto {
   };
   using x25519_secret_key = epee::mlocked<tools::scrubbed<x25519_secret_key_>>;
 
-  union alignas(size_t) generic_public_key
+  enum struct generic_key_sig_type : uint8_t { monero, ed25519 };
+
+  struct generic_public_key
   {
-    ed25519_public_key ed25519;
-    public_key         monero;
-    unsigned char      data[sizeof(ed25519_public_key)];
-    static constexpr generic_public_key null() { return {0}; }
+    union
+    {
+      ed25519_public_key ed25519;
+      public_key         monero;
+      unsigned char      data[sizeof(ed25519_public_key)];
+    };
+    generic_key_sig_type type;
+    static constexpr generic_public_key null() { return {}; }
     operator bool() const { return memcmp(data, null().data, sizeof(data)); }
+    bool operator==(generic_public_key const &other) const { return other.type == type && memcmp(data, other.data, sizeof(data)) == 0; }
   };
 
-  union alignas(size_t) generic_signature
+  struct generic_signature
   {
-    ed25519_signature ed25519;
-    signature         monero;
-    unsigned char     data[sizeof(ed25519_signature)];
-    static constexpr generic_signature null() { return {0}; }
+    union
+    {
+      ed25519_signature ed25519;
+      signature         monero;
+      unsigned char     data[sizeof(ed25519_signature)];
+    };
+    generic_key_sig_type type;
+    static constexpr generic_signature null() { return {}; }
     operator bool() const { return memcmp(data, null().data, sizeof(data)); }
+    bool operator==(generic_signature const &other) const { return other.type == type && memcmp(data, other.data, sizeof(data)) == 0; }
   };
   static_assert(sizeof(ed25519_signature) == sizeof(crypto::signature), "LNS allows storing either ed25519 or monero style signatures, we store all signatures into crypto::signature in LNS");
   static_assert(sizeof(ed25519_public_key) == sizeof(crypto::public_key), "LNS allows storing either ed25519 or monero style keys interchangeably, we store all keys into ed25519_public_key in LNS");
@@ -321,5 +333,3 @@ CRYPTO_MAKE_HASHABLE(key_image)
 CRYPTO_MAKE_HASHABLE(signature)
 CRYPTO_MAKE_HASHABLE(ed25519_public_key)
 CRYPTO_MAKE_HASHABLE(x25519_public_key)
-CRYPTO_MAKE_HASHABLE(generic_public_key)
-CRYPTO_MAKE_HASHABLE(generic_signature)

@@ -77,6 +77,42 @@ bool do_serialize(Archive<true> &ar, std::vector<crypto::signature> &v)
   return true;
 }
 
+template <template <bool> class Archive>
+bool do_serialize(Archive<true /*write*/> &ar, crypto::generic_signature &sig)
+{
+  ar.serialize_blob(sig.data, sizeof(crypto::signature), "");
+  ar.serialize_uint(static_cast<uint8_t>(sig.type));
+  return ar.stream().good();
+}
+
+template <template <bool> class Archive>
+bool do_serialize(Archive<false /*read*/> &ar, crypto::generic_signature &sig)
+{
+  ar.serialize_blob(sig.data, sizeof(sig.data), "");
+  uint8_t type = 0;
+  ar.serialize_uint(type);
+  sig.type = static_cast<decltype(sig.type)>(type);
+  return ar.stream().good();
+}
+
+template <template <bool> class Archive>
+bool do_serialize(Archive<true /*write*/> &ar, crypto::generic_public_key &key)
+{
+  ar.serialize_blob(key.data, sizeof(key.data), "");
+  ar.serialize_uint(static_cast<uint8_t>(key.type));
+  return ar.stream().good();
+}
+
+template <template <bool> class Archive>
+bool do_serialize(Archive<false /*read*/> &ar, crypto::generic_public_key &key)
+{
+  ar.serialize_blob(key.data, sizeof(key.data), "");
+  uint8_t type = 0;
+  ar.serialize_uint(type);
+  key.type = static_cast<decltype(key.type)>(type);
+  return ar.stream().good();
+}
+
 BLOB_SERIALIZER(crypto::chacha_iv);
 BLOB_SERIALIZER(crypto::hash);
 BLOB_SERIALIZER(crypto::hash8);
@@ -87,8 +123,6 @@ BLOB_SERIALIZER(crypto::key_image);
 BLOB_SERIALIZER(crypto::signature);
 BLOB_SERIALIZER(crypto::ed25519_public_key);
 BLOB_SERIALIZER(crypto::ed25519_signature);
-BLOB_SERIALIZER(crypto::generic_public_key);
-BLOB_SERIALIZER(crypto::generic_signature);
 VARIANT_TAG(debug_archive, crypto::hash, "hash");
 VARIANT_TAG(debug_archive, crypto::hash8, "hash8");
 VARIANT_TAG(debug_archive, crypto::public_key, "public_key");

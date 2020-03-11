@@ -532,7 +532,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   }
   else
   {
-    pkey.monero = src.get_keys().m_account_address.m_spend_public_key;
+    pkey = lns::make_monero_public_key(src.get_keys().m_account_address.m_spend_public_key);
   }
 
   cryptonote::block const &head = top().block;
@@ -593,9 +593,10 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(
   crypto::generic_signature signature_ = {};
   if (!signature)
   {
+    // TODO(doyle): We need to detct the key types, this will be possible to detect when we pass in the wallet address as the owner
     signature = &signature_;
     crypto::hash hash = lns::tx_extra_signature_hash(encrypted_value.to_span(), owner, backup_owner, prev_txid);
-    crypto::generate_signature(hash, src.get_keys().m_account_address.m_spend_public_key, src.get_keys().m_spend_secret_key, signature->monero);
+    *signature = lns::make_monero_signature(hash, src.get_keys().m_account_address.m_spend_public_key, src.get_keys().m_spend_secret_key);
   }
 
   std::vector<uint8_t> extra;

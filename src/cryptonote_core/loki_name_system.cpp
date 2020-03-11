@@ -95,10 +95,10 @@ static bool sql_copy_blob(sqlite3_stmt *statement, int column, void *dest, int d
 {
   void const *blob = sqlite3_column_blob(statement, column);
   int blob_len     = sqlite3_column_bytes(statement, column);
-  assert(blob_len == dest_size);
   if (blob_len != dest_size)
   {
     LOG_PRINT_L0("Unexpected blob size=" << blob_len << ", in LNS DB does not match expected size=" << dest_size);
+    assert(blob_len == dest_size);
     return false;
   }
 
@@ -145,12 +145,12 @@ static mapping_record sql_get_mapping_from_statement(sqlite3_stmt *statement)
     return result;
 
   int owner_column = tools::enum_count<mapping_record_column>;
-  if (!sql_copy_blob(statement, owner_column, result.owner.data, sizeof(result.owner)))
+  if (!sql_copy_blob(statement, owner_column, reinterpret_cast<void *>(&result.owner), sizeof(result.owner)))
     return result;
 
   if (result.backup_owner_id > 0)
   {
-    if (!sql_copy_blob(statement, owner_column + 1, result.backup_owner.data, sizeof(result.backup_owner)))
+    if (!sql_copy_blob(statement, owner_column + 1, reinterpret_cast<void *>(&result.backup_owner), sizeof(result.backup_owner)))
       return result;
   }
 
@@ -182,7 +182,7 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           {
             auto *entry = reinterpret_cast<owner_record *>(context);
             entry->id   = sqlite3_column_int(statement, static_cast<int>(owner_record_column::id));
-            if (!sql_copy_blob(statement, static_cast<int>(owner_record_column::public_key), entry->key.data, sizeof(entry->key.data)))
+            if (!sql_copy_blob(statement, static_cast<int>(owner_record_column::public_key), reinterpret_cast<void *>(&entry->key), sizeof(entry->key)))
               return false;
             data_loaded = true;
           }
@@ -330,8 +330,8 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> value, crypto::ge
 
   unsigned char buffer[mapping_value::BUFFER_SIZE + sizeof(*owner) + sizeof(*backup_owner) + sizeof(prev_txid)] = {};
   size_t buffer_len = value.size() + sizeof(prev_txid);
-  if (owner)        buffer_len += sizeof(*owner);
-  if (backup_owner) buffer_len += sizeof(*backup_owner);
+  if (owner)        buffer_len += sizeof(owner->data) + sizeof(owner->type);
+  if (backup_owner) buffer_len += sizeof(backup_owner->data) + sizeof(backup_owner->type);
 
   unsigned char *ptr = buffer;
   memcpy(ptr, value.data(), value.size());
@@ -339,17 +339,50 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> value, crypto::ge
 
   if (owner)
   {
-    memcpy(ptr, owner->data, sizeof(*owner));
-    ptr += sizeof(*owner);
+    memcpy(ptr, owner->data, sizeof(owner->data)); ptr += sizeof(owner->data);
+    memcpy(ptr, reinterpret_cast<uint8_t const *>(&owner->type), sizeof(owner->type)); ptr += sizeof(owner->type);
   }
 
   if (backup_owner)
   {
-    memcpy(ptr, backup_owner->data, sizeof(*backup_owner));
-    ptr += sizeof(*backup_owner);
+    memcpy(ptr, backup_owner->data, sizeof(backup_owner->data)); ptr += sizeof(backup_owner->data);
+    memcpy(ptr, reinterpret_cast<uint8_t const *>(&backup_owner->type), sizeof(backup_owner->type)); ptr += sizeof(backup_owner->type);
   }
+  static_assert(sizeof(owner->type) == sizeof(char), "Require byte alignment to avoid unaligned access exceptions");
 
   crypto_generichash(reinterpret_cast<unsigned char *>(result.data), sizeof(result), buffer, buffer_len, NULL /*key*/, 0 /*key_len*/);
+  return result;
+}
+
+crypto::generic_signature make_monero_signature(crypto::hash const &hash, crypto::public_key const &pkey, crypto::secret_key const &skey)
+{
+  crypto::generic_signature result = {};
+  result.type                      = crypto::generic_key_sig_type::monero;
+  generate_signature(hash, pkey, skey, result.monero);
+  return result;
+}
+
+crypto::generic_signature make_ed25519_signature(crypto::hash const &hash, crypto::ed25519_secret_key const &skey)
+{
+  crypto::generic_signature result = {};
+  result.type                      = crypto::generic_key_sig_type::ed25519;
+  crypto_sign_detached(result.ed25519.data, NULL, reinterpret_cast<unsigned char const *>(hash.data), sizeof(hash), skey.data);
+  return result;
+}
+
+crypto::generic_public_key make_monero_public_key(crypto::public_key const &pkey)
+{
+  crypto::generic_public_key result = {};
+  result.type                       = crypto::generic_key_sig_type::monero;
+  result.monero                     = pkey;
+  return result;
+}
+
+crypto::generic_public_key make_ed25519_public_key(crypto::ed25519_public_key const &pkey)
+{
+  crypto::generic_public_key result = {};
+  result.type                       = crypto::generic_key_sig_type::ed25519;
+  result.ed25519                    = pkey;
   return result;
 }
 
@@ -606,13 +639,15 @@ static std::string hash_to_base64(crypto::hash const &hash)
 static bool verify_lns_signature(crypto::hash const &hash, crypto::generic_signature const &signature, crypto::generic_public_key const &key)
 {
   if (!key) return false;
-  if (crypto_sign_verify_detached(signature.data, reinterpret_cast<unsigned char const *>(hash.data), sizeof(hash.data), key.data) != 0)
+  if (key.type != signature.type) return false;
+  if (signature.type == crypto::generic_key_sig_type::monero)
   {
-    if (!crypto::check_signature(hash, key.monero, signature.monero))
-      return false;
+    return crypto::check_signature(hash, key.monero, signature.monero);
   }
-
-  return true;
+  else
+  {
+    return (crypto_sign_verify_detached(signature.data, reinterpret_cast<unsigned char const *>(hash.data), sizeof(hash.data), key.ed25519.data) == 0);
+  }
 }
 
 static bool validate_against_previous_mapping(lns::name_system_db const &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &lns_extra, std::string *reason = nullptr)

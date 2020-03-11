@@ -8492,7 +8492,7 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
   }
 
   if (!owner && !backup_owner)
-    result.owner.monero = wallet.get_account().get_keys().m_account_address.m_spend_public_key;
+    result.owner = lns::make_monero_public_key(wallet.get_account().get_keys().m_account_address.m_spend_public_key);
 
   {
     cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::request request = {};
@@ -8523,14 +8523,8 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
 
   if (make_signature)
   {
-    crypto::hash hash = lns::tx_extra_signature_hash(result.encrypted_value.to_span(),
-                                                     owner ? &result.owner : nullptr,
-                                                     backup_owner ? &result.backup_owner : nullptr,
-                                                     result.prev_txid);
-    crypto::generate_signature(hash,
-                               wallet.get_account().get_keys().m_account_address.m_spend_public_key,
-                               wallet.get_account().get_keys().m_spend_secret_key,
-                               result.signature.monero);
+    crypto::hash hash = lns::tx_extra_signature_hash(result.encrypted_value.to_span(), owner ? &result.owner : nullptr, backup_owner ? &result.backup_owner : nullptr, result.prev_txid);
+    result.signature = lns::make_monero_signature(hash, wallet.get_account().get_keys().m_account_address.m_spend_public_key, wallet.get_account().get_keys().m_spend_secret_key);
   }
 
   result.prepared = true;

@@ -3413,6 +3413,7 @@ namespace cryptonote
     if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.entries.size(), COMMAND_RPC_LNS_OWNERS_TO_NAMES::MAX_REQUEST_ENTRIES))
       return false;
 
+    // TODO(doyle): Currently we assume monero keys, make code handle wallet addresses + ed keys to detect the type of key.
     std::map<crypto::generic_public_key, size_t> key_to_request_index;
     std::vector<crypto::generic_public_key> keys;
 
@@ -3420,7 +3421,8 @@ namespace cryptonote
     for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
     {
       std::string const &owner = req.entries[request_index];
-      crypto::generic_public_key pkey;
+      crypto::generic_public_key pkey = {};
+      pkey.type                       = crypto::generic_key_sig_type::monero;
       if (!epee::string_tools::hex_to_pod(owner, pkey))
       {
         error_resp.code    = CORE_RPC_ERROR_CODE_WRONG_PARAM;
