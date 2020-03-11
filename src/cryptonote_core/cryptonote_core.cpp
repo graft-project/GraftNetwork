@@ -821,12 +821,11 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec");
     }
 
-    const std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks = {
-        {cryptonote::network_version_7,         1},
-        {cryptonote::network_version_count - 1, 2},
-    };
+    std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks;
+    for (uint8_t hf = cryptonote::network_version_7; hf < cryptonote::network_version_count; hf++)
+      regtest_hard_forks.emplace_back(hf, regtest_hard_forks.size() + 1);
     const cryptonote::test_options regtest_test_options = {
-      regtest_hard_forks,
+      std::move(regtest_hard_forks),
       0
     };
 

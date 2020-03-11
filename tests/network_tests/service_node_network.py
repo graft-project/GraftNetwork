@@ -114,20 +114,32 @@ class SNNetwork:
         for w in self.wallets:
             w.wait_for_json_rpc("refresh")
 
-        # Mine a bunch of blocks; we need 100 per SN registration, and each mined block gives us an
-        # input of ~57, which means each registration requires 2 inputs.  Thus we need a bare
-        # minimum of 2N blocks, plus the 30 lock time on coinbase TXes, plus 4 as a small margin of
-        # error.
-        self.mine(30 + 2*len(self.sns) + 4)
-
-        self.print_wallet_balances()
-
-        vprint("Submitting service node registrations: ", end="", flush=True)
-        for sn in self.sns:
+        # Mine some blocks; we need 100 per SN registration, and we can nearly 600 on fakenet before
+        # it hits HF16 and kills mining rewards.  This lets us submit the first 5 SN registrations a
+        # SN (at height 40, which is the earliest we can submit them without getting an occasional
+        # spurious "Not enough outputs to use" error).
+        # to unlock and the rest to have enough unlocked outputs for mixins), then more some more to
+        # earn SN rewards.  We need 100 per SN registration, and each mined block gives us an input
+        # of 18.9, which means each registration requires 6 inputs.  Thus we need a bare minimum of
+        # 6(N-5) blocks, plus the 30 lock time on coinbase TXes = 6N more blocks (after the initial
+        # 5 registrations).
+        self.mine(50)
+        vprint("Submitting first round of service node registrations: ", end="", flush=True)
+        for sn in self.sns[0:5]:
             self.mike.register_sn(sn)
             vprint(".", end="", flush=True, timestamp=False)
         vprint(timestamp=False)
-        vprint("Done.")
+        if len(self.sns) > 5:
+            vprint("Going back to mining", flush=True)
+
+            self.mine(6*len(self.sns))
+
+            vprint("Submitting more service node registrations: ", end="", flush=True)
+            for sn in self.sns[5:]:
+                self.mike.register_sn(sn)
+                vprint(".", end="", flush=True, timestamp=False)
+            vprint(timestamp=False)
+            vprint("Done.")
 
         self.print_wallet_balances()
 
@@ -247,9 +259,9 @@ snn = None
 @pytest.fixture
 def net(pytestconfig, tmp_path, binary_dir):
     """Fixture that returns the service node network.  It is persistent across tests: the first time
-    it loads it starts the daemons and wallets, mines up to height 75, submits service node
-    registrations, then mines another 5 blocks to mine and confirm them.  On subsequent loads it mines
-    5 blocks so that mike always has some available funds, and sets alice and bob to new wallets."""
+    it loads it starts the daemons and wallets, mines a bunch of blocks and submits SN
+    registrations.  On subsequent loads it mines 5 blocks so that mike always has some available
+    funds, and sets alice and bob to new wallets."""
     global snn, verbose
     if not snn:
         verbose = pytestconfig.getoption('verbose') >= 2
