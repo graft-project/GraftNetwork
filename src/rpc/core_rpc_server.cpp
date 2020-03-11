@@ -3389,12 +3389,13 @@ namespace cryptonote
       std::string name_hash = lns::name_to_base64_hash(request.name);
       std::vector<lns::mapping_record> records = db.get_mappings(request.types, name_hash);
       res.entries.reserve(records.size());
-      for (auto const &record : records)
+      for (auto &record : records)
       {
         res.entries.emplace_back();
         COMMAND_RPC_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
         entry.entry_index                                      = request_index;
         entry.type                                             = static_cast<uint16_t>(record.type);
+        entry.name_hash                                        = std::move(record.name_hash);
         entry.owner                                            = epee::string_tools::pod_to_hex(record.owner);
         entry.backup_owner                                     = epee::string_tools::pod_to_hex(record.backup_owner);
         entry.encrypted_value                                  = epee::to_hex::string(record.encrypted_value.to_span());
