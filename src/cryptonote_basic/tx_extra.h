@@ -65,13 +65,26 @@
 
 namespace lns
 {
-enum struct tx_command_t : uint8_t
+enum struct extra_field : uint8_t
 {
-  buy,
-  update,
-  _count,
+  none            = 0,
+  owner           = 1 << 0,
+  backup_owner    = 1 << 1,
+  signature       = 1 << 2,
+  encrypted_value = 1 << 3,
+
+  // Bit Masks
+  updatable_fields = (extra_field::owner | extra_field::backup_owner | extra_field::encrypted_value),
+  buy_no_backup    = (extra_field::owner | extra_field::encrypted_value),
+  buy              = (extra_field::buy_no_backup | extra_field::backup_owner),
+  all              = (extra_field::updatable_fields | extra_field::signature),
 };
-};
+
+constexpr inline extra_field operator|(extra_field a, extra_field b) { return static_cast<extra_field>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b)); }
+constexpr inline extra_field operator&(extra_field a, extra_field b) { return static_cast<extra_field>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b)); }
+constexpr inline extra_field& operator|=(extra_field& a, extra_field b) { return a = a | b; }
+constexpr inline extra_field& operator&=(extra_field& a, extra_field b) { return a = a & b; }
+}
 
 namespace service_nodes {
   enum class new_state : uint16_t
@@ -396,49 +409,85 @@ namespace cryptonote
   struct tx_extra_loki_name_system
   {
     uint8_t                    version = 0;
-    lns::tx_command_t          command;
-    lns::mapping_type          type; // alias to lns::mapping_type
-    crypto::ed25519_public_key owner; // only serialized if command == tx_command_t::buy
-    crypto::ed25519_signature  signature; // only serialized if command == tx_command_t::update
+    lns::mapping_type          type;
     crypto::hash               name_hash;
-    std::string                encrypted_value; // encrypted binary format of the value in the name->value mapping
-    crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping
+    crypto::hash               prev_txid = crypto::null_hash;  // previous txid that purchased the mapping
+    lns::extra_field           fields;
+    crypto::generic_public_key owner        = {};
+    crypto::generic_public_key backup_owner = {};
+    crypto::generic_signature  signature    = {};
+    std::string                encrypted_value; // binary format of the name->value mapping
 
-    static tx_extra_loki_name_system make_buy(crypto::ed25519_public_key const &owner, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
+    bool field_is_set (lns::extra_field bit) const { return (fields & bit) == bit; }
+    bool field_any_set(lns::extra_field bit) const { return (fields & bit) != lns::extra_field::none; }
+
+    bool is_updating() const { return field_is_set(lns::extra_field::signature) && field_any_set(lns::extra_field::updatable_fields); }
+    bool is_buying()   const { return (fields == lns::extra_field::buy || fields == lns::extra_field::buy_no_backup); }
+
+    static tx_extra_loki_name_system make_buy(crypto::generic_public_key const &owner, crypto::generic_public_key const *backup_owner, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
     {
       tx_extra_loki_name_system result = {};
+      result.fields                    = lns::extra_field::buy;
       result.owner                     = owner;
-      result.type                      = type;
-      result.name_hash                 = name_hash;
-      result.encrypted_value           = encrypted_value;
-      result.prev_txid                 = prev_txid;
-      result.command                   = lns::tx_command_t::buy;
+
+      if (backup_owner)
+        result.backup_owner = *backup_owner;
+      else
+        result.fields = lns::extra_field::buy_no_backup;
+
+      result.type            = type;
+      result.name_hash       = name_hash;
+      result.encrypted_value = encrypted_value;
+      result.prev_txid       = prev_txid;
       return result;
     }
 
-    static tx_extra_loki_name_system make_update(crypto::ed25519_signature const &signature, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
+    static tx_extra_loki_name_system make_update(crypto::generic_signature const &signature,
+                                                 lns::mapping_type type,
+                                                 crypto::hash const &name_hash,
+                                                 epee::span<const uint8_t> encrypted_value,
+                                                 crypto::generic_public_key const *owner,
+                                                 crypto::generic_public_key const *backup_owner,
+                                                 crypto::hash const &prev_txid)
     {
       tx_extra_loki_name_system result = {};
       result.signature                 = signature;
       result.type                      = type;
       result.name_hash                 = name_hash;
-      result.encrypted_value           = encrypted_value;
-      result.prev_txid                 = prev_txid;
-      result.command                   = lns::tx_command_t::update;
+      result.fields |= lns::extra_field::signature;
+
+      if (encrypted_value.size())
+      {
+        result.fields |= lns::extra_field::encrypted_value;
+        result.encrypted_value = std::string(reinterpret_cast<char const *>(encrypted_value.data()), encrypted_value.size());
+      }
+
+      if (owner)
+      {
+        result.fields |= lns::extra_field::owner;
+        result.owner = *owner;
+      }
+
+      if (backup_owner)
+      {
+        result.fields |= lns::extra_field::backup_owner;
+        result.backup_owner = *backup_owner;
+      }
+
+      result.prev_txid = prev_txid;
       return result;
     }
 
     BEGIN_SERIALIZE()
       FIELD(version)
       ENUM_FIELD(type, type < lns::mapping_type::_count)
-      ENUM_FIELD(command, command < lns::tx_command_t::_count)
-      if (command == lns::tx_command_t::buy)
-        FIELD(owner)
-      else
-        FIELD(signature)
       FIELD(name_hash)
-      FIELD(encrypted_value)
       FIELD(prev_txid)
+      ENUM_FIELD(fields, fields <= lns::extra_field::all)
+      if (field_is_set(lns::extra_field::owner)) FIELD(owner);
+      if (field_is_set(lns::extra_field::backup_owner)) FIELD(backup_owner);
+      if (field_is_set(lns::extra_field::signature)) FIELD(signature);
+      if (field_is_set(lns::extra_field::encrypted_value)) FIELD(encrypted_value);
     END_SERIALIZE()
   };
 

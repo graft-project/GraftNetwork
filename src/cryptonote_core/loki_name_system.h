@@ -65,8 +65,13 @@ sqlite3       *init_loki_name_system(char const *file_path);
 uint64_t constexpr NO_EXPIRY = static_cast<uint64_t>(-1);
 // return: The number of blocks until expiry from the registration height, if there is no expiration NO_EXPIRY is returned.
 uint64_t     expiry_blocks(cryptonote::network_type nettype, mapping_type type, uint64_t *renew_window = nullptr);
-crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> blob, crypto::hash const &prev_txid);
 bool         validate_lns_name(mapping_type type, std::string const &name, std::string *reason = nullptr);
+
+crypto::generic_signature  make_monero_signature(crypto::hash const &hash, crypto::public_key const &pkey, crypto::secret_key const &skey);
+crypto::generic_signature  make_ed25519_signature(crypto::hash const &hash, crypto::ed25519_secret_key const &skey);
+crypto::generic_public_key make_monero_public_key(crypto::public_key const &pkey);
+crypto::generic_public_key make_ed25519_public_key(crypto::ed25519_public_key const &pkey);
+crypto::hash               tx_extra_signature_hash(epee::span<const uint8_t> value, crypto::generic_public_key const *owner, crypto::generic_public_key const *backup_owner, crypto::hash const &prev_txid);
 
 // Validate a human readable mapping value representation in 'value' and write the binary form into 'blob'.
 // value: if type is session, 66 character hex string of an ed25519 public key
@@ -95,7 +100,7 @@ struct owner_record
   bool loaded;
 
   int64_t id;
-  crypto::ed25519_public_key key;
+  crypto::generic_public_key key;
 };
 
 struct settings_record
@@ -123,10 +128,12 @@ struct mapping_record
   std::string                name_hash; // name hashed and represented in base64 encoding
   mapping_value              encrypted_value;
   uint64_t                   register_height;
-  int64_t                    owner_id;
-  crypto::ed25519_public_key owner;
   crypto::hash               txid;
   crypto::hash               prev_txid;
+  int64_t                    owner_id;
+  int64_t                    backup_owner_id;
+  crypto::generic_public_key owner;
+  crypto::generic_public_key backup_owner;
 };
 
 struct name_system_db
@@ -139,20 +146,19 @@ struct name_system_db
 
   // Signifies the blockchain has reorganized commences the rollback and pruning procedures.
   void                        block_detach(cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height);
-
-  bool                        save_owner   (crypto::ed25519_public_key const &key, int64_t *row_id);
-  bool                        save_mapping (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id);
-  bool                        save_settings(uint64_t top_height, crypto::hash const &top_hash, int version);
+  bool                        save_owner     (crypto::generic_public_key const &key, int64_t *row_id);
+  bool                        save_mapping   (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id, int64_t backup_owner_id = 0);
+  bool                        save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
 
   // Delete all mappings that are registered on height or newer followed by deleting all owners no longer referenced in the DB
   bool                        prune_db(uint64_t height);
 
-  owner_record                get_owner_by_key      (crypto::ed25519_public_key const &key) const;
+  owner_record                get_owner_by_key      (crypto::generic_public_key const &key) const;
   owner_record                get_owner_by_id       (int64_t owner_id) const;
   mapping_record              get_mapping           (mapping_type type, std::string const &name_base64_hash) const;
   std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name_base64_hash) const;
-  std::vector<mapping_record> get_mappings_by_owner (crypto::ed25519_public_key const &key) const;
-  std::vector<mapping_record> get_mappings_by_owners(std::vector<crypto::ed25519_public_key> const &keys) const;
+  std::vector<mapping_record> get_mappings_by_owner (crypto::generic_public_key const &key) const;
+  std::vector<mapping_record> get_mappings_by_owners(std::vector<crypto::generic_public_key> const &keys) const;
   settings_record             get_settings          () const;
 
   // entry: (optional) if function returns true, the Loki Name System entry in the TX extra is copied into 'entry'

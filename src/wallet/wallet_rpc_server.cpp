@@ -46,7 +46,6 @@ using namespace epee;
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/account.h"
 #include "multisig/multisig.h"
-#include "wallet_rpc_server_commands_defs.h"
 #include "misc_language.h"
 #include "string_coding.h"
 #include "string_tools.h"
@@ -56,6 +55,7 @@ using namespace epee;
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "rpc/core_rpc_server.h"
 #include "daemonizer/daemonizer.h"
+#include "cryptonote_core/loki_name_system.h"
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "wallet.rpc"
@@ -4280,7 +4280,7 @@ namespace tools
     return res.unlocked;
   }
 
-  bool wallet_rpc_server::on_buy_lns_mapping(const wallet_rpc::COMMAND_RPC_BUY_LNS_MAPPING::request& req, wallet_rpc::COMMAND_RPC_BUY_LNS_MAPPING::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  bool wallet_rpc_server::on_lns_buy_mapping(const wallet_rpc::COMMAND_RPC_LNS_BUY_MAPPING::request& req, wallet_rpc::COMMAND_RPC_LNS_BUY_MAPPING::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
     if (m_restricted)
@@ -4291,7 +4291,15 @@ namespace tools
     }
 
     std::string reason;
-    std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_buy_lns_mapping_tx(req.type, req.owner, req.name, req.value, &reason, req.priority, req.account_index, req.subaddr_indices);
+    std::vector<wallet2::pending_tx> ptx_vector = m_wallet->lns_create_buy_mapping_tx(req.type,
+                                                                                      req.owner.size() ? &req.owner : nullptr,
+                                                                                      req.backup_owner.size() ? &req.backup_owner : nullptr,
+                                                                                      req.name,
+                                                                                      req.value,
+                                                                                      &reason,
+                                                                                      req.priority,
+                                                                                      req.account_index,
+                                                                                      req.subaddr_indices);
     if (ptx_vector.empty())
     {
       er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;
@@ -4316,7 +4324,7 @@ namespace tools
                          er);
   }
 
-  bool wallet_rpc_server::on_update_lns_mapping(const wallet_rpc::COMMAND_RPC_UPDATE_LNS_MAPPING::request &req, wallet_rpc::COMMAND_RPC_UPDATE_LNS_MAPPING::response &res, epee::json_rpc::error &er, const connection_context *ctx)
+  bool wallet_rpc_server::on_lns_update_mapping(const wallet_rpc::COMMAND_RPC_LNS_UPDATE_MAPPING::request &req, wallet_rpc::COMMAND_RPC_LNS_UPDATE_MAPPING::response &res, epee::json_rpc::error &er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
     if (m_restricted)
@@ -4328,10 +4336,12 @@ namespace tools
 
     std::string reason;
     std::vector<wallet2::pending_tx> ptx_vector =
-        m_wallet->create_update_lns_mapping_tx(req.type,
+        m_wallet->lns_create_update_mapping_tx(req.type,
                                                req.name,
-                                               req.value,
-                                               req.signature.empty() ? nullptr : &req.signature,
+                                               req.value.empty()        ? nullptr : &req.value,
+                                               req.owner.empty()        ? nullptr : &req.owner,
+                                               req.backup_owner.empty() ? nullptr : &req.backup_owner,
+                                               req.signature.empty()    ? nullptr : &req.signature,
                                                &reason,
                                                req.priority,
                                                req.account_index,
@@ -4359,6 +4369,43 @@ namespace tools
                          req.get_tx_metadata,
                          res.tx_metadata,
                          er);
+  }
+
+  bool wallet_rpc_server::on_lns_make_update_mapping_signature(const wallet_rpc::COMMAND_RPC_LNS_MAKE_UPDATE_SIGNATURE::request& req, wallet_rpc::COMMAND_RPC_LNS_MAKE_UPDATE_SIGNATURE::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_restricted)
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Generating the lns update signature is unavailable in restricted mode.";
+      return false;
+    }
+
+    std::string reason;
+    lns::mapping_type type;
+    if (!lns::validate_mapping_type(req.type, &type, &reason))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_WRONG_LNS_TYPE;
+      er.message = "Wrong lns type given=" + reason;
+      return false;
+    }
+
+    crypto::generic_signature signature;
+    if (!m_wallet->lns_make_update_mapping_signature(type,
+                                                     req.name,
+                                                     req.value.size() ? &req.value : nullptr,
+                                                     req.owner.size() ? &req.owner : nullptr,
+                                                     req.backup_owner.size() ? &req.backup_owner : nullptr,
+                                                     signature,
+                                                     &reason))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;
+      er.message = "Failed to create signature for LNS update transaction: " + reason;
+      return false;
+    }
+
+    res.signature = epee::string_tools::pod_to_hex(signature);
+    return true;
   }
 }
 
