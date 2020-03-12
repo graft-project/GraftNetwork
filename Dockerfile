@@ -1,9 +1,13 @@
 # Multistage docker build, requires docker 17.05
 
+# TO RUN
+# docker build -t loki-daemon-image .
+
+# TO COLLECT BINARIES
+# ./util/build_scripts/collect_from_docker_container.sh
+
 # builder stage
 FROM ubuntu:16.04 as builder
-
-ARG NPROC=$(nproc)
 
 RUN set -ex && \
     apt-get update && \
@@ -29,10 +33,6 @@ RUN set -ex && \
 
 WORKDIR /usr/local/src
 
-#ENV CFLAGS='-fPIC'
-#ENV CXXFLAGS='-fPIC'
-
-# OpenSSL
 ARG OPENSSL_VERSION=1.1.1d
 ARG OPENSSL_HASH=1e3a91bc1f9dfce01af26026f856e064eab4c8ee0a8f457b5ae30b40b8b711f2
 RUN set -ex \
@@ -41,11 +41,9 @@ RUN set -ex \
     && tar xf openssl-${OPENSSL_VERSION}.tar.gz \
     && cd openssl-${OPENSSL_VERSION} \
     && ./Configure --prefix=/usr linux-x86_64 no-shared --static \
-    && make build_generated -j$NPROC \
-    && make libcrypto.a -j$NPROC \
-    && make install_sw -j$NPROC
+    && make -j$(nproc) \
+    && make install_sw -j$(nproc)
 
-## Boost
 ARG BOOST_VERSION=1_72_0
 ARG BOOST_VERSION_DOT=1.72.0
 ARG BOOST_HASH=59c9b274bc451cf91a9ba1dd2c7fdcaf5d60b1b3aa83f2c9fa143417cc660722
@@ -59,7 +57,7 @@ RUN set -ex \
         --with-atomic --with-chrono --with-date_time --with-filesystem --with-program_options \
         --with-regex --with-serialization --with-system --with-thread --with-locale \
         threading=multi threadapi=pthread cxxflags=-fPIC \
-        -j$NPROC install
+        -j$(nproc) install
 
 
 ARG SODIUM_VERSION=1.0.18-RELEASE
@@ -70,7 +68,7 @@ RUN set -ex \
     && test `git rev-parse HEAD` = ${SODIUM_HASH} || exit 1 \
     && ./autogen.sh \
     && ./configure --enable-static --disable-shared --prefix=/usr \
-    && make -j$NPROC \
+    && make -j$(nproc) \
     && make check \
     && make install
 
@@ -83,7 +81,7 @@ RUN set -ex \
 #     && tar xf readline-${READLINE_VERSION}.tar.gz \
 #     && cd readline-${READLINE_VERSION} \
 #     && ./configure --prefix=/usr --disable-shared \
-#     && make -j$NPROC \
+#     && make -j$(nproc) \
 #     && make install
 
 # Sqlite3
@@ -95,7 +93,7 @@ RUN set -ex \
     && tar xf sqlite-autoconf-${SQLITE_VERSION}.tar.gz \
     && cd sqlite-autoconf-${SQLITE_VERSION} \
     && ./configure --disable-shared --prefix=/usr --with-pic \
-    && make -j$NPROC \
+    && make -j$(nproc) \
     && make install
 
 WORKDIR /src
@@ -105,7 +103,10 @@ RUN set -ex && \
     git submodule update --init --recursive && \
     rm -rf build/release && mkdir -p build/release && cd build/release && \
     cmake -DSTATIC=ON -DARCH=x86-64 -DCMAKE_BUILD_TYPE=Release ../.. && \
-    make -j${NPROC:-$(nproc)} VERBOSE=1
+    make -j$(nproc) VERBOSE=1
+
+RUN set -ex && \
+    ldd /src/build/release/bin/lokid
 
 # runtime stage
 FROM ubuntu:16.04
@@ -138,4 +139,3 @@ EXPOSE 22023
 USER loki
 
 ENTRYPOINT ["lokid", "--p2p-bind-ip=0.0.0.0", "--p2p-bind-port=22022", "--rpc-bind-ip=0.0.0.0", "--rpc-bind-port=22023", "--non-interactive", "--confirm-external-bind"]
-
