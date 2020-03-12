@@ -6379,20 +6379,8 @@ bool simple_wallet::lns_buy_mapping(const std::vector<std::string>& args)
     return true;
   }
 
-<<<<<<< HEAD
-  std::string const &value = local_args[local_args.size() - 1];
-  std::string name;
-
-  size_t first_word_index = 0;
-  size_t last_word_index  = local_args.size() - 2;
-  if (!parse_lns_name_string(USAGE_LNS_BUY_MAPPING, local_args, first_word_index, last_word_index, name))
-    return false;
-=======
-  std::string owner        = eat_named_argument(local_args, LNS_OWNER_PREFIX, loki::char_count(LNS_OWNER_PREFIX));
-  std::string backup_owner = eat_named_argument(local_args, LNS_BACKUP_OWNER_PREFIX, loki::char_count(LNS_BACKUP_OWNER_PREFIX));
   std::string const &name  = local_args[0];
   std::string const &value = local_args[1];
->>>>>>> LNS: Remove parse_lns_name from CLI wallet
 
   SCOPED_WALLET_UNLOCK();
   std::string reason;

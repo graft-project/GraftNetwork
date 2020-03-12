@@ -22,6 +22,12 @@ TEST(loki_name_system, name_tests)
       {"a.loko", false},
       {"a domain name.loki", false},
       {"-.loki", false},
+      {"a_b.loki", false},
+      {" a.loki", false},
+      {"a.loki ", false},
+      {" a.loki ", false},
+      {"localhost.loki", false},
+      {"localhost", false},
   };
 
   name_test const session_wallet_names[] = {

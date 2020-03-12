@@ -485,32 +485,38 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
     return false;
 
   // NOTE: Validate domain specific requirements
-  char const *char_preceeding_suffix = nullptr;
   if (is_lokinet)
   {
-
     // LOKINET
     // Domain has to start with an alphanumeric, and can have (alphanumeric or hyphens) in between, the character before the suffix <char>'.loki' must be alphanumeric followed by the suffix '.loki'
     // ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.loki$
-    if (is_lokinet)
+
+    if (check_condition(name == "localhost.loki", reason, "LNS type=", type, ", specifies mapping from name->value using protocol reserved name=", name))
+      return false;
+
+    // Must start with alphanumeric
+    if (check_condition(!char_is_alphanum(name.front()), reason, "LNS type=", type, ", specifies mapping from name->value where the name does not start with an alphanumeric character, name=", name))
+      return false;
+
+    char const SHORTEST_DOMAIN[] = "a.loki";
+    if (check_condition((name.size() < static_cast<int>(loki::char_count(SHORTEST_DOMAIN))), reason, "LNS type=", type, ", specifies mapping from name->value where the name is shorter than the shortest possible name=", SHORTEST_DOMAIN, ", given name=", name))
+      return false;
+
+    // Must end with .loki
+    char const SUFFIX[]     = ".loki";
+    char const *name_suffix = name.data() + (name.size() - loki::char_count(SUFFIX));
+    if (check_condition((memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0), reason, "LNS type=", type, ", specifies mapping from name->value where the name does not end with the domain .loki, name=", name))
+      return false;
+
+    // Characted preceeding suffix must be alphanumeric
+    char const *char_preceeding_suffix = name_suffix - 1;
+    if (check_condition(!char_is_alphanum(char_preceeding_suffix[0]), reason, "LNS type=", type ,", specifies mapping from name->value where the character preceeding the <char>.loki is not alphanumeric, char=", char_preceeding_suffix[0], ", name=", name))
+      return false;
+
+    for (char const *it = (name.data() + 1); it < char_preceeding_suffix; it++) // Inbetween start and preceeding suffix, (alphanumeric or hyphen) characters permitted
     {
-      // Must start with alphanumeric
-      if (check_condition(!char_is_alphanum(name.front()), reason, "LNS type=", type, ", specifies mapping from name->value where the name does not start with an alphanumeric character, name=", name))
-        return false;
-
-      char const SHORTEST_DOMAIN[] = "a.loki";
-      if (check_condition((name.size() < static_cast<int>(loki::char_count(SHORTEST_DOMAIN))), reason, "LNS type=", type, ", specifies mapping from name->value where the name is shorter than the shortest possible name=", SHORTEST_DOMAIN, ", given name=", name))
-        return false;
-
-      // Must end with .loki
-      char const SUFFIX[]     = ".loki";
-      char const *name_suffix = name.data() + (name.size() - loki::char_count(SUFFIX));
-      if (check_condition((memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0), reason, "LNS type=", type, ", specifies mapping from name->value where the name does not end with the domain .loki, name=", name))
-        return false;
-
-      // Characted preceeding suffix must be alphanumeric
-      char_preceeding_suffix = name_suffix - 1;
-      if (check_condition(!char_is_alphanum(char_preceeding_suffix[0]), reason, "LNS type=", type ,", specifies mapping from name->value where the character preceeding the <char>.loki is not alphanumeric, char=", char_preceeding_suffix[0], ", name=", name))
+      char c = it[0];
+      if (check_condition(!(char_is_alphanum(c) || c == '-'), reason, "LNS type=", type, ", specifies mapping from name->value where the domain name contains more than the permitted alphanumeric or hyphen characters, name=", name))
         return false;
     }
   }
@@ -527,17 +533,16 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
     // Must NOT end with a hyphen '-'
     if (check_condition(!(char_is_alphanum(name.back()) || name.back() == '_'), reason, "LNS type=", type, ", specifies mapping from name->value where the last character is a hyphen '-' which is disallowed, name=", name))
       return false;
-    char_preceeding_suffix = name.data() + (name.size() - 1);
+
+    char const *end   = name.data() + (name.size() - 1);
+    for (char const *it = name.data() + 1; it < end; it++) // Inbetween start and preceeding suffix, (alphanumeric, hyphen or underscore) characters permitted
+    {
+      char c = it[0];
+      if (check_condition(!(char_is_alphanum(c) || c == '-' || c == '_'), reason, "LNS type=", type, ", specifies mapping from name->value where the name contains more than the permitted alphanumeric, underscore or hyphen characters, name=", name))
+        return false;
+    }
   }
 
-  char const *begin = name.data() + 1;
-  char const *end   = char_preceeding_suffix;
-  for (char const *it = begin; it < end; it++) // Inbetween start and preceeding suffix, (alphanumeric, hyphen or underscore) characters permitted
-  {
-    char c = it[0];
-    if (check_condition(!(char_is_alphanum(c) || c == '-' || c == '_'), reason, "LNS type=", type, ", specifies mapping from name->value where the domain name contains more than the permitted alphanumeric or hyphen characters name=", name))
-      return false;
-  }
 
   return true;
 }
