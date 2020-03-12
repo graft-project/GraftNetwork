@@ -6562,7 +6562,7 @@ bool simple_wallet::lns_make_update_mapping_signature(const std::vector<std::str
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-static char constexpr NULL_KEY_STR[] = "(none)";
+static char constexpr NULL_STR[] = "(none)";
 bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& args)
 {
   if (!try_connect_to_daemon())
@@ -6638,10 +6638,10 @@ bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& arg
     tools::msg_writer() << "name_hash=" << mapping.name_hash
                         << ", type=" << static_cast<lns::mapping_type>(mapping.type)
                         << ", owner=" << mapping.owner
-                        << ", backup_owner=" << (mapping.backup_owner.size() ? NULL_KEY_STR : mapping.backup_owner)
+                        << ", backup_owner=" << (mapping.backup_owner.empty() ? NULL_STR : mapping.backup_owner)
                         << ", height=" << mapping.register_height
                         << ", encrypted_value=" << mapping.encrypted_value
-                        << ", prev_txid=" << mapping.prev_txid;
+                        << ", prev_txid=" << (mapping.prev_txid.empty() ? NULL_STR : mapping.prev_txid);
   }
 
   return true;
@@ -6703,12 +6703,12 @@ bool simple_wallet::lns_print_owners_to_names(const std::vector<std::string>& ar
     }
 
     tools::msg_writer() << "owner=" << *owner
-                        << ", backup_owner=" << (entry.backup_owner.size() ? NULL_KEY_STR : entry.backup_owner)
+                        << ", backup_owner=" << (entry.backup_owner.empty() ? NULL_STR : entry.backup_owner)
                         << ", type=" << static_cast<lns::mapping_type>(entry.type)
                         << ", height=" << entry.register_height
                         << ", name_hash=" << entry.name_hash
                         << ", encrypted_value=" << entry.encrypted_value
-                        << ", prev_txid=" << entry.prev_txid;
+                        << ", prev_txid=" << (entry.prev_txid.empty() ? NULL_STR : entry.prev_txid);
   }
   return true;
 }
