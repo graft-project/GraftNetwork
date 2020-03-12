@@ -46,6 +46,8 @@ namespace crypto {
 
   struct alignas(size_t) hash {
     char data[HASH_SIZE];
+    static constexpr hash null() { return {0}; }
+    operator bool() const { return memcmp(data, null().data, sizeof(data)); }
   };
   struct hash8 {
     char data[8];
