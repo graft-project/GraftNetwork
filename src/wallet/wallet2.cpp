@@ -8473,26 +8473,11 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
     }
   }
 
-  if (owner)
-  {
-    if (!epee::string_tools::hex_to_pod(*owner, result.owner))
-    {
-      if (reason) *reason = "Hex owner key provided failed to convert to public_key, owner=" + *owner;
+  if (owner && !lns::parse_owner_to_generic_key(wallet.nettype(), *owner, result.owner, reason))
       return {};
-    }
-  }
 
-  if (backup_owner)
-  {
-    if (!epee::string_tools::hex_to_pod(*backup_owner, result.backup_owner))
-    {
-      if (reason) *reason = "Hex backup_owner key provided failed to convert to public_key, backup_owner=" + *backup_owner;
+  if (backup_owner && !lns::parse_owner_to_generic_key(wallet.nettype(), *backup_owner, result.backup_owner, reason))
       return {};
-    }
-  }
-
-  if (!owner && !backup_owner)
-    result.owner = lns::make_monero_public_key(wallet.get_account().get_keys().m_account_address.m_spend_public_key);
 
   {
     cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::request request = {};

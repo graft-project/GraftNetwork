@@ -3403,11 +3403,11 @@ namespace cryptonote
         entry.type                                             = static_cast<uint16_t>(record.type);
         entry.name_hash                                        = std::move(record.name_hash);
         entry.owner                                            = epee::string_tools::pod_to_hex(record.owner);
-        entry.backup_owner                                     = epee::string_tools::pod_to_hex(record.backup_owner);
+        if (record.backup_owner) entry.backup_owner            = epee::string_tools::pod_to_hex(record.backup_owner);
         entry.encrypted_value                                  = epee::to_hex::string(record.encrypted_value.to_span());
         entry.register_height                                  = record.register_height;
         entry.txid                                             = epee::string_tools::pod_to_hex(record.txid);
-        entry.prev_txid                                        = epee::string_tools::pod_to_hex(record.prev_txid);
+        if (record.prev_txid) entry.prev_txid                   = epee::string_tools::pod_to_hex(record.prev_txid);
       }
     }
 
@@ -3420,20 +3420,17 @@ namespace cryptonote
     if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.entries.size(), COMMAND_RPC_LNS_OWNERS_TO_NAMES::MAX_REQUEST_ENTRIES))
       return false;
 
-    // TODO(doyle): Currently we assume monero keys, make code handle wallet addresses + ed keys to detect the type of key.
     std::map<crypto::generic_public_key, size_t> key_to_request_index;
     std::vector<crypto::generic_public_key> keys;
 
     keys.reserve(req.entries.size());
     for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
     {
-      std::string const &owner = req.entries[request_index];
+      std::string const &owner        = req.entries[request_index];
       crypto::generic_public_key pkey = {};
-      pkey.type                       = crypto::generic_key_sig_type::monero;
-      if (!epee::string_tools::hex_to_pod(owner, pkey))
+      if (!lns::parse_owner_to_generic_key(m_core.get_nettype(), owner, pkey, &error_resp.message))
       {
-        error_resp.code    = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-        error_resp.message = "Public key=" + owner + ", could not be converted to a ed25519 key, expected 32 char hex string";
+        error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
         return false;
       }
 
@@ -3459,11 +3456,11 @@ namespace cryptonote
       entry.request_index   = it->second;
       entry.type            = static_cast<uint16_t>(record.type);
       entry.name_hash       = std::move(record.name_hash);
-      entry.backup_owner    = epee::string_tools::pod_to_hex(record.backup_owner);
+      if (record.backup_owner) entry.backup_owner = epee::string_tools::pod_to_hex(record.backup_owner);
       entry.encrypted_value = epee::to_hex::string(record.encrypted_value.to_span());
       entry.register_height = record.register_height;
       entry.txid            = epee::string_tools::pod_to_hex(record.txid);
-      entry.prev_txid       = epee::string_tools::pod_to_hex(record.prev_txid);
+      if (record.prev_txid) entry.prev_txid = epee::string_tools::pod_to_hex(record.prev_txid);
     }
 
     res.status = CORE_RPC_STATUS_OK;

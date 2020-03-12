@@ -271,13 +271,12 @@ namespace
   const char* USAGE_REQUEST_STAKE_UNLOCK("request_stake_unlock <service_node_pubkey>");
   const char* USAGE_PRINT_LOCKED_STAKES("print_locked_stakes");
 
-  const char* USAGE_LNS_BUY_MAPPING("lns_buy_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<pub_key>] [backup_owner=<pub_key>] \"<name>\" <value>");
-  const char* USAGE_LNS_UPDATE_MAPPING(
-          "lns_update_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<pub_key>] [backup_owner=<pub_key>] [value=<lns_value>] [signature=<hex_signature>] \"<name>\"");
+  const char* USAGE_LNS_BUY_MAPPING("lns_buy_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<value>] [backup_owner=<value>] \"<name>\" <value>");
+  const char* USAGE_LNS_UPDATE_MAPPING("lns_update_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<value>] [backup_owner=<value>] [value=<lns_value>] [signature=<hex_signature>] \"<name>\"");
 
   // TODO(loki): Currently defaults to session, in future allow specifying Lokinet and Wallet when they are enabled
-  const char* USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE("lns_make_update_mapping_signature [owner=<pub_key>] [backup_owner=<pub_key>] [value=<lns_value>] \"<name>\"");
-  const char* USAGE_LNS_PRINT_OWNERS_TO_NAMES("lns_print_owners_to_names [<64 hex character ed25519 public key>]");
+  const char* USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE("lns_make_update_mapping_signature [owner=<value>] [backup_owner=<value>] [value=<lns_value>] \"<name>\"");
+  const char* USAGE_LNS_PRINT_OWNERS_TO_NAMES("lns_print_owners_to_names [<owner>, ...]");
   const char* USAGE_LNS_PRINT_NAME_TO_OWNERS("lns_print_name_to_owners [type=<N1|all>[,<N2>...]] \"name\"");
 
 #if defined (LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
@@ -6411,14 +6410,15 @@ bool simple_wallet::lns_buy_mapping(const std::vector<std::string>& args)
   std::set<uint32_t> subaddr_indices  = {};
   if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority)) return false;
 
+  std::string owner        = eat_named_argument(local_args, LNS_OWNER_PREFIX, loki::char_count(LNS_OWNER_PREFIX));
+  std::string backup_owner = eat_named_argument(local_args, LNS_BACKUP_OWNER_PREFIX, loki::char_count(LNS_BACKUP_OWNER_PREFIX));
+
   if (local_args.size() < 2)
   {
     PRINT_USAGE(USAGE_LNS_BUY_MAPPING);
     return true;
   }
 
-  std::string owner        = eat_named_argument(local_args, LNS_OWNER_PREFIX, loki::char_count(LNS_OWNER_PREFIX));
-  std::string backup_owner = eat_named_argument(local_args, LNS_BACKUP_OWNER_PREFIX, loki::char_count(LNS_BACKUP_OWNER_PREFIX));
   std::string const &value = local_args[local_args.size() - 1];
   std::string name;
 
@@ -6562,7 +6562,7 @@ bool simple_wallet::lns_make_update_mapping_signature(const std::vector<std::str
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-static char constexpr NULL_KEY_STR[] = "(none)";
+static char constexpr NULL_STR[] = "(none)";
 bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& args)
 {
   if (!try_connect_to_daemon())
@@ -6638,10 +6638,10 @@ bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& arg
     tools::msg_writer() << "name_hash=" << mapping.name_hash
                         << ", type=" << static_cast<lns::mapping_type>(mapping.type)
                         << ", owner=" << mapping.owner
-                        << ", backup_owner=" << (mapping.backup_owner.size() ? NULL_KEY_STR : mapping.backup_owner)
+                        << ", backup_owner=" << (mapping.backup_owner.empty() ? NULL_STR : mapping.backup_owner)
                         << ", height=" << mapping.register_height
                         << ", encrypted_value=" << mapping.encrypted_value
-                        << ", prev_txid=" << mapping.prev_txid;
+                        << ", prev_txid=" << (mapping.prev_txid.empty() ? NULL_STR : mapping.prev_txid);
   }
 
   return true;
@@ -6658,7 +6658,7 @@ bool simple_wallet::lns_print_owners_to_names(const std::vector<std::string>& ar
   cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::request request = {};
   if (args.size() == 0)
   {
-    my_key = epee::string_tools::pod_to_hex(m_wallet->get_account().get_keys().m_account_address.m_spend_public_key);
+    my_key = m_wallet->get_subaddress_as_str({m_current_subaddress_account, 0});
     request.entries.push_back(my_key);
   }
   else
@@ -6703,12 +6703,12 @@ bool simple_wallet::lns_print_owners_to_names(const std::vector<std::string>& ar
     }
 
     tools::msg_writer() << "owner=" << *owner
-                        << ", backup_owner=" << (entry.backup_owner.size() ? NULL_KEY_STR : entry.backup_owner)
+                        << ", backup_owner=" << (entry.backup_owner.empty() ? NULL_STR : entry.backup_owner)
                         << ", type=" << static_cast<lns::mapping_type>(entry.type)
                         << ", height=" << entry.register_height
                         << ", name_hash=" << entry.name_hash
                         << ", encrypted_value=" << entry.encrypted_value
-                        << ", prev_txid=" << entry.prev_txid;
+                        << ", prev_txid=" << (entry.prev_txid.empty() ? NULL_STR : entry.prev_txid);
   }
   return true;
 }
