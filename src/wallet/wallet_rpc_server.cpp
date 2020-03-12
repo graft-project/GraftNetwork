@@ -428,7 +428,6 @@ namespace tools
         info.address_index = index.minor;
         info.used = std::find_if(transfers.begin(), transfers.end(), [&](const tools::wallet2::transfer_details& td) { return td.m_subaddr_index == index; }) != transfers.end();
       }
-      res.ed25519_key = epee::string_tools::pod_to_hex(m_wallet->get_account().get_keys().m_ed25519_public_key);
       res.address = m_wallet->get_subaddress_as_str({req.account_index, 0});
     }
     catch (const std::exception& e)
