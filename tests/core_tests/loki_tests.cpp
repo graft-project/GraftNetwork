@@ -2125,7 +2125,7 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
     owner1.type = crypto::generic_key_sig_type::ed25519;
     owner2.type = crypto::generic_key_sig_type::ed25519;
 
-    std::string name      = "Hello World";
+    std::string name      = "Hello_World";
     std::string name_hash = lns::name_to_base64_hash(name);
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(miner, lns::mapping_type::session, name, miner_key.session_value, &owner1, &owner2);
     gen.create_and_add_next_block({tx1});
@@ -2199,7 +2199,7 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
     owner1.type = crypto::generic_key_sig_type::monero;
     owner2.type = crypto::generic_key_sig_type::monero;
 
-    std::string name            = "Hello Sailor";
+    std::string name            = "Hello_Sailor";
     std::string name_hash = lns::name_to_base64_hash(name);
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(miner, lns::mapping_type::session, name, miner_key.session_value, &owner1, &owner2);
     gen.create_and_add_next_block({tx1});
@@ -2264,7 +2264,7 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
     owner1.type = crypto::generic_key_sig_type::ed25519;
     owner2.type = crypto::generic_key_sig_type::monero;
 
-    std::string name = "Hello Driver";
+    std::string name = "Hello_Driver";
     std::string name_hash = lns::name_to_base64_hash(name);
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(miner, lns::mapping_type::session, name, miner_key.session_value, &owner1, &owner2);
     gen.create_and_add_next_block({tx1});
@@ -2328,7 +2328,7 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
     owner1.type = crypto::generic_key_sig_type::monero;
     owner2.type = crypto::generic_key_sig_type::ed25519;
 
-    std::string name = "Hello Passenger";
+    std::string name = "Hello_Passenger";
     std::string name_hash = lns::name_to_base64_hash(name);
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx(miner, lns::mapping_type::session, name, miner_key.session_value, &owner1, &owner2);
     gen.create_and_add_next_block({tx1});
