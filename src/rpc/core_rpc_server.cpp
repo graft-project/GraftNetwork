@@ -3392,31 +3392,31 @@ namespace cryptonote
       if (exceeds_quantity_limit(ctx, error_resp, m_restricted, request.types.size(), COMMAND_RPC_LNS_NAMES_TO_OWNERS::MAX_TYPE_REQUEST_ENTRIES, "types"))
         return false;
 
-      for (uint16_t type : request.types)
+      std::string name = tools::lowercase_ascii_string(request.name);
+      for (uint16_t type16 : request.types)
       {
-        if (!lns::validate_lns_name(static_cast<lns::mapping_type>(type), request.name, &error_resp.message))
+        if (!lns::validate_lns_name(static_cast<lns::mapping_type>(type16), name, &error_resp.message))
         {
           error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
           return false;
         }
       }
 
-      std::string name_hash = lns::name_to_base64_hash(request.name);
+      std::string name_hash                    = lns::name_to_base64_hash(name);
       std::vector<lns::mapping_record> records = db.get_mappings(request.types, name_hash);
-      res.entries.reserve(records.size());
-      for (auto &record : records)
+      for (auto const &record : records)
       {
         res.entries.emplace_back();
         COMMAND_RPC_LNS_NAMES_TO_OWNERS::response_entry &entry = res.entries.back();
         entry.entry_index                                      = request_index;
         entry.type                                             = static_cast<uint16_t>(record.type);
-        entry.name_hash                                        = std::move(record.name_hash);
+        entry.name_hash                                        = record.name_hash;
         entry.owner                                            = epee::string_tools::pod_to_hex(record.owner);
         if (record.backup_owner) entry.backup_owner            = epee::string_tools::pod_to_hex(record.backup_owner);
         entry.encrypted_value                                  = epee::to_hex::string(record.encrypted_value.to_span());
         entry.register_height                                  = record.register_height;
         entry.txid                                             = epee::string_tools::pod_to_hex(record.txid);
-        if (record.prev_txid) entry.prev_txid                   = epee::string_tools::pod_to_hex(record.prev_txid);
+        if (record.prev_txid) entry.prev_txid                  = epee::string_tools::pod_to_hex(record.prev_txid);
       }
     }
 

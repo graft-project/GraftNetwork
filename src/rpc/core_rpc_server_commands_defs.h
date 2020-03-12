@@ -3466,7 +3466,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
   struct COMMAND_RPC_LNS_NAMES_TO_OWNERS
   {
     static size_t const MAX_REQUEST_ENTRIES      = 256;
-    static size_t const MAX_TYPE_REQUEST_ENTRIES = 16;
+    static size_t const MAX_TYPE_REQUEST_ENTRIES = 8;
     struct request_entry
     {
       std::string name;            // The name to resolve to a public key via Loki Name Service

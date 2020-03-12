@@ -316,4 +316,5 @@ namespace tools
   template <typename Enum>
   constexpr Enum enum_top = static_cast<Enum>(enum_count<Enum> - 1);
 
+  std::string lowercase_ascii_string(std::string src);
 }

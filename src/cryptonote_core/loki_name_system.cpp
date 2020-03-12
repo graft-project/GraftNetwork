@@ -463,7 +463,7 @@ static bool check_condition(bool condition, std::string* reason, T&&... args) {
   return condition;
 }
 
-bool validate_lns_name(mapping_type type, std::string const &name, std::string *reason)
+bool validate_lns_name(mapping_type type, std::string name, std::string *reason)
 {
   std::stringstream err_stream;
   LOKI_DEFER { if (reason) *reason = err_stream.str(); };
@@ -481,6 +481,7 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   }
 
   // NOTE: Validate name length
+  name = tools::lowercase_ascii_string(std::move(name));
   if (check_condition((name.empty() || name.size() > max_name_len), reason, "LNS type=", type, ", specifies mapping from name->value where the name's length=", name.size(), " is 0 or exceeds the maximum length=", max_name_len, ", given name=", name))
     return false;
 
@@ -892,20 +893,9 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   return true;
 }
 
-static std::string lowercase_string(std::string src)
-{
-  for (char &ch : src)
-  {
-    if (ch >= 'A' && ch <= 'Z')
-      ch = ch + ('a' - 'A');
-  }
-  return src;
-}
-
 bool validate_mapping_type(std::string const &mapping_type_str, lns::mapping_type *mapping_type, std::string *reason)
 {
-  std::string mapping = lowercase_string(mapping_type_str);
-
+  std::string mapping = tools::lowercase_ascii_string(mapping_type_str);
   lns::mapping_type mapping_type_;
   if (mapping == "session") mapping_type_ = lns::mapping_type::session;
   else
@@ -1575,10 +1565,13 @@ mapping_record name_system_db::get_mapping(mapping_type type, std::string const 
 
 std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> const &types, std::string const &name_base64_hash) const
 {
+  std::vector<mapping_record> result;
+  if (types.empty())
+    return result;
+
   std::string sql_statement;
   sql_statement.reserve(120 + 7 * types.size());
   // Generate string statement
-
   if (types.size())
   {
     sql_statement += sql_cmd_combine_mappings_and_owner_table(R"(WHERE "name_hash" = ? AND "type" in ()");
@@ -1595,7 +1588,6 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
   }
 
   // Compile Statement
-  std::vector<mapping_record> result;
   sqlite3_stmt *statement = nullptr;
   if (!sql_compile_statement(db, sql_statement.c_str(), sql_statement.size(), &statement, false /*optimise_for_multiple_usage*/))
     return result;

@@ -6373,7 +6373,7 @@ bool simple_wallet::lns_buy_mapping(const std::vector<std::string>& args)
   std::string owner        = eat_named_argument(local_args, LNS_OWNER_PREFIX, loki::char_count(LNS_OWNER_PREFIX));
   std::string backup_owner = eat_named_argument(local_args, LNS_BACKUP_OWNER_PREFIX, loki::char_count(LNS_BACKUP_OWNER_PREFIX));
 
-  if (local_args.size() < 2)
+  if (local_args.size() != 2)
   {
     PRINT_USAGE(USAGE_LNS_BUY_MAPPING);
     return true;

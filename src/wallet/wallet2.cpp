@@ -8441,7 +8441,7 @@ struct lns_prepared_args
 static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const &wallet,
                                                                   lns::mapping_type type,
                                                                   uint32_t priority,
-                                                                  std::string const &name,
+                                                                  std::string &name,
                                                                   std::string const *value,
                                                                   std::string const *owner,
                                                                   std::string const *backup_owner,
@@ -8455,10 +8455,11 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
     return result;
   }
 
+  name = tools::lowercase_ascii_string(name);
   if (!lns::validate_lns_name(type, name, reason))
     return result;
-  result.name_hash = lns::name_to_hash(name);
 
+  result.name_hash = lns::name_to_hash(name);
   if (value)
   {
     lns::mapping_value binary_value = {};
@@ -8518,7 +8519,7 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
 std::vector<wallet2::pending_tx> wallet2::lns_create_buy_mapping_tx(lns::mapping_type type,
                                                                     std::string const *owner,
                                                                     std::string const *backup_owner,
-                                                                    std::string const &name,
+                                                                    std::string name,
                                                                     std::string const &value,
                                                                     std::string *reason,
                                                                     uint32_t priority,
@@ -8577,7 +8578,7 @@ std::vector<wallet2::pending_tx> wallet2::lns_create_buy_mapping_tx(std::string 
 }
 
 std::vector<wallet2::pending_tx> wallet2::lns_create_update_mapping_tx(lns::mapping_type type,
-                                                                       std::string const &name,
+                                                                       std::string name,
                                                                        std::string const *value,
                                                                        std::string const *owner,
                                                                        std::string const *backup_owner,
@@ -8676,7 +8677,7 @@ bool wallet2::unlock_keys_file()
 }
 
 bool wallet2::lns_make_update_mapping_signature(lns::mapping_type type,
-                                                std::string const &name,
+                                                std::string name,
                                                 std::string const *value,
                                                 std::string const *owner,
                                                 std::string const *backup_owner,
