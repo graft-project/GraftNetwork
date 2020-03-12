@@ -38,7 +38,6 @@
 extern "C"
 {
 #include "crypto/keccak.h"
-#include <sodium.h>
 }
 #include "cryptonote_basic_impl.h"
 #include "cryptonote_format_utils.h"
@@ -156,12 +155,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_keys.m_multisig_keys.clear();
   }
   //-----------------------------------------------------------------
-  void account_base::generate_public_edkey()
-  {
-    crypto::ed25519_secret_key unused_skey;
-    crypto_sign_ed25519_seed_keypair(m_keys.m_ed25519_public_key.data, unused_skey.data, reinterpret_cast<unsigned char const *>(&m_keys.m_spend_secret_key));
-  }
-  //-----------------------------------------------------------------
   static uint64_t creation_timestamp(bool use_genesis_timestamp)
   {
     uint64_t result = 0;
@@ -193,7 +186,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     keccak((uint8_t *)&m_keys.m_spend_secret_key, sizeof(crypto::secret_key), (uint8_t *)&second, sizeof(crypto::secret_key));
 
     generate_keys(m_keys.m_account_address.m_view_public_key, m_keys.m_view_secret_key, second, two_random ? false : true);
-    generate_public_edkey();
     m_creation_timestamp = creation_timestamp(recover /*use_genesis_timestamp*/);
     return first;
   }
@@ -203,7 +195,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_keys.m_account_address = address;
     m_keys.m_spend_secret_key = spendkey;
     m_keys.m_view_secret_key = viewkey;
-    generate_public_edkey();
     m_creation_timestamp = creation_timestamp(true /*use_genesis_timestamp*/);
   }
 
@@ -228,7 +219,6 @@ DISABLE_VS_WARNINGS(4244 4345)
       hwdev.disconnect();
       throw;
     }
-    generate_public_edkey();
     m_creation_timestamp = creation_timestamp(true /*use_genesis_timestamp*/);
   }
 
@@ -246,7 +236,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_keys.m_view_secret_key = view_secret_key;
     m_keys.m_spend_secret_key = spend_secret_key;
     m_keys.m_multisig_keys = multisig_keys;
-    generate_public_edkey();
     return crypto::secret_key_to_public_key(view_secret_key, m_keys.m_account_address.m_view_public_key);
   }
   //-----------------------------------------------------------------
