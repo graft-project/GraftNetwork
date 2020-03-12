@@ -271,13 +271,12 @@ namespace
   const char* USAGE_REQUEST_STAKE_UNLOCK("request_stake_unlock <service_node_pubkey>");
   const char* USAGE_PRINT_LOCKED_STAKES("print_locked_stakes");
 
-  const char* USAGE_LNS_BUY_MAPPING("lns_buy_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<pub_key>] [backup_owner=<pub_key>] \"<name>\" <value>");
-  const char* USAGE_LNS_UPDATE_MAPPING(
-          "lns_update_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<pub_key>] [backup_owner=<pub_key>] [value=<lns_value>] [signature=<hex_signature>] \"<name>\"");
+  const char* USAGE_LNS_BUY_MAPPING("lns_buy_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<value>] [backup_owner=<value>] \"<name>\" <value>");
+  const char* USAGE_LNS_UPDATE_MAPPING("lns_update_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner=<value>] [backup_owner=<value>] [value=<lns_value>] [signature=<hex_signature>] \"<name>\"");
 
   // TODO(loki): Currently defaults to session, in future allow specifying Lokinet and Wallet when they are enabled
-  const char* USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE("lns_make_update_mapping_signature [owner=<pub_key>] [backup_owner=<pub_key>] [value=<lns_value>] \"<name>\"");
-  const char* USAGE_LNS_PRINT_OWNERS_TO_NAMES("lns_print_owners_to_names [<64 hex character ed25519 public key>]");
+  const char* USAGE_LNS_MAKE_UPDATE_MAPPING_SIGNATURE("lns_make_update_mapping_signature [owner=<value>] [backup_owner=<value>] [value=<lns_value>] \"<name>\"");
+  const char* USAGE_LNS_PRINT_OWNERS_TO_NAMES("lns_print_owners_to_names [<owner>, ...]");
   const char* USAGE_LNS_PRINT_NAME_TO_OWNERS("lns_print_name_to_owners [type=<N1|all>[,<N2>...]] \"name\"");
 
 #if defined (LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
@@ -6658,7 +6657,7 @@ bool simple_wallet::lns_print_owners_to_names(const std::vector<std::string>& ar
   cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::request request = {};
   if (args.size() == 0)
   {
-    my_key = epee::string_tools::pod_to_hex(m_wallet->get_account().get_keys().m_account_address.m_spend_public_key);
+    my_key = m_wallet->get_subaddress_as_str({m_current_subaddress_account, 0});
     request.entries.push_back(my_key);
   }
   else

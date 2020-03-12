@@ -7,6 +7,7 @@
 #include "common/base32z.h"
 #include "crypto/hash.h"
 #include "cryptonote_basic/cryptonote_basic.h"
+#include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "cryptonote_basic/tx_extra.h"
@@ -400,6 +401,34 @@ crypto::generic_public_key make_ed25519_public_key(crypto::ed25519_public_key co
   result.ed25519                    = pkey;
   return result;
 }
+
+bool parse_owner_to_generic_key(cryptonote::network_type nettype, std::string const &owner, crypto::generic_public_key &key, std::string *reason)
+{
+  cryptonote::address_parse_info parsed_addr;
+  crypto::ed25519_public_key ed_key;
+  if (cryptonote::get_account_address_from_str(parsed_addr, nettype, owner))
+  {
+    key = lns::make_monero_public_key(parsed_addr.address.m_spend_public_key);
+  }
+  else if (epee::string_tools::hex_to_pod(owner, key))
+  {
+    key = lns::make_ed25519_public_key(ed_key);
+  }
+  else
+  {
+    if (reason)
+    {
+      char const *type_heuristic =
+          (owner.size() == sizeof(crypto::ed25519_public_key) * 2) ? "ED25519 Key" : "Wallet address";
+      *reason = type_heuristic;
+      *reason += " provided could not be parsed owner=";
+      *reason += key;
+    }
+    return false;
+  }
+  return true;
+}
+
 
 static bool char_is_num(char c)
 {
