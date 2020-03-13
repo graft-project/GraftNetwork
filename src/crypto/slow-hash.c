@@ -935,7 +935,6 @@ union cn_slow_hash_state
   p = U64(&local_hp_state[j]); \
   b[0] = p[0]; b[1] = p[1]; \
   VARIANT2_PORTABLE_INTEGER_MATH(b, c); \
-  VARIANT4_RANDOM_MATH(a, b, r, &_b, &_b1); \
   __mul(); \
   VARIANT2_2(); \
   VARIANT2_SHUFFLE_ADD_NEON(local_hp_state, j, reverse); \
