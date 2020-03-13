@@ -567,7 +567,6 @@ namespace service_nodes
       bool make_friendly,
       boost::optional<std::string&> err_msg);
 
-  const static cryptonote::account_public_address null_address{crypto::null_pkey, crypto::null_pkey};
-  const static std::vector<payout_entry> null_winner = {{null_address, STAKING_PORTIONS}};
+  const static std::vector<payout_entry> null_winner = {{cryptonote::null_address, STAKING_PORTIONS}};
   const static block_winner null_block_winner        = {crypto::null_pkey, {null_winner}};
 }

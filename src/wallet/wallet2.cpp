@@ -8432,9 +8432,9 @@ struct lns_prepared_args
   operator bool() const { return prepared; }
   lns::mapping_value         encrypted_value;
   crypto::hash               name_hash;
-  crypto::generic_public_key owner;
-  crypto::generic_public_key backup_owner;
-  crypto::generic_signature  signature;
+  lns::generic_owner         owner;
+  lns::generic_owner         backup_owner;
+  lns::generic_signature  signature;
   crypto::hash               prev_txid;
 };
 
@@ -8473,10 +8473,10 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
     }
   }
 
-  if (owner && !lns::parse_owner_to_generic_key(wallet.nettype(), *owner, result.owner, reason))
+  if (owner && !lns::parse_owner_to_generic_owner(wallet.nettype(), *owner, result.owner, reason))
       return {};
 
-  if (backup_owner && !lns::parse_owner_to_generic_key(wallet.nettype(), *backup_owner, result.backup_owner, reason))
+  if (backup_owner && !lns::parse_owner_to_generic_owner(wallet.nettype(), *backup_owner, result.backup_owner, reason))
       return {};
 
   {
@@ -8681,7 +8681,7 @@ bool wallet2::lns_make_update_mapping_signature(lns::mapping_type type,
                                                 std::string const *value,
                                                 std::string const *owner,
                                                 std::string const *backup_owner,
-                                                crypto::generic_signature &signature,
+                                                lns::generic_signature &signature,
                                                 std::string *reason)
 {
   lns_prepared_args prepared_args = prepare_tx_extra_loki_name_system_values(*this, type, tx_priority_unimportant, name, value, owner, backup_owner, true /*make_signature*/, reason);

@@ -1722,4 +1722,24 @@ namespace cryptonote
     sc_sub((unsigned char*)key.data, (const unsigned char*)key.data, (const unsigned char*)hash.data);
     return key;
   }
+
+}
+
+std::string lns::generic_owner::to_string(cryptonote::network_type nettype) const
+{
+  if (type == lns::generic_owner_sig_type::monero)
+    return cryptonote::get_account_address_as_str(nettype, wallet.is_subaddress, wallet.address);
+  else
+    return epee::to_hex::string(epee::as_byte_span(ed25519));
+}
+
+bool lns::generic_owner::operator==(generic_owner const &other) const
+{
+  if (type != other.type)
+    return false;
+
+  if (type == lns::generic_owner_sig_type::monero)
+    return wallet.is_subaddress == other.wallet.is_subaddress && wallet.address == other.wallet.address;
+  else
+    return ed25519 == other.ed25519;
 }

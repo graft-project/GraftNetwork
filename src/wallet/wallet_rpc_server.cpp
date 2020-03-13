@@ -4389,7 +4389,7 @@ namespace tools
       return false;
     }
 
-    crypto::generic_signature signature;
+    lns::generic_signature signature;
     if (!m_wallet->lns_make_update_mapping_signature(type,
                                                      req.name,
                                                      req.value.size() ? &req.value : nullptr,
@@ -4403,7 +4403,7 @@ namespace tools
       return false;
     }
 
-    res.signature = epee::string_tools::pod_to_hex(signature);
+    res.signature = epee::string_tools::pod_to_hex(signature.ed25519);
     return true;
   }
 }

@@ -36,6 +36,7 @@
 #include "crypto/crypto.h"
 #include <boost/variant.hpp>
 #include "loki_economy.h"
+#include "cryptonote_basic.h"
 
 
 #define TX_EXTRA_PADDING_MAX_COUNT              255
@@ -84,6 +85,62 @@ constexpr inline extra_field operator|(extra_field a, extra_field b) { return st
 constexpr inline extra_field operator&(extra_field a, extra_field b) { return static_cast<extra_field>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b)); }
 constexpr inline extra_field& operator|=(extra_field& a, extra_field b) { return a = a | b; }
 constexpr inline extra_field& operator&=(extra_field& a, extra_field b) { return a = a & b; }
+
+enum struct  generic_owner_sig_type : uint8_t { monero, ed25519, _count };
+struct generic_owner
+{
+  union {
+    crypto::ed25519_public_key ed25519;
+    struct
+    {
+      cryptonote::account_public_address address;
+      bool is_subaddress;
+      char padding01_[7];
+    } wallet;
+  };
+
+  generic_owner_sig_type type;
+  char                   padding02_[7];
+
+  std::string to_string(cryptonote::network_type nettype) const;
+  operator bool() const { return (type == generic_owner_sig_type::monero) ? wallet.address != cryptonote::null_address : ed25519; }
+  bool operator==(generic_owner const &other) const;
+
+  BEGIN_SERIALIZE()
+    ENUM_FIELD(type, type < generic_owner_sig_type::_count)
+    if (type == generic_owner_sig_type::monero)
+    {
+      FIELD(wallet.address);
+      FIELD(wallet.is_subaddress);
+    }
+    else
+    {
+      FIELD(ed25519);
+    }
+  END_SERIALIZE()
+};
+static_assert(sizeof(generic_owner) == 80, "Unexpected padding, we store binary blobs into the LNS DB");
+
+struct generic_signature
+{
+  generic_owner_sig_type type;
+  union
+  {
+    crypto::ed25519_signature ed25519;
+    crypto::signature         monero;
+    unsigned char             data[sizeof(crypto::ed25519_signature)];
+  };
+  static constexpr generic_signature null() { return {}; }
+  operator bool() const { return memcmp(data, null().data, sizeof(data)); }
+  bool operator==(generic_signature const &other) const { return other.type == type && memcmp(data, other.data, sizeof(data)) == 0; }
+
+  BEGIN_SERIALIZE()
+    ENUM_FIELD(type, type < generic_owner_sig_type::_count)
+    FIELD(ed25519);
+  END_SERIALIZE()
+};
+static_assert(sizeof(crypto::ed25519_signature) == sizeof(crypto::signature), "LNS allows storing either ed25519 or monero style signatures, we store all signatures into crypto::signature in LNS");
+inline std::ostream &operator<<(std::ostream &o, const generic_signature &v) { epee::to_hex::formatted(o, epee::as_byte_span(v.data)); return o; }
 }
 
 namespace service_nodes {
@@ -408,15 +465,15 @@ namespace cryptonote
 
   struct tx_extra_loki_name_system
   {
-    uint8_t                    version = 0;
-    lns::mapping_type          type;
-    crypto::hash               name_hash;
-    crypto::hash               prev_txid = crypto::null_hash;  // previous txid that purchased the mapping
-    lns::extra_field           fields;
-    crypto::generic_public_key owner        = {};
-    crypto::generic_public_key backup_owner = {};
-    crypto::generic_signature  signature    = {};
-    std::string                encrypted_value; // binary format of the name->value mapping
+    uint8_t                 version = 0;
+    lns::mapping_type       type;
+    crypto::hash            name_hash;
+    crypto::hash            prev_txid = crypto::null_hash;  // previous txid that purchased the mapping
+    lns::extra_field        fields;
+    lns::generic_owner      owner        = {};
+    lns::generic_owner      backup_owner = {};
+    lns::generic_signature  signature    = {};
+    std::string             encrypted_value; // binary format of the name->value mapping
 
     bool field_is_set (lns::extra_field bit) const { return (fields & bit) == bit; }
     bool field_any_set(lns::extra_field bit) const { return (fields & bit) != lns::extra_field::none; }
@@ -424,7 +481,7 @@ namespace cryptonote
     bool is_updating() const { return field_is_set(lns::extra_field::signature) && field_any_set(lns::extra_field::updatable_fields); }
     bool is_buying()   const { return (fields == lns::extra_field::buy || fields == lns::extra_field::buy_no_backup); }
 
-    static tx_extra_loki_name_system make_buy(crypto::generic_public_key const &owner, crypto::generic_public_key const *backup_owner, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
+    static tx_extra_loki_name_system make_buy(lns::generic_owner const &owner, lns::generic_owner const *backup_owner, lns::mapping_type type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
     {
       tx_extra_loki_name_system result = {};
       result.fields                    = lns::extra_field::buy;
@@ -442,12 +499,12 @@ namespace cryptonote
       return result;
     }
 
-    static tx_extra_loki_name_system make_update(crypto::generic_signature const &signature,
+    static tx_extra_loki_name_system make_update(lns::generic_signature const &signature,
                                                  lns::mapping_type type,
                                                  crypto::hash const &name_hash,
                                                  epee::span<const uint8_t> encrypted_value,
-                                                 crypto::generic_public_key const *owner,
-                                                 crypto::generic_public_key const *backup_owner,
+                                                 lns::generic_owner const *owner,
+                                                 lns::generic_owner const *backup_owner,
                                                  crypto::hash const &prev_txid)
     {
       tx_extra_loki_name_system result = {};

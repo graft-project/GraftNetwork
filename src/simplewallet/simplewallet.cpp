@@ -6507,7 +6507,7 @@ bool simple_wallet::lns_make_update_mapping_signature(const std::vector<std::str
 
   std::string const &name = local_args[0];
   SCOPED_WALLET_UNLOCK();
-  crypto::generic_signature signature_binary;
+  lns::generic_signature signature_binary;
   std::string reason;
   if (m_wallet->lns_make_update_mapping_signature(lns::mapping_type::session,
                                                   name,
@@ -6516,7 +6516,7 @@ bool simple_wallet::lns_make_update_mapping_signature(const std::vector<std::str
                                                   backup_owner.size() ? &backup_owner : nullptr,
                                                   signature_binary,
                                                   &reason))
-    tools::success_msg_writer() << "signature=" << epee::string_tools::pod_to_hex(signature_binary);
+    tools::success_msg_writer() << "signature=" << epee::string_tools::pod_to_hex(signature_binary.ed25519);
   else
     fail_msg_writer() << reason;
 

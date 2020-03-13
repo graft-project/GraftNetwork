@@ -1065,8 +1065,8 @@ static bool verify_lns_mapping_record(char const *perr_context,
                                       uint64_t register_height,
                                       crypto::hash const &txid,
                                       crypto::hash const &prev_txid,
-                                      crypto::generic_public_key const &owner,
-                                      crypto::generic_public_key const &backup_owner)
+                                      lns::generic_owner const &owner,
+                                      lns::generic_owner const &backup_owner)
 {
   lns::mapping_value encrypted_value = helper_encrypt_lns_value(name, value);
   CHECK_EQ(record.loaded,          true);
@@ -1102,23 +1102,25 @@ bool loki_name_system_disallow_reserved_type::generate(std::vector<test_event_en
 
 struct lns_keys_t
 {
-  crypto::generic_public_key key;
-  lns::mapping_value         wallet_value; // NOTE: this field is the binary (value) part of the name -> (value) mapping
-  lns::mapping_value         lokinet_value;
-  lns::mapping_value         session_value;
+  lns::generic_owner key;
+  lns::mapping_value wallet_value; // NOTE: this field is the binary (value) part of the name -> (value) mapping
+  lns::mapping_value lokinet_value;
+  lns::mapping_value session_value;
 };
 
 static lns_keys_t make_lns_keys(cryptonote::account_base const &src)
 {
-  lns_keys_t result        = {};
-  result.key.monero        = src.get_keys().m_account_address.m_spend_public_key;
-  result.session_value.len = lns::SESSION_PUBLIC_KEY_BINARY_LENGTH;
-  result.wallet_value.len  = sizeof(src.get_keys().m_account_address);
-  result.lokinet_value.len = sizeof(result.key.data);
+  lns_keys_t result         = {};
+  result.key.wallet.address = src.get_keys().m_account_address;
+  result.session_value.len  = lns::SESSION_PUBLIC_KEY_BINARY_LENGTH;
+  result.wallet_value.len   = sizeof(src.get_keys().m_account_address);
+  result.lokinet_value.len  = sizeof(result.key.wallet.address.m_spend_public_key);
 
   memcpy(&result.session_value.buffer[0], &result.key, sizeof(result.key));
   memcpy(&result.wallet_value.buffer[0], (char *)&src.get_keys().m_account_address, result.wallet_value.len);
-  memcpy(&result.lokinet_value.buffer[0], (char *)result.key.data, result.lokinet_value.len);
+
+  // NOTE: Just needs a 32 byte key. Reuse spend key
+  memcpy(&result.lokinet_value.buffer[0], (char *)&result.key.wallet.address.m_spend_public_key, result.lokinet_value.len);
 
   result.session_value.buffer[0] = 5; // prefix with 0x05
   return result;
@@ -1156,7 +1158,7 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
         lns::owner_record owner = lns_db.get_owner_by_key(miner_key.key);
         CHECK_EQ(owner.loaded, true);
         CHECK_EQ(owner.id, 1);
-        CHECK_EQ(miner_key.key, owner.key);
+        CHECK_EQ(miner_key.key, owner.owner);
 
         lns::mapping_record record = lns_db.get_mapping(mapping_type, name_hash);
         CHECK_TEST_CONDITION(verify_lns_mapping_record(perr_context, record, lns::mapping_type::lokinet_1year, name, miner_key.lokinet_value, height_of_lns_entry, tx_hash, crypto::null_hash, miner_key.key, {} /*backup_owner*/));
@@ -1175,7 +1177,7 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
         lns::owner_record owner = lns_db.get_owner_by_key(miner_key.key);
         CHECK_EQ(owner.loaded, true);
         CHECK_EQ(owner.id, 1);
-        CHECK_EQ(miner_key.key, owner.key);
+        CHECK_EQ(miner_key.key, owner.owner);
 
         lns::mapping_record record = lns_db.get_mapping(mapping_type, name_hash);
         CHECK_TEST_CONDITION(verify_lns_mapping_record(perr_context, record, lns::mapping_type::lokinet_1year, name, miner_key.lokinet_value, height_of_lns_entry, tx_hash, crypto::null_hash, miner_key.key, {} /*backup_owner*/));
@@ -1449,7 +1451,7 @@ bool loki_name_system_handles_duplicate_in_lns_db::generate(std::vector<test_eve
     lns::owner_record owner = lns_db.get_owner_by_key(miner_key.key);
     CHECK_EQ(owner.loaded, true);
     CHECK_EQ(owner.id, 1);
-    CHECK_EQ(miner_key.key, owner.key);
+    CHECK_EQ(miner_key.key, owner.owner);
 
     std::string session_name_hash = lns::name_to_base64_hash(session_name);
     lns::mapping_record record1 = lns_db.get_mapping(lns::mapping_type::session, session_name_hash);
@@ -1879,7 +1881,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     lns::owner_record owner = lns_db.get_owner_by_key(miner_key.key);
     CHECK_EQ(owner.loaded, true);
     CHECK_EQ(owner.id, 1);
-    CHECK_EQ(miner_key.key, owner.key);
+    CHECK_EQ(miner_key.key, owner.owner);
 
     std::string name_hash = lns::name_to_base64_hash(name);
     lns::mapping_record record = lns_db.get_mapping(lns::mapping_type::lokinet_1year, name_hash);
@@ -1904,7 +1906,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     lns::owner_record owner = lns_db.get_owner_by_key(miner_key.key);
     CHECK_EQ(owner.loaded, true);
     CHECK_EQ(owner.id, 1);
-    CHECK_EQ(miner_key.key, owner.key);
+    CHECK_EQ(miner_key.key, owner.owner);
 
     std::string name_hash = lns::name_to_base64_hash(name);
     lns::mapping_record record = lns_db.get_mapping(lns::mapping_type::lokinet_1year, name_hash);
@@ -2027,7 +2029,7 @@ bool loki_name_system_update_mapping_after_expiry_fails::generate(std::vector<te
       lns::owner_record owner = lns_db.get_owner_by_key(miner_key.key);
       CHECK_EQ(owner.loaded, true);
       CHECK_EQ(owner.id, 1);
-      CHECK_EQ(miner_key.key, owner.key);
+      CHECK_EQ(miner_key.key, owner.owner);
 
       std::string name_hash        = lns::name_to_base64_hash(name);
       lns::mapping_record record = lns_db.get_mapping(lns::mapping_type::lokinet_1year, name_hash);
@@ -2115,15 +2117,15 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
 
   // Test 2 ed keys as owner
   {
-    crypto::generic_public_key owner1;
-    crypto::generic_public_key owner2;
+    lns::generic_owner owner1;
+    lns::generic_owner owner2;
     crypto::ed25519_secret_key owner1_key;
     crypto::ed25519_secret_key owner2_key;
 
-    crypto_sign_ed25519_keypair(owner1.data, owner1_key.data);
-    crypto_sign_ed25519_keypair(owner2.data, owner2_key.data);
-    owner1.type = crypto::generic_key_sig_type::ed25519;
-    owner2.type = crypto::generic_key_sig_type::ed25519;
+    crypto_sign_ed25519_keypair(owner1.ed25519.data, owner1_key.data);
+    crypto_sign_ed25519_keypair(owner2.ed25519.data, owner2_key.data);
+    owner1.type = lns::generic_owner_sig_type::ed25519;
+    owner2.type = lns::generic_owner_sig_type::ed25519;
 
     std::string name      = "Hello_World";
     std::string name_hash = lns::name_to_base64_hash(name);
@@ -2189,15 +2191,10 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
 
   // Test 2 monero keys as owner
   {
-    crypto::generic_public_key owner1;
-    crypto::generic_public_key owner2;
-    crypto::secret_key owner1_key;
-    crypto::secret_key owner2_key;
-
-    crypto::generate_keys(owner1.monero, owner1_key);
-    crypto::generate_keys(owner2.monero, owner2_key);
-    owner1.type = crypto::generic_key_sig_type::monero;
-    owner2.type = crypto::generic_key_sig_type::monero;
+    cryptonote::account_base account1 = gen.add_account();
+    cryptonote::account_base account2 = gen.add_account();
+    lns::generic_owner owner1         = lns::make_monero_owner(account1.get_keys().m_account_address, false /*subaddress*/);
+    lns::generic_owner owner2         = lns::make_monero_owner(account2.get_keys().m_account_address, false /*subaddress*/);
 
     std::string name            = "Hello_Sailor";
     std::string name_hash = lns::name_to_base64_hash(name);
@@ -2212,7 +2209,7 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
       lns_keys_t temp_keys = make_lns_keys(gen.add_account());
       lns::mapping_value encrypted_value = helper_encrypt_lns_value(name, temp_keys.session_value);
       crypto::hash hash = lns::tx_extra_signature_hash(encrypted_value.to_span(), nullptr /*owner*/, nullptr /*backup_owner*/, txid);
-      auto signature = lns::make_monero_signature(hash, owner1.monero, owner1_key);
+      auto signature = lns::make_monero_signature(hash, owner1.wallet.address.m_spend_public_key, account1.get_keys().m_spend_secret_key);
 
       cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx_update(miner, lns::mapping_type::session, name, &temp_keys.session_value, nullptr /*owner*/, nullptr /*backup_owner*/, &signature);
       gen.create_and_add_next_block({tx2});
@@ -2234,7 +2231,7 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
       lns_keys_t temp_keys = make_lns_keys(gen.add_account());
       lns::mapping_value encrypted_value = helper_encrypt_lns_value(name, temp_keys.session_value);
       crypto::hash hash = lns::tx_extra_signature_hash(encrypted_value.to_span(), nullptr /*owner*/, nullptr /*backup_owner*/, txid);
-      auto signature = lns::make_monero_signature(hash, owner2.monero, owner2_key);
+      auto signature = lns::make_monero_signature(hash, owner2.wallet.address.m_spend_public_key, account2.get_keys().m_spend_secret_key);
 
       cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx_update(miner, lns::mapping_type::session, name, &temp_keys.session_value, nullptr /*owner*/, nullptr /*backup_owner*/, &signature);
       gen.create_and_add_next_block({tx2});
@@ -2254,15 +2251,14 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
 
   // Test 1 ed/1 monero as owner
   {
-    crypto::generic_public_key owner1;
-    crypto::generic_public_key owner2;
-    crypto::ed25519_secret_key owner1_key;
-    crypto::secret_key owner2_key;
+    cryptonote::account_base account2 = gen.add_account();
 
-    crypto_sign_ed25519_keypair(owner1.data, owner1_key.data);
-    crypto::generate_keys(owner2.monero, owner2_key);
-    owner1.type = crypto::generic_key_sig_type::ed25519;
-    owner2.type = crypto::generic_key_sig_type::monero;
+    lns::generic_owner owner1;
+    lns::generic_owner owner2 = lns::make_monero_owner(account2.get_keys().m_account_address, false /*subaddress*/);
+    crypto::ed25519_secret_key owner1_key;
+
+    crypto_sign_ed25519_keypair(owner1.ed25519.data, owner1_key.data);
+    owner1.type = lns::generic_owner_sig_type::ed25519;
 
     std::string name = "Hello_Driver";
     std::string name_hash = lns::name_to_base64_hash(name);
@@ -2299,7 +2295,7 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
       lns_keys_t temp_keys = make_lns_keys(gen.add_account());
       lns::mapping_value encrypted_value = helper_encrypt_lns_value(name, temp_keys.session_value);
       crypto::hash hash = lns::tx_extra_signature_hash(encrypted_value.to_span(), nullptr /*owner*/, nullptr /*backup_owner*/, txid);
-      auto signature = lns::make_monero_signature(hash, owner2.monero, owner2_key);
+      auto signature = lns::make_monero_signature(hash, owner2.wallet.address.m_spend_public_key, account2.get_keys().m_spend_secret_key);
 
       cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx_update(miner, lns::mapping_type::session, name, &temp_keys.session_value, nullptr /*owner*/, nullptr /*backup_owner*/, &signature);
       gen.create_and_add_next_block({tx2});
@@ -2319,14 +2315,13 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
 
   // Test 1 monero/1 ed as owner
   {
-    crypto::generic_public_key owner1;
-    crypto::generic_public_key owner2;
-    crypto::secret_key owner1_key;
+    cryptonote::account_base account1 = gen.add_account();
+    lns::generic_owner owner1         = lns::make_monero_owner(account1.get_keys().m_account_address, false /*subaddress*/);
+    lns::generic_owner owner2;
+
     crypto::ed25519_secret_key owner2_key;
-    crypto::generate_keys(owner1.monero, owner1_key);
-    crypto_sign_ed25519_keypair(owner2.data, owner2_key.data);
-    owner1.type = crypto::generic_key_sig_type::monero;
-    owner2.type = crypto::generic_key_sig_type::ed25519;
+    crypto_sign_ed25519_keypair(owner2.ed25519.data, owner2_key.data);
+    owner2.type = lns::generic_owner_sig_type::ed25519;
 
     std::string name = "Hello_Passenger";
     std::string name_hash = lns::name_to_base64_hash(name);
@@ -2342,7 +2337,7 @@ bool loki_name_system_update_mapping_multiple_owners::generate(std::vector<test_
 
       lns::mapping_value encrypted_value = helper_encrypt_lns_value(name, temp_keys.session_value);
       crypto::hash hash = lns::tx_extra_signature_hash(encrypted_value.to_span(), nullptr /*owner*/, nullptr /*backup_owner*/, txid);
-      auto signature = lns::make_monero_signature(hash, owner1.monero, owner1_key);
+      auto signature = lns::make_monero_signature(hash, owner1.wallet.address.m_spend_public_key, account1.get_keys().m_spend_secret_key);
 
       cryptonote::transaction tx2 = gen.create_and_add_loki_name_system_tx_update(miner, lns::mapping_type::session, name, &temp_keys.session_value, nullptr /*owner*/, nullptr /*backup_owner*/, &signature);
       gen.create_and_add_next_block({tx2});
@@ -2415,7 +2410,7 @@ bool loki_name_system_update_mapping_invalid_signature::generate(std::vector<tes
   gen.create_and_add_next_block({tx1});
 
   lns_keys_t bob_key = make_lns_keys(gen.add_account());
-  crypto::generic_signature invalid_signature = {};
+  lns::generic_signature invalid_signature = {};
   cryptonote::transaction tx2 = gen.create_loki_name_system_tx_update(miner, lns::mapping_type::session, name, &bob_key.session_value, nullptr /*owner*/, nullptr /*backup_owner*/, &invalid_signature, false /*use_asserts*/);
   gen.add_tx(tx2, false /*can_be_added_to_blockchain*/, "Can not add a updating LNS TX with an invalid signature");
   return true;

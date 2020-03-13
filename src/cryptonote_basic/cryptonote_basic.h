@@ -31,9 +31,7 @@
 #pragma once
 
 #include <boost/variant.hpp>
-#include <boost/functional/hash/hash.hpp>
 #include <vector>
-#include <cstring>  // memcmp
 #include <sstream>
 #include <atomic>
 #include "serialization/variant.h"
@@ -46,7 +44,6 @@
 #include "cryptonote_config.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
-#include "misc_language.h"
 #include "ringct/rctTypes.h"
 #include "device/device.hpp"
 
@@ -520,6 +517,7 @@ namespace cryptonote
       return !(*this == rhs);
     }
   };
+  constexpr account_public_address const null_address{};
 
   struct keypair
   {
