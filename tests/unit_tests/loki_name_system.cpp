@@ -3,63 +3,72 @@
 #include "common/loki.h"
 #include "cryptonote_core/loki_name_system.h"
 
-TEST(loki_name_system, lokinet_domain_names)
+TEST(loki_name_system, name_tests)
 {
-
-  char domain_edkeys[lns::LOKINET_ADDRESS_BINARY_LENGTH * 2] = {};
-  memset(domain_edkeys, 'a', sizeof(domain_edkeys));
-  lns::mapping_type const lokinet = lns::mapping_type::lokinet_1year;
-
-  // Should work
+  struct name_test
   {
-    std::string const name = "mydomain.loki";
-    ASSERT_TRUE(lns::validate_lns_name(lokinet, name));
-  }
+    std::string name;
+    bool allowed;
+  };
 
-  {
-    std::string const name = "a.loki";
-    ASSERT_TRUE(lns::validate_lns_name(lokinet, name));
-  }
+  name_test const lokinet_names[] = {
+      {"a.loki", true},
+      {"domain.loki", true},
+      {"xn--tda.loki", true},
+      {"xn--Mchen-Ost-9db-u6b.loki", true},
 
-  {
-    std::string const name = "xn--bcher-kva.loki";
-    ASSERT_TRUE(lns::validate_lns_name(lokinet, name));
-  }
+      {"abc.domain.loki", false},
+      {"a", false},
+      {"a.loko", false},
+      {"a domain name.loki", false},
+      {"-.loki", false},
+      {"a_b.loki", false},
+      {" a.loki", false},
+      {"a.loki ", false},
+      {" a.loki ", false},
+      {"localhost.loki", false},
+      {"localhost", false},
+  };
 
-  // Should fail
-  {
-    std::string const name = "";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
-  }
+  name_test const session_wallet_names[] = {
+      {"Hello", true},
+      {"1Hello", true},
+      {"1Hello1", true},
+      {"_Hello1", true},
+      {"1Hello_", true},
+      {"_Hello_", true},
+      {"999", true},
+      {"xn--tda", true},
+      {"xn--Mchen-Ost-9db-u6b", true},
 
-  {
-    std::string const name = "mydomain.loki.example";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
-  }
+      {"-", false},
+      {"@", false},
+      {"'Hello", false},
+      {"@Hello", false},
+      {"[Hello", false},
+      {"]Hello", false},
+      {"Hello ", false},
+      {" Hello", false},
+      {" Hello ", false},
 
-  {
-    std::string const name = "mydomain.loki.com";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
-  }
+      {"Hello World", false},
+      {"Hello\\ World", false},
+      {"\"hello\"", false},
+      {"hello\"", false},
+      {"\"hello", false},
+  };
 
+  for (uint16_t type16 = 0; type16 < static_cast<uint16_t>(lns::mapping_type::_count); type16++)
   {
-    std::string const name = "mydomain.com";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
-  }
+    auto type = static_cast<lns::mapping_type>(type16);
+    name_test const *names = lns::is_lokinet_type(type) ? lokinet_names : session_wallet_names;
+    size_t names_count     = lns::is_lokinet_type(type) ? loki::char_count(lokinet_names) : loki::char_count(session_wallet_names);
 
-  {
-    std::string const name = "mydomain";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
-  }
-
-  {
-    std::string const name = "xn--bcher-kva.lok";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
-  }
-
-  {
-    std::string const name = "a_b_c.loki";
-    ASSERT_FALSE(lns::validate_lns_name(lokinet, name));
+    for (size_t i = 0; i < names_count; i++)
+    {
+      name_test const &entry = names[i];
+      ASSERT_EQ(lns::validate_lns_name(type, entry.name), entry.allowed) << "Values were {type=" << type << ", name=\"" << entry.name << "\"}";
+    }
   }
 }
 

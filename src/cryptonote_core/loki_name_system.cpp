@@ -463,15 +463,17 @@ static bool check_condition(bool condition, std::string* reason, T&&... args) {
   return condition;
 }
 
-bool validate_lns_name(mapping_type type, std::string const &name, std::string *reason)
+bool validate_lns_name(mapping_type type, std::string name, std::string *reason)
 {
   std::stringstream err_stream;
   LOKI_DEFER { if (reason) *reason = err_stream.str(); };
 
-  size_t max_name_len = 0;
-  if (type == mapping_type::session)      max_name_len = lns::SESSION_DISPLAY_NAME_MAX;
+  bool const is_lokinet = is_lokinet_type(type);
+  size_t max_name_len   = 0;
+
+  if (is_lokinet)                         max_name_len = lns::LOKINET_DOMAIN_NAME_MAX;
+  else if (type == mapping_type::session) max_name_len = lns::SESSION_DISPLAY_NAME_MAX;
   else if (type == mapping_type::wallet)  max_name_len = lns::WALLET_NAME_MAX;
-  else if (is_lokinet_type(type))         max_name_len = lns::LOKINET_DOMAIN_NAME_MAX;
   else
   {
     if (reason) err_stream << "LNS type=" << type << ", specifies unhandled mapping type in name validation";
@@ -479,47 +481,69 @@ bool validate_lns_name(mapping_type type, std::string const &name, std::string *
   }
 
   // NOTE: Validate name length
-  if (check_condition((name.empty() || name.size() > max_name_len), reason, "LNS type=", type, ", specifies mapping from name -> value where the name's length=", name.size(), " is 0 or exceeds the maximum length=", max_name_len, ", given name=", name))
+  name = tools::lowercase_ascii_string(std::move(name));
+  if (check_condition((name.empty() || name.size() > max_name_len), reason, "LNS type=", type, ", specifies mapping from name->value where the name's length=", name.size(), " is 0 or exceeds the maximum length=", max_name_len, ", given name=", name))
     return false;
 
   // NOTE: Validate domain specific requirements
-  if (type == mapping_type::session)
+  if (is_lokinet)
   {
-  }
-  else if (is_lokinet_type(type))
-  {
-    // Domain has to start with a letter or digit, and can have letters, digits, or hyphens in between and must end with a .loki
+    // LOKINET
+    // Domain has to start with an alphanumeric, and can have (alphanumeric or hyphens) in between, the character before the suffix <char>'.loki' must be alphanumeric followed by the suffix '.loki'
     // ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.loki$
-    {
-      char const SHORTEST_DOMAIN[] = "a.loki";
-      if (check_condition((name.size() < static_cast<int>(loki::char_count(SHORTEST_DOMAIN))), reason, "LNS type=lokinet, specifies mapping from name -> value where the name is shorter than the shortest possible name=", SHORTEST_DOMAIN, ", given name=", name))
-        return false;
-    }
+
+    if (check_condition(name == "localhost.loki", reason, "LNS type=", type, ", specifies mapping from name->value using protocol reserved name=", name))
+      return false;
 
     // Must start with alphanumeric
-    if (check_condition(!char_is_alphanum(name[0]), reason, "LNS type=lokinet, specifies mapping from name -> value where the name does not start with an alphanumeric character, name=", name))
+    if (check_condition(!char_is_alphanum(name.front()), reason, "LNS type=", type, ", specifies mapping from name->value where the name does not start with an alphanumeric character, name=", name))
+      return false;
+
+    char const SHORTEST_DOMAIN[] = "a.loki";
+    if (check_condition((name.size() < static_cast<int>(loki::char_count(SHORTEST_DOMAIN))), reason, "LNS type=", type, ", specifies mapping from name->value where the name is shorter than the shortest possible name=", SHORTEST_DOMAIN, ", given name=", name))
       return false;
 
     // Must end with .loki
     char const SUFFIX[]     = ".loki";
     char const *name_suffix = name.data() + (name.size() - loki::char_count(SUFFIX));
-    if (check_condition((memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0), reason, "LNS type=lokinet, specifies mapping from name -> value where the name does not end with the domain .loki, name=", name))
+    if (check_condition((memcmp(name_suffix, SUFFIX, loki::char_count(SUFFIX)) != 0), reason, "LNS type=", type, ", specifies mapping from name->value where the name does not end with the domain .loki, name=", name))
       return false;
 
     // Characted preceeding suffix must be alphanumeric
     char const *char_preceeding_suffix = name_suffix - 1;
-    if (check_condition(!char_is_alphanum(char_preceeding_suffix[0]), reason, "LNS type=lokinet, specifies mapping from name -> value where the character preceeding the <char>.loki is not alphanumeric, char=", char_preceeding_suffix[0], ", name=", name))
+    if (check_condition(!char_is_alphanum(char_preceeding_suffix[0]), reason, "LNS type=", type ,", specifies mapping from name->value where the character preceeding the <char>.loki is not alphanumeric, char=", char_preceeding_suffix[0], ", name=", name))
       return false;
 
-    char const *begin = name.data() + 1;
-    char const *end   = char_preceeding_suffix;
-    for (char const *it = begin; it < end; it++) // Inbetween start and preceeding suffix, alphanumeric and hyphen characters permitted
+    for (char const *it = (name.data() + 1); it < char_preceeding_suffix; it++) // Inbetween start and preceeding suffix, (alphanumeric or hyphen) characters permitted
     {
       char c = it[0];
-      if (check_condition(!(char_is_alphanum(c) || c == '-'), reason, "LNS type=lokinet, specifies mapping from name -> value where the domain name contains more than the permitted alphanumeric or hyphen characters name=", name))
+      if (check_condition(!(char_is_alphanum(c) || c == '-'), reason, "LNS type=", type, ", specifies mapping from name->value where the domain name contains more than the permitted alphanumeric or hyphen characters, name=", name))
         return false;
     }
   }
+  else
+  {
+    // SESSION or WALLET
+    // Name has to start with a (alphanumeric or underscore), and can have (alphanumeric, hyphens or underscores) in between and must end with a (alphanumeric or underscore)
+    // ^[a-z0-9_]([a-z0-9-_]*[a-z0-9_])?$
+
+    // Must start with (alphanumeric or underscore)
+    if (check_condition(!(char_is_alphanum(name.front()) || name.front() == '_'), reason, "LNS type=", type, ", specifies mapping from name->value where the name does not start with an alphanumeric or underscore character, name=", name))
+      return false;
+
+    // Must NOT end with a hyphen '-'
+    if (check_condition(!(char_is_alphanum(name.back()) || name.back() == '_'), reason, "LNS type=", type, ", specifies mapping from name->value where the last character is a hyphen '-' which is disallowed, name=", name))
+      return false;
+
+    char const *end   = name.data() + (name.size() - 1);
+    for (char const *it = name.data() + 1; it < end; it++) // Inbetween start and preceeding suffix, (alphanumeric, hyphen or underscore) characters permitted
+    {
+      char c = it[0];
+      if (check_condition(!(char_is_alphanum(c) || c == '-' || c == '_'), reason, "LNS type=", type, ", specifies mapping from name->value where the name contains more than the permitted alphanumeric, underscore or hyphen characters, name=", name))
+        return false;
+    }
+  }
+
 
   return true;
 }
@@ -869,20 +893,9 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   return true;
 }
 
-static std::string lowercase_string(std::string src)
-{
-  for (char &ch : src)
-  {
-    if (ch >= 'A' && ch <= 'Z')
-      ch = ch + ('a' - 'A');
-  }
-  return src;
-}
-
 bool validate_mapping_type(std::string const &mapping_type_str, lns::mapping_type *mapping_type, std::string *reason)
 {
-  std::string mapping = lowercase_string(mapping_type_str);
-
+  std::string mapping = tools::lowercase_ascii_string(mapping_type_str);
   lns::mapping_type mapping_type_;
   if (mapping == "session") mapping_type_ = lns::mapping_type::session;
   else
@@ -1552,10 +1565,13 @@ mapping_record name_system_db::get_mapping(mapping_type type, std::string const 
 
 std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> const &types, std::string const &name_base64_hash) const
 {
+  std::vector<mapping_record> result;
+  if (types.empty())
+    return result;
+
   std::string sql_statement;
   sql_statement.reserve(120 + 7 * types.size());
   // Generate string statement
-
   if (types.size())
   {
     sql_statement += sql_cmd_combine_mappings_and_owner_table(R"(WHERE "name_hash" = ? AND "type" in ()");
@@ -1572,7 +1588,6 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
   }
 
   // Compile Statement
-  std::vector<mapping_record> result;
   sqlite3_stmt *statement = nullptr;
   if (!sql_compile_statement(db, sql_statement.c_str(), sql_statement.size(), &statement, false /*optimise_for_multiple_usage*/))
     return result;
