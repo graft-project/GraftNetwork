@@ -98,8 +98,8 @@ static std::string lns_extra_string(cryptonote::network_type nettype, cryptonote
   stream << "LNS Extra={";
   if (data.is_buying())
   {
-    stream << "owner=" << data.owner.to_string(nettype) << ", ";
-    stream << "backup_owner=" << data.backup_owner ? data.backup_owner.to_string(nettype) : "(none)";
+    stream << "owner=" << data.owner.to_string(nettype);
+    stream << ", backup_owner=" << data.backup_owner ? data.backup_owner.to_string(nettype) : "(none)";
   }
   else
     stream << "signature=" << epee::string_tools::pod_to_hex(data.signature.data);
@@ -761,7 +761,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
                                                     expected_prev_txid);
         if (check_condition(!verify_lns_signature(hash, lns_extra.signature, mapping.owner) &&
                             !verify_lns_signature(hash, lns_extra.signature, mapping.backup_owner), reason,
-                            tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " failed to verify signature for LNS update, current owner=", mapping.owner, ", backup owner=", mapping.backup_owner))
+                            tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " failed to verify signature for LNS update, current owner=", mapping.owner.to_string(lns_db.network_type()), ", backup owner=", mapping.backup_owner.to_string(lns_db.network_type())))
         {
           return false;
         }
@@ -868,7 +868,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
     if (check_condition(lns_extra->field_is_set(lns::extra_field::owner) &&
                         lns_extra->field_is_set(lns::extra_field::backup_owner) &&
                         lns_extra->owner == lns_extra->backup_owner,
-                        reason, tx, ", ", lns_extra_string(nettype, *lns_extra), " specifying owner the same as the backup owner=", lns_extra->backup_owner))
+                        reason, tx, ", ", lns_extra_string(nettype, *lns_extra), " specifying owner the same as the backup owner=", lns_extra->backup_owner.to_string(nettype)))
     {
       return false;
     }
@@ -1179,7 +1179,7 @@ static int64_t add_or_get_owner_id(lns::name_system_db &lns_db, crypto::hash con
   {
     if (!lns_db.save_owner(key, &result))
     {
-      LOG_PRINT_L1("Failed to save LNS owner to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner);
+      LOG_PRINT_L1("Failed to save LNS owner to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner.to_string(lns_db.network_type()));
       return result;
     }
   }
@@ -1196,7 +1196,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
     int64_t owner_id = add_or_get_owner_id(lns_db, tx_hash, entry, entry.owner);
     if (owner_id == 0)
     {
-      MERROR("Failed to add or get owner with key=" << entry.owner);
+      MERROR("Failed to add or get owner with key=" << entry.owner.to_string(lns_db.network_type()));
       assert(owner_id != 0);
       return false;
     }
@@ -1207,7 +1207,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
       backup_owner_id = add_or_get_owner_id(lns_db, tx_hash, entry, entry.backup_owner);
       if (backup_owner_id == 0)
       {
-        MERROR("Failed to add or get backup owner with key=" << entry.backup_owner);
+        MERROR("Failed to add or get backup owner with key=" << entry.backup_owner.to_string(lns_db.network_type()));
         assert(backup_owner_id != 0);
         return false;
       }
@@ -1215,7 +1215,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
 
     if (!lns_db.save_mapping(tx_hash, entry, height, owner_id, backup_owner_id))
     {
-      LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner);
+      LOG_PRINT_L1("Failed to save LNS entry to DB tx: " << tx_hash << ", type: " << entry.type << ", name_hash: " << entry.name_hash << ", owner: " << entry.owner.to_string(lns_db.network_type()));
       return false;
     }
   }
@@ -1241,7 +1241,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
         owner_id                = add_or_get_owner_id(lns_db, tx_hash, entry, entry.owner);
         if (owner_id == 0)
         {
-          MERROR("Failed to add or get owner with key=" << entry.owner);
+          MERROR("Failed to add or get owner with key=" << entry.owner.to_string(lns_db.network_type()));
           assert(owner_id != 0);
           return false;
         }
@@ -1253,7 +1253,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
         backup_owner_id         = add_or_get_owner_id(lns_db, tx_hash, entry, entry.backup_owner);
         if (backup_owner_id == 0)
         {
-          MERROR("Failed to add or get backup owner with key=" << entry.backup_owner);
+          MERROR("Failed to add or get backup owner with key=" << entry.backup_owner.to_string(lns_db.network_type()));
           assert(backup_owner_id != 0);
           return false;
         }
