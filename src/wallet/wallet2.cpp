@@ -8510,8 +8510,18 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
   if (make_signature)
   {
     cryptonote::subaddress_index const index = {account_index, 0};
-    crypto::secret_key skey = wallet.get_account().get_device().get_subaddress_secret_key(wallet.get_account().get_keys().m_view_secret_key, index);;
-    crypto::public_key pkey = wallet.get_subaddress_spend_public_key(index);
+
+    // TODO(doyle): Taken from wallet2.cpp::get_reserve_proof
+    crypto::secret_key skey = wallet.get_account().get_keys().m_spend_secret_key;
+    if (!index.is_zero())
+    {
+      crypto::secret_key m = wallet.get_account().get_device().get_subaddress_secret_key(wallet.get_account().get_keys().m_view_secret_key, index);
+      crypto::secret_key tmp = skey;
+      sc_add((unsigned char*)&skey, (unsigned char*)&m, (unsigned char*)&tmp);
+    }
+
+    crypto::public_key pkey;
+    crypto::secret_key_to_public_key(skey, pkey);
 
     crypto::hash hash = lns::tx_extra_signature_hash(result.encrypted_value.to_span(), owner ? &result.owner : nullptr, backup_owner ? &result.backup_owner : nullptr, result.prev_txid);
     result.signature = lns::make_monero_signature(hash, pkey, skey);
@@ -8608,9 +8618,9 @@ std::vector<wallet2::pending_tx> wallet2::lns_create_update_mapping_tx(lns::mapp
 
   if (!make_signature)
   {
-    if (!epee::string_tools::hex_to_pod(*signature, prepared_args.signature))
+    if (!epee::string_tools::hex_to_pod(*signature, prepared_args.signature.ed25519))
     {
-      if (reason) *reason = "Hex signature provided failed to convert to a ed25519_signature, signature=" + *signature;
+      if (reason) *reason = "Hex signature provided failed to convert to a signature, signature=" + *signature;
       return {};
     }
   }
