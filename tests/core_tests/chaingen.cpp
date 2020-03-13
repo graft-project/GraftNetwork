@@ -535,7 +535,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
                                                                          lns::generic_owner const *backup_owner,
                                                                          uint64_t burn) const
 {
-  lns::generic_owner generic_owner;
+  lns::generic_owner generic_owner = {};
   if (owner)
   {
     generic_owner = *owner;

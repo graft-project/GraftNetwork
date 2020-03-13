@@ -101,7 +101,7 @@ struct owner_record
   bool loaded;
 
   int64_t id;
-  generic_owner owner;
+  generic_owner address;
 };
 
 struct settings_record

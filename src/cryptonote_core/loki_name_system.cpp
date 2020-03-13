@@ -58,7 +58,7 @@ enum struct lns_db_setting_column
 enum struct owner_record_column
 {
   id,
-  owner,
+  address,
 };
 
 enum struct mapping_record_column
@@ -199,7 +199,7 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
           {
             auto *entry = reinterpret_cast<owner_record *>(context);
             entry->id   = sqlite3_column_int(statement, static_cast<int>(owner_record_column::id));
-            if (!sql_copy_blob(statement, static_cast<int>(owner_record_column::owner), reinterpret_cast<void *>(&entry->owner), sizeof(entry->owner)))
+            if (!sql_copy_blob(statement, static_cast<int>(owner_record_column::address), reinterpret_cast<void *>(&entry->address), sizeof(entry->address)))
               return false;
             data_loaded = true;
           }
@@ -370,8 +370,8 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> value, lns::gener
 
   uint8_t buffer[mapping_value::BUFFER_SIZE + sizeof(*owner) + sizeof(*backup_owner) + sizeof(prev_txid)] = {};
   uint8_t *ptr = memcpy_helper(buffer, value.data(), value.size());
-  ptr                = memcpy_generic_owner_helper(ptr, owner);
-  ptr                = memcpy_generic_owner_helper(ptr, backup_owner);
+  ptr          = memcpy_generic_owner_helper(ptr, owner);
+  ptr          = memcpy_generic_owner_helper(ptr, backup_owner);
 
   if (ptr > (buffer + sizeof(buffer)))
   {
@@ -801,7 +801,7 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
         if (check_condition(owner, reason, tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " unexpected owner_id=", mapping.owner_id, " does not exist"))
           return false;
 
-        if (check_condition(requester.id != owner.id, reason, tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " actual owner=",  mapping.owner.to_string(lns_db.network_type()), ", with owner_id=", mapping.owner_id, ", does not match requester=", requester.owner.to_string(lns_db.network_type()), ", with id=", requester.id))
+        if (check_condition(requester.id != owner.id, reason, tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " actual owner=",  mapping.owner.to_string(lns_db.network_type()), ", with owner_id=", mapping.owner_id, ", does not match requester=", requester.address.to_string(lns_db.network_type()), ", with id=", requester.id))
           return false;
 
       }
@@ -1003,7 +1003,7 @@ static bool build_default_tables(sqlite3 *db)
   constexpr char BUILD_TABLE_SQL[] = R"(
 CREATE TABLE IF NOT EXISTS "owner"(
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-    "public_key" BLOB NOT NULL UNIQUE
+    "address" BLOB NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS "settings" (
@@ -1045,7 +1045,7 @@ static std::string sql_cmd_combine_mappings_and_owner_table(char const *suffix)
 {
   std::stringstream stream;
   stream <<
-R"(SELECT "mappings".*, "o1"."public_key", "o2"."public_key" FROM "mappings"
+R"(SELECT "mappings".*, "o1"."address", "o2"."address" FROM "mappings"
 JOIN "owner" "o1" ON "mappings"."owner_id" = "o1"."id"
 LEFT JOIN "owner" "o2" ON "mappings"."backup_owner_id" = "o2"."id")" << "\n";
 
@@ -1062,12 +1062,12 @@ bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_
   this->db      = db;
   this->nettype = nettype;
 
-  std::string const get_mappings_by_owner_str            = sql_cmd_combine_mappings_and_owner_table(R"(WHERE ? IN ("o1"."public_key", "o2"."public_key"))");
+  std::string const get_mappings_by_owner_str            = sql_cmd_combine_mappings_and_owner_table(R"(WHERE ? IN ("o1"."address", "o2"."address"))");
   std::string const get_mappings_on_height_and_newer_str = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "register_height" >= ?)");
   std::string const get_mapping_str                      = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "type" = ? AND "name_hash" = ?)");
 
   char constexpr GET_OWNER_BY_ID_STR[]  = R"(SELECT * FROM "owner" WHERE "id" = ?)";
-  char constexpr GET_OWNER_BY_KEY_STR[] = R"(SELECT * FROM "owner" WHERE "public_key" = ?)";
+  char constexpr GET_OWNER_BY_KEY_STR[] = R"(SELECT * FROM "owner" WHERE "address" = ?)";
   char constexpr GET_SETTINGS_STR[]     = R"(SELECT * FROM "settings" WHERE "id" = 1)";
   char constexpr PRUNE_MAPPINGS_STR[]   = R"(DELETE FROM "mappings" WHERE "register_height" >= ?)";
 
@@ -1077,7 +1077,7 @@ WHERE NOT EXISTS (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."owne
 AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."backup_owner_id"))";
 
   char constexpr SAVE_MAPPING_STR[]     = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "owner_id", "backup_owner_id") VALUES (?,?,?,?,?,?,?,?))";
-  char constexpr SAVE_OWNER_STR[]       = R"(INSERT INTO "owner" ("public_key") VALUES (?))";
+  char constexpr SAVE_OWNER_STR[]       = R"(INSERT INTO "owner" ("address") VALUES (?))";
   char constexpr SAVE_SETTINGS_STR[]    = R"(INSERT OR REPLACE INTO "settings" ("id", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
 
   sqlite3_stmt *test;
@@ -1621,8 +1621,8 @@ std::vector<mapping_record> name_system_db::get_mappings_by_owners(std::vector<g
   std::string sql_statement;
   // Generate string statement
   {
-    std::string const sql_prefix_str = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "o1"."public_key" in ()");
-    char constexpr SQL_MIDDLE[]  = R"( OR "o2"."public_key" in ()";
+    std::string const sql_prefix_str = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "o1"."address" in ()");
+    char constexpr SQL_MIDDLE[]  = R"( OR "o2"."address" in ()";
     char constexpr SQL_SUFFIX[]  = R"())";
 
     std::stringstream stream;
