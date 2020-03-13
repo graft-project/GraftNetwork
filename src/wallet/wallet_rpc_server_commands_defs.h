@@ -3012,6 +3012,7 @@ This command is only required if the open wallet is one of the owners of a LNS r
       std::string value;     // (Optional): The new value that the name maps to via Loki Name Service. If not specified or given the empty string "", then the mapping's value remains unchanged.
       std::string owner;     // (Optional): The new owner of the mapping. If not specified or given the empty string "", then the mapping's owner remains unchanged.
       std::string backup_owner; // (Optional): The new backup owner of the mapping. If not specified or given the empty string "", then the mapping's backup owner remains unchanged.
+      uint32_t account_index; // (Optional) Use this wallet's subaddress account for generating the signature
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(type);

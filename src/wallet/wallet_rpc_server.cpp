@@ -4396,6 +4396,7 @@ namespace tools
                                                      req.owner.size() ? &req.owner : nullptr,
                                                      req.backup_owner.size() ? &req.backup_owner : nullptr,
                                                      signature,
+                                                     req.account_index,
                                                      &reason))
     {
       er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;

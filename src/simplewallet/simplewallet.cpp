@@ -6515,6 +6515,7 @@ bool simple_wallet::lns_make_update_mapping_signature(const std::vector<std::str
                                                   owner.size() ? &owner : nullptr,
                                                   backup_owner.size() ? &backup_owner : nullptr,
                                                   signature_binary,
+                                                  m_current_subaddress_account,
                                                   &reason))
     tools::success_msg_writer() << "signature=" << epee::string_tools::pod_to_hex(signature_binary.ed25519);
   else
