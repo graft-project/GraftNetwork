@@ -13,12 +13,16 @@ from os import path
 def hexstr(key):
     return key.encode(encoder=nacl.encoding.HexEncoder)  #.decode('utf-8')
 
+direct = None
 lokirpc = None
 x_key = None
 
 badargs = False
 if len(sys.argv) < 3:
     badargs = True
+elif len(sys.argv) == 3 and re.match(r"[0-9a-fA-F]{64}", sys.argv[1]) and re.match(r"(?:tcp|ipc)://.*", sys.argv[2]):
+    direct = (sys.argv[1], sys.argv[2])
+    x_key = PrivateKey.generate()
 else:
     m = re.match(r"((?:[a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+):(\d{4,5})", sys.argv[1])
     if m:
@@ -40,24 +44,35 @@ else:
             badargs = True
 
 if badargs:
-    print("\nUsage: {} localhost:22023 PUBKEY -- pings PUBKEY's quorumnet.\n\n"
-            "If the given RPC is a SN (with unrestricted RPC), uses its x25519 key, otherwise generates a random one.")
+    print("\nUsage: {0} localhost:22023 PUBKEY -- pings PUBKEY's quorumnet, looking up the address via the given RPC address.\n"
+            "       {0} XPUBKEY tcp://1.2.3.4:5678 -- ping some SN at the given address.\n\n"
+            "If the given RPC is a SN (with unrestricted RPC), uses its x25519 key, otherwise generates a random one."
+            .format(sys.argv[0])
+            )
     sys.exit(1)
 
-missed = set(sys.argv[2:])
-r = requests.post(lokirpc, json={"jsonrpc":"2.0", "id":0, "method":"get_service_nodes", "params": {
-    "service_node_pubkeys": sys.argv[2:]}}).json()
+if direct:
+    missed = set()
+    states = [{"service_node_pubkey": direct[0], "pubkey_x25519": direct[0], "_connect": direct[1]}]
+else:
+    missed = set(sys.argv[2:])
+    r = requests.post(lokirpc, json={"jsonrpc":"2.0", "id":0, "method":"get_service_nodes", "params": {
+        "service_node_pubkeys": sys.argv[2:]}}).json()
+    states = r["result"]["service_node_states"] if "result" in r and "service_node_states" in r["result"] else []
+
 
 context = zmq.Context()
-states = r["result"]["service_node_states"] if "result" in r and "service_node_states" in r["result"] else []
 tag = 1
 for s in states:
     pk = s["service_node_pubkey"]
     if pk in missed:
         missed.remove(pk)
-    ip, port = s["public_ip"], s["quorumnet_port"]
-    if not ip or not port:
-        print("SN {} has no IP/qnet port: {}:{}".format(pk, ip, port))
+    if "_connect" not in s:
+        ip, port = s["public_ip"], s["quorumnet_port"]
+        if not ip or not port:
+            print("SN {} has no IP/qnet port: {}:{}".format(pk, ip, port))
+    else:
+        ip, port = None, None
     socket = context.socket(zmq.DEALER)
     socket.curve_secretkey = x_key.encode()
     socket.curve_publickey = x_key.public_key.encode()
@@ -65,8 +80,13 @@ for s in states:
     socket.setsockopt(zmq.CONNECT_TIMEOUT, 5000)
     socket.setsockopt(zmq.HANDSHAKE_IVL, 5000)
     socket.setsockopt(zmq.IMMEDIATE, 1)
-    socket.connect("tcp://{}:{}".format(ip, port))
-    print("Ping {}:{} (for SN {})".format(ip, port, pk))
+    if "_connect" in s:
+        socket.connect(s["_connect"])
+        print("Ping {} (for SN {})".format(s["_connect"], pk))
+    else:
+        socket.connect("tcp://{}:{}".format(ip, port))
+        print("Ping {}:{} (for SN {})".format(ip, port, pk))
+
     bt_tag = bytes("i{}e".format(tag), "utf-8")
     socket.send_multipart((b"ping.ping", b"d1:!" + bt_tag + b"e"))
     ponged = False
