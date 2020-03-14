@@ -82,5 +82,4 @@ target_link_libraries(daemon_rpc_server
     serialization
     Boost::chrono
     Boost::thread
-    ${ZMQ_LIBRARIES}
     extra)

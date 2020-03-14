@@ -18,12 +18,7 @@ if (LIBSODIUM_CROSS_TARGET)
   set(SODIUM_CONFIGURE ${SODIUM_CONFIGURE} --target=${LIBSODIUM_CROSS_TARGET} --host=${LIBSODIUM_CROSS_TARGET})
 endif()
 
-if (BUILD_SHARED_LIBS)
-  set(SODIUM_CONFIGURE ${SODIUM_CONFIGURE} --disable-static --enable-shared)
-else()
-  set(SODIUM_CONFIGURE ${SODIUM_CONFIGURE} --enable-static --disable-shared)
-endif()
-
+set(SODIUM_CONFIGURE ${SODIUM_CONFIGURE} --enable-static --disable-shared)
 
 ExternalProject_Add(libsodium_external
     BUILD_IN_SOURCE ON
@@ -33,16 +28,11 @@ ExternalProject_Add(libsodium_external
     CONFIGURE_COMMAND ${SODIUM_CONFIGURE}
     BUILD_COMMAND make -j${PROCESSOR_COUNT}
     INSTALL_COMMAND ${MAKE}
-    BUILD_BYPRODUCTS ${LIBSODIUM_PREFIX}/lib/libsodium.a ${LIBSODIUM_PREFIX}/lib/libsodium.so ${LIBSODIUM_PREFIX}/include
+    BUILD_BYPRODUCTS ${LIBSODIUM_PREFIX}/lib/libsodium.a ${LIBSODIUM_PREFIX}/include
     )
 
 add_library(sodium_vendor STATIC IMPORTED GLOBAL)
 add_dependencies(sodium_vendor libsodium_external)
 set_target_properties(sodium_vendor PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${LIBSODIUM_PREFIX}/include)
 
-if(BUILD_SHARED_LIBS)
-  set_property(TARGET sodium_vendor PROPERTY IMPORTED_LOCATION ${LIBSODIUM_PREFIX}/lib/libsodium.so)
-else()
-  set_property(TARGET sodium_vendor PROPERTY IMPORTED_LOCATION ${LIBSODIUM_PREFIX}/lib/libsodium.a)
-endif()
-
+set_property(TARGET sodium_vendor PROPERTY IMPORTED_LOCATION ${LIBSODIUM_PREFIX}/lib/libsodium.a)

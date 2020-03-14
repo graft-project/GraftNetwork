@@ -16,7 +16,7 @@ addons:
     packages: [libboost-chrono-dev, libboost-date-time-dev, libboost-filesystem-dev, libboost-locale-dev,
         libboost-thread-dev, libboost-serialization-dev, libboost-program-options-dev, libboost-regex-dev,
         libboost-system-dev, libssl-dev, libzmq3-dev, libunbound-dev, libevent-dev, libsodium-dev, libreadline-dev,
-        libldns-dev, libgtest-dev, libhidapi-dev, libusb-1.0-0-dev, libprotobuf-dev, protobuf-compiler,
+        libldns-dev, libgtest-dev, libhidapi-dev, libusb-1.0-0-dev, libudev-dev, libprotobuf-dev, protobuf-compiler,
         libminiupnpc-dev, python3, pkg-config, ccache]
   homebrew:
     update: true
@@ -25,7 +25,9 @@ addons:
 jobs:
   include:
     - name: "bionic"
-      env: BUILD_TESTS=1
+      env: BUILD_TESTS=ON
+    - name: "bionic/static"
+      env: STATIC=ON
     - name: "bionic/clang"
       compiler: clang
     - name: "bionic/debug"
@@ -64,12 +66,8 @@ before_script:
   - echo $TRAVIS_COMMIT_RANGE
   - git log --format=fuller -1
 script:
-  - mkdir build
-  - cd build
-  - if [ -z "$CMAKE_BUILD_TYPE" ]; then CMAKE_BUILD_TYPE=Release; fi
-  - CMAKE_OPTS="$CMAKE_OPTS -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE -D DOWNLOAD_SODIUM=ON"
-  - if [ -n "$BUILD_TESTS" ]; then CMAKE_OPTS="$CMAKE_OPTS -DBUILD_TESTS=$BUILD_TESTS"; fi
-  - cmake $CMAKE_OPTS ..
+  - mkdir build && cd build
+  - cmake .. -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release} -DSTATIC=${STATIC:-OFF} -DBUILD_TESTS=${BUILD_TESTS:-OFF} -DDOWNLOAD_SODIUM=ON
   - |
     set -e
     if [ -z "$TRAVIS_CPU_ARCH" ] || [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then
@@ -84,5 +82,8 @@ script:
       make -j2 # everything else
     fi
   - if [ -n "$RUN_TESTS" ]; then make ARGS="-E libwallet_api_tests" test; fi
+    # Test that we can invoke the binaries (e.g. to test against linking failure):
+  - ./bin/lokid --version
+  - ./bin/loki-wallet-cli --version
 before_cache:
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then brew cleanup; fi
