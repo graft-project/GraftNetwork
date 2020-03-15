@@ -3409,8 +3409,8 @@ namespace cryptonote
         entry.entry_index                                      = request_index;
         entry.type                                             = static_cast<uint16_t>(record.type);
         entry.name_hash                                        = record.name_hash;
-        entry.owner                                            = epee::string_tools::pod_to_hex(record.owner);
-        if (record.backup_owner) entry.backup_owner            = epee::string_tools::pod_to_hex(record.backup_owner);
+        entry.owner                                            = record.owner.to_string(nettype());
+        if (record.backup_owner) entry.backup_owner            = record.backup_owner.to_string(nettype());
         entry.encrypted_value                                  = epee::to_hex::string(record.encrypted_value.to_span());
         entry.register_height                                  = record.register_height;
         entry.txid                                             = epee::string_tools::pod_to_hex(record.txid);
@@ -3427,43 +3427,43 @@ namespace cryptonote
     if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.entries.size(), COMMAND_RPC_LNS_OWNERS_TO_NAMES::MAX_REQUEST_ENTRIES))
       return false;
 
-    std::map<crypto::generic_public_key, size_t> key_to_request_index;
-    std::vector<crypto::generic_public_key> keys;
+    std::map<lns::generic_owner, size_t> owner_to_request_index;
+    std::vector<lns::generic_owner> owners;
 
-    keys.reserve(req.entries.size());
+    owners.reserve(req.entries.size());
     for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
     {
-      std::string const &owner        = req.entries[request_index];
-      crypto::generic_public_key pkey = {};
-      if (!lns::parse_owner_to_generic_key(m_core.get_nettype(), owner, pkey, &error_resp.message))
+      std::string const &owner     = req.entries[request_index];
+      lns::generic_owner lns_owner = {};
+      if (!lns::parse_owner_to_generic_owner(m_core.get_nettype(), owner, lns_owner, &error_resp.message))
       {
         error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
         return false;
       }
 
-      keys.push_back(pkey);
-      key_to_request_index[keys.back()] = request_index;
+      owners.push_back(lns_owner);
+      owner_to_request_index[owners.back()] = request_index;
     }
 
     lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
-    std::vector<lns::mapping_record> records = db.get_mappings_by_owners(keys);
+    std::vector<lns::mapping_record> records = db.get_mappings_by_owners(owners);
     for (auto &record : records)
     {
       res.entries.emplace_back();
       COMMAND_RPC_LNS_OWNERS_TO_NAMES::response_entry &entry = res.entries.back();
 
-      auto it = key_to_request_index.find(record.owner);
-      if (it == key_to_request_index.end())
+      auto it = owner_to_request_index.find(record.owner);
+      if (it == owner_to_request_index.end())
       {
         error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-        error_resp.message = "Public key=" + epee::string_tools::pod_to_hex(record.owner) + ", could not be mapped back a index in the request 'entries' array";
+        error_resp.message = "Owner=" + record.owner.to_string(nettype()) + ", could not be mapped back a index in the request 'entries' array";
         return false;
       }
 
       entry.request_index   = it->second;
       entry.type            = static_cast<uint16_t>(record.type);
       entry.name_hash       = std::move(record.name_hash);
-      if (record.backup_owner) entry.backup_owner = epee::string_tools::pod_to_hex(record.backup_owner);
+      if (record.backup_owner) entry.backup_owner = record.backup_owner.to_string(nettype());
       entry.encrypted_value = epee::to_hex::string(record.encrypted_value.to_span());
       entry.register_height = record.register_height;
       entry.txid            = epee::string_tools::pod_to_hex(record.txid);

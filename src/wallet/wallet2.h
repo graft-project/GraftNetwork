@@ -1547,7 +1547,7 @@ private:
     std::vector<wallet2::pending_tx> lns_create_update_mapping_tx(std::string const &type, std::string const &name, std::string const *value, std::string const *owner, std::string const *backup_owner, std::string const *signature, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
 
     // Generate just the signature required for putting into lns_update_mapping command in the wallet
-    bool lns_make_update_mapping_signature(lns::mapping_type type, std::string name, std::string const *value, std::string const *owner, std::string const *backup_owner, crypto::generic_signature &signature, std::string *reason = nullptr);
+    bool lns_make_update_mapping_signature(lns::mapping_type type, std::string name, std::string const *value, std::string const *owner, std::string const *backup_owner, lns::generic_signature &signature, uint32_t account_index = 0, std::string *reason = nullptr);
 
     void freeze(size_t idx);
     void thaw(size_t idx);
