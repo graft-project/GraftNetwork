@@ -59,6 +59,7 @@ target_link_libraries(cncrypto
     randomx
     Boost::system
     Boost::thread
+    Boost::chrono
     sodium
   PRIVATE
     extra)

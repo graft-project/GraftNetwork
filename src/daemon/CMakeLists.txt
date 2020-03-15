@@ -51,5 +51,4 @@ target_link_libraries(daemon
     Boost::filesystem
     Boost::program_options
     Boost::system
-    ${ZMQ_LIBRARIES}
     extra)

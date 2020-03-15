@@ -40,7 +40,7 @@ if (IOS)
     INCLUDE(CmakeLists_IOS.txt)
 endif()
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.7)
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
 project(loki)
@@ -300,19 +300,8 @@ if(MSVC OR MINGW)
 else()
   set(DEFAULT_STATIC false)
 endif()
-option(STATIC "Link libraries statically" ${DEFAULT_STATIC})
-
-# This is a CMake built-in switch that concerns internal libraries
-if (NOT DEFINED BUILD_SHARED_LIBS AND NOT STATIC AND CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
-  set(BUILD_SHARED_LIBS ON)
-endif()
-
-if (BUILD_SHARED_LIBS)
-  message(STATUS "Building internal libraries with position independent code")
-  add_definitions("-DBUILD_SHARED_LIBS")
-else()
-  message(STATUS "Building internal libraries as static")
-endif()
+option(STATIC "Try to link external libraries statically, where possible" ${DEFAULT_STATIC})
+option(BUILD_SHARED_LIBS "Build shared internal libraries" OFF)
 set(PIC_FLAG "-fPIC")
 
 if(MINGW)
@@ -404,32 +393,26 @@ add_library(libunbound INTERFACE)
 add_library(miniupnpc INTERFACE)
 
 # Allow -D DOWNLOAD_SODIUM=FORCE to download without even checking for a local libsodium
-add_library(sodium INTERFACE)
 option(DOWNLOAD_SODIUM "Allow libsodium to be downloaded and built locally if not found on the system" OFF)
 if(NOT DOWNLOAD_SODIUM STREQUAL "FORCE")
   find_package(PkgConfig REQUIRED)
-  pkg_check_modules(SODIUM libsodium>=1.0.9)
+  pkg_check_modules(SODIUM libsodium>=1.0.9 IMPORTED_TARGET)
 endif()
 
+add_library(sodium INTERFACE)
 if(SODIUM_FOUND AND NOT DOWNLOAD_SODIUM STREQUAL "FORCE")
-  find_library(sodium_link_libs NAMES ${SODIUM_LIBRARIES} PATHS ${SODIUM_LIBRARY_DIRS})
-  target_link_libraries(sodium INTERFACE ${sodium_link_libs})
-  target_include_directories(sodium INTERFACE ${SODIUM_INCLUDE_DIRS})
-endif()
-
-if (NOT SODIUM_FOUND AND (DOWNLOAD_SODIUM OR DOWNLOAD_SODIUM STREQUAL "FORCE"))
+  target_link_libraries(sodium INTERFACE PkgConfig::SODIUM)
+else()
+  if(NOT DOWNLOAD_SODIUM)
+    message(FATAL_ERROR "Could not find libsodium >= 1.0.9; either install it on your system or use -DDOWNLOAD_SODIUM=ON to download and build an internal copy")
+  endif()
   message(STATUS "Sodium >= 1.0.9 not found, but DOWNLOAD_SODIUM specified, so downloading it")
   include(DownloadLibSodium)
   target_link_libraries(sodium INTERFACE sodium_vendor)
-  target_include_directories(sodium INTERFACE sodium_vendor)
 endif()
 
 export(TARGETS sodium NAMESPACE sodium:: FILE sodium-exports.cmake)
-add_library(sodium::sodium ALIAS sodium)
-
-if (NOT SODIUM_FOUND AND DOWNLOAD_SODIUM=OFF)
-  message(FATAL_ERROR "Could not find libsodium >= 1.0.9; either install it on your system or use -DDOWNLOAD_SODIUM=ON to download and build an internal copy")
-endif()
+install(TARGETS sodium EXPORT sodiumConfig DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 add_subdirectory(external)
 
@@ -493,7 +476,7 @@ else()
     set(WARNINGS_AS_ERRORS_FLAG "-Werror")
   endif()
 
-  if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  if(CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
     if(ARM)
       set(WARNINGS "${WARNINGS} -Wno-error=inline-asm")
     endif()
@@ -814,6 +797,11 @@ add_library(extra INTERFACE)
 target_link_libraries(extra INTERFACE ${CMAKE_DL_LIBS})
 target_link_libraries(extra INTERFACE Boost::boost)
 target_link_libraries(extra INTERFACE Threads::Threads)
+
+if(APPLE AND BUILD_SHARED_LIBS)
+  # Don't crap out on circular dependencies between internal libs on macOS when doing a shared build
+  target_link_libraries(extra INTERFACE "-undefined dynamic_lookup")
+endif()
 
 # Interface target for ICU libs (if needed)
 add_library(icu INTERFACE)

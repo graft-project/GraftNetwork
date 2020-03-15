@@ -26,7 +26,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-add_library(blocks STATIC blocks.cpp)
+add_library(blocks blocks.cpp)
 
 foreach(BLOB_NAME checkpoints testnet_blocks stagenet_blocks)
     set(OUTPUT_C_SOURCE "generated_${BLOB_NAME}.c")
