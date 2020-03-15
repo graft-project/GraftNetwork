@@ -71,6 +71,11 @@ if(NOT UNBOUND_FOUND)
   # The unbound CMakeLists.txt can set it, since it's also needed for the
   # static OpenSSL libraries set up there after with target_link_libraries.
   message(STATUS "Using in-tree unbound")
+  if(STATIC AND NOT IOS)
+    if(UNIX)
+      set(OPENSSL_LIBRARIES "${OPENSSL_LIBRARIES};${CMAKE_DL_LIBS};${CMAKE_THREAD_LIBS_INIT}")
+    endif()
+  endif()
   add_subdirectory(unbound)
   target_link_libraries(libunbound INTERFACE unbound)
   target_include_directories(libunbound INTERFACE unbound/libunbound)
