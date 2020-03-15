@@ -2136,9 +2136,7 @@ namespace cryptonote
   bool core_rpc_server::on_get_coinbase_tx_sum(const COMMAND_RPC_GET_COINBASE_TX_SUM::request& req, COMMAND_RPC_GET_COINBASE_TX_SUM::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
   {
     PERF_TIMER(on_get_coinbase_tx_sum);
-    std::pair<uint64_t, uint64_t> amounts = m_core.get_coinbase_tx_sum(req.height, req.count);
-    res.emission_amount = amounts.first;
-    res.fee_amount = amounts.second;
+    std::tie(res.emission_amount, res.fee_amount, res.burn_amount) = m_core.get_coinbase_tx_sum(req.height, req.count);
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }

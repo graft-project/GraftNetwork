@@ -1620,15 +1620,16 @@ namespace cryptonote
     return m_mempool.check_for_key_images(key_im, spent);
   }
   //-----------------------------------------------------------------------------------------------
-  std::pair<uint64_t, uint64_t> core::get_coinbase_tx_sum(const uint64_t start_offset, const size_t count)
+  std::tuple<uint64_t, uint64_t, uint64_t> core::get_coinbase_tx_sum(const uint64_t start_offset, const size_t count)
   {
     uint64_t emission_amount = 0;
     uint64_t total_fee_amount = 0;
+    uint64_t burnt_loki = 0;
     if (count)
     {
       const uint64_t end = start_offset + count - 1;
       m_blockchain_storage.for_blocks_range(start_offset, end,
-        [this, &emission_amount, &total_fee_amount](uint64_t, const crypto::hash& hash, const block& b){
+        [this, &emission_amount, &total_fee_amount, &burnt_loki](uint64_t, const crypto::hash& hash, const block& b){
       std::vector<transaction> txs;
       std::vector<crypto::hash> missed_txs;
       uint64_t coinbase_amount = get_outs_money_amount(b.miner_tx);
@@ -1637,6 +1638,10 @@ namespace cryptonote
       for(const auto& tx: txs)
       {
         tx_fee_amount += get_tx_miner_fee(tx, b.major_version >= HF_VERSION_FEE_BURNING);
+        if(b.major_version >= HF_VERSION_FEE_BURNING)
+        {
+          burnt_loki += get_burned_amount_from_tx_extra(tx.extra);
+        }
       }
       
       emission_amount += coinbase_amount - tx_fee_amount;
@@ -1645,7 +1650,7 @@ namespace cryptonote
       });
     }
 
-    return std::pair<uint64_t, uint64_t>(emission_amount, total_fee_amount);
+    return std::tuple<uint64_t, uint64_t, uint64_t>(emission_amount, total_fee_amount, burnt_loki);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_inputs_keyimages_diff(const transaction& tx) const
