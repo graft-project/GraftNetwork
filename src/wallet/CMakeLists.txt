@@ -49,6 +49,7 @@ target_link_libraries(wallet
     Boost::filesystem
     Boost::thread
   PRIVATE
+    OpenSSL::SSL
     extra)
 
 loki_add_executable(wallet_rpc_server "loki-wallet-rpc"
