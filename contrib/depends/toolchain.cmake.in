@@ -5,6 +5,7 @@ SET(CMAKE_BUILD_TYPE @release_type@)
 OPTION(STATIC "Link libraries statically" ON)
 OPTION(TREZOR_DEBUG "Main trezor debugging switch" OFF)
 OPTION(BUILD_TESTS "Build tests." OFF)
+OPTION(WITH_SYSTEMD "systemd" OFF)
 
 SET(STATIC ON)
 SET(UNBOUND_STATIC ON)

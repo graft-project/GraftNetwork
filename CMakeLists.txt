@@ -86,6 +86,20 @@ function (add_definition_if_library_exists library function header var)
   endif()
 endfunction()
 
+# Properly links a target to a list of library names by finding the given libraries.  Takes:
+# - a target
+# - a linktype (e.g. INTERFACE, PUBLIC, PRIVATE)
+# - a library search path (or "" for defaults)
+# - any number of library names
+function(link_dep_libs target linktype libdirs)
+  foreach(lib ${ARGN})
+    find_library(link_lib-${lib} NAMES ${lib} PATHS ${libdirs})
+    if(link_lib-${lib})
+      target_link_libraries(${target} ${linktype} ${link_lib-${lib}})
+    endif()
+  endforeach()
+endfunction()
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
   message(STATUS "Setting default build type: ${CMAKE_BUILD_TYPE}")
@@ -370,6 +384,11 @@ endif()
 
 find_package(OpenSSL REQUIRED)
 message(STATUS "Using OpenSSL include dir at ${OPENSSL_INCLUDE_DIR}")
+
+if(MINGW)
+  # OpenSSL doesn't seem to properly set up its dependencies on Windows, leading to linking errors
+  target_link_libraries(OpenSSL::Crypto INTERFACE ws2_32)
+endif()
 
 add_definition_if_library_exists(c memset_s "string.h" HAVE_MEMSET_S)
 add_definition_if_library_exists(c explicit_bzero "strings.h" HAVE_EXPLICIT_BZERO)
@@ -810,11 +829,10 @@ add_library(icu INTERFACE)
 if(MINGW)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wa,-mbig-obj")
   target_link_libraries(extra INTERFACE mswsock ws2_32 iphlpapi crypt32 bcrypt)
-  target_link_libraries(icu INTERFACE icuio icuuc icutu iconv)
   if(DEPENDS)
-    target_link_libraries(icu INTERFACE icui18n icudata)
+    link_dep_libs(icu INTERFACE "" icuio icui18n icuuc icudata icutu iconv)
   else()
-    target_link_libraries(icu INTERFACE icuin icudt)
+    link_dep_libs(icu INTERFACE "" icuio icuin icuuc icudt icutu iconv)
   endif()
 elseif(FREEBSD)
   target_link_libraries(extra INTERFACE execinfo)

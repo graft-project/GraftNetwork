@@ -22,7 +22,7 @@ $(package)_toolset_$(host_os)=gcc
 $(package)_archiver_$(host_os)=$($(package)_ar)
 $(package)_toolset_darwin=darwin
 $(package)_archiver_darwin=$($(package)_libtool)
-$(package)_config_libraries=chrono,filesystem,program_options,system,thread,test,date_time,regex,serialization,locale
+$(package)_config_libraries=chrono,filesystem,program_options,system,thread,test,date_time,regex,serialization,locale,atomic
 $(package)_cxxflags=-std=c++11
 $(package)_cxxflags_linux=-fPIC
 $(package)_cxxflags_freebsd=-fPIC
