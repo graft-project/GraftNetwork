@@ -1,4 +1,4 @@
-// Copyright (c) 2019, The Loki Project
+// Copyright (c) 2019-2020, The Loki Project
 //
 // All rights reserved.
 //
@@ -32,12 +32,13 @@
 #include "cryptonote_core/service_node_rules.h"
 #include "cryptonote_core/tx_blink.h"
 #include "cryptonote_core/tx_pool.h"
-#include "quorumnet/sn_network.h"
-#include "quorumnet/conn_matrix.h"
+#include "quorumnet_conn_matrix.h"
 #include "cryptonote_config.h"
 #include "common/random.h"
 #include "common/lock.h"
 
+#include <lokimq/lokimq.h>
+#include <lokimq/hex.h>
 #include <shared_mutex>
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
@@ -48,8 +49,9 @@ namespace quorumnet {
 namespace {
 
 using namespace service_nodes;
-using namespace std::string_literals;
-using namespace std::chrono_literals;
+using namespace std::literals;
+using namespace lokimq;
+using namespace lokimq::literals;
 
 using blink_tx = cryptonote::blink_tx;
 
@@ -67,7 +69,7 @@ struct pending_signature_hash {
 using pending_signature_set = std::unordered_set<pending_signature, pending_signature_hash>;
 
 struct SNNWrapper {
-    SNNetwork snn;
+    LokiMQ lmq;
     cryptonote::core &core;
 
     // Track submitted blink txes here; unlike the blinks stored in the mempool we store these ones
@@ -78,10 +80,10 @@ struct SNNWrapper {
     struct blink_metadata {
         std::shared_ptr<blink_tx> btxptr;
         pending_signature_set pending_sigs;
-        std::string reply_pubkey;
+        ConnectionID reply_conn;
         uint64_t reply_tag = 0;
     };
-    // { height => { txhash => {blink_tx,sigs,reply}, ... }, ... }
+    // { height => { txhash => {blink_tx,conn,reply}, ... }, ... }
     std::map<uint64_t, std::unordered_map<crypto::hash, blink_metadata>> blinks;
 
     // FIXME:
@@ -89,7 +91,9 @@ struct SNNWrapper {
 
     template <typename... Args>
     SNNWrapper(cryptonote::core &core, Args &&...args) :
-        snn{std::forward<Args>(args)...}, core{core} {}
+            lmq{std::forward<Args>(args)...}, core{core} {
+        lmq.log_level(LogLevel::trace);
+    }
 
     static SNNWrapper &from(void* obj) {
         assert(obj);
@@ -103,7 +107,7 @@ std::string get_data_as_string(const T &key) {
     return {reinterpret_cast<const char *>(&key), sizeof(key)};
 }
 
-crypto::x25519_public_key x25519_from_string(const std::string &pubkey) {
+crypto::x25519_public_key x25519_from_string(string_view pubkey) {
     crypto::x25519_public_key x25519_pub = crypto::x25519_public_key::null();
     if (pubkey.size() == sizeof(crypto::x25519_public_key))
         std::memcpy(x25519_pub.data, pubkey.data(), pubkey.size());
@@ -150,24 +154,24 @@ constexpr el::Level easylogging_level(LogLevel level) {
     };
     return el::Level::Unknown;
 };
-bool snn_want_log(LogLevel level) {
-    return ELPP->vRegistry()->allowed(easylogging_level(level), LOKI_DEFAULT_LOG_CATEGORY);
-}
 void snn_write_log(LogLevel level, const char *file, int line, std::string msg) {
-    el::base::Writer(easylogging_level(level), file, line, ELPP_FUNC, el::base::DispatchAction::NormalLog).construct(LOKI_DEFAULT_LOG_CATEGORY) << msg;
+    if (ELPP->vRegistry()->allowed(easylogging_level(level), LOKI_DEFAULT_LOG_CATEGORY))
+        el::base::Writer(easylogging_level(level), file, line, ELPP_FUNC, el::base::DispatchAction::NormalLog).construct(LOKI_DEFAULT_LOG_CATEGORY) << msg;
 }
+
+void setup_endpoints(SNNWrapper& snw);
 
 void *new_snnwrapper(cryptonote::core &core, const std::string &bind) {
     auto keys = core.get_service_node_keys();
-    auto peer_lookup = [&sn_list = core.get_service_node_list()](const std::string &x25519_pub) {
+    auto peer_lookup = [&sn_list = core.get_service_node_list()](string_view x25519_pub) {
         return get_connect_string(sn_list, x25519_from_string(x25519_pub));
     };
-    auto allow = [&sn_list = core.get_service_node_list()](const std::string &ip, const std::string &x25519_pubkey_str) {
+    auto allow = [&sn_list = core.get_service_node_list()](string_view ip, string_view x25519_pubkey_str) -> Allow {
         auto x25519_pubkey = x25519_from_string(x25519_pubkey_str);
         auto pubkey = sn_list.get_pubkey_from_x25519(x25519_pubkey);
+        MINFO("Accepting incoming " << (pubkey ? "SN" : "non-SN") << " connection authentication from ip/x25519/pubkey: " << ip << "/" << x25519_pubkey << "/" << pubkey);
         if (pubkey) {
-            MINFO("Accepting incoming SN connection authentication from ip/x25519/pubkey: " << ip << "/" << x25519_pubkey << "/" << pubkey);
-            return SNNetwork::allow::service_node;
+            return {AuthLevel::none, true};
         }
 
         // Public connection:
@@ -179,25 +183,29 @@ void *new_snnwrapper(cryptonote::core &core, const std::string &bind) {
         // (In theory we could extend this to also only allow SN
         // connections when in or near a blink/checkpoint/obligations/pulse quorum, but that
         // would get messy fast and probably have little practical benefit).
-        return SNNetwork::allow::client;
+        return {AuthLevel::none, false};
     };
     SNNWrapper *obj;
-    if (!keys) {
-        MINFO("Starting remote-only quorumnet instance");
-
-        obj = new SNNWrapper(core, peer_lookup, allow, snn_want_log, snn_write_log);
-    } else {
+    std::string pubkey, seckey;
+    bool sn;
+    if (keys) {
         MINFO("Starting quorumnet listener on " << bind << " with x25519 pubkey " << keys->pub_x25519);
-        obj = new SNNWrapper(core,
-            get_data_as_string(keys->pub_x25519),
-            get_data_as_string(keys->key_x25519.data),
-            std::vector<std::string>{{bind}},
-            peer_lookup,
-            allow,
-            snn_want_log, snn_write_log);
+        pubkey = get_data_as_string(keys->pub_x25519);
+        seckey = get_data_as_string(keys->key_x25519.data);
+        sn = true;
+    } else {
+        MINFO("Starting remote-only lokimq instance");
+        sn = false;
     }
 
-    obj->snn.data = obj; // Provide pointer to the instance for callbacks
+    obj = new SNNWrapper(core, pubkey, seckey, sn, std::move(peer_lookup), snn_write_log);
+
+    setup_endpoints(*obj);
+
+    if (sn)
+        obj->lmq.listen_curve(bind, allow);
+
+    obj->lmq.start();
 
     return obj;
 }
@@ -245,7 +253,7 @@ public:
 
     /// Singleton wrapper around peer_info
     peer_info(
-            SNNWrapper &snw,
+            SNNWrapper& snw,
             quorum_type q_type,
             std::shared_ptr<const quorum> &quorum,
             bool opportunistic = true,
@@ -264,13 +272,13 @@ public:
     ///     pubkey is always added to this exclude list.
     template <typename QuorumIt>
     peer_info(
-            SNNWrapper &snw,
+            SNNWrapper& snw,
             quorum_type q_type,
             QuorumIt qbegin, QuorumIt qend,
             bool opportunistic = true,
             std::unordered_set<crypto::public_key> exclude = {}
             )
-    : snn{snw.snn} {
+    : lmq{snw.lmq} {
 
         auto keys = snw.core.get_service_node_keys();
         assert(keys);
@@ -319,12 +327,12 @@ public:
     /// Relays a command and any number of serialized data to everyone we're supposed to relay to
     template <typename... T>
     void relay_to_peers(const std::string &cmd, const T &...data) {
-        relay_to_peers_impl(cmd, std::array<send_option::serialized, sizeof...(T)>{send_option::serialized{data}...},
+        relay_to_peers_impl(cmd, std::array<std::string, sizeof...(T)>{bt_serialize(data)...},
                 std::make_index_sequence<sizeof...(T)>{});
     }
 
 private:
-    SNNetwork &snn;
+    LokiMQ &lmq;
 
     /// Looks up a pubkey in known remotes and adds it to `peers`.  If strong, it is added with an
     /// address, otherwise it is added with an empty address.  If the element already exists, it
@@ -427,13 +435,13 @@ private:
 
     /// Relays a command and pre-serialized data to everyone we're supposed to relay to
     template<size_t N, size_t... I>
-    void relay_to_peers_impl(const std::string &cmd, std::array<send_option::serialized, N> relay_data, std::index_sequence<I...>) {
+    void relay_to_peers_impl(const std::string &cmd, std::array<std::string, N> relay_data, std::index_sequence<I...>) {
         for (auto &peer : peers) {
-            MTRACE("Relaying " << cmd << " to peer " << as_hex(peer.first) << (peer.second.empty() ? " (if connected)"s : " @ " + peer.second));
+            MTRACE("Relaying " << cmd << " to peer " << to_hex(peer.first) << (peer.second.empty() ? " (if connected)"s : " @ " + peer.second));
             if (peer.second.empty())
-                snn.send(peer.first, cmd, relay_data[I]..., send_option::optional{});
+                lmq.send(peer.first, cmd, relay_data[I]..., send_option::optional{});
             else
-                snn.send(peer.first, cmd, relay_data[I]..., send_option::hint{peer.second});
+                lmq.send(peer.first, cmd, relay_data[I]..., send_option::hint{peer.second});
         }
     }
 
@@ -458,8 +466,8 @@ bt_dict serialize_vote(const quorum_vote_t &vote) {
     return result;
 }
 
-quorum_vote_t deserialize_vote(const bt_value &v) {
-    const auto &d = boost::get<bt_dict>(v); // throws if not a bt_dict
+quorum_vote_t deserialize_vote(string_view v) {
+    const auto &d = bt_deserialize<bt_dict>(v); // throws if not a bt_dict
     quorum_vote_t vote;
     vote.version = get_int<uint8_t>(d.at("v"));
     vote.type = get_enum<quorum_type>(d, "t");
@@ -467,11 +475,11 @@ quorum_vote_t deserialize_vote(const bt_value &v) {
     vote.group = get_enum<quorum_group>(d, "g");
     if (vote.group == quorum_group::invalid) throw std::invalid_argument("invalid vote group");
     vote.index_in_group = get_int<uint16_t>(d.at("i"));
-    auto &sig = boost::get<std::string>(d.at("s"));
+    auto &sig = d.at("s").get<std::string>();
     if (sig.size() != sizeof(vote.signature)) throw std::invalid_argument("invalid vote signature size");
     std::memcpy(&vote.signature, sig.data(), sizeof(vote.signature));
     if (vote.type == quorum_type::checkpointing) {
-        auto &bh = boost::get<std::string>(d.at("bh"));
+        auto &bh = d.at("bh").get<std::string>();
         if (bh.size() != sizeof(vote.checkpoint.block_hash.data)) throw std::invalid_argument("invalid vote checkpoint block hash");
         std::memcpy(vote.checkpoint.block_hash.data, bh.data(), sizeof(vote.checkpoint.block_hash.data));
     } else {
@@ -525,10 +533,8 @@ void relay_obligation_votes(void *obj, const std::vector<service_nodes::quorum_v
     snw.core.set_service_node_votes_relayed(relayed_votes);
 }
 
-void handle_obligation_vote(SNNetwork::message &m, void *self) {
-    auto &snw = SNNWrapper::from(self);
-
-    MDEBUG("Received a relayed obligation vote from " << as_hex(m.pubkey));
+void handle_obligation_vote(Message& m, SNNWrapper& snw) {
+    MDEBUG("Received a relayed obligation vote from " << to_hex(m.conn.pubkey()));
 
     if (m.data.size() != 1) {
         MINFO("Ignoring vote: expected 1 data part, not " << m.data.size());
@@ -558,10 +564,10 @@ void handle_obligation_vote(SNNetwork::message &m, void *self) {
         }
 
         if (vvc.m_added_to_pool)
-            relay_obligation_votes(self, std::move(vvote));
+            relay_obligation_votes(&snw, std::move(vvote));
     }
     catch (const std::exception &e) {
-        MWARNING("Deserialization of vote from " << as_hex(m.pubkey) << " failed: " << e.what());
+        MWARNING("Deserialization of vote from " << to_hex(m.conn.pubkey()) << " failed: " << e.what());
     }
 }
 
@@ -640,7 +646,7 @@ std::string debug_known_signatures(blink_tx &btx, quorum_array &blink_quorums) {
 /// tx; otherwise signatures are stored until we learn about the tx and then processed.
 void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &btxptr, quorum_array &blink_quorums, uint64_t quorum_checksum, std::list<pending_signature> &&signatures,
         uint64_t reply_tag, // > 0 if we are expected to send a status update if it becomes accepted/rejected
-        const std::string reply_pubkey, // who we are supposed to send the status update to
+        ConnectionID reply_conn, // who we are supposed to send the status update to
         const std::string &received_from = ""s /* x25519 of the peer that sent this, if available (to avoid trying to pointlessly relay back to them) */) {
 
     auto &btx = *btxptr;
@@ -788,13 +794,13 @@ void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &
 
     MTRACE("Done blink signature relay");
 
-    if (reply_tag && !reply_pubkey.empty()) {
+    if (reply_tag && reply_conn) {
         if (became_approved) {
             MINFO("Blink tx became approved; sending result back to originating node");
-            snw.snn.send(reply_pubkey, "bl_good", bt_dict{{"!", reply_tag}}, send_option::optional{});
+            snw.lmq.send(reply_conn, "bl_good", bt_serialize(bt_dict{{"!", reply_tag}}), send_option::optional{});
         } else if (became_rejected) {
             MINFO("Blink tx became rejected; sending result back to originating node");
-            snw.snn.send(reply_pubkey, "bl_bad", bt_dict{{"!", reply_tag}}, send_option::optional{});
+            snw.lmq.send(reply_conn, "bl_bad", bt_serialize(bt_dict{{"!", reply_tag}}), send_option::optional{});
         }
     }
 }
@@ -821,9 +827,7 @@ void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &
 ///     "#" - precomputed tx hash.  This much match the actual hash of the transaction (the blink
 ///           submission will fail immediately if it does not).
 ///
-void handle_blink(SNNetwork::message &m, void *self) {
-    auto &snw = SNNWrapper::from(self);
-
+void handle_blink(lokimq::Message& m, SNNWrapper& snw) {
     // TODO: if someone sends an invalid tx (i.e. one that doesn't get to the distribution stage)
     // then put a timeout on that IP during which new submissions from them are dropped for a short
     // time.
@@ -833,7 +837,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     //   message and close it.
     // If an outgoing connection - refuse reconnections via ZAP and just close it.
 
-    MDEBUG("Received a blink tx from " << (m.sn ? "SN " : "non-SN ") << as_hex(m.pubkey));
+    MDEBUG("Received a blink tx from " << (m.conn.sn() ? "SN " : "non-SN ") << to_hex(m.conn.pubkey()));
 
     auto keys = snw.core.get_service_node_keys();
     assert(keys);
@@ -844,7 +848,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
         // No valid data and so no reply tag; we can't send a response
         return;
     }
-    auto &data = boost::get<bt_dict>(m.data[0]);
+    auto data = bt_deserialize<bt_dict>(m.data[0]);
 
     auto tag = get_or<uint64_t>(data, "!", 0);
 
@@ -852,7 +856,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     if (hf_version < HF_VERSION_BLINK) {
         MWARNING("Rejecting blink message: blink is not available for hardfork " << (int) hf_version);
         if (tag)
-            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Invalid blink authorization height"}});
+            m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "Invalid blink authorization height"_sv}}));
         return;
     }
 
@@ -863,14 +867,14 @@ void handle_blink(SNNetwork::message &m, void *self) {
     if (blink_height < local_height - 2) {
         MINFO("Rejecting blink tx because blink auth height is too low (" << blink_height << " vs. " << local_height << ")");
         if (tag)
-            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Invalid blink authorization height"}});
+            m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "Invalid blink authorization height"_sv}}));
         return;
     } else if (blink_height > local_height + 2) {
         // TODO: if within some threshold (maybe 5-10?) we could hold it and process it once we are
         // within 2.
         MINFO("Rejecting blink tx because blink auth height is too high (" << blink_height << " vs. " << local_height << ")");
         if (tag)
-            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Invalid blink authorization height"}});
+            m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "Invalid blink authorization height"_sv}}));
         return;
     }
     MTRACE("Blink tx auth height " << blink_height << " is valid (local height is " << local_height << ")");
@@ -879,10 +883,10 @@ void handle_blink(SNNetwork::message &m, void *self) {
     if (t_it == data.end()) {
         MINFO("Rejecting blink tx: no tx data included in request");
         if (tag)
-            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "No transaction included in blink request"}});
+            m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "No transaction included in blink request"_sv}}));
         return;
     }
-    const std::string &tx_data = boost::get<std::string>(t_it->second);
+    const std::string &tx_data = t_it->second.get<std::string>();
     MTRACE("Blink tx data is " << tx_data.size() << " bytes");
 
     // "hash" is optional -- it lets us short-circuit processing the tx if we've already seen it,
@@ -890,7 +894,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     // the hash if we haven't seen it before -- this is only used to skip propagation and
     // validation.
     crypto::hash tx_hash;
-    auto &tx_hash_str = boost::get<std::string>(data.at("#"));
+    auto &tx_hash_str = data.at("#").get<std::string>();
     bool already_approved = false, already_rejected = false;
     if (tx_hash_str.size() == sizeof(crypto::hash)) {
         std::memcpy(tx_hash.data, tx_hash_str.data(), sizeof(crypto::hash));
@@ -915,7 +919,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
                         // the reply until a signature comes in that flips it to approved/rejected
                         // status.
                         it->second.reply_tag = tag;
-                        it->second.reply_pubkey = m.pubkey;
+                        it->second.reply_conn = m.conn;
                         return;
                     }
                 } else {
@@ -924,16 +928,16 @@ void handle_blink(SNNetwork::message &m, void *self) {
                 }
             }
         }
-        MTRACE("Blink tx hash: " << as_hex(tx_hash.data));
+        MTRACE("Blink tx hash: " << to_hex(tx_hash.data));
     } else {
         MINFO("Rejecting blink tx: invalid tx hash included in request");
         if (tag)
-            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Invalid transaction hash"}});
+            m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "Invalid transaction hash"s}}));
         return;
     }
 
     if (already_approved || already_rejected) {
-        snw.snn.send(m.pubkey, already_approved ? "bl_good" : "bl_bad", bt_dict{{"!", tag}}, send_option::optional{});
+        m.send_back(already_approved ? "bl_good" : "bl_bad", bt_serialize(bt_dict{{"!", tag}}), send_option::optional{});
         return;
     }
 
@@ -944,12 +948,12 @@ void handle_blink(SNNetwork::message &m, void *self) {
     } catch (const std::runtime_error &e) {
         MINFO("Rejecting blink tx: " << e.what());
         if (tag)
-            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Unable to retrieve blink quorum: "s + e.what()}});
+            m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "Unable to retrieve blink quorum: "s + e.what()}}));
         return;
     }
 
     peer_info pinfo{snw, quorum_type::blink, blink_quorums.begin(), blink_quorums.end(), true /*opportunistic*/,
-        {snw.core.get_service_node_list().get_pubkey_from_x25519(x25519_from_string(m.pubkey))} // exclude the peer that just sent it to us
+        {snw.core.get_service_node_list().get_pubkey_from_x25519(x25519_from_string(m.conn.pubkey()))} // exclude the peer that just sent it to us
         };
 
     if (pinfo.my_position_count > 0)
@@ -957,7 +961,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     else {
         MINFO("Rejecting blink tx: this service node is not a member of the blink quorum!");
         if (tag)
-            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Blink tx relayed to non-blink quorum member"}});
+            m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "Blink tx relayed to non-blink quorum member"_sv}}));
         return;
     }
 
@@ -974,7 +978,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
         if (!cryptonote::parse_and_validate_tx_from_blob(tx_data, tx, tx_hash_actual)) {
             MINFO("Rejecting blink tx: failed to parse transaction data");
             if (tag)
-                m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Failed to parse transaction data"}});
+                m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "Failed to parse transaction data"_sv}}));
             return;
         }
         MTRACE("Successfully parsed transaction data");
@@ -982,7 +986,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
         if (tx_hash != tx_hash_actual) {
             MINFO("Rejecting blink tx: submitted tx hash " << tx_hash << " did not match actual tx hash " << tx_hash_actual);
             if (tag)
-                m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "Invalid transaction hash"}});
+                m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "Invalid transaction hash"_sv}}));
             return;
         } else {
             MTRACE("Pre-computed tx hash matches actual tx hash");
@@ -994,7 +998,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
     if (!pinfo.strong_peers) {
         MWARNING("Could not find connection info for any blink quorum peers.  Aborting blink tx");
         if (tag)
-            m.reply("bl_nostart", bt_dict{{"!", tag}, {"e", "No quorum peers are currently reachable"}});
+            m.send_back("bl_nostart", bt_serialize(bt_dict{{"!", tag}, {"e", "No quorum peers are currently reachable"_sv}}));
         return;
     }
 
@@ -1014,7 +1018,7 @@ void handle_blink(SNNetwork::message &m, void *self) {
         bl_info.pending_sigs.clear();
         if (tag > 0) {
             bl_info.reply_tag = tag;
-            bl_info.reply_pubkey = m.pubkey;
+            bl_info.reply_conn = m.conn;
         }
     }
     MTRACE("Accepted new blink tx for verification");
@@ -1071,12 +1075,12 @@ void handle_blink(SNNetwork::message &m, void *self) {
         signatures.emplace_back(approved, qi, pinfo.my_position[qi], sig);
     }
 
-    process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), tag, m.pubkey);
+    process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), tag, m.conn.pubkey());
 }
 
 template <typename T, typename CopyValue>
 void copy_signature_values(std::list<pending_signature> &signatures, const bt_value &val, CopyValue copy_value) {
-    auto &results = boost::get<bt_list>(val);
+    auto &results = val.get<bt_list>();
     if (signatures.empty())
         signatures.resize(results.size());
     else if (results.empty())
@@ -1110,15 +1114,13 @@ void copy_signature_values(std::list<pending_signature> &signatures, const bt_va
 /// each list corresponds to the values at the same position of the other lists.
 ///
 /// Signatures will be forwarded if new; known signatures will be ignored.
-void handle_blink_signature(SNNetwork::message &m, void *self) {
-    auto &snw = SNNWrapper::from(self);
-
-    MDEBUG("Received a blink tx signature from SN " << as_hex(m.pubkey));
+void handle_blink_signature(Message& m, SNNWrapper& snw) {
+    MDEBUG("Received a blink tx signature from SN " << to_hex(m.conn.pubkey()));
 
     if (m.data.size() != 1)
         throw std::runtime_error("Rejecting blink signature: expected one data entry not " + std::to_string(m.data.size()));
 
-    auto &data = boost::get<bt_dict>(m.data[0]);
+    auto data = bt_deserialize<bt_dict>(m.data[0]);
 
     uint64_t blink_height = 0, checksum = 0;
     crypto::hash tx_hash;
@@ -1135,7 +1137,7 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
                 blink_height = get_int<uint64_t>(val);
                 break;
             case '#': {
-                auto &hash_str = boost::get<std::string>(val);
+                auto &hash_str = val.get<std::string>();
                 if (hash_str.size() != sizeof(crypto::hash))
                     throw std::invalid_argument("Invalid blink signature data: invalid tx hash");
                 std::memcpy(tx_hash.data, hash_str.data(), sizeof(crypto::hash));
@@ -1168,7 +1170,7 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
                 break;
             case 's':
                 copy_signature_values<crypto::signature>(signatures, val, [](crypto::signature &dest, const bt_value &v) {
-                    auto &sig_str = boost::get<std::string>(v);
+                    auto& sig_str = v.get<std::string>();
                     if (sig_str.size() != sizeof(crypto::signature))
                         throw std::invalid_argument("Invalid blink signature data: invalid signature");
                     std::memcpy(&dest, sig_str.data(), sizeof(crypto::signature));
@@ -1188,7 +1190,7 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
     auto blink_quorums = get_blink_quorums(blink_height, snw.core.get_service_node_list(), &checksum); // throws if bad quorum or checksum mismatch
 
     uint64_t reply_tag = 0;
-    std::string reply_pubkey;
+    ConnectionID reply_conn;
     std::shared_ptr<blink_tx> btxptr;
     auto find_blink = [&]() {
         auto height_it = snw.blinks.find(blink_height);
@@ -1201,7 +1203,7 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
         auto &b_meta = it->second;
         btxptr = b_meta.btxptr;
         reply_tag = b_meta.reply_tag;
-        reply_pubkey = b_meta.reply_pubkey;
+        reply_conn = b_meta.reply_conn;
     };
 
     {
@@ -1229,7 +1231,7 @@ void handle_blink_signature(SNNetwork::message &m, void *self) {
 
     MINFO("Found blink tx in local blink cache");
 
-    process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), reply_tag, reply_pubkey, m.pubkey);
+    process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), reply_tag, reply_conn, m.conn.pubkey());
 }
 
 
@@ -1317,7 +1319,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
                     return;
                 }
                 if (!proof.pubkey_x25519 || !proof.quorumnet_port || !proof.public_ip) {
-                    MTRACE("Not including node " << pubkey << ": missing x25519(" << as_hex(get_data_as_string(proof.pubkey_x25519)) << "), "
+                    MTRACE("Not including node " << pubkey << ": missing x25519(" << to_hex(get_data_as_string(proof.pubkey_x25519)) << "), "
                             "public_ip(" << epee::string_tools::get_ip_string_from_int32(proof.public_ip) << "), or qnet port(" << proof.quorumnet_port << ")");
                     return;
                 }
@@ -1335,17 +1337,17 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
             indices.resize(4);
         brd->remote_count = indices.size();
 
-        send_option::serialized data{bt_dict{
+        std::string data = bt_serialize<bt_dict>({
             {"!", blink_tag},
             {"#", get_data_as_string(tx_hash)},
             {"h", height},
             {"q", checksum},
             {"t", tx_blob}
-        }};
+        });
 
         for (size_t i : indices) {
-            MINFO("Relaying blink tx to " << as_hex(remotes[i].first) << " @ " << remotes[i].second);
-            snw.snn.send(remotes[i].first, "blink", data, send_option::hint{remotes[i].second});
+            MINFO("Relaying blink tx to " << to_hex(remotes[i].first) << " @ " << remotes[i].second);
+            snw.lmq.send(remotes[i].first, "blink", data, send_option::hint{remotes[i].second});
         }
     } catch (...) {
         auto lock = tools::unique_lock(pending_blink_result_mutex);
@@ -1404,14 +1406,14 @@ void common_blink_response(uint64_t tag, cryptonote::blink_result res, std::stri
 ///
 /// It's possible for some nodes to accept and others to refuse, so we don't actually set the
 /// promise unless we get a nostart response from a majority of the remotes.
-void handle_blink_not_started(SNNetwork::message &m, void *) {
+void handle_blink_not_started(Message& m) {
     if (m.data.size() != 1) {
         MERROR("Bad blink not started response: expected one data entry not " << m.data.size());
         return;
     }
-    auto &data = boost::get<bt_dict>(m.data[0]);
+    auto data = bt_deserialize<bt_dict>(m.data[0]);
     auto tag = get_int<uint64_t>(data.at("!"));
-    auto &error = boost::get<std::string>(data.at("e"));
+    auto& error = data.at("e").get<std::string>();
 
     MINFO("Received no-start blink response: " << error);
 
@@ -1423,12 +1425,12 @@ void handle_blink_not_started(SNNetwork::message &m, void *) {
 ///
 ///     ! - the tag as included in the submission
 ///
-void handle_blink_failure(SNNetwork::message &m, void *) {
+void handle_blink_failure(Message &m) {
     if (m.data.size() != 1) {
         MERROR("Blink failure message not understood: expected one data entry not " << m.data.size());
         return;
     }
-    auto &data = boost::get<bt_dict>(m.data[0]);
+    auto data = bt_deserialize<bt_dict>(m.data[0]);
     auto tag = get_int<uint64_t>(data.at("!"));
 
     // TODO - we ought to be able to signal an error message *sometimes*, e.g. if one of the remotes
@@ -1447,12 +1449,12 @@ void handle_blink_failure(SNNetwork::message &m, void *) {
 ///
 ///     ! - the tag as included in the submission
 ///
-void handle_blink_success(SNNetwork::message &m, void *) {
+void handle_blink_success(Message& m) {
     if (m.data.size() != 1) {
         MERROR("Blink success message not understood: expected one data entry not " << m.data.size());
         return;
     }
-    auto &data = boost::get<bt_dict>(m.data[0]);
+    auto data = bt_deserialize<bt_dict>(m.data[0]);
     auto tag = get_int<uint64_t>(data.at("!"));
 
     MINFO("Received blink success response");
@@ -1460,19 +1462,19 @@ void handle_blink_success(SNNetwork::message &m, void *) {
     common_blink_response(tag, cryptonote::blink_result::accepted, ""s);
 }
 
-void handle_ping(SNNetwork::message &m, void *) {
+void handle_ping(Message& m) {
     uint64_t tag = 0;
     if (!m.data.empty()) {
-        auto &data = boost::get<bt_dict>(m.data[0]);
+        auto data = bt_deserialize<bt_dict>(m.data[0]);
         tag = get_or<uint64_t>(data, "!", 0);
     }
 
-    MINFO("Received ping request from " << (m.sn ? "SN" : "non-SN") << " " << as_hex(m.pubkey) << ", sending pong");
-    m.reply("pong", bt_dict{{"!", tag}, {"sn", m.sn}});
+    MINFO("Received ping request from " << (m.conn.sn() ? "SN" : "non-SN") << " " << to_hex(m.conn.pubkey()) << ", sending pong");
+    m.send_back("ping.pong", bt_serialize(bt_dict{{"!", tag}, {"sn", m.conn.sn()}}));
 }
 
-void handle_pong(SNNetwork::message &m, void *) {
-    MINFO("Received pong from " << (m.sn ? "SN" : "non-SN") << " " << as_hex(m.pubkey));
+void handle_pong(Message& m) {
+    MINFO("Received pong from " << (m.conn.sn() ? "SN" : "non-SN") << " " << to_hex(m.conn.pubkey()));
 }
 
 } // end empty namespace
@@ -1485,36 +1487,65 @@ void init_core_callbacks() {
     cryptonote::quorumnet_delete = delete_snnwrapper;
     cryptonote::quorumnet_relay_obligation_votes = relay_obligation_votes;
     cryptonote::quorumnet_send_blink = send_blink;
+}
 
-    // Receives an obligation vote
-    SNNetwork::register_command("vote_ob", SNNetwork::command_type::quorum, handle_obligation_vote);
+namespace {
+void setup_endpoints(SNNWrapper& snw) {
+    auto& lmq = snw.lmq;
 
-    // Receives a new blink tx submission from an external node, or forward from other quorum
-    // members who received it from an external node.
-    SNNetwork::register_command("blink", SNNetwork::command_type::public_, handle_blink);
+    // quorum.*: commands between quorum members, requires that both side of the connection is a SN
+    lmq.add_category("quorum", Access{AuthLevel::none, true /*remote sn*/, true /*local sn*/}, 2 /*reserved threads*/)
+        // Receives an obligation vote
+        .add_command("vote_ob", [&snw](Message& m) { handle_obligation_vote(m, snw); })
+        // Receives blink tx signatures or rejections between quorum members (either original or
+        // forwarded).  These are propagated by the receiver if new
+        .add_command("blink_sign", [&snw](Message& m) { handle_blink_signature(m, snw); })
+        ;
 
-    // Sends a message back to the blink initiator that the transaction was NOT relayed, either
-    // because the height was invalid or the quorum checksum failed.  This is only sent by the entry
-    // point service nodes into the quorum to let it know the tx verification has not started from
-    // that node.  It does not necessarily indicate a failure unless all entry point attempts return
-    // the same.
-    SNNetwork::register_command("bl_nostart", SNNetwork::command_type::response, handle_blink_not_started);
+    // blink.*: commands sent to blink quorum members from anyone (e.g. blink submission)
+    lmq.add_category("blink", Access{AuthLevel::none, false /*remote sn*/, true /*local sn*/}, 1 /*reserved thread*/)
+        // Receives a new blink tx submission from an external node, or forward from other quorum
+        // members who received it from an external node.
+        .add_command("submit", [&snw](Message& m) { handle_blink(m, snw); })
+        ;
 
-    // Sends a message from the entry SNs back to the initiator that the Blink tx has been rejected:
-    // that is, enough signed rejections have occured that the Blink tx cannot be accepted.
-    SNNetwork::register_command("bl_bad", SNNetwork::command_type::response, handle_blink_failure);
+    // bl.*: responses to blinks sent from quorum members back to the node who submitted the blink
+    lmq.add_category("bl", Access{AuthLevel::none, true /*remote sn*/, false /*local sn*/})
+        // Message sent back to the blink initiator that the transaction was NOT relayed, either
+        // because the height was invalid or the quorum checksum failed.  This is only sent by the
+        // entry point service nodes into the quorum to let it know the tx verification has not
+        // started from that node.  It does not necessarily indicate a failure unless all entry
+        // point attempts return the same.
+        .add_command("nostart", handle_blink_not_started)
+        // Message send back from the entry SNs back to the initiator that the Blink tx has been
+        // rejected: that is, enough signed rejections have occured that the Blink tx cannot be
+        // accepted.
+        .add_command("bad", handle_blink_failure)
+        // Sends a message from the entry SNs back to the initiator that the Blink tx has been
+        // accepted and validated and is being broadcast to the network.
+        .add_command("good", handle_blink_success)
+        ;
 
-    // Sends a message from the entry SNs back to the initiator that the Blink tx has been accepted
-    // and validated and is being broadcast to the network.
-    SNNetwork::register_command("bl_good", SNNetwork::command_type::response, handle_blink_success);
+    // ping.ping, ping.pong: triggers a reply with the auth status, used for quorumnet connectivity
+    // testing.
+    lmq.add_category("ping", Access{AuthLevel::none})
+        .add_command("ping", handle_ping)
+        .add_command("pong", handle_pong)
+        ;
 
-    // Receives blink tx signatures or rejections between quorum members (either original or
-    // forwarded).  These are propagated by the receiver if new
-    SNNetwork::register_command("blink_sign", SNNetwork::command_type::quorum, handle_blink_signature);
+    // Compatibility aliases.  Transition plan:
+    // 7.x: keep the aliases and use them, since we need 6.x nodes to understand
+    // 8.x: keep the aliases (so the 7.x nodes still using them can talk to 8.x), but don't use them
+    // anymore.
+    // 8.x.1 (i.e. the first release after the 8.x hard fork): remove the aliases
 
-    // Replies with a pong and the auth status, used for quorumnet connectivity testing.
-    SNNetwork::register_command("ping", SNNetwork::command_type::public_, handle_ping);
-    SNNetwork::register_command("pong", SNNetwork::command_type::public_, handle_pong);
+    lmq.add_command_alias("vote_ob", "quorum.vote_ob");
+    lmq.add_command_alias("blink_sign", "quorum.blink_sign");
+    lmq.add_command_alias("blink", "blink.submit");
+    lmq.add_command_alias("bl_nostart", "bl.nostart");
+    lmq.add_command_alias("bl_bad", "bl.bad");
+    lmq.add_command_alias("bl_good", "bl.good");
+}
 }
 
 }

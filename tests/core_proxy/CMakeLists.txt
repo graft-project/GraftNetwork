@@ -26,24 +26,20 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(core_proxy_sources
-  core_proxy.cpp)
-
-set(core_proxy_headers
-  core_proxy.h)
-
 add_executable(core_proxy
-  ${core_proxy_sources}
-  ${core_proxy_headers})
+  core_proxy.cpp)
 target_link_libraries(core_proxy
   PRIVATE
     cryptonote_core
     cryptonote_protocol
     p2p
+    net
     version
     epee
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
+    Boost::regex
+    Boost::program_options
+    miniupnpc
+    extra)
 set_property(TARGET core_proxy
   PROPERTY
     FOLDER "tests")

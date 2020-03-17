@@ -27,47 +27,21 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(blockchain_db_sources
+add_library(blockchain_db
   blockchain_db.cpp
   lmdb/db_lmdb.cpp
   )
 
-if (BERKELEY_DB)
-  set(blockchain_db_sources
-  ${blockchain_db_sources}
-  berkeleydb/db_bdb.cpp
-  )
-endif()
-
-
-set(blockchain_db_headers)
-
-set(blockchain_db_private_headers
-  blockchain_db.h
-  lmdb/db_lmdb.h
-  )
-
-if (BERKELEY_DB)
-  set(blockchain_db_private_headers
-  ${blockchain_db_private_headers}
-  berkeleydb/db_bdb.h
-  )
-endif()
-
-loki_private_headers(blockchain_db
-  ${crypto_private_headers})
-loki_add_library(blockchain_db
-  ${blockchain_db_sources}
-  ${blockchain_db_headers}
-  ${blockchain_db_private_headers})
 target_link_libraries(blockchain_db
-  PUBLIC
-    common
-    cncrypto
-    ringct
-    ${LMDB_LIBRARY}
-    ${BDB_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
   PRIVATE
-    ${EXTRA_LIBRARIES})
+    common
+    ringct
+    lmdb
+    Boost::filesystem
+    Boost::thread
+    extra)
+
+target_compile_definitions(blockchain_db PRIVATE
+    "DEFAULT_DB_TYPE=\"${BLOCKCHAIN_DB}\""
+    "BLOCKCHAIN_DB=${BLOCKCHAIN_DB}"
+    )

@@ -1117,4 +1117,11 @@ std::string get_nix_version_display_string()
     const std::uint64_t divisor = size->bytes / 1000;
     return (boost::format(size->format) % (double(bytes) / divisor)).str();
   }
+
+  std::string lowercase_ascii_string(std::string src)
+  {
+    for (char &ch : src)
+      if (ch >= 'A' && ch <= 'Z') ch = ch + ('a' - 'A');
+    return src;
+  }
 }

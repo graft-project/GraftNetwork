@@ -100,6 +100,7 @@ namespace cryptonote
     void forget_spend_key();
     const std::vector<crypto::secret_key> &get_multisig_keys() const { return m_keys.m_multisig_keys; }
 
+    void generate_public_edkey();
     void encrypt_keys(const crypto::chacha_key &key) { m_keys.encrypt(key); }
     void decrypt_keys(const crypto::chacha_key &key) { m_keys.decrypt(key); }
     void encrypt_viewkey(const crypto::chacha_key &key) { m_keys.encrypt_viewkey(key); }

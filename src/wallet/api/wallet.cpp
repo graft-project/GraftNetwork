@@ -64,8 +64,6 @@ using namespace cryptonote;
 namespace Monero {
 
 namespace {
-    // copy-pasted from simplewallet
-    static const size_t DEFAULT_MIXIN = 6;
     static const int    DEFAULT_REFRESH_INTERVAL_MILLIS = 1000 * 10;
     // limit maximum refresh interval as one minute
     static const int    MAX_REFRESH_INTERVAL_MILLIS = 1000 * 60 * 1;
@@ -1441,7 +1439,7 @@ PendingTransaction* WalletImpl::restoreMultisigTransaction(const string& signDat
 //    - unconfirmed_transfer_details;
 //    - confirmed_transfer_details)
 
-PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const string &payment_id, optional<uint64_t> amount, uint32_t mixin_count,
+PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const string &payment_id, optional<uint64_t> amount, uint32_t /*mixin_count*/,
                                                   uint32_t priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
 
 {
@@ -1450,14 +1448,6 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     pauseRefresh();
       
     cryptonote::address_parse_info info;
-
-    // indicates if dst_addr is integrated address (address + payment_id)
-    // TODO:  (https://bitcointalk.org/index.php?topic=753252.msg9985441#msg9985441)
-    size_t fake_outs_count = mixin_count > 0 ? mixin_count : m_wallet->default_mixin();
-    if (fake_outs_count == 0)
-        fake_outs_count = DEFAULT_MIXIN;
-    fake_outs_count = m_wallet->adjust_mixin(fake_outs_count);
-    uint32_t adjusted_priority = m_wallet->adjust_priority(priority);
 
     PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
 
@@ -1516,9 +1506,17 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
                 de.is_subaddress = info.is_subaddress;
                 de.is_integrated = info.has_payment_id;
                 dsts.push_back(de);
-                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
-                                                                          adjusted_priority,
-                                                                          extra, subaddr_account, subaddr_indices);
+
+                boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+                if (!hf_version)
+                {
+                  setStatusError(tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED);
+                  return transaction;
+                }
+                loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::standard, priority);
+                transaction->m_pending_tx = m_wallet->create_transactions_2(
+                        dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */,
+                        priority, extra, subaddr_account, subaddr_indices, tx_params);
             } else {
                 // for the GUI, sweep_all (i.e. amount set as "(all)") will always sweep all the funds in all the addresses
                 if (subaddr_indices.empty())
@@ -1526,9 +1524,9 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
                     for (uint32_t index = 0; index < m_wallet->get_num_subaddresses(subaddr_account); ++index)
                         subaddr_indices.insert(index);
                 }
-                transaction->m_pending_tx = m_wallet->create_transactions_all(0, info.address, info.is_subaddress, 1, fake_outs_count, 0 /* unlock_time */,
-                                                                          adjusted_priority,
-                                                                          extra, subaddr_account, subaddr_indices);
+                transaction->m_pending_tx = m_wallet->create_transactions_all(
+                        0, info.address, info.is_subaddress, 1, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */,
+                        priority, extra, subaddr_account, subaddr_indices);
             }
 
             pendingTxPostProcess(transaction);
@@ -1718,16 +1716,6 @@ void WalletImpl::setListener(WalletListener *l)
 {
     // TODO thread synchronization;
     m_wallet2Callback->setListener(l);
-}
-
-uint32_t WalletImpl::defaultMixin() const
-{
-    return m_wallet->default_mixin();
-}
-
-void WalletImpl::setDefaultMixin(uint32_t arg)
-{
-    m_wallet->default_mixin(arg);
 }
 
 bool WalletImpl::setUserNote(const std::string &txid, const std::string &note)

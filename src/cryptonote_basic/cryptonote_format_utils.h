@@ -112,6 +112,9 @@ namespace cryptonote
   void add_service_node_contributor_to_tx_extra(std::vector<uint8_t>& tx_extra, const cryptonote::account_public_address& address);
   crypto::public_key get_service_node_winner_from_tx_extra(const std::vector<uint8_t>& tx_extra);
 
+  bool get_loki_name_system_from_tx_extra(std::vector<uint8_t> const &tx_extra, tx_extra_loki_name_system &entry);
+  void add_loki_name_system_to_tx_extra  (std::vector<uint8_t>       &tx_extra, tx_extra_loki_name_system const &entry);
+
   std::vector<crypto::public_key> get_additional_tx_pub_keys_from_extra(const std::vector<uint8_t>& tx_extra);
   std::vector<crypto::public_key> get_additional_tx_pub_keys_from_extra(const transaction_prefix& tx);
   bool add_additional_tx_pub_keys_to_extra(std::vector<uint8_t>& tx_extra, const std::vector<crypto::public_key>& additional_pub_keys);
@@ -181,6 +184,13 @@ namespace cryptonote
 
   std::string print_tx_verification_context  (tx_verification_context const &tvc, transaction const *tx = nullptr);
   std::string print_vote_verification_context(vote_verification_context const &vvc, service_nodes::quorum_vote_t const *vote = nullptr);
+
+  inline std::ostream &operator<<(std::ostream &stream, transaction const &tx)
+  {
+    stream << "tx={version=" << tx.version << ", type=" << tx.type << ", hash=" << get_transaction_hash(tx) << "}";
+    return stream;
+  }
+
   //---------------------------------------------------------------
   template<class t_object>
   bool t_serializable_object_from_blob(t_object& to, const blobdata& b_blob)

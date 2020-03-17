@@ -52,9 +52,7 @@
 #define MAX_NUMBER_OF_CONTRIBUTORS                      4
 #define MIN_PORTIONS                                    (STAKING_PORTIONS / MAX_NUMBER_OF_CONTRIBUTORS)
 
-static_assert(STAKING_PORTIONS % MAX_NUMBER_OF_CONTRIBUTORS == 0, "Use a multiple of four, so that it divides easily by max number of contributors.");
-static_assert(STAKING_PORTIONS % 2 == 0, "Use a multiple of two, so that it divides easily by two contributors.");
-static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it divides easily by three contributors.");
+static_assert(STAKING_PORTIONS % 12 == 0, "Use a multiple of twelve, so that it divides evenly by two, three, or four contributors.");
 
 #define STAKING_AUTHORIZATION_EXPIRATION_WINDOW         (60*60*24*7*2)  // 2 weeks
 
@@ -74,13 +72,6 @@ static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it di
 #define STORAGE_SERVER_PING_LIFETIME                    UPTIME_PROOF_FREQUENCY_IN_SECONDS
 #define LOKINET_PING_LIFETIME                           UPTIME_PROOF_FREQUENCY_IN_SECONDS
 
-// MONEY_SUPPLY - total number coins to be generated
-#define MONEY_SUPPLY                                    ((uint64_t)(-1))
-#define EMISSION_LINEAR_BASE                            ((uint64_t)(1) << 58)
-#define EMISSION_SUPPLY_MULTIPLIER                      19
-#define EMISSION_SUPPLY_DIVISOR                         10
-#define EMISSION_DIVISOR                                2000000
-
 #define CRYPTONOTE_REWARD_BLOCKS_WINDOW                 100
 #define CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1    20000 // NOTE(loki): For testing suite, //size of block (bytes) after which reward for block calculated using block size - before first fork
 #define CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5    300000 //size of block (bytes) after which reward for block calculated using block size - second change, from v5
@@ -88,8 +79,6 @@ static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it di
 #define CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR 50
 #define CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE          600
 #define CRYPTONOTE_DISPLAY_DECIMAL_POINT                9
-// COIN - number of smallest units in one coin
-#define COIN                                            ((uint64_t)1000000000) // 1 LOKI = pow(10, 9)
 
 #define FEE_PER_KB                                      ((uint64_t)2000000000) // 2 LOKI (= 2 * pow(10, 9))
 #define FEE_PER_BYTE                                    ((uint64_t)215)   // Fallback used in wallet if no fee is available from RPC
@@ -99,16 +88,6 @@ static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it di
 #define DYNAMIC_FEE_PER_KB_BASE_FEE_V5                  ((uint64_t)400000000)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT        ((uint64_t)3000)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT_V12    ((uint64_t)240000) // Only v12 (v13 switches back)
-
-// Blink fees: in total the sender must pay (MINER_TX_FEE_PERCENT + BURN_TX_FEE_PERCENT) * [minimum tx fee] + BLINK_BURN_FIXED,
-// and the miner including the tx includes MINER_TX_FEE_PERCENT * [minimum tx fee]; the rest must be left unclaimed.
-#define BLINK_MINER_TX_FEE_PERCENT                      100 // The blink miner tx fee (as a percentage of the minimum tx fee)
-#define BLINK_BURN_FIXED                                0   // A fixed amount (in atomic currency units) that the sender must burn
-#define BLINK_BURN_TX_FEE_PERCENT                       400 // A percentage of the minimum miner tx fee that the sender must burn.  (Adds to BLINK_BURN_FIXED)
-
-static_assert(BLINK_MINER_TX_FEE_PERCENT >= 100, "blink miner fee cannot be smaller than the base tx fee");
-static_assert(BLINK_BURN_FIXED >= 0, "fixed blink burn amount cannot be negative");
-static_assert(BLINK_BURN_TX_FEE_PERCENT >= 0, "blink burn tx percent cannot be negative");
 
 #define DIFFICULTY_TARGET_V2                            120  // seconds
 #define DIFFICULTY_WINDOW_V2                            60
@@ -180,8 +159,8 @@ static_assert(BLINK_BURN_TX_FEE_PERCENT >= 0, "blink burn tx percent cannot be n
 #define HF_VERSION_INCREASE_FEE                 cryptonote::network_version_12_checkpointing
 #define HF_VERSION_PER_OUTPUT_FEE               cryptonote::network_version_13_enforce_checkpoints
 #define HF_VERSION_ED25519_KEY                  cryptonote::network_version_13_enforce_checkpoints
-#define HF_VERSION_FEE_BURNING                  cryptonote::network_version_14_blink_lns
-#define HF_VERSION_BLINK                        cryptonote::network_version_14_blink_lns
+#define HF_VERSION_FEE_BURNING                  cryptonote::network_version_14_blink
+#define HF_VERSION_BLINK                        cryptonote::network_version_14_blink
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 
@@ -284,7 +263,9 @@ namespace cryptonote
     network_version_11_infinite_staking, // Infinite Staking, CN-Turtle
     network_version_12_checkpointing, // Checkpointing, Relaxed Deregistration, RandomXL, Loki Storage Server
     network_version_13_enforce_checkpoints,
-    network_version_14_blink_lns,
+    network_version_14_blink,
+    network_version_15_lns,
+    network_version_16, // future fork
 
     network_version_count,
   };

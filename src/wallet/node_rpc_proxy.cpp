@@ -253,6 +253,24 @@ boost::optional<std::string> NodeRPCProxy::get_fee_quantization_mask(uint64_t &f
   return {};
 }
 
+template <typename T>
+static bool check_invoke(bool r, T &response, boost::optional<std::string> &failed)
+{
+  if (!r)
+  {
+    failed = std::string("Failed to connect to daemon");
+    return false;
+  }
+
+  if (response.status != CORE_RPC_STATUS_OK)
+  {
+    failed = response.status;
+    return false;
+  }
+
+  return true;
+}
+
 std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> NodeRPCProxy::get_service_nodes(std::vector<std::string> const &pubkeys, boost::optional<std::string> &failed) const
 {
   std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> result;
@@ -269,23 +287,8 @@ std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> NodeRPCP
   m_daemon_rpc_mutex.lock();
   bool r = epee::net_utils::invoke_http_json_rpc("/json_rpc", "get_service_nodes", req, res, m_http_client, rpc_timeout);
   m_daemon_rpc_mutex.unlock();
-  if (!r)
-  {
-    failed = std::string("Failed to connect to daemon");
+  if (!check_invoke(r, res, failed))
     return result;
-  }
-
-  if (res.status == CORE_RPC_STATUS_BUSY) 
-  {
-    failed = res.status;
-    return result;
-  }
-
-  if (res.status != CORE_RPC_STATUS_OK)
-  {
-    failed = res.status;
-    return result;
-  }
 
   result = std::move(res.service_node_states);
   return result;
@@ -303,24 +306,8 @@ bool NodeRPCProxy::update_all_service_nodes_cache(uint64_t height, boost::option
   cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response res = {};
 
   bool r = epee::net_utils::invoke_http_json_rpc("/json_rpc", "get_all_service_nodes", req, res, m_http_client, rpc_timeout);
-
-  if (!r)
-  {
-    failed = std::string("Failed to connect to daemon");
+  if (!check_invoke(r, res, failed))
     return false;
-  }
-
-  if (res.status == CORE_RPC_STATUS_BUSY)
-  {
-    failed = res.status;
-    return false;
-  }
-
-  if (res.status != CORE_RPC_STATUS_OK)
-  {
-    failed = res.status;
-    return false;
-  }
 
   m_all_service_nodes_cached_height = height;
   m_all_service_nodes = std::move(res.service_node_states);
@@ -406,24 +393,8 @@ std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::ent
       cryptonote::COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::response res = {};
 
       bool r = epee::net_utils::invoke_http_json_rpc("/json_rpc", "get_service_node_blacklisted_key_images", req, res, m_http_client, rpc_timeout);
-
-      if (!r)
-      {
-        failed = std::string("Failed to connect to daemon");
-        return result;
-      }
-
-      if (res.status == CORE_RPC_STATUS_BUSY) 
-      {
-        failed = res.status;
-        return result;
-      }
-
-      if (res.status != CORE_RPC_STATUS_OK)
-      {
-        failed = res.status;
-        return result;
-      }
+      if (!check_invoke(r, res, failed))
+        return {};
 
       m_service_node_blacklisted_key_images_cached_height = height;
       m_service_node_blacklisted_key_images               = std::move(res.blacklist);
@@ -435,4 +406,41 @@ std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::ent
   return result;
 }
 
+std::vector<cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::response_entry> NodeRPCProxy::lns_owners_to_names(cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::request const &request, boost::optional<std::string> &failed) const
+{
+  if (m_offline)
+  {
+    failed = std::string("offline");
+    return {};
+  }
+
+  cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::response res = {};
+  {
+    std::lock_guard<std::recursive_mutex> lock(m_daemon_rpc_mutex);
+    bool r = epee::net_utils::invoke_http_json_rpc("/json_rpc", "lns_owners_to_names", request, res, m_http_client, rpc_timeout);
+    if (!check_invoke(r, res, failed))
+      return {};
+  }
+
+  return res.entries;
+}
+
+std::vector<cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::response_entry> NodeRPCProxy::lns_names_to_owners(cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::request const &request, boost::optional<std::string> &failed) const
+{
+  if (m_offline)
+  {
+    failed = std::string("offline");
+    return {};
+  }
+
+  cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::response res = {};
+  {
+    std::lock_guard<std::recursive_mutex> lock(m_daemon_rpc_mutex);
+    bool r = epee::net_utils::invoke_http_json_rpc("/json_rpc", "lns_names_to_owners", request, res, m_http_client, rpc_timeout);
+    if (!check_invoke(r, res, failed))
+      return {};
+  }
+
+  return res.entries;
+}
 }

@@ -183,6 +183,7 @@ namespace cryptonote
         MAP_JON_RPC_WE_IF("get_service_node_registration_cmd",      on_get_service_node_registration_cmd, COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_CMD, !m_restricted)
         MAP_JON_RPC_WE_IF("get_service_node_key",                   on_get_service_node_key, COMMAND_RPC_GET_SERVICE_NODE_KEY, !m_restricted)
         MAP_JON_RPC_WE_IF("get_service_node_privkey",               on_get_service_node_privkey, COMMAND_RPC_GET_SERVICE_NODE_PRIVKEY, !m_restricted)
+        MAP_JON_RPC_WE("get_service_node_status",                         on_get_service_node_status, COMMAND_RPC_GET_SERVICE_NODE_STATUS)
         MAP_JON_RPC_WE("get_service_nodes",                         on_get_service_nodes, COMMAND_RPC_GET_SERVICE_NODES)
         MAP_JON_RPC_WE("get_all_service_nodes",                     on_get_all_service_nodes, COMMAND_RPC_GET_SERVICE_NODES)
         MAP_JON_RPC_WE("get_n_service_nodes",                       on_get_n_service_nodes, COMMAND_RPC_GET_N_SERVICE_NODES)
@@ -194,6 +195,8 @@ namespace cryptonote
         MAP_JON_RPC_WE("get_service_nodes_state_changes",           on_get_service_nodes_state_changes, COMMAND_RPC_GET_SN_STATE_CHANGES)
         MAP_JON_RPC_WE_IF("report_peer_storage_server_status",      on_report_peer_storage_server_status, COMMAND_RPC_REPORT_PEER_SS_STATUS, !m_restricted)
         MAP_JON_RPC_WE_IF("test_trigger_p2p_resync",                on_test_trigger_p2p_resync, COMMAND_RPC_TEST_TRIGGER_P2P_RESYNC, !m_restricted)
+        MAP_JON_RPC_WE("lns_names_to_owners",                       on_lns_names_to_owners, COMMAND_RPC_LNS_NAMES_TO_OWNERS)
+        MAP_JON_RPC_WE("lns_owners_to_names",                       on_lns_owners_to_names, COMMAND_RPC_LNS_OWNERS_TO_NAMES)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -274,6 +277,7 @@ namespace cryptonote
     bool on_get_service_node_blacklisted_key_images(const COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::request& req, COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::response& res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
     bool on_get_service_node_key(const COMMAND_RPC_GET_SERVICE_NODE_KEY::request& req, COMMAND_RPC_GET_SERVICE_NODE_KEY::response& res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
     bool on_get_service_node_privkey(const COMMAND_RPC_GET_SERVICE_NODE_PRIVKEY::request& req, COMMAND_RPC_GET_SERVICE_NODE_PRIVKEY::response& res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
+    bool on_get_service_node_status(const COMMAND_RPC_GET_SERVICE_NODE_STATUS::request& req, COMMAND_RPC_GET_SERVICE_NODE_STATUS::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_service_nodes(const COMMAND_RPC_GET_SERVICE_NODES::request& req, COMMAND_RPC_GET_SERVICE_NODES::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_n_service_nodes(const COMMAND_RPC_GET_N_SERVICE_NODES::request& req, COMMAND_RPC_GET_N_SERVICE_NODES::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_all_service_nodes(const COMMAND_RPC_GET_SERVICE_NODES::request& req, COMMAND_RPC_GET_SERVICE_NODES::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
@@ -286,6 +290,8 @@ namespace cryptonote
     bool on_get_service_nodes_state_changes(const COMMAND_RPC_GET_SN_STATE_CHANGES::request& req, COMMAND_RPC_GET_SN_STATE_CHANGES::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_report_peer_storage_server_status(const COMMAND_RPC_REPORT_PEER_SS_STATUS::request& req, COMMAND_RPC_REPORT_PEER_SS_STATUS::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_test_trigger_p2p_resync(const COMMAND_RPC_TEST_TRIGGER_P2P_RESYNC::request& req, COMMAND_RPC_TEST_TRIGGER_P2P_RESYNC::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
+    bool on_lns_names_to_owners(const COMMAND_RPC_LNS_NAMES_TO_OWNERS::request &req, COMMAND_RPC_LNS_NAMES_TO_OWNERS::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
+    bool on_lns_owners_to_names(const COMMAND_RPC_LNS_OWNERS_TO_NAMES::request &req, COMMAND_RPC_LNS_OWNERS_TO_NAMES::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
     //-----------------------
 
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
@@ -294,7 +300,7 @@ namespace cryptonote
       m_core.submit_uptime_proof();
       m_core.relay_service_node_votes();
       std::cout << "Votes and uptime relayed";
-      loki::write_redirected_stdout_to_shared_mem();
+      integration_test::write_buffered_stdout();
     }
 
     void on_debug_mine_n_blocks(std::string const &address, uint64_t num_blocks)

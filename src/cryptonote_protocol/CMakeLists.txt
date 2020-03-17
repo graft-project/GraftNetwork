@@ -26,10 +26,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required (VERSION 2.6)
-project (loki CXX)
-
-set(cryptonote_protocol_sources
+add_library(cryptonote_protocol
   block_queue.cpp
   cryptonote_protocol_handler.inl
   quorumnet.cpp
@@ -37,25 +34,10 @@ set(cryptonote_protocol_sources
   p2p_net_node_instantiation.cpp
 )
 
-set(cryptonote_protocol_headers)
-set(cryptonote_protocol_private_headers
-  block_queue.h
-  cryptonote_protocol_defs.h
-  cryptonote_protocol_handler_common.h
-  cryptonote_protocol_handler.h
-  quorumnet.h
-)
-
-loki_private_headers(cryptonote_protocol
-  ${cryptonote_protocol_private_headers})
-loki_add_library(cryptonote_protocol
-  ${cryptonote_protocol_sources}
-  ${cryptonote_protocol_headers}
-  ${cryptonote_protocol_private_headers})
-
 target_link_libraries(cryptonote_protocol
   PUBLIC
     p2p
-    quorumnet
   PRIVATE
-    ${EXTRA_LIBRARIES})
+    miniupnpc
+    easylogging
+    extra)

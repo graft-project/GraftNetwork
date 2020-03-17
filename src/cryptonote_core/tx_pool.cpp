@@ -126,9 +126,6 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_duplicated_non_standard_tx(transaction const &tx, uint8_t hard_fork_version) const
   {
-    if (tx.is_transfer())
-      return false;
-
     auto &service_node_list = m_blockchain.get_service_node_list();
     if (tx.type == txtype::state_change)
     {
@@ -218,11 +215,44 @@ namespace cryptonote
       }
 
     }
+    else if (tx.type == txtype::loki_name_system)
+    {
+      tx_extra_loki_name_system data;
+      if (!cryptonote::get_loki_name_system_from_tx_extra(tx.extra, data))
+      {
+        MERROR("Could not get acquire name service from tx: " << get_transaction_hash(tx) << ", tx to add is possibly invalid, rejecting");
+        return true;
+      }
+
+      std::vector<transaction> pool_txs;
+      get_transactions(pool_txs);
+      for (const transaction& pool_tx : pool_txs)
+      {
+        if (pool_tx.type != tx.type)
+          continue;
+
+        tx_extra_loki_name_system pool_data;
+        if (!cryptonote::get_loki_name_system_from_tx_extra(pool_tx.extra, pool_data))
+        {
+          LOG_PRINT_L1("Could not get acquire name service from tx: " << get_transaction_hash(tx) << ", possibly corrupt tx in the pool");
+          return true;
+        }
+
+        if (data.type == pool_data.type && data.name_hash == pool_data.name_hash)
+        {
+          LOG_PRINT_L1("New TX: " << get_transaction_hash(tx) << ", has TX: " << get_transaction_hash(pool_tx) << " from the pool that is requesting the same LNS entry already.");
+          return true;
+        }
+      }
+    }
     else
     {
-      // NOTE(loki): This is a developer error. If we come across this in production, be conservative and just reject
-      MERROR("Unrecognised transaction type: " << tx.type << " for tx: " <<  get_transaction_hash(tx));
-      return true;
+      if (tx.type != txtype::standard && tx.type != txtype::stake)
+      {
+        // NOTE(loki): This is a developer error. If we come across this in production, be conservative and just reject
+        MERROR("Unrecognised transaction type: " << tx.type << " for tx: " << get_transaction_hash(tx));
+        return true;
+      }
     }
 
     return false;
@@ -492,7 +522,7 @@ namespace cryptonote
 
     bool approved = blink.approved();
     auto hf_version = m_blockchain.get_ideal_hard_fork_version(blink.height);
-    bool result = add_tx(tx, tvc, tx_pool_options::new_blink(approved), hf_version);
+    bool result = add_tx(tx, tvc, tx_pool_options::new_blink(approved, hf_version), hf_version);
     if (result && approved)
     {
       auto lock = blink_unique_lock();

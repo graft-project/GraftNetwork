@@ -84,11 +84,13 @@ using namespace epee;
 #include "cryptonote_core/service_node_rules.h"
 #include "common/loki.h"
 #include "common/loki_integration_test_hooks.h"
+#include "loki_economy.h"
 
 extern "C"
 {
 #include "crypto/keccak.h"
 #include "crypto/crypto-ops.h"
+#include <sodium.h>
 }
 
 using namespace std;
@@ -1044,14 +1046,12 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
   m_always_confirm_transfers(true),
   m_print_ring_members(false),
   m_store_tx_info(true),
-  m_default_mixin(0),
   m_default_priority(0),
   m_refresh_type(RefreshOptimizeCoinbase),
   m_auto_refresh(true),
   m_first_refresh_done(false),
   m_refresh_from_block_height(0),
   m_explicit_refresh_from_block_height(true),
-  m_confirm_missing_payment_id(true),
   m_confirm_non_default_ring_size(true),
   m_ask_password(AskPasswordToDecrypt),
   m_min_output_count(0),
@@ -1060,7 +1060,6 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
   m_confirm_backlog(true),
   m_confirm_backlog_threshold(0),
   m_confirm_export_overwrite(true),
-  m_auto_low_priority(true),
   m_segregate_pre_fork_outputs(true),
   m_key_reuse_mitigation2(true),
   m_segregation_height(0),
@@ -3794,9 +3793,6 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
   value2.SetInt(m_store_tx_info ? 1 :0);
   json.AddMember("store_tx_info", value2, json.GetAllocator());
 
-  value2.SetUint(m_default_mixin);
-  json.AddMember("default_mixin", value2, json.GetAllocator());
-
   value2.SetUint(m_default_priority);
   json.AddMember("default_priority", value2, json.GetAllocator());
 
@@ -3808,9 +3804,6 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
 
   value2.SetUint64(m_refresh_from_block_height);
   json.AddMember("refresh_height", value2, json.GetAllocator());
-
-  value2.SetInt(m_confirm_missing_payment_id ? 1 :0);
-  json.AddMember("confirm_missing_payment_id", value2, json.GetAllocator());
 
   value2.SetInt(m_confirm_non_default_ring_size ? 1 :0);
   json.AddMember("confirm_non_default_ring_size", value2, json.GetAllocator());
@@ -3838,9 +3831,6 @@ bool wallet2::store_keys(const std::string& keys_file_name, const epee::wipeable
 
   value2.SetInt(m_confirm_export_overwrite ? 1 :0);
   json.AddMember("confirm_export_overwrite", value2, json.GetAllocator());
-
-  value2.SetInt(m_auto_low_priority ? 1 : 0);
-  json.AddMember("auto_low_priority", value2, json.GetAllocator());
 
   value2.SetUint(m_nettype);
   json.AddMember("nettype", value2, json.GetAllocator());
@@ -3929,7 +3919,6 @@ void wallet2::setup_keys(const epee::wipeable_string &password)
 {
   crypto::chacha_key key;
   crypto::generate_chacha_key(password.data(), password.size(), key, m_kdf_rounds);
-
   // re-encrypt, but keep viewkey unencrypted
   if (m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only)
   {
@@ -3993,12 +3982,10 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     m_always_confirm_transfers = false;
     m_print_ring_members = false;
     m_store_tx_info = true;
-    m_default_mixin = 0;
     m_default_priority = 0;
     m_auto_refresh = true;
     m_refresh_type = RefreshType::RefreshDefault;
     m_refresh_from_block_height = 0;
-    m_confirm_missing_payment_id = true;
     m_confirm_non_default_ring_size = true;
     m_ask_password = AskPasswordToDecrypt;
     cryptonote::set_default_decimal_point(CRYPTONOTE_DISPLAY_DECIMAL_POINT);
@@ -4008,7 +3995,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     m_confirm_backlog = true;
     m_confirm_backlog_threshold = 0;
     m_confirm_export_overwrite = true;
-    m_auto_low_priority = true;
     m_segregate_pre_fork_outputs = true;
     m_key_reuse_mitigation2 = true;
     m_segregation_height = 0;
@@ -4103,8 +4089,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, store_tx_keys, int, Int, false, true);
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, store_tx_info, int, Int, false, true);
     m_store_tx_info = ((field_store_tx_keys != 0) || (field_store_tx_info != 0));
-    GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_mixin, unsigned int, Uint, false, 0);
-    m_default_mixin = field_default_mixin;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_priority, unsigned int, Uint, false, 0);
     if (field_default_priority_found)
     {
@@ -4131,8 +4115,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     }
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, refresh_height, uint64_t, Uint64, false, 0);
     m_refresh_from_block_height = field_refresh_height;
-    GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_missing_payment_id, int, Int, false, true);
-    m_confirm_missing_payment_id = field_confirm_missing_payment_id;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_non_default_ring_size, int, Int, false, true);
     m_confirm_non_default_ring_size = field_confirm_non_default_ring_size;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ask_password, AskPasswordType, Int, false, AskPasswordToDecrypt);
@@ -4151,8 +4133,6 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     m_confirm_backlog_threshold = field_confirm_backlog_threshold;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_export_overwrite, int, Int, false, true);
     m_confirm_export_overwrite = field_confirm_export_overwrite;
-    GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, auto_low_priority, int, Int, false, true);
-    m_auto_low_priority = field_auto_low_priority;
     GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, nettype, uint8_t, Uint, false, static_cast<uint8_t>(m_nettype));
     // The network type given in the program argument is inconsistent with the network type saved in the wallet
     THROW_WALLET_EXCEPTION_IF(static_cast<uint8_t>(m_nettype) != field_nettype, error::wallet_internal_error,
@@ -4275,6 +4255,7 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
       m_keys_file_locker.reset();
     }
   }
+
   const cryptonote::account_keys& keys = m_account.get_keys();
   hw::device &hwdev = m_account.get_device();
   r = r && hwdev.verify_keys(keys.m_view_secret_key,  keys.m_account_address.m_view_public_key);
@@ -7501,34 +7482,42 @@ bool wallet2::sign_multisig_tx_from_file(const std::string &filename, std::vecto
   return sign_multisig_tx_to_file(exported_txs, filename, txids);
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::get_fee_percent(uint32_t priority, int fee_algorithm) const
+uint64_t wallet2::get_fee_percent(uint32_t priority, txtype type) const
 {
-  static constexpr std::array<std::array<uint64_t, 4>, 3> percents = {{
-    {{100, 400, 2000, 16600}},
-    {{100, 500, 2500, 100000}},
-    {{100, 500, 2500, 12500}},
-  }};
+  static constexpr std::array<uint64_t, 4> percents{{100, 500, 2500, 12500}};
 
-  if (fee_algorithm == -1)
-    fee_algorithm = get_fee_algorithm();
+  const bool blinkable = type == txtype::standard;
 
-  // 0 -> default (here, x1 till fee algorithm 2, x4 from it)
   if (priority == 0)
+  {
     priority = m_default_priority;
-  if (priority == 0)
-    priority = fee_algorithm >= 1 ? 2 : 1;
+    if ((priority == tx_priority_blink && !blinkable) || priority == 0)
+      priority = tx_priority_unimportant;
+  }
+
+  // If it's a blinkable tx then we only have two relevant priorities: unimportant, and blink.
+  if (blinkable && priority != tx_priority_unimportant)
+    priority = tx_priority_blink;
 
   if (priority == tx_priority_blink)
   {
-    THROW_WALLET_EXCEPTION_IF(!use_fork_rules(HF_VERSION_BLINK, 0), error::invalid_priority);
-    return BLINK_MINER_TX_FEE_PERCENT + BLINK_BURN_TX_FEE_PERCENT;
+    if (!blinkable)
+      THROW_WALLET_EXCEPTION(error::invalid_priority);
+
+    uint64_t burn_pct = 0;
+    if (use_fork_rules(network_version_15_lns, 0))
+      burn_pct = BLINK_BURN_TX_FEE_PERCENT;
+    else if (use_fork_rules(network_version_14_blink, 0))
+      burn_pct = BLINK_BURN_TX_FEE_PERCENT_OLD;
+    else
+      THROW_WALLET_EXCEPTION(error::invalid_priority);
+    return BLINK_MINER_TX_FEE_PERCENT + burn_pct;
   }
 
-  THROW_WALLET_EXCEPTION_IF(
-      fee_algorithm < 0 || fee_algorithm >= (int)percents.size() ||
-      priority < 1 || priority > percents[0].size(),
-      error::invalid_priority);
-  return percents[fee_algorithm][priority-1];
+  if (priority > percents.size())
+    THROW_WALLET_EXCEPTION(error::invalid_priority);
+
+  return percents[priority-1];
 }
 //----------------------------------------------------------------------------------------------------
 byte_and_output_fees wallet2::get_dynamic_base_fee_estimate() const
@@ -7568,115 +7557,26 @@ uint64_t wallet2::get_fee_quantization_mask() const
     return 1;
   return fee_quantization_mask;
 }
-//----------------------------------------------------------------------------------------------------
-int wallet2::get_fee_algorithm() const
-{
-  // changes at v13
-  if (use_fork_rules(HF_VERSION_PER_OUTPUT_FEE, 0))
-    return 2;
-  return 1; // last changed at v10
-}
-//------------------------------------------------------------------------------------------------------------------------------
-uint64_t wallet2::adjust_mixin(uint64_t mixin) const
-{
-  if (mixin != 9) {
-    MWARNING("Requested ring size " << (mixin + 1) << " incorrect for loki, using 10");
-    mixin = 9;
-  }
-  return mixin;
-}
-//----------------------------------------------------------------------------------------------------
-uint32_t wallet2::adjust_priority(uint32_t priority)
-{
-  constexpr uint32_t DEPRECATED_BLINK_PRIORITY = 0x626c6e6b; // "blnk"
-  if (priority == DEPRECATED_BLINK_PRIORITY)
-  {
-    priority = tx_priority_blink;
-  }
-  else if (priority == 0 && m_default_priority == 0 && auto_low_priority())
-  {
-    try
-    {
-      // check if there's a backlog in the tx pool
-      const uint64_t base_fee = get_base_fees().first;
-      const uint64_t fee_percent = get_fee_percent(1);
-      const double fee_level = base_fee * fee_percent / 100;
-      // NOTE (Loki): We don't include the per-output fee here because we typically don't actually
-      // know how many outputs we will need yet, but it's okay: fee_level being too low will just
-      // make us a little over-cautious about using low-priority but will still work fine when the
-      // pool is empty.
-      const std::vector<std::pair<uint64_t, uint64_t>> blocks = estimate_backlog({std::make_pair(fee_level, fee_level)});
-      if (blocks.size() != 1)
-      {
-        MERROR("Bad estimated backlog array size");
-        return priority;
-      }
-      else if (blocks[0].first > 0)
-      {
-        MINFO("We don't use the low priority because there's a backlog in the tx pool.");
-        return priority;
-      }
 
-      // get the current full reward zone
-      uint64_t block_weight_limit = 0;
-      const auto result = m_node_rpc_proxy.get_block_weight_limit(block_weight_limit);
-      throw_on_rpc_response_error(result, "get_info");
-      const uint64_t full_reward_zone = block_weight_limit / 2;
-
-      // get the last N block headers and sum the block sizes
-      const size_t N = 10;
-      if (m_blockchain.size() < N)
-      {
-        MERROR("The blockchain is too short");
-        return priority;
-      }
-      cryptonote::COMMAND_RPC_GET_BLOCK_HEADERS_RANGE::request getbh_req{};
-      cryptonote::COMMAND_RPC_GET_BLOCK_HEADERS_RANGE::response getbh_res{};
-      m_daemon_rpc_mutex.lock();
-      getbh_req.start_height = m_blockchain.size() - N;
-      getbh_req.end_height = m_blockchain.size() - 1;
-      bool r = invoke_http_json_rpc("/json_rpc", "getblockheadersrange", getbh_req, getbh_res, rpc_timeout);
-      m_daemon_rpc_mutex.unlock();
-      THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "getblockheadersrange");
-      THROW_WALLET_EXCEPTION_IF(getbh_res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "getblockheadersrange");
-      THROW_WALLET_EXCEPTION_IF(getbh_res.status != CORE_RPC_STATUS_OK, error::get_blocks_error, get_rpc_status(getbh_res.status));
-      if (getbh_res.headers.size() != N)
-      {
-        MERROR("Bad blockheaders size");
-        return priority;
-      }
-      size_t block_weight_sum = 0;
-      for (const cryptonote::block_header_response &i : getbh_res.headers)
-      {
-        block_weight_sum += i.block_weight;
-      }
-
-      // estimate how 'full' the last N blocks are
-      const size_t P = 100 * block_weight_sum / (N * full_reward_zone);
-      MINFO((boost::format("The last %d blocks fill roughly %d%% of the full reward zone.") % N % P).str());
-      if (P > 80)
-      {
-        MINFO("We don't use the low priority because recent blocks are quite full.");
-        return priority;
-      }
-      MINFO("We'll use the low priority because probably it's safe to do so.");
-      return 1;
-    }
-    catch (const std::exception &e)
-    {
-      MERROR(e.what());
-    }
-  }
-  return priority;
-}
-loki_construct_tx_params wallet2::construct_params(uint32_t priority)
+loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx_type, uint32_t priority, lns::mapping_type type)
 {
   loki_construct_tx_params tx_params;
-  if (priority == tx_priority_blink)
+  tx_params.hf_version = hf_version;
+  tx_params.tx_type    = tx_type;
+
+  if (tx_type == txtype::loki_name_system)
   {
-    tx_params.burn_fixed = BLINK_BURN_FIXED;
-    tx_params.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
+    assert(priority != tools::tx_priority_blink);
+    tx_params.burn_fixed   = lns::burn_needed(hf_version, type);
   }
+  else if (priority == tools::tx_priority_blink)
+  {
+    tx_params.burn_fixed   = BLINK_BURN_FIXED;
+    tx_params.burn_percent = hf_version <= network_version_14_blink
+        ? BLINK_BURN_TX_FEE_PERCENT_OLD
+        : BLINK_BURN_TX_FEE_PERCENT;
+  }
+
   return tx_params;
 }
 
@@ -7940,12 +7840,6 @@ bool wallet2::is_output_blackballed(const std::pair<uint64_t, uint64_t> &output)
   catch (const std::exception &e) { return false; }
 }
 
-static const char *ERR_MSG_NETWORK_VERSION_QUERY_FAILED = tr("Could not query the current network version, try later");
-static const char *ERR_MSG_NETWORK_HEIGHT_QUERY_FAILED = tr("Could not query the current network block height, try later: ");
-static const char *ERR_MSG_SERVICE_NODE_LIST_QUERY_FAILED = tr("Failed to query daemon for service node list");
-static const char *ERR_MSG_TOO_MANY_TXS_CONSTRUCTED = tr("Constructed too many transations, please sweep_all first");
-static const char *ERR_MSG_EXCEPTION_THROWN = tr("Exception thrown, staking process could not be completed: ");
-
 wallet2::stake_result wallet2::check_stake_allowed(const crypto::public_key& sn_key, const cryptonote::address_parse_info& addr_info, uint64_t& amount, double fraction)
 {
   wallet2::stake_result result = {};
@@ -8137,8 +8031,6 @@ wallet2::stake_result wallet2::create_stake_tx(const crypto::public_key& service
 
   try
   {
-    priority = adjust_priority(priority);
-
     if (priority == tx_priority_blink)
     {
       result.status = stake_result_status::no_blink;
@@ -8154,7 +8046,8 @@ wallet2::stake_result wallet2::create_stake_tx(const crypto::public_key& service
       return result;
     }
 
-    auto ptx_vector      = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_at_block, priority, extra, subaddr_account, subaddr_indices, txtype::stake);
+    loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::stake, priority);
+    auto ptx_vector      = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, unlock_at_block, priority, extra, subaddr_account, subaddr_indices, tx_params);
     if (ptx_vector.size() == 1)
     {
       result.status = stake_result_status::success;
@@ -8204,8 +8097,6 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
 
     if (local_args.size() > 0 && parse_priority(local_args[0], priority))
       local_args.erase(local_args.begin());
-
-    priority = adjust_priority(priority);
 
     if (priority == tx_priority_blink)
     {
@@ -8390,7 +8281,8 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
       cryptonote::address_parse_info dest = {};
       dest.address                        = address;
 
-      auto ptx_vector = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, subaddr_account, subaddr_indices, txtype::stake);
+      loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::stake, priority);
+      auto ptx_vector = create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */, priority, extra, subaddr_account, subaddr_indices, tx_params);
       if (ptx_vector.size() == 1)
       {
         result.status = register_service_node_result_status::success;
@@ -8534,6 +8426,252 @@ wallet2::request_stake_unlock_result wallet2::can_request_stake_unlock(const cry
   return result;
 }
 
+struct lns_prepared_args
+{
+  bool prepared;
+  operator bool() const { return prepared; }
+  lns::mapping_value         encrypted_value;
+  crypto::hash               name_hash;
+  lns::generic_owner         owner;
+  lns::generic_owner         backup_owner;
+  lns::generic_signature  signature;
+  crypto::hash               prev_txid;
+};
+
+static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const &wallet,
+                                                                  lns::mapping_type type,
+                                                                  uint32_t priority,
+                                                                  std::string &name,
+                                                                  std::string const *value,
+                                                                  std::string const *owner,
+                                                                  std::string const *backup_owner,
+                                                                  bool make_signature,
+                                                                  uint32_t account_index,
+                                                                  std::string *reason)
+{
+  lns_prepared_args result = {};
+  if (priority == tools::tx_priority_blink)
+  {
+    if (reason) *reason = "Can not request a blink TX for Loki Name Service transactions";
+    return result;
+  }
+
+  name = tools::lowercase_ascii_string(name);
+  if (!lns::validate_lns_name(type, name, reason))
+    return result;
+
+  result.name_hash = lns::name_to_hash(name);
+  if (value)
+  {
+    lns::mapping_value binary_value = {};
+    if (!lns::validate_mapping_value(wallet.nettype(), type, *value, &binary_value, reason))
+      return result;
+
+    if (!lns::encrypt_mapping_value(name, binary_value, result.encrypted_value))
+    {
+      if (reason) *reason = "Fail to encrypt mapping value=" + *value;
+      return {};
+    }
+  }
+
+  if (owner && !lns::parse_owner_to_generic_owner(wallet.nettype(), *owner, result.owner, reason))
+      return {};
+
+  if (backup_owner && !lns::parse_owner_to_generic_owner(wallet.nettype(), *backup_owner, result.backup_owner, reason))
+      return {};
+
+  {
+    cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::request request = {};
+    {
+      request.entries.emplace_back();
+      auto &request_entry = request.entries.back();
+      request_entry.name = name;
+      request_entry.types.push_back(static_cast<uint16_t>(type));
+    }
+
+    boost::optional<std::string> failed;
+    std::vector<cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::response_entry> response = wallet.lns_names_to_owners(request, failed);
+    if (failed)
+    {
+      if (reason) *reason = "Failed to query previous owner for LNS entry, reason=" + *failed;
+      return result;
+    }
+
+    if (response.size())
+    {
+      if (!epee::string_tools::hex_to_pod(response[0].txid, result.prev_txid))
+      {
+        if (reason) *reason = "Failed to convert response txid=" + response[0].txid + " from the daemon into a 32 byte hash, it must be a 64 char hex string";
+        return result;
+      }
+    }
+  }
+
+  if (make_signature)
+  {
+    cryptonote::subaddress_index const index = {account_index, 0};
+
+    // TODO(doyle): Taken from wallet2.cpp::get_reserve_proof
+    crypto::secret_key skey = wallet.get_account().get_keys().m_spend_secret_key;
+    if (!index.is_zero())
+    {
+      crypto::secret_key m = wallet.get_account().get_device().get_subaddress_secret_key(wallet.get_account().get_keys().m_view_secret_key, index);
+      crypto::secret_key tmp = skey;
+      sc_add((unsigned char*)&skey, (unsigned char*)&m, (unsigned char*)&tmp);
+    }
+
+    crypto::public_key pkey;
+    crypto::secret_key_to_public_key(skey, pkey);
+
+    crypto::hash hash = lns::tx_extra_signature_hash(result.encrypted_value.to_span(), owner ? &result.owner : nullptr, backup_owner ? &result.backup_owner : nullptr, result.prev_txid);
+    result.signature = lns::make_monero_signature(hash, pkey, skey);
+  }
+
+  result.prepared = true;
+  return result;
+}
+
+std::vector<wallet2::pending_tx> wallet2::lns_create_buy_mapping_tx(lns::mapping_type type,
+                                                                    std::string const *owner,
+                                                                    std::string const *backup_owner,
+                                                                    std::string name,
+                                                                    std::string const &value,
+                                                                    std::string *reason,
+                                                                    uint32_t priority,
+                                                                    uint32_t account_index,
+                                                                    std::set<uint32_t> subaddr_indices)
+{
+  lns_prepared_args prepared_args = prepare_tx_extra_loki_name_system_values(*this, type, priority, name, &value, owner, backup_owner, false /*make_signature*/, account_index, reason);
+  if (!owner)
+    prepared_args.owner = lns::make_monero_owner(get_subaddress({account_index, 0}), account_index != 0);
+
+  if (!prepared_args)
+    return {};
+
+  std::vector<uint8_t> extra;
+  auto entry = cryptonote::tx_extra_loki_name_system::make_buy(
+      prepared_args.owner,
+      backup_owner ? &prepared_args.backup_owner : nullptr,
+      type,
+      prepared_args.name_hash,
+      prepared_args.encrypted_value.to_string(),
+      prepared_args.prev_txid);
+  add_loki_name_system_to_tx_extra(extra, entry);
+
+  boost::optional<uint8_t> hf_version = get_hard_fork_version();
+  if (!hf_version)
+  {
+    if (reason) *reason = ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+    return {};
+  }
+
+  loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, type);
+  auto result = create_transactions_2({} /*dests*/,
+                                      CRYPTONOTE_DEFAULT_TX_MIXIN,
+                                      0 /*unlock_at_block*/,
+                                      priority,
+                                      extra,
+                                      account_index,
+                                      subaddr_indices,
+                                      tx_params);
+  return result;
+}
+
+std::vector<wallet2::pending_tx> wallet2::lns_create_buy_mapping_tx(std::string const &type,
+                                                                    std::string const *owner,
+                                                                    std::string const *backup_owner,
+                                                                    std::string const &name,
+                                                                    std::string const &value,
+                                                                    std::string *reason,
+                                                                    uint32_t priority,
+                                                                    uint32_t account_index,
+                                                                    std::set<uint32_t> subaddr_indices)
+{
+  lns::mapping_type mapping_type = lns::mapping_type::session;
+  if (!lns::validate_mapping_type(type, &mapping_type, reason))
+    return {};
+
+  std::vector<wallet2::pending_tx> result = lns_create_buy_mapping_tx(mapping_type, owner, backup_owner, name, value, reason, priority, account_index, subaddr_indices);
+  return result;
+}
+
+std::vector<wallet2::pending_tx> wallet2::lns_create_update_mapping_tx(lns::mapping_type type,
+                                                                       std::string name,
+                                                                       std::string const *value,
+                                                                       std::string const *owner,
+                                                                       std::string const *backup_owner,
+                                                                       std::string const *signature,
+                                                                       std::string *reason,
+                                                                       uint32_t priority,
+                                                                       uint32_t account_index,
+                                                                       std::set<uint32_t> subaddr_indices)
+{
+  if (!value && !owner && !backup_owner)
+  {
+    if (reason) *reason = "Value, owner and backup owner are not specified. Atleast one field must be specified for updating the LNS record";
+    return {};
+  }
+
+  bool make_signature = signature == nullptr;
+  lns_prepared_args prepared_args = prepare_tx_extra_loki_name_system_values(*this, type, priority, name, value, owner, backup_owner, make_signature, account_index, reason);
+  if (!prepared_args) return {};
+
+  if (!make_signature)
+  {
+    if (!epee::string_tools::hex_to_pod(*signature, prepared_args.signature.ed25519))
+    {
+      if (reason) *reason = "Hex signature provided failed to convert to a signature, signature=" + *signature;
+      return {};
+    }
+  }
+
+  std::vector<uint8_t> extra;
+  auto entry = cryptonote::tx_extra_loki_name_system::make_update(prepared_args.signature,
+                                                                  type,
+                                                                  prepared_args.name_hash,
+                                                                  prepared_args.encrypted_value.to_span(),
+                                                                  owner ? &prepared_args.owner : nullptr,
+                                                                  backup_owner ? &prepared_args.backup_owner : nullptr,
+                                                                  prepared_args.prev_txid);
+  add_loki_name_system_to_tx_extra(extra, entry);
+  boost::optional<uint8_t> hf_version = get_hard_fork_version();
+  if (!hf_version)
+  {
+    if (reason) *reason = ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+    return {};
+  }
+  loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, lns::mapping_type::update_record_internal);
+
+  auto result = create_transactions_2({} /*dests*/,
+                                      CRYPTONOTE_DEFAULT_TX_MIXIN,
+                                      0 /*unlock_at_block*/,
+                                      priority,
+                                      extra,
+                                      account_index,
+                                      subaddr_indices,
+                                      tx_params);
+  return result;
+}
+
+std::vector<wallet2::pending_tx> wallet2::lns_create_update_mapping_tx(std::string const &type,
+                                                                       std::string const &name,
+                                                                       std::string const *value,
+                                                                       std::string const *owner,
+                                                                       std::string const *backup_owner,
+                                                                       std::string const *signature,
+                                                                       std::string *reason,
+                                                                       uint32_t priority,
+                                                                       uint32_t account_index,
+                                                                       std::set<uint32_t> subaddr_indices)
+{
+  lns::mapping_type mapping_type = lns::mapping_type::session;
+  if (!lns::validate_mapping_type(type, &mapping_type, reason))
+    return {};
+
+  std::vector<wallet2::pending_tx> result = lns_create_update_mapping_tx(mapping_type, name, value, owner, backup_owner, signature, reason, priority, account_index, subaddr_indices);
+  return result;
+}
+
 bool wallet2::lock_keys_file()
 {
   if (m_keys_file_locker)
@@ -8553,6 +8691,28 @@ bool wallet2::unlock_keys_file()
     return false;
   }
   m_keys_file_locker.reset();
+  return true;
+}
+
+bool wallet2::lns_make_update_mapping_signature(lns::mapping_type type,
+                                                std::string name,
+                                                std::string const *value,
+                                                std::string const *owner,
+                                                std::string const *backup_owner,
+                                                lns::generic_signature &signature,
+                                                uint32_t account_index,
+                                                std::string *reason)
+{
+  lns_prepared_args prepared_args = prepare_tx_extra_loki_name_system_values(*this, type, tx_priority_unimportant, name, value, owner, backup_owner, true /*make_signature*/, account_index, reason);
+  if (!prepared_args) return false;
+
+  if (prepared_args.prev_txid == crypto::null_hash)
+  {
+    if (reason) *reason = "name=\"" + name + std::string("\" does not have a corresponding LNS record, the mapping is available for purchase, update signature is not required.");
+    return false;
+  }
+
+  signature = std::move(prepared_args.signature);
   return true;
 }
 
@@ -8627,7 +8787,7 @@ void wallet2::light_wallet_get_outs(std::vector<std::vector<tools::wallet2::get_
     amount_ss << ask_amount;
     oreq.amounts.push_back(amount_ss.str());
   }
-  
+
   oreq.count = light_wallet_requested_outputs_count;
   m_daemon_rpc_mutex.lock();
   bool r = invoke_http_json("/get_random_outs", oreq, ores, rpc_timeout, "POST");
@@ -9327,7 +9487,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
   // throw if total amount overflows uint64_t
   for(auto& dt: dsts)
   {
-    THROW_WALLET_EXCEPTION_IF(0 == dt.amount, error::zero_destination);
+    THROW_WALLET_EXCEPTION_IF(0 == dt.amount && (tx_params.tx_type != txtype::loki_name_system), error::zero_destination);
     needed_money += dt.amount;
     LOG_PRINT_L2("transfer: adding " << print_money(dt.amount) << ", for a total of " << print_money (needed_money));
     THROW_WALLET_EXCEPTION_IF(needed_money < dt.amount, error::tx_sum_overflow, dsts, fee, m_nettype);
@@ -9470,29 +9630,49 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
 
   // we still keep a copy, since we want to keep dsts free of change for user feedback purposes
   std::vector<cryptonote::tx_destination_entry> splitted_dsts = dsts;
-  cryptonote::tx_destination_entry change_dts{};
-  change_dts.amount = found_money - needed_money;
+  cryptonote::tx_destination_entry change_dts                 = {};
+  change_dts.amount                                           = found_money - needed_money;
+  bool update_splitted_dsts                                   = true;
   if (change_dts.amount == 0)
   {
-    if (splitted_dsts.size() == 1)
+    if (splitted_dsts.size() == 1 || tx.type == txtype::loki_name_system)
     {
       // If the change is 0, send it to a random address, to avoid confusing
       // the sender with a 0 amount output. We send a 0 amount in order to avoid
       // letting the destination be able to work out which of the inputs is the
       // real one in our rings
+
       LOG_PRINT_L2("generating dummy address for 0 change");
       cryptonote::account_base dummy;
       dummy.generate();
-      change_dts.addr = dummy.get_keys().m_account_address;
       LOG_PRINT_L2("generated dummy address for 0 change");
-      splitted_dsts.push_back(change_dts);
+      change_dts.addr = dummy.get_keys().m_account_address;
+    }
+    else
+    {
+      update_splitted_dsts = false;
     }
   }
   else
   {
     change_dts.addr = get_subaddress({subaddr_account, 0});
     change_dts.is_subaddress = subaddr_account != 0;
-    splitted_dsts.push_back(change_dts);
+  }
+
+  if (update_splitted_dsts)
+  {
+    // NOTE: If LNS, there's already a dummy destination entry in there that
+    // we placed in (for fake calculating the TX fees and parts) that we
+    // repurpose for change after the fact.
+    if (tx_params.tx_type == txtype::loki_name_system)
+    {
+      assert(splitted_dsts.size() == 1);
+      splitted_dsts.back() = change_dts;
+    }
+    else
+    {
+      splitted_dsts.push_back(change_dts);
+    }
   }
 
   crypto::secret_key tx_key;
@@ -10211,7 +10391,6 @@ bool wallet2::light_wallet_key_image_is_ours(const crypto::key_image& key_image,
 // time), and 5 bytes (max 34.3 LOKI) might conceivable not be enough.
 static constexpr uint64_t BURN_FEE_PLACEHOLDER = (1ULL << (6*7)) - 1;
 
-
 // Another implementation of transaction creation that is hopefully better
 // While there is anything left to pay, it goes through random outputs and tries
 // to fill the next destination/amount. If it fully fills it, it will use the
@@ -10227,14 +10406,20 @@ static constexpr uint64_t BURN_FEE_PLACEHOLDER = (1ULL << (6*7)) - 1;
 // This system allows for sending (almost) the entire balance, since it does
 // not generate spurious change in all txes, thus decreasing the instantaneous
 // usable balance.
-std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, cryptonote::txtype tx_type)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, loki_construct_tx_params &tx_params)
 {
   //ensure device is let in NONE mode in any case
   hw::device &hwdev = m_account.get_device();
   boost::unique_lock<hw::device> hwdev_lock (hwdev);
   hw::reset_mode rst(hwdev);  
 
+  bool const is_lns_tx = (tx_params.tx_type == txtype::loki_name_system);
   auto original_dsts = dsts;
+  if (is_lns_tx)
+  {
+    THROW_WALLET_EXCEPTION_IF(dsts.size() != 0, error::wallet_internal_error, "loki name system txs must not have any destinations set, has: " + std::to_string(dsts.size()));
+    dsts.emplace_back(0, account_public_address{} /*address*/, false /*is_subaddress*/); // NOTE: Create a dummy dest that gets repurposed into the change output.
+  }
 
   if(m_light_wallet) {
     // Populate m_transfers
@@ -10289,24 +10474,18 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 2 };
 
   const auto base_fee = get_base_fees();
-  const uint64_t fee_percent = get_fee_percent(priority, get_fee_algorithm());
+  const uint64_t fee_percent = get_fee_percent(priority, tx_params.tx_type);
   uint64_t fixed_fee = 0;
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
 
-  boost::optional<uint8_t> hf_version = get_hard_fork_version();
-  THROW_WALLET_EXCEPTION_IF(!hf_version, error::get_hard_fork_version_error, "Failed to query current hard fork version");
-
-  loki_construct_tx_params loki_tx_params = tools::wallet2::construct_params(priority);
-  loki_tx_params.tx_type                  = tx_type;
-  loki_tx_params.hf_version               = *hf_version;
   uint64_t burn_fixed = 0, burn_percent = 0;
   // Swap these out because we don't want them present for building intermediate temporary tx
   // calculations (which we don't actually use); we'll set them again at the end before we build the
   // real transactions.
-  std::swap(burn_fixed, loki_tx_params.burn_fixed);
-  std::swap(burn_percent, loki_tx_params.burn_percent);
+  std::swap(burn_fixed, tx_params.burn_fixed);
+  std::swap(burn_percent, tx_params.burn_percent);
   bool burning = burn_fixed || burn_percent;
-  THROW_WALLET_EXCEPTION_IF(burning && loki_tx_params.hf_version < HF_VERSION_FEE_BURNING, error::wallet_internal_error, "cannot construct transaction: cannot burn amounts under the current hard fork");
+  THROW_WALLET_EXCEPTION_IF(burning && tx_params.hf_version < HF_VERSION_FEE_BURNING, error::wallet_internal_error, "cannot construct transaction: cannot burn amounts under the current hard fork");
   std::vector<uint8_t> extra_plus; // Copy and modified from input if modification needed
   const std::vector<uint8_t> &extra = burning ? extra_plus : extra_base;
   if (burning)
@@ -10325,14 +10504,14 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   needed_money = 0;
   for(auto& dt: dsts)
   {
-    THROW_WALLET_EXCEPTION_IF(0 == dt.amount, error::zero_destination);
+    THROW_WALLET_EXCEPTION_IF(0 == dt.amount && !is_lns_tx, error::zero_destination);
     needed_money += dt.amount;
     LOG_PRINT_L2("transfer: adding " << print_money(dt.amount) << ", for a total of " << print_money (needed_money));
     THROW_WALLET_EXCEPTION_IF(needed_money < dt.amount, error::tx_sum_overflow, dsts, 0, m_nettype);
   }
 
   // throw if attempting a transaction with no money
-  THROW_WALLET_EXCEPTION_IF(needed_money == 0, error::zero_destination);
+  THROW_WALLET_EXCEPTION_IF(needed_money == 0 && !is_lns_tx, error::zero_destination);
 
   std::map<uint32_t, std::pair<uint64_t, uint64_t>> unlocked_balance_per_subaddr = unlocked_balance_per_subaddress(subaddr_account);
   std::map<uint32_t, uint64_t> balance_per_subaddr = balance_per_subaddress(subaddr_account);
@@ -10346,24 +10525,26 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   // early out if we know we can't make it anyway
   // we could also check for being within FEE_PER_KB, but if the fee calculation
   // ever changes, this might be missed, so let this go through
-  constexpr uint64_t num_outputs = 2;
-  uint64_t min_fee = (
-      base_fee.first * estimate_rct_tx_size(1, fake_outs_count, num_outputs, extra.size()) +
-      base_fee.second * num_outputs
-  ) * fee_percent / 100;
-
-  uint64_t balance_subtotal = 0;
-  uint64_t unlocked_balance_subtotal = 0;
-  for (uint32_t index_minor : subaddr_indices)
+  const uint64_t num_outputs = tx_params.tx_type == cryptonote::txtype::loki_name_system ? 1 : 2; // if lns, only request the change output
   {
-    balance_subtotal += balance_per_subaddr[index_minor];
-    unlocked_balance_subtotal += unlocked_balance_per_subaddr[index_minor].first;
+    uint64_t min_fee = (
+        base_fee.first * estimate_rct_tx_size(1, fake_outs_count, num_outputs, extra.size()) +
+        base_fee.second * num_outputs
+    ) * fee_percent / 100;
+
+    uint64_t balance_subtotal = 0;
+    uint64_t unlocked_balance_subtotal = 0;
+    for (uint32_t index_minor : subaddr_indices)
+    {
+      balance_subtotal += balance_per_subaddr[index_minor];
+      unlocked_balance_subtotal += unlocked_balance_per_subaddr[index_minor].first;
+    }
+    THROW_WALLET_EXCEPTION_IF(needed_money + min_fee + fixed_fee > balance_subtotal, error::not_enough_money,
+      balance_subtotal, needed_money, 0);
+    // first check overall balance is enough, then unlocked one, so we throw distinct exceptions
+    THROW_WALLET_EXCEPTION_IF(needed_money + min_fee + fixed_fee > unlocked_balance_subtotal, error::not_enough_unlocked_money,
+        unlocked_balance_subtotal, needed_money, 0);
   }
-  THROW_WALLET_EXCEPTION_IF(needed_money + min_fee + fixed_fee > balance_subtotal, error::not_enough_money,
-    balance_subtotal, needed_money, 0);
-  // first check overall balance is enough, then unlocked one, so we throw distinct exceptions
-  THROW_WALLET_EXCEPTION_IF(needed_money + min_fee + fixed_fee > unlocked_balance_subtotal, error::not_enough_unlocked_money,
-      unlocked_balance_subtotal, needed_money, 0);
 
   for (uint32_t i : subaddr_indices)
     LOG_PRINT_L2("Candidate subaddress index for spending: " << i);
@@ -10459,9 +10640,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   uint64_t rct_outs_needed = 2 * (fake_outs_count + 1);
   rct_outs_needed += 100; // some fudge factor since we don't know how many are locked
   {
-    // this is used to build a tx that's 1 or 2 inputs, and 2 outputs, which
-    // will get us a known fee.
-    uint64_t estimated_fee = estimate_fee(2, fake_outs_count, 2, extra.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
+    // this is used to build a tx that's 1 or 2 inputs, and 1 or 2 outputs, which will get us a known fee.
+    uint64_t estimated_fee = estimate_fee(2, fake_outs_count, num_outputs, extra.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
     preferred_inputs = pick_preferred_rct_inputs(needed_money + estimated_fee, subaddr_account, subaddr_indices);
     if (!preferred_inputs.empty())
     {
@@ -10522,7 +10702,12 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       idx = pop_back(preferred_inputs);
       pop_if_present(*unused_transfers_indices, idx);
       pop_if_present(*unused_dust_indices, idx);
-    } else if ((dsts.empty() || dsts[0].amount == 0) && !adding_fee) {
+    } else if ((dsts.empty() || (dsts[0].amount == 0 && !is_lns_tx)) && !adding_fee) {
+      // NOTE: A LNS tx sets dsts[0].amount to 0, but this branch is for the
+      // 2 inputs/2 outputs. We only have 1 output as LNS transactions are
+      // distinguishable, so we actually want the last branch which uses unused
+      // outputs in the wallet to pay off the LNS fee.
+
       // the "make rct txes 2/2" case - we pick a small value output to "clean up" the wallet too
       std::vector<size_t> indices = get_only_rct(*unused_dust_indices, *unused_transfers_indices);
       idx = pop_best_value(indices, tx.selected_transfers, true);
@@ -10635,7 +10820,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
       LOG_PRINT_L2("Trying to create a tx now, with " << tx.dsts.size() << " outputs and " <<
         tx.selected_transfers.size() << " inputs");
       transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
-          test_tx, test_ptx, rct_config, loki_tx_params);
+          test_tx, test_ptx, rct_config, tx_params);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
       needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount + (!test_ptx.dust_added_to_fee ? test_ptx.dust : 0);
@@ -10674,7 +10859,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         LOG_PRINT_L2("We made a tx, adjusting fee and saving it, we need " << print_money(needed_fee) << " and we have " << print_money(test_ptx.fee));
         while (needed_fee > test_ptx.fee) {
           transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, unlock_time, needed_fee, extra,
-              test_tx, test_ptx, rct_config, loki_tx_params);
+              test_tx, test_ptx, rct_config, tx_params);
           txBlob = t_serializable_object_to_blob(test_ptx.tx);
           needed_fee = calculate_fee(test_ptx.tx, txBlob.size(), base_fee, fee_percent, fixed_fee, fee_quantization_mask);
           LOG_PRINT_L2("Made an attempt at a  final " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(test_ptx.fee) <<
@@ -10736,9 +10921,9 @@ skip_tx:
     // fee percent)
     if (burning)
     {
-      loki_tx_params.burn_fixed = burn_fixed + tx.needed_fee * burn_percent / fee_percent;
+      tx_params.burn_fixed = burn_fixed + tx.needed_fee * burn_percent / fee_percent;
       // Make sure we can't enlarge the tx because that could make it invalid:
-      THROW_WALLET_EXCEPTION_IF(loki_tx_params.burn_fixed > BURN_FEE_PLACEHOLDER, error::wallet_internal_error, "attempt to burn a larger amount than is internally supported");
+      THROW_WALLET_EXCEPTION_IF(tx_params.burn_fixed > BURN_FEE_PLACEHOLDER, error::wallet_internal_error, "attempt to burn a larger amount than is internally supported");
     }
 
     cryptonote::transaction test_tx;
@@ -10753,7 +10938,7 @@ skip_tx:
                             test_tx,                    /* OUT   cryptonote::transaction& tx, */
                             test_ptx,                   /* OUT   cryptonote::transaction& tx, */
                             rct_config,
-                            loki_tx_params);
+                            tx_params);
     auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
     tx.tx = test_tx;
     tx.ptx = test_ptx;
@@ -10949,16 +11134,14 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
 
   const rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 2 };
   const auto base_fee = get_base_fees();
-  const uint64_t fee_percent = get_fee_percent(priority, get_fee_algorithm());
+  const uint64_t fee_percent = get_fee_percent(priority, tx_type);
   const uint64_t fee_quantization_mask = get_fee_quantization_mask();
   uint64_t fixed_fee = 0;
 
   boost::optional<uint8_t> hf_version = get_hard_fork_version();
   THROW_WALLET_EXCEPTION_IF(!hf_version, error::get_hard_fork_version_error, "Failed to query current hard fork version");
 
-  loki_construct_tx_params loki_tx_params = tools::wallet2::construct_params(priority);
-  loki_tx_params.tx_type                  = tx_type;
-  loki_tx_params.hf_version               = *hf_version;
+  loki_construct_tx_params loki_tx_params = tools::wallet2::construct_params(*hf_version, tx_type, priority);
   uint64_t burn_fixed = 0, burn_percent = 0;
   // Swap these out because we don't want them present for building intermediate temporary tx
   // calculations (which we don't actually use); we'll set them again at the end before we build the
@@ -11165,7 +11348,7 @@ void wallet2::cold_tx_aux_import(const std::vector<pending_tx> & ptx, const std:
   }
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> &dsts_info, std::vector<std::string> & tx_device_aux)
+void wallet2::cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> const &dsts_info, std::vector<std::string> & tx_device_aux)
 {
   auto & hwdev = get_account().get_device();
   if (!hwdev.has_tx_cold_sign()){
@@ -14048,77 +14231,6 @@ bool wallet2::is_synced() const
   return get_blockchain_current_height() >= height;
 }
 //----------------------------------------------------------------------------------------------------
-std::vector<std::pair<uint64_t, uint64_t>> wallet2::estimate_backlog(const std::vector<std::pair<double, double>> &fee_levels)
-{
-  for (const auto &fee_level: fee_levels)
-  {
-    THROW_WALLET_EXCEPTION_IF(fee_level.first == 0.0, error::wallet_internal_error, "Invalid 0 fee");
-    THROW_WALLET_EXCEPTION_IF(fee_level.second == 0.0, error::wallet_internal_error, "Invalid 0 fee");
-  }
-
-  // get txpool backlog
-  cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG::request req{};
-  cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_BACKLOG::response res{};
-  m_daemon_rpc_mutex.lock();
-  bool r = invoke_http_json_rpc("/json_rpc", "get_txpool_backlog", req, res, rpc_timeout);
-  m_daemon_rpc_mutex.unlock();
-  THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "Failed to connect to daemon");
-  THROW_WALLET_EXCEPTION_IF(res.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "get_txpool_backlog");
-  THROW_WALLET_EXCEPTION_IF(res.status != CORE_RPC_STATUS_OK, error::get_tx_pool_error);
-
-  uint64_t block_weight_limit = 0;
-  const auto result = m_node_rpc_proxy.get_block_weight_limit(block_weight_limit);
-  throw_on_rpc_response_error(result, "get_info");
-  uint64_t full_reward_zone = block_weight_limit / 2;
-  THROW_WALLET_EXCEPTION_IF(full_reward_zone == 0, error::wallet_internal_error, "Invalid block weight limit from daemon");
-
-  std::vector<std::pair<uint64_t, uint64_t>> blocks;
-  for (const auto &fee_level: fee_levels)
-  {
-    const double our_fee_byte_min = fee_level.first;
-    const double our_fee_byte_max = fee_level.second;
-    uint64_t priority_weight_min = 0, priority_weight_max = 0;
-    for (const auto &i: res.backlog)
-    {
-      if (i.weight == 0)
-      {
-        MWARNING("Got 0 weight tx from txpool, ignored");
-        continue;
-      }
-      double this_fee_byte = i.fee / (double)i.weight;
-      if (this_fee_byte >= our_fee_byte_min)
-        priority_weight_min += i.weight;
-      if (this_fee_byte >= our_fee_byte_max)
-        priority_weight_max += i.weight;
-    }
-
-    uint64_t nblocks_min = priority_weight_min / full_reward_zone;
-    uint64_t nblocks_max = priority_weight_max / full_reward_zone;
-    MDEBUG("estimate_backlog: priority_weight " << priority_weight_min << " - " << priority_weight_max << " for "
-        << our_fee_byte_min << " - " << our_fee_byte_max << " rok byte fee, "
-        << nblocks_min << " - " << nblocks_max << " blocks at block weight " << full_reward_zone);
-    blocks.push_back(std::make_pair(nblocks_min, nblocks_max));
-  }
-  return blocks;
-}
-//----------------------------------------------------------------------------------------------------
-std::vector<std::pair<uint64_t, uint64_t>> wallet2::estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees)
-{
-  THROW_WALLET_EXCEPTION_IF(min_tx_weight == 0, error::wallet_internal_error, "Invalid 0 fee");
-  THROW_WALLET_EXCEPTION_IF(max_tx_weight == 0, error::wallet_internal_error, "Invalid 0 fee");
-  for (uint64_t fee: fees)
-  {
-    THROW_WALLET_EXCEPTION_IF(fee == 0, error::wallet_internal_error, "Invalid 0 fee");
-  }
-  std::vector<std::pair<double, double>> fee_levels;
-  for (uint64_t fee: fees)
-  {
-    double our_fee_byte_min = fee / (double)min_tx_weight, our_fee_byte_max = fee / (double)max_tx_weight;
-    fee_levels.emplace_back(our_fee_byte_min, our_fee_byte_max);
-  }
-  return estimate_backlog(fee_levels);
-}
-//----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_segregation_fork_height() const
 {
   if (m_nettype == TESTNET)
@@ -14315,7 +14427,6 @@ uint64_t wallet2::hash_m_transfers(int64_t transfer_height, crypto::hash &hash) 
   return current_height;
 }
 
-constexpr std::array<const char* const, 5> allowed_priority_strings = {{"default", "unimportant", "normal", "elevated", "priority"}};
 bool parse_subaddress_indices(const std::string& arg, std::set<uint32_t>& subaddr_indices, std::string *err_msg)
 {
   subaddr_indices.clear();
@@ -14348,9 +14459,6 @@ bool parse_priority(const std::string& arg, uint32_t& priority)
     arg);
   if(priority_pos != allowed_priority_strings.end()) {
     priority = std::distance(allowed_priority_strings.begin(), priority_pos);
-    return true;
-  } else if (arg == "blink") {
-    priority = tx_priority_blink;
     return true;
   }
   return false;

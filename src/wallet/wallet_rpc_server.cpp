@@ -46,7 +46,6 @@ using namespace epee;
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/account.h"
 #include "multisig/multisig.h"
-#include "wallet_rpc_server_commands_defs.h"
 #include "misc_language.h"
 #include "string_coding.h"
 #include "string_tools.h"
@@ -56,6 +55,7 @@ using namespace epee;
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "rpc/core_rpc_server.h"
 #include "daemonizer/daemonizer.h"
+#include "cryptonote_core/loki_name_system.h"
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "wallet.rpc"
@@ -859,10 +859,20 @@ namespace tools
 
     try
     {
-      uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority);
-      if (req.blink) priority = tools::tx_priority_blink;
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
+      uint32_t priority = req.priority;
+
+      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+        priority = tx_priority_blink;
+
+      boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+      if (!hf_version)
+      {
+        er.code    = WALLET_RPC_ERROR_CODE_HF_QUERY_FAILED;
+        er.message = tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+        return false;
+      }
+      cryptonote::loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, cryptonote::txtype::standard, priority);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices, tx_params);
 
       if (ptx_vector.empty())
       {
@@ -879,7 +889,7 @@ namespace tools
         return false;
       }
 
-      return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.fee, res.multisig_txset, res.unsigned_txset, req.do_not_relay, req.blink,
+      return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.fee, res.multisig_txset, res.unsigned_txset, req.do_not_relay, priority == tx_priority_blink,
           res.tx_hash, req.get_tx_hex, res.tx_blob, req.get_tx_metadata, res.tx_metadata, er);
     }
     catch (const std::exception& e)
@@ -912,14 +922,25 @@ namespace tools
 
     try
     {
-      uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority);
-      if (req.blink) priority = tools::tx_priority_blink;
+      uint32_t priority = req.priority;
+
+      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+        priority = tx_priority_blink;
+
+      boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+      if (!hf_version)
+      {
+        er.code    = WALLET_RPC_ERROR_CODE_HF_QUERY_FAILED;
+        er.message = tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+        return false;
+      }
+
+      cryptonote::loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, cryptonote::txtype::standard, priority);
       LOG_PRINT_L2("on_transfer_split calling create_transactions_2");
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices, tx_params);
       LOG_PRINT_L2("on_transfer_split called create_transactions_2");
 
-      return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay, req.blink,
+      return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay, priority == tx_priority_blink,
           res.tx_hash_list, req.get_tx_hex, res.tx_blob_list, req.get_tx_metadata, res.tx_metadata_list, er);
     }
     catch (const std::exception& e)
@@ -1323,12 +1344,14 @@ namespace tools
 
     try
     {
-      uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority);
-      if (req.blink) priority = tools::tx_priority_blink;
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, dsts[0].is_subaddress, req.outputs, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
+      uint32_t priority = req.priority;
 
-      return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay, req.blink,
+      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+        priority = tx_priority_blink;
+
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, dsts[0].is_subaddress, req.outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
+
+      return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay, priority == tx_priority_blink,
           res.tx_hash_list, req.get_tx_hex, res.tx_blob_list, req.get_tx_metadata, res.tx_metadata_list, er);
     }
     catch (const std::exception& e)
@@ -1379,10 +1402,12 @@ namespace tools
 
     try
     {
-      uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      uint32_t priority = m_wallet->adjust_priority(req.priority);
-      if (req.blink) priority = tools::tx_priority_blink;
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_single(ki, dsts[0].addr, dsts[0].is_subaddress, req.outputs, mixin, req.unlock_time, priority, extra);
+      uint32_t priority = req.priority;
+
+      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+        priority = tx_priority_blink;
+
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_single(ki, dsts[0].addr, dsts[0].is_subaddress, req.outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra);
 
       if (ptx_vector.empty())
       {
@@ -1404,7 +1429,7 @@ namespace tools
         return false;
       }
 
-      return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.fee, res.multisig_txset, res.unsigned_txset, req.do_not_relay, req.blink,
+      return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.fee, res.multisig_txset, res.unsigned_txset, req.do_not_relay, priority == tx_priority_blink,
           res.tx_hash, req.get_tx_hex, res.tx_blob, req.get_tx_metadata, res.tx_metadata, er);
     }
     catch (const std::exception& e)
@@ -4252,6 +4277,135 @@ namespace tools
     res.unlocked = unlock_result.success;
     res.msg      = unlock_result.msg;
     return res.unlocked;
+  }
+
+  bool wallet_rpc_server::on_lns_buy_mapping(const wallet_rpc::COMMAND_RPC_LNS_BUY_MAPPING::request& req, wallet_rpc::COMMAND_RPC_LNS_BUY_MAPPING::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_restricted)
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Buying lns mappings is unavailable in restricted mode.";
+      return false;
+    }
+
+    std::string reason;
+    std::vector<wallet2::pending_tx> ptx_vector = m_wallet->lns_create_buy_mapping_tx(req.type,
+                                                                                      req.owner.size() ? &req.owner : nullptr,
+                                                                                      req.backup_owner.size() ? &req.backup_owner : nullptr,
+                                                                                      req.name,
+                                                                                      req.value,
+                                                                                      &reason,
+                                                                                      req.priority,
+                                                                                      req.account_index,
+                                                                                      req.subaddr_indices);
+    if (ptx_vector.empty())
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;
+      er.message = "Failed to create LNS transaction: " + reason;
+      return false;
+    }
+
+    return fill_response(ptx_vector,
+                         req.get_tx_key,
+                         res.tx_key,
+                         res.amount,
+                         res.fee,
+                         res.multisig_txset,
+                         res.unsigned_txset,
+                         req.do_not_relay,
+                         false /*blink*/,
+                         res.tx_hash,
+                         req.get_tx_hex,
+                         res.tx_blob,
+                         req.get_tx_metadata,
+                         res.tx_metadata,
+                         er);
+  }
+
+  bool wallet_rpc_server::on_lns_update_mapping(const wallet_rpc::COMMAND_RPC_LNS_UPDATE_MAPPING::request &req, wallet_rpc::COMMAND_RPC_LNS_UPDATE_MAPPING::response &res, epee::json_rpc::error &er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_restricted)
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Updating lns mappings is unavailable in restricted mode.";
+      return false;
+    }
+
+    std::string reason;
+    std::vector<wallet2::pending_tx> ptx_vector =
+        m_wallet->lns_create_update_mapping_tx(req.type,
+                                               req.name,
+                                               req.value.empty()        ? nullptr : &req.value,
+                                               req.owner.empty()        ? nullptr : &req.owner,
+                                               req.backup_owner.empty() ? nullptr : &req.backup_owner,
+                                               req.signature.empty()    ? nullptr : &req.signature,
+                                               &reason,
+                                               req.priority,
+                                               req.account_index,
+                                               req.subaddr_indices);
+
+    if (ptx_vector.empty())
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;
+      er.message = "Failed to create LNS update transaction: " + reason;
+      return false;
+    }
+
+    return fill_response(ptx_vector,
+                         req.get_tx_key,
+                         res.tx_key,
+                         res.amount,
+                         res.fee,
+                         res.multisig_txset,
+                         res.unsigned_txset,
+                         req.do_not_relay,
+                         false /*blink*/,
+                         res.tx_hash,
+                         req.get_tx_hex,
+                         res.tx_blob,
+                         req.get_tx_metadata,
+                         res.tx_metadata,
+                         er);
+  }
+
+  bool wallet_rpc_server::on_lns_make_update_mapping_signature(const wallet_rpc::COMMAND_RPC_LNS_MAKE_UPDATE_SIGNATURE::request& req, wallet_rpc::COMMAND_RPC_LNS_MAKE_UPDATE_SIGNATURE::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_restricted)
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Generating the lns update signature is unavailable in restricted mode.";
+      return false;
+    }
+
+    std::string reason;
+    lns::mapping_type type;
+    if (!lns::validate_mapping_type(req.type, &type, &reason))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_WRONG_LNS_TYPE;
+      er.message = "Wrong lns type given=" + reason;
+      return false;
+    }
+
+    lns::generic_signature signature;
+    if (!m_wallet->lns_make_update_mapping_signature(type,
+                                                     req.name,
+                                                     req.value.size() ? &req.value : nullptr,
+                                                     req.owner.size() ? &req.owner : nullptr,
+                                                     req.backup_owner.size() ? &req.backup_owner : nullptr,
+                                                     signature,
+                                                     req.account_index,
+                                                     &reason))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_TX_NOT_POSSIBLE;
+      er.message = "Failed to create signature for LNS update transaction: " + reason;
+      return false;
+    }
+
+    res.signature = epee::string_tools::pod_to_hex(signature.ed25519);
+    return true;
   }
 }
 

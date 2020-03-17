@@ -62,6 +62,12 @@
 #include "common/pruning.h"
 #include "common/lock.h"
 
+#ifdef ENABLE_SYSTEMD
+extern "C" {
+#  include <systemd/sd-daemon.h>
+}
+#endif
+
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "blockchain"
 
@@ -289,9 +295,117 @@ uint64_t Blockchain::get_current_blockchain_height() const
   return m_db->height();
 }
 //------------------------------------------------------------------
+bool Blockchain::load_missing_blocks_into_loki_subsystems()
+{
+  uint64_t const snl_height   = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_9_service_nodes), m_service_node_list.height() + 1);
+  uint64_t const lns_height   = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_15_lns),          m_lns_db.height() + 1);
+  uint64_t const end_height   = m_db->height();
+  uint64_t const start_height = std::min(end_height, std::min(lns_height, snl_height));
+
+  int64_t const total_blocks = static_cast<int64_t>(end_height) - static_cast<int64_t>(start_height);
+  if (total_blocks <= 0) return true;
+  if (total_blocks > 1)
+    MGINFO("Loading blocks into loki subsystems, scanning blockchain from height: " << start_height << " to: " << end_height);
+
+  using clock                   = std::chrono::steady_clock;
+  using work_time               = std::chrono::duration<float>;
+  int64_t constexpr BLOCK_COUNT = 1000;
+  auto work_start               = clock::now();
+  auto scan_start               = work_start;
+  work_time lns_duration{}, snl_duration{}, lns_iteration_duration{}, snl_iteration_duration{};
+
+  std::vector<std::pair<cryptonote::blobdata, cryptonote::block>> blocks;
+  std::vector<cryptonote::transaction> txs;
+  std::vector<crypto::hash> missed_txs;
+
+  for (int64_t block_count = total_blocks,
+               index       = 0;
+       block_count > 0;
+       block_count -= BLOCK_COUNT, index++)
+  {
+    if (index > 0 && (index % 10 == 0))
+    {
+      m_service_node_list.store();
+      auto duration = work_time{clock::now() - work_start};
+      MGINFO("... scanning height " << start_height + (index * BLOCK_COUNT) << " (" << duration.count() << "s) (snl: " << snl_iteration_duration.count() << "s; lns: " << lns_iteration_duration.count() << "s)");
+#ifdef ENABLE_SYSTEMD
+      // Tell systemd that we're doing something so that it should let us continue starting up
+      // (giving us 120s until we have to send the next notification):
+      sd_notify(0, ("EXTEND_TIMEOUT_USEC=120000000\nSTATUS=Recanning blockchain; height " + std::to_string(start_height + (index * BLOCK_COUNT))).c_str());
+#endif
+      work_start = clock::now();
+
+      lns_duration += lns_iteration_duration;
+      snl_duration += snl_iteration_duration;
+      lns_iteration_duration = snl_iteration_duration = {};
+    }
+
+    blocks.clear();
+    uint64_t height = start_height + (index * BLOCK_COUNT);
+    if (!get_blocks(height, static_cast<uint64_t>(BLOCK_COUNT), blocks))
+    {
+      LOG_ERROR("Unable to get checkpointed historical blocks for updating loki subsystems");
+      return false;
+    }
+
+    for (std::pair<cryptonote::blobdata, cryptonote::block> const &pair : blocks)
+    {
+      cryptonote::block const &blk = pair.second;
+      uint64_t block_height        = get_block_height(blk);
+
+      txs.clear();
+      missed_txs.clear();
+      if (!get_transactions(blk.tx_hashes, txs, missed_txs))
+      {
+        MERROR("Unable to get transactions for block for updating LNS DB: " << cryptonote::get_block_hash(blk));
+        return false;
+      }
+
+      if (block_height >= snl_height)
+      {
+        auto snl_start = clock::now();
+
+        checkpoint_t *checkpoint_ptr = nullptr;
+        checkpoint_t checkpoint;
+        if (blk.major_version >= cryptonote::network_version_13_enforce_checkpoints && get_checkpoint(block_height, checkpoint))
+            checkpoint_ptr = &checkpoint;
+
+        if (!m_service_node_list.block_added(blk, txs, checkpoint_ptr))
+        {
+          MERROR("Unable to process block for updating service node list: " << cryptonote::get_block_hash(blk));
+          return false;
+        }
+        snl_iteration_duration += clock::now() - snl_start;
+      }
+
+      if (m_lns_db.db && (block_height >= lns_height))
+      {
+        auto lns_start = clock::now();
+        if (!m_lns_db.add_block(pair.second, txs))
+        {
+          MERROR("Unable to process block for updating LNS DB: " << cryptonote::get_block_hash(pair.second));
+          return false;
+        }
+        lns_iteration_duration += clock::now() - lns_start;
+      }
+    }
+  }
+
+  if (total_blocks > 1)
+  {
+    auto duration = work_time{clock::now() - scan_start};
+    MGINFO("Done recalculating loki subsystems (" << duration.count() << "s) (snl: " << snl_duration.count() << "s; lns: " << lns_duration.count() << "s)");
+  }
+
+  if (total_blocks > 0)
+    m_service_node_list.store();
+
+  return true;
+}
+//------------------------------------------------------------------
 //FIXME: possibly move this into the constructor, to avoid accidentally
 //       dereferencing a null BlockchainDB pointer
-bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/)
+bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -463,19 +577,36 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
       return false;
   }
 
+  if (lns_db) // Initialise LNS
+  {
+    uint64_t lns_height   = 0;
+    crypto::hash lns_hash = get_tail_id(lns_height);
+    if (!m_lns_db.init(nettype, lns_db, lns_height, lns_hash))
+    {
+      MERROR("LNS failed to initialise");
+      return false;
+    }
+  }
+
   hook_block_added(m_checkpoints);
   hook_blockchain_detached(m_checkpoints);
   for (InitHook* hook : m_init_hooks)
     hook->init();
 
+  if (!load_missing_blocks_into_loki_subsystems())
+  {
+    MERROR("Failed to load blocks into loki subsystems");
+    return false;
+  }
+
   return true;
 }
 //------------------------------------------------------------------
-bool Blockchain::init(BlockchainDB* db, HardFork*& hf, const network_type nettype, bool offline)
+bool Blockchain::init(BlockchainDB* db, HardFork*& hf, sqlite3 *lns_db, const network_type nettype, bool offline)
 {
   if (hf != nullptr)
     m_hardfork = hf;
-  bool res = init(db, nettype, offline, NULL);
+  bool res = init(db, lns_db, nettype, offline, NULL);
   if (hf == nullptr)
     hf = m_hardfork;
   return res;
@@ -590,6 +721,7 @@ void Blockchain::pop_blocks(uint64_t nblocks)
   auto split_height = m_db->height();
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
     hook->blockchain_detached(split_height, true /*by_pop_blocks*/);
+  load_missing_blocks_into_loki_subsystems();
 
   if (stop_batch)
     m_db->batch_stop();
@@ -629,6 +761,7 @@ block Blockchain::pop_block_from_blockchain()
 
   // make sure the hard fork object updates its current version
   m_hardfork->on_block_popped(1);
+  m_lns_db.block_detach(*this, m_db->height());
 
   // return transactions from popped block to the tx_pool
   size_t pruned = 0;
@@ -942,6 +1075,7 @@ bool Blockchain::rollback_blockchain_switching(const std::list<block_and_checkpo
   // Revert all changes from switching to the alt chain before adding the original chain back in
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
     hook->blockchain_detached(rollback_height, false /*by_pop_blocks*/);
+  load_missing_blocks_into_loki_subsystems();
 
   // make sure the hard fork object updates its current version
   m_hardfork->reorganize_from_chain_height(rollback_height);
@@ -1007,6 +1141,7 @@ bool Blockchain::switch_to_alternative_blockchain(const std::list<block_extended
   auto split_height = m_db->height();
   for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
     hook->blockchain_detached(split_height, false /*by_pop_blocks*/);
+  load_missing_blocks_into_loki_subsystems();
 
   //connecting new alternative chain
   for(auto alt_ch_iter = alt_chain.begin(); alt_ch_iter != alt_chain.end(); alt_ch_iter++)
@@ -3225,6 +3360,18 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         }
       }
     }
+
+    if (tx.type == txtype::loki_name_system)
+    {
+      cryptonote::tx_extra_loki_name_system data;
+      std::string fail_reason;
+      if (!m_lns_db.validate_lns_tx(hf_version, get_current_blockchain_height(), tx, &data, &fail_reason))
+      {
+        MERROR_VER("Failed to validate LNS TX reason: " << fail_reason);
+        tvc.m_verbose_error = std::move(fail_reason);
+        return false;
+      }
+    }
   }
   else
   {
@@ -4036,6 +4183,9 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   for (std::pair<transaction, blobdata> const &tx_pair : txs)
     only_txs.push_back(tx_pair.first);
 
+  m_service_node_list.block_added(bl, only_txs, checkpoint);
+  m_lns_db.add_block(bl, only_txs);
+
   for (BlockAddedHook* hook : m_block_added_hooks)
   {
     if (!hook->block_added(bl, only_txs, checkpoint))
@@ -4545,7 +4695,7 @@ uint64_t Blockchain::prevalidate_block_hashes(uint64_t height, const std::vector
 bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &reward) const
 {
   reward = 0;
-  int hard_fork_version = get_ideal_hard_fork_version(height);
+  auto hard_fork_version = get_ideal_hard_fork_version(height);
   if (hard_fork_version <= network_version_9_service_nodes)
   {
     return true;
@@ -4559,12 +4709,21 @@ bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &rewar
   // Ignore governance reward and payout instead the last
   // GOVERNANCE_BLOCK_REWARD_INTERVAL number of blocks governance rewards.  We
   // come back for this height's rewards in the next interval. The reward is
-  // 0 if it's not time to pay out the batched payments
+  // 0 if it's not time to pay out the batched payments (in which case we
+  // already returned, above).
 
   const cryptonote::config_t &network = cryptonote::get_config(nettype(), hard_fork_version);
   size_t num_blocks                   = network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS;
-  uint64_t start_height               = height - num_blocks;
 
+  // Fixed reward starting at HF15
+  if (hard_fork_version >= network_version_15_lns)
+  {
+    reward = num_blocks * (
+        hard_fork_version >= network_version_16 ? FOUNDATION_REWARD_HF16 : FOUNDATION_REWARD_HF15);
+    return true;
+  }
+
+  uint64_t start_height = height - num_blocks;
   if (height < num_blocks)
   {
     start_height = 0;
@@ -4582,7 +4741,7 @@ bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &rewar
   {
     cryptonote::block const &block = it.second;
     if (block.major_version >= network_version_10_bulletproofs)
-      reward += derive_governance_from_block_reward(nettype(), block);
+      reward += derive_governance_from_block_reward(nettype(), block, hard_fork_version);
   }
 
   return true;

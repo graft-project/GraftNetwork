@@ -15,3 +15,6 @@
 [submodule "external/randomx"]
 	path = external/randomx
 	url = https://github.com/loki-project/RandomX
+[submodule "external/loki-mq"]
+	path = external/loki-mq
+	url = https://github.com/loki-project/loki-mq.git

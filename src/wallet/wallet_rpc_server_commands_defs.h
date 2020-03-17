@@ -30,11 +30,8 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
-#include "cryptonote_config.h"
-#include "cryptonote_protocol/cryptonote_protocol_defs.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/subaddress_index.h"
-#include "crypto/hash.h"
 #include "wallet_rpc_server_error_codes.h"
 #include "wallet2.h"
 
@@ -480,9 +477,8 @@ namespace wallet_rpc
       std::list<transfer_destination> destinations; // Array of destinations to receive LOKI.
       uint32_t account_index;                       // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
-      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
       bool blink;                                   // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;                           // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
       uint64_t unlock_time;                         // Number of blocks before the loki can be spent (0 to use the default lock time).
       std::string payment_id;                       // (Optional) Random 64-character hex string to identify a transaction.
       bool get_tx_key;                              // (Optional) Return the transaction key after sending.
@@ -496,7 +492,6 @@ namespace wallet_rpc
         KV_SERIALIZE(subaddr_indices)
         KV_SERIALIZE(priority)
         KV_SERIALIZE_OPT(blink, false)
-        KV_SERIALIZE_OPT(ring_size, (uint64_t)0)
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
         KV_SERIALIZE(get_tx_key)
@@ -541,9 +536,8 @@ namespace wallet_rpc
       std::list<transfer_destination> destinations; // Array of destinations to receive LOKI:
       uint32_t account_index;                       // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
-      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      uint32_t priority;                            // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
       bool blink;                                   // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;                           // (Deprecated) Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
       uint64_t unlock_time;                         // Number of blocks before the loki can be spent (0 to not add a lock).
       std::string payment_id;                       // (Optional) Random 32-byte/64-character hex string to identify a transaction.
       bool get_tx_keys;                             // (Optional) Return the transaction keys after sending.
@@ -557,7 +551,6 @@ namespace wallet_rpc
         KV_SERIALIZE(subaddr_indices)
         KV_SERIALIZE(priority)
         KV_SERIALIZE_OPT(blink, false)
-        KV_SERIALIZE_OPT(ring_size, (uint64_t)0)
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
         KV_SERIALIZE(get_tx_keys)
@@ -791,9 +784,8 @@ namespace wallet_rpc
       std::string address;                // Destination public address.
       uint32_t account_index;             // Sweep transactions from this account.
       std::set<uint32_t> subaddr_indices; // (Optional) Sweep from this set of subaddresses in the account.
-      uint32_t priority;                  // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      uint32_t priority;                  // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
       bool blink;                         // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;                 // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
       uint64_t outputs;                   // 
       uint64_t unlock_time;               // Number of blocks before the loki can be spent (0 to not add a lock). 
       std::string payment_id;             // (Optional) 64-character hex string to identify a transaction.
@@ -809,7 +801,6 @@ namespace wallet_rpc
         KV_SERIALIZE(subaddr_indices)
         KV_SERIALIZE(priority)
         KV_SERIALIZE_OPT(blink, false)
-        KV_SERIALIZE_OPT(ring_size, (uint64_t)0)
         KV_SERIALIZE_OPT(outputs, (uint64_t)1)
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
@@ -863,9 +854,8 @@ namespace wallet_rpc
     struct request_t
     {
       std::string address;    // Destination public address.
-      uint32_t priority;      // Set a priority for the transaction. Accepted values are: or 0-5 for: default, unimportant, normal, elevated, priority, blink.
+      uint32_t priority;      // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
       bool blink;             // (Deprecated) Set priority to 5 for blink, field is deprecated: specifies that the tx should be blinked (`priority` will be ignored).
-      uint64_t ring_size;     // (Deprecated) Set to 10. Sets ringsize to n (mixin + 1). Loki ring_size is statically set to 10.
       uint64_t outputs;       // 
       uint64_t unlock_time;   // Number of blocks before the loki can be spent (0 to not add a lock).
       std::string payment_id; // (Optional) 64-character hex string to identify a transaction.
@@ -879,7 +869,6 @@ namespace wallet_rpc
         KV_SERIALIZE(address)
         KV_SERIALIZE(priority)
         KV_SERIALIZE_OPT(blink, false)
-        KV_SERIALIZE_OPT(ring_size, (uint64_t)0)
         KV_SERIALIZE_OPT(outputs, (uint64_t)1)
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
@@ -2862,5 +2851,187 @@ namespace wallet_rpc
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
+  LOKI_RPC_DOC_INTROSPECT
+  struct COMMAND_RPC_LNS_BUY_MAPPING
+  {
+    static constexpr const char *description =
+R"(Buy a Loki Name System mapping. Loki Name System allows multiple owners that are authorised to update the underlying mapping. An owner can be either a ed25519 public key or a wallet address. By default if no owner is specified, the purchasing wallet's active [sub]address is stored as the owner.
+  - For Session, the recommended owner is the ed25519 public key of the user's Session ID set to owner
+
+In future, support for mappings on Blockchain wallets and Lokinet addresses will be available. The recommended owner is the wallet's [sub]address.
+
+When specifying owners, either a wallet [sub]address or standard ed25519 public key is supported per mapping. Updating the value that a name maps to requires one of the owner's to sign the update transaction. For wallets, this is signed using the subaddress's spend key.
+
+For information on updating & signing, refer to COMMAND_RPC_LNS_UPDATE_MAPPING)";
+
+    struct request_t
+    {
+      std::string        type;            // The mapping type, currently we only support "session". In future "lokinet" and "blockchain" mappings will be available.
+      std::string        owner;           // (Optional): The ed25519 public key or wallet address that has authority to update the mapping.
+      std::string        backup_owner;    // (Optional): The secondary, backup public key that has authority to update the mapping.
+      std::string        name;            // The name to purchase via Loki Name Service
+      std::string        value;           // The value that the name maps to via Loki Name Service, (i.e. For Session: [display name->session public key]. In future, for wallets: [name->wallet address], for Lokinet: [name->domain name]).
+
+      uint32_t           account_index;   // (Optional) Transfer from this account index. (Defaults to 0)
+      std::set<uint32_t> subaddr_indices; // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
+      uint32_t           priority;        // Set a priority for the transaction. Accepted values are: or 0-4 for: default, unimportant, normal, elevated, priority.
+      bool               get_tx_key;      // (Optional) Return the transaction key after sending.
+      bool               do_not_relay;    // (Optional) If true, the newly created transaction will not be relayed to the loki network. (Defaults to false)
+      bool               get_tx_hex;      // Return the transaction as hex string after sending (Defaults to false)
+      bool               get_tx_metadata; // Return the metadata needed to relay the transaction. (Defaults to false)
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE    (type);
+        KV_SERIALIZE    (owner);
+        KV_SERIALIZE    (backup_owner);
+        KV_SERIALIZE    (name);
+        KV_SERIALIZE    (value);
+        KV_SERIALIZE_OPT(account_index,   (uint32_t)0);
+        KV_SERIALIZE_OPT(subaddr_indices, {});
+        KV_SERIALIZE_OPT(priority,        (uint32_t)0);
+        KV_SERIALIZE    (get_tx_key)
+        KV_SERIALIZE_OPT(do_not_relay,    false)
+        KV_SERIALIZE_OPT(get_tx_hex,      false)
+        KV_SERIALIZE_OPT(get_tx_metadata, false)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string tx_hash;        // Publically searchable transaction hash.
+      std::string tx_key;         // Transaction key if `get_tx_key` is `true`, otherwise, blank string.
+      uint64_t amount;            // Amount transferred for the transaction in atomic units.
+      uint64_t fee;               // Value in atomic units of the fee charged for the tx.
+      std::string tx_blob;        // Raw transaction represented as hex string, if get_tx_hex is true.
+      std::string tx_metadata;    // Set of transaction metadata needed to relay this transfer later, if `get_tx_metadata` is `true`.
+      std::string multisig_txset; // Set of multisig transactions in the process of being signed (empty for non-multisig).
+      std::string unsigned_txset; // Set of unsigned tx for cold-signing purposes.
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(tx_hash)
+        KV_SERIALIZE(tx_key)
+        KV_SERIALIZE(amount)
+        KV_SERIALIZE(fee)
+        KV_SERIALIZE(tx_blob)
+        KV_SERIALIZE(tx_metadata)
+        KV_SERIALIZE(multisig_txset)
+        KV_SERIALIZE(unsigned_txset)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Update the underlying value in the name->value mapping via Loki Name Service.
+  struct COMMAND_RPC_LNS_UPDATE_MAPPING
+  {
+    static constexpr const char *description =
+R"(Update a Loki Name System mapping's underlying value. The pre-existing owner (wallet address/ed25519 public key) of the mapping must be able to validate. At least one field must be specified to update, otherwise the funtion returns an error message.
+
+The signature is generated from signing a hash generated by using Libsodium's generichash on the {new value (if provided), new owner (if provided), new backup_owner (if provided), prev_txid field (in the current mapping to update)} in binary.
+Depending on the owner associated with the mapping the signature can be generated in 2 ways. If the owner associated with the mapping is-
+  - a wallet [sub]address, the signature is generated by using Monero's crypto::generate_signature on the hash with the [sub]address's spend key.
+  - a ed25519 public key, the signature is generated by using Libsodium's crypto_sign_detached on the hash
+
+Providing the signature is an optional field and if not provided, will default to attempting to sign using the wallet's active [sub]address's spend keys.)";
+
+    struct request_t
+    {
+      std::string        type;      // The mapping type, currently we only support "session". In future "lokinet" and "blockchain" mappings will be available.
+      std::string        name;      // The name to update via Loki Name Service
+      std::string        value;     // (Optional): The new value that the name maps to via Loki Name Service. If not specified or given the empty string "", then the mapping's value remains unchanged.
+      std::string        owner;     // (Optional): The new owner of the mapping. If not specified or given the empty string "", then the mapping's owner remains unchanged.
+      std::string        backup_owner; // (Optional): The new backup owner of the mapping. If not specified or given the empty string "", then the mapping's backup owner remains unchanged.
+      std::string        signature; // (Optional): Signature derived using libsodium generichash on {current txid blob, new value blob} of the mapping to update. By default the hash is signed using the wallet's spend key as an ed25519 keypair, if signature is specified.
+
+      uint32_t           account_index;    // (Optional) Transfer from this account index. (Defaults to 0)
+      std::set<uint32_t> subaddr_indices;  // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
+      uint32_t           priority;         // Set a priority for the transaction. Accepted values are: 0-4 for: default, unimportant, normal, elevated, priority.
+      bool               get_tx_key;       // (Optional) Return the transaction key after sending.
+      bool               do_not_relay;     // (Optional) If true, the newly created transaction will not be relayed to the loki network. (Defaults to false)
+      bool               get_tx_hex;       // Return the transaction as hex string after sending (Defaults to false)
+      bool               get_tx_metadata;  // Return the metadata needed to relay the transaction. (Defaults to false)
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE    (type);
+        KV_SERIALIZE    (name);
+        KV_SERIALIZE    (value);
+        KV_SERIALIZE    (owner);
+        KV_SERIALIZE    (backup_owner);
+        KV_SERIALIZE    (signature);
+
+        KV_SERIALIZE_OPT(account_index,   (uint32_t)0);
+        KV_SERIALIZE_OPT(subaddr_indices, {});
+        KV_SERIALIZE_OPT(priority,        (uint32_t)0);
+        KV_SERIALIZE    (get_tx_key)
+        KV_SERIALIZE_OPT(do_not_relay,    false)
+        KV_SERIALIZE_OPT(get_tx_hex,      false)
+        KV_SERIALIZE_OPT(get_tx_metadata, false)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string tx_hash;        // Publically searchable transaction hash.
+      std::string tx_key;         // Transaction key if `get_tx_key` is `true`, otherwise, blank string.
+      uint64_t amount;            // Amount transferred for the transaction in atomic units.
+      uint64_t fee;               // Value in atomic units of the fee charged for the tx.
+      std::string tx_blob;        // Raw transaction represented as hex string, if get_tx_hex is true.
+      std::string tx_metadata;    // Set of transaction metadata needed to relay this transfer later, if `get_tx_metadata` is `true`.
+      std::string multisig_txset; // Set of multisig transactions in the process of being signed (empty for non-multisig).
+      std::string unsigned_txset; // Set of unsigned tx for cold-signing purposes.
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(tx_hash)
+        KV_SERIALIZE(tx_key)
+        KV_SERIALIZE(amount)
+        KV_SERIALIZE(fee)
+        KV_SERIALIZE(tx_blob)
+        KV_SERIALIZE(tx_metadata)
+        KV_SERIALIZE(multisig_txset)
+        KV_SERIALIZE(unsigned_txset)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  struct COMMAND_RPC_LNS_MAKE_UPDATE_SIGNATURE
+  {
+  static constexpr const char *description =
+R"(Generate the signature necessary for updating the requested record using the wallet's active [sub]address's spend key. The signature is only valid if the queried wallet is one of the owners of the LNS record.
+
+This command is only required if the open wallet is one of the owners of a LNS record but wants the update transaction to occur via another non-owning wallet. By default, if no signature is specified to the update transaction, the open wallet is assumed the owner and it's active [sub]address's spend key will automatically be used.)";
+
+    struct request_t
+    {
+      std::string type;  // The mapping type, currently we only support "session". In future "lokinet" and "blockchain" mappings will be available.
+      std::string name;  // The desired name to update via Loki Name Service
+      std::string value;     // (Optional): The new value that the name maps to via Loki Name Service. If not specified or given the empty string "", then the mapping's value remains unchanged.
+      std::string owner;     // (Optional): The new owner of the mapping. If not specified or given the empty string "", then the mapping's owner remains unchanged.
+      std::string backup_owner; // (Optional): The new backup owner of the mapping. If not specified or given the empty string "", then the mapping's backup owner remains unchanged.
+      uint32_t account_index; // (Optional) Use this wallet's subaddress account for generating the signature
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(type);
+        KV_SERIALIZE(name);
+        KV_SERIALIZE(value);
+        KV_SERIALIZE(owner);
+        KV_SERIALIZE(backup_owner);
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string signature; // A signature valid for using in LNS to update an underlying mapping.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(signature)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
 }
 }

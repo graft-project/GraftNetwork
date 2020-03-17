@@ -133,11 +133,11 @@ namespace cryptonote
     return correct_key == output_key;
   }
 
-  const int GOVERNANCE_BASE_REWARD_DIVISOR   = 20;
-  const int SERVICE_NODE_BASE_REWARD_DIVISOR = 2;
-  uint64_t governance_reward_formula(uint64_t base_reward)
+  uint64_t governance_reward_formula(uint64_t base_reward, uint8_t hf_version)
   {
-    return base_reward / GOVERNANCE_BASE_REWARD_DIVISOR;
+    return hf_version >= network_version_16     ? FOUNDATION_REWARD_HF16 :
+           hf_version >= network_version_15_lns ? FOUNDATION_REWARD_HF15 :
+           base_reward / 20;
   }
 
   bool block_has_governance_output(network_type nettype, cryptonote::block const &block)
@@ -146,7 +146,7 @@ namespace cryptonote
     return result;
   }
 
-  bool height_has_governance_output(network_type nettype, int hard_fork_version, uint64_t height)
+  bool height_has_governance_output(network_type nettype, uint8_t hard_fork_version, uint64_t height)
   {
     if (height == 0)
       return false;
@@ -163,11 +163,14 @@ namespace cryptonote
     return true;
   }
 
-  uint64_t derive_governance_from_block_reward(network_type nettype, const cryptonote::block &block)
+  uint64_t derive_governance_from_block_reward(network_type nettype, const cryptonote::block &block, uint8_t hf_version)
   {
+    if (hf_version >= 15)
+      return governance_reward_formula(0, hf_version);
+
     uint64_t result       = 0;
     uint64_t snode_reward = 0;
-    uint64_t vout_end     = block.miner_tx.vout.size();
+    size_t vout_end     = block.miner_tx.vout.size();
 
     if (block_has_governance_output(nettype, block))
       --vout_end; // skip the governance output, the governance may be the batched amount. we want the original base reward
@@ -178,16 +181,8 @@ namespace cryptonote
       snode_reward += output.amount;
     }
 
-    static_assert(SERVICE_NODE_BASE_REWARD_DIVISOR == 2 &&
-                  GOVERNANCE_BASE_REWARD_DIVISOR == 20,
-                  "Anytime this changes, you should revisit this code and "
-                  "check, because we rely on the service node reward being 50\% "
-                  "of the base reward, and does not receive any fees. This isn't "
-                  "exactly intuitive and so changes to the reward structure may "
-                  "make this assumption invalid.");
-
-    uint64_t base_reward  = snode_reward * SERVICE_NODE_BASE_REWARD_DIVISOR;
-    uint64_t governance   = governance_reward_formula(base_reward);
+    uint64_t base_reward  = snode_reward * 2; // pre-HF15, SN reward = half of base reward
+    uint64_t governance   = governance_reward_formula(base_reward, hf_version);
     uint64_t block_reward = base_reward - governance;
 
     uint64_t actual_reward = 0; // sanity check
@@ -202,9 +197,13 @@ namespace cryptonote
     return result;
   }
 
-  uint64_t service_node_reward_formula(uint64_t base_reward, int hard_fork_version)
+  uint64_t service_node_reward_formula(uint64_t base_reward, uint8_t hard_fork_version)
   {
-    return hard_fork_version >= 9 ? (base_reward / SERVICE_NODE_BASE_REWARD_DIVISOR) : 0;
+    return
+      hard_fork_version >= network_version_16              ? SN_REWARD_HF16 :
+      hard_fork_version >= network_version_15_lns          ? SN_REWARD_HF15 :
+      hard_fork_version >= network_version_9_service_nodes ? base_reward / 2 : // 50% of base reward up until HF15's fixed payout
+      0;
   }
 
   uint64_t get_portion_of_reward(uint64_t portions, uint64_t total_service_node_reward)
@@ -400,7 +399,7 @@ namespace cryptonote
     // There is a goverance fee due every block.  Beginning in hardfork 10 this is still subtracted
     // from the block reward as if it was paid, but the actual payments get batched into rare, large
     // accumulated payments.  (Before hardfork 10 they are included in every block, unbatched).
-    result.governance_due  = governance_reward_formula(result.original_base_reward);
+    result.governance_due  = governance_reward_formula(result.original_base_reward, hard_fork_version);
     result.governance_paid = hard_fork_version >= network_version_10_bulletproofs
         ? loki_context.batched_governance
         : result.governance_due;
@@ -470,7 +469,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx_params.burn_fixed && tx_params.hf_version < cryptonote::network_version_14_blink_lns)
+    if (tx_params.burn_fixed && tx_params.hf_version < cryptonote::network_version_14_blink)
     {
       LOG_ERROR("cannot construct tx: burn can not be specified before hard fork 14");
       return false;
@@ -893,7 +892,7 @@ namespace cryptonote
       {
         if (amount_in < amount_out + tx_params.burn_fixed)
         {
-          LOG_ERROR("invalid burn amount: tx does not have enough unspent funds available");
+          LOG_ERROR("invalid burn amount: tx does not have enough unspent funds available; amount_in: " << std::to_string(amount_in) << "; amount_out + tx_params.burn_fixed: " << std::to_string(amount_out) << " + " << std::to_string(tx_params.burn_fixed));
           return false;
         }
         remove_field_from_tx_extra(tx.extra, typeid(tx_extra_burn)); // doesn't have to be present (but the wallet puts a dummy here as a safety to avoid growing the tx)

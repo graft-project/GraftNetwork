@@ -2161,11 +2161,13 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
       std::string status;       // General RPC error code. "OK" means everything looks good.
       uint64_t emission_amount; // Amount of coinbase reward in atomic units.
       uint64_t fee_amount;      // Amount of fees in atomic units.
+      uint64_t burn_amount;      // Amount of burnt loki.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
         KV_SERIALIZE(emission_amount)
         KV_SERIALIZE(fee_amount)
+        KV_SERIALIZE(burn_amount)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -2807,6 +2809,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         std::string                           operator_address;              // The wallet address of the operator to which the operator cut of the staking reward is sent to.
         std::string                           public_ip;                     // The public ip address of the service node
         uint16_t                              storage_port;                  // The port number associated with the storage server
+        uint16_t                              storage_lmq_port;              // The port number associated with the storage server (lokimq interface)
         uint16_t                              quorumnet_port;                // The port for direct SN-to-SN communication
         std::string                           pubkey_ed25519;                // The service node's ed25519 public key for auxiliary services
         std::string                           pubkey_x25519;                 // The service node's x25519 public key for auxiliary services
@@ -2843,6 +2846,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
             KV_SERIALIZE(operator_address)
             KV_SERIALIZE(public_ip)
             KV_SERIALIZE(storage_port)
+            KV_SERIALIZE(storage_lmq_port)
             KV_SERIALIZE(quorumnet_port)
             KV_SERIALIZE(pubkey_ed25519)
             KV_SERIALIZE(pubkey_x25519)
@@ -2866,6 +2870,41 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(service_node_states)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(block_hash)
+        KV_SERIALIZE(status)
+        KV_SERIALIZE(as_json)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Get information on Service Node.
+  struct COMMAND_RPC_GET_SERVICE_NODE_STATUS
+  {
+    struct request_t
+    {
+      bool include_json;                             // When set, the response's as_json member is filled out.
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(include_json);
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+
+      cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response_t::entry service_node_state; // Service node registration information
+      uint64_t    height;                     // Current block's height.
+      std::string block_hash;                 // Current block's hash.
+      std::string status;                     // Generic RPC error code. "OK" is the success value.
+      std::string as_json;                    // If `include_json` is set in the request, this contains the json representation of the `entry` data structure
+
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(service_node_state)
         KV_SERIALIZE(height)
         KV_SERIALIZE(block_hash)
         KV_SERIALIZE(status)
@@ -2911,6 +2950,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
       bool operator_address;
       bool public_ip;
       bool storage_port;
+      bool storage_lmq_port;
       bool quorumnet_port;
       bool pubkey_ed25519;
       bool pubkey_x25519;
@@ -2950,6 +2990,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         KV_SERIALIZE_OPT2(operator_address, false)
         KV_SERIALIZE_OPT2(public_ip, false)
         KV_SERIALIZE_OPT2(storage_port, false)
+        KV_SERIALIZE_OPT2(storage_lmq_port, false)
         KV_SERIALIZE_OPT2(quorumnet_port, false)
         KV_SERIALIZE_OPT2(pubkey_ed25519, false)
         KV_SERIALIZE_OPT2(pubkey_x25519, false)
@@ -3016,6 +3057,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         std::string                           operator_address;              // The wallet address of the operator to which the operator cut of the staking reward is sent to.
         std::string                           public_ip;                     // The public ip address of the service node
         uint16_t                              storage_port;                  // The port number associated with the storage server
+        uint16_t                              storage_lmq_port;              // The port number associated with the storage server (lokimq interface)
         uint16_t                              quorumnet_port;                // The port for direct SN-to-SN communication
         std::string                           pubkey_ed25519;                // The service node's ed25519 public key for auxiliary services
         std::string                           pubkey_x25519;                 // The service node's x25519 public key for auxiliary services
@@ -3051,6 +3093,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(operator_address);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(public_ip);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(storage_port);
+          KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(storage_lmq_port);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(quorumnet_port);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(pubkey_ed25519);
           KV_SERIALIZE_ENTRY_FIELD_IF_REQUESTED(pubkey_x25519);
@@ -3109,10 +3152,12 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
       int version_major; // Storage Server Major version
       int version_minor; // Storage Server Minor version
       int version_patch; // Storage Server Patch version
+      uint16_t storage_lmq_port; // Storage Server lmq port to include in uptime proofs
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(version_major);
         KV_SERIALIZE(version_minor);
         KV_SERIALIZE(version_patch);
+        KV_SERIALIZE(storage_lmq_port);
       END_KV_SERIALIZE_MAP()
     };
 
@@ -3153,7 +3198,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
   {
     struct request_t
     {
-      uint64_t height; // The height to query the staking requirement for.
+      uint64_t height; // The height to query the staking requirement for.  0 (or omitting) means current height.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(height)
@@ -3164,10 +3209,12 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     struct response_t
     {
       uint64_t staking_requirement; // The staking requirement in Loki, in atomic units.
+      uint64_t height;              // The height requested (or current height if 0 was requested)
       std::string status;           // Generic RPC error code. "OK" is the success value.
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(staking_requirement)
+        KV_SERIALIZE(height)
         KV_SERIALIZE(status)
       END_KV_SERIALIZE_MAP()
     };
@@ -3415,4 +3462,110 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     };
   };
 
+  LOKI_RPC_DOC_INTROSPECT
+  // Get the name mapping for a Loki Name Service entry. Loki currently supports mappings
+  // for Session.
+  struct COMMAND_RPC_LNS_NAMES_TO_OWNERS
+  {
+    static size_t const MAX_REQUEST_ENTRIES      = 256;
+    static size_t const MAX_TYPE_REQUEST_ENTRIES = 8;
+    struct request_entry
+    {
+      std::string name;            // The name to resolve to a public key via Loki Name Service
+      std::vector<uint16_t> types; // If empty, query all types. Currently only Session(0). In future updates more mapping types will be available.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(name)
+        KV_SERIALIZE(types)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct request
+    {
+      std::vector<request_entry> entries;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_entry
+    {
+      uint64_t entry_index;     // The index in request_entry's `entries` array that was resolved via Loki Name Service.
+      uint16_t type;            // The type of Loki Name Service entry that the owner owns.
+      std::string name_hash;    // The hash of the name that was queried in base64
+      std::string owner;        // The public key that purchased the Loki Name Service entry.
+      std::string backup_owner; // The backup public key that the owner specified when purchasing the Loki Name Service entry.
+      std::string encrypted_value; // The encrypted value that the name maps to. This value is encrypted using the name (not the hash) as the secret.
+      uint64_t register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      std::string txid;         // The txid of who purchased the mapping, null hash if not applicable.
+      std::string prev_txid;    // The previous txid that purchased the mapping, null hash if not applicable.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entry_index)
+        KV_SERIALIZE(type)
+        KV_SERIALIZE(name_hash)
+        KV_SERIALIZE(owner)
+        KV_SERIALIZE(backup_owner)
+        KV_SERIALIZE(encrypted_value)
+        KV_SERIALIZE(register_height)
+        KV_SERIALIZE(txid)
+        KV_SERIALIZE(prev_txid)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<response_entry> entries;
+      std::string status; // Generic RPC error code. "OK" is the success value.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Get all the name mappings for the queried owner. The owner can be either a ed25519 public key or Monero style
+  // public key; by default purchases are owned by the spend public key of the purchasing wallet.
+  struct COMMAND_RPC_LNS_OWNERS_TO_NAMES
+  {
+    static size_t const MAX_REQUEST_ENTRIES = 256;
+    struct request
+    {
+      std::vector<std::string> entries; // The owner's public key to find all Loki Name Service entries for.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_entry
+    {
+      uint64_t    request_index;   // The index in request's `entries` array that was resolved via Loki Name Service.
+      uint16_t    type;            // The category the Loki Name Service entry belongs to, currently only Session whose value is 0.
+      std::string name_hash;       // The hash of the name that the owner purchased via Loki Name Service in base64
+      std::string backup_owner;    // The backup public key specified by the owner that purchased the Loki Name Service entry.
+      std::string encrypted_value; // The encrypted value that the name maps to. This value is encrypted using the name (not the hash) as the secret.
+      uint64_t    register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      std::string txid;            // The txid of who purchases the mapping.
+      std::string prev_txid;       // The previous txid that purchased the mapping, null hash if not applicable.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(request_index)
+        KV_SERIALIZE(type)
+        KV_SERIALIZE(name_hash)
+        KV_SERIALIZE(backup_owner)
+        KV_SERIALIZE(encrypted_value)
+        KV_SERIALIZE(register_height)
+        KV_SERIALIZE(txid)
+        KV_SERIALIZE(prev_txid)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response
+    {
+      std::vector<response_entry> entries;
+      std::string status; // Generic RPC error code. "OK" is the success value.
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(entries)
+        KV_SERIALIZE(status)
+      END_KV_SERIALIZE_MAP()
+    };
+  };
 }

@@ -43,6 +43,7 @@
 #include "ringct/rctSigs.h"
 #include "cryptonote_basic/verification_context.h"
 #include "cryptonote_core/service_node_voting.h"
+#include "cryptonote_core/loki_name_system.h"
 
 using namespace epee;
 
@@ -588,6 +589,7 @@ namespace cryptonote
     if (!pick<tx_extra_service_node_contributor>    (nar, tx_extra_fields, TX_EXTRA_TAG_SERVICE_NODE_CONTRIBUTOR)) return false;
     if (!pick<tx_extra_service_node_pubkey>         (nar, tx_extra_fields, TX_EXTRA_TAG_SERVICE_NODE_PUBKEY)) return false;
     if (!pick<tx_extra_tx_secret_key>               (nar, tx_extra_fields, TX_EXTRA_TAG_TX_SECRET_KEY)) return false;
+    if (!pick<tx_extra_loki_name_system>            (nar, tx_extra_fields, TX_EXTRA_TAG_LOKI_NAME_SYSTEM)) return false;
     if (!pick<tx_extra_tx_key_image_proofs>         (nar, tx_extra_fields, TX_EXTRA_TAG_TX_KEY_IMAGE_PROOFS)) return false;
     if (!pick<tx_extra_tx_key_image_unlock>         (nar, tx_extra_fields, TX_EXTRA_TAG_TX_KEY_IMAGE_UNLOCK)) return false;
 
@@ -902,6 +904,20 @@ namespace cryptonote
     if (!find_tx_extra_field_by_type(tx_extra_fields, winner))
       return crypto::null_pkey;
     return winner.m_service_node_key;
+  }
+  //---------------------------------------------------------------
+  bool get_loki_name_system_from_tx_extra(const std::vector<uint8_t> &tx_extra, tx_extra_loki_name_system &entry)
+  {
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx_extra, tx_extra_fields);
+    bool result = find_tx_extra_field_by_type(tx_extra_fields, entry);
+    return result;
+  }
+  //---------------------------------------------------------------
+  void add_loki_name_system_to_tx_extra(std::vector<uint8_t> &tx_extra, tx_extra_loki_name_system const &entry)
+  {
+    tx_extra_field field = entry;
+    add_tx_extra_field_to_tx_extra(tx_extra, field);
   }
   //---------------------------------------------------------------
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type)
@@ -1231,6 +1247,9 @@ namespace cryptonote
   std::string print_tx_verification_context(tx_verification_context const &tvc, transaction const *tx)
   {
     std::ostringstream os;
+
+    if (tvc.m_verbose_error.size())
+        os << tvc.m_verbose_error << "\n";
 
     if (tvc.m_verifivation_failed)       os << "Verification failed, connection should be dropped, "; //bad tx, should drop connection
     if (tvc.m_verifivation_impossible)   os << "Verification impossible, related to alt chain, "; //the transaction is related with an alternative blockchain
@@ -1703,4 +1722,24 @@ namespace cryptonote
     sc_sub((unsigned char*)key.data, (const unsigned char*)key.data, (const unsigned char*)hash.data);
     return key;
   }
+
+}
+
+std::string lns::generic_owner::to_string(cryptonote::network_type nettype) const
+{
+  if (type == lns::generic_owner_sig_type::monero)
+    return cryptonote::get_account_address_as_str(nettype, wallet.is_subaddress, wallet.address);
+  else
+    return epee::to_hex::string(epee::as_byte_span(ed25519));
+}
+
+bool lns::generic_owner::operator==(generic_owner const &other) const
+{
+  if (type != other.type)
+    return false;
+
+  if (type == lns::generic_owner_sig_type::monero)
+    return wallet.is_subaddress == other.wallet.is_subaddress && wallet.address == other.wallet.address;
+  else
+    return ed25519 == other.ed25519;
 }

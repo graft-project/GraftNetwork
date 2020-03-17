@@ -29,17 +29,28 @@
 #ifndef LOKI_H
 #define LOKI_H
 
-#include <string>
-
 #define LOKI_HOUR(val) ((val) * LOKI_MINUTES(60))
 #define LOKI_MINUTES(val) val * 60
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <iterator>
+#include <cassert>
 
 #define LOKI_RPC_DOC_INTROSPECT
 namespace loki
 {
 double      round           (double);
 double      exp2            (double);
-uint64_t    clamp_u64       (uint64_t val, uint64_t min, uint64_t max);
+
+constexpr uint64_t clamp_u64(uint64_t val, uint64_t min, uint64_t max)
+{
+  assert(min <= max);
+  if (val < min) val = min;
+  else if (val > max) val = max;
+  return val;
+}
 
 template <typename lambda_t>
 struct deferred
@@ -71,6 +82,9 @@ struct defer_helper
 
 template <typename T, size_t N>
 constexpr size_t array_count(T (&)[N]) { return N; }
+
+template <typename T, size_t N>
+constexpr size_t char_count(T (&)[N]) { return N - 1; }
 
 }; // namespace Loki
 

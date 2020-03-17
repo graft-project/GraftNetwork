@@ -26,7 +26,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(core_tests_sources
+add_executable(core_tests
 #  block_reward.cpp
   block_validation.cpp
   chain_split_1.cpp
@@ -46,30 +46,9 @@ set(core_tests_sources
   bulletproofs.cpp
   wallet_tools.cpp)
 
-set(core_tests_headers
-#  block_reward.h
-  block_validation.h
-  chain_split_1.h
-  chain_switch_1.h
-  chaingen.h
-  chaingen_tests_list.h
-  double_spend.h
-  integer_overflow.h
-  multisig.h
-  ring_signature_1.h
-  loki_tests.h
-  transaction_tests.h
-  tx_validation.h
-  v2_tests.h
-  rct.h
-  bulletproofs.h
-  wallet_tools.h)
-
-add_executable(core_tests
-  ${core_tests_sources}
-  ${core_tests_headers})
 target_link_libraries(core_tests
   PRIVATE
+    sqlite3
     multisig
     cryptonote_core
     p2p
@@ -77,8 +56,10 @@ target_link_libraries(core_tests
     epee
     device
     wallet
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
+    Boost::program_options
+    Boost::regex
+    miniupnpc
+    extra)
 enable_stack_trace(core_tests)
 set_property(TARGET core_tests
   PROPERTY

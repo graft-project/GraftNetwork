@@ -51,6 +51,7 @@
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
+#include "cryptonote_core/loki_name_system.h"
 #include "common/unordered_containers_boost_serialization.h"
 #include "common/util.h"
 #include "crypto/chacha.h"
@@ -80,6 +81,12 @@ class wallet_accessor_test;
 LOKI_RPC_DOC_INTROSPECT
 namespace tools
 {
+  static const char *ERR_MSG_NETWORK_VERSION_QUERY_FAILED = tr("Could not query the current network version, try later");
+  static const char *ERR_MSG_NETWORK_HEIGHT_QUERY_FAILED = tr("Could not query the current network block height, try later: ");
+  static const char *ERR_MSG_SERVICE_NODE_LIST_QUERY_FAILED = tr("Failed to query daemon for service node list");
+  static const char *ERR_MSG_TOO_MANY_TXS_CONSTRUCTED = tr("Constructed too many transations, please sweep_all first");
+  static const char *ERR_MSG_EXCEPTION_THROWN = tr("Exception thrown, staking process could not be completed: ");
+
   class ringdb;
   class wallet2;
   class Notify;
@@ -962,7 +969,7 @@ private:
     bool parse_unsigned_tx_from_str(const std::string &unsigned_tx_st, unsigned_tx_set &exported_txs) const;
     bool load_tx(const std::string &signed_filename, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
     bool parse_tx_from_str(const std::string &signed_tx_st, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set &)> accept_func);
-    std::vector<wallet2::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, cryptonote::txtype tx_type = cryptonote::txtype::standard);     // pass subaddr_indices by value on purpose
+    std::vector<wallet2::pending_tx> create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, cryptonote::loki_construct_tx_params &tx_params);
 
     std::vector<wallet2::pending_tx> create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, cryptonote::txtype tx_type = cryptonote::txtype::standard);
     std::vector<wallet2::pending_tx> create_transactions_single(const crypto::key_image &ki, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, cryptonote::txtype tx_type = cryptonote::txtype::standard);
@@ -970,7 +977,7 @@ private:
 
     bool sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, std::vector<cryptonote::tx_destination_entry> dsts) const;
     void cold_tx_aux_import(const std::vector<pending_tx>& ptx, const std::vector<std::string>& tx_device_aux);
-    void cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> &dsts_info, std::vector<std::string> & tx_device_aux);
+    void cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> const &dsts_info, std::vector<std::string> & tx_device_aux);
     uint64_t cold_key_image_sync(uint64_t &spent, uint64_t &unspent);
     bool parse_multisig_tx_from_str(std::string multisig_tx_st, multisig_tx_set &exported_txs) const;
     bool load_multisig_tx(cryptonote::blobdata blob, multisig_tx_set &exported_txs, std::function<bool(const multisig_tx_set&)> accept_func = NULL);
@@ -1013,9 +1020,11 @@ private:
     void get_unconfirmed_payments(std::list<std::pair<crypto::hash,wallet2::pool_payment_details>>& unconfirmed_payments, const boost::optional<uint32_t>& subaddr_account = boost::none, const std::set<uint32_t>& subaddr_indices = {}) const;
 
     // NOTE(loki): get_all_service_node caches the result, get_service_nodes doesn't
-    std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> get_all_service_nodes(boost::optional<std::string> &failed)                                          const { return m_node_rpc_proxy.get_all_service_nodes(failed); }
-    std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> get_service_nodes    (std::vector<std::string> const &pubkeys, boost::optional<std::string> &failed) const { return m_node_rpc_proxy.get_service_nodes(pubkeys, failed); }
-    std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::entry> get_service_node_blacklisted_key_images(boost::optional<std::string> &failed)            const { return m_node_rpc_proxy.get_service_node_blacklisted_key_images(failed); }
+    std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> get_all_service_nodes(boost::optional<std::string> &failed)                                             const { return m_node_rpc_proxy.get_all_service_nodes(failed); }
+    std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODES::response::entry> get_service_nodes    (std::vector<std::string> const &pubkeys, boost::optional<std::string> &failed)    const { return m_node_rpc_proxy.get_service_nodes(pubkeys, failed); }
+    std::vector<cryptonote::COMMAND_RPC_GET_SERVICE_NODE_BLACKLISTED_KEY_IMAGES::entry> get_service_node_blacklisted_key_images(boost::optional<std::string> &failed)               const { return m_node_rpc_proxy.get_service_node_blacklisted_key_images(failed); }
+    std::vector<cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::response_entry> lns_owners_to_names(cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::request const &request, boost::optional<std::string> &failed) const { return m_node_rpc_proxy.lns_owners_to_names(request, failed); }
+    std::vector<cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::response_entry> lns_names_to_owners(cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::request const &request, boost::optional<std::string> &failed) const { return m_node_rpc_proxy.lns_names_to_owners(request, failed); }
 
     uint64_t get_blockchain_current_height() const { return m_light_wallet_blockchain_height ? m_light_wallet_blockchain_height : m_blockchain.size(); }
     void rescan_spent();
@@ -1168,14 +1177,10 @@ private:
     void print_ring_members(bool value) { m_print_ring_members = value; }
     bool store_tx_info() const { return m_store_tx_info; }
     void store_tx_info(bool store) { m_store_tx_info = store; }
-    uint32_t default_mixin() const { return m_default_mixin; }
-    void default_mixin(uint32_t m) { m_default_mixin = m; }
     uint32_t get_default_priority() const { return m_default_priority; }
     void set_default_priority(uint32_t p) { m_default_priority = p; }
     bool auto_refresh() const { return m_auto_refresh; }
     void auto_refresh(bool r) { m_auto_refresh = r; }
-    bool confirm_missing_payment_id() const { return m_confirm_missing_payment_id; }
-    void confirm_missing_payment_id(bool always) { m_confirm_missing_payment_id = always; }
     AskPasswordType ask_password() const { return m_ask_password; }
     void ask_password(AskPasswordType ask) { m_ask_password = ask; }
     void set_min_output_count(uint32_t count) { m_min_output_count = count; }
@@ -1190,8 +1195,6 @@ private:
     uint32_t get_confirm_backlog_threshold() const { return m_confirm_backlog_threshold; };
     bool confirm_export_overwrite() const { return m_confirm_export_overwrite; }
     void confirm_export_overwrite(bool always) { m_confirm_export_overwrite = always; }
-    bool auto_low_priority() const { return m_auto_low_priority; }
-    void auto_low_priority(bool value) { m_auto_low_priority = value; }
     bool segregate_pre_fork_outputs() const { return m_segregate_pre_fork_outputs; }
     void segregate_pre_fork_outputs(bool value) { m_segregate_pre_fork_outputs = value; }
     bool key_reuse_mitigation2() const { return m_key_reuse_mitigation2; }
@@ -1259,7 +1262,6 @@ private:
     boost::optional<uint8_t> get_hard_fork_version() const { return m_node_rpc_proxy.get_hardfork_version(); }
 
     bool use_fork_rules(uint8_t version, uint64_t early_blocks = 0) const;
-    int get_fee_algorithm() const;
 
     std::string get_wallet_file() const;
     std::string get_keys_file() const;
@@ -1378,18 +1380,13 @@ private:
 
     bool is_synced() const;
 
-    std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(const std::vector<std::pair<double, double>> &fee_levels);
-    std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees);
-
-    uint64_t get_fee_percent(uint32_t priority, int fee_algorithm = -1) const;
+    uint64_t get_fee_percent(uint32_t priority, cryptonote::txtype type) const;
     cryptonote::byte_and_output_fees get_base_fees() const;
     uint64_t get_fee_quantization_mask() const;
-    uint64_t adjust_mixin(uint64_t mixin) const;
-    uint32_t adjust_priority(uint32_t priority);
 
-    // Shortcut to set up construction parameters; the returned object is default constructed unless
-    // priority is blink in which case the burn values are set appropriately.
-    static cryptonote::loki_construct_tx_params construct_params(uint32_t priority);
+    // params constructor, accumulates the burn amounts if the priority is
+    // a blink and, or a lns tx. If it is a blink TX, lns_burn_type is ignored.
+    static cryptonote::loki_construct_tx_params construct_params(uint8_t hf_version, cryptonote::txtype tx_type, uint32_t priority, lns::mapping_type lns_burn_type = static_cast<lns::mapping_type>(0));
 
     bool is_unattended() const { return m_unattended; }
 
@@ -1541,6 +1538,16 @@ private:
       pending_tx  ptx;
     };
     request_stake_unlock_result can_request_stake_unlock(const crypto::public_key &sn_key);
+    std::vector<wallet2::pending_tx> lns_create_buy_mapping_tx(lns::mapping_type type, std::string const *owner, std::string const *backup_owner, std::string name, std::string const &value, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
+    std::vector<wallet2::pending_tx> lns_create_buy_mapping_tx(std::string const &type, std::string const *owner, std::string const *backup_owner, std::string const &name, std::string const &value, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
+
+    // signature: (Optional) If set, use the signature given, otherwise by default derive the signature from the wallet spend key as an ed25519 key.
+    //            The signature is derived from the hash of the previous txid blob and previous value blob of the mapping. By default this is signed using the wallet's spend key as an ed25519 keypair.
+    std::vector<wallet2::pending_tx> lns_create_update_mapping_tx(lns::mapping_type type, std::string name, std::string const *value, std::string const *owner, std::string const *backup_owner, std::string const *signature, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
+    std::vector<wallet2::pending_tx> lns_create_update_mapping_tx(std::string const &type, std::string const &name, std::string const *value, std::string const *owner, std::string const *backup_owner, std::string const *signature, std::string *reason, uint32_t priority = 0, uint32_t account_index = 0, std::set<uint32_t> subaddr_indices = {});
+
+    // Generate just the signature required for putting into lns_update_mapping command in the wallet
+    bool lns_make_update_mapping_signature(lns::mapping_type type, std::string name, std::string const *value, std::string const *owner, std::string const *backup_owner, lns::generic_signature &signature, uint32_t account_index = 0, std::string *reason = nullptr);
 
     void freeze(size_t idx);
     void thaw(size_t idx);
@@ -1729,7 +1736,6 @@ private:
     bool m_always_confirm_transfers;
     bool m_print_ring_members;
     bool m_store_tx_info; /*!< request txkey to be returned in RPC, and store in the wallet cache file */
-    uint32_t m_default_mixin;
     uint32_t m_default_priority;
     RefreshType m_refresh_type;
     bool m_auto_refresh;
@@ -1738,7 +1744,6 @@ private:
     // If m_refresh_from_block_height is explicitly set to zero we need this to differentiate it from the case that
     // m_refresh_from_block_height was defaulted to zero.*/
     bool m_explicit_refresh_from_block_height;
-    bool m_confirm_missing_payment_id;
     bool m_confirm_non_default_ring_size;
     AskPasswordType m_ask_password;
     uint32_t m_min_output_count;
@@ -1747,7 +1752,6 @@ private:
     bool m_confirm_backlog;
     uint32_t m_confirm_backlog_threshold;
     bool m_confirm_export_overwrite;
-    bool m_auto_low_priority;
     bool m_segregate_pre_fork_outputs;
     bool m_key_reuse_mitigation2;
     uint64_t m_segregation_height;
@@ -1812,7 +1816,7 @@ private:
 
   // TODO(loki): The better question is if anyone is ever going to try use
   // register service node funded by multiple subaddresses. This is unlikely.
-  extern const std::array<const char* const, 5> allowed_priority_strings;
+  constexpr std::array<const char* const, 6> allowed_priority_strings = {{"default", "unimportant", "normal", "elevated", "priority", "blink"}};
   bool parse_subaddress_indices(const std::string& arg, std::set<uint32_t>& subaddr_indices, std::string *err_msg = nullptr);
   bool parse_priority          (const std::string& arg, uint32_t& priority);
 

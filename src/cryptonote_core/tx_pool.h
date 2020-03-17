@@ -47,6 +47,7 @@
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "rpc/message_data_structs.h"
 #include "tx_blink.h"
+#include "loki_economy.h"
 
 namespace cryptonote
 {
@@ -87,12 +88,12 @@ namespace cryptonote
     static tx_pool_options from_block() { tx_pool_options o; o.kept_by_block = true; o.relayed = true; return o; }
     static tx_pool_options from_peer() { tx_pool_options o; o.relayed = true; return o; }
     static tx_pool_options new_tx(bool do_not_relay = false) { tx_pool_options o; o.do_not_relay = do_not_relay; return o; }
-    static tx_pool_options new_blink(bool approved) {
+    static tx_pool_options new_blink(bool approved, uint8_t hf_version) {
       tx_pool_options o;
       o.do_not_relay = !approved;
       o.approved_blink = approved;
       o.fee_percent = BLINK_MINER_TX_FEE_PERCENT;
-      o.burn_percent = BLINK_BURN_TX_FEE_PERCENT;
+      o.burn_percent = hf_version <= network_version_14_blink ? BLINK_BURN_TX_FEE_PERCENT_OLD : BLINK_BURN_TX_FEE_PERCENT;
       o.burn_fixed = BLINK_BURN_FIXED;
       return o;
     }

@@ -27,29 +27,15 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(serialization_sources
-  json_object.cpp)
-
-set(serialization_headers)
-
-set(serialization_private_headers
-  json_object.h)
-
-loki_private_headers(serialization
-  ${serialization_private_headers})
-loki_add_library(serialization
-  ${serialization_sources}
-  ${serialization_headers}
-  ${serialization_private_headers})
+add_library(serialization
+  json_object.cpp
+  )
 target_link_libraries(serialization
-  LINK_PRIVATE
+  PRIVATE
     cryptonote_core
     cryptonote_protocol
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_REGEX_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${EXTRA_LIBRARIES})
-add_dependencies(serialization
-  version)
+    Boost::chrono
+    Boost::thread
+    version
+    extra)
 

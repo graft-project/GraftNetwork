@@ -45,6 +45,8 @@ extern "C" {
 #endif
 }
 
+#include <sqlite3.h>
+
 #include "cryptonote_core.h"
 #include "common/util.h"
 #include "common/updates.h"
@@ -379,8 +381,8 @@ namespace cryptonote
     command_line::add_arg(desc, arg_recalculate_difficulty);
     command_line::add_arg(desc, arg_store_quorum_history);
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-    command_line::add_arg(desc, loki::arg_integration_test_hardforks_override);
-    command_line::add_arg(desc, loki::arg_integration_test_shared_mem_name);
+    command_line::add_arg(desc, integration_test::arg_hardforks_override);
+    command_line::add_arg(desc, integration_test::arg_pipe_name);
 #endif
 
     miner::init_options(desc);
@@ -460,6 +462,7 @@ namespace cryptonote
 
       MGINFO("Storage server endpoint is set to: "
              << (epee::net_utils::ipv4_network_address{ m_sn_public_ip, m_storage_port }).str());
+
     }
 
     epee::debug::g_test_dbg_lock_sleep() = command_line::get_arg(vm, arg_test_dbg_lock_sleep);
@@ -583,14 +586,14 @@ namespace cryptonote
     start_time = std::time(nullptr);
 
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-    const std::string arg_integration_test_override_hardforks = command_line::get_arg(vm, loki::arg_integration_test_hardforks_override);
+    const std::string arg_hardforks_override = command_line::get_arg(vm, integration_test::arg_hardforks_override);
 
     std::vector<std::pair<uint8_t, uint64_t>> integration_test_hardforks;
-    if (!arg_integration_test_override_hardforks.empty())
+    if (!arg_hardforks_override.empty())
     {
       // Expected format: <fork_version>:<fork_height>, ...
       // Example: 7:0, 8:10, 9:20, 10:100
-      char const *ptr = arg_integration_test_override_hardforks.c_str();
+      char const *ptr = arg_hardforks_override.c_str();
       while (ptr[0])
       {
         int hf_version = atoi(ptr);
@@ -607,12 +610,12 @@ namespace cryptonote
     }
 
     cryptonote::test_options integration_hardfork_override = {integration_test_hardforks};
-    if (!arg_integration_test_override_hardforks.empty())
+    if (!arg_hardforks_override.empty())
       test_options = &integration_hardfork_override;
 
     {
-      const std::string arg_shared_mem_name = command_line::get_arg(vm, loki::arg_integration_test_shared_mem_name);
-      loki::init_integration_test_context(arg_shared_mem_name);
+      const std::string arg_pipe_name = command_line::get_arg(vm, integration_test::arg_pipe_name);
+      integration_test::init(arg_pipe_name);
     }
 #endif
 
@@ -684,17 +687,19 @@ namespace cryptonote
     bool sync_on_blocks = true;
     uint64_t sync_threshold = 1;
 
+    std::string const lns_db_file_path = m_config_folder + "/lns.db";
+#if !defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS) // In integration mode, don't delete the DB. This should be explicitly done in the tests. Otherwise the more likely behaviour is persisting the DB across multiple daemons in the same test.
     if (m_nettype == FAKECHAIN)
     {
-#if !defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS) // In integration mode, don't delete the DB. This should be explicitly done in the tests. Otherwise the more likely behaviour is persisting the DB across multiple daemons in the same test.
       // reset the db by removing the database file before opening it
       if (!db->remove_data_file(filename))
       {
         MERROR("Failed to remove data file in " << filename);
         return false;
       }
-#endif
+      boost::filesystem::remove(lns_db_file_path);
     }
+#endif
 
     try
     {
@@ -816,12 +821,11 @@ namespace cryptonote
       MERROR("Failed to parse block rate notify spec");
     }
 
-    const std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks = {
-        {cryptonote::network_version_7,         1},
-        {cryptonote::network_version_count - 1, 2},
-    };
+    std::vector<std::pair<uint8_t, uint64_t>> regtest_hard_forks;
+    for (uint8_t hf = cryptonote::network_version_7; hf < cryptonote::network_version_count; hf++)
+      regtest_hard_forks.emplace_back(hf, regtest_hard_forks.size() + 1);
     const cryptonote::test_options regtest_test_options = {
-      regtest_hard_forks,
+      std::move(regtest_hard_forks),
       0
     };
 
@@ -830,7 +834,6 @@ namespace cryptonote
       m_service_node_list.set_quorum_history_storage(command_line::get_arg(vm, arg_store_quorum_history));
 
       // NOTE: Implicit dependency. Service node list needs to be hooked before checkpoints.
-      m_blockchain_storage.hook_block_added(m_service_node_list);
       m_blockchain_storage.hook_blockchain_detached(m_service_node_list);
       m_blockchain_storage.hook_init(m_service_node_list);
       m_blockchain_storage.hook_validate_miner_tx(m_service_node_list);
@@ -850,9 +853,11 @@ namespace cryptonote
       m_checkpoints_path = checkpoint_json_hashfile_fullpath.string();
     }
 
-    const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
-    r = m_blockchain_storage.init(db.release(), m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
+    sqlite3 *lns_db = lns::init_loki_name_system(lns_db_file_path.c_str());
+    if (!lns_db) return false;
 
+    const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
+    r = m_blockchain_storage.init(db.release(), lns_db, m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     if (!command_line::is_arg_defaulted(vm, arg_recalculate_difficulty))
@@ -1615,15 +1620,16 @@ namespace cryptonote
     return m_mempool.check_for_key_images(key_im, spent);
   }
   //-----------------------------------------------------------------------------------------------
-  std::pair<uint64_t, uint64_t> core::get_coinbase_tx_sum(const uint64_t start_offset, const size_t count)
+  std::tuple<uint64_t, uint64_t, uint64_t> core::get_coinbase_tx_sum(const uint64_t start_offset, const size_t count)
   {
     uint64_t emission_amount = 0;
     uint64_t total_fee_amount = 0;
+    uint64_t burnt_loki = 0;
     if (count)
     {
       const uint64_t end = start_offset + count - 1;
       m_blockchain_storage.for_blocks_range(start_offset, end,
-        [this, &emission_amount, &total_fee_amount](uint64_t, const crypto::hash& hash, const block& b){
+        [this, &emission_amount, &total_fee_amount, &burnt_loki](uint64_t, const crypto::hash& hash, const block& b){
       std::vector<transaction> txs;
       std::vector<crypto::hash> missed_txs;
       uint64_t coinbase_amount = get_outs_money_amount(b.miner_tx);
@@ -1632,6 +1638,10 @@ namespace cryptonote
       for(const auto& tx: txs)
       {
         tx_fee_amount += get_tx_miner_fee(tx, b.major_version >= HF_VERSION_FEE_BURNING);
+        if(b.major_version >= HF_VERSION_FEE_BURNING)
+        {
+          burnt_loki += get_burned_amount_from_tx_extra(tx.extra);
+        }
       }
       
       emission_amount += coinbase_amount - tx_fee_amount;
@@ -1640,7 +1650,7 @@ namespace cryptonote
       });
     }
 
-    return std::pair<uint64_t, uint64_t>(emission_amount, total_fee_amount);
+    return std::tuple<uint64_t, uint64_t, uint64_t>(emission_amount, total_fee_amount, burnt_loki);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_inputs_keyimages_diff(const transaction& tx) const
@@ -1712,7 +1722,7 @@ namespace cryptonote
     if (!m_service_node_keys)
       return true;
 
-    NOTIFY_UPTIME_PROOF::request req = m_service_node_list.generate_uptime_proof(*m_service_node_keys, m_sn_public_ip, m_storage_port, m_quorumnet_port);
+    NOTIFY_UPTIME_PROOF::request req = m_service_node_list.generate_uptime_proof(*m_service_node_keys, m_sn_public_ip, m_storage_port, m_storage_lmq_port, m_quorumnet_port);
 
     cryptonote_connection_context fake_context{};
     bool relayed = get_protocol()->relay_uptime_proof(req, fake_context);
@@ -2059,7 +2069,7 @@ namespace cryptonote
         uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
         if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
         {
-          if (hf_version >= cryptonote::network_version_14_blink_lns)
+          if (hf_version >= cryptonote::network_version_14_blink)
           {
             MGINFO_RED(
                 "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "
@@ -2125,7 +2135,7 @@ namespace cryptonote
     m_mempool.on_idle();
 
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-    loki::integration_test.core_is_idle = true;
+    integration_test::state.core_is_idle = true;
 #endif
 
 #ifdef ENABLE_SYSTEMD

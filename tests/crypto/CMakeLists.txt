@@ -26,7 +26,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(crypto_sources
+add_executable(cncrypto-tests
   crypto-ops-data.c
   crypto-ops.c
   crypto.cpp
@@ -34,17 +34,11 @@ set(crypto_sources
   main.cpp
   random.c)
 
-set(crypto_headers
-  crypto-tests.h)
-
-add_executable(cncrypto-tests
-  ${crypto_sources}
-  ${crypto_headers})
 target_link_libraries(cncrypto-tests
   PRIVATE
     common
-    ${Boost_SYSTEM_LIBRARY}
-    ${EXTRA_LIBRARIES})
+    Boost::system
+    extra)
 set_property(TARGET cncrypto-tests
   PROPERTY
     FOLDER "tests")

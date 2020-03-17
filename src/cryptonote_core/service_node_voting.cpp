@@ -520,13 +520,13 @@ namespace service_nodes
 
     std::vector<quorum_vote_t> result;
 
-    if (quorum_relay && hf_version < cryptonote::network_version_14_blink_lns)
+    if (quorum_relay && hf_version < cryptonote::network_version_14_blink)
       return result; // no quorum relaying before HF14
 
-    if (hf_version < cryptonote::network_version_14_blink_lns || quorum_relay)
+    if (hf_version < cryptonote::network_version_14_blink || quorum_relay)
       append_relayable_votes(result, m_obligations_pool, max_last_sent, min_height);
 
-    if (hf_version < cryptonote::network_version_14_blink_lns || !quorum_relay)
+    if (hf_version < cryptonote::network_version_14_blink || !quorum_relay)
       append_relayable_votes(result, m_checkpoint_pool,  max_last_sent, min_height);
 
     return result;
