@@ -8525,6 +8525,7 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
     crypto::secret_key_to_public_key(skey, pkey);
 
     crypto::hash hash = lns::tx_extra_signature_hash(result.encrypted_value.to_span(), owner ? &result.owner : nullptr, backup_owner ? &result.backup_owner : nullptr, result.prev_txid);
+    if (!hash) return result;
     result.signature = lns::make_monero_signature(hash, pkey, skey);
   }
 
