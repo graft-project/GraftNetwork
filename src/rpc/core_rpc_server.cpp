@@ -3390,18 +3390,7 @@ namespace cryptonote
       if (exceeds_quantity_limit(ctx, error_resp, m_restricted, request.types.size(), COMMAND_RPC_LNS_NAMES_TO_OWNERS::MAX_TYPE_REQUEST_ENTRIES, "types"))
         return false;
 
-      std::string name = tools::lowercase_ascii_string(request.name);
-      for (uint16_t type16 : request.types)
-      {
-        if (!lns::validate_lns_name(static_cast<lns::mapping_type>(type16), name, &error_resp.message))
-        {
-          error_resp.code = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-          return false;
-        }
-      }
-
-      std::string name_hash                    = lns::name_to_base64_hash(name);
-      std::vector<lns::mapping_record> records = db.get_mappings(request.types, name_hash);
+      std::vector<lns::mapping_record> records = db.get_mappings(request.types, request.name_hash);
       for (auto const &record : records)
       {
         res.entries.emplace_back();
