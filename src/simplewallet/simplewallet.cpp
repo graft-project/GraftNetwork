@@ -6586,12 +6586,25 @@ bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& arg
 
   for (auto const &mapping : response)
   {
+    lns::mapping_value encrypted_value = {};
+    encrypted_value.len                = mapping.encrypted_value.size() / 2;
+    lokimq::from_hex(mapping.encrypted_value.begin(), mapping.encrypted_value.end(), encrypted_value.buffer.begin());
+
+    lns::mapping_value value = {};
+    std::string const &name  = request.entries[mapping.entry_index].name;
+    if (!lns::decrypt_mapping_value(name, encrypted_value, value))
+    {
+      fail_msg_writer() << "Failed to decrypt the mapping value=" << mapping.encrypted_value;
+      return false;
+    }
+
     tools::msg_writer() << "name_hash=" << mapping.name_hash
                         << ", type=" << static_cast<lns::mapping_type>(mapping.type)
                         << ", owner=" << mapping.owner
                         << ", backup_owner=" << (mapping.backup_owner.empty() ? NULL_STR : mapping.backup_owner)
                         << ", height=" << mapping.register_height
                         << ", encrypted_value=" << mapping.encrypted_value
+                        << ", value=" << epee::to_hex::string(value.to_span())
                         << ", prev_txid=" << (mapping.prev_txid.empty() ? NULL_STR : mapping.prev_txid);
   }
 
