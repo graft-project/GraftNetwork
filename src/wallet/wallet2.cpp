@@ -85,6 +85,7 @@ using namespace epee;
 #include "common/loki.h"
 #include "common/loki_integration_test_hooks.h"
 #include "loki_economy.h"
+#include "string_coding.h"
 
 extern "C"
 {
@@ -8430,12 +8431,12 @@ struct lns_prepared_args
 {
   bool prepared;
   operator bool() const { return prepared; }
-  lns::mapping_value         encrypted_value;
-  crypto::hash               name_hash;
-  lns::generic_owner         owner;
-  lns::generic_owner         backup_owner;
+  lns::mapping_value      encrypted_value;
+  crypto::hash            name_hash;
+  lns::generic_owner      owner;
+  lns::generic_owner      backup_owner;
   lns::generic_signature  signature;
-  crypto::hash               prev_txid;
+  crypto::hash            prev_txid;
 };
 
 static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const &wallet,
@@ -8485,7 +8486,7 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
     {
       request.entries.emplace_back();
       auto &request_entry = request.entries.back();
-      request_entry.name = name;
+      request_entry.name_hash = epee::string_encoding::base64_encode(reinterpret_cast<unsigned char const *>(result.name_hash.data), sizeof(result.name_hash));
       request_entry.types.push_back(static_cast<uint16_t>(type));
     }
 

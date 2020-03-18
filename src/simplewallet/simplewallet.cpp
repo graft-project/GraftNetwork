@@ -80,6 +80,7 @@
 #include "int-util.h"
 #include "wallet/message_store.h"
 #include "wallet/wallet_rpc_server_commands_defs.h"
+#include "string_coding.h"
 
 #ifdef WIN32
 #include <boost/locale.hpp>
@@ -6570,8 +6571,9 @@ bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& arg
     return true;
   }
 
+  std::string const &name = tools::lowercase_ascii_string(args[name_index]);
   cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::request request = {};
-  request.entries.push_back({args[name_index], std::move(requested_types)});
+  request.entries.push_back({lns::name_to_base64_hash(name), std::move(requested_types)});
 
   cryptonote::COMMAND_RPC_LNS_NAMES_TO_OWNERS::request_entry &entry = request.entries.back();
   if (entry.types.empty()) entry.types.push_back(static_cast<uint16_t>(lns::mapping_type::session));
@@ -6586,12 +6588,24 @@ bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& arg
 
   for (auto const &mapping : response)
   {
-    tools::msg_writer() << "name_hash=" << mapping.name_hash
+    lns::mapping_value encrypted_value = {};
+    encrypted_value.len                = mapping.encrypted_value.size() / 2;
+    lokimq::from_hex(mapping.encrypted_value.begin(), mapping.encrypted_value.end(), encrypted_value.buffer.begin());
+
+    lns::mapping_value value = {};
+    if (!lns::decrypt_mapping_value(name, encrypted_value, value))
+    {
+      fail_msg_writer() << "Failed to decrypt the mapping value=" << mapping.encrypted_value;
+      return false;
+    }
+
+    tools::msg_writer() << "name_hash=" << request.entries[0].name_hash // NOTE: We only query one name at a time
                         << ", type=" << static_cast<lns::mapping_type>(mapping.type)
                         << ", owner=" << mapping.owner
                         << ", backup_owner=" << (mapping.backup_owner.empty() ? NULL_STR : mapping.backup_owner)
                         << ", height=" << mapping.register_height
                         << ", encrypted_value=" << mapping.encrypted_value
+                        << ", value=" << epee::to_hex::string(value.to_span())
                         << ", prev_txid=" << (mapping.prev_txid.empty() ? NULL_STR : mapping.prev_txid);
   }
 
@@ -6616,9 +6630,10 @@ bool simple_wallet::lns_print_owners_to_names(const std::vector<std::string>& ar
   {
     for (std::string const &arg : args)
     {
-      if (arg.size() != sizeof(crypto::ed25519_public_key) * 2)
+      size_t constexpr MAX_LEN = 128;
+      if (arg.size() >=  MAX_LEN)
       {
-        fail_msg_writer() << "arg is not a 64 character ed25519 public key, arg = " << arg;
+        fail_msg_writer() << "arg too long, fails basic size sanity check max length = " << MAX_LEN << ", arg = " << arg;
         return false;
       }
       if (!lokimq::is_hex(arg))

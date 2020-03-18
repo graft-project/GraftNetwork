@@ -3471,10 +3471,10 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
     static size_t const MAX_TYPE_REQUEST_ENTRIES = 8;
     struct request_entry
     {
-      std::string name;            // The name to resolve to a public key via Loki Name Service
+      std::string name_hash; // The name hashed using libsodium's crypto_generichash_blake2b in base64 to resolve to a public key via Loki Name Service
       std::vector<uint16_t> types; // If empty, query all types. Currently only Session(0). In future updates more mapping types will be available.
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(name)
+        KV_SERIALIZE(name_hash)
         KV_SERIALIZE(types)
       END_KV_SERIALIZE_MAP()
     };
