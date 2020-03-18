@@ -2450,12 +2450,15 @@ bool loki_name_system_update_mapping_replay::generate(std::vector<test_event_ent
   }
 
   // (2) Update Again
+  crypto::hash new_hash = {};
   {
     cryptonote::transaction tx1 = gen.create_and_add_loki_name_system_tx_update(miner, lns::mapping_type::session, name, &alice_key.session_value);
     gen.create_and_add_next_block({tx1});
+    new_hash = cryptonote::get_transaction_hash(tx1);
   }
 
   // Replay the (1)st update mapping, should fail now even though it's not to the same session value, but that the signature no longer matches so you can't replay.
+  lns_entry.prev_txid = new_hash;
   {
     cryptonote::transaction tx1 = gen.create_loki_name_system_tx_update_w_extra(miner, lns_entry);
     gen.add_tx(tx1, false /*can_be_added_to_blockchain*/, "Can not replay an older update mapping, should fail signature verification");
