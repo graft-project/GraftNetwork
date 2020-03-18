@@ -372,6 +372,7 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> value, lns::gener
   uint8_t *ptr = memcpy_helper(buffer, value.data(), value.size());
   ptr          = memcpy_generic_owner_helper(ptr, owner);
   ptr          = memcpy_generic_owner_helper(ptr, backup_owner);
+  ptr          = memcpy_helper(ptr, prev_txid.data, sizeof(prev_txid));
 
   if (ptr > (buffer + sizeof(buffer)))
   {
@@ -759,6 +760,9 @@ static bool validate_against_previous_mapping(lns::name_system_db const &lns_db,
                                                     lns_extra.field_is_set(lns::extra_field::owner) ? &lns_extra.owner : nullptr,
                                                     lns_extra.field_is_set(lns::extra_field::backup_owner) ? &lns_extra.backup_owner : nullptr,
                                                     expected_prev_txid);
+        if (check_condition(!hash, reason, tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " unexpectedly failed to generate signature hash, please inform the Loki developers"))
+          return false;
+
         if (check_condition(!verify_lns_signature(hash, lns_extra.signature, mapping.owner) &&
                             !verify_lns_signature(hash, lns_extra.signature, mapping.backup_owner), reason,
                             tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " failed to verify signature for LNS update, current owner=", mapping.owner.to_string(lns_db.network_type()), ", backup owner=", mapping.backup_owner.to_string(lns_db.network_type())))
