@@ -6629,9 +6629,10 @@ bool simple_wallet::lns_print_owners_to_names(const std::vector<std::string>& ar
   {
     for (std::string const &arg : args)
     {
-      if (arg.size() != sizeof(crypto::ed25519_public_key) * 2)
+      size_t constexpr MAX_LEN = 128;
+      if (arg.size() >=  MAX_LEN)
       {
-        fail_msg_writer() << "arg is not a 64 character ed25519 public key, arg = " << arg;
+        fail_msg_writer() << "arg too long, fails basic size sanity check max length = " << MAX_LEN << ", arg = " << arg;
         return false;
       }
       if (!lokimq::is_hex(arg))
