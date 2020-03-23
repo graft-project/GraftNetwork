@@ -41,8 +41,11 @@ target_link_libraries(simplewallet
     Boost::chrono
     Boost::program_options
     Boost::filesystem
-    Boost::locale
     Boost::regex
     icu
     Boost::thread
     extra)
+
+if (WIN32)
+    target_link_libraries(simplewallet PRIVATE Boost::locale)
+endif()
