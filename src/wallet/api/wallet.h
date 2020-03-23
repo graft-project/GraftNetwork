@@ -168,8 +168,6 @@ public:
     Subaddress * subaddress() override;
     SubaddressAccount * subaddressAccount() override;
     void setListener(WalletListener * l) override;
-    uint32_t defaultMixin() const override;
-    void setDefaultMixin(uint32_t arg) override;
     bool setUserNote(const std::string &txid, const std::string &note) override;
     std::string getUserNote(const std::string &txid) const override;
     std::string getTxKey(const std::string &txid) const override;
