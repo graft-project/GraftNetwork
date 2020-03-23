@@ -4407,6 +4407,30 @@ namespace tools
     res.signature = epee::string_tools::pod_to_hex(signature.ed25519);
     return true;
   }
+
+  bool wallet_rpc_server::on_lns_hash_name(const wallet_rpc::COMMAND_RPC_LNS_HASH_NAME::request& req, wallet_rpc::COMMAND_RPC_LNS_HASH_NAME::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+
+    std::string reason;
+    lns::mapping_type type;
+    if (!lns::validate_mapping_type(req.type, &type, &reason))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_WRONG_LNS_TYPE;
+      er.message = "Wrong lns type given=" + reason;
+      return false;
+    }
+
+    if (!lns::validate_lns_name(type, req.name, &reason))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_LNS_BAD_NAME;
+      er.message = "Bad lns name given=" + reason;
+      return false;
+    }
+
+    res.name = lns::name_to_base64_hash(req.name);
+    return true;
+  }
 }
 
 class t_daemon
