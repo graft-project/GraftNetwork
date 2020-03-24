@@ -3043,6 +3043,7 @@ This command is only required if the open wallet is one of the owners of a LNS r
       std::string type; // The mapping type, currently we only support "session". In future "lokinet" and "blockchain" mappings will be available.
       std::string name; // The desired name to hash
       BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(type);
         KV_SERIALIZE(name);
       END_KV_SERIALIZE_MAP()
     };
@@ -3069,6 +3070,7 @@ This command is only required if the open wallet is one of the owners of a LNS r
       std::string encrypted_value; // The encrypted value represented in hex
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(name);
+        KV_SERIALIZE(type);
         KV_SERIALIZE(encrypted_value);
       END_KV_SERIALIZE_MAP()
     };

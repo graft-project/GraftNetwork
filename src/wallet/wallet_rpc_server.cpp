@@ -4502,8 +4502,7 @@ namespace tools
       return false;
     }
 
-    // TODO(loki): If lokinet, base32z, if wallet wallet address else hex public key
-    res.value = epee::to_hex::string(encrypted_value.to_span());
+    res.value = value.to_readable_value(m_wallet->nettype(), type);
     return true;
   }
 }
