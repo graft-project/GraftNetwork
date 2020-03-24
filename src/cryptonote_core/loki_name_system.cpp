@@ -92,6 +92,34 @@ static char const *mapping_record_column_string(mapping_record_column col)
   }
 }
 
+std::string lns::mapping_value::to_readable_value(cryptonote::network_type nettype, lns::mapping_type type) const
+{
+  std::string result;
+  if (is_lokinet_type(type))
+  {
+    char buf[128] = {};
+    base32z::encode(to_span(), buf);
+    result = buf;
+  }
+  else if (type == lns::mapping_type::wallet)
+  {
+    cryptonote::address_parse_info addr_info = {};
+    if (len == sizeof(addr_info))
+    {
+      memcpy(&addr_info, buffer.data(), len);
+      result = cryptonote::get_account_address_as_str(nettype, addr_info.is_subaddress, addr_info.address);
+    }
+    else
+      result = "(error unknown wallet address)";
+  }
+  else
+  {
+    result = epee::to_hex::string(to_span());
+  }
+
+  return result;
+}
+
 static std::string lns_extra_string(cryptonote::network_type nettype, cryptonote::tx_extra_loki_name_system const &data)
 {
   std::stringstream stream;
@@ -635,8 +663,8 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
   {
     if (blob)
     {
-      blob->len = sizeof(addr_info.address);
-      memcpy(blob->buffer.data(), &addr_info.address, blob->len);
+      blob->len = sizeof(addr_info);
+      memcpy(blob->buffer.data(), &addr_info, blob->len);
     }
   }
   else if (is_lokinet_type(type))

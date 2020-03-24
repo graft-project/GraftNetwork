@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include "span.h"
 
 namespace crypto
 {
@@ -10,9 +11,8 @@ namespace base32z
 {
 bool decode(std::string const &src, crypto::ed25519_public_key &dest);
 
-/// adapted from i2pd
 template <typename stack_t>
-const char *encode(std::string const &src, stack_t &stack)
+const char *encode(epee::span<const uint8_t> src, stack_t &stack)
 {
   // from  https://en.wikipedia.org/wiki/Base32#z-base-32
   static const char zbase32_alpha[] = {'y', 'b', 'n', 'd', 'r', 'f', 'g', '8', 'e', 'j', 'k', 'm', 'c', 'p', 'q', 'x',
@@ -21,7 +21,7 @@ const char *encode(std::string const &src, stack_t &stack)
   size_t ret = 0, pos = 1;
   int bits     = 8;
   uint32_t tmp = src[0];
-  size_t len   = sizeof(src);
+  size_t len   = src.size();
   while (ret < sizeof(stack) && (bits > 0 || pos < len))
   {
     if (bits < 5)
@@ -51,5 +51,13 @@ const char *encode(std::string const &src, stack_t &stack)
       return nullptr;
   }
   return &stack[0];
+}
+
+/// adapted from i2pd
+template <typename stack_t>
+const char *encode(std::string const &src, stack_t &stack)
+{
+    char *result = encode(epee::strspan<uint8_t>(src), stack);
+    return result;
 }
 };
