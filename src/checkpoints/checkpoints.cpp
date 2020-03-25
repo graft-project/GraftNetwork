@@ -307,6 +307,9 @@ namespace cryptonote
     m_db      = db;
     m_nettype = nettype;
 
+    if (db->is_read_only())
+      return true;
+
 #if !defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
     if (nettype == MAINNET)
     {
