@@ -305,7 +305,7 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems()
   int64_t const total_blocks = static_cast<int64_t>(end_height) - static_cast<int64_t>(start_height);
   if (total_blocks <= 0) return true;
   if (total_blocks > 1)
-    MGINFO("Loading blocks into loki subsystems, scanning blockchain from height: " << start_height << " to: " << end_height);
+    MGINFO("Loading blocks into loki subsystems, scanning blockchain from height: " << start_height << " to: " << end_height << " (snl: " << snl_height << ", lns: " << lns_height << ")");
 
   using clock                   = std::chrono::steady_clock;
   using work_time               = std::chrono::duration<float>;
