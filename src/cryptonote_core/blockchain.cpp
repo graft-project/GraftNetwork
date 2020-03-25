@@ -593,7 +593,7 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
   for (InitHook* hook : m_init_hooks)
     hook->init();
 
-  if (!load_missing_blocks_into_loki_subsystems())
+  if (!m_db->is_read_only() && !load_missing_blocks_into_loki_subsystems())
   {
     MERROR("Failed to load blocks into loki subsystems");
     return false;
