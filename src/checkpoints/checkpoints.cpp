@@ -307,6 +307,9 @@ namespace cryptonote
     m_db      = db;
     m_nettype = nettype;
 
+    if (db->is_read_only())
+      return true;
+
 #if !defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
     if (nettype == MAINNET)
     {
@@ -315,11 +318,6 @@ namespace cryptonote
         height_to_hash const &checkpoint = HARDCODED_MAINNET_CHECKPOINTS[i];
         ADD_CHECKPOINT(checkpoint.height, checkpoint.hash);
       }
-    }
-    else if (nettype == TESTNET)
-    {
-      auto guard = db_wtxn_guard(m_db);
-      m_db->remove_block_checkpoint(127028);
     }
 #endif
 
