@@ -319,11 +319,6 @@ namespace cryptonote
         ADD_CHECKPOINT(checkpoint.height, checkpoint.hash);
       }
     }
-    else if (nettype == TESTNET)
-    {
-      auto guard = db_wtxn_guard(m_db);
-      m_db->remove_block_checkpoint(127028);
-    }
 #endif
 
     return true;
