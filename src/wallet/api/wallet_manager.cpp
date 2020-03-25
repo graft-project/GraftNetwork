@@ -372,6 +372,14 @@ std::string WalletManagerImpl::resolveOpenAlias(const std::string &address, bool
     return addresses.front();
 }
 
+WalletManagerImpl::WalletManagerImpl()
+    : m_http_client { 
+          epee::net_utils::http::http_simple_client {boost::shared_ptr<boost::asio::io_service>{ new boost::asio::io_service{}}}
+    }
+{
+    
+}
+
 std::tuple<bool, std::string, std::string, std::string, std::string> WalletManager::checkUpdates(const std::string &software, std::string subdir)
 {
 #ifdef BUILD_TAG
