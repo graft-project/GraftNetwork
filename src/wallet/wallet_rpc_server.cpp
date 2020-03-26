@@ -860,8 +860,7 @@ namespace tools
     try
     {
       uint32_t priority = req.priority;
-
-      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+      if (req.blink || priority != tx_priority_unimportant)
         priority = tx_priority_blink;
 
       boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
@@ -923,8 +922,7 @@ namespace tools
     try
     {
       uint32_t priority = req.priority;
-
-      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+      if (req.blink || priority != tx_priority_unimportant)
         priority = tx_priority_blink;
 
       boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
@@ -1345,8 +1343,7 @@ namespace tools
     try
     {
       uint32_t priority = req.priority;
-
-      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+      if (req.blink || priority != tx_priority_unimportant)
         priority = tx_priority_blink;
 
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, dsts[0].is_subaddress, req.outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
@@ -1403,8 +1400,7 @@ namespace tools
     try
     {
       uint32_t priority = req.priority;
-
-      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+      if (req.blink || priority != tx_priority_unimportant)
         priority = tx_priority_blink;
 
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_single(ki, dsts[0].addr, dsts[0].is_subaddress, req.outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra);
