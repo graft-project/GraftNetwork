@@ -3427,7 +3427,7 @@ namespace cryptonote
     if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.entries.size(), COMMAND_RPC_LNS_OWNERS_TO_NAMES::MAX_REQUEST_ENTRIES))
       return false;
 
-    std::map<size_t, size_t> owner_to_request_index;
+    std::unordered_map<lns::generic_owner, size_t> owner_to_request_index;
     std::vector<lns::generic_owner> owners;
 
     owners.reserve(req.entries.size());
@@ -3445,9 +3445,8 @@ namespace cryptonote
       // we specify an owner that is backup owner, we don't show the (other)
       // owner. For RPC compatibility we keep the request_index around until the
       // next hard fork (16)
-      size_t hash = std::hash<lns::generic_owner>{}(lns_owner);
       owners.push_back(lns_owner);
-      owner_to_request_index[hash] = request_index;
+      owner_to_request_index[lns_owner] = request_index;
     }
 
     lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
@@ -3457,8 +3456,7 @@ namespace cryptonote
       res.entries.emplace_back();
       COMMAND_RPC_LNS_OWNERS_TO_NAMES::response_entry &entry = res.entries.back();
 
-      size_t hash = std::hash<lns::generic_owner>{}(record.owner);
-      auto it     = owner_to_request_index.find(hash);
+      auto it = owner_to_request_index.find(record.owner);
       if (it == owner_to_request_index.end())
       {
         error_resp.code    = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
