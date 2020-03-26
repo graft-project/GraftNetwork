@@ -39,6 +39,7 @@ struct mapping_value
 
   std::string               to_string() const { return std::string(reinterpret_cast<char const *>(buffer.data()), len); }
   epee::span<const uint8_t> to_span()   const { return epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(buffer.data()), len); }
+  std::string               to_readable_value(cryptonote::network_type nettype, mapping_type type) const;
   bool operator==(mapping_value const &other) const { return other.len    == len && memcmp(buffer.data(), other.buffer.data(), len) == 0; }
   bool operator==(std::string   const &other) const { return other.size() == len && memcmp(buffer.data(), other.data(), len) == 0; }
 };

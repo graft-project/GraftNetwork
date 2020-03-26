@@ -6605,7 +6605,7 @@ bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& arg
                         << ", backup_owner=" << (mapping.backup_owner.empty() ? NULL_STR : mapping.backup_owner)
                         << ", height=" << mapping.register_height
                         << ", encrypted_value=" << mapping.encrypted_value
-                        << ", value=" << epee::to_hex::string(value.to_span())
+                        << ", value=" << value.to_readable_value(m_wallet->nettype(), static_cast<lns::mapping_type>(mapping.type))
                         << ", prev_txid=" << (mapping.prev_txid.empty() ? NULL_STR : mapping.prev_txid);
   }
 

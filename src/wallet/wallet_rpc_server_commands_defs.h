@@ -3033,5 +3033,57 @@ This command is only required if the open wallet is one of the owners of a LNS r
     };
     typedef epee::misc_utils::struct_init<response_t> response;
   };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Takes a LNS name, upon validating it, generates the hash and returns the base64 representation of the hash suitable for use in the daemon LNS name queries.
+  struct COMMAND_RPC_LNS_HASH_NAME
+  {
+    struct request_t
+    {
+      std::string type; // The mapping type, currently we only support "session". In future "lokinet" and "blockchain" mappings will be available.
+      std::string name; // The desired name to hash
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(type);
+        KV_SERIALIZE(name);
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string name; // The name hashed and represented in base64
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(name)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  LOKI_RPC_DOC_INTROSPECT
+  // Takes a LNS encrypted value and decrypts the mapping value.
+  struct COMMAND_RPC_LNS_DECRYPT_VALUE
+  {
+    struct request_t
+    {
+      std::string name;            // The desired name to hash
+      std::string type;            // The mapping type, currently we only support "session". In future "lokinet" and "blockchain" mappings will be available.
+      std::string encrypted_value; // The encrypted value represented in hex
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(name);
+        KV_SERIALIZE(type);
+        KV_SERIALIZE(encrypted_value);
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string value; // The value decrypted
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(value)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
 }
 }
