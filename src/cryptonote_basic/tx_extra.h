@@ -87,7 +87,7 @@ constexpr inline extra_field& operator|=(extra_field& a, extra_field b) { return
 constexpr inline extra_field& operator&=(extra_field& a, extra_field b) { return a = a & b; }
 
 enum struct  generic_owner_sig_type : uint8_t { monero, ed25519, _count };
-struct generic_owner
+struct alignas(size_t) generic_owner
 {
   union {
     crypto::ed25519_public_key ed25519;
@@ -103,7 +103,7 @@ struct generic_owner
   char                   padding02_[7];
 
   std::string to_string(cryptonote::network_type nettype) const;
-  operator bool() const { return (type == generic_owner_sig_type::monero) ? wallet.address != cryptonote::null_address : ed25519; }
+  explicit operator bool() const { return (type == generic_owner_sig_type::monero) ? wallet.address != cryptonote::null_address : ed25519; }
   bool operator==(generic_owner const &other) const;
 
   BEGIN_SERIALIZE()
@@ -131,7 +131,7 @@ struct generic_signature
     unsigned char             data[sizeof(crypto::ed25519_signature)];
   };
   static constexpr generic_signature null() { return {}; }
-  operator bool() const { return memcmp(data, null().data, sizeof(data)); }
+  explicit operator bool() const { return memcmp(data, null().data, sizeof(data)); }
   bool operator==(generic_signature const &other) const { return other.type == type && memcmp(data, other.data, sizeof(data)) == 0; }
 
   BEGIN_SERIALIZE()

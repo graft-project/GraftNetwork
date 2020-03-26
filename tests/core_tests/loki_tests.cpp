@@ -1076,8 +1076,8 @@ static bool verify_lns_mapping_record(char const *perr_context,
   CHECK_EQ(record.register_height, register_height);
   CHECK_EQ(record.txid,            txid);
   CHECK_EQ(record.prev_txid,       prev_txid);
-  CHECK_EQ(record.owner,           owner);
-  CHECK_EQ(record.backup_owner,    backup_owner);
+  CHECK_TEST_CONDITION_MSG(record.owner == owner, record.owner.to_string(cryptonote::FAKECHAIN) << " == "<< owner.to_string(cryptonote::FAKECHAIN));
+  CHECK_TEST_CONDITION_MSG(record.backup_owner == backup_owner, record.backup_owner.to_string(cryptonote::FAKECHAIN) << " == "<< backup_owner.to_string(cryptonote::FAKECHAIN));
   return true;
 }
 
@@ -1158,7 +1158,9 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
         lns::owner_record owner = lns_db.get_owner_by_key(miner_key.owner);
         CHECK_EQ(owner.loaded, true);
         CHECK_EQ(owner.id, 1);
-        CHECK_EQ(miner_key.owner, owner.address);
+        CHECK_TEST_CONDITION_MSG(miner_key.owner == owner.address,
+                                 miner_key.owner.to_string(cryptonote::FAKECHAIN)
+                                     << " == " << owner.address.to_string(cryptonote::FAKECHAIN));
 
         lns::mapping_record record = lns_db.get_mapping(mapping_type, name_hash);
         CHECK_TEST_CONDITION(verify_lns_mapping_record(perr_context, record, lns::mapping_type::lokinet_1year, name, miner_key.lokinet_value, height_of_lns_entry, tx_hash, crypto::null_hash, miner_key.owner, {} /*backup_owner*/));
@@ -1177,7 +1179,9 @@ bool loki_name_system_expiration::generate(std::vector<test_event_entry> &events
         lns::owner_record owner = lns_db.get_owner_by_key(miner_key.owner);
         CHECK_EQ(owner.loaded, true);
         CHECK_EQ(owner.id, 1);
-        CHECK_EQ(miner_key.owner, owner.address);
+        CHECK_TEST_CONDITION_MSG(miner_key.owner == owner.address,
+                                 miner_key.owner.to_string(cryptonote::FAKECHAIN)
+                                     << " == " << owner.address.to_string(cryptonote::FAKECHAIN));
 
         lns::mapping_record record = lns_db.get_mapping(mapping_type, name_hash);
         CHECK_TEST_CONDITION(verify_lns_mapping_record(perr_context, record, lns::mapping_type::lokinet_1year, name, miner_key.lokinet_value, height_of_lns_entry, tx_hash, crypto::null_hash, miner_key.owner, {} /*backup_owner*/));
@@ -1451,7 +1455,9 @@ bool loki_name_system_handles_duplicate_in_lns_db::generate(std::vector<test_eve
     lns::owner_record owner = lns_db.get_owner_by_key(miner_key.owner);
     CHECK_EQ(owner.loaded, true);
     CHECK_EQ(owner.id, 1);
-    CHECK_EQ(miner_key.owner, owner.address);
+    CHECK_TEST_CONDITION_MSG(miner_key.owner == owner.address,
+                             miner_key.owner.to_string(cryptonote::FAKECHAIN)
+                                 << " == " << owner.address.to_string(cryptonote::FAKECHAIN));
 
     std::string session_name_hash = lns::name_to_base64_hash(session_name);
     lns::mapping_record record1 = lns_db.get_mapping(lns::mapping_type::session, session_name_hash);
@@ -1881,7 +1887,9 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     lns::owner_record owner = lns_db.get_owner_by_key(miner_key.owner);
     CHECK_EQ(owner.loaded, true);
     CHECK_EQ(owner.id, 1);
-    CHECK_EQ(miner_key.owner, owner.address);
+    CHECK_TEST_CONDITION_MSG(miner_key.owner == owner.address,
+                             miner_key.owner.to_string(cryptonote::FAKECHAIN)
+                                 << " == " << owner.address.to_string(cryptonote::FAKECHAIN));
 
     std::string name_hash = lns::name_to_base64_hash(name);
     lns::mapping_record record = lns_db.get_mapping(lns::mapping_type::lokinet_1year, name_hash);
@@ -1906,7 +1914,9 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     lns::owner_record owner = lns_db.get_owner_by_key(miner_key.owner);
     CHECK_EQ(owner.loaded, true);
     CHECK_EQ(owner.id, 1);
-    CHECK_EQ(miner_key.owner, owner.address);
+    CHECK_TEST_CONDITION_MSG(miner_key.owner == owner.address,
+                             miner_key.owner.to_string(cryptonote::FAKECHAIN)
+                                 << " == " << owner.address.to_string(cryptonote::FAKECHAIN));
 
     std::string name_hash = lns::name_to_base64_hash(name);
     lns::mapping_record record = lns_db.get_mapping(lns::mapping_type::lokinet_1year, name_hash);
@@ -2029,7 +2039,9 @@ bool loki_name_system_update_mapping_after_expiry_fails::generate(std::vector<te
       lns::owner_record owner = lns_db.get_owner_by_key(miner_key.owner);
       CHECK_EQ(owner.loaded, true);
       CHECK_EQ(owner.id, 1);
-      CHECK_EQ(miner_key.owner, owner.address);
+      CHECK_TEST_CONDITION_MSG(miner_key.owner == owner.address,
+                               miner_key.owner.to_string(cryptonote::FAKECHAIN)
+                                   << " == " << owner.address.to_string(cryptonote::FAKECHAIN));
 
       std::string name_hash        = lns::name_to_base64_hash(name);
       lns::mapping_record record = lns_db.get_mapping(lns::mapping_type::lokinet_1year, name_hash);
