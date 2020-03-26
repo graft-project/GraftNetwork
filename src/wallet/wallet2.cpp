@@ -8439,6 +8439,36 @@ struct lns_prepared_args
   crypto::hash            prev_txid;
 };
 
+static bool try_generate_lns_signature(wallet2 const &wallet, std::string const &curr_owner, std::string const *new_owner, std::string const *new_backup_owner, lns_prepared_args &result)
+{
+  cryptonote::address_parse_info curr_owner_parsed = {};
+  if (!cryptonote::get_account_address_from_str(curr_owner_parsed, wallet.nettype(), curr_owner))
+      return false;
+
+  boost::optional<cryptonote::subaddress_index> index = wallet.get_subaddress_index(curr_owner_parsed.address);
+  if (!index) return false;
+
+  // TODO(doyle): Taken from wallet2.cpp::get_reserve_proof
+  crypto::secret_key skey = wallet.get_account().get_keys().m_spend_secret_key;
+  if (!index->is_zero())
+  {
+    crypto::secret_key m = wallet.get_account().get_device().get_subaddress_secret_key(wallet.get_account().get_keys().m_view_secret_key, *index);
+    crypto::secret_key tmp = skey;
+    sc_add((unsigned char*)&skey, (unsigned char*)&m, (unsigned char*)&tmp);
+  }
+
+  crypto::public_key pkey;
+  crypto::secret_key_to_public_key(skey, pkey);
+
+  crypto::hash hash = lns::tx_extra_signature_hash(result.encrypted_value.to_span(),
+                                                   new_owner ? &result.owner : nullptr,
+                                                   new_backup_owner ? &result.backup_owner : nullptr,
+                                                   result.prev_txid);
+  if (!hash) return false;
+  result.signature = lns::make_monero_signature(hash, pkey, skey);
+  return true;
+}
+
 static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const &wallet,
                                                                   lns::mapping_type type,
                                                                   uint32_t priority,
@@ -8506,27 +8536,32 @@ static lns_prepared_args prepare_tx_extra_loki_name_system_values(wallet2 const 
         return result;
       }
     }
-  }
 
-  if (make_signature)
-  {
-    cryptonote::subaddress_index const index = {account_index, 0};
-
-    // TODO(doyle): Taken from wallet2.cpp::get_reserve_proof
-    crypto::secret_key skey = wallet.get_account().get_keys().m_spend_secret_key;
-    if (!index.is_zero())
+    if (make_signature)
     {
-      crypto::secret_key m = wallet.get_account().get_device().get_subaddress_secret_key(wallet.get_account().get_keys().m_view_secret_key, index);
-      crypto::secret_key tmp = skey;
-      sc_add((unsigned char*)&skey, (unsigned char*)&m, (unsigned char*)&tmp);
+      if (response.empty())
+      {
+        if (reason) *reason = "Signature requested when preparing LNS TX but record to update does not exist";
+        return result;
+      }
+
+      cryptonote::address_parse_info curr_owner_parsed        = {};
+      cryptonote::address_parse_info curr_backup_owner_parsed = {};
+      bool curr_owner        = cryptonote::get_account_address_from_str(curr_owner_parsed, wallet.nettype(), response[0].owner);
+      bool curr_backup_owner = cryptonote::get_account_address_from_str(curr_backup_owner_parsed, wallet.nettype(), response[0].backup_owner);
+      if (!try_generate_lns_signature(wallet, response[0].owner, owner, backup_owner, result))
+      {
+        if (!try_generate_lns_signature(wallet, response[0].backup_owner, owner, backup_owner, result))
+        {
+          if (reason)
+          {
+            *reason = "Signature requested when preparing LNS TX, but this wallet is not the owner of the record owner=" + response[0].owner;
+            if (response[0].backup_owner.size()) *reason += ", backup_owner=" + response[0].backup_owner;
+          }
+          return result;
+        }
+      }
     }
-
-    crypto::public_key pkey;
-    crypto::secret_key_to_public_key(skey, pkey);
-
-    crypto::hash hash = lns::tx_extra_signature_hash(result.encrypted_value.to_span(), owner ? &result.owner : nullptr, backup_owner ? &result.backup_owner : nullptr, result.prev_txid);
-    if (!hash) return result;
-    result.signature = lns::make_monero_signature(hash, pkey, skey);
   }
 
   result.prepared = true;
