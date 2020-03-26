@@ -102,8 +102,8 @@ namespace supernode {
         uint64_t Amount;
         string POSAddress;
         string POSViewKey;
-        string POSSaleDetails;// empty in wallet call
-        uint64_t BlockNum;// empty in pos call
+        string POSSaleDetails;  // empty in wallet call
+        uint64_t BlockNum;      // empty in pos call
 	};
 
 

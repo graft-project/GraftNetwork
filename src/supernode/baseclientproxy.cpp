@@ -137,6 +137,44 @@ void fill_transfer_entry(tools::GraftWallet * wallet, tools::wallet_rpc::transfe
   entry.address = wallet->get_subaddress_as_str(pd.m_subaddr_index);
   set_confirmations(entry, wallet->get_blockchain_current_height(), wallet->get_last_block_reward());
 }
+// TODO: avoid duplication. copy-pasted from wallet_rpc_server.cpp
+static std::string ptx_to_string(const tools::wallet2::pending_tx &ptx)
+{
+  std::ostringstream oss;
+  boost::archive::portable_binary_oarchive ar(oss);
+  try
+  {
+    ar << ptx;
+  }
+  catch (...)
+  {
+    return "";
+  }
+  return epee::string_tools::buff_to_hex_nodelimer(oss.str());
+}
+
+
+static bool ptx_from_string(const std::string &ptx_hex, tools::wallet2::pending_tx &ptx)
+{
+  std::string ptx_blob;
+  if (!epee::string_tools::parse_hexstr_to_binbuff(ptx_hex, ptx_blob)) {
+    MERROR("Failed to parse ptx from hex string");
+    return false;
+  }
+  
+  std::stringstream ss(ptx_blob);
+  boost::archive::portable_binary_iarchive ar(ss);
+  try
+  {
+    ar >> ptx;
+  }
+  catch (...)
+  {
+    return false;
+  }
+  return true;
+}
+
 }
 
 template<class Src, class Dst>
@@ -160,6 +198,7 @@ void supernode::BaseClientProxy::Init()
     m_DAPIServer->ADD_DAPI_HANDLER(RestoreAccount, rpc_command::RESTORE_ACCOUNT, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(Transfer, rpc_command::TRANSFER, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(GetTransferFee, rpc_command::GET_TRANSFER_FEE, BaseClientProxy);
+    m_DAPIServer->ADD_DAPI_HANDLER(BuildRtaTransaction, rpc_command::WALLET_BUILD_RTA_TX, BaseClientProxy);
 }
 
 bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out)
@@ -265,6 +304,86 @@ bool supernode::BaseClientProxy::GetWalletTransactions(const supernode::rpc_comm
     }
     MINFO("Returning transactions: " << out.TransfersIn.size() + out.TransfersOut.size() + out.TransfersFailed.size()
           + out.TransfersPending.size());
+    out.Result = STATUS_OK;
+    return true;
+}
+
+bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_command::WALLET_BUILD_RTA_TX::request &in, supernode::rpc_command::WALLET_BUILD_RTA_TX::response &out)
+{
+    MINFO("BaseClientProxy::BuildRtaTransaction: " << in.Account);
+    // Validate input data
+    if (in.Keys.size() != in.Wallets.size()) {
+        out.Result = -1; // TODO: error code
+        out.ErrorMessage = "Keys and Wallets mismatch";
+        return false;
+    }
+    
+    
+    std::unique_ptr<tools::GraftWallet> wallet = initWallet(base64_decode(in.Account), in.Password, false);
+    MINFO("BaseClientProxy::BuildRtaTransaction: initWallet done");
+    if (!wallet)
+    {
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+    try
+    {
+        // copy-pasted from wallet_rpc_server.cpp
+        // TODO: refactor to avoid code duplication or use wallet2_api.h interfaces
+        MINFO("BaseClientProxy::GetWalletTransactions: about to call 'refresh()'");
+        wallet->refresh(wallet->is_trusted_daemon());
+        MINFO("BaseClientProxy::BuildRtaTransaction: 'refresh()' done");
+        
+        auto append_key_to_rta_hdr = [&](cryptonote::rta_header &rta_hdr, const std::string &key)->bool
+        {
+            crypto::public_key K;
+            if (!epee::string_tools::hex_to_pod(key, K))  {
+                MERROR("Failed to parse key from: " << key);
+                return false;
+            }
+            rta_hdr.keys.push_back(K);
+            return true;
+        };
+        
+        cryptonote::rta_header rta_hdr;
+        rta_hdr.payment_id = in.PaymentId;
+        rta_hdr.auth_sample_height = in.BlockHeight;
+        
+        for (const auto &key : in.Keys) {
+            if (!append_key_to_rta_hdr(rta_hdr, key)) {
+                out.Result = -1;
+                out.ErrorMessage = std::string("Failed to parse node key: ") + key;
+                return false;
+            }
+        }
+        std::vector<uint8_t> extra;
+        cryptonote::add_graft_rta_header_to_extra(extra, rta_hdr);
+        
+        std::vector<tools::wallet2::pending_tx> ptxv = wallet->create_transactions_graft(
+                    in.Recipient,
+                    in.Wallets,
+                    in.Amount,
+                    in.FeeRatio,
+                    0, // unclock time
+                    0, // priority
+                    extra,
+                    0,
+                    {0},
+                    out.RecipientAmount,
+                    out.FeePerDestination);
+        
+        // serialize ptx vector
+        for (const auto &ptx : ptxv) {
+            out.PtxBlobs.push_back(ptx_to_string(ptx));
+        }
+    }
+    catch (const std::exception& e)
+    {
+        MERROR("Wallet exception: " << e.what());
+        out.Result = -1; // TODO: introduce error code
+        out.ErrorMessage = std::string(e.what());
+        return false;
+    }
     out.Result = STATUS_OK;
     return true;
 }

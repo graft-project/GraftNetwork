@@ -55,6 +55,7 @@ DCALL(GetSaleStatus);
 DCALL(WalletProxyPay);
 DCALL(WalletTRSigned);
 DCALL(WalletPutTxInPool);
+DCALL(BuildRtaTransaction)
 DCALL(PosProxySale);
 DCALL(PoSTRSigned);
 DCALL(WalletGetPosData);
@@ -69,7 +70,8 @@ DCALL(GetTransferFee)
 DCALL(WalletRejectPay)
 DCALL(WalletProxyRejectPay)
 DCALL(AuthWalletRejectPay)
-DCALL(FSN_CheckWalletOwnership);
+DCALL(FSN_CheckWalletOwnership)
+
 #undef DCALL
 
 #define P2P_CALL(xx) const string supernode::p2p_call::xx = #xx;

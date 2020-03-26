@@ -70,6 +70,7 @@ namespace supernode {
         extern const string AuthWalletRejectPay;
 
         extern const string FSN_CheckWalletOwnership;
+        extern const string BuildRtaTransaction;
 	};
 
 	namespace p2p_call {
@@ -170,7 +171,52 @@ namespace supernode {
                 END_KV_SERIALIZE_MAP()
 			};
 		};
-
+        
+        // ---------------------------------------
+        struct WALLET_BUILD_RTA_TX 
+        {
+            struct request 
+            {
+                std::string Account;
+                std::string Password;
+                std::string Recipient;            // merchant address
+                uint64_t Amount;                  // sale amount
+                double FeeRatio;                  // fee ration
+                std::vector<std::string> Keys;    // pos, pos-proxy, wallet-proxy, auth-sample keys
+                std::vector<std::string> Wallets; // pos, pos-proxy, wallet-proxy, auth-sample wallets
+                std::string PaymentId;            // Payment Id
+                uint64_t    BlockHeight;          // Payment block height
+                
+                
+                BEGIN_KV_SERIALIZE_MAP()
+                KV_SERIALIZE(Account)
+                KV_SERIALIZE(Password)
+                KV_SERIALIZE(Keys)
+                KV_SERIALIZE(Wallets)
+                KV_SERIALIZE(Amount)
+                KV_SERIALIZE(FeeRatio)
+                END_KV_SERIALIZE_MAP()
+            };
+            
+            struct response 
+            {
+                int64_t Result;
+                std::string ErrorMessage;
+                std::vector<std::string> PtxBlobs;   // ptx vector
+                uint64_t RecipientAmount;            // sale amount
+                uint64_t FeePerDestination;          // rta fee paid 
+                BEGIN_KV_SERIALIZE_MAP()
+                KV_SERIALIZE(Result)
+                KV_SERIALIZE(ErrorMessage)
+                KV_SERIALIZE(PtxBlobs)
+                KV_SERIALIZE(RecipientAmount)
+                KV_SERIALIZE(FeePerDestination)
+                END_KV_SERIALIZE_MAP()
+            };
+        };
+        // ---------------------------------------
+        
+   
 		// ---------------------------------------
 		struct WALLET_PROXY_PAY {
 			struct request : public RTA_TransactionRecordRequest {
