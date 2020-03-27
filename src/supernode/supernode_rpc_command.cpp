@@ -56,6 +56,7 @@ DCALL(WalletProxyPay);
 DCALL(WalletTRSigned);
 DCALL(WalletPutTxInPool);
 DCALL(BuildRtaTransaction)
+DCALL(SetOutputsSpent)
 DCALL(PosProxySale);
 DCALL(PoSTRSigned);
 DCALL(WalletGetPosData);

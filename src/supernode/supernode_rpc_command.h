@@ -71,6 +71,8 @@ namespace supernode {
 
         extern const string FSN_CheckWalletOwnership;
         extern const string BuildRtaTransaction;
+        extern const string SetOutputsSpent;
+        
 	};
 
 	namespace p2p_call {
@@ -184,17 +186,19 @@ namespace supernode {
                 double FeeRatio;                  // fee ration
                 std::vector<std::string> Keys;    // pos, pos-proxy, wallet-proxy, auth-sample keys
                 std::vector<std::string> Wallets; // pos, pos-proxy, wallet-proxy, auth-sample wallets
-                std::string PaymentId;            // Payment Id
+                std::string PaymentID;            // Payment Id
                 uint64_t    BlockHeight;          // Payment block height
                 
                 
                 BEGIN_KV_SERIALIZE_MAP()
-                KV_SERIALIZE(Account)
-                KV_SERIALIZE(Password)
-                KV_SERIALIZE(Keys)
-                KV_SERIALIZE(Wallets)
-                KV_SERIALIZE(Amount)
-                KV_SERIALIZE(FeeRatio)
+                    KV_SERIALIZE(Account)
+                    KV_SERIALIZE(Password)
+                    KV_SERIALIZE(Keys)
+                    KV_SERIALIZE(Wallets)
+                    KV_SERIALIZE(Amount)
+                    KV_SERIALIZE(FeeRatio)
+                    KV_SERIALIZE(PaymentID)
+                    KV_SERIALIZE(BlockHeight)
                 END_KV_SERIALIZE_MAP()
             };
             
@@ -206,15 +210,40 @@ namespace supernode {
                 uint64_t RecipientAmount;            // sale amount
                 uint64_t FeePerDestination;          // rta fee paid 
                 BEGIN_KV_SERIALIZE_MAP()
-                KV_SERIALIZE(Result)
-                KV_SERIALIZE(ErrorMessage)
-                KV_SERIALIZE(PtxBlobs)
-                KV_SERIALIZE(RecipientAmount)
-                KV_SERIALIZE(FeePerDestination)
+                    KV_SERIALIZE(Result)
+                    KV_SERIALIZE(ErrorMessage)
+                    KV_SERIALIZE(PtxBlobs)
+                    KV_SERIALIZE(RecipientAmount)
+                    KV_SERIALIZE(FeePerDestination)
                 END_KV_SERIALIZE_MAP()
             };
         };
         // ---------------------------------------
+        struct WALLET_SET_OUTPUTS_SPENT
+        {
+            struct request 
+            {
+                std::string Account;
+                std::string Password;
+                std::vector<std::string> PtxBlobs;   // ptx vector
+                
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Account)
+                    KV_SERIALIZE(Password)
+                    KV_SERIALIZE(PtxBlobs)
+                END_KV_SERIALIZE_MAP()
+            };
+            
+            struct response 
+            {
+                int64_t Result;
+                std::string ErrorMessage;
+                BEGIN_KV_SERIALIZE_MAP()
+                    KV_SERIALIZE(Result)
+                    KV_SERIALIZE(ErrorMessage)
+                END_KV_SERIALIZE_MAP()
+            };
+        };
         
    
 		// ---------------------------------------

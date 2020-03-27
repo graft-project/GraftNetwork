@@ -53,7 +53,7 @@ protected:
     bool GetWalletBalance(const rpc_command::GET_WALLET_BALANCE::request &in, rpc_command::GET_WALLET_BALANCE::response &out);
     bool GetWalletTransactions(const rpc_command::GET_WALLET_TRANSACTIONS::request &in, rpc_command::GET_WALLET_TRANSACTIONS::response &out);
     bool BuildRtaTransaction(const rpc_command::WALLET_BUILD_RTA_TX::request &in, rpc_command::WALLET_BUILD_RTA_TX::response &out);
-
+    bool SetOutputsSpent(const rpc_command::WALLET_SET_OUTPUTS_SPENT::request &in, rpc_command::WALLET_SET_OUTPUTS_SPENT::response &out);
     bool CreateAccount(const rpc_command::CREATE_ACCOUNT::request &in, rpc_command::CREATE_ACCOUNT::response &out);
     bool GetSeed(const rpc_command::GET_SEED::request &in, rpc_command::GET_SEED::response &out);
     bool RestoreAccount(const rpc_command::RESTORE_ACCOUNT::request &in, rpc_command::RESTORE_ACCOUNT::response &out);

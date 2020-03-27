@@ -199,6 +199,7 @@ void supernode::BaseClientProxy::Init()
     m_DAPIServer->ADD_DAPI_HANDLER(Transfer, rpc_command::TRANSFER, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(GetTransferFee, rpc_command::GET_TRANSFER_FEE, BaseClientProxy);
     m_DAPIServer->ADD_DAPI_HANDLER(BuildRtaTransaction, rpc_command::WALLET_BUILD_RTA_TX, BaseClientProxy);
+    m_DAPIServer->ADD_DAPI_HANDLER(SetOutputsSpent, rpc_command::WALLET_SET_OUTPUTS_SPENT, BaseClientProxy);
 }
 
 bool supernode::BaseClientProxy::GetWalletBalance(const supernode::rpc_command::GET_WALLET_BALANCE::request &in, supernode::rpc_command::GET_WALLET_BALANCE::response &out)
@@ -346,7 +347,7 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
         };
         
         cryptonote::rta_header rta_hdr;
-        rta_hdr.payment_id = in.PaymentId;
+        rta_hdr.payment_id = in.PaymentID;
         rta_hdr.auth_sample_height = in.BlockHeight;
         
         for (const auto &key : in.Keys) {
@@ -387,6 +388,31 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
     out.Result = STATUS_OK;
     return true;
 }
+
+bool supernode::BaseClientProxy::SetOutputsSpent(const supernode::rpc_command::WALLET_SET_OUTPUTS_SPENT::request &in, supernode::rpc_command::WALLET_SET_OUTPUTS_SPENT::response &out)
+{
+    std::unique_ptr<tools::GraftWallet> wallet = initWallet(base64_decode(in.Account), in.Password, false);
+    MINFO("BaseClientProxy::SetOutputsSpent: initWallet done");
+    if (!wallet)
+    {
+        out.Result = ERROR_OPEN_WALLET_FAILED;
+        return false;
+    }
+    
+    for (const auto &ptx_hex : in.PtxBlobs) {
+        tools::wallet2::pending_tx ptx;
+        if (!ptx_from_string(ptx_hex, ptx)) {
+            out.Result = -1;
+            out.ErrorMessage = "Failed to parse ptx from hex string";
+            return false;
+        }
+        wallet->set_spent(ptx);
+    }
+    storeWalletState(wallet.get());
+    out.Result = 0;
+    return true;
+}
+
 
 bool supernode::BaseClientProxy::CreateAccount(const supernode::rpc_command::CREATE_ACCOUNT::request &in, supernode::rpc_command::CREATE_ACCOUNT::response &out)
 {
