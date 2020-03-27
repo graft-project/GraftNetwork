@@ -135,7 +135,7 @@ loki_chain_generator::loki_chain_generator(std::vector<test_event_entry> &events
 : events_(events)
 , hard_forks_(hard_forks)
 {
-  bool init = lns_db_.init(cryptonote::FAKECHAIN, lns::init_loki_name_system(""), 0, crypto::null_hash);
+  bool init = lns_db_.init(nullptr, cryptonote::FAKECHAIN, lns::init_loki_name_system(""), 0, crypto::null_hash);
   assert(init);
 
   first_miner_.generate();

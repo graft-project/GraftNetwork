@@ -1732,11 +1732,13 @@ bool loki_name_system_large_reorg::generate(std::vector<test_event_entry> &event
   while (gen.height() <= miner_earliest_renewable_height)
     gen.create_and_add_next_block();
 
-  // NOTE: Generate and add the second round of (transactions + block) to the blockchain, renew lokinet and add bob's session
+  // NOTE: Generate and add the second round of (transactions + block) to the blockchain, renew lokinet and add bob's session, update miner's session value to other's session value
+  cryptonote::account_base const other = gen.add_account();
+  lns_keys_t const other_key           = make_lns_keys(other);
   uint64_t second_lns_height = 0;
   {
     std::string const bob_session_name1 = "I Like Session";
-    crypto::hash session_tx_hash2 = {}, lokinet_tx_hash2 = {};
+    crypto::hash session_tx_hash2 = {}, lokinet_tx_hash2 = {}, session_tx_hash3;
     {
       std::vector<cryptonote::transaction> txs;
       txs.push_back(gen.create_and_add_loki_name_system_tx(bob, lns::mapping_type::session, bob_session_name1, bob_key.session_value));
@@ -1744,6 +1746,10 @@ bool loki_name_system_large_reorg::generate(std::vector<test_event_entry> &event
 
       if (lns::mapping_type_allowed(gen.hardfork(), lns::mapping_type::lokinet_1year))
         txs.push_back(gen.create_and_add_loki_name_system_tx(miner, lns::mapping_type::lokinet_1year, "loki.loki", miner_key.lokinet_value));
+
+      txs.push_back(gen.create_and_add_loki_name_system_tx_update(miner, lns::mapping_type::session, session_name1, &other_key.session_value));
+      session_tx_hash3 = cryptonote::get_transaction_hash(txs.back());
+
       gen.create_and_add_next_block(txs);
     }
     second_lns_height = gen.height();
@@ -1760,7 +1766,7 @@ bool loki_name_system_large_reorg::generate(std::vector<test_event_entry> &event
         for (lns::mapping_record const &record : records)
         {
           if (record.type == lns::mapping_type::session)
-            CHECK_TEST_CONDITION(verify_lns_mapping_record(perr_context, record, lns::mapping_type::session, session_name1, miner_key.session_value, first_lns_height, session_tx_hash1, crypto::null_hash /*prev_txid*/, miner_key.owner, {} /*backup_owner*/));
+            CHECK_TEST_CONDITION(verify_lns_mapping_record(perr_context, record, lns::mapping_type::session, session_name1, other_key.session_value, first_lns_height, session_tx_hash3, session_tx_hash1 /*prev_txid*/, miner_key.owner, {} /*backup_owner*/));
           else if (record.type == lns::mapping_type::lokinet_1year)
             CHECK_TEST_CONDITION(verify_lns_mapping_record(perr_context, record, lns::mapping_type::lokinet_1year, lokinet_name1, miner_key.lokinet_value, second_lns_height, lokinet_tx_hash2, lokinet_tx_hash1 /*prev_txid*/, miner_key.owner, {} /*backup_owner*/));
           else if (record.type == lns::mapping_type::wallet)
