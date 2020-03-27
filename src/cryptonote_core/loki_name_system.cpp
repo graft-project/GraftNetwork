@@ -1144,7 +1144,7 @@ scoped_db_transaction::~scoped_db_transaction()
 
 enum struct db_version { v0, v1_track_updates };
 auto constexpr DB_VERSION = db_version::v1_track_updates;
-bool name_system_db::init(cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash)
+bool name_system_db::init(cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db)
 {
   if (!db) return false;
   this->db      = db;
@@ -1270,7 +1270,32 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
   // ---------------------------------------------------------------------------
   if (settings_record settings = get_settings())
   {
-    if (settings.top_height == top_height && settings.top_hash == top_hash)
+    if (!blockchain)
+    {
+      assert(nettype == cryptonote::FAKECHAIN);
+      return nettype == cryptonote::FAKECHAIN;
+    }
+
+    uint64_t lns_height   = 0;
+    crypto::hash lns_hash = blockchain->get_tail_id(lns_height);
+
+    // Try support out of date LNS databases by checking if the stored
+    // settings->[top_hash|top_height] match what we expect. If they match, we
+    // don't drop the DB but will load the missing blocks in a later step.
+
+    cryptonote::block lns_blk = {};
+    bool orphan               = false;
+    if (blockchain->get_block_by_hash(settings.top_hash, lns_blk, &orphan))
+    {
+      bool lns_height_matches = settings.top_height == cryptonote::get_block_height(lns_blk);
+      if (lns_height_matches && !orphan)
+      {
+        lns_height = settings.top_height;
+        lns_hash   = settings.top_hash;
+      }
+    }
+
+    if (settings.top_height == lns_height && settings.top_hash == lns_hash)
     {
       this->last_processed_height = settings.top_height;
       assert(settings.version == static_cast<int>(DB_VERSION));

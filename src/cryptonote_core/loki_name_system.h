@@ -142,7 +142,7 @@ struct mapping_record
 
 struct name_system_db
 {
-  bool                        init        (cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash);
+  bool                        init        (cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db);
   bool                        add_block   (const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
 
   cryptonote::network_type    network_type() const { return nettype; }

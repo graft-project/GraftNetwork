@@ -577,15 +577,10 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
       return false;
   }
 
-  if (lns_db) // Initialise LNS
+  if (lns_db && !m_lns_db.init(this, nettype, lns_db))
   {
-    uint64_t lns_height   = 0;
-    crypto::hash lns_hash = get_tail_id(lns_height);
-    if (!m_lns_db.init(this, nettype, lns_db, lns_height, lns_hash))
-    {
-      MERROR("LNS failed to initialise");
-      return false;
-    }
+    MERROR("LNS failed to initialise");
+    return false;
   }
 
   hook_block_added(m_checkpoints);
