@@ -1142,8 +1142,8 @@ scoped_db_transaction::~scoped_db_transaction()
 }
 
 
-enum struct db_version { v1, v2_track_updates };
-auto constexpr DB_VERSION = db_version::v2_track_updates;
+enum struct db_version { v0, v1_track_updates };
+auto constexpr DB_VERSION = db_version::v1_track_updates;
 bool name_system_db::init(cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash)
 {
   if (!db) return false;
@@ -1213,7 +1213,7 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
       if (!db_transaction) return false;
       db_transaction.commit = true;
 
-      if (settings.version == static_cast<decltype(settings.version)>(db_version::v1))
+      if (settings.version == static_cast<decltype(settings.version)>(db_version::v0))
       {
         char constexpr ADD_UPDATE_HEIGHT_SQL[] = R"(ALTER TABLE "mappings" ADD "update_height" INTEGER NOT NULL)";
         sqlite3_exec(db, ADD_UPDATE_HEIGHT_SQL, nullptr /*callback*/, nullptr /*callback context*/, nullptr);
@@ -1245,7 +1245,7 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
           sql_run_statement(nettype, lns_sql_type::internal_cmd, update_mapping_height, nullptr);
         }
 
-        save_settings(settings.top_height, settings.top_hash, static_cast<int>(db_version::v2_track_updates));
+        save_settings(settings.top_height, settings.top_hash, static_cast<int>(db_version::v1_track_updates));
       }
     }
   }
@@ -1256,7 +1256,7 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
   //
   // ---------------------------------------------------------------------------
   // Old DB's can't pre-compile statements referencing new fields if they don't have it yet
-  if (DB_VERSION >= db_version::v2_track_updates)
+  if (DB_VERSION >= db_version::v1_track_updates)
   {
     char constexpr SAVE_MAPPING_STR_V2[] = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "update_height", "owner_id", "backup_owner_id") VALUES (?,?,?,?,?,?,?,?,?))";
     if (!sql_compile_statement(db, SAVE_MAPPING_STR_V2, loki::array_count(SAVE_MAPPING_STR_V2), &save_mapping_sql))
