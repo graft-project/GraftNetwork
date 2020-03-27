@@ -1685,6 +1685,7 @@ bool name_system_db::prune_db(uint64_t height)
     if (!sql_run_statement(nettype, lns_sql_type::pruning, statement, nullptr)) return false;
   }
 
+  this->last_processed_height = (height - 1);
   return true;
 }
 

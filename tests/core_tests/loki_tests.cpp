@@ -1708,6 +1708,7 @@ bool loki_name_system_large_reorg::generate(std::vector<test_event_entry> &event
       DEFINE_TESTS_ERROR_CONTEXT("check_first_lns_entries");
       lns::name_system_db const &lns_db        = c.get_blockchain_storage().name_system_db();
       std::vector<lns::mapping_record> records = lns_db.get_mappings_by_owner(miner_key.owner);
+      CHECK_EQ(lns_db.height(), first_lns_height);
 
       size_t expected_size = 1;
       if (lns::mapping_type_allowed(c.get_blockchain_storage().get_current_hard_fork_version(), lns::mapping_type::wallet)) expected_size += 1;
@@ -1760,6 +1761,7 @@ bool loki_name_system_large_reorg::generate(std::vector<test_event_entry> &event
     {
       DEFINE_TESTS_ERROR_CONTEXT("check_second_lns_entries");
       lns::name_system_db const &lns_db = c.get_blockchain_storage().name_system_db();
+      CHECK_EQ(lns_db.height(), second_lns_height);
 
       // NOTE: Check miner's record
       if (lns::mapping_type_allowed(c.get_blockchain_storage().get_current_hard_fork_version(), lns::mapping_type::lokinet_1year))
@@ -1801,6 +1803,7 @@ bool loki_name_system_large_reorg::generate(std::vector<test_event_entry> &event
     uint64_t blocks_to_pop = curr_height - second_lns_height;
     blockchain.pop_blocks(blocks_to_pop);
     lns::name_system_db const &lns_db  = blockchain.name_system_db();
+    CHECK_EQ(lns_db.height(), blockchain.get_current_blockchain_height() - 1);
 
     // NOTE: Check bob's records got removed due to popping back to before it existed
     {
@@ -1847,6 +1850,7 @@ bool loki_name_system_large_reorg::generate(std::vector<test_event_entry> &event
     uint64_t blocks_to_pop = curr_height - first_lns_height;
     blockchain.pop_blocks(blocks_to_pop);
     lns::name_system_db const &lns_db  = blockchain.name_system_db();
+    CHECK_EQ(lns_db.height(), blockchain.get_current_blockchain_height() - 1);
 
     // NOTE: Check miner's records are gone
     {
