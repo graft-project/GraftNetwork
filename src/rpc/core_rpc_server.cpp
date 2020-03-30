@@ -3413,6 +3413,7 @@ namespace cryptonote
         if (record.backup_owner) entry.backup_owner            = record.backup_owner.to_string(nettype());
         entry.encrypted_value                                  = epee::to_hex::string(record.encrypted_value.to_span());
         entry.register_height                                  = record.register_height;
+        entry.update_height                                    = record.update_height;
         entry.txid                                             = epee::string_tools::pod_to_hex(record.txid);
         if (record.prev_txid) entry.prev_txid                  = epee::string_tools::pod_to_hex(record.prev_txid);
       }
@@ -3471,6 +3472,7 @@ namespace cryptonote
       if (record.backup_owner) entry.backup_owner = record.backup_owner.to_string(nettype());
       entry.encrypted_value = epee::to_hex::string(record.encrypted_value.to_span());
       entry.register_height = record.register_height;
+      entry.update_height   = record.update_height;
       entry.txid            = epee::string_tools::pod_to_hex(record.txid);
       if (record.prev_txid) entry.prev_txid = epee::string_tools::pod_to_hex(record.prev_txid);
     }

@@ -126,10 +126,12 @@ struct mapping_record
   operator bool() const { return loaded; }
 
   bool          loaded;
+  int64_t       id;
   mapping_type  type;
   std::string   name_hash; // name hashed and represented in base64 encoding
   mapping_value encrypted_value;
   uint64_t      register_height;
+  uint64_t      update_height;
   crypto::hash  txid;
   crypto::hash  prev_txid;
   int64_t       owner_id;
@@ -140,14 +142,14 @@ struct mapping_record
 
 struct name_system_db
 {
-  bool                        init        (cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash);
+  bool                        init        (cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db);
   bool                        add_block   (const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
 
   cryptonote::network_type    network_type() const { return nettype; }
   uint64_t                    height      () const { return last_processed_height; }
 
   // Signifies the blockchain has reorganized commences the rollback and pruning procedures.
-  void                        block_detach(cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height);
+  void                        block_detach   (cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height);
   bool                        save_owner     (generic_owner const &owner, int64_t *row_id);
   bool                        save_mapping   (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id, int64_t backup_owner_id = 0);
   bool                        save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);

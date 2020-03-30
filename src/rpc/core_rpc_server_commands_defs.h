@@ -3496,6 +3496,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
       std::string backup_owner; // The backup public key that the owner specified when purchasing the Loki Name Service entry.
       std::string encrypted_value; // The encrypted value that the name maps to. This value is encrypted using the name (not the hash) as the secret.
       uint64_t register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      uint64_t update_height;   // The last height that this Loki Name Service entry was updated on the Blockchain.
       std::string txid;         // The txid of who purchased the mapping, null hash if not applicable.
       std::string prev_txid;    // The previous txid that purchased the mapping, null hash if not applicable.
       BEGIN_KV_SERIALIZE_MAP()
@@ -3506,6 +3507,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         KV_SERIALIZE(backup_owner)
         KV_SERIALIZE(encrypted_value)
         KV_SERIALIZE(register_height)
+        KV_SERIALIZE(update_height)
         KV_SERIALIZE(txid)
         KV_SERIALIZE(prev_txid)
       END_KV_SERIALIZE_MAP()
@@ -3545,6 +3547,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
       std::string backup_owner;    // The backup public key specified by the owner that purchased the Loki Name Service entry.
       std::string encrypted_value; // The encrypted value that the name maps to. This value is encrypted using the name (not the hash) as the secret.
       uint64_t    register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      uint64_t    update_height;   // The last height that this Loki Name Service entry was updated on the Blockchain.
       std::string txid;            // The txid of who purchases the mapping.
       std::string prev_txid;       // The previous txid that purchased the mapping, null hash if not applicable.
       BEGIN_KV_SERIALIZE_MAP()
@@ -3555,6 +3558,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         KV_SERIALIZE(backup_owner)
         KV_SERIALIZE(encrypted_value)
         KV_SERIALIZE(register_height)
+        KV_SERIALIZE(update_height)
         KV_SERIALIZE(txid)
         KV_SERIALIZE(prev_txid)
       END_KV_SERIALIZE_MAP()

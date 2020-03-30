@@ -45,6 +45,8 @@ enum struct lns_sql_type
   get_owner,
   get_setting,
   get_sentinel_end,
+
+  internal_cmd,
 };
 
 enum struct lns_db_setting_column
@@ -70,6 +72,7 @@ enum struct mapping_record_column
   txid,
   prev_txid,
   register_height,
+  update_height,
   owner_id,
   backup_owner_id,
   _count,
@@ -86,6 +89,7 @@ static char const *mapping_record_column_string(mapping_record_column col)
     case mapping_record_column::txid: return "txid";
     case mapping_record_column::prev_txid: return "prev_txid";
     case mapping_record_column::register_height: return "register_height";
+    case mapping_record_column::update_height: return "update_height";
     case mapping_record_column::owner_id: return "owner_id";
     case mapping_record_column::backup_owner_id: return "backup_owner_id";
     default: return "xx_invalid";
@@ -159,7 +163,9 @@ static mapping_record sql_get_mapping_from_statement(sqlite3_stmt *statement)
     return result;
 
   result.type            = static_cast<mapping_type>(type_int);
+  result.id              = static_cast<int64_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::id)));
   result.register_height = static_cast<uint64_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::register_height)));
+  result.update_height   = static_cast<uint64_t>(sqlite3_column_int(statement, static_cast<int>(mapping_record_column::update_height)));
   result.owner_id        = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::owner_id));
   result.backup_owner_id = sqlite3_column_int(statement, static_cast<int>(mapping_record_column::backup_owner_id));
 
@@ -217,12 +223,9 @@ static bool sql_run_statement(cryptonote::network_type nettype, lns_sql_type typ
       {
         switch (type)
         {
-          default:
-          {
-            MERROR("Unhandled lns type enum with value: " << (int)type << ", in: " << __func__);
-          }
-          break;
+          default: MERROR("Unhandled lns type enum with value: " << (int)type << ", in: " << __func__); break;
 
+          case lns_sql_type::internal_cmd: break;
           case lns_sql_type::get_owner:
           {
             auto *entry = reinterpret_cast<owner_record *>(context);
@@ -1053,6 +1056,7 @@ CREATE TABLE IF NOT EXISTS "mappings" (
     "txid" BLOB NOT NULL,
     "prev_txid" BLOB NOT NULL,
     "register_height" INTEGER NOT NULL,
+    "update_height" INTEGER NOT NULL,
     "owner_id" INTEGER NOT NULL REFERENCES "owner" ("id"),
     "backup_owner_id" INTEGER REFERENCES "owner" ("id")
 );
@@ -1084,72 +1088,6 @@ LEFT JOIN "owner" "o2" ON "mappings"."backup_owner_id" = "o2"."id")" << "\n";
   if (suffix)
     stream << suffix;
   return stream.str();
-}
-
-enum struct db_version { v1, };
-auto constexpr DB_VERSION = db_version::v1;
-bool name_system_db::init(cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash)
-{
-  if (!db) return false;
-  this->db      = db;
-  this->nettype = nettype;
-
-  std::string const get_mappings_by_owner_str            = sql_cmd_combine_mappings_and_owner_table(R"(WHERE ? IN ("o1"."address", "o2"."address"))");
-  std::string const get_mappings_on_height_and_newer_str = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "register_height" >= ?)");
-  std::string const get_mapping_str                      = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "type" = ? AND "name_hash" = ?)");
-
-  char constexpr GET_OWNER_BY_ID_STR[]  = R"(SELECT * FROM "owner" WHERE "id" = ?)";
-  char constexpr GET_OWNER_BY_KEY_STR[] = R"(SELECT * FROM "owner" WHERE "address" = ?)";
-  char constexpr GET_SETTINGS_STR[]     = R"(SELECT * FROM "settings" WHERE "id" = 1)";
-  char constexpr PRUNE_MAPPINGS_STR[]   = R"(DELETE FROM "mappings" WHERE "register_height" >= ?)";
-
-  char constexpr PRUNE_OWNERS_STR[] =
-R"(DELETE FROM "owner"
-WHERE NOT EXISTS (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."owner_id")
-AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."backup_owner_id"))";
-
-  char constexpr SAVE_MAPPING_STR[]     = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "owner_id", "backup_owner_id") VALUES (?,?,?,?,?,?,?,?))";
-  char constexpr SAVE_OWNER_STR[]       = R"(INSERT INTO "owner" ("address") VALUES (?))";
-  char constexpr SAVE_SETTINGS_STR[]    = R"(INSERT OR REPLACE INTO "settings" ("id", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
-
-  sqlite3_stmt *test;
-
-  if (!build_default_tables(db))
-    return false;
-
-  if (
-      !sql_compile_statement(db, get_mappings_by_owner_str.c_str(),            get_mappings_by_owner_str.size(),            &get_mappings_by_owner_sql) ||
-      !sql_compile_statement(db, get_mappings_on_height_and_newer_str.c_str(), get_mappings_on_height_and_newer_str.size(), &get_mappings_on_height_and_newer_sql) ||
-      !sql_compile_statement(db, get_mapping_str.c_str(),                      get_mapping_str.size(),                      &get_mapping_sql) ||
-      !sql_compile_statement(db, GET_SETTINGS_STR,                             loki::array_count(GET_SETTINGS_STR),         &get_settings_sql) ||
-      !sql_compile_statement(db, GET_OWNER_BY_ID_STR,                          loki::array_count(GET_OWNER_BY_ID_STR),      &get_owner_by_id_sql) ||
-      !sql_compile_statement(db, GET_OWNER_BY_KEY_STR,                         loki::array_count(GET_OWNER_BY_KEY_STR),     &get_owner_by_key_sql) ||
-      !sql_compile_statement(db, PRUNE_MAPPINGS_STR,                           loki::array_count(PRUNE_MAPPINGS_STR),       &prune_mappings_sql) ||
-      !sql_compile_statement(db, PRUNE_OWNERS_STR,                             loki::array_count(PRUNE_OWNERS_STR),         &prune_owners_sql) ||
-      !sql_compile_statement(db, SAVE_MAPPING_STR,                             loki::array_count(SAVE_MAPPING_STR),         &save_mapping_sql) ||
-      !sql_compile_statement(db, SAVE_SETTINGS_STR,                            loki::array_count(SAVE_SETTINGS_STR),        &save_settings_sql) ||
-      !sql_compile_statement(db, SAVE_OWNER_STR,                               loki::array_count(SAVE_OWNER_STR),           &save_owner_sql)
-    )
-  {
-    return false;
-  }
-
-  if (settings_record settings = get_settings())
-  {
-    if (settings.top_height == top_height && settings.top_hash == top_hash)
-    {
-      this->last_processed_height = settings.top_height;
-      assert(settings.version == static_cast<int>(DB_VERSION));
-    }
-    else
-    {
-      char constexpr DROP_TABLE_SQL[] = R"(DROP TABLE IF EXISTS "owner"; DROP TABLE IF EXISTS "settings"; DROP TABLE IF EXISTS "mappings")";
-      sqlite3_exec(db, DROP_TABLE_SQL, nullptr /*callback*/, nullptr /*callback context*/, nullptr);
-      if (!build_default_tables(db)) return false;
-    }
-  }
-
-  return true;
 }
 
 struct scoped_db_transaction
@@ -1201,6 +1139,176 @@ scoped_db_transaction::~scoped_db_transaction()
   }
 
   lns_db.transaction_begun = false;
+}
+
+
+enum struct db_version { v0, v1_track_updates };
+auto constexpr DB_VERSION = db_version::v1_track_updates;
+bool name_system_db::init(cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db)
+{
+  if (!db) return false;
+  this->db      = db;
+  this->nettype = nettype;
+
+  std::string const get_mappings_by_owner_str            = sql_cmd_combine_mappings_and_owner_table(R"(WHERE ? IN ("o1"."address", "o2"."address"))");
+  std::string const get_mappings_on_height_and_newer_str = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "update_height" >= ?)");
+  std::string const get_mapping_str                      = sql_cmd_combine_mappings_and_owner_table(R"(WHERE "type" = ? AND "name_hash" = ?)");
+
+  char constexpr GET_SETTINGS_STR[]     = R"(SELECT * FROM "settings" WHERE "id" = 1)";
+  char constexpr GET_OWNER_BY_ID_STR[]  = R"(SELECT * FROM "owner" WHERE "id" = ?)";
+  char constexpr GET_OWNER_BY_KEY_STR[] = R"(SELECT * FROM "owner" WHERE "address" = ?)";
+  char constexpr PRUNE_MAPPINGS_STR[]   = R"(DELETE FROM "mappings" WHERE "update_height" >= ?)";
+
+  char constexpr PRUNE_OWNERS_STR[] =
+R"(DELETE FROM "owner"
+WHERE NOT EXISTS (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."owner_id")
+AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."backup_owner_id"))";
+
+  char constexpr SAVE_MAPPING_STR[]  = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "owner_id", "backup_owner_id") VALUES (?,?,?,?,?,?,?,?))";
+  char constexpr SAVE_OWNER_STR[]    = R"(INSERT INTO "owner" ("address") VALUES (?))";
+  char constexpr SAVE_SETTINGS_STR[] = R"(INSERT OR REPLACE INTO "settings" ("id", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
+
+  if (!build_default_tables(db))
+    return false;
+
+  if (
+      !sql_compile_statement(db, get_mappings_by_owner_str.c_str(),            get_mappings_by_owner_str.size(),            &get_mappings_by_owner_sql) ||
+      !sql_compile_statement(db, get_mappings_on_height_and_newer_str.c_str(), get_mappings_on_height_and_newer_str.size(), &get_mappings_on_height_and_newer_sql) ||
+      !sql_compile_statement(db, get_mapping_str.c_str(),                      get_mapping_str.size(),                      &get_mapping_sql) ||
+      !sql_compile_statement(db, GET_SETTINGS_STR,                             loki::array_count(GET_SETTINGS_STR),         &get_settings_sql) ||
+      !sql_compile_statement(db, GET_OWNER_BY_ID_STR,                          loki::array_count(GET_OWNER_BY_ID_STR),      &get_owner_by_id_sql) ||
+      !sql_compile_statement(db, GET_OWNER_BY_KEY_STR,                         loki::array_count(GET_OWNER_BY_KEY_STR),     &get_owner_by_key_sql) ||
+      !sql_compile_statement(db, PRUNE_MAPPINGS_STR,                           loki::array_count(PRUNE_MAPPINGS_STR),       &prune_mappings_sql) ||
+      !sql_compile_statement(db, PRUNE_OWNERS_STR,                             loki::array_count(PRUNE_OWNERS_STR),         &prune_owners_sql) ||
+      !sql_compile_statement(db, SAVE_MAPPING_STR,                             loki::array_count(SAVE_MAPPING_STR),         &save_mapping_sql) ||
+      !sql_compile_statement(db, SAVE_SETTINGS_STR,                            loki::array_count(SAVE_SETTINGS_STR),        &save_settings_sql) ||
+      !sql_compile_statement(db, SAVE_OWNER_STR,                               loki::array_count(SAVE_OWNER_STR),           &save_owner_sql)
+    )
+  {
+    return false;
+  }
+
+  // ---------------------------------------------------------------------------
+  //
+  // Migrate DB
+  //
+  // ---------------------------------------------------------------------------
+  if (settings_record settings = get_settings())
+  {
+    if (settings.version != static_cast<decltype(settings.version)>(DB_VERSION))
+    {
+      if (!blockchain)
+      {
+        MERROR("Migration required, blockchain can not be nullptr");
+        return false;
+      }
+
+      if (blockchain->get_db().is_read_only())
+      {
+        MERROR("DB is opened in read-only mode, unable to migrate LNS DB");
+        return false;
+      }
+
+      scoped_db_transaction db_transaction(*this);
+      if (!db_transaction) return false;
+      db_transaction.commit = true;
+
+      if (settings.version == static_cast<decltype(settings.version)>(db_version::v0))
+      {
+        char constexpr ADD_UPDATE_HEIGHT_SQL[] = R"(ALTER TABLE "mappings" ADD "update_height" INTEGER NOT NULL)";
+        sqlite3_exec(db, ADD_UPDATE_HEIGHT_SQL, nullptr /*callback*/, nullptr /*callback context*/, nullptr);
+
+        std::vector<mapping_record> all_mappings = {};
+        {
+          sqlite3_stmt *statement = get_mappings_on_height_and_newer_sql;
+          sqlite3_clear_bindings(statement);
+          sqlite3_bind_int(statement, 1 /*sql param index*/, 0);
+          sql_run_statement(nettype, lns_sql_type::get_mappings_on_height_and_newer, statement, &all_mappings);
+        }
+
+        std::vector<crypto::hash> hashes;
+        hashes.reserve(all_mappings.size());
+        for (mapping_record const &record: all_mappings)
+            hashes.push_back(record.txid);
+
+        char constexpr UPDATE_MAPPING_HEIGHT[] = R"(UPDATE "mappings" SET "update_height" = ? WHERE "id" = ?)";
+        sqlite3_stmt *update_mapping_height    = nullptr;
+        if (!sql_compile_statement(db, UPDATE_MAPPING_HEIGHT, loki::array_count(UPDATE_MAPPING_HEIGHT), &update_mapping_height))
+            return false;
+
+        std::vector<uint64_t> heights = blockchain->get_transactions_heights(hashes);
+        for (size_t i = 0; i < all_mappings.size(); i++)
+        {
+          sqlite3_clear_bindings(update_mapping_height);
+          sqlite3_bind_int(update_mapping_height, 1, heights[i]); break;
+          sqlite3_bind_int(update_mapping_height, 2, all_mappings[i].id); break;
+          sql_run_statement(nettype, lns_sql_type::internal_cmd, update_mapping_height, nullptr);
+        }
+
+        save_settings(settings.top_height, settings.top_hash, static_cast<int>(db_version::v1_track_updates));
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  //
+  // Reupdate sql commands
+  //
+  // ---------------------------------------------------------------------------
+  // Old DB's can't pre-compile statements referencing new fields if they don't have it yet
+  if (DB_VERSION >= db_version::v1_track_updates)
+  {
+    char constexpr SAVE_MAPPING_STR_V2[] = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "update_height", "owner_id", "backup_owner_id") VALUES (?,?,?,?,?,?,?,?,?))";
+    if (!sql_compile_statement(db, SAVE_MAPPING_STR_V2, loki::array_count(SAVE_MAPPING_STR_V2), &save_mapping_sql))
+      return false;
+  }
+
+  // ---------------------------------------------------------------------------
+  //
+  // Check settings
+  //
+  // ---------------------------------------------------------------------------
+  if (settings_record settings = get_settings())
+  {
+    if (!blockchain)
+    {
+      assert(nettype == cryptonote::FAKECHAIN);
+      return nettype == cryptonote::FAKECHAIN;
+    }
+
+    uint64_t lns_height   = 0;
+    crypto::hash lns_hash = blockchain->get_tail_id(lns_height);
+
+    // Try support out of date LNS databases by checking if the stored
+    // settings->[top_hash|top_height] match what we expect. If they match, we
+    // don't drop the DB but will load the missing blocks in a later step.
+
+    cryptonote::block lns_blk = {};
+    bool orphan               = false;
+    if (blockchain->get_block_by_hash(settings.top_hash, lns_blk, &orphan))
+    {
+      bool lns_height_matches = settings.top_height == cryptonote::get_block_height(lns_blk);
+      if (lns_height_matches && !orphan)
+      {
+        lns_height = settings.top_height;
+        lns_hash   = settings.top_hash;
+      }
+    }
+
+    if (settings.top_height == lns_height && settings.top_hash == lns_hash)
+    {
+      this->last_processed_height = settings.top_height;
+      assert(settings.version == static_cast<int>(DB_VERSION));
+    }
+    else
+    {
+      char constexpr DROP_TABLE_SQL[] = R"(DROP TABLE IF EXISTS "owner"; DROP TABLE IF EXISTS "settings"; DROP TABLE IF EXISTS "mappings")";
+      sqlite3_exec(db, DROP_TABLE_SQL, nullptr /*callback*/, nullptr /*callback context*/, nullptr);
+      if (!build_default_tables(db)) return false;
+    }
+  }
+
+  return true;
 }
 
 static int64_t add_or_get_owner_id(lns::name_system_db &lns_db, crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &entry, lns::generic_owner const &key)
@@ -1266,6 +1374,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
     {
       columns[column_count++] = mapping_record_column::prev_txid;
       columns[column_count++] = mapping_record_column::txid;
+      columns[column_count++] = mapping_record_column::update_height;
 
       if (entry.field_is_set(lns::extra_field::owner))
       {
@@ -1334,6 +1443,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
           case mapping_record_column::prev_txid:       sqlite3_bind_blob (statement, sql_param_index++, entry.prev_txid.data, sizeof(entry.prev_txid), nullptr /*destructor*/); break;
           case mapping_record_column::owner_id:        sqlite3_bind_int64(statement, sql_param_index++, owner_id); break;
           case mapping_record_column::backup_owner_id: sqlite3_bind_int64(statement, sql_param_index++, backup_owner_id); break;
+          case mapping_record_column::update_height:   sqlite3_bind_int64(statement, sql_param_index++, height); break;
           default: assert(false); return false;
         }
       }
@@ -1542,6 +1652,7 @@ bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_ex
   sqlite3_bind_blob (statement, static_cast<int>(mapping_record_column::txid), tx_hash.data, sizeof(tx_hash), nullptr /*destructor*/);
   sqlite3_bind_blob (statement, static_cast<int>(mapping_record_column::prev_txid), src.prev_txid.data, sizeof(src.prev_txid), nullptr /*destructor*/);
   sqlite3_bind_int64(statement, static_cast<int>(mapping_record_column::register_height), static_cast<int64_t>(height));
+  sqlite3_bind_int64(statement, static_cast<int>(mapping_record_column::update_height), static_cast<int64_t>(height));
   sqlite3_bind_int64(statement, static_cast<int>(mapping_record_column::owner_id), owner_id);
   if (backup_owner_id != 0)
   {
@@ -1574,6 +1685,7 @@ bool name_system_db::prune_db(uint64_t height)
     if (!sql_run_statement(nettype, lns_sql_type::pruning, statement, nullptr)) return false;
   }
 
+  this->last_processed_height = (height - 1);
   return true;
 }
 
