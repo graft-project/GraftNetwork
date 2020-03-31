@@ -1393,7 +1393,6 @@ struct loki_chain_generator
   cryptonote::account_base                                           first_miner_;
 
   loki_chain_generator(std::vector<test_event_entry> &events, const std::vector<std::pair<uint8_t, uint64_t>> &hard_forks);
-  ~loki_chain_generator();
 
   uint64_t                                             height()       const { return cryptonote::get_block_height(db_.blocks.back().block); }
   uint64_t                                             chain_height() const { return height() + 1; }

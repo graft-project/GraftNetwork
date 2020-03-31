@@ -152,13 +152,6 @@ loki_chain_generator::loki_chain_generator(std::vector<test_event_entry> &events
   events_.push_back(settings);
 }
 
-loki_chain_generator::~loki_chain_generator()
-{
-  // FIXME -- shouldn't this close by in name_system_db's destructor?
-  if (lns_db_.use_count() == 1)
-    sqlite3_close_v2(lns_db_->db);
-}
-
 service_nodes::quorum_manager loki_chain_generator::top_quorum() const
 {
   service_nodes::quorum_manager result = top().service_node_state.quorums;

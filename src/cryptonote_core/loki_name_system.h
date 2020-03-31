@@ -211,6 +211,9 @@ struct name_system_db
   // entry: (optional) if function returns true, the Loki Name System entry in the TX extra is copied into 'entry'
   bool                        validate_lns_tx       (uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr);
 
+  // Destructor; closes the sqlite3 database if one is open
+  ~name_system_db();
+
   sqlite3 *db               = nullptr;
   bool    transaction_begun = false;
 private:

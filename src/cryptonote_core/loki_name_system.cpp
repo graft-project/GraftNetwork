@@ -1544,6 +1544,13 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
   return true;
 }
 
+name_system_db::~name_system_db()
+{
+  // close_v2 starts shutting down; the actual shutdown occurs once the last prepared statement is
+  // finalized (which should happen when the ..._sql members get destructed, right after this).
+  sqlite3_close_v2(db);
+}
+
 static int64_t add_or_get_owner_id(lns::name_system_db &lns_db, crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &entry, lns::generic_owner const &key)
 {
   int64_t result = 0;
