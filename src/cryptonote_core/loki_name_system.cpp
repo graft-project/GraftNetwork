@@ -180,6 +180,7 @@ bool bind(sql_compiled_statement& s, int index, lokimq::string_view text)
   return SQLITE_OK == sqlite3_bind_text(s.statement, index, text.data(), text.size(), nullptr /*dtor*/);
 }
 
+/* Currently unused; comment out until needed to avoid a compiler warning
 // text, from a temporary std::string; ownership of the string data is transferred to sqlite3
 bool bind(sql_compiled_statement& s, int index, std::string&& text)
 {
@@ -191,11 +192,13 @@ bool bind(sql_compiled_statement& s, int index, std::string&& text)
   delete local_text;
   return false;
 }
+*/
 
 template <typename T, typename SFINAE = void>
 struct is_int_enum : std::false_type {};
 template <typename T>
-struct is_int_enum<T, std::enable_if_t<std::is_enum<T>::value && std::is_same<std::underlying_type_t<T>, int>::value>> : std::true_type {};
+struct is_int_enum<T, std::enable_if_t<std::is_enum<T>::value>>
+: std::integral_constant<bool, std::is_same<std::underlying_type_t<T>, int>::value> {};
 
 // Binds, but gives index as an enum class
 template <typename T, typename I, std::enable_if_t<is_int_enum<I>::value, int> = 0>
@@ -218,6 +221,7 @@ bool bind_blob(sql_compiled_statement& s, int index, lokimq::string_view blob)
   return SQLITE_OK == sqlite3_bind_blob(s.statement, index, blob.data(), blob.size(), nullptr /*dtor*/);
 }
 
+/* Currently unused; comment out until needed to avoid a compiler warning
 // From a std::string rvalue; sqlite3 manages ownership
 bool bind_blob(sql_compiled_statement& s, int index, std::string&& blob)
 {
@@ -229,6 +233,7 @@ bool bind_blob(sql_compiled_statement& s, int index, std::string&& blob)
   delete local_blob;
   return false;
 }
+*/
 
 // Wrapper for bind_blob with an enum index
 template <typename... T, typename I, std::enable_if_t<is_int_enum<I>::value, int> = 0>
