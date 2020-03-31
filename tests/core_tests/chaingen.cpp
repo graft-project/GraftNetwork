@@ -135,7 +135,7 @@ loki_chain_generator::loki_chain_generator(std::vector<test_event_entry> &events
 : events_(events)
 , hard_forks_(hard_forks)
 {
-  bool init = lns_db_.init(nullptr, cryptonote::FAKECHAIN, lns::init_loki_name_system(""));
+  bool init = lns_db_->init(nullptr, cryptonote::FAKECHAIN, lns::init_loki_name_system(""));
   assert(init);
 
   first_miner_.generate();
@@ -154,7 +154,9 @@ loki_chain_generator::loki_chain_generator(std::vector<test_event_entry> &events
 
 loki_chain_generator::~loki_chain_generator()
 {
-  sqlite3_close_v2(lns_db_.db);
+  // FIXME -- shouldn't this close by in name_system_db's destructor?
+  if (lns_db_.use_count() == 1)
+    sqlite3_close_v2(lns_db_->db);
 }
 
 service_nodes::quorum_manager loki_chain_generator::top_quorum() const
@@ -210,7 +212,7 @@ loki_blockchain_entry &loki_chain_generator::add_block(loki_blockchain_entry con
 
   if (can_be_added_to_blockchain && entry.block.major_version >= cryptonote::network_version_15_lns)
   {
-    lns_db_.add_block(entry.block, entry.txs);
+    lns_db_->add_block(entry.block, entry.txs);
   }
 
   // TODO(loki): State history culling and alt states
@@ -554,7 +556,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   crypto::hash name_hash       = lns::name_to_hash(name);
   std::string name_base64_hash = lns::name_to_base64_hash(name);
   crypto::hash prev_txid = crypto::null_hash;
-  if (lns::mapping_record mapping = lns_db_.get_mapping(type, name_base64_hash))
+  if (lns::mapping_record mapping = lns_db_->get_mapping(type, name_base64_hash))
     prev_txid = mapping.txid;
 
   lns::mapping_value encrypted_value = {};
@@ -588,7 +590,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx_update(
   crypto::hash prev_txid = {};
   {
     std::string name_base64_hash = lns::name_to_base64_hash(name);
-    lns::mapping_record mapping  = lns_db_.get_mapping(type, name_base64_hash);
+    lns::mapping_record mapping  = lns_db_->get_mapping(type, name_base64_hash);
     if (use_asserts) assert(mapping);
     prev_txid = mapping.txid;
   }
