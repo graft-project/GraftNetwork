@@ -72,9 +72,9 @@ enum struct mapping_record_column
   txid,
   prev_txid,
   register_height,
-  update_height,
   owner_id,
   backup_owner_id,
+  update_height,
   _count,
 };
 
@@ -173,6 +173,8 @@ bool bind(sql_compiled_statement& s, int index, const T& val) { return SQLITE_OK
 template <typename T, std::enable_if_t<std::is_floating_point<T>::value, int> = 0>
 bool bind(sql_compiled_statement& s, int index, const T& val) { return SQLITE_OK == sqlite3_bind_double(s.statement, index, val); }
 
+// Binds null
+bool bind(sql_compiled_statement& s, int index, std::nullptr_t) { return SQLITE_OK == sqlite3_bind_null(s.statement, index); }
 
 // text, from a referenced string (which must be kept alive)
 bool bind(sql_compiled_statement& s, int index, lokimq::string_view text)
@@ -321,7 +323,6 @@ T get(sql_compiled_statement& s, I index)
 {
   return get<T>(s, static_cast<int>(index));
 }
-
 
 // Wrapper around get that assigns to the given reference.
 //     get(st, 3, myvar);
@@ -533,8 +534,7 @@ bool sql_compiled_statement::compile(lokimq::string_view query, bool optimise_fo
     MERROR("Can not compile SQL statement:\n" << query << "\nReason: " << sqlite3_errstr(prepare_result));
     return false;
   }
-  if (statement)
-    sqlite3_finalize(statement);
+  sqlite3_finalize(statement);
   statement = st;
   return true;
 }
@@ -1292,9 +1292,9 @@ CREATE TABLE IF NOT EXISTS "mappings" (
     "txid" BLOB NOT NULL,
     "prev_txid" BLOB NOT NULL,
     "register_height" INTEGER NOT NULL,
-    "update_height" INTEGER NOT NULL DEFAULT "register_height",
     "owner_id" INTEGER NOT NULL REFERENCES "owner" ("id"),
-    "backup_owner_id" INTEGER REFERENCES "owner" ("id")
+    "backup_owner_id" INTEGER REFERENCES "owner" ("id"),
+    "update_height" INTEGER NOT NULL DEFAULT "register_height"
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "name_hash_type_id" ON mappings("name_hash", "type");
 CREATE INDEX IF NOT EXISTS "owner_id_index" ON mappings("owner_id");
@@ -1400,7 +1400,7 @@ R"(DELETE FROM "owner"
 WHERE NOT EXISTS (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."owner_id")
 AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."backup_owner_id"))";
 
-  char constexpr SAVE_MAPPING_STR[]  = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "update_height", "owner_id", "backup_owner_id") VALUES (?,?,?,?,?,?,?,?,?))";
+  char constexpr SAVE_MAPPING_STR[]  = R"(INSERT OR REPLACE INTO "mappings" ("type", "name_hash", "encrypted_value", "txid", "prev_txid", "register_height", "owner_id", "backup_owner_id", "update_height") VALUES (?,?,?,?,?,?,?,?,?))";
   char constexpr SAVE_OWNER_STR[]    = R"(INSERT INTO "owner" ("address") VALUES (?))";
   char constexpr SAVE_SETTINGS_STR[] = R"(INSERT OR REPLACE INTO "settings" ("id", "top_height", "top_hash", "version") VALUES (1,?,?,?))";
 
@@ -1873,6 +1873,7 @@ bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_ex
 
   std::string name_hash = hash_to_base64(src.name_hash);
   auto& statement = save_mapping_sql;
+  clear_bindings(statement);
   bind(statement, mapping_record_column::type, static_cast<uint16_t>(src.type));
   bind(statement, mapping_record_column::name_hash, name_hash);
   bind(statement, mapping_record_column::encrypted_value, blob_view{src.encrypted_value});
@@ -1882,9 +1883,10 @@ bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_ex
   bind(statement, mapping_record_column::update_height, height);
   bind(statement, mapping_record_column::owner_id, owner_id);
   if (backup_owner_id != 0)
-  {
     bind(statement, mapping_record_column::backup_owner_id, backup_owner_id);
-  }
+  else
+    bind(statement, mapping_record_column::backup_owner_id, nullptr);
+
   bool result = sql_run_statement(lns_sql_type::save_mapping, statement, nullptr);
   return result;
 }
