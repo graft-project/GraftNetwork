@@ -193,6 +193,7 @@ namespace supernode {
                 BEGIN_KV_SERIALIZE_MAP()
                     KV_SERIALIZE(Account)
                     KV_SERIALIZE(Password)
+                    KV_SERIALIZE(Recipient)
                     KV_SERIALIZE(Keys)
                     KV_SERIALIZE(Wallets)
                     KV_SERIALIZE(Amount)
