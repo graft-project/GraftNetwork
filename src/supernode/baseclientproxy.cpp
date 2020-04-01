@@ -316,7 +316,7 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
     if (in.Keys.size() != in.Wallets.size()) {
         out.Result = -1; // TODO: error code
         out.ErrorMessage = "Keys and Wallets mismatch";
-        return false;
+        return true;
     }
     
     
@@ -325,7 +325,7 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
     if (!wallet)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
-        return false;
+        return true;
     }
     try
     {
@@ -334,6 +334,7 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
         MINFO("BaseClientProxy::GetWalletTransactions: about to call 'refresh()'");
         wallet->refresh(wallet->is_trusted_daemon());
         MINFO("BaseClientProxy::BuildRtaTransaction: 'refresh()' done");
+        storeWalletState(wallet.get());
         
         auto append_key_to_rta_hdr = [&](cryptonote::rta_header &rta_hdr, const std::string &key)->bool
         {
@@ -354,7 +355,7 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
             if (!append_key_to_rta_hdr(rta_hdr, key)) {
                 out.Result = -1;
                 out.ErrorMessage = std::string("Failed to parse node key: ") + key;
-                return false;
+                return true;
             }
         }
         std::vector<uint8_t> extra;
@@ -383,7 +384,7 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
         MERROR("Wallet exception: " << e.what());
         out.Result = -1; // TODO: introduce error code
         out.ErrorMessage = std::string(e.what());
-        return false;
+        return true;
     }
     out.Result = STATUS_OK;
     return true;
