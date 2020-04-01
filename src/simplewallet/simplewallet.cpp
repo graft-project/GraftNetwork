@@ -6604,8 +6604,9 @@ bool simple_wallet::lns_print_name_to_owners(const std::vector<std::string>& arg
                         << ", owner=" << mapping.owner
                         << ", backup_owner=" << (mapping.backup_owner.empty() ? NULL_STR : mapping.backup_owner)
                         << ", height=" << mapping.register_height
+                        << ", update_height=" << mapping.update_height
                         << ", encrypted_value=" << mapping.encrypted_value
-                        << ", value=" << epee::to_hex::string(value.to_span())
+                        << ", value=" << value.to_readable_value(m_wallet->nettype(), static_cast<lns::mapping_type>(mapping.type))
                         << ", prev_txid=" << (mapping.prev_txid.empty() ? NULL_STR : mapping.prev_txid);
   }
 
@@ -6618,13 +6619,17 @@ bool simple_wallet::lns_print_owners_to_names(const std::vector<std::string>& ar
     return false;
 
   boost::optional<std::string> failed;
+  std::vector<std::vector<cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::response_entry>> rpc_results;
+  std::vector<cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::request> requests(1);
 
-  std::string my_key;
-  cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::request request = {};
   if (args.size() == 0)
   {
-    my_key = m_wallet->get_subaddress_as_str({m_current_subaddress_account, 0});
-    request.entries.push_back(my_key);
+    for (uint32_t index = 0; index < m_wallet->get_num_subaddresses(m_current_subaddress_account); ++index)
+    {
+      if (requests.back().entries.size() >= cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::MAX_REQUEST_ENTRIES)
+        requests.emplace_back();
+      requests.back().entries.push_back(m_wallet->get_subaddress_as_str({m_current_subaddress_account, index}));
+    }
   }
   else
   {
@@ -6641,40 +6646,50 @@ bool simple_wallet::lns_print_owners_to_names(const std::vector<std::string>& ar
         fail_msg_writer() << "arg contains non-hex characters: " << arg;
         return false;
       }
-      request.entries.push_back(arg);
+
+      if (requests.back().entries.size() >= cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::MAX_REQUEST_ENTRIES)
+        requests.emplace_back();
+      requests.back().entries.push_back(arg);
     }
   }
 
-  std::vector<cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::response_entry> entries = m_wallet->lns_owners_to_names(request, failed);
-  if (failed)
+  rpc_results.reserve(requests.size());
+  for (auto const &request : requests)
   {
-    fail_msg_writer() << *failed;
-    return false;
+    std::vector<cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::response_entry> result = m_wallet->lns_owners_to_names(request, failed);
+    if (failed)
+    {
+      fail_msg_writer() << *failed;
+      return false;
+    }
+    rpc_results.emplace_back(std::move(result));
   }
 
-  for (cryptonote::COMMAND_RPC_LNS_OWNERS_TO_NAMES::response_entry const &entry : entries)
+  for (size_t i = 0; i < rpc_results.size(); i++)
   {
-    std::string const *owner = &my_key;
-    if (args.size()) // If specified owner to look up, retrieve it
+    auto const &rpc = rpc_results[i];
+    for (auto const &entry : rpc)
     {
+      std::string const *owner = nullptr;
       try
       {
-        owner = &args.at(entry.request_index);
+        owner = &requests[i].entries.at(entry.request_index);
       }
       catch (std::exception const &e)
       {
         fail_msg_writer() << "Daemon returned an invalid owner index = " << entry.request_index << " skipping mapping";
         continue;
       }
-    }
 
-    tools::msg_writer() << "owner=" << *owner
-                        << ", backup_owner=" << (entry.backup_owner.empty() ? NULL_STR : entry.backup_owner)
-                        << ", type=" << static_cast<lns::mapping_type>(entry.type)
-                        << ", height=" << entry.register_height
-                        << ", name_hash=" << entry.name_hash
-                        << ", encrypted_value=" << entry.encrypted_value
-                        << ", prev_txid=" << (entry.prev_txid.empty() ? NULL_STR : entry.prev_txid);
+      tools::msg_writer() << "owner=" << *owner
+                          << ", backup_owner=" << (entry.backup_owner.empty() ? NULL_STR : entry.backup_owner)
+                          << ", type=" << static_cast<lns::mapping_type>(entry.type)
+                          << ", height=" << entry.register_height
+                          << ", update_height=" << entry.update_height
+                          << ", name_hash=" << entry.name_hash
+                          << ", encrypted_value=" << entry.encrypted_value
+                          << ", prev_txid=" << (entry.prev_txid.empty() ? NULL_STR : entry.prev_txid);
+    }
   }
   return true;
 }

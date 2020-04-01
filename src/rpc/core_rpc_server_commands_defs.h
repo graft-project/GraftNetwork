@@ -94,7 +94,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define CORE_RPC_VERSION_MAJOR 3
-#define CORE_RPC_VERSION_MINOR 2
+#define CORE_RPC_VERSION_MINOR 3
 #define MAKE_CORE_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define CORE_RPC_VERSION MAKE_CORE_RPC_VERSION(CORE_RPC_VERSION_MAJOR, CORE_RPC_VERSION_MINOR)
 
@@ -3496,6 +3496,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
       std::string backup_owner; // The backup public key that the owner specified when purchasing the Loki Name Service entry.
       std::string encrypted_value; // The encrypted value that the name maps to. This value is encrypted using the name (not the hash) as the secret.
       uint64_t register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      uint64_t update_height;   // The last height that this Loki Name Service entry was updated on the Blockchain.
       std::string txid;         // The txid of who purchased the mapping, null hash if not applicable.
       std::string prev_txid;    // The previous txid that purchased the mapping, null hash if not applicable.
       BEGIN_KV_SERIALIZE_MAP()
@@ -3506,6 +3507,7 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
         KV_SERIALIZE(backup_owner)
         KV_SERIALIZE(encrypted_value)
         KV_SERIALIZE(register_height)
+        KV_SERIALIZE(update_height)
         KV_SERIALIZE(txid)
         KV_SERIALIZE(prev_txid)
       END_KV_SERIALIZE_MAP()
@@ -3538,21 +3540,25 @@ constexpr char const CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS[] = "Daemon ma
 
     struct response_entry
     {
-      uint64_t    request_index;   // The index in request's `entries` array that was resolved via Loki Name Service.
+      uint64_t    request_index;   // (Deprecated) The index in request's `entries` array that was resolved via Loki Name Service.
       uint16_t    type;            // The category the Loki Name Service entry belongs to, currently only Session whose value is 0.
       std::string name_hash;       // The hash of the name that the owner purchased via Loki Name Service in base64
+      std::string owner;           // The backup public key specified by the owner that purchased the Loki Name Service entry.
       std::string backup_owner;    // The backup public key specified by the owner that purchased the Loki Name Service entry.
       std::string encrypted_value; // The encrypted value that the name maps to. This value is encrypted using the name (not the hash) as the secret.
       uint64_t    register_height; // The height that this Loki Name Service entry was purchased on the Blockchain.
+      uint64_t    update_height;   // The last height that this Loki Name Service entry was updated on the Blockchain.
       std::string txid;            // The txid of who purchases the mapping.
       std::string prev_txid;       // The previous txid that purchased the mapping, null hash if not applicable.
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(request_index)
         KV_SERIALIZE(type)
         KV_SERIALIZE(name_hash)
+        KV_SERIALIZE(owner)
         KV_SERIALIZE(backup_owner)
         KV_SERIALIZE(encrypted_value)
         KV_SERIALIZE(register_height)
+        KV_SERIALIZE(update_height)
         KV_SERIALIZE(txid)
         KV_SERIALIZE(prev_txid)
       END_KV_SERIALIZE_MAP()

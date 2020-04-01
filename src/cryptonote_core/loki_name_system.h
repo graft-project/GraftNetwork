@@ -39,6 +39,7 @@ struct mapping_value
 
   std::string               to_string() const { return std::string(reinterpret_cast<char const *>(buffer.data()), len); }
   epee::span<const uint8_t> to_span()   const { return epee::span<const uint8_t>(reinterpret_cast<const uint8_t *>(buffer.data()), len); }
+  std::string               to_readable_value(cryptonote::network_type nettype, mapping_type type) const;
   bool operator==(mapping_value const &other) const { return other.len    == len && memcmp(buffer.data(), other.buffer.data(), len) == 0; }
   bool operator==(std::string   const &other) const { return other.size() == len && memcmp(buffer.data(), other.data(), len) == 0; }
 };
@@ -125,10 +126,12 @@ struct mapping_record
   operator bool() const { return loaded; }
 
   bool          loaded;
+  int64_t       id;
   mapping_type  type;
   std::string   name_hash; // name hashed and represented in base64 encoding
   mapping_value encrypted_value;
   uint64_t      register_height;
+  uint64_t      update_height;
   crypto::hash  txid;
   crypto::hash  prev_txid;
   int64_t       owner_id;
@@ -137,16 +140,59 @@ struct mapping_record
   generic_owner backup_owner;
 };
 
+struct name_system_db;
+class sql_compiled_statement final
+{
+public:
+  /// The name_system_db upon which this object operates
+  name_system_db& nsdb;
+  /// The stored, owned statement
+  sqlite3_stmt* statement = nullptr;
+
+  /// Constructor; takes a reference to the name_system_db.
+  explicit sql_compiled_statement(name_system_db& nsdb) : nsdb{nsdb} {}
+
+  /// Non-copyable (because we own an internal sqlite3 statement handle)
+  sql_compiled_statement(const sql_compiled_statement&) = delete;
+  sql_compiled_statement& operator=(const sql_compiled_statement&) = delete;
+
+  /// Move construction; ownership of the internal statement handle, if present, is transferred to
+  /// the new object.
+  sql_compiled_statement(sql_compiled_statement&& from) : nsdb{from.nsdb}, statement{from.statement} { from.statement = nullptr; }
+
+  /// Move copying.  The referenced name_system_db must be the same.  Ownership of the internal
+  /// statement handle is transferred.  If the target already has a statement handle then it is
+  /// destroyed.
+  sql_compiled_statement& operator=(sql_compiled_statement&& from);
+
+  /// Destroys the internal sqlite3 statement on destruction
+  ~sql_compiled_statement();
+
+  /// Attempts to prepare the given statement.  MERRORs and returns false on failure.  If the object
+  /// already has a prepare statement then it is finalized first.
+  bool compile(lokimq::string_view query, bool optimise_for_multiple_usage = true);
+
+  template <size_t N>
+  bool compile(const char (&query)[N], bool optimise_for_multiple_usage = true)
+  {
+    return compile({&query[0], N}, optimise_for_multiple_usage);
+  }
+
+  /// Returns true if the object owns a prepared statement
+  explicit operator bool() const { return statement != nullptr; }
+
+};
+
 struct name_system_db
 {
-  bool                        init        (cryptonote::network_type nettype, sqlite3 *db, uint64_t top_height, crypto::hash const &top_hash);
+  bool                        init        (cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db);
   bool                        add_block   (const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
 
   cryptonote::network_type    network_type() const { return nettype; }
   uint64_t                    height      () const { return last_processed_height; }
 
   // Signifies the blockchain has reorganized commences the rollback and pruning procedures.
-  void                        block_detach(cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height);
+  void                        block_detach   (cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height);
   bool                        save_owner     (generic_owner const &owner, int64_t *row_id);
   bool                        save_mapping   (crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id, int64_t backup_owner_id = 0);
   bool                        save_settings  (uint64_t top_height, crypto::hash const &top_hash, int version);
@@ -154,33 +200,36 @@ struct name_system_db
   // Delete all mappings that are registered on height or newer followed by deleting all owners no longer referenced in the DB
   bool                        prune_db(uint64_t height);
 
-  owner_record                get_owner_by_key      (generic_owner const &owner) const;
-  owner_record                get_owner_by_id       (int64_t owner_id) const;
-  mapping_record              get_mapping           (mapping_type type, std::string const &name_base64_hash) const;
-  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name_base64_hash) const;
-  std::vector<mapping_record> get_mappings_by_owner (generic_owner const &key) const;
-  std::vector<mapping_record> get_mappings_by_owners(std::vector<generic_owner> const &keys) const;
-  settings_record             get_settings          () const;
+  owner_record                get_owner_by_key      (generic_owner const &owner);
+  owner_record                get_owner_by_id       (int64_t owner_id);
+  mapping_record              get_mapping           (mapping_type type, std::string const &name_base64_hash);
+  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name_base64_hash);
+  std::vector<mapping_record> get_mappings_by_owner (generic_owner const &key);
+  std::vector<mapping_record> get_mappings_by_owners(std::vector<generic_owner> const &keys);
+  settings_record             get_settings          ();
 
   // entry: (optional) if function returns true, the Loki Name System entry in the TX extra is copied into 'entry'
-  bool                        validate_lns_tx       (uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr) const;
+  bool                        validate_lns_tx       (uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *entry = nullptr, std::string *reason = nullptr);
+
+  // Destructor; closes the sqlite3 database if one is open
+  ~name_system_db();
 
   sqlite3 *db               = nullptr;
   bool    transaction_begun = false;
 private:
   cryptonote::network_type nettype;
-  uint64_t last_processed_height                     = 0;
-  sqlite3_stmt *save_owner_sql                       = nullptr;
-  sqlite3_stmt *save_mapping_sql                     = nullptr;
-  sqlite3_stmt *save_settings_sql                    = nullptr;
-  sqlite3_stmt *get_owner_by_key_sql                 = nullptr;
-  sqlite3_stmt *get_owner_by_id_sql                  = nullptr;
-  sqlite3_stmt *get_mapping_sql                      = nullptr;
-  sqlite3_stmt *get_settings_sql                     = nullptr;
-  sqlite3_stmt *prune_mappings_sql                   = nullptr;
-  sqlite3_stmt *prune_owners_sql                     = nullptr;
-  sqlite3_stmt *get_mappings_by_owner_sql            = nullptr;
-  sqlite3_stmt *get_mappings_on_height_and_newer_sql = nullptr;
+  uint64_t last_processed_height = 0;
+  sql_compiled_statement save_owner_sql{*this};
+  sql_compiled_statement save_mapping_sql{*this};
+  sql_compiled_statement save_settings_sql{*this};
+  sql_compiled_statement get_owner_by_key_sql{*this};
+  sql_compiled_statement get_owner_by_id_sql{*this};
+  sql_compiled_statement get_mapping_sql{*this};
+  sql_compiled_statement get_settings_sql{*this};
+  sql_compiled_statement prune_mappings_sql{*this};
+  sql_compiled_statement prune_owners_sql{*this};
+  sql_compiled_statement get_mappings_by_owner_sql{*this};
+  sql_compiled_statement get_mappings_on_height_and_newer_sql{*this};
 };
 
 }; // namespace service_nodes

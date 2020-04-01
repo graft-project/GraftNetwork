@@ -860,8 +860,7 @@ namespace tools
     try
     {
       uint32_t priority = req.priority;
-
-      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+      if (req.blink || priority != tx_priority_unimportant)
         priority = tx_priority_blink;
 
       boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
@@ -923,8 +922,7 @@ namespace tools
     try
     {
       uint32_t priority = req.priority;
-
-      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+      if (req.blink || priority != tx_priority_unimportant)
         priority = tx_priority_blink;
 
       boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
@@ -1345,8 +1343,7 @@ namespace tools
     try
     {
       uint32_t priority = req.priority;
-
-      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+      if (req.blink || priority != tx_priority_unimportant)
         priority = tx_priority_blink;
 
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, dsts[0].is_subaddress, req.outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
@@ -1403,8 +1400,7 @@ namespace tools
     try
     {
       uint32_t priority = req.priority;
-
-      if (req.blink || priority == 0x626c6e6b /* deprecated blink priority, can remove post-HF15 */)
+      if (req.blink || priority != tx_priority_unimportant)
         priority = tx_priority_blink;
 
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_single(ki, dsts[0].addr, dsts[0].is_subaddress, req.outputs, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra);
@@ -4179,8 +4175,17 @@ namespace tools
     }
 
     std::vector<tools::wallet2::pending_tx> ptx_vector = {stake_result.ptx};
-    return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.fee, res.multisig_txset, res.unsigned_txset, req.do_not_relay, false /*blink*/,
-        res.tx_hash, req.get_tx_hex, res.tx_blob, req.get_tx_metadata, res.tx_metadata, er);
+
+    try
+    {
+      return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.fee, res.multisig_txset, res.unsigned_txset, req.do_not_relay, false /*blink*/,
+          res.tx_hash, req.get_tx_hex, res.tx_blob, req.get_tx_metadata, res.tx_metadata, er);
+    }
+    catch (const std::exception &e)
+    {
+      handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR);
+      return false;
+    }
   }
 
   bool wallet_rpc_server::on_register_service_node(const wallet_rpc::COMMAND_RPC_REGISTER_SERVICE_NODE::request& req, wallet_rpc::COMMAND_RPC_REGISTER_SERVICE_NODE::response& res, epee::json_rpc::error& er, const connection_context *ctx)
@@ -4212,8 +4217,16 @@ namespace tools
     }
 
     std::vector<tools::wallet2::pending_tx> ptx_vector = {register_result.ptx};
-    return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.fee, res.multisig_txset, res.unsigned_txset, req.do_not_relay, false /*blink*/,
-        res.tx_hash, req.get_tx_hex, res.tx_blob, req.get_tx_metadata, res.tx_metadata, er);
+    try
+    {
+      return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.fee, res.multisig_txset, res.unsigned_txset, req.do_not_relay, false /*blink*/,
+          res.tx_hash, req.get_tx_hex, res.tx_blob, req.get_tx_metadata, res.tx_metadata, er);
+    }
+    catch (const std::exception &e)
+    {
+      handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR);
+      return false;
+    }
   }
 
   bool wallet_rpc_server::on_can_request_stake_unlock(const wallet_rpc::COMMAND_RPC_CAN_REQUEST_STAKE_UNLOCK::request& req, wallet_rpc::COMMAND_RPC_CAN_REQUEST_STAKE_UNLOCK::response& res, epee::json_rpc::error& er, const connection_context *ctx)
@@ -4306,21 +4319,29 @@ namespace tools
       return false;
     }
 
-    return fill_response(ptx_vector,
-                         req.get_tx_key,
-                         res.tx_key,
-                         res.amount,
-                         res.fee,
-                         res.multisig_txset,
-                         res.unsigned_txset,
-                         req.do_not_relay,
-                         false /*blink*/,
-                         res.tx_hash,
-                         req.get_tx_hex,
-                         res.tx_blob,
-                         req.get_tx_metadata,
-                         res.tx_metadata,
-                         er);
+    try
+    {
+      return fill_response(ptx_vector,
+                           req.get_tx_key,
+                           res.tx_key,
+                           res.amount,
+                           res.fee,
+                           res.multisig_txset,
+                           res.unsigned_txset,
+                           req.do_not_relay,
+                           false /*blink*/,
+                           res.tx_hash,
+                           req.get_tx_hex,
+                           res.tx_blob,
+                           req.get_tx_metadata,
+                           res.tx_metadata,
+                           er);
+    }
+    catch (const std::exception &e)
+    {
+      handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR);
+      return false;
+    }
   }
 
   bool wallet_rpc_server::on_lns_update_mapping(const wallet_rpc::COMMAND_RPC_LNS_UPDATE_MAPPING::request &req, wallet_rpc::COMMAND_RPC_LNS_UPDATE_MAPPING::response &res, epee::json_rpc::error &er, const connection_context *ctx)
@@ -4353,21 +4374,29 @@ namespace tools
       return false;
     }
 
-    return fill_response(ptx_vector,
-                         req.get_tx_key,
-                         res.tx_key,
-                         res.amount,
-                         res.fee,
-                         res.multisig_txset,
-                         res.unsigned_txset,
-                         req.do_not_relay,
-                         false /*blink*/,
-                         res.tx_hash,
-                         req.get_tx_hex,
-                         res.tx_blob,
-                         req.get_tx_metadata,
-                         res.tx_metadata,
-                         er);
+    try
+    {
+      return fill_response(ptx_vector,
+                           req.get_tx_key,
+                           res.tx_key,
+                           res.amount,
+                           res.fee,
+                           res.multisig_txset,
+                           res.unsigned_txset,
+                           req.do_not_relay,
+                           false /*blink*/,
+                           res.tx_hash,
+                           req.get_tx_hex,
+                           res.tx_blob,
+                           req.get_tx_metadata,
+                           res.tx_metadata,
+                           er);
+    }
+    catch (const std::exception &e)
+    {
+      handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR);
+      return false;
+    }
   }
 
   bool wallet_rpc_server::on_lns_make_update_mapping_signature(const wallet_rpc::COMMAND_RPC_LNS_MAKE_UPDATE_SIGNATURE::request& req, wallet_rpc::COMMAND_RPC_LNS_MAKE_UPDATE_SIGNATURE::response& res, epee::json_rpc::error& er, const connection_context *ctx)
@@ -4405,6 +4434,104 @@ namespace tools
     }
 
     res.signature = epee::string_tools::pod_to_hex(signature.ed25519);
+    return true;
+  }
+
+  bool wallet_rpc_server::on_lns_hash_name(const wallet_rpc::COMMAND_RPC_LNS_HASH_NAME::request& req, wallet_rpc::COMMAND_RPC_LNS_HASH_NAME::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+
+    std::string reason;
+    lns::mapping_type type;
+    if (!lns::validate_mapping_type(req.type, &type, &reason))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_WRONG_LNS_TYPE;
+      er.message = "Wrong lns type given=" + reason;
+      return false;
+    }
+
+    if (!lns::validate_lns_name(type, req.name, &reason))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_LNS_BAD_NAME;
+      er.message = "Bad lns name given=" + reason;
+      return false;
+    }
+
+    res.name = lns::name_to_base64_hash(req.name);
+    return true;
+  }
+
+  bool wallet_rpc_server::on_lns_decrypt_value(const wallet_rpc::COMMAND_RPC_LNS_DECRYPT_VALUE::request& req, wallet_rpc::COMMAND_RPC_LNS_DECRYPT_VALUE::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+
+    // ---------------------------------------------------------------------------------------------
+    //
+    // Validate encrypted value
+    //
+    // ---------------------------------------------------------------------------------------------
+    if (req.encrypted_value.size() % 2 != 0)
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_LNS_VALUE_LENGTH_NOT_EVEN;
+      er.message = "Value length not divisible by 2, length=" + std::to_string(req.encrypted_value.size());
+      return false;
+    }
+
+    if (req.encrypted_value.size() >= (lns::mapping_value::BUFFER_SIZE * 2))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_LNS_VALUE_TOO_LONG;
+      er.message = "Value too long to decrypt=" + req.encrypted_value;
+      return false;
+    }
+
+    if (!lokimq::is_hex(req.encrypted_value))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_LNS_VALUE_NOT_HEX;
+      er.message = "Value is not hex=" + req.encrypted_value;
+      return false;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //
+    // Validate type and name
+    //
+    // ---------------------------------------------------------------------------------------------
+    std::string reason;
+    lns::mapping_type type = {};
+    {
+      if (!lns::validate_mapping_type(req.type, &type, &reason))
+      {
+        er.code    = WALLET_RPC_ERROR_CODE_WRONG_LNS_TYPE;
+        er.message = "Wrong lns type given=" + reason;
+        return false;
+      }
+
+      if (!lns::validate_lns_name(type, req.name, &reason))
+      {
+        er.code    = WALLET_RPC_ERROR_CODE_LNS_VALUE_NOT_HEX;
+        er.message = "Value is not hex=" + req.encrypted_value;
+        return false;
+      }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //
+    // Decrypt value
+    //
+    // ---------------------------------------------------------------------------------------------
+    lns::mapping_value encrypted_value = {};
+    encrypted_value.len                = req.encrypted_value.size() / 2;
+    lokimq::from_hex(req.encrypted_value.begin(), req.encrypted_value.end(), encrypted_value.buffer.begin());
+
+    lns::mapping_value value = {};
+    if (!lns::decrypt_mapping_value(req.name, encrypted_value, value))
+    {
+      er.code    = WALLET_RPC_ERROR_CODE_LNS_VALUE_NOT_HEX;
+      er.message = "Value decryption failure";
+      return false;
+    }
+
+    res.value = value.to_readable_value(m_wallet->nettype(), type);
     return true;
   }
 }

@@ -305,7 +305,7 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems()
   int64_t const total_blocks = static_cast<int64_t>(end_height) - static_cast<int64_t>(start_height);
   if (total_blocks <= 0) return true;
   if (total_blocks > 1)
-    MGINFO("Loading blocks into loki subsystems, scanning blockchain from height: " << start_height << " to: " << end_height);
+    MGINFO("Loading blocks into loki subsystems, scanning blockchain from height: " << start_height << " to: " << end_height << " (snl: " << snl_height << ", lns: " << lns_height << ")");
 
   using clock                   = std::chrono::steady_clock;
   using work_time               = std::chrono::duration<float>;
@@ -577,15 +577,10 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
       return false;
   }
 
-  if (lns_db) // Initialise LNS
+  if (lns_db && !m_lns_db.init(this, nettype, lns_db))
   {
-    uint64_t lns_height   = 0;
-    crypto::hash lns_hash = get_tail_id(lns_height);
-    if (!m_lns_db.init(nettype, lns_db, lns_height, lns_hash))
-    {
-      MERROR("LNS failed to initialise");
-      return false;
-    }
+    MERROR("LNS failed to initialise");
+    return false;
   }
 
   hook_block_added(m_checkpoints);
@@ -593,7 +588,7 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
   for (InitHook* hook : m_init_hooks)
     hook->init();
 
-  if (!load_missing_blocks_into_loki_subsystems())
+  if (!m_db->is_read_only() && !load_missing_blocks_into_loki_subsystems())
   {
     MERROR("Failed to load blocks into loki subsystems");
     return false;

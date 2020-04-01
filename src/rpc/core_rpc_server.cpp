@@ -76,6 +76,17 @@ namespace
   }
 }
 
+namespace std
+{
+template <>
+struct hash<lns::generic_owner>
+{
+  static_assert(sizeof(lns::generic_owner) >= sizeof(std::size_t) && alignof(lns::generic_owner) >= alignof(std::size_t),
+                "Size and alignment of hash must be at least that of size_t");
+  std::size_t operator()(const lns::generic_owner &v) const { return reinterpret_cast<const std::size_t &>(v); }
+};
+} // namespace std
+
 namespace cryptonote
 {
   //-----------------------------------------------------------------------------------
@@ -3383,7 +3394,7 @@ namespace cryptonote
     if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.entries.size(), COMMAND_RPC_LNS_NAMES_TO_OWNERS::MAX_REQUEST_ENTRIES))
       return false;
 
-    lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
+    lns::name_system_db &db = m_core.get_blockchain_storage().name_system_db();
     for (size_t request_index = 0; request_index < req.entries.size(); request_index++)
     {
       COMMAND_RPC_LNS_NAMES_TO_OWNERS::request_entry const &request = req.entries[request_index];
@@ -3402,6 +3413,7 @@ namespace cryptonote
         if (record.backup_owner) entry.backup_owner            = record.backup_owner.to_string(nettype());
         entry.encrypted_value                                  = epee::to_hex::string(record.encrypted_value.to_span());
         entry.register_height                                  = record.register_height;
+        entry.update_height                                    = record.update_height;
         entry.txid                                             = epee::string_tools::pod_to_hex(record.txid);
         if (record.prev_txid) entry.prev_txid                  = epee::string_tools::pod_to_hex(record.prev_txid);
       }
@@ -3416,7 +3428,7 @@ namespace cryptonote
     if (exceeds_quantity_limit(ctx, error_resp, m_restricted, req.entries.size(), COMMAND_RPC_LNS_OWNERS_TO_NAMES::MAX_REQUEST_ENTRIES))
       return false;
 
-    std::map<lns::generic_owner, size_t> owner_to_request_index;
+    std::unordered_map<lns::generic_owner, size_t> owner_to_request_index;
     std::vector<lns::generic_owner> owners;
 
     owners.reserve(req.entries.size());
@@ -3430,11 +3442,15 @@ namespace cryptonote
         return false;
       }
 
+      // TODO(loki): We now serialize both owner and backup_owner, since if
+      // we specify an owner that is backup owner, we don't show the (other)
+      // owner. For RPC compatibility we keep the request_index around until the
+      // next hard fork (16)
       owners.push_back(lns_owner);
-      owner_to_request_index[owners.back()] = request_index;
+      owner_to_request_index[lns_owner] = request_index;
     }
 
-    lns::name_system_db const &db = m_core.get_blockchain_storage().name_system_db();
+    lns::name_system_db &db = m_core.get_blockchain_storage().name_system_db();
     std::vector<lns::mapping_record> records = db.get_mappings_by_owners(owners);
     for (auto &record : records)
     {
@@ -3452,9 +3468,11 @@ namespace cryptonote
       entry.request_index   = it->second;
       entry.type            = static_cast<uint16_t>(record.type);
       entry.name_hash       = std::move(record.name_hash);
+      if (record.owner) entry.owner = record.owner.to_string(nettype());
       if (record.backup_owner) entry.backup_owner = record.backup_owner.to_string(nettype());
       entry.encrypted_value = epee::to_hex::string(record.encrypted_value.to_span());
       entry.register_height = record.register_height;
+      entry.update_height   = record.update_height;
       entry.txid            = epee::string_tools::pod_to_hex(record.txid);
       if (record.prev_txid) entry.prev_txid = epee::string_tools::pod_to_hex(record.prev_txid);
     }
