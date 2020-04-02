@@ -13503,6 +13503,43 @@ uint64_t wallet2::get_bytes_sent() const
 //----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_bytes_received() const
 {
-  return m_http_client.get_bytes_received();
+    return m_http_client.get_bytes_received();
 }
+
+bool wallet2::pending_tx::deserialize(const string &ptx_hex, wallet2::pending_tx &ptx)
+{
+    std::string ptx_blob;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(ptx_hex, ptx_blob)) {
+      MERROR("Failed to parse ptx from hex string");
+      return false;
+    }
+    
+    std::stringstream ss(ptx_blob);
+    boost::archive::portable_binary_iarchive ar(ss);
+    try
+    {
+      ar >> ptx;
+    }
+    catch (...)
+    {
+      return false;
+    }
+    return true;
+}
+
+string wallet2::pending_tx::serialize(const wallet2::pending_tx &ptx)
+{
+    std::ostringstream oss;
+    boost::archive::portable_binary_oarchive ar(oss);
+    try
+    {
+      ar << ptx;
+    }
+    catch (...)
+    {
+      return "";
+    }
+    return epee::string_tools::buff_to_hex_nodelimer(oss.str());
+}
+
 }

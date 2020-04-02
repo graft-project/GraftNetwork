@@ -477,6 +477,10 @@ private:
         FIELD(construction_data)
         FIELD(multisig_sigs)
       END_SERIALIZE()
+      
+      static bool deserialize(const std::string &ptx_hex, pending_tx &ptx);
+      static std::string serialize(const pending_tx &ptx);
+      
     };
 
     // The term "Unsigned tx" is not really a tx since it's not signed yet.

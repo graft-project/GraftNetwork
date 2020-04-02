@@ -137,43 +137,6 @@ void fill_transfer_entry(tools::GraftWallet * wallet, tools::wallet_rpc::transfe
   entry.address = wallet->get_subaddress_as_str(pd.m_subaddr_index);
   set_confirmations(entry, wallet->get_blockchain_current_height(), wallet->get_last_block_reward());
 }
-// TODO: avoid duplication. copy-pasted from wallet_rpc_server.cpp
-static std::string ptx_to_string(const tools::wallet2::pending_tx &ptx)
-{
-  std::ostringstream oss;
-  boost::archive::portable_binary_oarchive ar(oss);
-  try
-  {
-    ar << ptx;
-  }
-  catch (...)
-  {
-    return "";
-  }
-  return epee::string_tools::buff_to_hex_nodelimer(oss.str());
-}
-
-
-static bool ptx_from_string(const std::string &ptx_hex, tools::wallet2::pending_tx &ptx)
-{
-  std::string ptx_blob;
-  if (!epee::string_tools::parse_hexstr_to_binbuff(ptx_hex, ptx_blob)) {
-    MERROR("Failed to parse ptx from hex string");
-    return false;
-  }
-  
-  std::stringstream ss(ptx_blob);
-  boost::archive::portable_binary_iarchive ar(ss);
-  try
-  {
-    ar >> ptx;
-  }
-  catch (...)
-  {
-    return false;
-  }
-  return true;
-}
 
 }
 
@@ -376,7 +339,7 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
         
         // serialize ptx vector
         for (const auto &ptx : ptxv) {
-            out.PtxBlobs.push_back(ptx_to_string(ptx));
+            out.PtxBlobs.push_back(tools::wallet2::pending_tx::serialize(ptx));
         }
     }
     catch (const std::exception& e)
@@ -402,7 +365,7 @@ bool supernode::BaseClientProxy::SetOutputsSpent(const supernode::rpc_command::W
     
     for (const auto &ptx_hex : in.PtxBlobs) {
         tools::wallet2::pending_tx ptx;
-        if (!ptx_from_string(ptx_hex, ptx)) {
+        if (!tools::wallet2::pending_tx::deserialize(ptx_hex, ptx)) {
             out.Result = -1;
             out.ErrorMessage = "Failed to parse ptx from hex string";
             return false;
