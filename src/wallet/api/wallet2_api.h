@@ -1364,6 +1364,21 @@ struct WalletManagerFactory
     static void setLogCategories(const std::string &categories);
 };
 
+/**
+ * @brief The PtxProxy struct - lightweight proxy for tools::wallet2::pending_tx to use in GUI without including
+ *                     all the monero/graft includes;
+ *                      
+ */
+struct PtxProxy
+{
+    static PtxProxy * deserialize(const std::string &ptx_hex);
+    
+    virtual std::string serialize() const = 0;
+    virtual ~PtxProxy() = 0;
+    virtual std::string txBlob() const = 0;
+    virtual std::string txKeyBlob() const = 0;
+};
+
 
 }
 
