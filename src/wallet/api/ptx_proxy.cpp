@@ -2,7 +2,7 @@
 
 namespace Monero {
 
-
+PtxProxy::~PtxProxy() {}
 
 PtxProxy * PtxProxy::deserialize(const std::string &ptx_hex)
 {
@@ -24,6 +24,11 @@ std::string PtxProxyImpl::txBlob() const
 std::string PtxProxyImpl::txKeyBlob() const
 {
     return std::string(reinterpret_cast<const char*>(&m_ptx.tx_key), sizeof(crypto::secret_key));
+}
+
+std::string PtxProxyImpl::txHash() const
+{
+    return epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(m_ptx.tx));
 }
 
 }

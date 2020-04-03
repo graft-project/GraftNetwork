@@ -340,6 +340,7 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
         // serialize ptx vector
         for (const auto &ptx : ptxv) {
             out.PtxBlobs.push_back(tools::wallet2::pending_tx::serialize(ptx));
+            MINFO("tx created: " << cryptonote::get_transaction_hash(ptx.tx));
         }
     }
     catch (const std::exception& e)

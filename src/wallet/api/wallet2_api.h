@@ -1377,6 +1377,7 @@ struct PtxProxy
     virtual ~PtxProxy() = 0;
     virtual std::string txBlob() const = 0;
     virtual std::string txKeyBlob() const = 0;
+    virtual std::string txHash() const = 0;
 };
 
 

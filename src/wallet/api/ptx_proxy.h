@@ -14,6 +14,7 @@ public:
     std::string serialize() const override;
     std::string txBlob() const override;
     std::string txKeyBlob() const override;
+    std::string txHash() const override;
     
     
 private:
