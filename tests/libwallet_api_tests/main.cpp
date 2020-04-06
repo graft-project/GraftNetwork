@@ -1162,25 +1162,25 @@ TEST_F(WalletTest2, EmissionPrint)
 
 TEST_F(PendingTxTest, wallet2_serialize_ptx)
 {
-  boost::scoped_ptr<tools::wallet2> wallet { new tools::wallet2(true) };
+  boost::scoped_ptr<tools::wallet2> wallet { new tools::wallet2(cryptonote::TESTNET) };
   string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
 
   wallet->load(wallet_root_path + "/miner_wallet", "");
   ASSERT_TRUE(wallet->init(TESTNET_DAEMON_ADDRESS));
-  wallet->refresh();
+  wallet->refresh(true);
   wallet->store();
-  std::cout << wallet->get_account().get_public_address_str(wallet->testnet()) << std::endl;
+  std::cout << wallet->get_account().get_public_address_str(cryptonote::TESTNET) << std::endl;
   vector<cryptonote::tx_destination_entry> dsts;
 
   cryptonote::tx_destination_entry de;
-  cryptonote::account_public_address address;
+  cryptonote::address_parse_info parse_info;
   string addr_s = "FAY4L4HH9uJEokW3AB6rD5GSA8hw9PkNXMcUeKYf7zUh2kNtzan3m7iJrP743cfEMtMcrToW2R3NUhBaoULHWcJT9NQGJzN";
-  cryptonote::get_account_address_from_str(address, true, addr_s);
-  de.addr = address;
+  cryptonote::get_account_address_from_str(parse_info, cryptonote::TESTNET, addr_s);
+  de.addr = parse_info.address;
   de.amount = Monero::Wallet::amountFromString("0.123");
   dsts.push_back(de);
   vector<uint8_t> extra;
-  vector<tools::wallet2::pending_tx> ptx1 = wallet->create_transactions_2(dsts, 4, 0, 1, extra, true);
+  vector<tools::wallet2::pending_tx> ptx1 = wallet->create_transactions_2(dsts, 4, 0, 1, extra, 0, {0});
   ASSERT_TRUE(ptx1.size() == 1);
   std::ostringstream oss;
   ASSERT_TRUE(wallet->save_tx_signed(ptx1, oss));
@@ -1188,7 +1188,9 @@ TEST_F(PendingTxTest, wallet2_serialize_ptx)
   vector<wallet2::pending_tx> ptx2;
   std::string ptx1_serialized = oss.str();
   std::istringstream iss(ptx1_serialized);
-  ASSERT_TRUE(wallet->load_tx(ptx2, iss));
+  ASSERT_TRUE(false);
+  // TODO: restore "load_tx" interface if needed. otherwise - delete this test
+  // ASSERT_TRUE(wallet->load_tx(ptx2, iss));
 
   ASSERT_EQ(ptx1.size() , ptx2.size());
   const wallet2::pending_tx & tx1 = ptx1.at(0);
@@ -1199,24 +1201,24 @@ TEST_F(PendingTxTest, wallet2_serialize_ptx)
   ASSERT_EQ(hash1, hash2);
   LOG_PRINT_L0("sending restored tx: " << hash2);
   ASSERT_NO_THROW(wallet->commit_tx(ptx2));
-
 }
+
 
 TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
 {
-  boost::scoped_ptr<tools::wallet2> wallet1 { new tools::wallet2(true) };
-  boost::scoped_ptr<tools::wallet2> wallet2 { new tools::wallet2(true) };
+  boost::scoped_ptr<tools::wallet2> wallet1 { new tools::wallet2(cryptonote::TESTNET) };
+  boost::scoped_ptr<tools::wallet2> wallet2 { new tools::wallet2(cryptonote::TESTNET) };
 
   string wallet_root_path = epee::string_tools::get_current_module_folder() + "/../data/supernode/test_wallets";
 
   wallet1->load(wallet_root_path + "/miner_wallet", "");
 
   ASSERT_TRUE(wallet1->init(TESTNET_DAEMON_ADDRESS));
-  wallet1->refresh();
+  wallet1->refresh(true);
   wallet1->store();
   wallet2->load(wallet_root_path + "/stake_wallet", "");
   ASSERT_TRUE(wallet2->init(TESTNET_DAEMON_ADDRESS));
-  wallet2->refresh();
+  wallet2->refresh(true);
   wallet2->store();
   vector<cryptonote::tx_destination_entry> dsts;
   cryptonote::tx_destination_entry de;
@@ -1226,7 +1228,7 @@ TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
   de.amount = Monero::Wallet::amountFromString("0.123");
   dsts.push_back(de);
   vector<uint8_t> extra;
-  vector<tools::wallet2::pending_tx> ptx1 = wallet1->create_transactions_2(dsts, 4, 0, 1, extra, true);
+  vector<tools::wallet2::pending_tx> ptx1 = wallet1->create_transactions_2(dsts, 4, 0, 1, extra, 0, {0});
   ASSERT_TRUE(ptx1.size() == 1);
   std::ostringstream oss;
   ASSERT_TRUE(wallet1->save_tx_signed(ptx1, oss));
@@ -1234,7 +1236,9 @@ TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
   vector<wallet2::pending_tx> ptx2;
   std::string ptx1_serialized = oss.str();
   std::istringstream iss(ptx1_serialized);
-  ASSERT_TRUE(wallet1->load_tx(ptx2, iss));
+  ASSERT_TRUE(false);
+  // TODO: restore "load_tx" interface if needed. otherwise - delete this test
+  // ASSERT_TRUE(wallet->load_tx(ptx2, iss));
   uint64_t amount;
   for (const auto &pt : ptx2) {
     ASSERT_TRUE(wallet2->get_amount_from_tx(pt, amount));
@@ -1249,7 +1253,7 @@ TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
   dsts.clear();
   dsts.push_back(de2);
 
-  vector<tools::wallet2::pending_tx> ptx3 = wallet2->create_transactions_2(dsts, 4, 0, 1, extra, true);
+  vector<tools::wallet2::pending_tx> ptx3 = wallet2->create_transactions_2(dsts, 4, 0, 1, extra, 0, {0});
 
   for (const auto &pt : ptx3) {
     ASSERT_TRUE(wallet1->get_amount_from_tx(pt, amount));
@@ -1257,15 +1261,16 @@ TEST_F(PendingTxTest, wallet2_tx_addressed_to_wallet)
   }
 
 
-  cryptonote::account_public_address address3;
+  cryptonote::address_parse_info parse_info;
+  
   string address3_str = "FCZ4C2in3agfTSnWSyCZetVi1nrMwSsMmHi1huwBryfPXsXLBVsaoFzdf6nMGLV5iE86hsHTAo3RvHzkwKNt9RHU8rAmKPY";
-  cryptonote::get_account_address_from_str(address3, true, address3_str);
-  de.addr = address3;
+  cryptonote::get_account_address_from_str(parse_info, cryptonote::TESTNET, address3_str);
+  de.addr = parse_info.address;
   de.amount = Monero::Wallet::amountFromString("0.981");
   dsts.clear();
   dsts.push_back(de);
 
-  vector<tools::wallet2::pending_tx> ptx4 = wallet1->create_transactions_2(dsts, 4, 0, 1, extra, true);
+  vector<tools::wallet2::pending_tx> ptx4 = wallet1->create_transactions_2(dsts, 4, 0, 1, extra, 0, {0});
   for (const auto &pt : ptx4) {
     ASSERT_TRUE(wallet2->get_amount_from_tx(pt, amount));
     ASSERT_TRUE(amount == 0);
@@ -1293,7 +1298,9 @@ TEST_F(PendingTxTest, PendingTransactionSerialize)
   ASSERT_TRUE(ptx1->save(oss));
 
   std::istringstream iss(oss.str());
-  Monero::PendingTransaction * ptx2 = wallet->loadTransaction(iss);
+  // Monero::PendingTransaction * ptx2 = wallet->loadTransaction(iss);
+  Monero::PendingTransaction * ptx2 = nullptr;
+  ASSERT_TRUE(false);
   ASSERT_TRUE(ptx2->status() == Monero::PendingTransaction::Status_Ok);
   ASSERT_EQ(ptx2->amount(), ptx1->amount());
   ASSERT_EQ(ptx2->fee(), ptx1->fee());
