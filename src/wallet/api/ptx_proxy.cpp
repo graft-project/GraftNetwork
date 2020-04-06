@@ -7,6 +7,10 @@ PtxProxy::~PtxProxy() {}
 PtxProxy * PtxProxy::deserialize(const std::string &ptx_hex)
 {
     PtxProxyImpl * ptx = new PtxProxyImpl();
+    if (!tools::wallet2::pending_tx::deserialize(ptx_hex, ptx->m_ptx)) {
+        delete ptx;
+        ptx = nullptr;
+    }
     return ptx;
 }
 

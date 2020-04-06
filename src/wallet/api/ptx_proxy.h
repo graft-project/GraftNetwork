@@ -16,8 +16,6 @@ public:
     std::string txKeyBlob() const override;
     std::string txHash() const override;
     
-    
-private:
     tools::wallet2::pending_tx m_ptx;
 };
 
