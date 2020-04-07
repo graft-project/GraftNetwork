@@ -276,7 +276,9 @@ bool supernode::BaseClientProxy::BuildRtaTransaction(const supernode::rpc_comman
 {
     MINFO("BaseClientProxy::BuildRtaTransaction: " << in.Account);
     // Validate input data
-    if (in.Keys.size() != in.Wallets.size()) {
+    // keys are: pos + pos-proxy + wallet-proxy + auth-sample(8)
+    // wallets are pos-proxy + wallet-proxy + auth-sample(8) (pos address is in separate field)
+    if (!(in.Keys.size() == in.Wallets.size() + 1)) {
         out.Result = -1; // TODO: error code
         out.ErrorMessage = "Keys and Wallets mismatch";
         return true;
