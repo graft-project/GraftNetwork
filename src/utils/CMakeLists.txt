@@ -33,10 +33,14 @@
 set(utils_sources
   utils.cpp
   cryptmsg.cpp
+  rta_helpers.cpp
+  rta_helpers_gui.cpp
 )
 
 set(utils_headers
   cryptmsg.h
+  rta_helpers.h
+  rta_helpers_gui.h
 )
 
 set(utils_private_headers
