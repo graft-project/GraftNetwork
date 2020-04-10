@@ -32,6 +32,7 @@
 #include "rta_helpers.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
 #include "cryptonote_basic/cryptonote_basic.h"
+#include <cryptonote_basic/cryptonote_format_utils.h>
 #include "misc_log_ex.h"
 #include "utils.h"
 
@@ -42,8 +43,8 @@ namespace graft {
 namespace rta_helpers {
 namespace gui {
 
-bool get_encrypted_tx_amount(const std::string &wallet_address, size_t nettype, const crypto::secret_key &key, const std::string &encrypted_tx_key, 
-                             const std::string &encrypted_tx, uint64_t &amount)
+bool decrypt_tx_and_amount(const std::string &wallet_address, size_t nettype, const crypto::secret_key &key, const std::string &encrypted_tx_key, 
+                             const std::string &encrypted_tx, uint64_t &amount, std::string &tx_blob)
 {
     // parse wallet address
     cryptonote::address_parse_info parse_info;
@@ -58,6 +59,8 @@ bool get_encrypted_tx_amount(const std::string &wallet_address, size_t nettype, 
         MERROR("Failed to decrypt tx from encrypted hex: " << encrypted_tx);
         return false;
     }
+    
+    tx_blob = cryptonote::tx_to_blob(tx);
     crypto::secret_key tx_key;
     
     if (!graft::rta_helpers::decryptTxKeyFromHex(encrypted_tx_key, key, tx_key)) {
@@ -74,6 +77,38 @@ bool get_encrypted_tx_amount(const std::string &wallet_address, size_t nettype, 
     
     return true;
 }
+
+bool pos_approve_tx(const std::string tx_blob, const crypto::public_key &pkey, const crypto::secret_key &skey, size_t auth_sample_size,
+                    std::string &out_encrypted_tx_hex)
+{
+    
+    cryptonote::transaction tx;
+    
+    if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx)) {
+        MERROR("Failed to parse transaction from blob");
+        return false;
+    }
+    
+    std::vector<cryptonote::rta_signature> rta_signatures;
+    cryptonote::rta_header rta_hdr;
+
+    if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
+        MERROR("Failed to read rta_hdr from tx");
+        return false;
+    }
+
+    rta_signatures.resize(auth_sample_size + 3);
+    crypto::signature &sig = rta_signatures.at(cryptonote::rta_header::POS_KEY_INDEX).signature;
+    crypto::hash hash = cryptonote::get_transaction_hash(tx);
+    crypto::generate_signature(hash, pkey, skey, sig);
+
+    tx.extra2.clear();
+    cryptonote::add_graft_rta_signatures_to_extra2(tx.extra2, rta_signatures);
+    graft::rta_helpers::encryptTxToHex(tx, rta_hdr.keys, out_encrypted_tx_hex);
+
+    return true;
+}
+
     
 
 }}}

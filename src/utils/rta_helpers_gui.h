@@ -39,17 +39,21 @@ namespace rta_helpers {
 namespace gui {
 
 /*!
- * \brief get_encrypted_tx_amount - retreives tx amount sent to 'wallet_address' from encrypted tx
+ * \brief decrypt_tx_and_amount - retreives tx amount sent to 'wallet_address' from encrypted tx
  * \param wallet_address          - destination address
  * \param key                     - decryption key
  * \param encrypted_tx_key        - encrypted tx key blob  as hex
  * \param encrypted_tx            - encrypted tx blob as hex
  * \param amount                  - output amount in atomic units
+ * \param tx_blob                 - output decrypted tx blob
  * \return                        - true on success
  */
 
-bool get_encrypted_tx_amount(const std::string &wallet_address, size_t nettype, const crypto::secret_key &key, const std::string &encrypted_tx_key, 
-                            const std::string &encrypted_tx, uint64_t &amount);
+bool decrypt_tx_and_amount(const std::string &wallet_address, size_t nettype, const crypto::secret_key &key, const std::string &encrypted_tx_key, 
+                            const std::string &encrypted_tx, uint64_t &amount, std::string &tx_blob);
+
+
+bool pos_approve_tx(const std::string tx_blob, const crypto::public_key &pkey, const crypto::secret_key &skey, size_t auth_sample_size, std::string &out_encrypted_tx_hex);
 
 
 } } }
