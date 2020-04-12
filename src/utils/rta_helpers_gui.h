@@ -52,6 +52,16 @@ namespace gui {
 bool decrypt_tx_and_amount(const std::string &wallet_address, size_t nettype, const crypto::secret_key &key, const std::string &encrypted_tx_key, 
                             const std::string &encrypted_tx, uint64_t &amount, std::string &tx_blob);
 
+/*!
+ * \brief get_rta_keys_from_tx - returns rta keys from tx
+ * \param tx_blob              - serialized tx
+ * \param rta_keys             - out vector with hexadecimal keys
+ * \return 
+ */
+bool get_rta_keys_from_tx(const std::string &tx_blob, std::vector<std::string> &rta_keys);
+
+
+
 
 bool pos_approve_tx(const std::string tx_blob, const crypto::public_key &pkey, const crypto::secret_key &skey, size_t auth_sample_size, std::string &out_encrypted_tx_hex);
 

@@ -35,6 +35,7 @@
 #include <cryptonote_basic/cryptonote_format_utils.h>
 #include "misc_log_ex.h"
 #include "utils.h"
+#include "string_tools.h"
 
 #include <vector>
 #include <utility>
@@ -106,6 +107,30 @@ bool pos_approve_tx(const std::string tx_blob, const crypto::public_key &pkey, c
     cryptonote::add_graft_rta_signatures_to_extra2(tx.extra2, rta_signatures);
     graft::rta_helpers::encryptTxToHex(tx, rta_hdr.keys, out_encrypted_tx_hex);
 
+    return true;
+}
+
+bool get_rta_keys_from_tx(const std::string &tx_blob, std::vector<std::string> &rta_keys)
+{
+    cryptonote::transaction tx;
+    
+    if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx)) {
+        MERROR("Failed to parse transaction from blob");
+        return false;
+    }
+    
+    std::vector<cryptonote::rta_signature> rta_signatures;
+    cryptonote::rta_header rta_hdr;
+
+    if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
+        MERROR("Failed to read rta_hdr from tx");
+        return false;
+    }
+
+    rta_keys.clear();
+    for (const auto &key : rta_hdr.keys) {
+        rta_keys.push_back(epee::string_tools::pod_to_hex(key));
+    }
     return true;
 }
 
