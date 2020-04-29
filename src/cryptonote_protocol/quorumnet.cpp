@@ -364,6 +364,8 @@ private:
             if (my_position[i] < 0) {
                 MTRACE("Not in subquorum " << (i == 0 ? "Q" : "Q'"));
                 continue;
+            } else {
+                MTRACE("I am in subquorum " << (i == 0 ? "Q" : "Q'") << " position " << my_position[i]);
             }
 
             auto &validators = (*qit)->validators;
@@ -371,14 +373,14 @@ private:
             // Relay to all my outgoing targets within the quorum (connecting if not already connected)
             for (int j : quorum_outgoing_conns(my_position[i], validators.size())) {
                 if (add_peer(validators[j]))
-                    MTRACE("Relaying within subquorum " << (i == 0 ? "Q" : "Q'") << " to service node " << validators[j]);
+                    MTRACE("Relaying within subquorum " << (i == 0 ? "Q" : "Q'") << "[" << my_position[i] << "] to [" << j << "] " << validators[j]);
             }
 
             // Opportunistically relay to all my *incoming* sources within the quorum *if* I already
             // have a connection open with them, but don't open a new connection if I don't.
             for (int j : quorum_incoming_conns(my_position[i], validators.size())) {
                 if (add_peer(validators[j], false /*!strong*/))
-                    MTRACE("Optional opportunistic relay within quorum " << (i == 0 ? "Q" : "Q'") << " to service node " << validators[j]);
+                    MTRACE("Optional opportunistic relay within quorum " << (i == 0 ? "Q" : "Q'") << "[" << my_position[i] << "] to [" << j << "] " << validators[j]);
             }
 
             // Now establish strong interconnections between quorums, if we have multiple subquorums
@@ -400,12 +402,15 @@ private:
                 auto &next_validators = (*qnext)->validators;
                 int half = std::min<int>(validators.size(), next_validators.size()) / 2;
                 if (my_position[i] >= half && my_position[i] < half*2) {
-                    if (add_peer(next_validators[my_position[i] - half]))
-                        MTRACE("Inter-quorum relay from Q to Q' service node " << next_validators[my_position[i] - half]);
+                    int next_pos = my_position[i] - half;
+                    bool added = add_peer(next_validators[next_pos]);
+                    MTRACE("Inter-quorum relay from Q[" << my_position[i] << "] (me) to Q'[" << next_pos << "] = " << next_validators[next_pos]
+                            << (added ? "" : " (skipping; already relaying to that SN)"));
                 } else {
-                    MTRACE("Not a Q -> Q' inter-quorum relay (Q position is " << my_position[i] << ")");
+                    MTRACE("Q[" << my_position[i] << "] is not a Q -> Q' inter-quorum relay position");
                 }
-
+            } else if (qnext != qend) {
+                MTRACE("Not doing inter-quorum relaying because I am in both quorums (Q[" << my_position[i] << "], Q'[" << my_position[i+1] << "])");
             }
 
             // Exactly the same connections as above, but in reverse: the first half of Q' sends to
@@ -415,11 +420,15 @@ private:
                 auto &prev_validators = (*std::prev(qit))->validators;
                 int half = std::min<int>(validators.size(), prev_validators.size()) / 2;
                 if (my_position[i] < half) {
-                    if (add_peer(prev_validators[half + my_position[i]]))
-                        MTRACE("Inter-quorum relay from Q' to Q service node " << prev_validators[half + my_position[i]]);
+                    int prev_pos = half + my_position[i];
+                    bool added = add_peer(prev_validators[prev_pos]);
+                    MTRACE("Inter-quorum relay from Q'[" << my_position[i] << "] (me) to Q[" << prev_pos << "] = " << prev_validators[prev_pos]
+                            << (added ? "" : " (already relaying to that SN)"));
                 } else {
-                    MTRACE("Not a Q' -> Q inter-quorum relay (Q' position is " << my_position[i] << ")");
+                    MTRACE("Q'[" << my_position[i] << "] is not a Q' -> Q inter-quorum relay position");
                 }
+            } else if (qit != qbegin) {
+                MTRACE("Not doing inter-quorum relaying because I am in both quorums (Q[" << my_position[i-1] << "], Q'[" << my_position[i] << "])");
             }
         }
     }
