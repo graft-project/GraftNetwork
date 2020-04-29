@@ -400,7 +400,7 @@ private:
                 auto &next_validators = (*qnext)->validators;
                 int half = std::min<int>(validators.size(), next_validators.size()) / 2;
                 if (my_position[i] >= half && my_position[i] < half*2) {
-                    if (add_peer(validators[my_position[i] - half]))
+                    if (add_peer(next_validators[my_position[i] - half]))
                         MTRACE("Inter-quorum relay from Q to Q' service node " << next_validators[my_position[i] - half]);
                 } else {
                     MTRACE("Not a Q -> Q' inter-quorum relay (Q position is " << my_position[i] << ")");
@@ -408,15 +408,15 @@ private:
 
             }
 
-            // Exactly the same connections as above, but in reverse and weak: the first half of Q'
-            // sends to the second half of Q.  Typically this will end up reusing an already open
-            // connection, but if there isn't such an open connection then we establish a new one.
+            // Exactly the same connections as above, but in reverse: the first half of Q' sends to
+            // the second half of Q.  Typically this will end up reusing an already open connection,
+            // but if there isn't such an open connection then we establish a new one.
             if (qit != qbegin && my_position[i - 1] < 0) {
                 auto &prev_validators = (*std::prev(qit))->validators;
                 int half = std::min<int>(validators.size(), prev_validators.size()) / 2;
                 if (my_position[i] < half) {
                     if (add_peer(prev_validators[half + my_position[i]]))
-                        MTRACE("Inter-quorum relay from Q' to Q service node " << prev_validators[my_position[i] - half]);
+                        MTRACE("Inter-quorum relay from Q' to Q service node " << prev_validators[half + my_position[i]]);
                 } else {
                     MTRACE("Not a Q' -> Q inter-quorum relay (Q' position is " << my_position[i] << ")");
                 }
