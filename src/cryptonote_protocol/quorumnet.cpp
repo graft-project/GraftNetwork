@@ -665,14 +665,11 @@ void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &
             if (position < 0 || position >= (int) validators.size()) {
                 MWARNING("Invalid blink signature: subquorum position is invalid");
                 it = signatures.erase(it);
-                continue;
-            }
-
-            if (btx.get_signature_status(subquorum, position) != blink_tx::signature_status::none) {
+            } else if (btx.get_signature_status(subquorum, position) != blink_tx::signature_status::none) {
                 it = signatures.erase(it);
-                continue;
+            } else {
+                ++it;
             }
-            ++it;
         }
     }
     if (signatures.empty())
@@ -1069,11 +1066,9 @@ void handle_blink(lokimq::Message& m, SNNWrapper& snw) {
 
     // Now that we have the blink tx stored we can add our signature *and* any other pending
     // signatures we are holding onto, then blast the entire thing to our peers.
-    for (uint8_t qi = 0; qi < NUM_BLINK_QUORUMS; qi++) {
-        if (pinfo.my_position[qi] < 0)
-            continue;
-        signatures.emplace_back(approved, qi, pinfo.my_position[qi], sig);
-    }
+    for (uint8_t qi = 0; qi < NUM_BLINK_QUORUMS; qi++)
+        if (pinfo.my_position[qi] >= 0)
+            signatures.emplace_back(approved, qi, pinfo.my_position[qi], sig);
 
     process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), tag, m.conn.pubkey());
 }
