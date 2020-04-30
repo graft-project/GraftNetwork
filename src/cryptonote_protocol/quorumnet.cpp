@@ -276,32 +276,21 @@ public:
         const auto &my_pubkey = keys->pub;
         exclude.insert(my_pubkey);
 
-        // Find my positions in the quorums
+        // - Find my position(s) in the quorum(s)
+        // - Build a list of all other quorum members so we can look them all up at once (i.e. to
+        //   lock the required lookup mutex only once).
         my_position_count = 0;
+        std::unordered_set<crypto::public_key> need_remotes;
         for (auto qit = qbegin; qit != qend; ++qit) {
             auto &v = (*qit)->validators;
-            auto found = std::find(v.begin(), v.end(), my_pubkey);
-            if (found == v.end())
-                my_position.push_back(-1);
-            else {
-                my_position.push_back(std::distance(v.begin(), found));
-                my_position_count++;
+            int my_pos = -1;
+            for (int i = 0; i < v.size(); i++) {
+                if (v[i] == my_pubkey) my_pos = i;
+                else if (!exclude.count(v[i]))
+                    need_remotes.insert(v[i]);
             }
-        }
-
-        std::unordered_set<crypto::public_key> need_remotes;
-        auto qit = qbegin;
-        // Figure out all the remotes we need to be able to lookup (so that we can do all lookups in
-        // a single shot -- since it requires a mutex).
-        for (size_t i = 0; qit != qend; ++i, ++qit) {
-            const auto &v = (*qit)->validators;
-            for (int j : quorum_outgoing_conns(my_position[i], v.size()))
-                if (!exclude.count(v[j]))
-                    need_remotes.insert(v[j]);
-            if (opportunistic)
-                for (int j : quorum_incoming_conns(my_position[i], v.size()))
-                    if (!exclude.count(v[j]))
-                        need_remotes.insert(v[j]);
+            my_position.push_back(my_pos);
+            if (my_pos >= 0) my_position_count++;
         }
 
         // Lookup the x25519 and ZMQ connection string for all peers
