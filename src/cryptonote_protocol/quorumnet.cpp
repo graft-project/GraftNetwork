@@ -1073,18 +1073,16 @@ void handle_blink(lokimq::Message& m, SNNWrapper& snw) {
     process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), tag, m.conn.pubkey());
 }
 
-template <typename T, typename CopyValue>
-void copy_signature_values(std::list<pending_signature> &signatures, const bt_value &val, CopyValue copy_value) {
-    auto &results = val.get<bt_list>();
-    if (signatures.empty())
-        signatures.resize(results.size());
-    else if (results.empty())
-        throw std::invalid_argument("Invalid blink signature data: no signatures sent");
-    else if (signatures.size() != results.size())
-        throw std::invalid_argument("Invalid blink signature data: i, p, r, s lengths must be identical");
+template <typename Consume>
+void extract_signature_values(bt_dict_consumer& data, string_view key, std::list<pending_signature>& signatures, Consume consume) {
+    if (!data.skip_until(key)) throw std::invalid_argument("Invalid blink signature data: missing required field '" + std::string{key} + "'");
+    auto list = data.consume_list_consumer();
     auto it = signatures.begin();
-    for (auto &r : results)
-        copy_value(std::get<T>(*it++), r);
+    for (; !list.is_finished(); ++it) {
+        if (it == signatures.end()) throw std::invalid_argument("Invalid blink signature data: " + std::string{key} + " size > i size");
+        std::get<decltype(consume(list))>(*it) = consume(list);
+    }
+    if (it != signatures.end()) throw std::invalid_argument("Invalid blink signature data: " + std::string{key} + " size < i size");
 }
 
 /// A "blink_sign" message is used to relay signatures from one quorum member to other members.
@@ -1115,72 +1113,62 @@ void handle_blink_signature(Message& m, SNNWrapper& snw) {
     if (m.data.size() != 1)
         throw std::runtime_error("Rejecting blink signature: expected one data entry not " + std::to_string(m.data.size()));
 
-    auto data = bt_deserialize<bt_dict>(m.data[0]);
+    // Note: this dict_consumer processes in ASCII-order.  Also worth noting is that we skip over
+    // unknown values here (which could be helpful if we want to add fields in the future).
+    bt_dict_consumer data{m.data[0]};
 
-    uint64_t blink_height = 0, checksum = 0;
+    // # - hash (32 bytes)
+    if (!data.skip_until("#")) throw std::invalid_argument("Invalid blink signature data: missing required field '#'");
+    auto hash_str = data.consume_string_view();
+    if (hash_str.size() != sizeof(crypto::hash))
+        throw std::invalid_argument("Invalid blink signature data: invalid tx hash");
     crypto::hash tx_hash;
-    bool saw_checksum = false, saw_hash = false, saw_i, saw_r, saw_p, saw_s;
+    std::memcpy(tx_hash.data, hash_str.data(), sizeof(crypto::hash));
+
+    // h - height
+    if (!data.skip_until("h")) throw std::invalid_argument("Invalid blink signature data: missing required field 'h'");
+    uint64_t blink_height = data.consume_integer<uint64_t>();
+    if (!blink_height) throw std::invalid_argument("Invalid blink signature data: height cannot be 0");
+
+
     std::list<pending_signature> signatures;
 
-    for (const auto &input : data) {
-        if (input.first.size() != 1)
-            throw std::invalid_argument("Invalid blink signature data: invalid/unrecognized key " + input.first);
-
-        auto &val = input.second;
-        switch (input.first[0]) {
-            case 'h':
-                blink_height = get_int<uint64_t>(val);
-                break;
-            case '#': {
-                auto &hash_str = val.get<std::string>();
-                if (hash_str.size() != sizeof(crypto::hash))
-                    throw std::invalid_argument("Invalid blink signature data: invalid tx hash");
-                std::memcpy(tx_hash.data, hash_str.data(), sizeof(crypto::hash));
-                saw_hash = true;
-                break;
-            }
-            case 'q':
-                checksum = get_int<uint64_t>(val);
-                saw_checksum = true;
-                break;
-            case 'i':
-                copy_signature_values<uint8_t>(signatures, val, [](uint8_t &dest, const bt_value &v) {
-                    dest = get_int<uint8_t>(v);
-                    if (dest >= NUM_BLINK_QUORUMS)
-                        throw std::invalid_argument("Invalid blink signature data: invalid quorum index " + std::to_string(dest));
-                });
-                saw_i = true;
-                break;
-            case 'r':
-                copy_signature_values<bool>(signatures, val, [](bool &dest, const bt_value &v) { dest = get_int<bool>(v); });
-                saw_r = true;
-                break;
-            case 'p':
-                copy_signature_values<int>(signatures, val, [](int &dest, const bt_value &v) {
-                    dest = get_int<int>(v);
-                    if (dest < 0 || dest >= BLINK_SUBQUORUM_SIZE) // This is only input validation: it might actually have to be smaller depending on the actual quorum (we check later)
-                        throw std::invalid_argument("Invalid blink signature data: invalid quorum position " + std::to_string(dest));
-                });
-                saw_p = true;
-                break;
-            case 's':
-                copy_signature_values<crypto::signature>(signatures, val, [](crypto::signature &dest, const bt_value &v) {
-                    auto& sig_str = v.get<std::string>();
-                    if (sig_str.size() != sizeof(crypto::signature))
-                        throw std::invalid_argument("Invalid blink signature data: invalid signature");
-                    std::memcpy(&dest, sig_str.data(), sizeof(crypto::signature));
-                    if (!dest)
-                        throw std::invalid_argument("Invalid blink signature data: invalid null signature");
-                });
-                saw_s = true;
-                break;
-            default:
-                throw std::invalid_argument("Invalid blink signature data: invalid/unrecognized key " + input.first);
-        }
+    // i - list of quorum indices
+    if (!data.skip_until("i")) throw std::invalid_argument("Invalid blink signature data: missing required field 'i'");
+    auto quorum_indices = data.consume_list_consumer();
+    while (!quorum_indices.is_finished()) {
+        uint8_t q = quorum_indices.consume_integer<uint8_t>();
+        if (q >= NUM_BLINK_QUORUMS)
+            throw std::invalid_argument("Invalid blink signature data: invalid quorum index " + std::to_string(q));
+        signatures.emplace_back();
+        std::get<uint8_t>(signatures.back()) = q;
     }
 
-    if (!(blink_height && saw_hash && saw_checksum && saw_i && saw_r && saw_p && saw_s))
-        throw std::invalid_argument("Invalid blink signature data: missing required fields");
+    // p - list of quorum positions
+    extract_signature_values(data, "p", signatures, [](bt_list_consumer& l) {
+        int pos = l.consume_integer<int>();
+        if (pos < 0 || pos >= BLINK_SUBQUORUM_SIZE) // This is only input validation: it might actually have to be smaller depending on the actual quorum (we check later)
+            throw std::invalid_argument("Invalid blink signature data: invalid quorum position " + std::to_string(pos));
+        return pos;
+    });
+
+    // q - quorum membership checksum
+    if (!data.skip_until("q")) throw std::invalid_argument("Invalid blink signature data: missing required field 'q'");
+    uint64_t checksum = data.consume_integer<uint64_t>();
+
+    // r - list of 1/0 results (1 = approved, 0 = rejected)
+    extract_signature_values(data, "r", signatures, [](bt_list_consumer& l) { return l.consume_integer<bool>(); });
+
+    // s - list of 64-byte signatures
+    extract_signature_values(data, "s", signatures, [](bt_list_consumer& l) {
+        auto sig_str = l.consume_string_view();
+        if (sig_str.size() != sizeof(crypto::signature))
+            throw std::invalid_argument("Invalid blink signature data: invalid signature");
+        crypto::signature s;
+        std::memcpy(&s, sig_str.data(), sizeof(crypto::signature));
+        if (!s) throw std::invalid_argument("Invalid blink signature data: invalid null signature");
+        return s;
+    });
 
     auto blink_quorums = get_blink_quorums(blink_height, snw.core.get_service_node_list(), &checksum); // throws if bad quorum or checksum mismatch
 
