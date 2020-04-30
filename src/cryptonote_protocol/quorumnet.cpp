@@ -1154,7 +1154,15 @@ void handle_blink_signature(Message& m, SNNWrapper& snw) {
 
     // q - quorum membership checksum
     if (!data.skip_until("q")) throw std::invalid_argument("Invalid blink signature data: missing required field 'q'");
-    uint64_t checksum = data.consume_integer<uint64_t>();
+    // Before 7.1.8 we get a int64_t on the wire, using 2s-complement representation when the value
+    // is a uint64_t that exceeds the max of an int64_t so, if negative, pull it off and static cast
+    // it back (the static_cast assumes a 2s-complement architecture which isn't technically
+    // guaranteed until C++20, but is pretty much universal).
+    static_assert(sizeof(int64_t) == sizeof(uint64_t) && static_cast<uint64_t>(int64_t{-1}) == ~uint64_t{0},
+            "Non 2s-complement architecture not supported"); // Just in case
+    uint64_t checksum = data.is_negative_integer()
+        ? static_cast<uint64_t>(data.consume_integer<int64_t>())
+        : data.consume_integer<uint64_t>(); // If not negative, read as uint64_t (so that we allow large positive uint64_t's on the wire)
 
     // r - list of 1/0 results (1 = approved, 0 = rejected)
     extract_signature_values(data, "r", signatures, [](bt_list_consumer& l) { return l.consume_integer<bool>(); });
@@ -1332,7 +1340,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
             {"!", blink_tag},
             {"#", get_data_as_string(tx_hash)},
             {"h", height},
-            {"q", checksum},
+            {"q", bt_u64{checksum}},
             {"t", tx_blob}
         });
 
