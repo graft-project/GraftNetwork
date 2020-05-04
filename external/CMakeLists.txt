@@ -40,7 +40,7 @@ find_package(PkgConfig REQUIRED)
 if(NOT STATIC)
   pkg_check_modules(MINIUPNPC miniupnpc>=2.1)
   pkg_check_modules(UNBOUND libunbound)
-  pkg_check_modules(LOKIMQ liblokimq>=1.1.3)
+  pkg_check_modules(LOKIMQ liblokimq>=1.1.4)
 endif()
 
 if(MINIUPNPC_FOUND)

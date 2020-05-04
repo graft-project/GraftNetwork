@@ -276,32 +276,21 @@ public:
         const auto &my_pubkey = keys->pub;
         exclude.insert(my_pubkey);
 
-        // Find my positions in the quorums
+        // - Find my position(s) in the quorum(s)
+        // - Build a list of all other quorum members so we can look them all up at once (i.e. to
+        //   lock the required lookup mutex only once).
         my_position_count = 0;
+        std::unordered_set<crypto::public_key> need_remotes;
         for (auto qit = qbegin; qit != qend; ++qit) {
             auto &v = (*qit)->validators;
-            auto found = std::find(v.begin(), v.end(), my_pubkey);
-            if (found == v.end())
-                my_position.push_back(-1);
-            else {
-                my_position.push_back(std::distance(v.begin(), found));
-                my_position_count++;
+            int my_pos = -1;
+            for (int i = 0; i < v.size(); i++) {
+                if (v[i] == my_pubkey) my_pos = i;
+                else if (!exclude.count(v[i]))
+                    need_remotes.insert(v[i]);
             }
-        }
-
-        std::unordered_set<crypto::public_key> need_remotes;
-        auto qit = qbegin;
-        // Figure out all the remotes we need to be able to lookup (so that we can do all lookups in
-        // a single shot -- since it requires a mutex).
-        for (size_t i = 0; qit != qend; ++i, ++qit) {
-            const auto &v = (*qit)->validators;
-            for (int j : quorum_outgoing_conns(my_position[i], v.size()))
-                if (!exclude.count(v[j]))
-                    need_remotes.insert(v[j]);
-            if (opportunistic)
-                for (int j : quorum_incoming_conns(my_position[i], v.size()))
-                    if (!exclude.count(v[j]))
-                        need_remotes.insert(v[j]);
+            my_position.push_back(my_pos);
+            if (my_pos >= 0) my_position_count++;
         }
 
         // Lookup the x25519 and ZMQ connection string for all peers
@@ -364,6 +353,8 @@ private:
             if (my_position[i] < 0) {
                 MTRACE("Not in subquorum " << (i == 0 ? "Q" : "Q'"));
                 continue;
+            } else {
+                MTRACE("I am in subquorum " << (i == 0 ? "Q" : "Q'") << " position " << my_position[i]);
             }
 
             auto &validators = (*qit)->validators;
@@ -371,14 +362,14 @@ private:
             // Relay to all my outgoing targets within the quorum (connecting if not already connected)
             for (int j : quorum_outgoing_conns(my_position[i], validators.size())) {
                 if (add_peer(validators[j]))
-                    MTRACE("Relaying within subquorum " << (i == 0 ? "Q" : "Q'") << " to service node " << validators[j]);
+                    MTRACE("Relaying within subquorum " << (i == 0 ? "Q" : "Q'") << "[" << my_position[i] << "] to [" << j << "] " << validators[j]);
             }
 
             // Opportunistically relay to all my *incoming* sources within the quorum *if* I already
             // have a connection open with them, but don't open a new connection if I don't.
             for (int j : quorum_incoming_conns(my_position[i], validators.size())) {
                 if (add_peer(validators[j], false /*!strong*/))
-                    MTRACE("Optional opportunistic relay within quorum " << (i == 0 ? "Q" : "Q'") << " to service node " << validators[j]);
+                    MTRACE("Optional opportunistic relay within quorum " << (i == 0 ? "Q" : "Q'") << "[" << my_position[i] << "] to [" << j << "] " << validators[j]);
             }
 
             // Now establish strong interconnections between quorums, if we have multiple subquorums
@@ -400,26 +391,33 @@ private:
                 auto &next_validators = (*qnext)->validators;
                 int half = std::min<int>(validators.size(), next_validators.size()) / 2;
                 if (my_position[i] >= half && my_position[i] < half*2) {
-                    if (add_peer(validators[my_position[i] - half]))
-                        MTRACE("Inter-quorum relay from Q to Q' service node " << next_validators[my_position[i] - half]);
+                    int next_pos = my_position[i] - half;
+                    bool added = add_peer(next_validators[next_pos]);
+                    MTRACE("Inter-quorum relay from Q[" << my_position[i] << "] (me) to Q'[" << next_pos << "] = " << next_validators[next_pos]
+                            << (added ? "" : " (skipping; already relaying to that SN)"));
                 } else {
-                    MTRACE("Not a Q -> Q' inter-quorum relay (Q position is " << my_position[i] << ")");
+                    MTRACE("Q[" << my_position[i] << "] is not a Q -> Q' inter-quorum relay position");
                 }
-
+            } else if (qnext != qend) {
+                MTRACE("Not doing inter-quorum relaying because I am in both quorums (Q[" << my_position[i] << "], Q'[" << my_position[i+1] << "])");
             }
 
-            // Exactly the same connections as above, but in reverse and weak: the first half of Q'
-            // sends to the second half of Q.  Typically this will end up reusing an already open
-            // connection, but if there isn't such an open connection then we establish a new one.
+            // Exactly the same connections as above, but in reverse: the first half of Q' sends to
+            // the second half of Q.  Typically this will end up reusing an already open connection,
+            // but if there isn't such an open connection then we establish a new one.
             if (qit != qbegin && my_position[i - 1] < 0) {
                 auto &prev_validators = (*std::prev(qit))->validators;
                 int half = std::min<int>(validators.size(), prev_validators.size()) / 2;
                 if (my_position[i] < half) {
-                    if (add_peer(prev_validators[half + my_position[i]]))
-                        MTRACE("Inter-quorum relay from Q' to Q service node " << prev_validators[my_position[i] - half]);
+                    int prev_pos = half + my_position[i];
+                    bool added = add_peer(prev_validators[prev_pos]);
+                    MTRACE("Inter-quorum relay from Q'[" << my_position[i] << "] (me) to Q[" << prev_pos << "] = " << prev_validators[prev_pos]
+                            << (added ? "" : " (already relaying to that SN)"));
                 } else {
-                    MTRACE("Not a Q' -> Q inter-quorum relay (Q' position is " << my_position[i] << ")");
+                    MTRACE("Q'[" << my_position[i] << "] is not a Q' -> Q inter-quorum relay position");
                 }
+            } else if (qit != qbegin) {
+                MTRACE("Not doing inter-quorum relaying because I am in both quorums (Q[" << my_position[i-1] << "], Q'[" << my_position[i] << "])");
             }
         }
     }
@@ -656,14 +654,11 @@ void process_blink_signatures(SNNWrapper &snw, const std::shared_ptr<blink_tx> &
             if (position < 0 || position >= (int) validators.size()) {
                 MWARNING("Invalid blink signature: subquorum position is invalid");
                 it = signatures.erase(it);
-                continue;
-            }
-
-            if (btx.get_signature_status(subquorum, position) != blink_tx::signature_status::none) {
+            } else if (btx.get_signature_status(subquorum, position) != blink_tx::signature_status::none) {
                 it = signatures.erase(it);
-                continue;
+            } else {
+                ++it;
             }
-            ++it;
         }
     }
     if (signatures.empty())
@@ -1060,27 +1055,23 @@ void handle_blink(lokimq::Message& m, SNNWrapper& snw) {
 
     // Now that we have the blink tx stored we can add our signature *and* any other pending
     // signatures we are holding onto, then blast the entire thing to our peers.
-    for (uint8_t qi = 0; qi < NUM_BLINK_QUORUMS; qi++) {
-        if (pinfo.my_position[qi] < 0)
-            continue;
-        signatures.emplace_back(approved, qi, pinfo.my_position[qi], sig);
-    }
+    for (uint8_t qi = 0; qi < NUM_BLINK_QUORUMS; qi++)
+        if (pinfo.my_position[qi] >= 0)
+            signatures.emplace_back(approved, qi, pinfo.my_position[qi], sig);
 
     process_blink_signatures(snw, btxptr, blink_quorums, checksum, std::move(signatures), tag, m.conn.pubkey());
 }
 
-template <typename T, typename CopyValue>
-void copy_signature_values(std::list<pending_signature> &signatures, const bt_value &val, CopyValue copy_value) {
-    auto &results = val.get<bt_list>();
-    if (signatures.empty())
-        signatures.resize(results.size());
-    else if (results.empty())
-        throw std::invalid_argument("Invalid blink signature data: no signatures sent");
-    else if (signatures.size() != results.size())
-        throw std::invalid_argument("Invalid blink signature data: i, p, r, s lengths must be identical");
+template <typename Consume>
+void extract_signature_values(bt_dict_consumer& data, string_view key, std::list<pending_signature>& signatures, Consume consume) {
+    if (!data.skip_until(key)) throw std::invalid_argument("Invalid blink signature data: missing required field '" + std::string{key} + "'");
+    auto list = data.consume_list_consumer();
     auto it = signatures.begin();
-    for (auto &r : results)
-        copy_value(std::get<T>(*it++), r);
+    for (; !list.is_finished(); ++it) {
+        if (it == signatures.end()) throw std::invalid_argument("Invalid blink signature data: " + std::string{key} + " size > i size");
+        std::get<decltype(consume(list))>(*it) = consume(list);
+    }
+    if (it != signatures.end()) throw std::invalid_argument("Invalid blink signature data: " + std::string{key} + " size < i size");
 }
 
 /// A "blink_sign" message is used to relay signatures from one quorum member to other members.
@@ -1111,72 +1102,70 @@ void handle_blink_signature(Message& m, SNNWrapper& snw) {
     if (m.data.size() != 1)
         throw std::runtime_error("Rejecting blink signature: expected one data entry not " + std::to_string(m.data.size()));
 
-    auto data = bt_deserialize<bt_dict>(m.data[0]);
+    // Note: this dict_consumer processes in ASCII-order.  Also worth noting is that we skip over
+    // unknown values here (which could be helpful if we want to add fields in the future).
+    bt_dict_consumer data{m.data[0]};
 
-    uint64_t blink_height = 0, checksum = 0;
+    // # - hash (32 bytes)
+    if (!data.skip_until("#")) throw std::invalid_argument("Invalid blink signature data: missing required field '#'");
+    auto hash_str = data.consume_string_view();
+    if (hash_str.size() != sizeof(crypto::hash))
+        throw std::invalid_argument("Invalid blink signature data: invalid tx hash");
     crypto::hash tx_hash;
-    bool saw_checksum = false, saw_hash = false, saw_i, saw_r, saw_p, saw_s;
+    std::memcpy(tx_hash.data, hash_str.data(), sizeof(crypto::hash));
+
+    // h - height
+    if (!data.skip_until("h")) throw std::invalid_argument("Invalid blink signature data: missing required field 'h'");
+    uint64_t blink_height = data.consume_integer<uint64_t>();
+    if (!blink_height) throw std::invalid_argument("Invalid blink signature data: height cannot be 0");
+
+
     std::list<pending_signature> signatures;
 
-    for (const auto &input : data) {
-        if (input.first.size() != 1)
-            throw std::invalid_argument("Invalid blink signature data: invalid/unrecognized key " + input.first);
-
-        auto &val = input.second;
-        switch (input.first[0]) {
-            case 'h':
-                blink_height = get_int<uint64_t>(val);
-                break;
-            case '#': {
-                auto &hash_str = val.get<std::string>();
-                if (hash_str.size() != sizeof(crypto::hash))
-                    throw std::invalid_argument("Invalid blink signature data: invalid tx hash");
-                std::memcpy(tx_hash.data, hash_str.data(), sizeof(crypto::hash));
-                saw_hash = true;
-                break;
-            }
-            case 'q':
-                checksum = get_int<uint64_t>(val);
-                saw_checksum = true;
-                break;
-            case 'i':
-                copy_signature_values<uint8_t>(signatures, val, [](uint8_t &dest, const bt_value &v) {
-                    dest = get_int<uint8_t>(v);
-                    if (dest >= NUM_BLINK_QUORUMS)
-                        throw std::invalid_argument("Invalid blink signature data: invalid quorum index " + std::to_string(dest));
-                });
-                saw_i = true;
-                break;
-            case 'r':
-                copy_signature_values<bool>(signatures, val, [](bool &dest, const bt_value &v) { dest = get_int<bool>(v); });
-                saw_r = true;
-                break;
-            case 'p':
-                copy_signature_values<int>(signatures, val, [](int &dest, const bt_value &v) {
-                    dest = get_int<int>(v);
-                    if (dest < 0 || dest >= BLINK_SUBQUORUM_SIZE) // This is only input validation: it might actually have to be smaller depending on the actual quorum (we check later)
-                        throw std::invalid_argument("Invalid blink signature data: invalid quorum position " + std::to_string(dest));
-                });
-                saw_p = true;
-                break;
-            case 's':
-                copy_signature_values<crypto::signature>(signatures, val, [](crypto::signature &dest, const bt_value &v) {
-                    auto& sig_str = v.get<std::string>();
-                    if (sig_str.size() != sizeof(crypto::signature))
-                        throw std::invalid_argument("Invalid blink signature data: invalid signature");
-                    std::memcpy(&dest, sig_str.data(), sizeof(crypto::signature));
-                    if (!dest)
-                        throw std::invalid_argument("Invalid blink signature data: invalid null signature");
-                });
-                saw_s = true;
-                break;
-            default:
-                throw std::invalid_argument("Invalid blink signature data: invalid/unrecognized key " + input.first);
-        }
+    // i - list of quorum indices
+    if (!data.skip_until("i")) throw std::invalid_argument("Invalid blink signature data: missing required field 'i'");
+    auto quorum_indices = data.consume_list_consumer();
+    while (!quorum_indices.is_finished()) {
+        uint8_t q = quorum_indices.consume_integer<uint8_t>();
+        if (q >= NUM_BLINK_QUORUMS)
+            throw std::invalid_argument("Invalid blink signature data: invalid quorum index " + std::to_string(q));
+        signatures.emplace_back();
+        std::get<uint8_t>(signatures.back()) = q;
     }
 
-    if (!(blink_height && saw_hash && saw_checksum && saw_i && saw_r && saw_p && saw_s))
-        throw std::invalid_argument("Invalid blink signature data: missing required fields");
+    // p - list of quorum positions
+    extract_signature_values(data, "p", signatures, [](bt_list_consumer& l) {
+        int pos = l.consume_integer<int>();
+        if (pos < 0 || pos >= BLINK_SUBQUORUM_SIZE) // This is only input validation: it might actually have to be smaller depending on the actual quorum (we check later)
+            throw std::invalid_argument("Invalid blink signature data: invalid quorum position " + std::to_string(pos));
+        return pos;
+    });
+
+    // q - quorum membership checksum
+    if (!data.skip_until("q")) throw std::invalid_argument("Invalid blink signature data: missing required field 'q'");
+    // Before 7.1.8 we get a int64_t on the wire, using 2s-complement representation when the value
+    // is a uint64_t that exceeds the max of an int64_t so, if negative, pull it off and static cast
+    // it back (the static_cast assumes a 2s-complement architecture which isn't technically
+    // guaranteed until C++20, but is pretty much universal).
+    static_assert(sizeof(int64_t) == sizeof(uint64_t) && static_cast<uint64_t>(int64_t{-1}) == ~uint64_t{0},
+            "Non 2s-complement architecture not supported"); // Just in case
+    uint64_t checksum = data.is_negative_integer()
+        ? static_cast<uint64_t>(data.consume_integer<int64_t>())
+        : data.consume_integer<uint64_t>(); // If not negative, read as uint64_t (so that we allow large positive uint64_t's on the wire)
+
+    // r - list of 1/0 results (1 = approved, 0 = rejected)
+    extract_signature_values(data, "r", signatures, [](bt_list_consumer& l) { return l.consume_integer<bool>(); });
+
+    // s - list of 64-byte signatures
+    extract_signature_values(data, "s", signatures, [](bt_list_consumer& l) {
+        auto sig_str = l.consume_string_view();
+        if (sig_str.size() != sizeof(crypto::signature))
+            throw std::invalid_argument("Invalid blink signature data: invalid signature");
+        crypto::signature s;
+        std::memcpy(&s, sig_str.data(), sizeof(crypto::signature));
+        if (!s) throw std::invalid_argument("Invalid blink signature data: invalid null signature");
+        return s;
+    });
 
     auto blink_quorums = get_blink_quorums(blink_height, snw.core.get_service_node_list(), &checksum); // throws if bad quorum or checksum mismatch
 
@@ -1340,7 +1329,7 @@ std::future<std::pair<cryptonote::blink_result, std::string>> send_blink(void *o
             {"!", blink_tag},
             {"#", get_data_as_string(tx_hash)},
             {"h", height},
-            {"q", checksum},
+            {"q", bt_u64{checksum}},
             {"t", tx_blob}
         });
 
