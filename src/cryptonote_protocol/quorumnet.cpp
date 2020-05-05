@@ -284,8 +284,8 @@ public:
         for (auto qit = qbegin; qit != qend; ++qit) {
             auto &v = (*qit)->validators;
             int my_pos = -1;
-            for (int i = 0; i < v.size(); i++) {
-                if (v[i] == my_pubkey) my_pos = i;
+            for (size_t i = 0; i < v.size(); i++) {
+                if (v[i] == my_pubkey) my_pos = static_cast<int>(i);
                 else if (!exclude.count(v[i]))
                     need_remotes.insert(v[i]);
             }
