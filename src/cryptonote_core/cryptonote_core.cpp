@@ -870,9 +870,9 @@ namespace cryptonote
     r = m_blockchain_storage.init(db.release(), lns_db, m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
-    if (!command_line::is_arg_defaulted(vm, arg_recalculate_difficulty))
+    uint64_t recalc_diff_from_block = command_line::get_arg(vm, arg_recalculate_difficulty);
+    if (recalc_diff_from_block > 0)
     {
-      uint64_t recalc_diff_from_block = command_line::get_arg(vm, arg_recalculate_difficulty);
       cryptonote::BlockchainDB::fixup_context context  = {};
       context.type                                     = cryptonote::BlockchainDB::fixup_type::calculate_difficulty;
       context.calculate_difficulty_params.start_height = recalc_diff_from_block;
