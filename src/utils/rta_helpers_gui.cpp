@@ -45,12 +45,16 @@ namespace rta_helpers {
 namespace gui {
 
 bool decrypt_tx_and_amount(const std::string &wallet_address, size_t nettype, const crypto::secret_key &key, const std::string &encrypted_tx_key, 
-                             const std::string &encrypted_tx, uint64_t &amount, std::string &tx_blob)
+                             const std::string &encrypted_tx, uint64_t &amount, std::string &tx_blob, std::string &error)
 {
     // parse wallet address
+    std::ostringstream oss;
+    
     cryptonote::address_parse_info parse_info;
     if (!cryptonote::get_account_address_from_str(parse_info, static_cast<cryptonote::network_type>(nettype), wallet_address)) {
-        MERROR("Failed to parse account from: " << wallet_address);
+        oss << "Failed to parse account from: " << wallet_address;
+        MERROR(oss.str());
+        error = oss.str();
         return false;
     }
     

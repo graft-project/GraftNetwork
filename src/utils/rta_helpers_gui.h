@@ -50,7 +50,7 @@ namespace gui {
  */
 
 bool decrypt_tx_and_amount(const std::string &wallet_address, size_t nettype, const crypto::secret_key &key, const std::string &encrypted_tx_key, 
-                            const std::string &encrypted_tx, uint64_t &amount, std::string &tx_blob);
+                            const std::string &encrypted_tx, uint64_t &amount, std::string &tx_blob, std::string &error);
 
 /*!
  * \brief get_rta_keys_from_tx - returns rta keys from tx
