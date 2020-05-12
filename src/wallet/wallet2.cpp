@@ -1772,6 +1772,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   std::unordered_map<cryptonote::subaddress_index, uint64_t> tx_money_got_in_outs;  // per receiving subaddress index
   crypto::public_key tx_pub_key = null_pkey;
   bool notify = false;
+  bool is_rta_tx = true /* tx.type == cryptonote::transaction::tx_type_rta*/;
 
   std::vector<tx_extra_field> local_tx_extra_fields;
   if (tx_cache_data.tx_extra_fields.empty())
@@ -1965,13 +1966,16 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
         if (kit == m_pub_keys.end())
         {
           uint64_t amount = tx.vout[o].amount ? tx.vout[o].amount : tx_scan_info[o].amount;
-          if (!pool)
+          MDEBUG("tx: " << txid << ", [O] Received money " << amount << " (" << print_money(amount) << ") for output: " << o);
+              
+              // TODO: IK 2020-05-06: check what happens here if we receive tx from pool we sent from  another wallet
+          if (!pool || is_rta_tx)
           {
 	    m_transfers.push_back(boost::value_initialized<transfer_details>());
 	    transfer_details& td = m_transfers.back();
 	    td.m_block_height = height;
 	    td.m_internal_output_index = o;
-	    td.m_global_output_index = o_indices[o];
+	    td.m_global_output_index = (pool && is_rta_tx) ? o : o_indices[o];
 	    td.m_tx = (const cryptonote::transaction_prefix&)tx;
 	    td.m_txid = txid;
             td.m_key_image = tx_scan_info[o].ki;
@@ -2143,12 +2147,13 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       {
         amount = td.amount();
       }
+      MDEBUG("tx: " << txid << ", [I] Spend money " << amount << " (" << print_money(amount));
       tx_money_spent_in_ins += amount;
       if (subaddr_account && *subaddr_account != td.m_subaddr_index.major)
         LOG_ERROR("spent funds are from different subaddress accounts; count of incoming/outgoing payments will be incorrect");
       subaddr_account = td.m_subaddr_index.major;
       subaddr_indices.insert(td.m_subaddr_index.minor);
-      if (!pool)
+      if (!pool || is_rta_tx)
       {
         LOG_PRINT_L0("Spent money: " << print_money(amount) << ", with tx: " << txid);
         set_spent(it->second, height);
@@ -2188,7 +2193,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
 
   uint64_t fee = miner_tx ? 0 : tx.version == 1 ? tx_money_spent_in_ins - get_outs_money_amount(tx) : tx.rct_signatures.txnFee;
 
-  if (tx_money_spent_in_ins > 0 && !pool)
+  if (tx_money_spent_in_ins > 0 && !pool) // TODO: check here?
   {
     uint64_t self_received = std::accumulate<decltype(tx_money_got_in_outs.begin()), uint64_t>(tx_money_got_in_outs.begin(), tx_money_got_in_outs.end(), 0,
       [&subaddr_account] (uint64_t acc, const std::pair<cryptonote::subaddress_index, uint64_t>& p)
@@ -2220,6 +2225,15 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   }
 
   // create payment_details for each incoming transfer to a subaddress index
+  crypto::hash payment_id = null_hash;
+  
+  uint64_t tx_money_got_in_outs_sum = 0;
+  for (const auto item : tx_money_got_in_outs) {
+    tx_money_got_in_outs_sum += item.second;
+  }
+  
+  MDEBUG("tx_money_got_in_outs: " << tx_money_got_in_outs_sum << " (" << print_money(tx_money_got_in_outs_sum) << ")");
+  
   if (tx_money_got_in_outs.size() > 0)
   {
     tx_extra_nonce extra_nonce;
@@ -2274,6 +2288,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     }
 
     bool all_same = true;
+    // TODO: why can't we receive change here?
     for (const auto& i : tx_money_got_in_outs)
     {
       payment_details payment;
@@ -2285,7 +2300,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       payment.m_timestamp    = ts;
       payment.m_coinbase     = miner_tx;
       payment.m_subaddr_index = i.first;
-      if (pool) {
+      if (pool && !is_rta_tx) {
         if (emplace_or_replace(m_unconfirmed_payments, payment_id, pool_payment_details{payment, double_spend_seen}))
           all_same = false;
         if (0 != m_callback)
@@ -2300,7 +2315,14 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     if (pool && all_same)
       notify = false;
   }
-
+  // apply balance change for the outgoing rta_tx
+  if (pool && is_rta_tx) {
+    crypto::hash payment_id = crypto::null_hash;
+    std::vector<cryptonote::tx_destination_entry> dests;
+    MDEBUG("About to add tx as unconfirmed, tx: " << txid << ", tx_money_spent_in_ins" << tx_money_spent_in_ins);
+    // add_unconfirmed_tx(tx, tx_money_spent_in_ins, dests, payment_id, 0, 0, {0});
+  }
+  
   if (notify)
   {
     std::shared_ptr<tools::Notify> tx_notify = m_tx_notify;
@@ -6065,7 +6087,10 @@ void wallet2::rescan_blockchain(bool hard, bool refresh, bool keep_key_images)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_transfer_unlocked(const transfer_details& td) const
 {
-  return is_transfer_unlocked(td.m_tx.unlock_time, td.m_block_height);
+  
+  bool result =  is_transfer_unlocked(td.m_tx.unlock_time, td.m_block_height);
+  MDEBUG("Checking transfer unlocked for tx: " << td.m_txid << ", unlock_time: " << td.m_tx.unlock_time << ", block_height: " << td.m_block_height << ", unlocked: " << result);
+  return result;
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height) const
