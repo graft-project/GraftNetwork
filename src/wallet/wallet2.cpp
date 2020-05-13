@@ -6087,8 +6087,7 @@ void wallet2::rescan_blockchain(bool hard, bool refresh, bool keep_key_images)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_transfer_unlocked(const transfer_details& td) const
 {
-  
-  bool result =  is_transfer_unlocked(td.m_tx.unlock_time, td.m_block_height);
+  bool result =  td.m_block_height > 0 && is_transfer_unlocked(td.m_tx.unlock_time, td.m_block_height);
   MDEBUG("Checking transfer unlocked for tx: " << td.m_txid << ", unlock_time: " << td.m_tx.unlock_time << ", block_height: " << td.m_block_height << ", unlocked: " << result);
   return result;
 }
