@@ -1973,7 +1973,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           // 1 - show_transfers doesn't display this outgoing tx before it mined
           // 2 - after it mined, transfer amount displayed as sum_of_spent_inputs + transferred_amount but it should be only transferred_amount
           //    so this is probably a wrong way to implement "instant balance and transactions log change"
-          if (!pool || is_rta_tx)
+          if (!pool/* || is_rta_tx*/)
           {
 	    m_transfers.push_back(boost::value_initialized<transfer_details>());
 	    transfer_details& td = m_transfers.back();
