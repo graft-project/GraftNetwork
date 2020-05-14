@@ -1968,12 +1968,17 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           uint64_t amount = tx.vout[o].amount ? tx.vout[o].amount : tx_scan_info[o].amount;
           MDEBUG("tx: " << txid << ", [O] Received money " << amount << " (" << print_money(amount) << ") for output: " << o);
               
-              // TODO: IK 2020-05-06: check what happens here if we receive tx from pool we sent from  another wallet
+          // TODO: IK 2020-05-06: check what happens here if we receive tx from pool we sent from  another wallet
+          // UPD 2020-05-13: This way it CAN render proper balance but:
+          // 1 - show_transfers doesn't display this outgoing tx before it mined
+          // 2 - after it mined, transfer amount displayed as sum_of_spent_inputs + transferred_amount but it should be only transferred_amount
+          //    so this is probably a wrong way to implement "instant balance and transactions log change"
           if (!pool || is_rta_tx)
           {
 	    m_transfers.push_back(boost::value_initialized<transfer_details>());
 	    transfer_details& td = m_transfers.back();
-	    td.m_block_height = height;
+	    td.is_rta = is_rta_tx;
+      td.m_block_height = height;
 	    td.m_internal_output_index = o;
 	    td.m_global_output_index = (pool && is_rta_tx) ? o : o_indices[o];
 	    td.m_tx = (const cryptonote::transaction_prefix&)tx;
@@ -2040,7 +2045,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           total_received_1 += amount;
           notify = true;
         }
-	else if (m_transfers[kit->second].m_spent || m_transfers[kit->second].amount() >= tx_scan_info[o].amount)
+	else if (!m_transfers[kit->second].is_rta && (m_transfers[kit->second].m_spent || m_transfers[kit->second].amount() >= tx_scan_info[o].amount))
         {
 	  LOG_ERROR("Public key " << epee::string_tools::pod_to_hex(kit->first)
               << " from received " << print_money(tx_scan_info[o].amount) << " output already exists with "
@@ -2153,6 +2158,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
         LOG_ERROR("spent funds are from different subaddress accounts; count of incoming/outgoing payments will be incorrect");
       subaddr_account = td.m_subaddr_index.major;
       subaddr_indices.insert(td.m_subaddr_index.minor);
+      // XXX: set_spent inputs we found in pool in case transfer made by our wallet (copy);
       if (!pool || is_rta_tx)
       {
         LOG_PRINT_L0("Spent money: " << print_money(amount) << ", with tx: " << txid);
@@ -2300,7 +2306,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       payment.m_timestamp    = ts;
       payment.m_coinbase     = miner_tx;
       payment.m_subaddr_index = i.first;
-      if (pool && !is_rta_tx) {
+      if (pool) {
         if (emplace_or_replace(m_unconfirmed_payments, payment_id, pool_payment_details{payment, double_spend_seen}))
           all_same = false;
         if (0 != m_callback)

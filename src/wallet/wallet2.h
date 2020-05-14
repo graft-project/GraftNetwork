@@ -316,6 +316,7 @@ private:
       std::vector<rct::key> m_multisig_k;
       std::vector<multisig_info> m_multisig_info; // one per other participant
       std::vector<std::pair<uint64_t, crypto::hash>> m_uses;
+      bool is_rta = false;
 
       bool is_rct() const { return m_rct; }
       uint64_t amount() const { return m_amount; }
