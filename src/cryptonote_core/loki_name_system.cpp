@@ -1531,6 +1531,7 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
     if (settings.top_height == lns_height && settings.top_hash == lns_hash)
     {
       this->last_processed_height = settings.top_height;
+      this->last_processed_hash   = settings.top_hash;
       assert(settings.version == static_cast<int>(DB_VERSION));
     }
     else
@@ -1546,6 +1547,11 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
 
 name_system_db::~name_system_db()
 {
+  {
+    scoped_db_transaction db_transaction(*this);
+    save_settings(last_processed_height, last_processed_hash, static_cast<int>(DB_VERSION));
+  }
+
   // close_v2 starts shutting down; the actual shutdown occurs once the last prepared statement is
   // finalized (which should happen when the ..._sql members get destructed, right after this).
   sqlite3_close_v2(db);
@@ -1705,6 +1711,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
   if (!db_transaction)
    return false;
 
+  bool lns_parsed_from_block = false;
   if (block.major_version >= cryptonote::network_version_15_lns)
   {
     for (cryptonote::transaction const &tx : txs)
@@ -1724,12 +1731,18 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       crypto::hash const &tx_hash = cryptonote::get_transaction_hash(tx);
       if (!add_lns_entry(*this, height, entry, tx_hash))
         return false;
+
+      lns_parsed_from_block = true;
     }
   }
 
   last_processed_height = height;
-  save_settings(height, cryptonote::get_block_hash(block), static_cast<int>(DB_VERSION));
-  db_transaction.commit = true;
+  last_processed_hash   = cryptonote::get_block_hash(block);
+  if (lns_parsed_from_block)
+  {
+    save_settings(last_processed_height, last_processed_hash, static_cast<int>(DB_VERSION));
+    db_transaction.commit = lns_parsed_from_block;
+  }
   return true;
 }
 
