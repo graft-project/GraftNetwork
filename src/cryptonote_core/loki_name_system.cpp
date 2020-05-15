@@ -565,7 +565,36 @@ sqlite3 *init_loki_name_system(char const *file_path)
   int sql_open = sqlite3_open(file_path, &result);
   if (sql_open != SQLITE_OK)
   {
-    MERROR("Failed to open LNS db at: " << file_path << ", reason: " << sqlite3_errstr(sql_init));
+    MERROR("Failed to open LNS db at: " << file_path << ", reason: " << sqlite3_errstr(sql_open));
+    return nullptr;
+  }
+
+  /*
+    (DB) Changes are appended into a separate WAL (Write Ahead Logging) file.
+    A COMMIT occurs when a special record indicating a commit is appended to
+    the WAL. Thus a COMMIT can happen without ever writing to the original
+    database, which allows readers to continue operating from the original
+    unaltered database while changes are simultaneously being committed into the
+    WAL. Multiple transactions can be appended to the end of a single WAL file.
+  */
+  int exec = sqlite3_exec(result, "PRAGMA journal_mode = WAL", nullptr, nullptr, nullptr);
+  if (exec != SQLITE_OK)
+  {
+    MERROR("Failed to set journal mode to WAL: " << sqlite3_errstr(exec));
+    return nullptr;
+  }
+
+  /*
+    In WAL mode when synchronous is NORMAL (1), the WAL file is synchronized
+    before each checkpoint and the database file is synchronized after each
+    completed checkpoint and the WAL file header is synchronized when a WAL file
+    begins to be reused after a checkpoint, but no sync operations occur during
+    most transactions.
+  */
+  exec = sqlite3_exec(result, "PRAGMA synchronous = NORMAL", nullptr, nullptr, nullptr);
+  if (exec != SQLITE_OK)
+  {
+    MERROR("Failed to set synchronous mode to NORMAL: " << sqlite3_errstr(exec));
     return nullptr;
   }
 
