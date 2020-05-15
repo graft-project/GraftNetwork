@@ -552,7 +552,7 @@ sql_compiled_statement::~sql_compiled_statement()
   sqlite3_finalize(statement);
 }
 
-sqlite3 *init_loki_name_system(char const *file_path)
+sqlite3 *init_loki_name_system(char const *file_path, bool read_only)
 {
   sqlite3 *result = nullptr;
   int sql_init    = sqlite3_initialize();
@@ -562,7 +562,8 @@ sqlite3 *init_loki_name_system(char const *file_path)
     return nullptr;
   }
 
-  int sql_open = sqlite3_open(file_path, &result);
+  int const flags = read_only ? SQLITE_OPEN_READONLY : SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE;
+  int sql_open    = sqlite3_open_v2(file_path, &result, flags, nullptr);
   if (sql_open != SQLITE_OK)
   {
     MERROR("Failed to open LNS db at: " << file_path << ", reason: " << sqlite3_errstr(sql_open));
