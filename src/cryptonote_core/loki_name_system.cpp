@@ -552,7 +552,7 @@ sql_compiled_statement::~sql_compiled_statement()
   sqlite3_finalize(statement);
 }
 
-sqlite3 *init_loki_name_system(char const *file_path)
+sqlite3 *init_loki_name_system(char const *file_path, bool read_only)
 {
   sqlite3 *result = nullptr;
   int sql_init    = sqlite3_initialize();
@@ -562,10 +562,40 @@ sqlite3 *init_loki_name_system(char const *file_path)
     return nullptr;
   }
 
-  int sql_open = sqlite3_open(file_path, &result);
+  int const flags = read_only ? SQLITE_OPEN_READONLY : SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE;
+  int sql_open    = sqlite3_open_v2(file_path, &result, flags, nullptr);
   if (sql_open != SQLITE_OK)
   {
-    MERROR("Failed to open LNS db at: " << file_path << ", reason: " << sqlite3_errstr(sql_init));
+    MERROR("Failed to open LNS db at: " << file_path << ", reason: " << sqlite3_errstr(sql_open));
+    return nullptr;
+  }
+
+  /*
+    (DB) Changes are appended into a separate WAL (Write Ahead Logging) file.
+    A COMMIT occurs when a special record indicating a commit is appended to
+    the WAL. Thus a COMMIT can happen without ever writing to the original
+    database, which allows readers to continue operating from the original
+    unaltered database while changes are simultaneously being committed into the
+    WAL. Multiple transactions can be appended to the end of a single WAL file.
+  */
+  int exec = sqlite3_exec(result, "PRAGMA journal_mode = WAL", nullptr, nullptr, nullptr);
+  if (exec != SQLITE_OK)
+  {
+    MERROR("Failed to set journal mode to WAL: " << sqlite3_errstr(exec));
+    return nullptr;
+  }
+
+  /*
+    In WAL mode when synchronous is NORMAL (1), the WAL file is synchronized
+    before each checkpoint and the database file is synchronized after each
+    completed checkpoint and the WAL file header is synchronized when a WAL file
+    begins to be reused after a checkpoint, but no sync operations occur during
+    most transactions.
+  */
+  exec = sqlite3_exec(result, "PRAGMA synchronous = NORMAL", nullptr, nullptr, nullptr);
+  if (exec != SQLITE_OK)
+  {
+    MERROR("Failed to set synchronous mode to NORMAL: " << sqlite3_errstr(exec));
     return nullptr;
   }
 
@@ -1531,6 +1561,7 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
     if (settings.top_height == lns_height && settings.top_hash == lns_hash)
     {
       this->last_processed_height = settings.top_height;
+      this->last_processed_hash   = settings.top_hash;
       assert(settings.version == static_cast<int>(DB_VERSION));
     }
     else
@@ -1546,6 +1577,11 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
 
 name_system_db::~name_system_db()
 {
+  {
+    scoped_db_transaction db_transaction(*this);
+    save_settings(last_processed_height, last_processed_hash, static_cast<int>(DB_VERSION));
+  }
+
   // close_v2 starts shutting down; the actual shutdown occurs once the last prepared statement is
   // finalized (which should happen when the ..._sql members get destructed, right after this).
   sqlite3_close_v2(db);
@@ -1705,6 +1741,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
   if (!db_transaction)
    return false;
 
+  bool lns_parsed_from_block = false;
   if (block.major_version >= cryptonote::network_version_15_lns)
   {
     for (cryptonote::transaction const &tx : txs)
@@ -1724,12 +1761,18 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
       crypto::hash const &tx_hash = cryptonote::get_transaction_hash(tx);
       if (!add_lns_entry(*this, height, entry, tx_hash))
         return false;
+
+      lns_parsed_from_block = true;
     }
   }
 
   last_processed_height = height;
-  save_settings(height, cryptonote::get_block_hash(block), static_cast<int>(DB_VERSION));
-  db_transaction.commit = true;
+  last_processed_hash   = cryptonote::get_block_hash(block);
+  if (lns_parsed_from_block)
+  {
+    save_settings(last_processed_height, last_processed_hash, static_cast<int>(DB_VERSION));
+    db_transaction.commit = lns_parsed_from_block;
+  }
   return true;
 }
 

@@ -61,7 +61,7 @@ inline char const *mapping_type_str(mapping_type type)
 inline std::ostream &operator<<(std::ostream &os, mapping_type type) { return os << mapping_type_str(type); }
 constexpr bool mapping_type_allowed(uint8_t hf_version, mapping_type type) { return type == mapping_type::session; }
 constexpr bool is_lokinet_type     (lns::mapping_type type)                { return type >= mapping_type::lokinet_1year && type <= mapping_type::lokinet_10years; }
-sqlite3       *init_loki_name_system(char const *file_path);
+sqlite3       *init_loki_name_system(char const *file_path, bool read_only);
 
 uint64_t constexpr NO_EXPIRY = static_cast<uint64_t>(-1);
 // return: The number of blocks until expiry from the registration height, if there is no expiration NO_EXPIRY is returned.
@@ -219,6 +219,7 @@ struct name_system_db
 private:
   cryptonote::network_type nettype;
   uint64_t last_processed_height = 0;
+  crypto::hash last_processed_hash = crypto::null_hash;
   sql_compiled_statement save_owner_sql{*this};
   sql_compiled_statement save_mapping_sql{*this};
   sql_compiled_statement save_settings_sql{*this};
