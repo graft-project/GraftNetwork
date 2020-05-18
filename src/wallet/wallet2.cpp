@@ -1772,6 +1772,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
   std::unordered_map<cryptonote::subaddress_index, uint64_t> tx_money_got_in_outs;  // per receiving subaddress index
   crypto::public_key tx_pub_key = null_pkey;
   bool notify = false;
+  bool is_rta_tx = tx.type == cryptonote::transaction::tx_type_rta;
 
   std::vector<tx_extra_field> local_tx_extra_fields;
   if (tx_cache_data.tx_extra_fields.empty())
@@ -2148,7 +2149,8 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
         LOG_ERROR("spent funds are from different subaddress accounts; count of incoming/outgoing payments will be incorrect");
       subaddr_account = td.m_subaddr_index.major;
       subaddr_indices.insert(td.m_subaddr_index.minor);
-      if (!pool)
+      // set_spent inputs we found in pool in case transfer made by our wallet (copy);
+      if (!pool || is_rta_tx)
       {
         LOG_PRINT_L0("Spent money: " << print_money(amount) << ", with tx: " << txid);
         set_spent(it->second, height);
