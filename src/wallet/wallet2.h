@@ -355,6 +355,7 @@ private:
       uint64_t m_timestamp;
       bool m_coinbase;
       cryptonote::subaddress_index m_subaddr_index;
+      size_t m_tx_type = cryptonote::transaction::tx_type_generic;
     };
 
     struct address_tx : payment_details
