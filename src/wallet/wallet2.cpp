@@ -2287,6 +2287,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       payment.m_timestamp    = ts;
       payment.m_coinbase     = miner_tx;
       payment.m_subaddr_index = i.first;
+      payment.m_tx_type       = tx.type;
       if (pool) {
         if (emplace_or_replace(m_unconfirmed_payments, payment_id, pool_payment_details{payment, double_spend_seen}))
           all_same = false;
@@ -5795,6 +5796,20 @@ std::map<uint32_t, uint64_t> wallet2::balance_per_subaddress(uint32_t index_majo
         found->second += utx.second.m_change;
     }
   }
+  
+  // incoming rta txs from mempool affects balance
+  for (const auto& upm: m_unconfirmed_payments)
+  {
+    if (upm.second.m_pd.m_subaddr_index.major == index_major && upm.second.m_pd.m_tx_type == cryptonote::transaction::tx_type_rta)
+    {
+      auto found = amount_per_subaddr.find(0);
+      if (found == amount_per_subaddr.end())
+        amount_per_subaddr[0] = upm.second.m_pd.m_amount;
+      else
+        found->second += upm.second.m_pd.m_amount;
+    }
+  }
+  
   return amount_per_subaddr;
 }
 //----------------------------------------------------------------------------------------------------
@@ -9256,6 +9271,8 @@ void wallet2::light_wallet_get_address_txs()
       payment.m_unlock_time  = t.unlock_time;
       payment.m_timestamp = t.timestamp;
       payment.m_coinbase = t.coinbase;
+      // TODO: implement "type" field for tools::COMMAND_RPC_GET_ADDRESS_TXS::transaction ?
+      // payment.m_tx_type = t.type;
         
       if (t.mempool) {   
         if (std::find(unconfirmed_payments_txs.begin(), unconfirmed_payments_txs.end(), tx_hash) == unconfirmed_payments_txs.end()) {
