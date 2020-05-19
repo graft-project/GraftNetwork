@@ -621,12 +621,51 @@ TEST(Serialization, serializes_ringct_types)
   bp1.V = bp0.V; // this is not saved, as it is reconstructed from other tx data
   ASSERT_EQ(bp0, bp1);
 }
+TEST(Serialization, portability_rta_tx)
+{
+  // Empty tx
+  cryptonote::transaction tx;
+  tx.version = 3;
+  tx.type = cryptonote::transaction::tx_type_rta;
+  
+  // Graft: Disqualification-TX: TODO: get_transaction_hash will fail for tx without inputs
+  cryptonote::txin_gen txin_gen1;
+  txin_gen1.height = 0;
+  tx.vin.push_back(txin_gen1);
+  
+  cryptonote::rta_header rta_hdr_in, rta_hdr_out;
+  std::vector<cryptonote::account_base> accounts;
 
+  for (size_t i = 0; i < 10; ++i) {
+      cryptonote::account_base acc;
+      acc.generate();
+      rta_hdr_in.keys.push_back(acc.get_keys().m_account_address.m_view_public_key);
+      accounts.push_back(acc);
+  }
+
+  cryptonote::add_graft_rta_header_to_extra(tx.extra, rta_hdr_in);
+
+  std::string blob;
+  {
+    std::ostringstream oss;
+    boost::archive::portable_binary_oarchive ar(oss);
+    ar << tx;
+    blob = oss.str();
+  }
+  cryptonote::transaction tx1;
+  {
+    std::stringstream iss(blob);
+    boost::archive::portable_binary_iarchive ar(iss);
+    ar >> tx1;
+  }
+  ASSERT_TRUE(tx1.type == tx.type);
+  ASSERT_TRUE(tx1.extra2 == tx.extra2);
+}
 
 TEST(Serialization, serializes_rta_transaction_correctly)
 {
   string blob;
-
+  
   // Empty tx
   cryptonote::transaction tx;
   cryptonote::transaction tx1;
@@ -665,10 +704,9 @@ TEST(Serialization, serializes_rta_transaction_correctly)
 
   ASSERT_TRUE(cryptonote::add_graft_rta_signatures_to_extra2(tx.extra2, signatures1));
 
-
   ASSERT_TRUE(serialization::dump_binary(tx, blob));
   ASSERT_TRUE(serialization::parse_binary(blob, tx1));
-  ASSERT_EQ(tx, tx1);
+  ASSERT_EQ(tx.type, tx1.type);
   ASSERT_TRUE(cryptonote::get_graft_rta_signatures_from_extra2(tx1, signatures2));
   ASSERT_EQ(signatures1, signatures2);
 
