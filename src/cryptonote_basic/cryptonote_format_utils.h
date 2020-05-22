@@ -154,7 +154,7 @@ namespace cryptonote
    * \param rta_header                      - output rta_header
    * \return                                - true on success
    */
-  bool get_graft_rta_header_from_extra(const transaction& tx, rta_header &rta_header);
+  bool get_graft_rta_header_from_extra(const transaction_prefix& tx, rta_header &rta_header);
 
   /*!
    * \brief add_graft_rta_signatures_to_extra - add rta_signatures to the 'extra' container
@@ -258,8 +258,7 @@ namespace cryptonote
    * \return                      - true on success
    */
   bool get_graft_tx_extra_from_extra(const transaction &tx, supernode::GraftTxExtra &graft_tx_extra);
-  // graft
-
+  
   //---------------------------------------------------------------
   template<class t_object>
   bool t_serializable_object_from_blob(t_object& to, const blobdata& b_blob)

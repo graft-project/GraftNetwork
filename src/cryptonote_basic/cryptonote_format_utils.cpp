@@ -1446,7 +1446,7 @@ namespace cryptonote
     return true;
   }
 
-  bool get_graft_rta_header_from_extra(const transaction &tx, rta_header &rta_header)
+  bool get_graft_rta_header_from_extra(const transaction_prefix &tx, rta_header &rta_header)
   {
     std::vector<tx_extra_field> tx_extra_fields;
     parse_tx_extra(tx.extra, tx_extra_fields);

@@ -159,18 +159,33 @@ namespace cryptonote
   {
 
   public:
+    // graft: introducing transaction type. currently this field is not used to calculate tx hash
+    // TODO: probably move it to transaction_prefix.extra
+    enum tx_type {
+      // generic monero transaction;
+      tx_type_generic = 0,
+      // supernode 'zero-fee' transaction
+      tx_type_rta = 1,
+      tx_type_invalid = 255
+    };
     // tx information
     size_t   version;
+    size_t   type = tx_type_generic;
+    // graft: tx type field
+   
     uint64_t unlock_time;  //number of block (or time), used as a limitation like: spend this tx not early then block/time
 
     std::vector<txin_v> vin;
     std::vector<tx_out> vout;
     //extra
     std::vector<uint8_t> extra;
-
+   
+    
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
       if(version == 0 || CURRENT_TRANSACTION_VERSION < version) return false;
+      if(version > 3)
+        VARINT_FIELD(type)
       VARINT_FIELD(unlock_time)
       FIELD(vin)
       FIELD(vout)
@@ -181,6 +196,7 @@ namespace cryptonote
     void set_null()
     {
       version = 1;
+      type = tx_type_generic;
       unlock_time = 0;
       vin.clear();
       vout.clear();
@@ -275,21 +291,7 @@ namespace cryptonote
     mutable crypto::hash hash;
     mutable size_t blob_size;
 
-    // graft: introducing transaction type. currently this field is not used to calculate tx hash
-    // TODO: probably move it to transaction_prefix.extra
-    enum tx_type {
-      // generic monero transaction;
-      tx_type_generic = 0,
-      // supernode 'zero-fee' transaction
-      tx_type_rta = 1,
-      tx_type_invalid = 255
-    };
-    // graft: tx type field
-    // TODO: consider to removed 'type' field. we can check if transaction is rta either by
-    // 1. checking if 'tx_extra_graft_rta_header' is present in tx_extra
-    // 2. simply checking tx version, so 'type' only needed for 'alpha' compatibilty.
-    size_t type = tx_type_generic;
-
+   
     std::vector<uint8_t> extra2;
 
     bool pruned;
@@ -299,7 +301,7 @@ namespace cryptonote
     std::atomic<unsigned int> v3_fields_size;
 
     transaction();
-    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), type(t.type), extra2(t.extra2), pruned(t.pruned), unprunable_size(t.unprunable_size.load()), prefix_size(t.prefix_size.load()), v3_fields_size(t.v3_fields_size.load()) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
+    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), extra2(t.extra2), pruned(t.pruned), unprunable_size(t.unprunable_size.load()), prefix_size(t.prefix_size.load()), v3_fields_size(t.v3_fields_size.load()) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
     transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; type = t.type; extra2 = t.extra2; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } pruned = t.pruned; unprunable_size = t.unprunable_size.load(); prefix_size = t.prefix_size.load(); v3_fields_size = t.v3_fields_size.load(); return *this; }
     virtual ~transaction();
     void set_null();
@@ -384,16 +386,22 @@ namespace cryptonote
         }
       }
       // version >= 3 is rta transaction: allowed 0 fee and auth sample signatures
+      size_t v3_fields_start_pos = 0;
       if (version == 3) 
       // quirck. for v3 we don't use type for hash calculation, so we need to adjust blob passed to hash function by 
       // moving end of the buffer up by the size of serialized 'type' and 'extra2' fields
       {
         // we can't use 'extra2' field into tx-hash calculation, but we should(?) include 'type' field
-        size_t v3_fields_start_pos = getpos(ar);
+        v3_fields_start_pos = getpos(ar);
         FIELD(type)
+      } 
+      // from version 4 type moved to transaction_header
+      if (version >= 3)
+      {
         FIELD(extra2)
         v3_fields_size = getpos(ar) - v3_fields_start_pos;
       }
+      
       if (!typename Archive<W>::is_saving())
         pruned = false;
     END_SERIALIZE()
