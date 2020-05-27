@@ -1577,6 +1577,9 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
 
 name_system_db::~name_system_db()
 {
+  if (!db)
+    return;
+
   {
     scoped_db_transaction db_transaction(*this);
     save_settings(last_processed_height, last_processed_hash, static_cast<int>(DB_VERSION));
