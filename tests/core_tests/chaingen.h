@@ -1018,10 +1018,10 @@ inline bool do_replay_file(const std::string& filename)
 }
 
 #define REGISTER_CALLBACK(CB_NAME, CLBACK) \
-  register_callback(CB_NAME, boost::bind(&CLBACK, this, _1, _2, _3));
+  register_callback(CB_NAME, [this](auto&&... args) { return this->CLBACK(std::forward<decltype(args)>(args)...); });
 
 #define REGISTER_CALLBACK_METHOD(CLASS, METHOD) \
-  register_callback(#METHOD, boost::bind(&CLASS::METHOD, this, _1, _2, _3));
+  register_callback(#METHOD, [this](auto&&... args) { return this->METHOD(std::forward<decltype(args)>(args)...); });
 
 #define MAKE_GENESIS_BLOCK(VEC_EVENTS, BLK_NAME, MINER_ACC, TS)                       \
   test_generator generator;                                               \

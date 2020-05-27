@@ -27,7 +27,7 @@
 #pragma once
 
 #include <boost/thread.hpp>
-#include <boost/bind.hpp> 
+#include <boost/bind/bind.hpp>
 
 #include "net/abstract_tcp_server2.h"
 #include "net/levin_protocol_handler.h"
@@ -204,8 +204,8 @@ namespace tests
     CHAIN_LEVIN_NOTIFY_TO_STUB(); //move levin_commands_handler interface notify(...) callbacks into nothing
 
     BEGIN_INVOKE_MAP(test_levin_server)
-      HANDLE_INVOKE_T(COMMAND_EXAMPLE_1, &test_levin_server::handle_1)
-      HANDLE_INVOKE_T(COMMAND_EXAMPLE_2, &test_levin_server::handle_2)
+      HANDLE_INVOKE_T(COMMAND_EXAMPLE_1, handle_1)
+      HANDLE_INVOKE_T(COMMAND_EXAMPLE_2, handle_2)
     END_INVOKE_MAP()
 
     //----------------- commands handlers ----------------------------------------------

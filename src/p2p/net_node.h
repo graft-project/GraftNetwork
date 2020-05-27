@@ -289,13 +289,13 @@ namespace nodetool
       if (is_filtered_command(context.m_remote_address, command))
         return LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED;
 
-      HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
-      HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
-      HANDLE_INVOKE_T2(COMMAND_PING, &node_server::handle_ping)
-      HANDLE_INVOKE_T2(COMMAND_REQUEST_STAT_INFO, &node_server::handle_get_stat_info)
-      HANDLE_INVOKE_T2(COMMAND_REQUEST_NETWORK_STATE, &node_server::handle_get_network_state)
-      HANDLE_INVOKE_T2(COMMAND_REQUEST_PEER_ID, &node_server::handle_get_peer_id)
-      HANDLE_INVOKE_T2(COMMAND_REQUEST_SUPPORT_FLAGS, &node_server::handle_get_support_flags)
+      HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, handle_handshake)
+      HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, handle_timed_sync)
+      HANDLE_INVOKE_T2(COMMAND_PING, handle_ping)
+      HANDLE_INVOKE_T2(COMMAND_REQUEST_STAT_INFO, handle_get_stat_info)
+      HANDLE_INVOKE_T2(COMMAND_REQUEST_NETWORK_STATE, handle_get_network_state)
+      HANDLE_INVOKE_T2(COMMAND_REQUEST_PEER_ID, handle_get_peer_id)
+      HANDLE_INVOKE_T2(COMMAND_REQUEST_SUPPORT_FLAGS, handle_get_support_flags)
       CHAIN_INVOKE_MAP_TO_OBJ_FORCE_CONTEXT(m_payload_handler, typename t_payload_net_handler::connection_context&)
     END_INVOKE_MAP2()
 
