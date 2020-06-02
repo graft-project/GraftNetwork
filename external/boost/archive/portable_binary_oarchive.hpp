@@ -221,7 +221,7 @@ public:
 //  See http://www.boost.org for updates, documentation, and revision history.
 
 #include <ostream>
-#include <boost/detail/endian.hpp>
+//#include <boost/detail/endian.hpp>
 
 namespace boost { namespace archive {
 

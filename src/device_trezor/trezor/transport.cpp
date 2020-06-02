@@ -689,6 +689,7 @@ namespace trezor{
     ec = boost::asio::error::would_block;
     std::size_t length = 0;
 
+    using namespace boost::placeholders;
     // Start the asynchronous operation itself. The handle_receive function
     // used as a callback will update the ec and length variables.
     m_socket->async_receive_from(boost::asio::buffer(buffer), m_endpoint,

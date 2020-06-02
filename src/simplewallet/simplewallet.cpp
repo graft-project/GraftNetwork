@@ -2607,6 +2607,7 @@ simple_wallet::simple_wallet()
   , m_in_manual_refresh(false)
     , m_current_subaddress_account(0)
 {
+  using namespace boost::placeholders;
   m_cmd_binder.set_handler("start_mining",
                            boost::bind(&simple_wallet::start_mining, this, _1),
                            tr(USAGE_START_MINING),
