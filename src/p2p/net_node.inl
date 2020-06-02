@@ -512,9 +512,9 @@ namespace nodetool
     {
       if (nettype == cryptonote::TESTNET)
       {
-        full_addrs.insert("212.71.237.82:28880");
-        full_addrs.insert("45.79.47.118:28880");
-        full_addrs.insert("139.162.61.111:28880");
+        full_addrs.insert("178.238.239.217:28880");
+        full_addrs.insert("178.238.239.218:28880");
+        full_addrs.insert("178.238.231.58:28880");
       }
       else if (nettype == cryptonote::STAGENET)
       {
