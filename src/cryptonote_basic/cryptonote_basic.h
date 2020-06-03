@@ -396,6 +396,8 @@ namespace cryptonote
         FIELD(type)
       } 
       // from version 4 type moved to transaction_header
+      if (version > 3)
+        v3_fields_start_pos = getpos(ar);
       if (version >= 3)
       {
         FIELD(extra2)

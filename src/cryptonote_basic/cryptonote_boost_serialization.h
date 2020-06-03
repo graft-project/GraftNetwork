@@ -176,10 +176,13 @@ namespace boost
       if (x.rct_signatures.type != rct::RCTTypeNull)
         a & x.rct_signatures.p;
     }
-    // TODO: this is most likely temporary solution, type to be moved to transaction_prefix
+    // type moved to transaction header since v4
     if (x.version == 3)
     {
       a & x.type;
+    }
+    if (x.version >= 3) 
+    {
       a & x.extra2;
     }
   }
