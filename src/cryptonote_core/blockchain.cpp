@@ -2934,7 +2934,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
     // min/max tx version based on HF, and we accept v1 txes if having a non mixable
     // TODO: do proper hardfork
-    const size_t max_tx_version = (hf_version <= 3) ? 1 : 3;
+    const size_t max_tx_version = (hf_version <= 3) ? 1 : CURRENT_TRANSACTION_VERSION;
     if (tx.version > max_tx_version)
     {
       MERROR_VER("transaction version " << (unsigned)tx.version << " is higher than max accepted version " << max_tx_version);
