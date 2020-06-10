@@ -1488,11 +1488,11 @@ namespace cryptonote
 
       result &= crypto::check_signature(txid, rta_hdr.keys[rta_sign.key_index], rta_sign.signature);
       if (!result) {
-        MERROR("Failed to validate rta tx signature: " << epee::string_tools::pod_to_hex(txid) << " for key: " << rta_hdr.keys[rta_sign.key_index]);
+        MERROR("Failed to validate rta tx signature: " << rta_sign.signature << ", tx: " << txid << "key: " << rta_hdr.keys[rta_sign.key_index]);
         break;
       }
     }
-
+    
     return result;
   }
 }
