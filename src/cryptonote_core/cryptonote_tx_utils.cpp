@@ -220,7 +220,7 @@ namespace cryptonote
       msout->c.clear();
     }
 
-    tx.version = rct ? (tx_type == transaction::tx_type_rta? 3 : 2) : 1;
+    tx.version = rct ? (tx_type == transaction::tx_type_rta? 4 : 2) : 1;
     tx.type = tx_type;
     tx.unlock_time = unlock_time;
 

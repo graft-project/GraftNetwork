@@ -1000,7 +1000,7 @@ namespace cryptonote
     const unsigned int unprunable_size = t.unprunable_size;
     if (blob && unprunable_size)
     {
-      const unsigned int v3_fields_len = (t.version == 3) ? t.v3_fields_size.load() : 0;
+      const unsigned int v3_fields_len = (t.version >= 3) ? t.v3_fields_size.load() : 0;
       CHECK_AND_ASSERT_MES(unprunable_size <= blob->size() - v3_fields_len , false, "Inconsistent transaction unprunable and blob sizes");
       cryptonote::get_blob_hash(epee::span<const char>(blob->data() + unprunable_size, blob->size() - unprunable_size - v3_fields_len), res);
     }
@@ -1446,7 +1446,7 @@ namespace cryptonote
     return true;
   }
 
-  bool get_graft_rta_header_from_extra(const transaction &tx, rta_header &rta_header)
+  bool get_graft_rta_header_from_extra(const transaction_prefix &tx, rta_header &rta_header)
   {
     std::vector<tx_extra_field> tx_extra_fields;
     parse_tx_extra(tx.extra, tx_extra_fields);
