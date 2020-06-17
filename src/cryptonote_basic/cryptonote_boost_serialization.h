@@ -152,6 +152,10 @@ namespace boost
   inline void serialize(Archive &a, cryptonote::transaction_prefix &x, const boost::serialization::version_type ver)
   {
     a & x.version;
+    if (x.version > 3)
+    {
+      a & x.type;
+    }
     a & x.unlock_time;
     a & x.vin;
     a & x.vout;
@@ -176,13 +180,9 @@ namespace boost
       if (x.rct_signatures.type != rct::RCTTypeNull)
         a & x.rct_signatures.p;
     }
-    // type moved to transaction header since v4
-    if (x.version == 3)
-    {
-      a & x.type;
-    }
     if (x.version >= 3) 
     {
+      a & x.type;
       a & x.extra2;
     }
   }
