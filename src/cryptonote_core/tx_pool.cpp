@@ -193,28 +193,15 @@ namespace cryptonote
     // 2. if tx.version >= 3 and tx.rta_signatures.size() > 0
 
     bool is_rta_tx = tx.type == transaction::tx_type_rta;
-    if (is_rta_tx) {
-      cryptonote::rta_header rta_hdr;
-      if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
-        MERROR("Failed to parse rta-header from tx extra: " << id);
+    if (is_rta_tx && !kept_by_block && m_stp->is_enabled()) {
+      try {
+        rta_tx rta_tx(tx, m_stp);
+        
+      } catch (const rta_tx_error &e) {
+        MERROR(e.what());
         tvc.m_rta_signature_failed = true;
         tvc.m_verifivation_failed = true;
-        return false;
-      }
-      std::vector<cryptonote::rta_signature> rta_signatures;
-      if (!cryptonote::get_graft_rta_signatures_from_extra2(tx, rta_signatures)) {
-        MERROR("Failed to parse rta signatures from tx extra: " << id);
-        tvc.m_rta_signature_failed = true;
-        tvc.m_verifivation_failed = true;
-        return false;
-      }
-
-      // validate rta tx only if it wasn't processed before AND stake processing enabled
-      if (!kept_by_block && m_stp->is_enabled() && !validate_rta_tx(id, rta_signatures, rta_hdr)) {
-        LOG_ERROR("failed to validate rta tx, tx contains " << rta_signatures.size() << " signatures");
-        tvc.m_rta_signature_failed = true;
-        tvc.m_verifivation_failed = true;
-        return false;
+        return false;  
       }
 
     } else {
@@ -1462,37 +1449,5 @@ namespace cryptonote
     return true;
   }
 
-  //---------------------------------------------------------------------------------
-  bool tx_memory_pool::validate_rta_tx(const crypto::hash &txid, const std::vector<rta_signature> &rta_signs, const rta_header &rta_hdr) const
-  {
-    bool result = true;
-    static const size_t MIN_SIGNATURES = 6 + 3;
-
-    if (rta_hdr.keys.size() == 0) {
-      MERROR("Failed to validate rta tx, missing auth sample keys for tx: " << txid );
-      return false;
-    }
-
-    if (rta_signs.size() < MIN_SIGNATURES) {
-        MERROR("expected " << MIN_SIGNATURES << " rta signatures but only " << rta_signs.size() << "given ");
-        return false;
-    }
-
-    for (const auto &rta_sign : rta_signs) {
-      // check if key index is in range
-      if (rta_sign.key_index >= rta_hdr.keys.size()) {
-        MERROR("signature: " << rta_sign.signature << " has wrong key index: " << rta_sign.key_index);
-        result = false;
-        break;
-      }
-
-      result &= crypto::check_signature(txid, rta_hdr.keys[rta_sign.key_index], rta_sign.signature);
-      if (!result) {
-        MERROR("Failed to validate rta tx signature: " << rta_sign.signature << ", tx: " << txid << "key: " << rta_hdr.keys[rta_sign.key_index]);
-        break;
-      }
-    }
-    
-    return result;
-  }
+  
 }

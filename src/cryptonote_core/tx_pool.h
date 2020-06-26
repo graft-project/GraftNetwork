@@ -47,6 +47,7 @@
 #include "crypto/hash.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "rpc/message_data_structs.h"
+#include "rta_tx.h"
 
 namespace cryptonote
 {
@@ -534,9 +535,6 @@ namespace cryptonote
      * if bytes is 0, use m_txpool_max_weight
      */
     void prune(size_t bytes = 0);
-
-
-    bool validate_rta_tx(const crypto::hash &txid, const std::vector<cryptonote::rta_signature> &rta_signs, const cryptonote::rta_header &rta_hdr) const;
 
 
     //TODO: confirm the below comments and investigate whether or not this
