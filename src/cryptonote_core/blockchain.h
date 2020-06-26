@@ -692,6 +692,16 @@ namespace cryptonote
     bool get_split_transactions_blobs(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs) const;
     template<class t_ids_container, class t_tx_container, class t_missed_container>
     bool get_transactions(const t_ids_container& txs_ids, t_tx_container& txs, t_missed_container& missed_txs) const;
+    /**
+     * @brief looks up transactions based on a list of transaction hashes and returns the block
+     * height in which they were mined, or 0 if not found on the blockchain.
+     *
+     * @param txs_ids vector of hashes to look up
+     *
+     * @return vector of the same length as txs_ids containing the heights corresponding to the
+     * given hashes, or 0 if not found.
+     */
+    std::vector<uint64_t> get_transactions_heights(const std::vector<crypto::hash>& txs_ids) const;
 
     //debug functions
 
@@ -981,6 +991,12 @@ namespace cryptonote
     bool prune_blockchain(uint32_t pruning_seed = 0);
     bool update_blockchain_pruning();
     bool check_blockchain_pruning();
+    
+    uint64_t get_immutable_height() const;
+
+    void lock() const;
+    void unlock() const;
+    bool try_lock() const;
 
     void lock();
     void unlock();
@@ -1009,6 +1025,12 @@ namespace cryptonote
      * @param nblocks number of blocks to be removed
      */
     void pop_blocks(uint64_t nblocks);
+    
+    /**
+     * Rolls back the blockchain to the given height when necessary for admitting RTA
+     * transactions.
+     */
+    bool rta_rollback(uint64_t rollback_height);
 
 #ifndef IN_UNIT_TESTS
   private:
@@ -1034,7 +1056,7 @@ namespace cryptonote
 
     tx_memory_pool& m_tx_pool;
 
-    mutable epee::critical_section m_blockchain_lock; // TODO: add here reader/writer lock
+    mutable boost::recursive_mutex m_blockchain_lock; // TODO: add here reader/writer lock
 
     // main chain
     transactions_container m_transactions;
@@ -1308,7 +1330,7 @@ namespace cryptonote
      *
      * @return false if something goes wrong with reverting (very bad), otherwise true
      */
-    bool rollback_blockchain_switching(std::list<block>& original_chain, uint64_t rollback_height);
+    bool rollback_blockchain_switching(const std::list<block>& original_chain, uint64_t rollback_height);
 
     /**
      * @brief gets recent block weights for median calculation

@@ -1,3 +1,4 @@
+// Copyright (c) 2018-2020, The Graft Project
 // Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
@@ -27,6 +28,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
+// Parts of this file are originally copyright (c) 2019-2020 The Loki Project
 
 #pragma once
 #include "include_base_utils.h"
@@ -35,6 +37,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
+#include <shared_mutex>
 #include <boost/serialization/version.hpp>
 #include <boost/utility.hpp>
 
@@ -109,7 +112,8 @@ namespace cryptonote
      * @param id the transaction's hash
      * @param tx_weight the transaction's weight
      */
-    bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version);
+    bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version,
+                uint64_t *rta_rollback_height = nullptr);
 
     /**
      * @brief add a transaction to the transaction pool
@@ -196,6 +200,17 @@ namespace cryptonote
      */
     void unlock() const;
 
+    /**
+     * @briefs does a non-blocking attempt to lock the transaction pool
+     */
+    bool try_lock() const;
+    
+    /* These are needed as a workaround for boost::lock not considering the type lockable if const
+     * versions are defined.  When we switch to std::lock these can go. */
+    void lock() { m_transactions_lock.lock(); }
+    void unlock() { m_transactions_lock.unlock(); }
+    bool try_lock() { return m_transactions_lock.try_lock(); }
+    
     // load/store operations
 
     /**
@@ -390,7 +405,19 @@ namespace cryptonote
     {
       m_stp = arg;
     }
+    
+    /**
+     * @brief obtains a unique lock on the approved rta tx pool
+     */
+    template <typename... Args>
+    auto rta_unique_lock(Args &&...args) const { return std::unique_lock<boost::shared_mutex>{m_rta_txs_mutex, std::forward<Args>(args)...}; }
 
+    /**
+     * @brief obtains a shared lock on the approved rta tx pool
+     */
+    template <typename... Args>
+    auto rta_shared_lock(Args &&...args) const { return std::shared_lock<boost::shared_mutex>{m_rta_txs_mutex, std::forward<Args>(args)...}; }
+    
 #define CURRENT_MEMPOOL_ARCHIVE_VER    11
 #define CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER    13
 
@@ -476,8 +503,7 @@ namespace cryptonote
      *
      * @return true if any spent key images are present in the pool, otherwise false
      */
-    bool have_tx_keyimges_as_spent(const transaction& tx) const;
-
+    bool have_tx_keyimges_as_spent(const transaction& tx, std::vector<crypto::hash> *conflicting = nullptr) const;
     /**
      * @brief forget a transaction's spent key images
      *
@@ -528,6 +554,23 @@ namespace cryptonote
      * @brief mark all transactions double spending the one passed
      */
     void mark_double_spend(const transaction &tx);
+    
+    /**
+     * @brief remove a transaction from the mempool
+     *
+     * This is called when pruning the mempool to reduce its size, and when deleting transactions
+     * from the mempool because of a conflicting blink transaction arriving.  Transactions lock and
+     * blockchain lock must be held by the caller.
+     *
+     * @param txid the transaction id to remove
+     * @param meta optional pointer to txpool_tx_meta_t; will be looked up if omitted
+     * @param stc_it an optional iterator to the tx's entry in m_txs_by_fee_and_receive_time to save
+     * a (linear) scan to find it when already available.  The given iterator will be invalidated if
+     * removed.
+     *
+     * @return true if the transaction was removed, false on failure.
+     */
+    bool remove_tx(const crypto::hash &txid, const txpool_tx_meta_t *meta = nullptr, const sorted_tx_container::iterator *stc_it = nullptr);
 
     /**
      * @brief prune lowest fee/byte txes till we're not above bytes
@@ -535,6 +578,38 @@ namespace cryptonote
      * if bytes is 0, use m_txpool_max_weight
      */
     void prune(size_t bytes = 0);
+    
+    /**
+     * @brief Attempt to add a blink tx "by force", removing conflicting non-blink txs
+     *
+     * The given transactions are removed from the mempool, if possible, to make way for this blink
+     * transactions.  In order for any removal to happen, all the conflicting txes must be non-blink
+     * transactions, and must either:
+     * - be a mempool transaction
+     * - be a mined, non-blink transaction in the recent (mutable) section of the chain
+     *
+     * If all conflicting txs satisfy the above then conflicting mempool txs are removed and the
+     * rta_rollback_height pointer is updated to the required rollback height to eject any mined
+     * txs (if not already at that height or lower).  True is returned.
+     *
+     * If any txs are found that do not satisfy the above then nothing is removed and false is
+     * returned.
+     *
+     * @param the id of the incoming blink tx
+     * @param conflict_txs vector of conflicting transaction hashes that are preventing the blink tx
+     * @param rta_rollback_height a pointer to update to the new required height if a chain
+     * rollback is needed for the blink tx.  (That is, all blocks with height >=
+     * rta_rollback_height need to be popped).
+     *
+     *
+     * @return true if the conflicting transactions have been removed (and/or the rollback height
+     * set), false if tx removal and/or rollback are insufficient to eliminate conflicting txes.
+     */
+    bool remove_rta_conflicts(const crypto::hash &id, const std::vector<crypto::hash> &conflict_txs, uint64_t *rta_rollback_height);
+    
+
+
+    bool validate_rta_tx(const crypto::hash &txid, const std::vector<cryptonote::rta_signature> &rta_signs, const cryptonote::rta_header &rta_hdr) const;
 
 
     //TODO: confirm the below comments and investigate whether or not this
@@ -597,6 +672,11 @@ private:
     StakeTransactionProcessor * m_stp = nullptr;
 
     std::unordered_map<crypto::hash, transaction> m_parsed_tx_cache;
+    
+    // storing rta transactions "pool"
+    std::unordered_map<crypto::hash, rta_tx> m_rta_txes;
+    mutable boost::shared_mutex m_rta_txs_mutex;
+    
   };
 }
 

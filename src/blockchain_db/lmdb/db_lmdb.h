@@ -258,6 +258,8 @@ public:
   virtual std::vector<transaction> get_tx_list(const std::vector<crypto::hash>& hlist) const;
 
   virtual uint64_t get_tx_block_height(const crypto::hash& h) const;
+  
+  virtual std::vector<uint64_t> get_tx_block_heights(const std::vector<crypto::hash> &h) const  override;
 
   virtual uint64_t get_num_outputs(const uint64_t& amount) const;
 

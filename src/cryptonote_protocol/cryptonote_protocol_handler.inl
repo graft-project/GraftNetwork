@@ -43,6 +43,7 @@
 #include "profile_tools.h"
 #include "net/network_throttle-detail.hpp"
 #include "common/pruning.h"
+#include "common/lock.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net.cn"
@@ -901,13 +902,19 @@ namespace cryptonote
       LOG_DEBUG_CC(context, "Received new tx while syncing, ignored");
       return 1;
     }
-
+    
     std::vector<cryptonote::blobdata> newtxs;
     newtxs.reserve(arg.txs.size());
+    uint64_t rta_rollback_height {0};
     for (size_t i = 0; i < arg.txs.size(); ++i)
     {
       cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
-      m_core.handle_incoming_tx(arg.txs[i], tvc, false, true, false);
+      uint64_t rta_rollback_height_current = 0;
+      m_core.handle_incoming_tx(arg.txs[i], tvc, false, true, false, &rta_rollback_height_current);
+      // get "oldest" height
+      if (rta_rollback_height_current > 0) 
+        rta_rollback_height = rta_rollback_height > 0 ? std::min(rta_rollback_height, rta_rollback_height_current) : rta_rollback_height_current;
+      
       if(tvc.m_verifivation_failed)
       {
         LOG_PRINT_CCONTEXT_L1("Tx verification failed, dropping connection");
@@ -917,7 +924,30 @@ namespace cryptonote
       if(tvc.m_should_be_relayed)
         newtxs.push_back(std::move(arg.txs[i]));
     }
+    
     arg.txs = std::move(newtxs);
+    
+    if (rta_rollback_height > 0)
+    {
+      MDEBUG("after handling parsed txes we need to rollback to height: " << rta_rollback_height);
+      // We need to clear back to and including block at height rta_rollback_height (so that the
+      // new blockchain "height", i.e. of current top_block_height+1, is rta_rollback_height).
+      auto &blockchain = m_core.get_blockchain_storage();
+      auto locks = tools::unique_locks(blockchain, m_core.get_pool());
+
+      uint64_t height    = blockchain.get_current_blockchain_height(),
+               immutable = blockchain.get_immutable_height();
+      if (immutable >= rta_rollback_height)
+      {
+        MWARNING("blink rollback specified a block at or before the immutable height; we can only roll back to the immutable height.");
+        rta_rollback_height = immutable + 1;
+      }
+      if (rta_rollback_height < height)
+        m_core.get_blockchain_storage().rta_rollback(rta_rollback_height);
+      else
+        MDEBUG("Nothing to roll back");
+    }
+  
 
     if(arg.txs.size())
     {
@@ -925,7 +955,7 @@ namespace cryptonote
       relay_transactions(arg, context);
     }
 
-    return 1;
+    return 1; 
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>

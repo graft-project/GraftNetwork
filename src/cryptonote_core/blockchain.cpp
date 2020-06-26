@@ -56,6 +56,7 @@
 #include "common/notify.h"
 #include "common/varint.h"
 #include "common/pruning.h"
+#include "common/lock.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "blockchain"
@@ -668,6 +669,18 @@ void Blockchain::pop_blocks(uint64_t nblocks)
   if (stop_batch)
     m_db->batch_stop();
 }
+
+bool Blockchain::rta_rollback(uint64_t rollback_height)
+{
+  auto lock = tools::unique_locks(m_tx_pool, *this);
+  bool stop_batch = m_db->batch_start();
+  MDEBUG("Rolling back to height " << rollback_height);
+  bool ret = rollback_blockchain_switching({}, rollback_height);
+  if (stop_batch)
+    m_db->batch_stop();
+  return ret;
+}
+
 //------------------------------------------------------------------
 // This function tells BlockchainDB to remove the top block from the
 // blockchain and then returns all transactions (except the miner tx, of course)
@@ -1021,7 +1034,7 @@ std::vector<time_t> Blockchain::get_last_block_timestamps(unsigned int blocks) c
 // This function removes blocks from the blockchain until it gets to the
 // position where the blockchain switch started and then re-adds the blocks
 // that had been removed.
-bool Blockchain::rollback_blockchain_switching(std::list<block>& original_chain, uint64_t rollback_height)
+bool Blockchain::rollback_blockchain_switching(const std::list<block>& original_chain, uint64_t rollback_height)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
@@ -2357,6 +2370,22 @@ bool Blockchain::get_transactions(const t_ids_container& txs_ids, t_tx_container
   }
   return true;
 }
+//------------------------------------------------------------------
+
+std::vector<uint64_t> Blockchain::get_transactions_heights(const std::vector<crypto::hash>& txs_ids) const
+{
+  LOG_PRINT_L3("Blockchain::" << __func__);
+  auto lock = tools::unique_lock(m_blockchain_lock);
+
+  auto heights = m_db->get_tx_block_heights(txs_ids);
+  for (auto &h : heights)
+    if (h == std::numeric_limits<uint64_t>::max())
+      h = 0;
+
+  return heights;
+}
+
+
 //------------------------------------------------------------------
 // Find the split point between us and foreign blockchain and return
 // (by reference) the most recent common block hash along with up to
@@ -4013,6 +4042,12 @@ bool Blockchain::check_blockchain_pruning()
 
   return m_db->check_pruning();
 }
+
+uint64_t Blockchain::get_immutable_height() const
+{
+  constexpr size_t MAX_ROLLBACK_HEIGHT = 50; // TODO: checkpoints
+  return this->get_current_blockchain_height() - MAX_ROLLBACK_HEIGHT;
+}
 //------------------------------------------------------------------
 uint64_t Blockchain::get_next_long_term_block_weight(uint64_t block_weight) const
 {
@@ -5023,6 +5058,20 @@ bool Blockchain::is_within_compiled_block_hash_area(uint64_t height) const
   return false;
 #endif
 }
+void Blockchain::lock() const
+{
+  m_blockchain_lock.lock();
+}
+
+void Blockchain::unlock() const
+{
+  m_blockchain_lock.unlock();
+}
+
+bool Blockchain::try_lock() const
+{
+  return m_blockchain_lock.try_lock();
+}
 
 void Blockchain::lock()
 {
@@ -5036,7 +5085,7 @@ void Blockchain::unlock()
 
 bool Blockchain::try_lock()
 {
-  return m_blockchain_lock.tryLock();
+  return m_blockchain_lock.try_lock();
 }
 
 bool Blockchain::for_all_key_images(std::function<bool(const crypto::key_image&)> f) const
