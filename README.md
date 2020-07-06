@@ -76,7 +76,7 @@ Install all dependencies at once on macOS with the provided Brewfile:
 ``` brew update && brew bundle --file=contrib/brew/Brewfile ```
 
 FreeBSD one liner for required to build dependencies
-```pkg install git gmake cmake pkgconf boost-libs libzmq4 libsodium sqlite3```
+```pkg install git gmake cmake pkgconf boost-libs libzmq4 libsodium sqlite3 openssl unbound miniupnpc```
 
 ### Cloning the repository
 
