@@ -31,80 +31,27 @@
 
 #pragma once
 
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdlib>
+#include <cassert>
+#include <cstring>
 #include <boost/align/aligned_alloc.hpp>
 
-#if defined(_WIN32) || defined(_WIN64)
-#include <malloc.h>
-#include <intrin.h>
-#define HAS_WIN_INTRIN_API
-#endif
-
-// Note HAS_INTEL_HW and HAS_ARM_HW only mean we can emit the AES instructions
-// check CPU support for the hardware AES encryption has to be done at runtime
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X86) || defined(_M_X64)
-#ifdef __GNUC__
-#include <x86intrin.h>
-#ifndef __clang__
-#pragma GCC target ("aes")
-#endif
-#if !defined(HAS_WIN_INTRIN_API)
-#include <cpuid.h>
-#endif // !defined(HAS_WIN_INTRIN_API)
-#endif // __GNUC__
-#define HAS_INTEL_HW
+#  define HAS_INTEL_HW
+#elif defined(__aarch64__)
+#  define HAS_ARM_HW
 #endif
 
-#if defined(__aarch64__)
-#ifndef __clang__
-#pragma GCC target ("+crypto")
-#endif
-#include <sys/auxv.h>
-#include <asm/hwcap.h>
-#include <arm_neon.h>
-#define HAS_ARM_HW
-#endif
-
-#ifdef HAS_INTEL_HW
-inline void cpuid(uint32_t eax, int32_t ecx, int32_t val[4])
+#if defined(HAS_INTEL_HW) || defined(HAS_ARM_HW)
+inline bool check_override()
 {
-	val[0] = 0;
-	val[1] = 0;
-	val[2] = 0;
-	val[3] = 0;
-
-#if defined(HAS_WIN_INTRIN_API)
-	__cpuidex(val, eax, ecx);
-#else
-	__cpuid_count(eax, ecx, val[0], val[1], val[2], val[3]);
-#endif
-}
-
-inline bool hw_check_aes()
-{
-	int32_t cpu_info[4];
-	cpuid(1, 0, cpu_info);
-	return (cpu_info[2] & (1 << 25)) != 0;
+	const char *env = getenv("LOKI_USE_SOFTWARE_AES");
+	return env && strcmp(env, "0") && strcmp(env, "no");
 }
 #endif
-
-#ifdef HAS_ARM_HW
-inline bool hw_check_aes()
-{
-	return (getauxval(AT_HWCAP) & HWCAP_AES) != 0;
-}
-#endif
-
-#if !defined(HAS_INTEL_HW) && !defined(HAS_ARM_HW)
-inline bool hw_check_aes()
-{
-	return false;
-}
-#endif
+extern "C" const bool cpu_aes_enabled;
 
 // This cruft avoids casting-galore and allows us not to worry about sizeof(void*)
 class cn_sptr
@@ -114,9 +61,6 @@ public:
 	cn_sptr(uint64_t* ptr) { base_ptr = ptr; }
 	cn_sptr(uint32_t* ptr) { base_ptr = ptr; }
 	cn_sptr(uint8_t* ptr) { base_ptr = ptr; }
-#ifdef HAS_INTEL_HW
-	cn_sptr(__m128i* ptr) { base_ptr = ptr; }
-#endif
 
 	inline void set(void* ptr) { base_ptr = ptr; }
 	inline cn_sptr offset(size_t i) { return reinterpret_cast<uint8_t*>(base_ptr)+i; }
@@ -133,9 +77,6 @@ public:
 	inline int32_t& as_dword(size_t i) { return *(reinterpret_cast<int32_t*>(base_ptr)+i); }
 	inline uint32_t& as_udword(size_t i) { return *(reinterpret_cast<uint32_t*>(base_ptr)+i); }
 	inline const uint32_t& as_udword(size_t i) const { return *(reinterpret_cast<uint32_t*>(base_ptr)+i); }
-#ifdef HAS_INTEL_HW
-	inline __m128i* as_xmm() { return reinterpret_cast<__m128i*>(base_ptr); }
-#endif
 private:
 	void* base_ptr;
 };
@@ -190,7 +131,7 @@ public:
 
 	void hash(const void* in, size_t len, void* out, bool prehashed=false)
 	{
-		if(hw_check_aes() && !check_override())
+		if(cpu_aes_enabled)
 			hardware_hash(in, len, out, prehashed);
 		else
 			software_hash(in, len, out, prehashed);
@@ -215,20 +156,6 @@ private:
 		lpad.set(lptr);
 		spad.set(sptr);
 		borrowed_pad = true;
-	}
-
-	inline bool check_override()
-	{
-		const char *env = getenv("LOKI_USE_SOFTWARE_AES");
-		if (!env) {
-			return false;
-		}
-		else if (!strcmp(env, "0") || !strcmp(env, "no")) {
-			return false;
-		}
-		else {
-			return true;
-		}
 	}
 
 	inline void free_mem()

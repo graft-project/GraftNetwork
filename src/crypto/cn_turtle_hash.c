@@ -22,6 +22,8 @@
 #define INIT_SIZE_BLK          8
 #define INIT_SIZE_BYTE         (INIT_SIZE_BLK * AES_BLOCK_SIZE)
 
+extern const bool cpu_aes_enabled;
+
 extern int aesb_single_round(const uint8_t *in, uint8_t*out, const uint8_t *expandedKey);
 extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
 
@@ -188,44 +190,38 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
     lo ^= *(U64(hp_state + (j ^ 0x20)) + 1); \
   } while (0)
 
-#if defined(__AES__) && (defined(__x86_64__) || (defined(_MSC_VER) && defined(_WIN64)))
-// Optimised code below, uses x86-specific intrinsics, SSE2, AES-NI
-// Fall back to more portable code is down at the bottom
+
+#ifdef HAS_INTEL_HW // ARCH x86, x86-64
+// Optimised code below, uses x86-specific intrinsics, SSE2, AES-NI.  We do a cpuid runtime check
+// before actually calling any AES code, and otherwise fall back to more portable code.
 
 #include <emmintrin.h>
+#if defined(_MSC_VER) || defined(__MINGW32__)
+#  include <intrin.h>
+#  include <windows.h>
+#else
+#  include <wmmintrin.h>
+#  include <sys/mman.h>
+#endif
+
+#if defined(__GNUC__) && !defined(__clang__)
+#  pragma GCC target ("aes,sse2")
+#endif
 
 #if defined(_MSC_VER)
-#include <intrin.h>
-#include <windows.h>
-#define STATIC
-#define INLINE __inline
-#if !defined(RDATA_ALIGN16)
-#define RDATA_ALIGN16 __declspec(align(16))
-#endif
-#elif defined(__MINGW32__)
-#include <intrin.h>
-#include <windows.h>
-#define STATIC static
-#define INLINE inline
-#if !defined(RDATA_ALIGN16)
-#define RDATA_ALIGN16 __attribute__ ((aligned(16)))
-#endif
+#  define ASM __asm
+#  define STATIC
+#  define INLINE __inline
+#  if !defined(RDATA_ALIGN16)
+#    define RDATA_ALIGN16 __declspec(align(16))
+#  endif
 #else
-#include <wmmintrin.h>
-#include <sys/mman.h>
-#define STATIC static
-#define INLINE inline
-#if !defined(RDATA_ALIGN16)
-#define RDATA_ALIGN16 __attribute__ ((aligned(16)))
-#endif
-#endif
-
-#if defined(__INTEL_COMPILER)
-#define ASM __asm__
-#elif !defined(_MSC_VER)
-#define ASM __asm__
-#else
-#define ASM __asm
+#  define ASM __asm__
+#  define STATIC static
+#  define INLINE inline
+#  if !defined(RDATA_ALIGN16)
+#    define RDATA_ALIGN16 __attribute__ ((aligned(16)))
+#  endif
 #endif
 
 #define U64(x) ((uint64_t *) (x))
@@ -233,17 +229,17 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
 
 #define state_index(x,div) (((*((uint64_t *)x) >> 4) & (TOTALBLOCKS /(div) - 1)) << 4)
 #if defined(_MSC_VER)
-#if !defined(_WIN64)
-#define __mul() lo = mul128(c[0], b[0], &hi);
+#  if !defined(_WIN64)
+#    define __mul() lo = mul128(c[0], b[0], &hi);
+#  else
+#    define __mul() lo = _umul128(c[0], b[0], &hi);
+#  endif
 #else
-#define __mul() lo = _umul128(c[0], b[0], &hi);
-#endif
-#else
-#if defined(__x86_64__)
-#define __mul() ASM("mulq %3\n\t" : "=d"(hi), "=a"(lo) : "%a" (c[0]), "rm" (b[0]) : "cc");
-#else
-#define __mul() lo = mul128(c[0], b[0], &hi);
-#endif
+#  if defined(__x86_64__)
+#    define __mul() ASM("mulq %3\n\t" : "=d"(hi), "=a"(lo) : "%a" (c[0]), "rm" (b[0]) : "cc");
+#  else
+#    define __mul() lo = mul128(c[0], b[0], &hi);
+#  endif
 #endif
 
 #define pre_aes() \
@@ -301,23 +297,6 @@ union cn_turtle_hash_state
 THREADV uint8_t *hp_state = NULL;
 THREADV int hp_allocated = 0;
 
-#if defined(_MSC_VER)
-#define cpuid(info,x)    __cpuidex(info,x,0)
-#else
-void cpuid(int CPUInfo[4], int InfoType)
-{
-  ASM __volatile__
-  (
-  "cpuid":
-    "=a" (CPUInfo[0]),
-    "=b" (CPUInfo[1]),
-    "=c" (CPUInfo[2]),
-    "=d" (CPUInfo[3]) :
-        "a" (InfoType), "c" (0)
-    );
-}
-#endif
-
 /**
  * @brief a = (a xor b), where a and b point to 128 bit values
  */
@@ -331,43 +310,6 @@ STATIC INLINE void xor_blocks(uint8_t *a, const uint8_t *b)
 STATIC INLINE void xor64(uint64_t *a, const uint64_t b)
 {
   *a ^= b;
-}
-
-/**
- * @brief uses cpuid to determine if the CPU supports the AES instructions
- * @return true if the CPU supports AES, false otherwise
- */
-
-STATIC INLINE int force_software_aes(void)
-{
-  static int use = -1;
-
-  if (use != -1)
-    return use;
-
-  const char *env = getenv("TURTLECOIN_USE_SOFTWARE_AES");
-  if (!env) {
-    use = 0;
-  }
-  else if (!strcmp(env, "0") || !strcmp(env, "no")) {
-    use = 0;
-  }
-  else {
-    use = 1;
-  }
-  return use;
-}
-
-STATIC INLINE int check_aes_hw(void)
-{
-  int cpuid_results[4];
-  static int supported = -1;
-
-  if(supported >= 0)
-    return supported;
-
-  cpuid(cpuid_results,1);
-  return supported = cpuid_results[2] & (1 << 25);
 }
 
 STATIC INLINE void aes_256_assist1(__m128i* t1, __m128i * t2)
@@ -684,7 +626,6 @@ void cn_turtle_hash(const void *data, size_t length, char *hash, int light, int 
   size_t i, j;
   uint64_t *p = NULL;
   oaes_ctx *aes_ctx = NULL;
-  int useAes = !force_software_aes() && check_aes_hw();
 
   static void (*const extra_hashes[4])(const void *, size_t, char *) =
   {
@@ -708,7 +649,7 @@ void cn_turtle_hash(const void *data, size_t length, char *hash, int light, int 
    * the 2MB large random access buffer.
    */
 
-  if(useAes)
+  if(cpu_aes_enabled)
   {
       aes_expand_key(state.hs.b, expandedKey);
       for(i = 0; i < init_rounds; i++)
@@ -743,8 +684,8 @@ void cn_turtle_hash(const void *data, size_t length, char *hash, int light, int 
   _b = _mm_load_si128(R128(b));
   _b1 = _mm_load_si128(R128(b) + 1);
   // Two independent versions, one with AES, one without, to ensure that
-  // the useAes test is only performed once, not every iteration.
-  if(useAes)
+  // the cpu_aes_enabled test is only performed once, not every iteration.
+  if(cpu_aes_enabled)
   {
       for(i = 0; i < aes_rounds; i++)
       {
@@ -768,7 +709,7 @@ void cn_turtle_hash(const void *data, size_t length, char *hash, int light, int 
    * was originally created with the output of Keccak1600. */
 
   memcpy(text, state.init, INIT_SIZE_BYTE);
-  if(useAes)
+  if(cpu_aes_enabled)
   {
       aes_expand_key(&state.hs.b[32], expandedKey);
       for(i = 0; i < init_rounds; i++)
@@ -804,7 +745,7 @@ void cn_turtle_hash(const void *data, size_t length, char *hash, int light, int 
   slow_hash_free_state(CN_TURTLE_PAGE_SIZE);
 }
 
-#elif defined(__arm__) || defined(__aarch64__)
+#elif defined(__arm__) || defined(__aarch64__) // ARCH arm
 void slow_hash_allocate_state(void)
 {
   // Do nothing, this is just to maintain compatibility with the upgraded slow-hash.c
@@ -1373,7 +1314,7 @@ void cn_turtle_hash(const void *data, size_t length, char *hash, int light, int 
 }
 #endif /* !aarch64 || !crypto */
 
-#else
+#else // ARCH fallback
 // Portable implementation as a fallback
 
 void slow_hash_allocate_state(void)
