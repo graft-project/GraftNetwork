@@ -45,7 +45,7 @@
 #endif
 
 #if defined(HAS_INTEL_HW) || defined(HAS_ARM_HW)
-inline bool check_override()
+inline bool force_software_aes()
 {
 	const char *env = getenv("LOKI_USE_SOFTWARE_AES");
 	return env && strcmp(env, "0") && strcmp(env, "no");

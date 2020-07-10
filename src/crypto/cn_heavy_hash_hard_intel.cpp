@@ -65,7 +65,7 @@ static bool hw_check_aes()
 	return (cpu_info[2] & (1 << 25)) != 0;
 }
 
-extern "C" const bool cpu_aes_enabled = hw_check_aes() && check_override();
+extern "C" const bool cpu_aes_enabled = hw_check_aes() && !force_software_aes();
 
 #if !defined(_LP64) && !defined(_WIN64)
 #define BUILD32
