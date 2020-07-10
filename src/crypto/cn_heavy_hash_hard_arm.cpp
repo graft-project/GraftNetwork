@@ -29,12 +29,27 @@
 // Parts of this file are originally copyright (c) 2014-2017, The Monero Project
 // Parts of this file are originally copyright (c) 2012-2013, The Cryptonote developers
 
+#if defined(__aarch64__)
+
+#ifndef __clang__
+#  pragma GCC target ("+crypto")
+#endif
+
 #include "cn_heavy_hash.hpp"
 extern "C" {
 #include "../crypto/keccak.h"
 }
 
-#ifdef HAS_ARM_HW
+#include <sys/auxv.h>
+#include <asm/hwcap.h>
+#include <arm_neon.h>
+
+static bool hw_check_aes()
+{
+	return (getauxval(AT_HWCAP) & HWCAP_AES) != 0;
+}
+
+extern "C" const bool cpu_aes_enabled = hw_check_aes() && !force_software_aes();
 
 extern const uint8_t saes_sbox[256];
 
