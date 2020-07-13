@@ -28,6 +28,8 @@
 
 add_library(blocks blocks.cpp)
 
+target_link_libraries(blocks PRIVATE extra)
+
 foreach(BLOB_NAME checkpoints testnet_blocks stagenet_blocks)
     set(OUTPUT_C_SOURCE "generated_${BLOB_NAME}.c")
     set(INPUT_DAT_FILE "${BLOB_NAME}.dat")
