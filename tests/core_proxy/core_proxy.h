@@ -77,7 +77,7 @@ namespace tests
     bool get_stat_info(cryptonote::core_stat_info& st_inf){return true;}
     bool have_block(const crypto::hash& id);
     void get_blockchain_top(uint64_t& height, crypto::hash& top_id);
-    bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
+    bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay, uint64_t * rta_rollback_height = nullptr);
     bool handle_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blobs, std::vector<cryptonote::tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay);
     bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, bool update_miner_blocktemplate = true);
     void pause_mine(){}
@@ -117,5 +117,18 @@ namespace tests
     bool prune_blockchain(uint32_t pruning_seed) const { return true; }
     cryptonote::StakeTransactionProcessor & get_stake_tx_processor() { return reinterpret_cast<cryptonote::StakeTransactionProcessor&>(*
             reinterpret_cast<cryptonote::StakeTransactionProcessor*>(0)); }
+    class fake_pool {
+    public:
+      void lock() {}
+      void unlock() {}
+      bool try_lock() { return true; }
+      bool get_transaction(const crypto::hash& id, cryptonote::blobdata& tx_blob) const { return false; }
+      bool have_tx(const crypto::hash &txid) const { return false; }
+    };
+    
+    fake_pool &get_pool() { return m_pool; }
+
+  private:
+    fake_pool m_pool;
   };
 }

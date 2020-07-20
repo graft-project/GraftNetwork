@@ -54,7 +54,7 @@ public:
   bool get_stat_info(cryptonote::core_stat_info& st_inf) const {return true;}
   bool have_block(const crypto::hash& id) const {return true;}
   void get_blockchain_top(uint64_t& height, crypto::hash& top_id)const{height=0;top_id=crypto::null_hash;}
-  bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay) { return true; }
+  bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay, uint64_t * rta_rollback_height = nullptr) { return true; }
   bool handle_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blob, std::vector<cryptonote::tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay) { return true; }
   bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, bool update_miner_blocktemplate = true) { return true; }
   void pause_mine(){}
@@ -62,7 +62,7 @@ public:
   bool on_idle(){return true;}
   bool find_blockchain_supplement(const std::list<crypto::hash>& qblock_ids, cryptonote::NOTIFY_RESPONSE_CHAIN_ENTRY::request& resp){return true;}
   bool handle_get_objects(cryptonote::NOTIFY_REQUEST_GET_OBJECTS::request& arg, cryptonote::NOTIFY_RESPONSE_GET_OBJECTS::request& rsp, cryptonote::cryptonote_connection_context& context){return true;}
-  cryptonote::blockchain_storage &get_blockchain_storage() { throw std::runtime_error("Called invalid member function: please never call get_blockchain_storage on the TESTING class test_core."); }
+  cryptonote::Blockchain &get_blockchain_storage() { throw std::runtime_error("Called invalid member function: please never call get_blockchain_storage on the TESTING class test_core."); }
   bool get_test_drop_download() const {return true;}
   bool get_test_drop_download_height() const {return true;}
   bool prepare_handle_incoming_blocks(const std::vector<cryptonote::block_complete_entry>  &blocks_entry, std::vector<cryptonote::block> &blocks) { return true; }
@@ -96,7 +96,22 @@ public:
   void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height) {}
   cryptonote::StakeTransactionProcessor & get_stake_tx_processor() { return reinterpret_cast<cryptonote::StakeTransactionProcessor&>(*
           reinterpret_cast<cryptonote::StakeTransactionProcessor*>(0)); }
+  
+  class fake_pool {
+  public:
+    void lock() {}
+    void unlock() {}
+    bool try_lock() { return true; }
+    bool get_transaction(const crypto::hash& id, cryptonote::blobdata& tx_blob) const { return false; }
+    bool have_tx(const crypto::hash &txid) const { return false; }
+  };
+  
+  fake_pool &get_pool() { return m_pool; }
+
+private:
+  fake_pool m_pool;
 };
+
 
 typedef nodetool::node_server<cryptonote::t_cryptonote_protocol_handler<test_core>> Server;
 
