@@ -84,7 +84,40 @@ namespace cryptonote
    * @return checkpoints data, empty span if there ain't any checkpoints for specific network type
    */
   typedef std::function<const epee::span<const unsigned char>(cryptonote::network_type network)> GetCheckpointsCallback;
-
+  
+  //
+  // Set of blockchain event handler interfaces
+  // 
+  class BlockAddedHook
+  {
+  public:
+    virtual bool block_added(const block& block, const std::vector<transaction>& txs, struct checkpoint_t const *checkpoint) = 0;
+  };
+  
+  class BlockchainDetachedHook
+  {
+  public:
+    virtual void blockchain_detached(uint64_t height, bool by_pop_blocks) = 0;
+  };
+  
+  class InitHook
+  {
+  public:
+    virtual void init() = 0;
+  };
+  
+  class ValidateMinerTxHook
+  {
+  public:
+    virtual bool validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hard_fork_version, struct block_reward_parts const &reward_parts) const = 0;
+  };
+  
+  class AltBlockAddedHook
+  {
+  public:
+    virtual bool alt_block_added(const block &block, const std::vector<transaction>& txs, struct checkpoint_t const *checkpoint) = 0;
+  };
+  
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
@@ -1013,6 +1046,12 @@ namespace cryptonote
      * Used for handling txes from historical blocks in a fast way
      */
     void on_new_tx_from_block(const cryptonote::transaction &tx);
+    
+    void hook_block_added(BlockAddedHook& hook)                 { m_block_added_hooks.push_back(&hook); }
+    void hook_blockchain_detached(BlockchainDetachedHook& hook) { m_blockchain_detached_hooks.push_back(&hook); }
+    void hook_init(InitHook& hook)                              { m_init_hooks.push_back(&hook); }
+    void hook_validate_miner_tx(ValidateMinerTxHook& hook)      { m_validate_miner_tx_hooks.push_back(&hook); }
+    void hook_alt_block_added(AltBlockAddedHook& hook)          { m_alt_block_added_hooks.push_back(&hook); }
 
     /**
      * @brief returns the timestamps of the last N blocks
@@ -1133,6 +1172,12 @@ namespace cryptonote
 
     std::shared_ptr<tools::Notify> m_block_notify;
     std::shared_ptr<tools::Notify> m_reorg_notify;
+    
+    std::vector<BlockAddedHook*> m_block_added_hooks;
+    std::vector<BlockchainDetachedHook*> m_blockchain_detached_hooks;
+    std::vector<InitHook*> m_init_hooks;
+    std::vector<ValidateMinerTxHook*> m_validate_miner_tx_hooks;
+    std::vector<AltBlockAddedHook*> m_alt_block_added_hooks;
 
     /**
      * @brief collects the keys for all outputs being "spent" as an input
