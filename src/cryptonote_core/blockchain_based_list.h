@@ -59,13 +59,38 @@ public:
 
   /// Is the list requires store
   bool need_store() const { return m_need_store; }
+  
+  /// Builds checkpointing sample
+  static bool build_checkpointing_sample(StakeTransactionStorage& stake_txs_storage, const crypto::hash &block_hash, uint64_t height, supernode_array &result);
+  
+  /// Randomly selects items from source list to dest list; Caller is responsible of initalizing rng
+  template<typename Vector>
+  static void select_random_items(std::mt19937_64 &rng, size_t max_items_count, const Vector &src, Vector &dst)
+  {
+    size_t src_list_size = src.size();
+  
+    if (max_items_count > src_list_size)
+      max_items_count = src_list_size;
+  
+    for (size_t i=0; i < src_list_size; i++)
+    {
+      size_t random_value = rng() % (src_list_size - i);
+  
+      if (random_value >= max_items_count)
+        continue;
+  
+      dst.push_back(src[i]);
+  
+      max_items_count--;
+    }
+  }
 
 private:
   /// Load list from file
   void load();
 
   /// Select supernodes from a list
-  void select_supernodes(size_t max_items_count, const supernode_array& src_list, supernode_array& dst_list);
+  static void select_supernodes(std::mt19937_64 &rng, size_t max_items_count, const supernode_array& src_list, supernode_array& dst_list);
 
 private:
   std::string m_storage_file_name;

@@ -59,7 +59,9 @@
 #include "net/jsonrpc_structs.h"
 #include "storages/http_abstract_invoke.h"
 #include "cryptonote_core/stake_transaction_processor.h"
+
 #include "supernode_connection_manager.h"
+
 
 #include <map>
 #include <set>
@@ -69,7 +71,6 @@
 
 PUSH_WARNINGS
 DISABLE_VS_WARNINGS(4355)
-
 
 namespace nodetool
 {
@@ -220,7 +221,6 @@ namespace nodetool
 
   public:
     typedef t_payload_net_handler payload_net_handler;
-
     node_server(t_payload_net_handler& payload_handler)
       : m_payload_handler(payload_handler),
         m_external_port(0),
@@ -441,19 +441,16 @@ namespace nodetool
     void register_supernode(const cryptonote::COMMAND_RPC_REGISTER_SUPERNODE::request& req);
     // TODO: Why cryptonode can't just forward message directly to a supernode?
     void add_rta_route(const std::string& id, const std::string& my_id);
-
   private:
     void handle_stakes_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes);
     void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
-
-
 
   private:
     std::multimap<int, std::string> m_supernode_requests_timestamps;
     std::set<std::string> m_supernode_requests_cache;
     boost::recursive_mutex m_request_cache_lock;
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
-
+    
     graft::SupernodeConnectionManager m_supernode_conn_manager;
 
     std::string m_config_folder;

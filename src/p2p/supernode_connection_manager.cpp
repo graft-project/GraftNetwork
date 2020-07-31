@@ -1,6 +1,8 @@
 #include "supernode_connection_manager.h"
 #include "storages/http_abstract_invoke.h"
 #include "cryptonote_core/stake_transaction_processor.h"
+#include "cryptonote_core/cryptonote_core.h"
+#include "checkpoints/checkpoints.h"
 
 #include <boost/algorithm/string/join.hpp>
 
@@ -8,6 +10,33 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "net.p2p.supernode"
 
 namespace graft {
+
+struct COMMAND_RPC_SUPERNODE_ADD_BLOCK
+{
+  struct request_t
+  {
+    uint64_t height;
+    std::string block_hash;
+    std::string seed_hash;
+    
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(height)
+      KV_SERIALIZE(block_hash)
+      KV_SERIALIZE(seed_hash)
+    END_KV_SERIALIZE_MAP()
+  };
+  typedef epee::misc_utils::struct_init<request_t> request;
+
+  struct response_t
+  {
+    int status;
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(status)
+    END_KV_SERIALIZE_MAP()
+  };
+  typedef epee::misc_utils::struct_init<response_t> response;
+};
+
 
 namespace {
 
@@ -62,7 +91,8 @@ bool SupernodeConnectionManager::SupernodeConnection::operator==(const Supernode
 SupernodeConnectionManager::SupernodeConnectionManager(cryptonote::StakeTransactionProcessor &stp)
   : m_stp(stp)
 {
-  
+  m_stp.get_blockchain().hook_block_added(*this);
+  m_stp.get_blockchain().hook_alt_block_added(*this);
 }
 
 SupernodeConnectionManager::~SupernodeConnectionManager()
@@ -232,11 +262,12 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
 #ifdef UDHT_INFO
     arg.hops = arg.hop;
 #endif
+    nodetool::COMMAND_BROADCAST::response unused_resp;
     for (const auto& id : local_addresses)
     {
       // XXX: what is "broadcast_to_me" ? A: is is JSON-RPC method which is unused on supernode side, 
       // only endpoint specified in 'arg.callback_uri' used
-      m_supernode_connections[id].callJsonRpc<nodetool::COMMAND_BROADCAST>("" /* pass to local supernode */, arg, arg.callback_uri);
+      m_supernode_connections[id].callJsonRpc<nodetool::COMMAND_BROADCAST>("" /* pass to local supernode */, arg, unused_resp, arg.callback_uri);
       ++messages_sent;
       MDEBUG("called local supernode: " << id);
     }
@@ -250,6 +281,7 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
     MDEBUG("known_addresses " << boost::algorithm::join(known_addresses, " "));
 
     cryptonote::COMMAND_RPC_REDIRECT_BROADCAST::request redirect_req;
+    cryptonote::COMMAND_RPC_REDIRECT_BROADCAST::response unused_resp;
     redirect_req.request.receiver_addresses = arg.receiver_addresses; 
     redirect_req.request.sender_address = arg.sender_address;
     redirect_req.request.callback_uri = arg.callback_uri;
@@ -273,7 +305,7 @@ bool SupernodeConnectionManager::processBroadcast(typename nodetool::COMMAND_BRO
       MDEBUG("==> redirect broadcast for " << id << " > " << sn.client.get_host() << ":" << sn.client.get_port()  << " url =" << callback_url);
       redirect_req.receiver_id = id;
       // 2nd argument means 'method' in JSON-RPC but supernode doesn't use JSON-RPC but REST instead, so it's simply ignored on supernode side
-      sn.callJsonRpc<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>("" /*forward to another supernode via local supernode*/, redirect_req, callback_url);
+      sn.callJsonRpc<cryptonote::COMMAND_RPC_REDIRECT_BROADCAST>("" /*forward to another supernode via local supernode*/, redirect_req, unused_resp, callback_url);
       ++messages_forwarded;
     }
 // #endif           
@@ -341,6 +373,39 @@ SupernodeConnectionManager::get_expiry_time(const SupernodeConnectionManager::Su
   auto it = m_supernode_connections.find(local_sn);
   assert(it != m_supernode_connections.end());
   return SupernodeConnectionManager::Clock::now() + std::chrono::milliseconds(it->second.redirect_timeout_ms);
+}
+
+bool graft::SupernodeConnectionManager::block_added(const cryptonote::block &block, const std::vector<cryptonote::transaction> &/*txs*/, const cryptonote::checkpoint_t */*checkpoint*/)
+{
+  MINFO(__FUNCTION__);
+  graft::COMMAND_RPC_SUPERNODE_ADD_BLOCK::request req; 
+  ///
+  cryptonote::Blockchain & bc  = m_stp.get_blockchain();
+  const size_t NBLOCKS = 10; // TODO: config constant
+  std::array<crypto::hash, NBLOCKS>  hashes;
+  
+  uint64_t height = bc.get_db().get_block_height(block.hash);
+  size_t hash_idx = 0;
+  
+  for (size_t i = height - NBLOCKS; i < height; ++i, ++hash_idx) { 
+    hashes[hash_idx] = bc.get_block_id_by_height(i);
+  }
+  
+  crypto::hash seed;
+  crypto::cn_fast_hash(&hashes[0], hashes.size() * sizeof (hashes[0]), seed);
+  
+  req.height = height;
+  req.block_hash = epee::string_tools::pod_to_hex(block.hash); 
+  req.seed_hash  = epee::string_tools::pod_to_hex(seed);
+  
+  invokeAll<graft::COMMAND_RPC_SUPERNODE_ADD_BLOCK>("block_added", req,  "/block_added");
+  return true;  
+}
+
+bool SupernodeConnectionManager::alt_block_added(const cryptonote::block &block, const std::vector<cryptonote::transaction> &txs, const cryptonote::checkpoint_t */*checkpoint*/)
+{
+  MINFO(__FUNCTION__);
+  return true;
 }
 
 } // namespace graft

@@ -3980,6 +3980,24 @@ leave:
   {
     LOG_ERROR("Blocks that failed verification should not reach here");
   }
+  // TODO: implement "defer" call same as loki does
+  
+  std::vector<transaction> only_txs;
+  only_txs.reserve(txs.size());
+  for (std::pair<transaction, blobdata> const &tx_pair : txs)
+    only_txs.push_back(tx_pair.first);
+  
+  // TODO: checkpoint
+  checkpoint_t * checkpoint = nullptr;
+
+  for (BlockAddedHook* hook : m_block_added_hooks)
+  {
+    if (!hook->block_added(bl, only_txs, checkpoint))
+    {
+      MERROR("Block added hook signalled failure");
+      return false;
+    }
+  }
 
   TIME_MEASURE_FINISH(addblock);
 

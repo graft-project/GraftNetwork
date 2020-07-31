@@ -2376,6 +2376,7 @@ namespace nodetool
 
       MDEBUG("do_broadcast: forwarding broadcast to local supernode");
       {
+        cryptonote::COMMAND_RPC_BROADCAST::response dummy;
         m_supernode_conn_manager.forward<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
       }
       MDEBUG("do_broadcast: forwarded broadcast to local supernode");

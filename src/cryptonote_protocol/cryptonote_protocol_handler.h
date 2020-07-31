@@ -80,6 +80,7 @@ namespace cryptonote
     typedef core_stat_info stat_info;
     typedef t_cryptonote_protocol_handler<t_core> cryptonote_protocol_handler;
     typedef CORE_SYNC_DATA payload_type;
+    using Core = t_core;
 
     t_cryptonote_protocol_handler(t_core& rcore, nodetool::i_p2p_endpoint<connection_context>* p_net_layout, bool offline = false);
 

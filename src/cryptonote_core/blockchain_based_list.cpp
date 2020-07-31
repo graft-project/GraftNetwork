@@ -40,24 +40,9 @@ const BlockchainBasedList::supernode_tier_array& BlockchainBasedList::tiers(size
   return *it;
 }
 
-void BlockchainBasedList::select_supernodes(size_t items_count, const supernode_array& src_list, supernode_array& dst_list)
+void BlockchainBasedList::select_supernodes(std::mt19937_64 &rng, size_t items_count, const supernode_array& src_list, supernode_array& dst_list)
 {
-  size_t src_list_size = src_list.size();
-
-  if (items_count > src_list_size)
-    items_count = src_list_size;
-
-  for (size_t i=0; i<src_list_size; i++)
-  {
-    size_t random_value = m_rng() % (src_list_size - i);
-
-    if (random_value >= items_count)
-      continue;
-
-    dst_list.push_back(src_list[i]);
-
-    items_count--;
-  }
+  select_random_items(rng, items_count, src_list, dst_list);
 }
 
 void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash& block_hash, StakeTransactionStorage& stake_txs_storage)
@@ -70,7 +55,7 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
   const StakeTransactionStorage::supernode_stake_array& stakes = stake_txs_storage.get_supernode_stakes(block_height);
 
-    //build blockchain based list for each tier
+  //  build blockchain based list for each tier
 
   supernode_array prev_supernodes, current_supernodes;
   supernode_tier_array new_tier;
@@ -80,12 +65,11 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
     prev_supernodes.clear();
     current_supernodes.clear();
 
-      //prepare lists of valid supernodes for this tier
+    // prepare lists of valid supernodes for this tier
 
     if (!m_history.empty())
     {
       const supernode_array& full_prev_supernodes = m_history.back()[i];
-
       prev_supernodes.reserve(full_prev_supernodes.size());
 
       for (const supernode& sn : full_prev_supernodes)
@@ -123,28 +107,28 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
       current_supernodes.emplace_back(std::move(sn));
     }
 
-      //seed RNG
+    // seed RNG
 
     std::seed_seq seed(reinterpret_cast<const unsigned char*>(&block_hash.data[0]),
                        reinterpret_cast<const unsigned char*>(&block_hash.data[sizeof block_hash.data]));
 
     m_rng.seed(seed);
 
-      //sort valid supernodes by the age of stake
+    // sort valid supernodes by the age of stake
 
     std::stable_sort(current_supernodes.begin(), current_supernodes.end(), [](const supernode& s1, const supernode& s2) {
       return s1.block_height < s2.block_height || (s1.block_height == s2.block_height && s1.supernode_public_id < s2.supernode_public_id);
     });
 
-      //select supernodes from the previous list
+    // select supernodes from the previous list
 
     supernode_array new_supernodes;
   
-    select_supernodes(PREVIOS_BLOCKCHAIN_BASED_LIST_MAX_SIZE, prev_supernodes, new_supernodes);
+    select_supernodes(m_rng, PREVIOS_BLOCKCHAIN_BASED_LIST_MAX_SIZE, prev_supernodes, new_supernodes);
 
     if (new_supernodes.size() < BLOCKCHAIN_BASED_LIST_SIZE)
     {
-        //remove supernodes of prev list from current list
+      // remove supernodes of prev list from current list
 
       auto duplicates_filter = [&](const supernode& sn1) {
         for (const supernode& sn2 : new_supernodes)
@@ -158,17 +142,17 @@ void BlockchainBasedList::apply_block(uint64_t block_height, const crypto::hash&
 
         //select supernodes from the current list
 
-      select_supernodes(BLOCKCHAIN_BASED_LIST_SIZE - new_supernodes.size(), current_supernodes, new_supernodes);
+      select_supernodes(m_rng, BLOCKCHAIN_BASED_LIST_SIZE - new_supernodes.size(), current_supernodes, new_supernodes);
     }
 
-      //update tier
+    // update tier
 
-    //LOG_PRINT_L0("Blockchain based list has been built for block " << block_height << " and tier " << i << " with " << new_supernodes.size() << " supernode(s)");
+    // LOG_PRINT_L0("Blockchain based list has been built for block " << block_height << " and tier " << i << " with " << new_supernodes.size() << " supernode(s)");
 
     new_tier.emplace_back(std::move(new_supernodes));
   }
 
-    //update history
+  //  update history
 
   m_history.emplace_back(std::move(new_tier));
 
@@ -240,8 +224,30 @@ void BlockchainBasedList::store() const
   m_need_store = false;
 }
 
+bool BlockchainBasedList::build_checkpointing_sample(StakeTransactionStorage &stake_txs_storage, const crypto::hash &block_hash, uint64_t height, BlockchainBasedList::supernode_array &result)
+{
+  std::mt19937_64 rng;
+  std::seed_seq seed(reinterpret_cast<const unsigned char*>(&block_hash.data[0]),
+                     reinterpret_cast<const unsigned char*>(&block_hash.data[sizeof block_hash.data]));
+  rng.seed(seed);
+  
+  const StakeTransactionStorage::supernode_stake_array& stakes = stake_txs_storage.get_supernode_stakes(height);
+  supernode_array src;
+  for (const auto &ss : stakes) {
+    if (ss.amount < config::graft::TIER1_STAKE_AMOUNT) { // TODO: check if it really needed? (in case stake_txs_storage only contain valid supernodes)
+      continue;
+    }
+    supernode sn {ss.supernode_public_id, ss.supernode_public_address, ss.amount, ss.block_height, ss.unlock_time };
+    src.emplace_back(sn);
+  }
+  
+  select_supernodes(rng, config::graft::CHECKPOINT_SAMPLE_SIZE, src, result);
+  return result.size() == config::graft::CHECKPOINT_SAMPLE_SIZE;
+}
+
 void BlockchainBasedList::load()
 {
+  // TODO: move it to lmdb?
   if (!boost::filesystem::exists(m_storage_file_name))
     return;
 

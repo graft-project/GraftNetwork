@@ -33,6 +33,9 @@
 #include "misc_log_ex.h"
 #include "crypto/hash.h"
 #include "cryptonote_config.h"
+#include <cryptonote_basic/cryptonote_basic.h>
+
+#include <boost/serialization/serialization.hpp>
 
 #define ADD_CHECKPOINT(h, hash)  CHECK_AND_ASSERT(add_checkpoint(h,  hash), false);
 #define JSON_HASH_FILE_NAME "checkpoints.json"
@@ -40,6 +43,70 @@
 
 namespace cryptonote
 {
+class Blockchain;
+enum struct checkpoint_type
+{
+  hardcoded,
+  supernode,
+  count,
+};
+
+struct checkpoint_t
+{
+  uint8_t                                        version = 0;
+  checkpoint_type                                type;
+  uint64_t                                       height;
+  crypto::hash                                   block_hash;
+  std::vector<cryptonote::rta_signature>         signatures; // Only supernode checkpoints use signatures
+
+  bool               check         (crypto::hash const &block_hash) const;
+  static char const *type_to_string(checkpoint_type type)
+  {
+    switch(type)
+    {
+      case checkpoint_type::hardcoded:    return "Hardcoded";
+      case checkpoint_type::supernode:    return "Supernode";
+      default: assert(false);             return "XXUnhandledVersion";
+    }
+  }
+
+  BEGIN_SERIALIZE()
+    FIELD(version)
+    ENUM_FIELD(type, type < checkpoint_type::count);
+    FIELD(height)
+    FIELD(block_hash)
+    FIELD(signatures)
+  END_SERIALIZE()
+
+ // TODO(loki): idk exactly if I want to implement this, but need for core tests to compile. Not sure I care about serializing for core tests at all.
+ private:
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive &ar, const unsigned int /*version*/) { }
+};
+
+struct height_to_hash
+{
+  uint64_t height; //!< the height of the checkpoint
+  std::string hash; //!< the hash for the checkpoint
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(hash)
+      END_KV_SERIALIZE_MAP()
+};
+
+/**
+ * @brief struct for loading many checkpoints from json
+ */
+struct height_to_hash_json {
+  std::vector<height_to_hash> hashlines; //!< the checkpoint lines from the file
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(hashlines)
+      END_KV_SERIALIZE_MAP()
+};
+  
+
+
   /**
    * @brief A container for blockchain checkpoints
    *
