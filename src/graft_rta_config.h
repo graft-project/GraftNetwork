@@ -32,7 +32,7 @@ constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
 constexpr size_t TIERS_COUNT = 4;
 
 constexpr size_t CHECKPOINT_SAMPLE_SIZE =  8;
-constexpr size_t CHECKPOINT_INTERVAL    = 10;
+constexpr size_t CHECKPOINT_INTERVAL    =  4;
 
 }
 
