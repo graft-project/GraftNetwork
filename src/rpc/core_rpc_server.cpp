@@ -2510,6 +2510,19 @@ namespace cryptonote
 
   //------------------------------------------------------------------------------------------------------------------------------
 
+  bool core_rpc_server::on_checkpoint_vote(const COMMAND_RPC_CHECKPOINT_VOTE::request &req, COMMAND_RPC_CHECKPOINT_VOTE::response &/*res*/, epee::json_rpc::error &error_resp, const connection_context */*ctx*/)
+  {
+    MINFO(__FUNCTION__);
+    rta::checkpoint_vote vote;
+    vote.signature.key_index = req.voter_index;
+    vote.block_height = req.block_height;
+    epee::string_tools::hex_to_pod(req.signature,  vote.signature.signature);
+    epee::string_tools::hex_to_pod(req.block_hash, vote.block_hash);
+    // m_core.get_vote_handler()->handle_vote_from_rpc(req);
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+
 
   const command_line::arg_descriptor<std::string, false, true, 2> core_rpc_server::arg_rpc_bind_port = {
       "rpc-bind-port"

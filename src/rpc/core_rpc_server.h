@@ -175,6 +175,7 @@ namespace cryptonote
         MAP_JON_RPC_WE("send_supernode_stakes",    on_supernode_stakes,         COMMAND_RPC_SUPERNODE_GET_STAKES)
         MAP_JON_RPC_WE("send_supernode_blockchain_based_list", on_supernode_blockchain_based_list,  COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST)
         MAP_JON_RPC_WE("get_stats", on_get_rta_stats,  COMMAND_RPC_RTA_STATS)
+        MAP_JON_RPC_WE("checkpoint_vote", on_checkpoint_vote,  COMMAND_RPC_CHECKPOINT_VOTE)
       END_JSON_RPC_MAP()
     END_URI_MAP2()
 
@@ -250,6 +251,7 @@ namespace cryptonote
     bool on_register_supernode(const COMMAND_RPC_REGISTER_SUPERNODE::request& req, COMMAND_RPC_REGISTER_SUPERNODE::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_add_rta_route(const COMMAND_RPC_ADD_RTA_ROUTE::request& req, COMMAND_RPC_ADD_RTA_ROUTE::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
+    bool on_checkpoint_vote(const COMMAND_RPC_CHECKPOINT_VOTE::request &req, COMMAND_RPC_CHECKPOINT_VOTE::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
 
 private:
     bool on_broadcast_impl(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp, bool wide = false, const connection_context *ctx = NULL);

@@ -2494,6 +2494,31 @@ namespace cryptonote
     };
     typedef epee::misc_utils::struct_init<response_t> response;
   };
+  
+  struct COMMAND_RPC_CHECKPOINT_VOTE
+  {
+    struct request_t
+    {
+      uint8_t  voter_index;
+      uint64_t block_height;
+      std::string block_hash;
+      std::string signature;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(voter_index)
+        KV_SERIALIZE(block_height)
+        KV_SERIALIZE(block_hash)
+        KV_SERIALIZE(signature)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
 
   struct COMMAND_RPC_GET_OUTPUT_DISTRIBUTION
   {
