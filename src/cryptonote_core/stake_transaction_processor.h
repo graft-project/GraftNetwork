@@ -54,6 +54,8 @@ public:
   uint64_t get_current_blockchain_height() const { return m_blockchain.get_current_blockchain_height(); }
   Blockchain &get_blockchain() const { return m_blockchain; }
   
+  bool supernode_in_checkpoint_sample(const std::string &id, const crypto::hash &seed_hash, uint64_t height);
+  
 private:
   void init_storages_impl();
   void process_block(uint64_t block_index, const block& block, const crypto::hash& block_hash, bool update_storage = true);

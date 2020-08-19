@@ -509,3 +509,12 @@ bool StakeTransactionProcessor::is_supernode_valid(const std::string &id, uint64
   MDEBUG("stake for supernode: " << id << " and height: " << height << " is: " << (stake ? print_money(stake->amount) : "N/A"));
   return stake ? stake->amount >= config::graft::TIER1_STAKE_AMOUNT : false;
 }
+
+bool StakeTransactionProcessor::supernode_in_checkpoint_sample(const std::string &id, const crypto::hash &seed_hash, uint64_t height)
+{
+  BlockchainBasedList::supernode_array sample;
+  m_blockchain_based_list->build_checkpointing_sample(*m_storage, seed_hash, height, sample);
+  return std::find_if(sample.begin(), sample.end(), [&id](const auto &item) { 
+    return item.supernode_public_id == id;
+  }) != sample.end(); 
+}

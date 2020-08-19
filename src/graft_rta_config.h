@@ -31,9 +31,21 @@ constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
 
 constexpr size_t TIERS_COUNT = 4;
 
-constexpr size_t CHECKPOINT_SAMPLE_SIZE =  8;
-constexpr size_t CHECKPOINT_INTERVAL    =  4;
+constexpr size_t    CHECKPOINT_SAMPLE_SIZE =  8;
+constexpr uint64_t  CHECKPOINT_NUM_CHECKPOINTS_FOR_CHAIN_FINALITY = 2;  // Number of consecutive checkpoints before, blocks preceeding the N checkpoints are locked in
+constexpr uint64_t  CHECKPOINT_INTERVAL                           = 4;  // Checkpoint every 4 blocks and prune when too old except if (height % CHECKPOINT_STORE_PERSISTENTLY_INTERVAL == 0)
+constexpr uint64_t  CHECKPOINT_STORE_PERSISTENTLY_INTERVAL        = 60; // Persistently store the checkpoints at these intervals
+constexpr uint64_t  CHECKPOINT_VOTE_LIFETIME                      = CHECKPOINT_STORE_PERSISTENTLY_INTERVAL; // Keep the last 60 blocks worth of votes
+constexpr size_t    CHECKPOINT_QUORUM_SIZE                 = 8;
+constexpr size_t    CHECKPOINT_MIN_VOTES                   = 5;
 
+constexpr int16_t CHECKPOINT_NUM_QUORUMS_TO_PARTICIPATE_IN = 8;
+constexpr int16_t CHECKPOINT_MAX_MISSABLE_VOTES            = 4;
+static_assert(CHECKPOINT_MAX_MISSABLE_VOTES < CHECKPOINT_NUM_QUORUMS_TO_PARTICIPATE_IN,
+              "The maximum number of votes a service node can miss cannot be greater than the amount of checkpoint "
+              "quorums they must participate in before we check if they should be deregistered or not.");
+static_assert(CHECKPOINT_MIN_VOTES <= CHECKPOINT_QUORUM_SIZE, "The number of votes required to add a checkpoint can't exceed the actual quorum size, otherwise we never add checkpoints.");
+constexpr uint64_t VOTE_LIFETIME                           = BLOCKS_EXPECTED_IN_HOURS(2);
 }
 
 }
