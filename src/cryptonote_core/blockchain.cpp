@@ -175,9 +175,10 @@ static const struct {
   { 15, 343750, 0, 1559401200 },
   // hf 16 increase stake period to 32 days, 2019-08-05T@09:00:00+00
   { 16, 381520, 0, 1564995600 },
- // hf 17 corresponds monero 14, block and date to be specified
+  // hf 17 corresponds monero 14, block and date to be specified
   { 17, 489630, 0, 1582747200 },
-
+  // TODO: hf18 RTA double-spend handling + RTA checkpointing
+  { cryptonote::network_version_18_checkpointing, 999999, 0, 2000000000 }
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;

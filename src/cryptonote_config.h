@@ -1,4 +1,5 @@
-// Copyright (c) 2017-2019, Graft Project
+// Copyright (c) 2017-2020, Graft Project
+// Copyright (c) 2019, The Loki Project
 // Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
@@ -168,6 +169,11 @@
 #define CRYPTONOTE_PRUNING_STRIPE_SIZE          4096 // the smaller, the smoother the increase
 #define CRYPTONOTE_PRUNING_LOG_STRIPES          3 // the higher, the more space saved
 #define CRYPTONOTE_PRUNING_TIP_BLOCKS           5500 // the smaller, the more space saved
+
+#define BLOCKS_EXPECTED_IN_HOURS(val)                   (((60 * 60) / DIFFICULTY_TARGET_V2) * (val))
+#define BLOCKS_EXPECTED_IN_DAYS(val)                    (BLOCKS_EXPECTED_IN_HOURS(24) * (val))
+#define BLOCKS_EXPECTED_IN_YEARS(val)                   (BLOCKS_EXPECTED_IN_DAYS(365) * (val))
+
 //#define CRYPTONOTE_PRUNING_DEBUG_SPOOF_SEED
 
 // New constants are intended to go here
@@ -237,6 +243,25 @@ namespace cryptonote
     FAKECHAIN,
     UNDEFINED = 255
   };
+  
+  enum network_version
+  {
+    network_version_7 = 7,
+    network_version_8,
+    network_version_9,
+    network_version_10_decrease_block_reward, // decrease block reward
+    network_version_11_cn_variant2_pow,       // Monero V8/CN variant 2 PoW
+    network_version_12_reverse_waltz_pow,     // Graft CryptoNight Reverse Waltz PoW,
+    network_version_13_rta_txs_rta_mining,    // RTA transactions, RTA mining
+    network_version_14_bullet_proof,          // bullet-proofs
+    network_version_15_disable_non_bullet_proof, // disable non-bullet-proof
+    network_version_16_32_days_stake_period,  // stake period up to 32 days
+    network_version_17_monero14,              // monero v14 merge
+    network_version_18_checkpointing,         // RTA checkpointing
+    network_version_19_enforce_checkpoints,   // force RTA checkpointing
+    network_version_count,
+  };
+  
   struct config_t
   {
     uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX;
