@@ -38,6 +38,7 @@ constexpr uint64_t  CHECKPOINT_STORE_PERSISTENTLY_INTERVAL        = 60; // Persi
 constexpr uint64_t  CHECKPOINT_VOTE_LIFETIME                      = CHECKPOINT_STORE_PERSISTENTLY_INTERVAL; // Keep the last 60 blocks worth of votes
 constexpr size_t    CHECKPOINT_QUORUM_SIZE                 = 8;
 constexpr size_t    CHECKPOINT_MIN_VOTES                   = 5;
+constexpr size_t    CHECKPOINT_NUM_BLOCKS_FOR_HASH         = 10;
 
 constexpr int16_t CHECKPOINT_NUM_QUORUMS_TO_PARTICIPATE_IN = 8;
 constexpr int16_t CHECKPOINT_MAX_MISSABLE_VOTES            = 4;
@@ -46,6 +47,13 @@ static_assert(CHECKPOINT_MAX_MISSABLE_VOTES < CHECKPOINT_NUM_QUORUMS_TO_PARTICIP
               "quorums they must participate in before we check if they should be deregistered or not.");
 static_assert(CHECKPOINT_MIN_VOTES <= CHECKPOINT_QUORUM_SIZE, "The number of votes required to add a checkpoint can't exceed the actual quorum size, otherwise we never add checkpoints.");
 constexpr uint64_t VOTE_LIFETIME                           = BLOCKS_EXPECTED_IN_HOURS(2);
+
+// NOTE: We can reorg up to last 2 checkpoints + the number of extra blocks before the next checkpoint is set
+constexpr uint64_t  REORG_SAFETY_BUFFER_BLOCKS_POST_HF18 = (CHECKPOINT_INTERVAL * CHECKPOINT_NUM_CHECKPOINTS_FOR_CHAIN_FINALITY) + (CHECKPOINT_INTERVAL - 1);
+constexpr uint64_t  REORG_SAFETY_BUFFER_BLOCKS_PRE_HF18  = 20;
+static_assert(REORG_SAFETY_BUFFER_BLOCKS_POST_HF18 < VOTE_LIFETIME, "Safety buffer should always be less than the vote lifetime");
+static_assert(REORG_SAFETY_BUFFER_BLOCKS_PRE_HF18  < VOTE_LIFETIME, "Safety buffer should always be less than the vote lifetime");
+
 }
 
 }

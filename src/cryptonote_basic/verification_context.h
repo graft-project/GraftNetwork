@@ -1,3 +1,4 @@
+// Copyright (c) 2019, The Loki Project
 // Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
@@ -29,11 +30,43 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
+
+#include <serialization/keyvalue_serialization.h>
+
 namespace cryptonote
 {
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
+  struct vote_verification_context
+  {
+    bool m_verification_failed = false;    // generic "failed" flag
+    bool m_invalid_block_height = false;   
+    bool m_duplicate_voters = false;
+    bool m_validator_index_out_of_bounds = false;
+    bool m_worker_index_out_of_bounds = false;
+    bool m_signature_not_valid = false;
+    bool m_added_to_pool = false;
+    bool m_not_enough_votes = false;
+    bool m_incorrect_voting_group = false;
+    bool m_invalid_vote_type = false;
+    bool m_votes_not_sorted = false;
+
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(m_verification_failed)
+      KV_SERIALIZE(m_invalid_block_height)
+      KV_SERIALIZE(m_duplicate_voters)
+      KV_SERIALIZE(m_validator_index_out_of_bounds)
+      KV_SERIALIZE(m_worker_index_out_of_bounds)
+      KV_SERIALIZE(m_signature_not_valid)
+      KV_SERIALIZE(m_added_to_pool)
+      KV_SERIALIZE(m_not_enough_votes)
+      KV_SERIALIZE(m_incorrect_voting_group)
+      KV_SERIALIZE(m_invalid_vote_type)
+      KV_SERIALIZE(m_votes_not_sorted)
+    END_KV_SERIALIZE_MAP()
+  };
+
   struct tx_verification_context
   {
     bool m_should_be_relayed;

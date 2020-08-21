@@ -35,7 +35,9 @@ set(cryptonote_core_sources
   stake_transaction_processor.cpp
   blockchain_based_list.cpp
   tx_sanity_check.cpp
-  rta_tx.cpp)
+  rta_tx.cpp
+  checkpoint_vote_handler.cpp
+  rta_voting.cpp)
 
 set(cryptonote_core_headers)
 
@@ -49,7 +51,10 @@ set(cryptonote_core_private_headers
   stake_transaction_processor.h
   blockchain_based_list.h
   tx_sanity_check.h
-  rta_tx.h)
+  rta_tx.h
+  checkpoint_vote_handler.h
+  checkpoint_vote.h
+  rta_voting.h)
 
 monero_private_headers(cryptonote_core
   ${cryptonote_core_private_headers})

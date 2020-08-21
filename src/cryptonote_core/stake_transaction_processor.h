@@ -54,7 +54,15 @@ public:
   uint64_t get_current_blockchain_height() const { return m_blockchain.get_current_blockchain_height(); }
   Blockchain &get_blockchain() const { return m_blockchain; }
   
+  
   bool supernode_in_checkpoint_sample(const std::string &id, const crypto::hash &seed_hash, uint64_t height);
+  
+  bool build_checkpointing_sample(const crypto::hash &seed_hash, uint64_t height, BlockchainBasedList::supernode_array &result);
+  
+  bool get_checkointing_hash(uint64_t height, crypto::hash &result);
+  
+  std::shared_ptr<BlockchainBasedList> get_blockchain_based_list() const { return m_blockchain_based_list; }
+  
   
 private:
   void init_storages_impl();
@@ -68,7 +76,7 @@ private:
   std::string m_config_dir;
   Blockchain& m_blockchain;
   std::unique_ptr<StakeTransactionStorage> m_storage;
-  std::unique_ptr<BlockchainBasedList> m_blockchain_based_list;
+  std::shared_ptr<BlockchainBasedList> m_blockchain_based_list;
   mutable epee::critical_section m_storage_lock;
   supernode_stakes_update_handler m_on_stakes_update;
   blockchain_based_list_update_handler m_on_blockchain_based_list_update;

@@ -518,3 +518,27 @@ bool StakeTransactionProcessor::supernode_in_checkpoint_sample(const std::string
     return item.supernode_public_id == id;
   }) != sample.end(); 
 }
+
+bool StakeTransactionProcessor::build_checkpointing_sample(const crypto::hash &hash, uint64_t height, BlockchainBasedList::supernode_array &out)
+{
+  return m_blockchain_based_list->build_checkpointing_sample(*m_storage, hash, height, out);
+}
+
+bool StakeTransactionProcessor::get_checkointing_hash(uint64_t height, crypto::hash &result)
+{
+  if (height > m_blockchain.get_current_blockchain_height() || height < config::graft::CHECKPOINT_NUM_BLOCKS_FOR_HASH)
+    return  false;
+  
+  cryptonote::Blockchain & bc  = get_blockchain();
+  std::array<crypto::hash, config::graft::CHECKPOINT_NUM_BLOCKS_FOR_HASH>  hashes;
+  
+  size_t hash_idx = 0;
+  
+  for (size_t i = height - hashes.size(); i < height; ++i, ++hash_idx) { 
+    hashes[hash_idx] = bc.get_block_id_by_height(i);
+  }
+  
+  crypto::cn_fast_hash(&hashes[0], hashes.size() * sizeof (hashes[0]), result);
+  return true;
+  
+}

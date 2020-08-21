@@ -37,6 +37,7 @@
 #include "cryptonote_basic/blobdatatype.h"
 #include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/checkpoint_vote_handler.h"
+#include "cryptonote_core/blockchain_based_list.h"
 
 #include "string_tools.h"
 #include "math_helper.h"
@@ -58,7 +59,7 @@ namespace rta
 struct quorum
 {
   std::vector<crypto::public_key> validators; // Array of public keys identifying service nodes who validate and sign.
-  
+  void from_supernode_list(const cryptonote::BlockchainBasedList::supernode_array &sn_list);
   BEGIN_SERIALIZE()
     FIELD(validators)
   END_SERIALIZE()

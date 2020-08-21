@@ -45,8 +45,9 @@ namespace cryptonote
 
 namespace rta
 {
-  
-  
+ 
+
+
 class CheckpointVoteHandler
     : public cryptonote::BlockAddedHook,
     public cryptonote::BlockchainDetachedHook,
@@ -60,18 +61,20 @@ public:
   bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, const cryptonote::checkpoint_t  * /*checkpoint*/) override;
   void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
   
+  bool  handle_vote_from_rpc(const checkpoint_vote &vote);
+  
+  bool  handle_vote(const checkpoint_vote &vote, cryptonote::vote_verification_context &vvc);
+  
   void  set_votes_relayed  (const std::vector<checkpoint_vote>  &relayed_votes);
   std::vector<checkpoint_vote> get_relayable_votes(uint64_t current_height, uint8_t hf_version, bool quorum_relay);
-  bool  handle_vote_from_rpc(const checkpoint_vote &vote);
-  bool  handle_vote_from_p2p(const checkpoint_vote &vote);
+  
   
 private:
-  void process_quorums(cryptonote::block const &block);
   
+  void process_quorums(cryptonote::block const &block);
   
   cryptonote::core& m_core;
   voting_pool       m_vote_pool;
-  uint64_t          m_obligations_height;
   uint64_t          m_last_checkpointed_height;
   mutable epee::critical_section m_lock;
 };

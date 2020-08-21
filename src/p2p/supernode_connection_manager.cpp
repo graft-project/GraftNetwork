@@ -3,6 +3,7 @@
 #include "cryptonote_core/stake_transaction_processor.h"
 #include "cryptonote_core/cryptonote_core.h"
 #include "checkpoints/checkpoints.h"
+#include "graft_rta_config.h"
 
 #include <boost/algorithm/string/join.hpp>
 
@@ -380,19 +381,14 @@ bool graft::SupernodeConnectionManager::block_added(const cryptonote::block &blo
   MINFO(__FUNCTION__);
   graft::COMMAND_RPC_SUPERNODE_ADD_BLOCK::request req; 
   ///
+  
+  std::array<crypto::hash, config::graft::CHECKPOINT_NUM_BLOCKS_FOR_HASH>  hashes;
+  
   cryptonote::Blockchain & bc  = m_stp.get_blockchain();
-  const size_t NBLOCKS = 10; // TODO: config constant
-  std::array<crypto::hash, NBLOCKS>  hashes;
-  
   uint64_t height = bc.get_db().get_block_height(block.hash);
-  size_t hash_idx = 0;
-  
-  for (size_t i = height - NBLOCKS; i < height; ++i, ++hash_idx) { 
-    hashes[hash_idx] = bc.get_block_id_by_height(i);
-  }
   
   crypto::hash seed;
-  crypto::cn_fast_hash(&hashes[0], hashes.size() * sizeof (hashes[0]), seed);
+  m_stp.get_checkointing_hash(height, seed);
   
   req.height = height;
   req.block_hash = epee::string_tools::pod_to_hex(block.hash); 

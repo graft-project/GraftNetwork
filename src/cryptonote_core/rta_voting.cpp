@@ -487,5 +487,15 @@ namespace rta
       std::memcpy(&st, &blob[86], 2); vote.state_change.state = static_cast<new_state>(boost::endian::little_to_native(st));
     }
   }
+  
+  void quorum::from_supernode_list(const cryptonote::BlockchainBasedList::supernode_array &sn_list)
+  {
+    validators.clear();
+    for (const auto & sn : sn_list) {
+      validators.push_back(crypto::public_key());
+      epee::string_tools::hex_to_pod(sn.supernode_public_id, validators.back());
+    }
+  }
+  
 }; // namespace service_nodes
 

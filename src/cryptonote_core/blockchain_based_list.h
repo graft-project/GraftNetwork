@@ -17,11 +17,14 @@ class BlockchainBasedList
 public:
   struct supernode
   {    
+    // TODO: use crypto::public_key instead 
     std::string supernode_public_id;
     cryptonote::account_public_address supernode_public_address;
     uint64_t amount;
     uint64_t block_height;
     uint64_t unlock_time;
+    
+    bool verify_signature(const crypto::hash &hash, const crypto::signature &signature);
 
     BEGIN_SERIALIZE_OBJECT()
       FIELD(amount)
