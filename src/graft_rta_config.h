@@ -54,6 +54,10 @@ constexpr uint64_t  REORG_SAFETY_BUFFER_BLOCKS_PRE_HF18  = 20;
 static_assert(REORG_SAFETY_BUFFER_BLOCKS_POST_HF18 < VOTE_LIFETIME, "Safety buffer should always be less than the vote lifetime");
 static_assert(REORG_SAFETY_BUFFER_BLOCKS_PRE_HF18  < VOTE_LIFETIME, "Safety buffer should always be less than the vote lifetime");
 
+// TODO: applicable for "only-checkpointing" ?
+constexpr uint64_t VOTE_OR_TX_VERIFY_HEIGHT_BUFFER    = 5;
+
+
 }
 
 }

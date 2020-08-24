@@ -2518,7 +2518,8 @@ namespace cryptonote
     vote.block_height = req.block_height;
     epee::string_tools::hex_to_pod(req.signature,  vote.signature.signature);
     epee::string_tools::hex_to_pod(req.block_hash, vote.block_hash);
-    // m_core.get_vote_handler()->handle_vote_from_rpc(req);
+    cryptonote::vote_verification_context vvc;
+    m_core.get_vote_handler()->handle_vote(req, vvc);
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------

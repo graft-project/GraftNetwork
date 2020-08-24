@@ -58,10 +58,10 @@ namespace rta
 
 struct quorum
 {
-  std::vector<crypto::public_key> validators; // Array of public keys identifying service nodes who validate and sign.
+  std::vector<crypto::public_key> voters; // Array of public keys identifying service nodes who validate and sign.
   void from_supernode_list(const cryptonote::BlockchainBasedList::supernode_array &sn_list);
   BEGIN_SERIALIZE()
-    FIELD(validators)
+    FIELD(voters)
   END_SERIALIZE()
 };
 

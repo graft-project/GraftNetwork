@@ -43,8 +43,7 @@ namespace cryptonote
     bool m_verification_failed = false;    // generic "failed" flag
     bool m_invalid_block_height = false;   
     bool m_duplicate_voters = false;
-    bool m_validator_index_out_of_bounds = false;
-    bool m_worker_index_out_of_bounds = false;
+    bool m_voter_index_out_of_bounds = false;
     bool m_signature_not_valid = false;
     bool m_added_to_pool = false;
     bool m_not_enough_votes = false;

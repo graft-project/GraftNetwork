@@ -61,8 +61,6 @@ public:
   bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, const cryptonote::checkpoint_t  * /*checkpoint*/) override;
   void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
   
-  bool  handle_vote_from_rpc(const checkpoint_vote &vote);
-  
   bool  handle_vote(const checkpoint_vote &vote, cryptonote::vote_verification_context &vvc);
   
   void  set_votes_relayed  (const std::vector<checkpoint_vote>  &relayed_votes);
