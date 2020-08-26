@@ -85,38 +85,6 @@ namespace cryptonote
    */
   typedef std::function<const epee::span<const unsigned char>(cryptonote::network_type network)> GetCheckpointsCallback;
   
-  //
-  // Set of blockchain event handler interfaces
-  // 
-  class BlockAddedHook
-  {
-  public:
-    virtual bool block_added(const block& block, const std::vector<transaction>& txs, struct checkpoint_t const *checkpoint) = 0;
-  };
-  
-  class BlockchainDetachedHook
-  {
-  public:
-    virtual void blockchain_detached(uint64_t height, bool by_pop_blocks) = 0;
-  };
-  
-  class InitHook
-  {
-  public:
-    virtual void init() = 0;
-  };
-  
-  class ValidateMinerTxHook
-  {
-  public:
-    virtual bool validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hard_fork_version, struct block_reward_parts const &reward_parts) const = 0;
-  };
-  
-  class AltBlockAddedHook
-  {
-  public:
-    virtual bool alt_block_added(const block &block, const std::vector<transaction>& txs, struct checkpoint_t const *checkpoint) = 0;
-  };
   
   /************************************************************************/
   /*                                                                      */
@@ -767,6 +735,11 @@ namespace cryptonote
      * @return false if any enforced checkpoint type fails to load, otherwise true
      */
     bool update_checkpoints(const std::string& file_path, bool check_dns);
+    
+    
+    bool update_checkpoint(checkpoint_t const &checkpoint);
+
+    bool get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const;
 
 
     // user options, must be called before calling init()

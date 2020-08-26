@@ -30,11 +30,9 @@
 #pragma once
 
 #include "serialization/serialization.h"
-#include "cryptonote_protocol/cryptonote_protocol_handler_common.h"
-#include "cryptonote_basic/cryptonote_basic_impl.h"
-#include "cryptonote_core/rta_voting.h"
-#include "cryptonote_core/blockchain.h"
-
+#include "crypto/crypto.h"
+#include "cryptonote_basic/cryptonote_basic.h"
+#include <boost/serialization/access.hpp>
 
 namespace rta
 {
@@ -58,4 +56,4 @@ struct checkpoint_vote
    void serialize(Archive &ar, const unsigned int /*version*/) { }
 };
 
-} // namespace
+} // namespace rta

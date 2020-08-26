@@ -34,7 +34,7 @@
 #include "crypto/hash.h"
 #include "cryptonote_config.h"
 #include <cryptonote_basic/cryptonote_basic.h>
-
+#include <cryptonote_core/blockchain_hooks.h>
 #include <boost/serialization/serialization.hpp>
 
 #define ADD_CHECKPOINT(h, hash)  CHECK_AND_ASSERT(add_checkpoint(h,  hash), false);
@@ -44,6 +44,7 @@
 namespace cryptonote
 {
 class Blockchain;
+
 enum struct checkpoint_type
 {
   hardcoded,
@@ -58,29 +59,29 @@ struct checkpoint_t
   uint64_t                                       height;
   crypto::hash                                   block_hash;
   std::vector<cryptonote::rta_signature>         signatures; // Only supernode checkpoints use signatures
-
+  
   bool               check         (crypto::hash const &block_hash) const;
   static char const *type_to_string(checkpoint_type type)
   {
     switch(type)
     {
-      case checkpoint_type::hardcoded:    return "Hardcoded";
-      case checkpoint_type::supernode:    return "Supernode";
-      default: assert(false);             return "XXUnhandledVersion";
+    case checkpoint_type::hardcoded:    return "Hardcoded";
+    case checkpoint_type::supernode:    return "Supernode";
+    default: assert(false);             return "XXUnhandledVersion";
     }
   }
-
+  
   BEGIN_SERIALIZE()
-    FIELD(version)
-    ENUM_FIELD(type, type < checkpoint_type::count);
-    FIELD(height)
-    FIELD(block_hash)
-    FIELD(signatures)
+  FIELD(version)
+  ENUM_FIELD(type, type < checkpoint_type::count);
+  FIELD(height)
+  FIELD(block_hash)
+  FIELD(signatures)
   END_SERIALIZE()
-
- // TODO(loki): idk exactly if I want to implement this, but need for core tests to compile. Not sure I care about serializing for core tests at all.
- private:
-  friend class boost::serialization::access;
+  
+  // TODO(loki): idk exactly if I want to implement this, but need for core tests to compile. Not sure I care about serializing for core tests at all.
+  private:
+    friend class boost::serialization::access;
   template <class Archive>
   void serialize(Archive &ar, const unsigned int /*version*/) { }
 };
@@ -89,10 +90,10 @@ struct height_to_hash
 {
   uint64_t height; //!< the height of the checkpoint
   std::string hash; //!< the hash for the checkpoint
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(height)
-        KV_SERIALIZE(hash)
-      END_KV_SERIALIZE_MAP()
+  BEGIN_KV_SERIALIZE_MAP()
+  KV_SERIALIZE(height)
+  KV_SERIALIZE(hash)
+  END_KV_SERIALIZE_MAP()
 };
 
 /**
@@ -100,30 +101,32 @@ struct height_to_hash
  */
 struct height_to_hash_json {
   std::vector<height_to_hash> hashlines; //!< the checkpoint lines from the file
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(hashlines)
-      END_KV_SERIALIZE_MAP()
+  BEGIN_KV_SERIALIZE_MAP()
+  KV_SERIALIZE(hashlines)
+  END_KV_SERIALIZE_MAP()
 };
-  
 
 
-  /**
+crypto::hash get_newest_hardcoded_checkpoint(cryptonote::network_type nettype, uint64_t *height);
+bool         load_checkpoints_from_json     (const std::string &json_hashfile_fullpath, std::vector<height_to_hash> &checkpoint_hashes);
+
+/**
    * @brief A container for blockchain checkpoints
    *
    * A checkpoint is a pre-defined hash for the block at a given height.
    * Some of these are compiled-in, while others can be loaded at runtime
    * either from a json file or via DNS from a checkpoint-hosting server.
    */
-  class checkpoints
-  {
-  public:
-
-    /**
-     * @brief default constructor
-     */
-    checkpoints();
-
-    /**
+class checkpoints
+    : public cryptonote::BlockAddedHook,
+    public cryptonote::BlockchainDetachedHook
+{
+public:
+  bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, checkpoint_t const *checkpoint) override;
+  void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
+  
+  bool get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const;
+  /**
      * @brief adds a checkpoint to the container
      *
      * @param height the height of the block the checkpoint is for
@@ -133,9 +136,11 @@ struct height_to_hash_json {
      *         AND the existing checkpoint hash does not match the new one,
      *         otherwise returns true
      */
-    bool add_checkpoint(uint64_t height, const std::string& hash_str);
-
-    /**
+  bool add_checkpoint(uint64_t height, const std::string& hash_str);
+  
+  bool update_checkpoint(checkpoint_t const &checkpoint);
+  
+  /**
      * @brief checks if there is a checkpoint in the future
      *
      * This function checks if the height passed is lower than the highest
@@ -146,9 +151,9 @@ struct height_to_hash_json {
      * @return false if no checkpoints, otherwise returns whether or not
      *         the height passed is lower than the highest checkpoint.
      */
-    bool is_in_checkpoint_zone(uint64_t height) const;
-
-    /**
+  bool is_in_checkpoint_zone(uint64_t height) const;
+  
+  /**
      * @brief checks if the given height and hash agree with the checkpoints
      *
      * This function checks if the given height and hash exist in the
@@ -163,15 +168,11 @@ struct height_to_hash_json {
      *         true if the passed parameters match the stored checkpoint,
      *         false otherwise
      */
-    bool check_block(uint64_t height, const crypto::hash& h, bool& is_a_checkpoint) const;
-
-    /**
-     * @overload
-     */
-    bool check_block(uint64_t height, const crypto::hash& h) const;
-
-    /**
-     * @brief checks if alternate chain blocks should be kept for a given height
+  bool check_block(uint64_t height, const crypto::hash& h, bool *is_a_checkpoint = nullptr, bool *rta_checkpoint = nullptr) const;
+  
+  /**
+     * @brief checks if alternate chain blocks should be kept for a given height and updates
+     * m_immutable_height based on the available checkpoints
      *
      * this basically says if the blockchain is smaller than the first
      * checkpoint then alternate blocks are allowed.  Alternatively, if the
@@ -184,23 +185,23 @@ struct height_to_hash_json {
      * @return true if alternate blocks are allowed given the parameters,
      *         otherwise false
      */
-    bool is_alternative_block_allowed(uint64_t blockchain_height, uint64_t block_height) const;
-
-    /**
+  bool is_alternative_block_allowed(uint64_t blockchain_height, uint64_t block_height, bool *rta_checkpoint = nullptr);
+  
+  /**
      * @brief gets the highest checkpoint height
      *
      * @return the height of the highest checkpoint
      */
-    uint64_t get_max_height() const;
-
-    /**
+  uint64_t get_max_height() const;
+  
+  /**
      * @brief gets the checkpoints container
      *
      * @return a const reference to the checkpoints container
      */
-    const std::map<uint64_t, crypto::hash>& get_points() const;
-
-    /**
+  // TODO: deteted from loki const std::map<uint64_t, crypto::hash>& get_points() const;
+  
+  /**
      * @brief checks if our checkpoints container conflicts with another
      *
      * A conflict refers to a case where both checkpoint sets have a checkpoint
@@ -210,50 +211,21 @@ struct height_to_hash_json {
      *
      * @return false if any conflict is found, otherwise true
      */
-    bool check_for_conflicts(const checkpoints& other) const;
-
-    /**
+  // TODO: deleted bool check_for_conflicts(const checkpoints& other) const;
+  
+  /**
      * @brief loads the default main chain checkpoints
      * @param nettype network type
      *
      * @return true unless adding a checkpoint fails
      */
-    bool init_default_checkpoints(network_type nettype);
-
-    /**
-     * @brief load new checkpoints
-     *
-     * Loads new checkpoints from the specified json file, as well as
-     * (optionally) from DNS.
-     *
-     * @param json_hashfile_fullpath path to the json checkpoints file
-     * @param nettype network type
-     * @param dns whether or not to load DNS checkpoints
-     *
-     * @return true if loading successful and no conflicts
-     */
-    bool load_new_checkpoints(const std::string &json_hashfile_fullpath, network_type nettype=MAINNET, bool dns=true);
-
-    /**
-     * @brief load new checkpoints from json
-     *
-     * @param json_hashfile_fullpath path to the json checkpoints file
-     *
-     * @return true if loading successful and no conflicts
-     */
-    bool load_checkpoints_from_json(const std::string &json_hashfile_fullpath);
-
-    /**
-     * @brief load new checkpoints from DNS
-     *
-     * @param nettype network type
-     *
-     * @return true if loading successful and no conflicts
-     */
-    bool load_checkpoints_from_dns(network_type nettype = MAINNET);
-
-  private:
-    std::map<uint64_t, crypto::hash> m_points; //!< the checkpoints container
-  };
+  bool init(network_type nettype, class BlockchainDB *db);
+  
+private:
+  network_type m_nettype = UNDEFINED;
+  uint64_t m_last_cull_height = 0;
+  uint64_t m_immutable_height = 0;
+  BlockchainDB *m_db;
+};
 
 }

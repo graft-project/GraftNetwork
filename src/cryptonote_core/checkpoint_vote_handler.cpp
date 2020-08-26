@@ -208,7 +208,7 @@ static bool handle_checkpoint_vote(cryptonote::core& core, const checkpoint_vote
   {
     MDEBUG(__FUNCTION__ << " new checkpoint.");
     update_checkpoint = true;
-    checkpoint = make_empty_service_node_checkpoint(vote.block_hash, vote.block_height);
+    checkpoint = make_empty_rta_checkpoint(vote.block_hash, vote.block_height);
     
     checkpoint.signatures.reserve(votes.size());
     for (pool_vote_entry const &pool_vote : votes)
@@ -221,39 +221,6 @@ static bool handle_checkpoint_vote(cryptonote::core& core, const checkpoint_vote
   return true;
 }
 
-// Calculate the decommission credit for a service node.  If the SN is current decommissioned this
-// returns the number of blocks remaining in the credit; otherwise this is the number of currently
-// accumulated blocks.
-int64_t CheckpointVoteHandler::calculate_decommission_credit(const service_node_info &info, uint64_t current_height)
-{
-  // If currently decommissioned, we need to know how long it was up before being decommissioned;
-  // otherwise we need to know how long since it last become active until now (or 0 if not staked
-  // yet).
-  int64_t blocks_up;
-  if (!info.is_fully_funded())
-    blocks_up = 0;
-  if (info.is_decommissioned()) // decommissioned; the negative of active_since_height tells us when the period leading up to the current decommission started
-    blocks_up = int64_t(info.last_decommission_height) - (-info.active_since_height);
-  else
-    blocks_up = int64_t(current_height) - int64_t(info.active_since_height);
-  
-  // Now we calculate the credit earned from being up for `blocks_up` blocks
-  int64_t credit = 0;
-  if (blocks_up >= 0) {
-    credit = blocks_up * DECOMMISSION_CREDIT_PER_DAY / BLOCKS_EXPECTED_IN_HOURS(24);
-    
-    if (info.decommission_count <= info.is_decommissioned()) // Has never been decommissioned (or is currently in the first decommission), so add initial starting credit
-      credit += DECOMMISSION_INITIAL_CREDIT;
-    if (credit > DECOMMISSION_MAX_CREDIT)
-      credit = DECOMMISSION_MAX_CREDIT; // Cap the available decommission credit blocks if above the max
-  }
-  
-  // If currently decommissioned, remove any used credits used for the current downtime
-  if (info.is_decommissioned())
-    credit -= int64_t(current_height) - int64_t(info.last_decommission_height);
-  
-  return credit;
-}
 
 uint64_t quorum_checksum(const std::vector<crypto::public_key> &pubkeys, size_t offset) {
   constexpr size_t KEY_BYTES = sizeof(crypto::public_key);

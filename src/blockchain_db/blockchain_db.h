@@ -99,6 +99,9 @@
 namespace cryptonote
 {
 
+struct checkpoint_t;
+
+
 /** a pair of <transaction hash, output index>, typedef for convenience */
 typedef std::pair<crypto::hash, uint64_t> tx_out_index;
 
@@ -128,6 +131,23 @@ struct tx_data_t
   uint64_t block_id;
 };
 #pragma pack(pop)
+
+struct alt_block_data_1_t
+{
+  uint64_t height;
+  uint64_t cumulative_weight;
+  uint64_t cumulative_difficulty;
+  uint64_t already_generated_coins;
+};
+
+struct alt_block_data_t
+{
+  uint64_t height;
+  uint64_t cumulative_weight;
+  uint64_t cumulative_difficulty;
+  uint64_t already_generated_coins;
+  uint8_t  checkpointed;
+};
 
 /**
  * @brief a struct containing txpool per transaction metadata
@@ -372,6 +392,10 @@ private:
                 , const crypto::hash& blk_hash
                 ) = 0;
 
+  
+  
+  
+  
   /**
    * @brief remove data about the top block
    *
@@ -824,6 +848,17 @@ public:
                             , const std::vector<std::pair<transaction, blobdata>>& txs
                             );
 
+  virtual void update_block_checkpoint(checkpoint_t const &checkpoint) = 0;
+  virtual void remove_block_checkpoint(uint64_t height) = 0;
+  virtual bool get_block_checkpoint   (uint64_t height, checkpoint_t &checkpoint) const = 0;
+  virtual bool get_top_checkpoint     (checkpoint_t &checkpoint) const = 0;
+
+  // num_desired_checkpoints: set to GET_ALL_CHECKPOINTS to collect as many checkpoints as possible
+  static constexpr size_t GET_ALL_CHECKPOINTS = 0;
+  virtual std::vector<checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = GET_ALL_CHECKPOINTS) const = 0;
+  virtual bool get_immutable_checkpoint(checkpoint_t *immutable_checkpoint, uint64_t block_height) const;
+  
+  
   /**
    * @brief checks if a block exists
    *
@@ -1558,6 +1593,43 @@ public:
    */
 
   virtual void add_max_block_size(uint64_t sz) = 0;
+  /**
+   * @brief add a new alternative block
+   *
+   * @param: blkid the block hash
+   * @param: data: the metadata for the block
+   * @param: blob: the block's blob
+   */
+  virtual void add_alt_block(const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata &blob, const cryptonote::blobdata *checkpoint) = 0;
+
+  /**
+   * @brief get an alternative block by hash
+   *
+   * @param: blkid the block hash
+   * @param: data: the metadata for the block
+   * @param: blob: the block's blob
+   *
+   * @return true if the block was found in the alternative blocks list, false otherwise
+   */
+  virtual bool get_alt_block(const crypto::hash &blkid, alt_block_data_t *data, cryptonote::blobdata *blob, cryptonote::blobdata *checkpoint) = 0;
+
+  /**
+   * @brief remove an alternative block
+   *
+   * @param: blkid the block hash
+   */
+  virtual void remove_alt_block(const crypto::hash &blkid) = 0;
+
+  /**
+   * @brief get the number of alternative blocks stored
+   */
+  virtual uint64_t get_alt_block_count() = 0;
+
+  /**
+   * @brief drop all alternative blocks
+   */
+  virtual void drop_alt_blocks() = 0;
+  
   /**
    * @brief runs a function over all txpool transactions
    *

@@ -4251,6 +4251,7 @@ bool Blockchain::update_checkpoints(const std::string& file_path, bool check_dns
       return false;
     }
   }
+  
   else if (check_dns && !m_offline)
   {
     checkpoints dns_points;
@@ -4273,6 +4274,19 @@ bool Blockchain::update_checkpoints(const std::string& file_path, bool check_dns
 void Blockchain::set_enforce_dns_checkpoints(bool enforce_checkpoints)
 {
   m_enforce_dns_checkpoints = enforce_checkpoints;
+}
+
+bool Blockchain::update_checkpoint(cryptonote::checkpoint_t const &checkpoint)
+{
+  auto lock = tools::unique_lock(*this);
+  bool result = m_checkpoints.update_checkpoint(checkpoint);
+  return result;
+}
+//------------------------------------------------------------------
+bool Blockchain::get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const
+{
+  auto lock = tools::unique_lock(*this);
+  return m_checkpoints.get_checkpoint(height, checkpoint);
 }
 
 //------------------------------------------------------------------

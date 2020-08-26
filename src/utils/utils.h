@@ -1,4 +1,6 @@
-// Copyright (c) 2018, The Graft Project
+// Copyright (c) 2018-2020, The Graft Project
+// Copyright (c) 2018, The Loki Project
+
 //
 // All rights reserved.
 //
@@ -50,6 +52,9 @@ bool lookup_account_outputs_ringct(const cryptonote::account_keys &acc, const cr
 bool get_tx_amount(const cryptonote::account_public_address &address, const crypto::secret_key &key, const cryptonote::transaction &tx,
                                    std::vector<std::pair<size_t, uint64_t>> &outputs, uint64_t &total_transfered);
 
+
+template <typename T, size_t N>
+constexpr size_t array_count(T (&)[N]) { return N; }
 } // namespace
 
 #endif // UTILS_H
