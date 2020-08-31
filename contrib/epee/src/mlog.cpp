@@ -525,7 +525,7 @@ static bool mlog(el::Level level, const char *category, const char *format, va_l
 
   try
   {
-    MCLOG(level, category, el::Color::Default, p);
+    MCLOG(level, category, p);
   }
   catch(...)
   {
