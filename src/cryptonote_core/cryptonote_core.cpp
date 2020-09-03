@@ -214,13 +214,18 @@ namespace cryptonote
     "is acted upon."
   , ""
   };
+  static const command_line::arg_descriptor<bool> arg_keep_alt_blocks  = {
+    "keep-alt-blocks"
+  , "Keep alternative blocks on restart"
+  , false
+  };
 
   //-----------------------------------------------------------------------------------------------
   core::core(i_cryptonote_protocol* pprotocol):
               m_mempool(m_blockchain_storage),
               m_blockchain_storage(m_mempool),
               m_graft_stake_transaction_processor(m_blockchain_storage),
-              m_miner(this),
+              m_miner(this, &m_blockchain_storage),
               m_miner_address(boost::value_initialized<account_public_address>()),
               m_starter_message_showed(false),
               m_target_blockchain_height(0),
@@ -333,6 +338,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_prune_blockchain);
     command_line::add_arg(desc, arg_reorg_notify);
     command_line::add_arg(desc, arg_block_rate_notify);
+    command_line::add_arg(desc, arg_keep_alt_blocks);
 
     miner::init_options(desc);
     BlockchainDB::init_options(desc);
@@ -471,6 +477,7 @@ namespace cryptonote
     std::string check_updates_string = command_line::get_arg(vm, arg_check_updates);
     size_t max_txpool_weight = command_line::get_arg(vm, arg_max_txpool_weight);
     bool prune_blockchain = command_line::get_arg(vm, arg_prune_blockchain);
+    bool keep_alt_blocks = command_line::get_arg(vm, arg_keep_alt_blocks);
 
     boost::filesystem::path folder(m_config_folder);
     if (m_nettype == FAKECHAIN)
@@ -671,6 +678,8 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     block_sync_size = command_line::get_arg(vm, arg_block_sync_size);
+    if (block_sync_size > BLOCKS_SYNCHRONIZING_MAX_COUNT)
+      MERROR("Error --block-sync-size cannot be greater than " << BLOCKS_SYNCHRONIZING_MAX_COUNT);
 
     MGINFO("Loading checkpoints");
 
@@ -694,6 +703,9 @@ namespace cryptonote
 
     r = m_miner.init(vm, m_nettype);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize miner instance");
+
+    if (!keep_alt_blocks && !m_blockchain_storage.get_db().is_read_only())
+      m_blockchain_storage.get_db().drop_alt_blocks();
 
     if (prune_blockchain)
     {
@@ -1676,18 +1688,18 @@ namespace cryptonote
       return true;
 
     HardFork::State state = m_blockchain_storage.get_hard_fork_state();
-    const el::Level level = el::Level::Warning;
+    el::Level level;
     switch (state) {
       case HardFork::LikelyForked:
+        level = el::Level::Warning;
         MCLOG_RED(level, "global", "**********************************************************************");
         MCLOG_RED(level, "global", "Last scheduled hard fork is too far in the past.");
         MCLOG_RED(level, "global", "We are most likely forked from the network. Daemon update needed now.");
         MCLOG_RED(level, "global", "**********************************************************************");
         break;
       case HardFork::UpdateNeeded:
-        MCLOG_RED(level, "global", "**********************************************************************");
-        MCLOG_RED(level, "global", "Last scheduled hard fork time shows a daemon update is needed soon.");
-        MCLOG_RED(level, "global", "**********************************************************************");
+        level = el::Level::Info;
+        MCLOG(level, "global", "Last scheduled hard fork time suggests a daemon update will be released within the next couple months.");
         break;
       default:
         break;
