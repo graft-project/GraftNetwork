@@ -42,6 +42,7 @@
 #include "ringct/rctSigs.h"
 #include "serialization/binary_utils.h" 
 #include "cryptonote_basic/verification_context.h"
+#include "cryptonote_core/checkpoint_vote.h"
 
 using namespace epee;
 
@@ -989,8 +990,10 @@ namespace cryptonote
     if (tvc.m_not_rct)                   bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "TX is not a valid RCT TX., ");
     if (tvc.m_invalid_version)           bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "TX has invalid version, ");
     if (tvc.m_invalid_type)              bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "TX has invalid type, ");
+#if 0 // TODO
     if (tvc.m_key_image_locked_by_snode) bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Key image is locked by service node, ");
     if (tvc.m_key_image_blacklisted)     bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Key image is blacklisted on the service node network, ");
+#endif    
 
     if (tx)
     {
@@ -1015,8 +1018,8 @@ namespace cryptonote
     char *bufPtr = buf;
     char *bufEnd = buf + sizeof(buf);
     if (vvc.m_invalid_block_height)          bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Invalid block height: %s, ",          vote ? std::to_string(vote->block_height).c_str() : "??");
-    if (vvc.m_duplicate_voters)              bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Index in group was duplicated: %s, ", vote ? std::to_string(vote->signature.key_index.c_str() : "??");
-    if (vvc.m_validator_index_out_of_bounds) bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Validator index out of bounds");
+    if (vvc.m_duplicate_voters)              bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Index in group was duplicated: %s, ", vote ? std::to_string(vote->signature.key_index).c_str() : "??");
+    if (vvc.m_voter_index_out_of_bounds)     bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Voter index out of bounds");
     if (vvc.m_signature_not_valid)           bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Signature not valid, ");
     if (vvc.m_added_to_pool)                 bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Added to pool, ");
     if (vvc.m_not_enough_votes)              bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Not enough votes, ");

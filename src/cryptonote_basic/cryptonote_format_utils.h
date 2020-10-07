@@ -50,6 +50,8 @@ namespace rta  { struct checkpoint_vote; }
 
 namespace cryptonote
 {
+  struct tx_verification_context;
+  struct vote_verification_context;
   //---------------------------------------------------------------
   void get_transaction_prefix_hash(const transaction_prefix& tx, crypto::hash& h);
   crypto::hash get_transaction_prefix_hash(const transaction_prefix& tx);
