@@ -124,7 +124,8 @@ class checkpoints
   {
   public:
     bool block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, checkpoint_t const *checkpoint) override;
-    void blockchain_detached(uint64_t height) override;
+    void blockchain_detached(uint64_t height, bool by_pop_blocks) override;
+    
 
     bool get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const;
     /**
@@ -171,6 +172,24 @@ class checkpoints
      *         false otherwise
      */
     bool check_block(uint64_t height, const crypto::hash& h, bool *is_a_checkpoint = nullptr, bool *rta_checkpoint = nullptr) const;
+    
+    /**
+     * @brief checks if alternate chain blocks should be kept for a given height and updates
+     * m_immutable_height based on the available checkpoints
+     *
+     * this basically says if the blockchain is smaller than the first
+     * checkpoint then alternate blocks are allowed.  Alternatively, if the
+     * last checkpoint *before* the end of the current chain is also before
+     * the block to be added, then this is fine.
+     *
+     * @param blockchain_height the current blockchain height
+     * @param block_height the height of the block to be added as alternate
+     *
+     * @return true if alternate blocks are allowed given the parameters,
+     *         otherwise false
+     */
+    bool is_alternative_block_allowed(uint64_t blockchain_height, uint64_t block_height, bool *service_node_checkpoint = nullptr);
+    
  
   /**
      * @brief gets the highest checkpoint height

@@ -40,6 +40,7 @@
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "utils/utils.h"
+#include "graft_rta_config.h"
 
 using namespace epee;
 
@@ -111,7 +112,74 @@ namespace cryptonote
    checkpoint_hashes = std::move(hashes.hashlines);
    return true;
  }
- 
+ //---------------------------------------------------------------------------
+ bool checkpoints::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, checkpoint_t const *checkpoint)
+ {
+   MINFO(__FUNCTION__ << ", checkpoint: " << checkpoint);
+   uint64_t const height = get_block_height(block);
+   if (height < config::graft::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL || block.major_version < network_version_18_checkpointing)
+     return true;
+
+   uint64_t end_cull_height = 0;
+   {
+     checkpoint_t immutable_checkpoint;
+     if (m_db->get_immutable_checkpoint(&immutable_checkpoint, height + 1))
+       end_cull_height = immutable_checkpoint.height;
+   }
+   uint64_t start_cull_height = (end_cull_height < config::graft::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL)
+                                    ? 0
+                                    : end_cull_height - config::graft::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL;
+
+   if ((start_cull_height % config::graft::CHECKPOINT_INTERVAL) > 0)
+     start_cull_height += (config::graft::CHECKPOINT_INTERVAL - (start_cull_height % config::graft::CHECKPOINT_INTERVAL));
+
+   m_last_cull_height = std::max(m_last_cull_height, start_cull_height);
+   auto guard         = db_wtxn_guard(m_db);
+   for (; m_last_cull_height < end_cull_height; m_last_cull_height += config::graft::CHECKPOINT_INTERVAL)
+   {
+     if (m_last_cull_height % config::graft::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL == 0)
+       continue;
+
+     try
+     {
+       m_db->remove_block_checkpoint(m_last_cull_height);
+     }
+     catch (const std::exception &e)
+     {
+       MERROR("Pruning block checkpoint on block added failed non-trivially at height: " << m_last_cull_height << ", what = " << e.what());
+     }
+   }
+
+   if (checkpoint)
+       update_checkpoint(*checkpoint);
+
+   return true;
+ }
+ //---------------------------------------------------------------------------
+ void checkpoints::blockchain_detached(uint64_t height, bool /*by_pop_blocks*/)
+ {
+   m_last_cull_height = std::min(m_last_cull_height, height);
+
+   checkpoint_t top_checkpoint;
+   auto guard = db_wtxn_guard(m_db);
+   if (m_db->get_top_checkpoint(top_checkpoint))
+   {
+     uint64_t start_height = top_checkpoint.height;
+     for (size_t delete_height = start_height;
+          delete_height >= height && delete_height >= config::graft::CHECKPOINT_INTERVAL;
+          delete_height -= config::graft::CHECKPOINT_INTERVAL)
+     {
+       try
+       {
+         m_db->remove_block_checkpoint(delete_height);
+       }
+       catch (const std::exception &e)
+       {
+         MERROR("Remove block checkpoint on detach failed non-trivially at height: " << delete_height << ", what = " << e.what());
+       }
+     }
+   }
+ }
  
  //---------------------------------------------------------------------------
  bool checkpoints::get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const
