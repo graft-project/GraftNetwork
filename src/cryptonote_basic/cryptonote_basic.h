@@ -160,7 +160,6 @@ namespace cryptonote
 
   public:
     // graft: introducing transaction type. currently this field is not used to calculate tx hash
-    // TODO: probably move it to transaction_prefix.extra
     enum tx_type {
       // generic monero transaction;
       tx_type_generic = 0,
@@ -168,7 +167,16 @@ namespace cryptonote
       tx_type_rta = 1,
       tx_type_invalid = 255
     };
+    enum tx_version {
+      tx_version_v0 = 0,
+      tx_version_v1,
+      tx_version_v2_ringct,
+      tx_version_v3_rta, // "intermediate" version of rta tx; "type" field wasn't included into transaction_prefix
+      tx_version_v4_rta_tx_type, // current version of rta tx; "type" field is in transaction_prefix
+    };
+
     // tx information
+    // Graft: TODO: consider to make it "fixed" (platform independent) lenght integer;
     size_t   version;
     size_t   type = tx_type_generic;
     // graft: tx type field
@@ -202,6 +210,8 @@ namespace cryptonote
       vout.clear();
       extra.clear();
     }
+    static char const *version_to_string(size_t v);
+    static char const *type_to_string(size_t type);
   };
 
   /************************************************************************/
@@ -552,7 +562,27 @@ namespace cryptonote
     }
   };
   //---------------------------------------------------------------
+  inline char const *transaction_prefix::version_to_string(size_t v)
+  {
+    switch(v)
+    {
+      case tx_version_v1:                         return "1";
+      case tx_version_v2_ringct:                  return "2_ringct";
+      case tx_version_v3_rta:                     return "3_rta";
+      case tx_version_v4_rta_tx_type:             return "4_rta_tx_type";
+      default: assert(false);                     return "xx_unhandled_version";
+    }
+  }
 
+  inline char const *transaction_prefix::type_to_string(size_t type)
+  {
+    switch(type)
+    {
+      case tx_type_generic:                return "generic";
+      case tx_type_rta    :                return "rta";
+      default: assert(false);               return "xx_unhandled_type";
+    }
+  }
 }
 
 namespace std {
