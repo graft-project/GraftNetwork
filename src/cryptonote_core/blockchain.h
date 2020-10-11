@@ -333,12 +333,14 @@ namespace cryptonote
      * chain.  If the block does not belong, is already in the blockchain
      * or an alternate chain, or is invalid, return false.
      *
-     * @param bl_ the block to be added
+     * @param bl the block to be added
      * @param bvc metadata about the block addition's success/failure
+     * @param checkpoint optional checkpoint if there is one associated with the block
      *
      * @return true on successful addition to the blockchain, else false
      */
-    bool add_new_block(const block& bl_, block_verification_context& bvc);
+    bool add_new_block(const block& bl, block_verification_context& bvc, checkpoint_t const *checkpoint);
+    
 
     /**
      * @brief clears the blockchain and starts a new one
@@ -725,7 +727,11 @@ namespace cryptonote
      *
      * @return false if any enforced checkpoint type fails to load, otherwise true
      */
-    bool update_checkpoints(const std::string& file_path);
+    bool update_checkpoints_from_json_file(const std::string& file_path);
+
+    bool update_checkpoint(checkpoint_t const &checkpoint);
+
+    bool get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const;
 
     // user options, must be called before calling init()
 
@@ -992,8 +998,15 @@ namespace cryptonote
     uint64_t get_immutable_height() const;
 
 
-    uint64_t get_immutable_height() const;
+    void lock() const { m_blockchain_lock.lock(); }
+    void unlock() const { m_blockchain_lock.unlock(); }
+    bool try_lock() const { return m_blockchain_lock.try_lock(); }
 
+    /* These are needed as a workaround for boost::lock not considering the type lockable if const
+     * versions are defined.  When we switch to std::lock these can go. */
+    void lock() { m_blockchain_lock.lock(); }
+    void unlock() { m_blockchain_lock.unlock(); }
+    bool try_lock() { return m_blockchain_lock.try_lock(); }
 
     void cancel();
 

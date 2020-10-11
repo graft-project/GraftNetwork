@@ -28,7 +28,6 @@
 
 #include <boost/range/adaptor/reversed.hpp>
 
-#include "cryptonote_core/service_node_rules.h"
 #include "checkpoints/checkpoints.h"
 #include "string_tools.h"
 #include "blockchain_db.h"

@@ -426,7 +426,7 @@ private:
   void add_max_block_size(uint64_t sz);
 
   // fix up anything that may be wrong due to past bugs
-  virtual void fixup(fixup_context const context);
+  virtual void fixup(/*fixup_context const context*/);
 
   // migrate from older DB version to current
   void migrate(const uint32_t oldversion);

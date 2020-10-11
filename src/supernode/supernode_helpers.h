@@ -1,4 +1,5 @@
 // Copyright (c) 2017, The Graft Project
+// Copyright (c) 2018, The Loki Project
 //
 // All rights reserved.
 //
@@ -27,8 +28,8 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef SYUPERNODE_HELPERS_H
-#define SYUPERNODE_HELPERS_H
+#ifndef SUPERNODE_HELPERS_H
+#define SUPERNODE_HELPERS_H
 
 #include <boost/tokenizer.hpp>
 #include <string>
@@ -48,18 +49,38 @@ std::string hex64_to_base32z(std::string const& src);
 uint64_t    clamp_u64       (uint64_t min, uint64_t val, uint64_t max);
 
 template <typename lambda_t>
-struct defer
+struct deferred
 {
+private:
   lambda_t lambda;
-  defer(lambda_t lambda) : lambda(lambda) {}
-  ~defer() { lambda(); }
+  bool cancelled = false;
+public:
+  deferred(lambda_t lambda) : lambda(lambda) {}
+  void cancel() { cancelled = true; }
+  ~deferred() { if (!cancelled) lambda(); }
 };
 
+template <typename lambda_t>
+#ifdef __GNUG__
+[[gnu::warn_unused_result]]
+#endif
+deferred<lambda_t> defer(lambda_t lambda) { return lambda; }
 
+struct defer_helper
+{
+  template <typename lambda_t>
+  deferred<lambda_t> operator+(lambda_t lambda) { return lambda; }
+};
+
+#define LOKI_TOKEN_COMBINE2(x, y) x ## y
+#define LOKI_TOKEN_COMBINE(x, y) LOKI_TOKEN_COMBINE2(x, y)
+#define LOKI_DEFER auto const LOKI_TOKEN_COMBINE(loki_defer_, __LINE__) = loki::defer_helper() + [&]()
 
 template <typename T, size_t N>
 constexpr size_t array_count(T (&)[N]) { return N; }
 
+template <typename T, size_t N>
+constexpr size_t char_count(T (&)[N]) { return N - 1; }
 
 }; // namespace Loki
 
