@@ -221,7 +221,7 @@ namespace cryptonote
               m_blockchain_storage(m_mempool),
               m_graft_stake_transaction_processor(m_blockchain_storage),
               m_miner(this, &m_blockchain_storage),
-              m_miner(this),
+              m_checkpoint_vote_handler(*this),
               m_miner_address(boost::value_initialized<account_public_address>()),
               m_starter_message_showed(false),
               m_target_blockchain_height(0),
@@ -615,6 +615,12 @@ namespace cryptonote
 
     // Checkpoints
     {
+      
+      m_blockchain_storage.hook_init(m_checkpoint_vote_handler);
+      m_blockchain_storage.hook_block_added(m_checkpoint_vote_handler);
+      m_blockchain_storage.hook_blockchain_detached(m_checkpoint_vote_handler);
+    
+      
       auto data_dir = boost::filesystem::path(m_config_folder);
       boost::filesystem::path json(JSON_HASH_FILE_NAME);
       boost::filesystem::path checkpoint_json_hashfile_fullpath = data_dir / json;
@@ -645,7 +651,7 @@ namespace cryptonote
 
     // load json checkpoints and verify them
     // with respect to what blocks we already have
-    CHECK_AND_ASSERT_MES(update_checkpoints(), false, "One or more checkpoints loaded from json conflicted with existing checkpoints.");
+    CHECK_AND_ASSERT_MES(update_checkpoints_from_json_file(), false, "One or more checkpoints loaded from json conflicted with existing checkpoints.");
 
    // DNS versions checking
     if (check_updates_string == "disabled")
@@ -1273,40 +1279,19 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::relay_checkpoint_votes()
   {
-    const time_t now = time(nullptr);
+    auto height = get_current_blockchain_height();
+    auto hf_version = get_hard_fork_version(height);
 
-    // Get relayable votes
-    NOTIFY_NEW_CHECKPOINT_VOTE::request req = {};
-
-    std::vector<service_nodes::checkpoint_vote *> relayed_votes;
-    for (Blockchain::service_node_checkpoint_pool_entry &pool_entry: m_blockchain_storage.m_checkpoint_pool)
+    auto checkpoint_votes  = m_checkpoint_vote_handler.get_relayable_votes(height, hf_version);
+    if (!checkpoint_votes.empty())
     {
-      
-      // TODO: graft  
-      for (service_nodes::checkpoint_vote &vote : pool_entry.votes)
-      {
-        const time_t elapsed         = now - vote.time_last_sent_p2p;
-        const time_t RELAY_THRESHOLD = 60 * 2;
-        if (elapsed > RELAY_THRESHOLD)
-        {
-          relayed_votes.push_back(&vote);
-          req.votes.push_back(vote);
-        }
-      }
+      NOTIFY_NEW_CHECKPOINT_VOTE::request req{};
+      req.votes = std::move(checkpoint_votes);
+      cryptonote_connection_context fake_context{};
+      get_protocol()->relay_checkpoint_votes(req, fake_context);
     }
-
-    // Relay and update timestamp of when we last sent the vote
-    if (!req.votes.empty())
-    {
-      cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
-      if (get_protocol()->relay_checkpoint_votes(req, fake_context))
-      {
-        for (service_nodes::checkpoint_vote *vote : relayed_votes)
-          vote->time_last_sent_p2p = now;
-      }
-    }
-
     return true;
+    
   }
   bool core::get_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
   {
@@ -1393,7 +1378,7 @@ namespace cryptonote
       m_miner.resume();
       return false;
     }
-    add_new_block(b, bvc);
+    add_new_block(b, bvc, nullptr);
     cleanup_handle_incoming_blocks(true);
     //anyway - update miner template
     update_miner_block_template();
@@ -1437,11 +1422,11 @@ namespace cryptonote
     m_blockchain_storage.safesyncmode(onoff);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::add_new_block(const block& b, block_verification_context& bvc)
+  bool core::add_new_block(const block& b, block_verification_context& bvc, const checkpoint_t *checkpoint)
   {
     // TODO: graft: relay checkpoint votes here?
     // relay_service_node_votes(); // NOTE: nop if synchronising due to not accepting votes whilst syncing
-    if (!m_blockchain_storage.add_new_block(b, bvc))
+    if (!m_blockchain_storage.add_new_block(b, bvc, checkpoint))
       return false;
 
     m_graft_stake_transaction_processor.synchronize();
@@ -2021,11 +2006,7 @@ namespace cryptonote
   {
     return m_service_node_list.get_service_node_list_state(service_node_pubkeys);
   }
-  //-----------------------------------------------------------------------------------------------
-  bool core::add_service_node_vote(const service_nodes::quorum_vote_t& vote, vote_verification_context &vvc)
-  {
-    return m_quorum_cop.handle_vote(vote, vvc);
-  }
+  
   //-----------------------------------------------------------------------------------------------
   bool core::get_service_node_keys(crypto::public_key &pub_key, crypto::secret_key &sec_key) const
   {
@@ -2038,6 +2019,13 @@ namespace cryptonote
     return true;
   }
 #endif
+  //-----------------------------------------------------------------------------------------------
+  bool core::add_checkpoint_vote(const rta::checkpoint_vote& vote, vote_verification_context &vvc)
+  {
+    return m_checkpoint_vote_handler.handle_vote(vote, vvc);
+  }
+  
+  
   uint32_t core::get_blockchain_pruning_seed() const
   {
     return get_blockchain_storage().get_blockchain_pruning_seed();

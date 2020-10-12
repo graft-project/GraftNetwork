@@ -64,7 +64,7 @@ public:
   bool  handle_vote(const checkpoint_vote &vote, cryptonote::vote_verification_context &vvc);
   
   void  set_votes_relayed  (const std::vector<checkpoint_vote>  &relayed_votes);
-  std::vector<checkpoint_vote> get_relayable_votes(uint64_t current_height, uint8_t hf_version, bool quorum_relay);
+  std::vector<checkpoint_vote> get_relayable_votes(uint64_t current_height, uint8_t hf_version);
   
   
 private:

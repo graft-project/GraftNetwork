@@ -45,6 +45,7 @@
 #include "cryptonote_basic/miner.h"
 #include "cryptonote_basic/connection_context.h"
 #include "cryptonote_basic/cryptonote_stat_info.h"
+#include "checkpoint_vote_handler.h"
 #include "warnings.h"
 #include "crypto/hash.h"
 
@@ -722,7 +723,7 @@ namespace cryptonote
       *
       * @return which network are we on?
       */
-     network_type get_nettype() const { return m_nettype; };
+     network_type get_nettype() const { return m_nettype; }
 
      /**
       * @brief check whether an update is known to be available or not
@@ -791,6 +792,14 @@ namespace cryptonote
      void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height);
 
      /**
+      * @brief add_checkpoint_vote
+      * @param vote
+      * @param vvc
+      * @return 
+      */
+     bool add_checkpoint_vote(const rta::checkpoint_vote& vote, vote_verification_context &vvc);
+     
+     /**
       * @brief get the blockchain pruning seed
       *
       * @return the blockchain pruning seed
@@ -832,6 +841,9 @@ namespace cryptonote
      /// @brief return a reference to the service node list
      tx_memory_pool &get_pool() { return m_mempool; }
      
+     bool relay_checkpoint_votes();
+
+     
    private:
 
      /**
@@ -869,7 +881,7 @@ namespace cryptonote
       *
       * @note see Blockchain::add_new_block
       */
-     bool add_new_block(const block& b, block_verification_context& bvc);
+     bool add_new_block(const block& b, block_verification_context& bvc, const checkpoint_t * checkpoint);
 
      /**
       * @brief load any core state stored on disk
@@ -1014,6 +1026,9 @@ namespace cryptonote
       * @return true on success, false otherwise
       */
      bool check_block_rate();
+     
+     
+     
 
      bool m_test_drop_download = true; //!< whether or not to drop incoming blocks (for testing)
 
@@ -1081,6 +1096,8 @@ namespace cryptonote
      bool m_pad_transactions;
 
      std::shared_ptr<tools::Notify> m_block_rate_notify;
+     
+     rta::CheckpointVoteHandler m_checkpoint_vote_handler;
    };
 }
 

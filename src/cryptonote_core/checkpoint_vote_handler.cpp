@@ -120,9 +120,9 @@ void CheckpointVoteHandler::set_votes_relayed(std::vector<checkpoint_vote> const
   m_vote_pool.set_relayed(relayed_votes);
 }
 
-std::vector<checkpoint_vote> CheckpointVoteHandler::get_relayable_votes(uint64_t current_height, uint8_t hf_version, bool quorum_relay)
+std::vector<checkpoint_vote> CheckpointVoteHandler::get_relayable_votes(uint64_t current_height, uint8_t hf_version)
 {
-  return m_vote_pool.get_relayable_votes(current_height, hf_version, quorum_relay);
+  return m_vote_pool.get_relayable_votes(current_height, hf_version, false);
 }
 
 int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, crypto::public_key const &my_pubkey)
