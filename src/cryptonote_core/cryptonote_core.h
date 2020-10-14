@@ -842,6 +842,8 @@ namespace cryptonote
      tx_memory_pool &get_pool() { return m_mempool; }
      
      bool relay_checkpoint_votes();
+     
+     rta::CheckpointVoteHandler *get_vote_handler()  { return &m_checkpoint_vote_handler; }
 
      
    private:

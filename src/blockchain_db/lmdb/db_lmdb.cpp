@@ -31,6 +31,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 #include <boost/circular_buffer.hpp>
+#include <boost/endian/conversion.hpp>
 #include <memory>  // std::unique_ptr
 #include <cstring>  // memcpy
 
@@ -46,6 +47,9 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "blockchain.db.lmdb"
 #include "checkpoints/checkpoints.h"
+#include "graft_rta_config.h"
+#include "supernode/supernode_helpers.h"
+
 
 #if defined(__i386) || defined(__x86_64)
 #define MISALIGNED_OK	1
@@ -3901,7 +3905,7 @@ void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
   header.block_hash            = checkpoint.block_hash;
   header.num_signatures        = checkpoint.signatures.size();
 
-  size_t const MAX_BYTES_REQUIRED   = sizeof(header) + (sizeof(*checkpoint.signatures.data()) * service_nodes::CHECKPOINT_QUORUM_SIZE);
+  size_t const MAX_BYTES_REQUIRED   = sizeof(header) + (sizeof(*checkpoint.signatures.data()) * config::graft::CHECKPOINT_QUORUM_SIZE);
   uint8_t buffer[MAX_BYTES_REQUIRED];
 
   size_t const bytes_for_signatures = sizeof(*checkpoint.signatures.data()) * header.num_signatures;
@@ -3973,18 +3977,18 @@ static checkpoint_t convert_mdb_val_to_checkpoint(MDB_val const value)
   checkpoint_t result = {};
   auto const *header  = static_cast<blk_checkpoint_header const *>(value.mv_data);
   auto const *signatures =
-      reinterpret_cast<service_nodes::voter_to_signature *>(static_cast<uint8_t *>(value.mv_data) + sizeof(*header));
+      reinterpret_cast<cryptonote::rta_signature*>(static_cast<uint8_t *>(value.mv_data) + sizeof(*header));
 
   boost::endian::little_to_native_inplace(header->height);
   boost::endian::little_to_native_inplace(header->num_signatures);
 
   result.height     = header->height;
-  result.type       = (header->num_signatures > 0) ? checkpoint_type::service_node : checkpoint_type::hardcoded;
+  result.type       = (header->num_signatures > 0) ? checkpoint_type::supernode : checkpoint_type::hardcoded;
   result.block_hash = header->block_hash;
   result.signatures.reserve(header->num_signatures);
   for (size_t i = 0; i < header->num_signatures; ++i)
   {
-    service_nodes::voter_to_signature const *signature = signatures + i;
+    cryptonote::rta_signature const *signature = signatures + i;
     result.signatures.push_back(*signature);
   }
 
@@ -4117,44 +4121,6 @@ std::vector<checkpoint_t> BlockchainLMDB::get_checkpoints_range(uint64_t start, 
   return result;
 }
 
-void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)
-{
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  check_open();
-
-  block_wtxn_start();
-
-  try
-  {
-    BlockchainDB::pop_block(blk, txs);
-    block_wtxn_stop();
-  }
-  catch (...)
-  {
-    block_wtxn_abort();
-    throw;
-  }
-}
-
-void BlockchainLMDB::get_output_tx_and_index_from_global(const std::vector<uint64_t> &global_indices,
-    std::vector<tx_out_index> &tx_out_indices) const
-{
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  check_open();
-  tx_out_indices.clear();
-  tx_out_indices.reserve(global_indices.size());
-
-  TXN_PREFIX_RDONLY();
-  RCURSOR(output_txs);
-
-  for (const uint64_t &output_id : global_indices)
-  {
-    MDB_val_set(v, output_id);
-
-    auto get_result = mdb_cursor_get(m_cur_output_txs, (MDB_val *)&zerokval, &v, MDB_GET_BOTH);
-    if (get_result == MDB_NOTFOUND)
-      throw1(OUTPUT_DNE("output with given index not in db"));
-    else if (get_result)
 void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);

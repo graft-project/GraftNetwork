@@ -36,6 +36,7 @@
 #include "ringct/rctOps.h"
 
 #include "lmdb/db_lmdb.h"
+#include "graft_rta_config.h"
 #ifdef BERKELEY_DB
 #include "berkeleydb/db_bdb.h"
 #endif
@@ -976,7 +977,8 @@ void BlockchainDB::fixup()
 
 bool BlockchainDB::get_immutable_checkpoint(checkpoint_t *immutable_checkpoint, uint64_t block_height) const
 {
-  size_t constexpr NUM_CHECKPOINTS = service_nodes::CHECKPOINT_NUM_CHECKPOINTS_FOR_CHAIN_FINALITY;
+  
+  size_t constexpr NUM_CHECKPOINTS = config::graft::CHECKPOINT_NUM_CHECKPOINTS_FOR_CHAIN_FINALITY;
   static_assert(NUM_CHECKPOINTS == 2,
                 "Expect checkpoint finality to be 2, otherwise the immutable logic needs to check for any hardcoded "
                 "checkpoints inbetween");
@@ -987,7 +989,7 @@ bool BlockchainDB::get_immutable_checkpoint(checkpoint_t *immutable_checkpoint, 
     return false;
 
   checkpoint_t *checkpoint_ptr = nullptr;
-  if (checkpoints[0].type != checkpoint_type::service_node) // checkpoint[0] is the first closest checkpoint that is <= my height
+  if (checkpoints[0].type != checkpoint_type::supernode) // checkpoint[0] is the first closest checkpoint that is <= my height
   {
     checkpoint_ptr = &checkpoints[0]; // Must be hard-coded then, always immutable
   }

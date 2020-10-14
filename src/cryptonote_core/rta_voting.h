@@ -36,7 +36,6 @@
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/blobdatatype.h"
 #include "cryptonote_basic/tx_extra.h"
-#include "cryptonote_core/checkpoint_vote_handler.h"
 #include "cryptonote_core/blockchain_based_list.h"
 
 #include "string_tools.h"
@@ -132,5 +131,5 @@ private:
   
   mutable epee::critical_section m_lock;
 };
-}; // namespace service_nodes
+}; // namespace rta
 

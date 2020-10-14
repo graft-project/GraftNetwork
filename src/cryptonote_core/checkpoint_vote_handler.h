@@ -45,8 +45,6 @@ namespace cryptonote
 
 namespace rta
 {
- 
-
 
 class CheckpointVoteHandler
     : public cryptonote::BlockAddedHook,

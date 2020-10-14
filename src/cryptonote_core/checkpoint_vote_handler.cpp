@@ -199,7 +199,7 @@ static bool handle_checkpoint_vote(cryptonote::core& core, const checkpoint_vote
             pool_vote.vote.signature.key_index != it->key_index)
         {
           update_checkpoint = true;
-          checkpoint.signatures.insert(it, voter_to_signature(pool_vote.vote));
+          checkpoint.signatures.insert(it, pool_vote.vote.signature);
         }
       }
     }
@@ -212,7 +212,7 @@ static bool handle_checkpoint_vote(cryptonote::core& core, const checkpoint_vote
     
     checkpoint.signatures.reserve(votes.size());
     for (pool_vote_entry const &pool_vote : votes)
-      checkpoint.signatures.push_back(voter_to_signature(pool_vote.vote));
+      checkpoint.signatures.push_back(pool_vote.vote.signature);
   }
   
   if (update_checkpoint)
