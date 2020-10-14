@@ -1150,16 +1150,6 @@ namespace cryptonote
     return m_spent_key_images.end() != m_spent_key_images.find(key_im);
   }
   //---------------------------------------------------------------------------------
-  void tx_memory_pool::lock() const
-  {
-    m_transactions_lock.lock();
-  }
-  //---------------------------------------------------------------------------------
-  void tx_memory_pool::unlock() const
-  {
-    m_transactions_lock.unlock();
-  }
-  //---------------------------------------------------------------------------------
   bool tx_memory_pool::check_tx_inputs(const std::function<cryptonote::transaction&(void)> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block) const
   {
     if (!kept_by_block)
