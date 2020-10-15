@@ -219,6 +219,28 @@ namespace cryptonote
      
      return r;
  }
+ //---------------------------------------------------------------------------
+ bool checkpoints::update_checkpoint(checkpoint_t const &checkpoint)
+ {
+   // NOTE(loki): Assumes checkpoint is valid
+   bool result        = true;
+   bool batch_started = false;
+   MINFO(__FUNCTION__ << ", type: " << checkpoint.type_to_string(checkpoint.type) << ", height: " << checkpoint.height << ", hash: " << checkpoint.block_hash);
+   try
+   {
+     batch_started = m_db->batch_start();
+     m_db->update_block_checkpoint(checkpoint);
+   }
+   catch (const std::exception& e)
+   {
+     MERROR("Failed to add checkpoint with hash: " << checkpoint.block_hash << " at height: " << checkpoint.height << ", what = " << e.what());
+     result = false;
+   }
+
+   if (batch_started)
+     m_db->batch_stop();
+   return result;
+ }
   //---------------------------------------------------------------------------
   bool checkpoints::is_in_checkpoint_zone(uint64_t height) const
   {

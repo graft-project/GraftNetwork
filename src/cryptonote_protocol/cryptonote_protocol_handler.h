@@ -130,6 +130,32 @@ namespace cryptonote
     int handle_request_fluffy_missing_tx(int command, NOTIFY_REQUEST_FLUFFY_MISSING_TX::request& arg, cryptonote_connection_context& context);
     int handle_notify_new_checkpoint_vote(int command, NOTIFY_NEW_CHECKPOINT_VOTE::request& arg, cryptonote_connection_context& context);
     //----------------- i_bc_protocol_layout ---------------------------------------
+    template<class T>
+    bool relay_to_synchronized_peers(typename T::request& arg, cryptonote_connection_context& exclude_context)
+    {
+      LOG_PRINT_L2("[" << epee::net_utils::print_connection_context_short(exclude_context) << "] post relay " << typeid(T).name() << " -->");
+      std::vector<std::pair<epee::net_utils::zone, boost::uuids::uuid>> connections;
+      m_p2p->for_each_connection([&exclude_context, &connections](connection_context& context, nodetool::peerid_type peer_id, uint32_t support_flags)
+      {
+        if (context.m_state > cryptonote_connection_context::state_synchronizing)
+        {
+          epee::net_utils::zone zone = context.m_remote_address.get_zone();
+          if (peer_id && exclude_context.m_connection_id != context.m_connection_id)
+            connections.push_back({zone, context.m_connection_id});
+        }
+        return true;
+      });
+
+      if (connections.size())
+      {
+        std::string arg_buff;
+        epee::serialization::store_t_to_binary(arg, arg_buff);
+        return m_p2p->relay_notify_to_list(T::ID, epee::strspan<uint8_t>(arg_buff), std::move(connections));
+      }
+
+      return true;
+    }
+    
     virtual bool relay_block(NOTIFY_NEW_BLOCK::request& arg, cryptonote_connection_context& exclude_context);
     virtual bool relay_transactions(NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& exclude_context);
     virtual bool relay_checkpoint_votes(NOTIFY_NEW_CHECKPOINT_VOTE::request& arg, cryptonote_connection_context& exclude_context);

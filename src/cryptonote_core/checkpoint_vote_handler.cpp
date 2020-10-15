@@ -55,6 +55,11 @@ CheckpointVoteHandler::CheckpointVoteHandler(cryptonote::core& core)
 {
 }
 
+CheckpointVoteHandler::~CheckpointVoteHandler()
+{
+  
+}
+
 void CheckpointVoteHandler::init()
 {
   m_last_checkpointed_height = 0;
@@ -109,8 +114,7 @@ bool CheckpointVoteHandler::handle_vote(const checkpoint_vote &vote, cryptonote:
   if (!vvc.m_added_to_pool) // NOTE: Not unique vote
     return true;
 
-  return handle_checkpoint_vote(m_core, vote, votes, quorum);
-        
+  return handle_checkpoint_vote(m_core, vote, votes, quorum);  
 }
 
 
@@ -123,6 +127,11 @@ void CheckpointVoteHandler::set_votes_relayed(std::vector<checkpoint_vote> const
 std::vector<checkpoint_vote> CheckpointVoteHandler::get_relayable_votes(uint64_t current_height, uint8_t hf_version)
 {
   return m_vote_pool.get_relayable_votes(current_height, hf_version, false);
+}
+
+void CheckpointVoteHandler::process_quorums(const cryptonote::block &/*block*/)
+{
+  // Graft: checkpoint voting done on supernode
 }
 
 int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, crypto::public_key const &my_pubkey)

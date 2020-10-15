@@ -130,7 +130,15 @@ namespace rta
 
     return true;
   }
-
+  
+  cryptonote::checkpoint_t make_empty_rta_checkpoint(crypto::hash const &block_hash, uint64_t height)
+  {
+    cryptonote::checkpoint_t result = {};
+    result.type                     = cryptonote::checkpoint_type::supernode;
+    result.height                   = height;
+    result.block_hash               = block_hash;
+    return result;
+  }
 
   bool verify_vote_age(const checkpoint_vote& vote, uint64_t latest_height, cryptonote::vote_verification_context &vvc)
   {
@@ -301,6 +309,11 @@ namespace rta
     uint64_t min_height = (height < config::graft::VOTE_LIFETIME) ? 0 : height - config::graft::VOTE_LIFETIME;
     cull_votes(m_checkpoint_pool, min_height, height);
   }
+  
+  void voting_pool::remove_used_votes(const std::vector<cryptonote::transaction> &/*txs*/, uint8_t /*hard_fork_version*/)
+  {
+    // Graft: not used
+  }
 
   bool voting_pool::received_checkpoint_vote(uint64_t height, size_t index_in_quorum) const
   {
@@ -318,6 +331,15 @@ namespace rta
     }
 
     return false;
+  }
+  
+  void quorum::from_supernode_list(const cryptonote::BlockchainBasedList::supernode_array &sn_list)
+  {
+    for (const auto &sn : sn_list) {
+      crypto::public_key key;
+      epee::string_tools::hex_to_pod(sn.supernode_public_id, key);
+      voters.push_back(key);
+    }
   }
 
   

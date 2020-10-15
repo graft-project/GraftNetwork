@@ -2533,7 +2533,7 @@ namespace cryptonote
     epee::string_tools::hex_to_pod(req.signature,  vote.signature.signature);
     epee::string_tools::hex_to_pod(req.block_hash, vote.block_hash);
     cryptonote::vote_verification_context vvc;
-    m_core.get_vote_handler()->handle_vote(req, vvc);
+    m_core.get_vote_handler()->handle_vote(vote, vvc);
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------

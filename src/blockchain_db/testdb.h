@@ -162,9 +162,6 @@ public:
   virtual void remove_block_checkpoint(uint64_t height) override { }
   std::vector<cryptonote::checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints = BlockchainDB::GET_ALL_CHECKPOINTS) const override { return {}; }
 
-  virtual bool get_output_blacklist   (std::vector<uint64_t> &blacklist)       const override { return false; }
-  virtual void add_output_blacklist   (std::vector<uint64_t> const &blacklist)       override { }
-  virtual void clear_service_node_data()                                             override { }
 
   virtual void add_alt_block(const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata &blob, const cryptonote::blobdata *checkpoint) override {}
   virtual bool get_alt_block(const crypto::hash &blkid, alt_block_data_t *data, cryptonote::blobdata *blob, cryptonote::blobdata *checkpoint) override { return false; }

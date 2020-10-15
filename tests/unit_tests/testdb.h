@@ -150,10 +150,6 @@ public:
   virtual bool is_read_only() const override { return false; }
   virtual uint64_t get_database_size() const override { return 0; }
 
-  virtual bool get_output_blacklist   (std::vector<uint64_t> &blacklist)       const override { return false; }
-  virtual void add_output_blacklist   (std::vector<uint64_t> const &blacklist)       override { }
-  virtual void clear_service_node_data()                                             override { }
-
   virtual cryptonote::transaction get_pruned_tx(const crypto::hash& h) const override { return {}; };
   virtual bool get_tx(const crypto::hash& h, cryptonote::transaction &tx) const override { return false; }
 };

@@ -228,7 +228,7 @@ int check_flush(cryptonote::core &core, std::vector<block_complete_entry> &block
 
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
 
-    core.handle_incoming_block(block_entry.block, pblocks.empty() ? NULL : &pblocks[blockidx++], bvc, false); // <--- process block
+    core.handle_incoming_block(block_entry.block, pblocks.empty() ? NULL : &pblocks[blockidx++], bvc, nullptr /*checkpoint*/); // <--- process block
 
     if(bvc.m_verifivation_failed)
     {
@@ -772,7 +772,7 @@ int main(int argc, char* argv[])
   try
   {
 
-  core.disable_dns_checkpoints(true);
+  
 #if defined(PER_BLOCK_CHECKPOINT)
   const GetCheckpointsCallback& get_checkpoints = blocks::GetCheckpointsData;
 #else

@@ -45,6 +45,7 @@
 #include "net/network_throttle-detail.hpp"
 #include "common/pruning.h"
 #include "common/lock.h"
+#include "supernode/supernode_helpers.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net.cn"
@@ -468,7 +469,7 @@ namespace cryptonote
     }
 
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
-    m_core.handle_incoming_block(arg.b.block, pblocks.empty() ? NULL : &pblocks[0], bvc); // got block from handle_notify_new_block
+    m_core.handle_incoming_block(arg.b.block, pblocks.empty() ? NULL : &pblocks[0], bvc, nullptr /*checkpoint*/); // got block from handle_notify_new_block
     if (!m_core.cleanup_handle_incoming_blocks(true))
     {
       LOG_PRINT_CCONTEXT_L0("Failure in cleanup_handle_incoming_blocks");
@@ -740,7 +741,7 @@ namespace cryptonote
         }
           
         block_verification_context bvc = boost::value_initialized<block_verification_context>();
-        m_core.handle_incoming_block(arg.b.block, pblocks.empty() ? NULL : &pblocks[0], bvc); // got block from handle_notify_new_block
+        m_core.handle_incoming_block(arg.b.block, pblocks.empty() ? NULL : &pblocks[0], bvc, nullptr /*checkpoint*/); // got block from handle_notify_new_block
         if (!m_core.cleanup_handle_incoming_blocks(true))
         {
           LOG_PRINT_CCONTEXT_L0("Failure in cleanup_handle_incoming_blocks");
@@ -795,8 +796,6 @@ namespace cryptonote
   }  
   //------------------------------------------------------------------------------------------------------------------------  
   template<class t_core>
-  //------------------------------------------------------------------------------------------------------------------------  
-  template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_notify_new_checkpoint_vote(int command, NOTIFY_NEW_CHECKPOINT_VOTE::request& arg, cryptonote_connection_context& context)
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_NEW_CHECKPOINT_VOTE (" << arg.votes.size() << " txes)");
@@ -840,7 +839,8 @@ namespace cryptonote
     return 1;
   }
   //------------------------------------------------------------------------------------------------------------------------  
-    int t_cryptonote_protocol_handler<t_core>::handle_request_fluffy_missing_tx(int command, NOTIFY_REQUEST_FLUFFY_MISSING_TX::request& arg, cryptonote_connection_context& context)
+  template<class t_core>
+  int t_cryptonote_protocol_handler<t_core>::handle_request_fluffy_missing_tx(int command, NOTIFY_REQUEST_FLUFFY_MISSING_TX::request& arg, cryptonote_connection_context& context)
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_REQUEST_FLUFFY_MISSING_TX (" << arg.missing_tx_indices.size() << " txes), block hash " << arg.block_hash);
     
@@ -1260,6 +1260,7 @@ namespace cryptonote
             m_block_queue.remove_spans(span_connection_id, start_height);
             continue;
           }
+
           bool parent_known = m_core.have_block(new_block.prev_id);
           if (!parent_known)
           {
@@ -1377,10 +1378,9 @@ namespace cryptonote
                   return 1;
                 }
               }
-            }
-            TIME_MEASURE_FINISH(transactions_process_time);
-            transactions_process_time_full += transactions_process_time;
-
+              TIME_MEASURE_FINISH(transactions_process_time);
+              transactions_process_time_full += transactions_process_time;
+  
               //
               // NOTE: Checkpoint parsing
               //
@@ -1391,18 +1391,18 @@ namespace cryptonote
                 // TODO(doyle): It's wasteful to have to parse the checkpoint to
                 // figure out the height when at some point during the syncing
                 // step we know exactly what height the block entries are for
-
+                
                 if (!t_serializable_object_from_blob(checkpoint_allocated_on_stack_, block_entry.checkpoint))
                 {
                   MERROR("Checkpoint blob available but failed to parse");
                   return false;
                 }
-
+                
                 checkpoint = &checkpoint_allocated_on_stack_;
               }
 
-
-
+              // process block
+              
               TIME_MEASURE_START(block_process_time);
               block_verification_context bvc = boost::value_initialized<block_verification_context>();
 
@@ -1429,9 +1429,8 @@ namespace cryptonote
               TIME_MEASURE_FINISH(block_process_time);
               block_process_time_full += block_process_time;
               ++blockidx;
-
             } // each download block
-
+            
             remove_spans = true;
             MDEBUG(context << "Block process time (" << blocks.size() << " blocks, " << num_txs << " txs): " << block_process_time_full + transactions_process_time_full << " (" << transactions_process_time_full << "/" << block_process_time_full << ") ms");
           }
@@ -1451,7 +1450,6 @@ namespace cryptonote
                   + std::to_string(target_blockchain_height - current_blockchain_height) + " left)";
             }
             const uint32_t previous_stripe = tools::get_pruning_stripe(previous_height, target_blockchain_height, CRYPTONOTE_PRUNING_LOG_STRIPES);
-            const uint32_t current_stripe = tools::get_pruning_stripe(current_blockchain_height, target_blockchain_height, CRYPTONOTE_PRUNING_LOG_STRIPES);
             const uint32_t current_stripe = tools::get_pruning_stripe(current_blockchain_height, target_blockchain_height, CRYPTONOTE_PRUNING_LOG_STRIPES);
             std::string timing_message = "";
             if (ELPP->vRegistry()->allowed(el::Level::Info, "sync-info"))
@@ -1498,16 +1496,6 @@ skip:
   }
 
   //------------------------------------------------------------------------------------------------------------------------
-  template<class t_core>
-  void t_cryptonote_protocol_handler<t_core>::notify_new_stripe(cryptonote_connection_context& cntxt, uint32_t stripe)
-  {
-    m_p2p->for_each_connection([&](cryptonote_connection_context& context, nodetool::peerid_type peer_id, uint32_t support_flags)->bool
-    {
-      if (cntxt.m_connection_id == context.m_connection_id)
-        return true;
-      if (context.m_state == cryptonote_connection_context::state_normal)
-      {
-        const uint32_t peer_stripe = tools::get_pruning_stripe(context.m_pruning_seed);
   template<class t_core>
   void t_cryptonote_protocol_handler<t_core>::notify_new_stripe(cryptonote_connection_context& cntxt, uint32_t stripe)
   {
@@ -2308,14 +2296,15 @@ skip:
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
-  //------------------------------------------------------------------------------------------------------------------------
-  template<class t_core>
   bool t_cryptonote_protocol_handler<t_core>::relay_checkpoint_votes(NOTIFY_NEW_CHECKPOINT_VOTE::request& arg, cryptonote_connection_context& exclude_context)
   {
-    bool result = relay_on_public_network_generic<NOTIFY_NEW_CHECKPOINT_VOTE>(arg, exclude_context);
+    bool result = relay_to_synchronized_peers<NOTIFY_NEW_CHECKPOINT_VOTE>(arg, exclude_context);
+    if (result)
+      m_core.get_vote_handler()->set_votes_relayed(arg.votes);
     return result;
   }
   //------------------------------------------------------------------------------------------------------------------------
+  template<class t_core>
   bool t_cryptonote_protocol_handler<t_core>::relay_transactions(NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& exclude_context)
   {
     const bool hide_tx_broadcast =
