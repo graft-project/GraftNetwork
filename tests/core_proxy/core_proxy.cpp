@@ -217,7 +217,7 @@ bool tests::proxy_core::handle_incoming_block(const cryptonote::blobdata& block_
 
     cout << endl << "ENDBLOCK" << endl << endl;
 
-    if (!add_block(h, lh, b, block_blob))
+    if (!add_block(h, lh, b, block_blob, checkpoint))
         return false;
 
     return true;
@@ -236,7 +236,7 @@ void tests::proxy_core::get_blockchain_top(uint64_t& height, crypto::hash& top_i
 bool tests::proxy_core::init(const boost::program_options::variables_map& /*vm*/) {
     generate_genesis_block(m_genesis, config::GENESIS_TX, config::GENESIS_NONCE);
     crypto::hash h = get_block_hash(m_genesis);
-    add_block(h, get_block_longhash(NULL, m_genesis, 0, 0), m_genesis, block_to_blob(m_genesis));
+    add_block(h, get_block_longhash(NULL, m_genesis, 0, 0), m_genesis, block_to_blob(m_genesis), nullptr /*checkpoint*/);
     return true;
 }
 

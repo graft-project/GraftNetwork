@@ -101,6 +101,7 @@ int main(int argc, char* argv[])
   else if (command_line::get_arg(vm, arg_generate_and_play_test_data) || (list_tests = command_line::get_arg(vm, arg_list_tests)))
   {
     GENERATE_AND_PLAY(gen_simple_chain_001);
+
     GENERATE_AND_PLAY(gen_simple_chain_split_1);
     GENERATE_AND_PLAY(one_block);
     GENERATE_AND_PLAY(gen_chain_switch_1);
@@ -252,6 +253,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bp_tx_invalid_too_many_proofs);
     GENERATE_AND_PLAY(gen_bp_tx_invalid_wrong_amount);
     GENERATE_AND_PLAY(gen_bp_tx_invalid_borromean_type);
+    
 
     el::Level level = (failed_tests.empty() ? el::Level::Info : el::Level::Error);
     if (!list_tests)

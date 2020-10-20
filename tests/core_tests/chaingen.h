@@ -56,11 +56,82 @@
 #include "cryptonote_basic/cryptonote_boost_serialization.h"
 #include "misc_language.h"
 
+#include "blockchain_db/testdb.h"
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "tests.core"
 
+#define TESTS_DEFAULT_FEE ((uint64_t)200000000) // 2 * pow(10, 8)
+#define TEST_DEFAULT_DIFFICULTY 1
 
+#ifdef DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN
+  #undef DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN
+  #define DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN  DIFFICULTY_TARGET_V2
+#endif
 
+#if defined(__GNUG__) && !defined(__clang__) && __GNUC__ < 6
+namespace service_nodes {
+  const std::vector<payout_entry> dummy; // help GCC 5 realize it needs to generate a default constructor
+}
+#endif
+
+struct loki_block_with_checkpoint
+{
+  cryptonote::block        block;
+  bool                     has_checkpoint;
+  cryptonote::checkpoint_t checkpoint;
+};
+
+struct loki_transaction
+{
+  cryptonote::transaction tx;
+  bool                    kept_by_block;
+};
+
+// TODO(loki): Deperecate other methods of doing polymorphism for items to be
+// added to test_event_entry.  Right now, adding a block and checking for
+// failure requires you to add a member field to mark the event index that
+// should of failed, and you must add a member function that checks at run-time
+// if at the marked index the block failed or not.
+
+// Doing this way lets you write the failure case inline to when you create the
+// test_event_entry, which means less book-keeping and boilerplate code of
+// tracking event indexes and making member functions to detect the failure cases.
+template <typename T>
+struct loki_blockchain_addable
+{
+  loki_blockchain_addable() = default;
+  loki_blockchain_addable(T const &data, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {})
+  : data(data)
+  , can_be_added_to_blockchain(can_be_added_to_blockchain)
+  , fail_msg(fail_msg)
+  {
+  }
+
+  T data;
+  bool can_be_added_to_blockchain;
+  std::string fail_msg;
+
+  private: // TODO(doyle): Not implemented properly. Just copy pasta. Do we even need serialization?
+  friend class boost::serialization::access;
+  template<class Archive> void serialize(Archive & /*ar*/, const unsigned int /*version*/) { }
+};
+
+typedef boost::function<bool (cryptonote::core& c, size_t ev_index)> loki_callback;
+struct loki_callback_entry
+{
+  std::string   name;
+  loki_callback callback;
+
+private: // TODO(doyle): Not implemented properly. Just copy pasta. Do we even need serialization?
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive & ar, const unsigned int /*version*/) { ar & name; }
+};
+
+//
+// NOTE: Monero
+//
 struct callback_entry
 {
   std::string callback_name;
@@ -158,7 +229,28 @@ VARIANT_TAG(binary_archive, serialized_transaction, 0xce);
 VARIANT_TAG(binary_archive, event_visitor_settings, 0xcf);
 VARIANT_TAG(binary_archive, event_replay_settings, 0xda);
 
-typedef boost::variant<cryptonote::block, cryptonote::transaction, std::vector<cryptonote::transaction>, cryptonote::account_base, callback_entry, serialized_block, serialized_transaction, event_visitor_settings, event_replay_settings> test_event_entry;
+typedef boost::variant<cryptonote::block,
+                       cryptonote::transaction,
+                       std::vector<cryptonote::transaction>,
+                       cryptonote::account_base,
+                       callback_entry,
+                       serialized_block,
+                       serialized_transaction,
+                       event_visitor_settings,
+                       event_replay_settings,
+
+                       std::string,
+                       loki_callback_entry,
+                       loki_blockchain_addable<loki_block_with_checkpoint>,
+                       loki_blockchain_addable<cryptonote::block>,
+                       
+                       loki_blockchain_addable<loki_transaction>,
+                       /*
+                        loki_blockchain_addable<service_nodes::quorum_vote_t>,
+                       */
+                       loki_blockchain_addable<serialized_block>,
+                       loki_blockchain_addable<cryptonote::checkpoint_t>
+                       > test_event_entry;
 typedef std::unordered_map<crypto::hash, const cryptonote::transaction*> map_hash2tx_t;
 
 class test_chain_unit_base
@@ -190,16 +282,18 @@ public:
     {
     }
 
-    block_info(crypto::hash a_prev_id, uint64_t an_already_generated_coins, size_t a_block_weight)
+    block_info(crypto::hash a_prev_id, uint64_t an_already_generated_coins, size_t a_block_weight, cryptonote::block a_block)
       : prev_id(a_prev_id)
       , already_generated_coins(an_already_generated_coins)
       , block_weight(a_block_weight)
+      , block(a_block)
     {
     }
 
     crypto::hash prev_id;
     uint64_t already_generated_coins;
     size_t block_weight;
+    cryptonote::block block;
 
   private:
     friend class boost::serialization::access;
@@ -210,6 +304,7 @@ public:
       ar & prev_id;
       ar & already_generated_coins;
       ar & block_weight;
+      ar & block;
     }
   };
 
@@ -227,23 +322,21 @@ public:
     bf_hf_version= 1 << 8
   };
 
-  test_generator() {}
-  test_generator(const test_generator &other): m_blocks_info(other.m_blocks_info) {}
-  void get_block_chain(std::vector<block_info>& blockchain, const crypto::hash& head, size_t n) const;
-  void get_last_n_block_weights(std::vector<size_t>& block_weights, const crypto::hash& head, size_t n) const;
+  explicit test_generator(int hf_version = 7) : m_hf_version(hf_version) {}
+  void get_block_chain(std::vector<block_info>& blockchain,        const crypto::hash& head, size_t n) const;
+  void get_block_chain(std::vector<cryptonote::block>& blockchain, const crypto::hash& head, size_t n) const;
+  void get_last_n_block_weights(std::vector<uint64_t>& block_weights, const crypto::hash& head, size_t n) const;
   uint64_t get_already_generated_coins(const crypto::hash& blk_id) const;
   uint64_t get_already_generated_coins(const cryptonote::block& blk) const;
 
-  void add_block(const cryptonote::block& blk, size_t tsx_size, std::vector<size_t>& block_weights, uint64_t already_generated_coins,
-    uint8_t hf_version = 1);
+  void add_block(const cryptonote::block& blk, size_t tsx_size, std::vector<uint64_t>& block_weights, uint64_t already_generated_coins);
   bool construct_block(cryptonote::block& blk, uint64_t height, const crypto::hash& prev_id,
     const cryptonote::account_base& miner_acc, uint64_t timestamp, uint64_t already_generated_coins,
-    std::vector<size_t>& block_weights, const std::list<cryptonote::transaction>& tx_list,
-    const boost::optional<uint8_t>& hf_ver = boost::none);
+    std::vector<uint64_t>& block_weights, const std::list<cryptonote::transaction>& tx_list);
+  
   bool construct_block(cryptonote::block& blk, const cryptonote::account_base& miner_acc, uint64_t timestamp);
   bool construct_block(cryptonote::block& blk, const cryptonote::block& blk_prev, const cryptonote::account_base& miner_acc,
-    const std::list<cryptonote::transaction>& tx_list = std::list<cryptonote::transaction>(),
-    const boost::optional<uint8_t>& hf_ver = boost::none);
+    const std::list<cryptonote::transaction>& tx_list = std::list<cryptonote::transaction>());
 
   bool construct_block_manually(cryptonote::block& blk, const cryptonote::block& prev_block,
     const cryptonote::account_base& miner_acc, int actual_params = bf_none, uint8_t major_ver = 0,
@@ -253,6 +346,9 @@ public:
     uint8_t hf_version = 1);
   bool construct_block_manually_tx(cryptonote::block& blk, const cryptonote::block& prev_block,
     const cryptonote::account_base& miner_acc, const std::vector<crypto::hash>& tx_hashes, size_t txs_size);
+
+
+  int m_hf_version;
 
 private:
   std::unordered_map<crypto::hash, block_info> m_blocks_info;
@@ -306,10 +402,12 @@ struct output_index {
 
   }
 
+#if 0
   output_index(const output_index &other)
       : out(other.out), amount(other.amount), blk_height(other.blk_height), tx_no(other.tx_no), rct(other.rct),
       out_no(other.out_no), idx(other.idx), unlock_time(other.unlock_time), is_coin_base(other.is_coin_base),
       spent(other.spent), comm(other.comm), p_blk(other.p_blk), p_tx(other.p_tx) {  }
+#endif
 
   void set_rct(bool arct) {
     rct = arct;
@@ -341,6 +439,7 @@ struct output_index {
     return ss.str();
   }
 
+  output_index(const output_index &) = default;
   output_index& operator=(const output_index& other)
   {
     new(this) output_index(other);
@@ -454,6 +553,18 @@ void get_confirmed_txs(const std::vector<cryptonote::block>& blockchain, const m
 bool trim_block_chain(std::vector<cryptonote::block>& blockchain, const crypto::hash& tail);
 bool trim_block_chain(std::vector<const cryptonote::block*>& blockchain, const crypto::hash& tail);
 bool find_block_chain(const std::vector<test_event_entry>& events, std::vector<cryptonote::block>& blockchain, map_hash2tx_t& mtx, const crypto::hash& head);
+void fill_tx_sources_and_multi_destinations(const std::vector<test_event_entry>& events,
+                                            const cryptonote::block& blk_head,
+                                            const cryptonote::account_base& from,
+                                            const cryptonote::account_public_address& to,
+                                            uint64_t const *amount,
+                                            int num_amounts,
+                                            uint64_t fee,
+                                            size_t nmix,
+                                            std::vector<cryptonote::tx_source_entry>& sources,
+                                            std::vector<cryptonote::tx_destination_entry>& destinations,
+                                            bool always_add_change_output = false,
+                                            uint64_t *change_amount = nullptr);
 bool find_block_chain(const std::vector<test_event_entry>& events, std::vector<const cryptonote::block*>& blockchain, map_hash2tx_t& mtx, const crypto::hash& head);
 
 void fill_tx_destinations(const var_addr_t& from, const cryptonote::account_public_address& to,
@@ -479,13 +590,7 @@ void fill_tx_sources_and_destinations(const std::vector<test_event_entry>& event
                                       const cryptonote::account_base& from, const cryptonote::account_public_address& to,
                                       uint64_t amount, uint64_t fee, size_t nmix,
                                       std::vector<cryptonote::tx_source_entry>& sources,
-                                      std::vector<cryptonote::tx_destination_entry>& destinations);
-
-void fill_tx_sources_and_destinations(const std::vector<test_event_entry>& events, const cryptonote::block& blk_head,
-                                      const cryptonote::account_base& from, const cryptonote::account_base& to,
-                                      uint64_t amount, uint64_t fee, size_t nmix,
-                                      std::vector<cryptonote::tx_source_entry>& sources,
-                                      std::vector<cryptonote::tx_destination_entry>& destinations);
+                                      std::vector<cryptonote::tx_destination_entry>& destinations, uint64_t *change_amount = nullptr);
 
 uint64_t get_balance(const cryptonote::account_base& addr, const std::vector<cryptonote::block>& blockchain, const map_hash2tx_t& mtx);
 
@@ -541,11 +646,13 @@ public:
   bool operator()(const cryptonote::transaction& tx) const
   {
     log_event("cryptonote::transaction");
-
-    cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
-    size_t pool_size = m_c.get_pool_transactions_count();
+    cryptonote::tx_verification_context tvc{};
+    size_t pool_size = m_c.get_pool().get_transactions_count();
+    // cryptonote::tx_pool_options opts;
+    // opts.kept_by_block = m_txs_keeped_by_block;
+    // bool handle_incoming_tx(const blobdata& tx_blob, tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay, uint64_t * rta_rollback_height = nullptr);
     m_c.handle_incoming_tx(t_serializable_object_to_blob(tx), tvc, m_txs_keeped_by_block, false, false);
-    bool tx_added = pool_size + 1 == m_c.get_pool_transactions_count();
+    bool tx_added = pool_size + 1 == m_c.get_pool().get_transactions_count();
     bool r = m_validator.check_tx_verification_context(tvc, tx_added, m_ev_index, tx);
     CHECK_AND_NO_ASSERT_MES(r, false, "tx verification context check failed");
     return true;
@@ -554,7 +661,6 @@ public:
   bool operator()(const std::vector<cryptonote::transaction>& txs) const
   {
     log_event("cryptonote::transaction");
-
     std::vector<cryptonote::blobdata> tx_blobs;
     std::vector<cryptonote::tx_verification_context> tvcs;
      cryptonote::tx_verification_context tvc0 = AUTO_VAL_INIT(tvc0);
@@ -574,13 +680,12 @@ public:
   bool operator()(const cryptonote::block& b) const
   {
     log_event("cryptonote::block");
-
-    cryptonote::block_verification_context bvc = AUTO_VAL_INIT(bvc);
+    cryptonote::block_verification_context bvc{};
     cryptonote::blobdata bd = t_serializable_object_to_blob(b);
     std::vector<cryptonote::block> pblocks;
-    if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, {bd, {}}), pblocks))
+    if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, {bd, {}, {}}), pblocks))
     {
-      m_c.handle_incoming_block(bd, &b, bvc);
+      m_c.handle_incoming_block(bd, &b, bvc, nullptr);
       m_c.cleanup_handle_incoming_blocks();
     }
     else
@@ -606,11 +711,11 @@ public:
   {
     log_event("serialized_block");
 
-    cryptonote::block_verification_context bvc = AUTO_VAL_INIT(bvc);
+    cryptonote::block_verification_context bvc{};
     std::vector<cryptonote::block> pblocks;
-    if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, {sr_block.data, {}}), pblocks))
+    if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, {sr_block.data, {}, {}}), pblocks))
     {
-      m_c.handle_incoming_block(sr_block.data, NULL, bvc);
+      m_c.handle_incoming_block(sr_block.data, NULL, bvc, nullptr);
       m_c.cleanup_handle_incoming_blocks();
     }
     else
@@ -634,10 +739,10 @@ public:
   {
     log_event("serialized_transaction");
 
-    cryptonote::tx_verification_context tvc = AUTO_VAL_INIT(tvc);
-    size_t pool_size = m_c.get_pool_transactions_count();
+    cryptonote::tx_verification_context tvc{};
+    size_t pool_size = m_c.get_pool().get_transactions_count();
     m_c.handle_incoming_tx(sr_tx.data, tvc, m_txs_keeped_by_block, false, false);
-    bool tx_added = pool_size + 1 == m_c.get_pool_transactions_count();
+    bool tx_added = pool_size + 1 == m_c.get_pool().get_transactions_count();
 
     cryptonote::transaction tx;
     std::stringstream ss;
@@ -651,6 +756,109 @@ public:
 
     bool r = m_validator.check_tx_verification_context(tvc, tx_added, m_ev_index, tx);
     CHECK_AND_NO_ASSERT_MES(r, false, "transaction verification context check failed");
+    return true;
+  }
+
+  //
+  // NOTE: Loki
+  //
+  bool operator()(const loki_blockchain_addable<cryptonote::checkpoint_t> &entry) const
+  {
+    log_event("loki_blockchain_addable<cryptonote::checkpoint_t>");
+    cryptonote::Blockchain &blockchain = m_c.get_blockchain_storage();
+    bool added = blockchain.update_checkpoint(entry.data);
+    CHECK_AND_NO_ASSERT_MES(added == entry.can_be_added_to_blockchain, false, (entry.fail_msg.size() ? entry.fail_msg : "Failed to add checkpoint (no reason given)"));
+    return true;
+  }
+
+  bool operator()(const loki_blockchain_addable<loki_block_with_checkpoint> &entry) const
+  {
+    log_event("loki_blockchain_addable<loki_block_with_checkpoint>");
+    cryptonote::block const &block = entry.data.block;
+
+    // TODO(loki): Need to make a copy because we still need modify checkpoints
+    // in handle_incoming_blocks but that is because of temporary forking code
+    cryptonote::checkpoint_t checkpoint_copy = entry.data.checkpoint;
+
+    cryptonote::block_verification_context bvc = {};
+    cryptonote::blobdata bd                    = t_serializable_object_to_blob(block);
+    std::vector<cryptonote::block> pblocks;
+    if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, {bd, {}, {}}), pblocks))
+    {
+      m_c.handle_incoming_block(bd, &block, bvc, &checkpoint_copy);
+      m_c.cleanup_handle_incoming_blocks();
+    }
+    else
+      bvc.m_verifivation_failed = true;
+
+    bool added = !bvc.m_verifivation_failed;
+    CHECK_AND_NO_ASSERT_MES(added == entry.can_be_added_to_blockchain, false, (entry.fail_msg.size() ? entry.fail_msg : "Failed to add block with checkpoint (no reason given)"));
+    return true;
+  }
+  
+  bool operator()(const loki_blockchain_addable<cryptonote::block> &entry) const
+  {
+    log_event("loki_blockchain_addable<cryptonote::block>");
+    cryptonote::block const &block = entry.data;
+
+    cryptonote::block_verification_context bvc = {};
+    cryptonote::blobdata bd                    = t_serializable_object_to_blob(block);
+    std::vector<cryptonote::block> pblocks;
+    if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, {bd, {}, {}}), pblocks))
+    {
+      m_c.handle_incoming_block(bd, &block, bvc, nullptr);
+      m_c.cleanup_handle_incoming_blocks();
+    }
+    else
+      bvc.m_verifivation_failed = true;
+
+    bool added = !bvc.m_verifivation_failed;
+    CHECK_AND_NO_ASSERT_MES(added == entry.can_be_added_to_blockchain, false, (entry.fail_msg.size() ? entry.fail_msg : "Failed to add block (no reason given)"));
+    return true;
+  }
+
+  bool operator()(const loki_blockchain_addable<serialized_block> &entry) const
+  {
+    log_event("loki_blockchain_addable<serialized_block>");
+    serialized_block const &block              = entry.data;
+    cryptonote::block_verification_context bvc = {};
+    std::vector<cryptonote::block> pblocks;
+    if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, {block.data, {}, {}}), pblocks))
+    {
+      m_c.handle_incoming_block(block.data, nullptr, bvc, nullptr);
+      m_c.cleanup_handle_incoming_blocks();
+    }
+    else
+      bvc.m_verifivation_failed = true;
+
+    bool added = !bvc.m_verifivation_failed;
+    CHECK_AND_NO_ASSERT_MES(added == entry.can_be_added_to_blockchain, false, (entry.fail_msg.size() ? entry.fail_msg : "Failed to add block (no reason given)"));
+    return true;
+  }
+
+  bool operator()(const loki_blockchain_addable<loki_transaction> &entry) const
+  {
+    log_event("loki_blockchain_addable<loki_transaction>");
+    cryptonote::tx_verification_context tvc = {};
+    size_t pool_size                        = m_c.get_pool().get_transactions_count();
+    m_c.handle_incoming_tx(t_serializable_object_to_blob(entry.data.tx), tvc, entry.data.kept_by_block, false, false);
+
+    bool added = (pool_size + 1) == m_c.get_pool().get_transactions_count();
+    CHECK_AND_NO_ASSERT_MES(added == entry.can_be_added_to_blockchain, false, (entry.fail_msg.size() ? entry.fail_msg : "Failed to add transaction (no reason given)"));
+    return true;
+  }
+
+  bool operator()(const loki_callback_entry& entry) const
+  {
+    log_event(std::string("loki_callback_entry ") + entry.name);
+    bool result = entry.callback(m_c, m_ev_index);
+    return result;
+  }
+
+  bool operator()(const std::string &msg) const
+  {
+    log_event("event_msgevent_marker");
+    MGINFO_MAGENTA(msg);
     return true;
   }
 
@@ -671,6 +879,10 @@ template<class t_test_class>
 inline bool replay_events_through_core_plain(cryptonote::core& cr, const std::vector<test_event_entry>& events, t_test_class& validator, bool reinit=true)
 {
   TRY_ENTRY();
+  // start with a clean pool
+  std::vector<crypto::hash> pool_txs;
+  cr.get_pool().get_transaction_hashes(pool_txs);
+  cr.get_blockchain_storage().flush_txes_from_pool(pool_txs);
 
   //init core here
   if (reinit) {
@@ -692,17 +904,27 @@ inline bool replay_events_through_core_plain(cryptonote::core& cr, const std::ve
   CATCH_ENTRY_L0("replay_events_through_core", false);
 }
 //--------------------------------------------------------------------------
+//--------------------------------------------------------------------------
 template<typename t_test_class>
 struct get_test_options {
   const std::pair<uint8_t, uint64_t> hard_forks[2];
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };
-  get_test_options():hard_forks{std::make_pair((uint8_t)1, (uint64_t)0), std::make_pair((uint8_t)0, (uint64_t)0)}{}
+  get_test_options():hard_forks{std::make_pair((uint8_t)7, (uint64_t)0), std::make_pair((uint8_t)0, (uint64_t)0)}{}
 };
+
+//template<typename t_test_class>
+//struct get_test_options {
+//  const std::vector<std::pair<uint8_t, uint64_t>> hard_forks = {{7, 0}};
+//  const cryptonote::test_options test_options = {
+//    hard_forks, 0
+//  };
+//};
+
 //--------------------------------------------------------------------------
 template<class t_test_class>
-inline bool do_replay_events_get_core(std::vector<test_event_entry>& events, cryptonote::core *core)
+inline bool do_replay_events_get_core(std::vector<test_event_entry>& events, cryptonote::core *core, t_test_class &validator)
 {
   boost::program_options::options_description desc("Allowed options");
   cryptonote::core::init_options(desc);
@@ -723,6 +945,7 @@ inline bool do_replay_events_get_core(std::vector<test_event_entry>& events, cry
   get_test_options<t_test_class> gto;
 
   // Hardforks can be specified in events.
+
   v_hardforks_t hardforks;
   cryptonote::test_options test_options_tmp{nullptr, 0};
   const cryptonote::test_options * test_options_ = &gto.test_options;
@@ -731,26 +954,13 @@ inline bool do_replay_events_get_core(std::vector<test_event_entry>& events, cry
     test_options_tmp.hard_forks = hardforks.data();
     test_options_ = &test_options_tmp;
   }
-
   if (!c.init(vm, test_options_))
   {
     MERROR("Failed to init core");
     return false;
   }
   c.get_blockchain_storage().get_db().set_batch_transactions(true);
-
-  // start with a clean pool
-  std::vector<crypto::hash> pool_txs;
-  if (!c.get_pool_transaction_hashes(pool_txs))
-  {
-    MERROR("Failed to flush txpool");
-    return false;
-  }
-  c.get_blockchain_storage().flush_txes_from_pool(pool_txs);
-
-  t_test_class validator;
-  bool ret = replay_events_through_core<t_test_class>(c, events, validator);
-//  c.deinit();
+  bool ret = replay_events_through_core_plain<t_test_class>(c, events, validator, true);
   return ret;
 }
 //--------------------------------------------------------------------------
@@ -787,7 +997,11 @@ inline bool do_replay_file(const std::string& filename)
     MERROR("Failed to deserialize data from file: ");
     return false;
   }
-  return do_replay_events<t_test_class>(events);
+  cryptonote::core core(nullptr);
+  t_test_class validator;
+  bool result = do_replay_events_get_core<t_test_class>(events, &core, validator);
+  core.deinit();
+  return result;
 }
 
 //--------------------------------------------------------------------------
@@ -824,13 +1038,20 @@ inline bool do_replay_file(const std::string& filename)
 }
 
 #define REGISTER_CALLBACK(CB_NAME, CLBACK) \
-  register_callback(CB_NAME, boost::bind(&CLBACK, this, _1, _2, _3));
+  register_callback(CB_NAME, [this](auto&&... args) { return this->CLBACK(std::forward<decltype(args)>(args)...); });
 
 #define REGISTER_CALLBACK_METHOD(CLASS, METHOD) \
-  register_callback(#METHOD, boost::bind(&CLASS::METHOD, this, _1, _2, _3));
+  register_callback(#METHOD, [this](auto&&... args) { return this->METHOD(std::forward<decltype(args)>(args)...); });
 
 #define MAKE_GENESIS_BLOCK(VEC_EVENTS, BLK_NAME, MINER_ACC, TS)                       \
-  test_generator generator;                                                           \
+  test_generator generator;                                               \
+  cryptonote::block BLK_NAME;                                                           \
+  generator.construct_block(BLK_NAME, MINER_ACC, TS);                                 \
+  VEC_EVENTS.push_back(BLK_NAME);
+
+/// TODO: use hf_ver from test options
+#define MAKE_GENESIS_BLOCK_WITH_HF_VERSION(VEC_EVENTS, BLK_NAME, MINER_ACC, TS, HF_VER)                       \
+  test_generator generator(HF_VER);                                               \
   cryptonote::block BLK_NAME;                                                           \
   generator.construct_block(BLK_NAME, MINER_ACC, TS);                                 \
   VEC_EVENTS.push_back(BLK_NAME);
@@ -868,26 +1089,20 @@ inline bool do_replay_file(const std::string& filename)
   generator.construct_block(BLK_NAME, PREV_BLOCK, MINER_ACC, TXLIST);                 \
   VEC_EVENTS.push_back(BLK_NAME);
 
-#define MAKE_NEXT_BLOCK_TX_LIST_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, TXLIST, HF)  \
-  cryptonote::block BLK_NAME;                                                           \
-  generator.construct_block(BLK_NAME, PREV_BLOCK, MINER_ACC, TXLIST, HF);                 \
-  VEC_EVENTS.push_back(BLK_NAME);
-
-#define REWIND_BLOCKS_N_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, COUNT, HF)    \
+#define REWIND_BLOCKS_N(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, COUNT)    \
   cryptonote::block BLK_NAME;                                                         \
   {                                                                                   \
     cryptonote::block blk_last = PREV_BLOCK;                                          \
     for (size_t i = 0; i < COUNT; ++i)                                                \
     {                                                                                 \
-      MAKE_NEXT_BLOCK_HF(VEC_EVENTS, blk, blk_last, MINER_ACC, HF);                   \
+      MAKE_NEXT_BLOCK(VEC_EVENTS, blk, blk_last, MINER_ACC);                   \
       blk_last = blk;                                                                 \
     }                                                                                 \
     BLK_NAME = blk_last;                                                              \
   }
 
-#define REWIND_BLOCKS_N(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, COUNT) REWIND_BLOCKS_N_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, COUNT, boost::none)
 #define REWIND_BLOCKS(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC) REWIND_BLOCKS_N(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW)
-#define REWIND_BLOCKS_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, HF) REWIND_BLOCKS_N_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, HF)
+// #define REWIND_BLOCKS_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, HF) REWIND_BLOCKS_N_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, HF)
 
 #define MAKE_TX_MIX(VEC_EVENTS, TX_NAME, FROM, TO, AMOUNT, NMIX, HEAD)                       \
   cryptonote::transaction TX_NAME;                                                             \
@@ -979,16 +1194,20 @@ inline bool do_replay_file(const std::string& filename)
       MERROR(#genclass << " generation failed: generic exception");                                        \
     }
 
-#define REPLAY_CORE(genclass)                                                                              \
-    if (generated && do_replay_events< genclass >(events))                                                 \
-    {                                                                                                      \
-      MGINFO_GREEN("#TEST# Succeeded " << #genclass);                                                      \
-    }                                                                                                      \
-    else                                                                                                   \
-    {                                                                                                      \
-      MERROR("#TEST# Failed " << #genclass);                                                               \
-      failed_tests.push_back(#genclass);                                                                   \
-    }
+#define REPLAY_CORE(generator_class, generator_class_instance)                                                         \
+  {                                                                                                                    \
+    cryptonote::core core(nullptr);                                                                                    \
+    if (generated && do_replay_events_get_core<generator_class>(events, &core, generator_class_instance))              \
+    {                                                                                                                  \
+      MGINFO_GREEN("#TEST# Succeeded " << #generator_class);                                                           \
+    }                                                                                                                  \
+    else                                                                                                               \
+    {                                                                                                                  \
+      MERROR("#TEST# Failed " << #generator_class);                                                                    \
+      failed_tests.push_back(#generator_class);                                                                        \
+    }                                                                                                                  \
+    core.deinit();                                                                                                     \
+  }
 
 #define REPLAY_WITH_CORE(genclass, CORE)                                                                   \
     if (generated && replay_events_through_core_validate< genclass >(events, CORE))                        \
@@ -1001,13 +1220,13 @@ inline bool do_replay_file(const std::string& filename)
       failed_tests.push_back(#genclass);                                                                   \
     }
 
-#define CATCH_GENERATE_REPLAY(genclass)                                                                    \
-    CATCH_REPLAY(genclass);                                                                                \
-    REPLAY_CORE(genclass);
+#define CATCH_GENERATE_REPLAY(generator_class, generator_class_instance)                                               \
+  CATCH_REPLAY(generator_class);                                                                                       \
+  REPLAY_CORE(generator_class, generator_class_instance);
 
-#define CATCH_GENERATE_REPLAY_CORE(genclass, CORE)                                                         \
-    CATCH_REPLAY(genclass);                                                                                \
-    REPLAY_WITH_CORE(genclass, CORE);
+#define CATCH_GENERATE_REPLAY_CORE(generator_class, generator_class_instance, CORE)                                    \
+  CATCH_REPLAY(generator_class);                                                                                       \
+  REPLAY_WITH_CORE(generator_class, generator_class_instance, CORE);
 
 #define GENERATE_AND_PLAY(genclass) \
   if (list_tests)                                                                                          \
@@ -1017,12 +1236,12 @@ inline bool do_replay_file(const std::string& filename)
     std::vector<test_event_entry> events;                                                                  \
     ++tests_count;                                                                                         \
     bool generated = false;                                                                                \
+    genclass g;                                                                                          \
     try                                                                                                    \
     {                                                                                                      \
-      genclass g;                                                                                          \
       generated = g.generate(events);                                                                      \
     }                                                                                                      \
-    CATCH_GENERATE_REPLAY(genclass);                                                                       \
+    CATCH_GENERATE_REPLAY(genclass, g);                                                                    \
   }
 
 #define GENERATE_AND_PLAY_INSTANCE(genclass, ins, CORE)                                                    \
@@ -1069,7 +1288,7 @@ class loki_tx_builder {
   cryptonote::transaction& m_tx;
   const cryptonote::block& m_head;
   const cryptonote::account_base& m_from;
-  const cryptonote::account_base& m_to;
+  const cryptonote::account_public_address& m_to;
 
   uint64_t m_amount;
   uint64_t m_fee;
@@ -1088,7 +1307,7 @@ public:
             cryptonote::transaction& tx,
             const cryptonote::block& head,
             const cryptonote::account_base& from,
-            const cryptonote::account_base& to,
+            const cryptonote::account_public_address& to,
             uint64_t amount,
             uint8_t hf_version)
     : m_events(events)
@@ -1145,11 +1364,11 @@ public:
     // TODO(loki): Eww we still depend on monero land test code
     const auto nmix = 9;
     fill_tx_sources_and_destinations(
-      m_events, m_head, m_from, m_to.get_keys().m_account_address, m_amount, m_fee, nmix, sources, destinations, &change_amount);
+      m_events, m_head, m_from, m_to, m_amount, m_fee, nmix, sources, destinations, &change_amount);
 
     cryptonote::tx_destination_entry change_addr{ change_amount, m_from.get_keys().m_account_address, false /*is_subaddr*/ };
     bool result = cryptonote::construct_tx(
-      m_from.get_keys(), sources, destinations, change_addr, m_extra, m_tx, m_unlock_time, m_hf_version, m_is_staking);
+      m_from.get_keys(), sources, destinations, change_addr.addr, m_extra, m_tx, m_unlock_time /*, m_hf_version, m_is_staking*/);
     return result;
   }
 };
@@ -1160,80 +1379,160 @@ struct loki_blockchain_entry
   std::vector<cryptonote::transaction>       txs;
   uint64_t                                   block_weight;
   uint64_t                                   already_generated_coins;
-  service_nodes::service_node_list::state_t  service_node_state;
+  //service_nodes::service_node_list::state_t  service_node_state;
   bool                                       checkpointed;
   cryptonote::checkpoint_t                   checkpoint;
 };
 
 struct loki_chain_generator_db : public cryptonote::BaseTestDB
 {
-  std::vector<loki_blockchain_entry>                        &blockchain;
-  std::unordered_map<crypto::hash, cryptonote::transaction> &tx_table; // TODO(loki): I want to store pointers to transactions but I get some memory corruption somewhere. Pls fix.
-  std::unordered_map<crypto::hash, loki_blockchain_entry *> &block_table;
+  std::vector<loki_blockchain_entry>                        blocks;
+  std::unordered_map<crypto::hash, cryptonote::transaction> tx_table;
+  std::unordered_map<crypto::hash, loki_blockchain_entry>   block_table;
 
-  loki_chain_generator_db(std::vector<loki_blockchain_entry> &blockchain,
-                     std::unordered_map<crypto::hash, cryptonote::transaction> &tx_table,
-                     std::unordered_map<crypto::hash, loki_blockchain_entry *> &block_table)
-  : blockchain(blockchain)
-  , tx_table(tx_table)
-  , block_table(block_table)
-  {
-  }
-
-  cryptonote::block get_block_from_height(const uint64_t &height) const override;
-  bool              get_tx(const crypto::hash& h, cryptonote::transaction &tx) const override;
+  cryptonote::block                     get_block_from_height(const uint64_t &height) const override;
+  bool                                  get_tx(const crypto::hash& h, cryptonote::transaction &tx) const override;
+  std::vector<cryptonote::checkpoint_t> get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints) const override;
+  uint64_t height() const override { return blocks.size(); }
 };
+
+
+//struct loki_chain_generator
+//{
+//  mutable std::unordered_map<crypto::public_key, crypto::secret_key>  service_node_keys_;
+//  // std::set<service_nodes::service_node_list::state_t>                 state_history_;
+
+//  // TODO(loki): I want to store pointers to transactions but I get some memory corruption somewhere. Pls fix.
+//  // We already store blockchain_entries in block_ vector which stores the actual backing transaction entries.
+//  std::unordered_map<crypto::hash, cryptonote::transaction>   tx_table_;
+//  std::unordered_map<crypto::hash, loki_blockchain_entry *>   block_table_;
+//  std::vector<loki_blockchain_entry>                          blocks_;
+//  loki_chain_generator_db                                     db_;
+//  uint8_t                                                     hf_version_ = cryptonote::network_version_7;
+//  std::vector<test_event_entry>&                              events_;
+//  const std::vector<std::pair<uint8_t, uint64_t>>             hard_forks_;
+//  cryptonote::account_base                                    first_miner_;
+
+//  loki_chain_generator(std::vector<test_event_entry> &events, const std::vector<std::pair<uint8_t, uint64_t>> &hard_forks);
+
+//  uint64_t                                             height()       const { return cryptonote::get_block_height(blocks_.back().block); }
+//  const std::vector<loki_blockchain_entry>&            blocks()       const { return blocks_; }
+//  size_t                                               event_index()  const { return events_.size() - 1; }
+
+//  const loki_blockchain_entry&                         top() const { return blocks_.back(); }
+
+//  cryptonote::account_base                             add_account();
+//  loki_blockchain_entry                               &add_block(loki_blockchain_entry const &entry, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {});
+//  void                                                 add_blocks_until_version(uint8_t hf_version);
+//  void                                                 add_n_blocks(int n);
+//  void                                                 add_blocks_until_next_checkpointable_height();
+//  void                                                 add_service_node_checkpoint(uint64_t block_height, size_t num_votes);
+//  void                                                 add_mined_money_unlock_blocks(); // NOTE: Unlock all Loki generated from mining prior to this call i.e. CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW
+
+//  void                                                 add_tx(cryptonote::transaction const &tx, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {}, bool kept_by_block = false);
+
+//  // NOTE: Add constructed TX to events_ and assume that it is valid to add to the blockchain. If the TX is meant to be unaddable to the blockchain use the individual create + add functions to
+//  // be able to mark the add TX event as something that should trigger a failure.
+//  cryptonote::transaction                              create_and_add_tx             (const cryptonote::account_base& miner, const cryptonote::account_base& acc, uint64_t amount, uint64_t fee = TESTS_DEFAULT_FEE);
+//  // cryptonote::transaction                              create_and_add_deregister_tx  (const crypto::public_key& pub_key, uint64_t height = -1, const std::vector<uint64_t>& voters = {}, uint64_t fee = 0);
+//  // cryptonote::transaction                              create_and_add_registration_tx(const cryptonote::account_base& src, const cryptonote::keypair& sn_keys = cryptonote::keypair::generate(hw::get_device("default")));
+
+//  // NOTE: Create transactions but don't add to events_
+//  // cryptonote::transaction                              create_registration_tx(const cryptonote::account_base& src, const cryptonote::keypair& sn_keys = cryptonote::keypair::generate(hw::get_device("default"))) const;
+//  // cryptonote::transaction                              create_deregister_tx  (const crypto::public_key& pub_key, uint64_t height = -1, const std::vector<uint64_t>& voters = {}, uint64_t fee = 0) const;
+//  loki_blockchain_entry                               &create_and_add_next_block     (const std::vector<cryptonote::transaction>& txs = {}, cryptonote::checkpoint_t const *checkpoint = nullptr, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {});
+//  cryptonote::checkpoint_t                             create_service_node_checkpoint(uint64_t block_height, size_t num_votes) const;
+  
+//  // NOTE: Create transactions but don't add to events_
+//  cryptonote::transaction                              create_tx(const cryptonote::account_base &src, const cryptonote::account_public_address &dest, uint64_t amount, uint64_t fee) const;
+////  cryptonote::transaction                              create_registration_tx(const cryptonote::account_base &src,
+////                                                                              const cryptonote::keypair &service_node_keys = cryptonote::keypair::generate(hw::get_device("default")),
+////                                                                              uint64_t src_portions = STAKING_PORTIONS,
+////                                                                              uint64_t src_operator_cut = 0,
+////                                                                              std::array<loki_service_node_contribution, 3> const &contributors = {},
+////                                                                              int num_contributors = 0) const;
+////  cryptonote::transaction                              create_staking_tx     (const crypto::public_key& pub_key, const cryptonote::account_base &src, uint64_t amount) const;
+////  cryptonote::transaction                              create_state_change_tx(service_nodes::new_state state, const crypto::public_key& pub_key, uint64_t height = -1, const std::vector<uint64_t>& voters = {}, uint64_t fee = 0) const;
+  
+
+//  loki_blockchain_entry                                create_genesis_block(const cryptonote::account_base &miner, uint64_t timestamp);
+//  loki_blockchain_entry                                create_next_block(const std::vector<cryptonote::transaction>& txs = {}, cryptonote::checkpoint_t const *checkpoint = nullptr, uint64_t total_fee = 0);
+//  bool                                                 create_block(loki_blockchain_entry &entry, uint8_t hf_version, loki_blockchain_entry const &prev, const cryptonote::account_base &miner_acc, uint64_t timestamp, std::vector<uint64_t> &block_weights, const std::vector<cryptonote::transaction> &tx_list, uint64_t total_fee = 0) const;
+  
+
+//  uint8_t                                              get_hf_version_at(uint64_t height) const;
+//  std::vector<uint64_t>                                last_n_block_weights(uint64_t height, uint64_t num) const;
+//  const cryptonote::account_base&                      first_miner() const { return first_miner_; }
+//};
+
 
 struct loki_chain_generator
 {
-  mutable std::unordered_map<crypto::public_key, crypto::secret_key>  service_node_keys_;
-  std::set<service_nodes::service_node_list::state_t>                 state_history_;
-
   // TODO(loki): I want to store pointers to transactions but I get some memory corruption somewhere. Pls fix.
   // We already store blockchain_entries in block_ vector which stores the actual backing transaction entries.
-  std::unordered_map<crypto::hash, cryptonote::transaction>   tx_table_;
-  std::unordered_map<crypto::hash, loki_blockchain_entry *>   block_table_;
-  std::vector<loki_blockchain_entry>                          blocks_;
-  loki_chain_generator_db                                     db_;
-  uint8_t                                                     hf_version_ = cryptonote::network_version_7;
-  std::vector<test_event_entry>&                              events_;
-  const std::vector<std::pair<uint8_t, uint64_t>>             hard_forks_;
-  cryptonote::account_base                                    first_miner_;
+  std::unordered_map<crypto::hash, cryptonote::transaction>          tx_table_;
+  mutable std::unordered_map<crypto::public_key, crypto::secret_key> service_node_keys_;
+  //service_nodes::service_node_list::state_set                        state_history_;
+  uint64_t                                                           last_cull_height_ = 0;
+  //std::shared_ptr<lns::name_system_db>                               lns_db_ = std::make_shared<lns::name_system_db>();
+  loki_chain_generator_db                                            db_;
+  uint8_t                                                            hf_version_ = cryptonote::network_version_7;
+  std::vector<test_event_entry>&                                     events_;
+  const std::vector<std::pair<uint8_t, uint64_t>>                    hard_forks_;
+  cryptonote::account_base                                           first_miner_;
 
   loki_chain_generator(std::vector<test_event_entry> &events, const std::vector<std::pair<uint8_t, uint64_t>> &hard_forks);
 
-  uint64_t                                             height()       const { return cryptonote::get_block_height(blocks_.back().block); }
-  const std::vector<loki_blockchain_entry>&            blocks()       const { return blocks_; }
+  uint64_t                                             height()       const { return cryptonote::get_block_height(db_.blocks.back().block); }
+  uint64_t                                             chain_height() const { return height() + 1; }
+  const std::vector<loki_blockchain_entry>&            blocks()       const { return db_.blocks; }
   size_t                                               event_index()  const { return events_.size() - 1; }
+  uint8_t                                              hardfork()     const { return get_hf_version_at(height()); }
 
-  const loki_blockchain_entry&                         top() const { return blocks_.back(); }
-  service_nodes::quorum_manager                        top_quorum() const;
-  service_nodes::quorum_manager                        quorum(uint64_t height) const;
-  std::shared_ptr<const service_nodes::testing_quorum> get_testing_quorum(service_nodes::quorum_type type, uint64_t height) const;
-
+  const loki_blockchain_entry&                         top() const { return db_.blocks.back(); }
+//  service_nodes::quorum_manager                        top_quorum() const;
+//  service_nodes::quorum_manager                        quorum(uint64_t height) const;
+//  std::shared_ptr<const service_nodes::quorum>         get_quorum(service_nodes::quorum_type type, uint64_t height) const;
+// service_nodes::service_node_keys                     get_cached_keys(const crypto::public_key &pubkey) const;
   cryptonote::account_base                             add_account();
-  loki_blockchain_entry                                add_block(const std::vector<cryptonote::transaction>& txs = {}, cryptonote::checkpoint_t const *checkpoint = nullptr, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {});
+  loki_blockchain_entry                               &add_block(loki_blockchain_entry const &entry, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {});
   void                                                 add_blocks_until_version(uint8_t hf_version);
   void                                                 add_n_blocks(int n);
   void                                                 add_blocks_until_next_checkpointable_height();
   void                                                 add_service_node_checkpoint(uint64_t block_height, size_t num_votes);
   void                                                 add_mined_money_unlock_blocks(); // NOTE: Unlock all Loki generated from mining prior to this call i.e. CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW
 
-  void                                                 add_tx(cryptonote::transaction const &tx, bool can_be_added_to_blockchain, std::string const &fail_msg = {});
+  // NOTE: Add an event that is just a user specified message to signify progress in the test
+  void                                                 add_event_msg(std::string const &msg) { events_.push_back(msg); }
+  void                                                 add_tx(cryptonote::transaction const &tx, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {}, bool kept_by_block = false);
 
   // NOTE: Add constructed TX to events_ and assume that it is valid to add to the blockchain. If the TX is meant to be unaddable to the blockchain use the individual create + add functions to
   // be able to mark the add TX event as something that should trigger a failure.
-  cryptonote::transaction                              create_and_add_tx             (const cryptonote::account_base& miner, const cryptonote::account_base& acc, uint64_t amount, uint64_t fee = TESTS_DEFAULT_FEE);
-  cryptonote::transaction                              create_and_add_deregister_tx  (const crypto::public_key& pub_key, uint64_t height = -1, const std::vector<uint64_t>& voters = {}, uint64_t fee = 0);
-  cryptonote::transaction                              create_and_add_registration_tx(const cryptonote::account_base& src, const cryptonote::keypair& sn_keys = cryptonote::keypair::generate(hw::get_device("default")));
+  cryptonote::transaction                              create_and_add_tx                 (const cryptonote::account_base& src, const cryptonote::account_public_address& dest, uint64_t amount, uint64_t fee = TESTS_DEFAULT_FEE, bool kept_by_block = false);
+  cryptonote::transaction                              create_and_add_staking_tx     (const crypto::public_key &pub_key, const cryptonote::account_base &src, uint64_t amount, bool kept_by_block = false);
+  loki_blockchain_entry                               &create_and_add_next_block     (const std::vector<cryptonote::transaction>& txs = {}, cryptonote::checkpoint_t const *checkpoint = nullptr, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {});
 
   // NOTE: Create transactions but don't add to events_
-  cryptonote::transaction                              create_registration_tx(const cryptonote::account_base& src, const cryptonote::keypair& sn_keys = cryptonote::keypair::generate(hw::get_device("default"))) const;
-  cryptonote::transaction                              create_deregister_tx  (const crypto::public_key& pub_key, uint64_t height = -1, const std::vector<uint64_t>& voters = {}, uint64_t fee = 0) const;
+  cryptonote::transaction                              create_tx(const cryptonote::account_base &src, const cryptonote::account_public_address &dest, uint64_t amount, uint64_t fee) const;
+//  cryptonote::transaction                              create_registration_tx(const cryptonote::account_base &src,
+//                                                                              const cryptonote::keypair &service_node_keys = cryptonote::keypair::generate(hw::get_device("default")),
+//                                                                              uint64_t src_portions = STAKING_PORTIONS,
+//                                                                              uint64_t src_operator_cut = 0,
+//                                                                              std::array<loki_service_node_contribution, 3> const &contributors = {},
+//                                                                              int num_contributors = 0) const;
+  cryptonote::transaction                              create_staking_tx     (const crypto::public_key& pub_key, const cryptonote::account_base &src, uint64_t amount) const;
+//  cryptonote::transaction                              create_state_change_tx(service_nodes::new_state state, const crypto::public_key& pub_key, uint64_t height = -1, const std::vector<uint64_t>& voters = {}, uint64_t fee = 0) const;
   cryptonote::checkpoint_t                             create_service_node_checkpoint(uint64_t block_height, size_t num_votes) const;
 
+  // value: Takes the binary value NOT the human readable version, of the name->value mapping
+  static const uint64_t LNS_AUTO_BURN = static_cast<uint64_t>(-1);
+//  cryptonote::transaction                              create_loki_name_system_tx(cryptonote::account_base const &src, lns::mapping_type type, std::string const &name, lns::mapping_value const &value, lns::generic_owner const *owner = nullptr, lns::generic_owner const *backup_owner = nullptr, uint64_t burn = LNS_AUTO_BURN) const;
+//  cryptonote::transaction                              create_loki_name_system_tx_update(cryptonote::account_base const &src, lns::mapping_type type, std::string const &name, lns::mapping_value const *value, lns::generic_owner const *owner = nullptr, lns::generic_owner const *backup_owner = nullptr, lns::generic_signature *signature = nullptr, bool use_asserts = false) const;
+//  cryptonote::transaction                              create_loki_name_system_tx_update_w_extra(cryptonote::account_base const &src, cryptonote::tx_extra_loki_name_system const &lns_extra) const;
+
   loki_blockchain_entry                                create_genesis_block(const cryptonote::account_base &miner, uint64_t timestamp);
-  bool                                                 create_loki_blockchain_entry(loki_blockchain_entry &entry, uint8_t hf_version, loki_blockchain_entry &prev, const cryptonote::account_base &miner_acc, uint64_t timestamp, std::vector<uint64_t> &block_weights, const std::vector<cryptonote::transaction> &tx_list, const service_nodes::block_winner &block_winner);
+  loki_blockchain_entry                                create_next_block(const std::vector<cryptonote::transaction>& txs = {}, cryptonote::checkpoint_t const *checkpoint = nullptr, uint64_t total_fee = 0);
+  bool                                                 create_block(loki_blockchain_entry &entry, uint8_t hf_version, loki_blockchain_entry const &prev, const cryptonote::account_base &miner_acc, uint64_t timestamp, std::vector<uint64_t> &block_weights, const std::vector<cryptonote::transaction> &tx_list, uint64_t total_fee = 0) const;
 
   uint8_t                                              get_hf_version_at(uint64_t height) const;
   std::vector<uint64_t>                                last_n_block_weights(uint64_t height, uint64_t num) const;
