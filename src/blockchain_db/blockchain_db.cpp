@@ -342,6 +342,18 @@ bool BlockchainDB::get_pruned_tx(const crypto::hash& h, cryptonote::transaction 
   return true;
 }
 
+uint64_t BlockchainDB::get_tx_block_height(const crypto::hash &h) const
+{
+  auto result = get_tx_block_heights({{h}}).front();
+  if (result == std::numeric_limits<uint64_t>::max())
+  {
+    std::string err = "tx_data_t with hash " + epee::string_tools::pod_to_hex(h) + " not found in db";
+    LOG_PRINT_L1(err);
+    throw TX_DNE(err.c_str());
+  }
+  return result;
+}
+
 transaction BlockchainDB::get_tx(const crypto::hash& h) const
 {
   transaction tx;
