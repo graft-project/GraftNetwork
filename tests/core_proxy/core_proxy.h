@@ -38,6 +38,11 @@
 #include "cryptonote_core/stake_transaction_processor.h"
 #include <unordered_map>
 
+namespace rta 
+{
+  class CheckpointVoteHandler;
+}
+
 namespace tests
 {
   struct block_index {
@@ -117,6 +122,8 @@ namespace tests
     bool prune_blockchain(uint32_t pruning_seed) const { return true; }
     cryptonote::StakeTransactionProcessor & get_stake_tx_processor() { return reinterpret_cast<cryptonote::StakeTransactionProcessor&>(*
             reinterpret_cast<cryptonote::StakeTransactionProcessor*>(0)); }
+    rta::CheckpointVoteHandler *get_vote_handler()  { return nullptr; }
+    bool add_checkpoint_vote(const rta::checkpoint_vote& vote, cryptonote::vote_verification_context &vvc) {return false;}
     class fake_pool {
     public:
       void lock() {}

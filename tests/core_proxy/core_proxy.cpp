@@ -261,7 +261,7 @@ void tests::proxy_core::build_short_history(std::list<crypto::hash> &m_history, 
     } while (m_hash2blkidx.end() != cit && get_block_hash(cit->second.blk) != cit->first);*/
 }
 
-bool tests::proxy_core::add_block(const crypto::hash &_id, const crypto::hash &_longhash, const cryptonote::block &_blk, const cryptonote::blobdata &_blob) {
+bool tests::proxy_core::add_block(const crypto::hash &_id, const crypto::hash &_longhash, const cryptonote::block &_blk, const cryptonote::blobdata &_blob, cryptonote::checkpoint_t const *) {
     size_t height = 0;
 
     if (crypto::null_hash != _blk.prev_id) {
