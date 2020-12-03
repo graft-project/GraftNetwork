@@ -37,6 +37,7 @@ set(blockchain_import_private_headers
   bootstrap_file.h
   blocksdat_file.h
   bootstrap_serialization.h
+  blockchain_objects.h
   )
 
 monero_private_headers(blockchain_import

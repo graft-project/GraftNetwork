@@ -35,6 +35,7 @@
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "checkpoints/checkpoints.cpp"
 #include "blockchain_db/testdb.h"
+#include "supernode/supernode_helpers.h"
 
 
 using namespace cryptonote;
@@ -277,7 +278,7 @@ TEST(checkpoints_is_alternative_block_allowed, override_1_sn_checkpoint)
   checkpoints cp = {}; cp.init(cryptonote::FAKECHAIN, test_db.get());
 
   checkpoint_t checkpoint = {};
-  checkpoint.type         = checkpoint_type::service_node;
+  checkpoint.type         = checkpoint_type::supernode;
   checkpoint.height       = 5;
   test_db->update_block_checkpoint(checkpoint);
 
@@ -300,7 +301,7 @@ TEST(checkpoints_is_alternative_block_allowed, cant_override_2nd_oldest_sn_check
   checkpoints cp = {}; cp.init(cryptonote::FAKECHAIN, test_db.get());
 
   checkpoint_t checkpoint = {};
-  checkpoint.type         = checkpoint_type::service_node;
+  checkpoint.type         = checkpoint_type::supernode;
   checkpoint.height       = 5;
   test_db->update_block_checkpoint(checkpoint);
 
@@ -331,7 +332,7 @@ TEST(checkpoints_is_alternative_block_allowed, hardcoded_checkpoint_overrides_sn
   checkpoints cp = {}; cp.init(cryptonote::FAKECHAIN, test_db.get());
 
   checkpoint_t checkpoint = {};
-  checkpoint.type         = checkpoint_type::service_node;
+  checkpoint.type         = checkpoint_type::supernode;
   checkpoint.height       = 5;
   test_db->update_block_checkpoint(checkpoint);
 
@@ -355,10 +356,10 @@ TEST(checkpoints_blockchain_detached, detach_to_checkpoint_height)
   std::unique_ptr<TestDB> test_db(new TestDB());
   checkpoints cp = {}; cp.init(cryptonote::FAKECHAIN, test_db.get());
 
-  uint64_t constexpr FIRST_HEIGHT  = service_nodes::CHECKPOINT_INTERVAL;
-  uint64_t constexpr SECOND_HEIGHT = FIRST_HEIGHT + service_nodes::CHECKPOINT_INTERVAL;
+  uint64_t constexpr FIRST_HEIGHT  = config::graft::CHECKPOINT_INTERVAL;
+  uint64_t constexpr SECOND_HEIGHT = FIRST_HEIGHT + config::graft::CHECKPOINT_INTERVAL;
   checkpoint_t checkpoint          = {};
-  checkpoint.type                  = checkpoint_type::service_node;
+  checkpoint.type                  = checkpoint_type::supernode;
   checkpoint.height                = FIRST_HEIGHT;
   test_db->update_block_checkpoint(checkpoint);
 
@@ -366,7 +367,7 @@ TEST(checkpoints_blockchain_detached, detach_to_checkpoint_height)
   test_db->update_block_checkpoint(checkpoint);
 
   // NOTE: Detaching to height. Our top checkpoint should be the 1st checkpoint, we should be deleting the checkpoint at checkpoint.height
-  cp.blockchain_detached(SECOND_HEIGHT);
+  cp.blockchain_detached(SECOND_HEIGHT, false /*by_pop_blocks*/);
   checkpoint_t top_checkpoint;
   ASSERT_TRUE(test_db->get_top_checkpoint(top_checkpoint));
   ASSERT_TRUE(top_checkpoint.height == FIRST_HEIGHT);
@@ -378,11 +379,11 @@ TEST(checkpoints_blockchain_detached, detach_to_1)
   checkpoints cp = {}; cp.init(cryptonote::FAKECHAIN, test_db.get());
 
   checkpoint_t checkpoint = {};
-  checkpoint.type         = checkpoint_type::service_node;
-  checkpoint.height += service_nodes::CHECKPOINT_INTERVAL;
+  checkpoint.type         = checkpoint_type::supernode;
+  checkpoint.height += config::graft::CHECKPOINT_INTERVAL;
   test_db->update_block_checkpoint(checkpoint);
 
-  cp.blockchain_detached(1 /*height*/);
+  cp.blockchain_detached(1 /*height*/, false /*by_pop_blocks*/);
   checkpoint_t top_checkpoint;
   ASSERT_FALSE(test_db->get_top_checkpoint(top_checkpoint));
 }

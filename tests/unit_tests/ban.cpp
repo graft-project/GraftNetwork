@@ -53,7 +53,7 @@ public:
   void get_blockchain_top(uint64_t& height, crypto::hash& top_id)const{height=0;top_id=crypto::null_hash;}
   bool handle_incoming_tx(const cryptonote::blobdata& tx_blob, cryptonote::tx_verification_context& tvc, bool keeped_by_block, bool relayed, bool do_not_relay, uint64_t * rta_rollback_height = nullptr) { return true; }
   bool handle_incoming_txs(const std::vector<cryptonote::blobdata>& tx_blob, std::vector<cryptonote::tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay) { return true; }
-  bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, bool update_miner_blocktemplate = true) { return true; }
+  bool handle_incoming_block(const cryptonote::blobdata& block_blob, const cryptonote::block *block, cryptonote::block_verification_context& bvc, cryptonote::checkpoint_t *checkpoint, bool update_miner_blocktemplate = true) { return true; };
   void pause_mine(){}
   void resume_mine(){}
   bool on_idle(){return true;}
@@ -93,6 +93,8 @@ public:
   void invoke_update_blockchain_based_list_handler(uint64_t last_received_block_height) {}
   cryptonote::StakeTransactionProcessor & get_stake_tx_processor() { return reinterpret_cast<cryptonote::StakeTransactionProcessor&>(*
           reinterpret_cast<cryptonote::StakeTransactionProcessor*>(0)); }
+  rta::CheckpointVoteHandler *get_vote_handler()  { return nullptr; }
+  bool add_checkpoint_vote(const rta::checkpoint_vote& vote, cryptonote::vote_verification_context &vvc) {return false;}
   
   class fake_pool {
   public:
@@ -107,8 +109,6 @@ public:
 
 private:
   fake_pool m_pool;
-  
-  bool add_checkpoint_vote(const rta::checkpoint_vote& vote, cryptonote::vote_verification_context &vvc) { return true; }
 
 };
 
