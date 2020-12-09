@@ -912,9 +912,10 @@ struct get_test_options {
     hard_forks, 0
   };
   get_test_options():hard_forks{std::make_pair((uint8_t)1, (uint64_t)0),
-                                std::make_pair((uint8_t)7, (uint64_t)0), 
+                                std::make_pair((uint8_t)7, (uint64_t)1),
                                 std::make_pair((uint8_t)0, (uint64_t)0)}{}
 };
+// TODO: graft: make hard_forks std::vector?
 
 //template<typename t_test_class>
 //struct get_test_options {
