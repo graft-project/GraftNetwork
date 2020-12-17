@@ -49,6 +49,9 @@ using namespace cryptonote;
 ////////
 // class one_block;
 
+using eventV = std::vector<test_event_entry>;
+
+
 one_block::one_block()
 {
   REGISTER_CALLBACK("verify_1", one_block::verify_1);
@@ -101,53 +104,96 @@ gen_simple_chain_001::gen_simple_chain_001()
   REGISTER_CALLBACK("verify_callback_2", gen_simple_chain_001::verify_callback_2);
 }
 
+static void make_rct_tx(eventV& events,
+                        std::vector<cryptonote::transaction>& txs,
+                        const cryptonote::block& blk_head,
+                        const cryptonote::account_base& from,
+                        const cryptonote::account_base& to,
+                        uint64_t amount)
+{
+    txs.emplace_back();
+
+    bool success = loki_tx_builder(events, txs.back(), blk_head, from, to.get_keys().m_account_address, amount, cryptonote::network_version_7).build();
+    /// TODO: beter error message
+    if (!success) throw std::exception();
+    events.push_back(txs.back());
+}
+
+/// generate 30 more blocks to unlock outputs
+static void rewind_blocks(test_generator& gen, eventV& events, std::vector<cryptonote::block>& chain, const cryptonote::account_base& miner)
+{
+    for (auto i = 0u; i < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++i) {
+        chain.emplace_back();
+        const auto idx = chain.size() - 1;
+        gen.construct_block(chain[idx], chain[idx - 1], miner);
+        events.push_back(chain[idx]);
+    }
+}
+
+void construct_block(test_generator& gen, eventV& events, std::vector<cryptonote::block>& chain, std::vector<cryptonote::transaction>& txs, const cryptonote::account_base& miner) {
+
+    chain.emplace_back();
+    const auto idx = chain.size() - 1;
+        /// todo: change this to take a vector instead?
+    gen.construct_block(chain[idx], chain[idx - 1], miner, { txs.begin(), txs.end() });
+    events.push_back(chain.back());
+}
+
+
 bool gen_simple_chain_001::generate(std::vector<test_event_entry> &events)
 {
-    uint64_t ts_start = 1338224400;
+  uint64_t ts_start = 1338224400;
+  GENERATE_ACCOUNT(miner);
+  GENERATE_ACCOUNT(alice);
 
-    GENERATE_ACCOUNT(miner);
-    GENERATE_ACCOUNT(alice);
+  test_generator generator;
+  std::vector<cryptonote::block> chain;
 
-    MAKE_GENESIS_BLOCK(events, blk_0, miner, ts_start);
-    MAKE_NEXT_BLOCK(events, blk_1, blk_0, miner);
-    MAKE_NEXT_BLOCK(events, blk_1_side, blk_0, miner);
-    MAKE_NEXT_BLOCK(events, blk_2, blk_1, miner);
-    //MAKE_TX(events, tx_0, first_miner_account, alice, 151, blk_2);
+  chain.resize(1);
+  generator.construct_block(chain.back(), miner, ts_start);
+  events.push_back(chain[0]);
+  
+  cryptonote::block blk_side;
+  generator.construct_block(blk_side, chain.back(), miner);
+  events.push_back(chain.back());
+    
+  /// Note: to create N RingCT transactions need at least 10 + N outputs
+  while (chain.size() < 10) {
+      chain.emplace_back();
+      const auto idx = chain.size() - 1;
+      generator.construct_block(chain[idx], chain[idx-1], miner);
+      events.push_back(chain.back());
+  }
 
-    std::vector<cryptonote::block> chain;
-    map_hash2tx_t mtx;
-    /*bool r = */find_block_chain(events, chain, mtx, get_block_hash(boost::get<cryptonote::block>(events[3])));
-    std::cout << "BALANCE = " << get_balance(miner, chain, mtx) << std::endl;
+  rewind_blocks(generator, events, chain, miner);
 
-    REWIND_BLOCKS(events, blk_2r, blk_2, miner);
-    MAKE_TX_LIST_START(events, txlist_0, miner, alice, MK_COINS(1), blk_2);
-    MAKE_TX_LIST(events, txlist_0, miner, alice, MK_COINS(2), blk_2);
-    MAKE_TX_LIST(events, txlist_0, miner, alice, MK_COINS(4), blk_2);
-    MAKE_NEXT_BLOCK_TX_LIST(events, blk_3, blk_2r, miner, txlist_0);
-    REWIND_BLOCKS(events, blk_3r, blk_3, miner);
-    MAKE_TX(events, tx_1, miner, alice, MK_COINS(50), blk_3);
-    MAKE_NEXT_BLOCK_TX1(events, blk_4, blk_3r, miner, tx_1);
-    REWIND_BLOCKS(events, blk_4r, blk_4, miner);
-    MAKE_TX(events, tx_2, miner, alice, MK_COINS(50), blk_4);
-    MAKE_NEXT_BLOCK_TX1(events, blk_5, blk_4r, miner, tx_2);
-    REWIND_BLOCKS(events, blk_5r, blk_5, miner);
-    MAKE_TX(events, tx_3, miner, alice, MK_COINS(50), blk_5);
-    MAKE_NEXT_BLOCK_TX1(events, blk_6, blk_5r, miner, tx_3);
+  std::vector<cryptonote::transaction> txs;
+  
+  make_rct_tx(events, txs, chain.back(), miner, alice, MK_COINS(1));
+  make_rct_tx(events, txs, chain.back(), miner, alice, MK_COINS(2));
+  make_rct_tx(events, txs, chain.back(), miner, alice, MK_COINS(4));
 
-    DO_CALLBACK(events, "verify_callback_1");
-    //e.t.c.
-    //MAKE_BLOCK_TX1(events, blk_3, 3, get_block_hash(blk_0), get_test_target(), first_miner_account, ts_start + 10, tx_0);
-    //MAKE_BLOCK_TX1(events, blk_3, 3, get_block_hash(blk_0), get_test_target(), first_miner_account, ts_start + 10, tx_0);
-    //DO_CALLBACK(events, "verify_callback_2");
+  construct_block(generator, events, chain, txs, miner);
 
-/*    std::vector<const cryptonote::block*> chain;
-    map_hash2tx_t mtx;
-    if (!find_block_chain(events, chain, mtx, get_block_hash(blk_6)))
-        throw;
-    cout << "miner = " << get_balance(first_miner_account, events, chain, mtx) << endl;
-    cout << "alice = " << get_balance(alice, events, chain, mtx) << endl;*/
+  auto last_unlocked = chain.back();
+  rewind_blocks(generator, events, chain, miner);
+  txs.clear();
+  make_rct_tx(events, txs, last_unlocked, miner, alice, MK_COINS(50));
+  construct_block(generator, events, chain, txs, miner);
 
-    return true;
+  last_unlocked = chain.back();
+  rewind_blocks(generator, events, chain, miner);
+  txs.clear();
+  make_rct_tx(events, txs, last_unlocked, miner, alice, MK_COINS(50));
+  construct_block(generator, events, chain, txs, miner);
+
+  last_unlocked = chain.back();
+  rewind_blocks(generator, events, chain, miner);
+  txs.clear();
+  make_rct_tx(events, txs, last_unlocked, miner, alice, MK_COINS(50));
+  construct_block(generator, events, chain, txs, miner);
+
+  return true;
 }
 
 bool gen_simple_chain_001::verify_callback_1(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry> &events)

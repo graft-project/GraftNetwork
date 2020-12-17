@@ -392,6 +392,7 @@ struct output_index {
   bool spent;
   bool rct;
   rct::key comm;
+  rct::key mask; // TODO(loki): I dont know if this is still meant to be here. Monero removed and replaced with commitment, whereas we use the mask in our tests?
   const cryptonote::block *p_blk;
   const cryptonote::transaction *p_tx;
 
