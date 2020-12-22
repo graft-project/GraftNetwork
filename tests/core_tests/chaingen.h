@@ -57,11 +57,12 @@
 #include "misc_language.h"
 
 #include "blockchain_db/testdb.h"
+#include "cryptonote_config.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "tests.core"
 
-#define TESTS_DEFAULT_FEE ((uint64_t)200000000) // 2 * pow(10, 8)
+#define TESTS_DEFAULT_FEE ((uint64_t)2 * COIN / 10) // 2 * pow(10, 9)
 #define TEST_DEFAULT_DIFFICULTY 1
 
 #ifdef DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN
