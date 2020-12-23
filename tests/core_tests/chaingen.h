@@ -594,6 +594,7 @@ void fill_tx_sources_and_destinations(const std::vector<test_event_entry>& event
                                       std::vector<cryptonote::tx_source_entry>& sources,
                                       std::vector<cryptonote::tx_destination_entry>& destinations, uint64_t *change_amount = nullptr);
 
+uint64_t get_amount(const cryptonote::account_base& account, const cryptonote::transaction& tx, int i);
 uint64_t get_balance(const cryptonote::account_base& addr, const std::vector<cryptonote::block>& blockchain, const map_hash2tx_t& mtx);
 
 bool extract_hard_forks(const std::vector<test_event_entry>& events, v_hardforks_t& hard_forks);
