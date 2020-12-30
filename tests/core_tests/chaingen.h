@@ -910,23 +910,14 @@ inline bool replay_events_through_core_plain(cryptonote::core& cr, const std::ve
 //--------------------------------------------------------------------------
 template<typename t_test_class>
 struct get_test_options {
-  const std::pair<uint8_t, uint64_t> hard_forks[3];
+  const std::pair<uint8_t, uint64_t> hard_forks[2];
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };
-  get_test_options():hard_forks{std::make_pair((uint8_t)1, (uint64_t)0),
-                                std::make_pair((uint8_t)7, (uint64_t)1),
+  get_test_options():hard_forks{std::make_pair((uint8_t)7, (uint64_t)0),
                                 std::make_pair((uint8_t)0, (uint64_t)0)}{}
 };
 // TODO: graft: make hard_forks std::vector?
-
-//template<typename t_test_class>
-//struct get_test_options {
-//  const std::vector<std::pair<uint8_t, uint64_t>> hard_forks = {{7, 0}};
-//  const cryptonote::test_options test_options = {
-//    hard_forks, 0
-//  };
-//};
 
 //--------------------------------------------------------------------------
 template<class t_test_class>
