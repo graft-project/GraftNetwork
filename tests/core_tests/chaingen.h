@@ -1040,13 +1040,10 @@ inline bool do_replay_file(const std::string& filename)
 #define REGISTER_CALLBACK_METHOD(CLASS, METHOD) \
   register_callback(#METHOD, [this](auto&&... args) { return this->METHOD(std::forward<decltype(args)>(args)...); });
 
-#define MAKE_GENESIS_BLOCK(VEC_EVENTS, BLK_NAME, MINER_ACC, TS)                        \
-  test_generator generator;                                                            \
-  size_t hf_ver_current = generator.m_hf_version;                                      \
-  generator.m_hf_version = 1;                                                          \
-  cryptonote::block BLK_NAME;                                                          \
-  generator.construct_block(BLK_NAME, MINER_ACC, TS);                                  \
-  generator.m_hf_version =  hf_ver_current;                                            \
+#define MAKE_GENESIS_BLOCK(VEC_EVENTS, BLK_NAME, MINER_ACC, TS)                       \
+  test_generator generator;                                               \
+  cryptonote::block BLK_NAME;                                                           \
+  generator.construct_block(BLK_NAME, MINER_ACC, TS);                                 \
   VEC_EVENTS.push_back(BLK_NAME);
 
 /// TODO: use hf_ver from test options
