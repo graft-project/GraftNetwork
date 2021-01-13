@@ -118,6 +118,20 @@ bool gen_chain_switch_1::generate(std::vector<test_event_entry>& events) const
 }
 
 
+static uint64_t transferred_in_tx(const cryptonote::account_base& account, const cryptonote::transaction& tx) {
+
+  uint64_t total_amount = 0;
+
+  for (auto i = 0u; i < tx.vout.size(); ++i) {
+
+    if(is_out_to_acc(account.get_keys(), boost::get<txout_to_key>(tx.vout[i].target), get_tx_pub_key_from_extra(tx), get_additional_tx_pub_keys_from_extra(tx), i)) {
+      total_amount += get_amount(account, tx, i);
+    }
+  }
+
+  return total_amount;
+}
+
 //-----------------------------------------------------------------------------------------------------
 bool gen_chain_switch_1::check_split_not_switched(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events)
 {
@@ -150,10 +164,8 @@ bool gen_chain_switch_1::check_split_not_switched(cryptonote::core& c, size_t ev
   CHECK_TEST_CONDITION(r);
   CHECK_EQ(1, tx_pool.size());
 
-  std::vector<size_t> tx_outs;
-  uint64_t transfered;
-  lookup_acc_outs(m_recipient_account_4.get_keys(), tx_pool.front(), get_tx_pub_key_from_extra(tx_pool.front()), get_additional_tx_pub_keys_from_extra(tx_pool.front()), tx_outs, transfered);
-  CHECK_EQ(MK_COINS(13), transfered);
+  const auto transferred = transferred_in_tx(m_recipient_account_4, tx_pool.front());
+  CHECK_EQ(MK_COINS(13), transferred);
 
   m_chain_1.swap(blocks);
   m_tx_pool.swap(tx_pool);
@@ -201,10 +213,8 @@ bool gen_chain_switch_1::check_split_switched(cryptonote::core& c, size_t ev_ind
   CHECK_EQ(1, tx_pool.size());
   CHECK_TEST_CONDITION(!(tx_pool.front() == m_tx_pool.front()));
 
-  std::vector<size_t> tx_outs;
-  uint64_t transfered;
-  lookup_acc_outs(m_recipient_account_2.get_keys(), tx_pool.front(), tx_outs, transfered);
-  CHECK_EQ(MK_COINS(7), transfered);
+  const auto transferred = transferred_in_tx(m_recipient_account_2, tx_pool.front());
+  CHECK_EQ(MK_COINS(7), transferred);
 
   return true;
 }

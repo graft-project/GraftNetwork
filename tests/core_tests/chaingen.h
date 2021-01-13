@@ -1103,7 +1103,7 @@ inline bool do_replay_file(const std::string& filename)
 
 #define MAKE_TX_MIX(VEC_EVENTS, TX_NAME, FROM, TO, AMOUNT, NMIX, HEAD)                       \
   cryptonote::transaction TX_NAME;                                                             \
-  construct_tx_to_key(VEC_EVENTS, TX_NAME, HEAD, FROM, TO, AMOUNT, TESTS_DEFAULT_FEE, NMIX); \
+  loki_tx_builder(VEC_EVENTS, TX_NAME, HEAD, FROM, TO.get_keys().m_account_address, AMOUNT, cryptonote::network_version_7).build(); \
   VEC_EVENTS.push_back(TX_NAME);
 
 #define MAKE_TX_MIX_RCT(VEC_EVENTS, TX_NAME, FROM, TO, AMOUNT, NMIX, HEAD)                       \
@@ -1116,7 +1116,7 @@ inline bool do_replay_file(const std::string& filename)
 #define MAKE_TX_MIX_LIST(VEC_EVENTS, SET_NAME, FROM, TO, AMOUNT, NMIX, HEAD)             \
   {                                                                                      \
     cryptonote::transaction t;                                                           \
-    construct_tx_to_key(VEC_EVENTS, t, HEAD, FROM, TO, AMOUNT, TESTS_DEFAULT_FEE, NMIX); \
+    loki_tx_builder(VEC_EVENTS, t, HEAD, FROM, TO.get_keys().m_account_address, AMOUNT, cryptonote::network_version_7).build(); \
     SET_NAME.push_back(t);                                                               \
     VEC_EVENTS.push_back(t);                                                             \
   }
