@@ -42,6 +42,7 @@ public:
 
   bool check_block_verification_context(const cryptonote::block_verification_context& bvc, size_t event_idx, const cryptonote::block& /*blk*/)
   {
+    MDEBUG("invalid_block_idx: " << invalid_block_idx << ", event_idx: " << event_idx);
     if (invalid_block_idx == event_idx)
       return bvc.m_verifivation_failed;
     else
@@ -165,12 +166,12 @@ struct gen_block_miner_tx_with_txin_to_key : public gen_block_verification_base<
   bool generate(std::vector<test_event_entry>& events) const;
 };
 
-struct gen_block_miner_tx_out_is_small : public gen_block_verification_base<1>
+struct gen_block_miner_tx_out_is_small : public gen_block_verification_base<2>
 {
   bool generate(std::vector<test_event_entry>& events) const;
 };
 
-struct gen_block_miner_tx_out_is_big : public gen_block_verification_base<1>
+struct gen_block_miner_tx_out_is_big : public gen_block_verification_base<2>
 {
   bool generate(std::vector<test_event_entry>& events) const;
 };

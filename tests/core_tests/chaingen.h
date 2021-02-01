@@ -1041,7 +1041,7 @@ inline bool do_replay_file(const std::string& filename)
   register_callback(#METHOD, [this](auto&&... args) { return this->METHOD(std::forward<decltype(args)>(args)...); });
 
 #define MAKE_GENESIS_BLOCK(VEC_EVENTS, BLK_NAME, MINER_ACC, TS)                       \
-  test_generator generator;                                               \
+  test_generator generator;                                                   \
   cryptonote::block BLK_NAME;                                                           \
   generator.construct_block(BLK_NAME, MINER_ACC, TS);                                 \
   VEC_EVENTS.push_back(BLK_NAME);
@@ -1157,7 +1157,14 @@ inline bool do_replay_file(const std::string& filename)
     miner_account.get_keys().m_account_address, TX, 0, KEY))                                              \
     return false;
 
-#define MAKE_MINER_TX_MANUALLY(TX, BLK) MAKE_MINER_TX_AND_KEY_MANUALLY(TX, BLK, 0)
+
+#define MAKE_MINER_TX_MANUALLY(TX, BLK)         \
+  transaction TX;                     \
+  if (!construct_miner_tx(get_block_height(BLK)+1, 0, generator.get_already_generated_coins(BLK), \
+    0, 0, miner_account.get_keys().m_account_address, TX, {}, 1, 7)) \
+    return false; \
+
+// #define MAKE_MINER_TX_MANUALLY(TX, BLK) MAKE_MINER_TX_AND_KEY_MANUALLY(TX, BLK, 0)
 
 #define SET_EVENT_VISITOR_SETT(VEC_EVENTS, SETT, VAL) VEC_EVENTS.push_back(event_visitor_settings(SETT, VAL));
 

@@ -331,28 +331,11 @@ bool gen_block_miner_tx_has_2_in::generate(std::vector<test_event_entry>& events
   BLOCK_VALIDATION_INIT_GENERATE();
   REWIND_BLOCKS(events, blk_0r, blk_0, miner_account);
 
-  GENERATE_ACCOUNT(alice);
-
-  tx_source_entry se;
-  se.amount = blk_0.miner_tx.vout[0].amount;
-  se.push_output(0, boost::get<txout_to_key>(blk_0.miner_tx.vout[0].target).key, se.amount);
-  se.real_output = 0;
-  se.rct = false;
-  se.real_out_tx_key = get_tx_pub_key_from_extra(blk_0.miner_tx);
-  se.real_output_in_tx_index = 0;
-  std::vector<tx_source_entry> sources;
-  sources.push_back(se);
-
-  tx_destination_entry de;
-  de.addr = miner_account.get_keys().m_account_address;
-  de.amount = se.amount;
-  std::vector<tx_destination_entry> destinations;
-  destinations.push_back(de);
-
   transaction tmp_tx;
-  if (!construct_tx(miner_account.get_keys(), sources, destinations, boost::none, std::vector<uint8_t>(), tmp_tx, 0))
-    return false;
 
+  if (!loki_tx_builder(events, tmp_tx, blk_0r, miner_account, miner_account.get_keys().m_account_address, blk_0.miner_tx.vout[0].amount, cryptonote::network_version_7).build())
+    return false;
+  
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
   miner_tx.vin.push_back(tmp_tx.vin[0]);
 
@@ -376,24 +359,8 @@ bool gen_block_miner_tx_with_txin_to_key::generate(std::vector<test_event_entry>
 
   REWIND_BLOCKS(events, blk_1r, blk_1, miner_account);
 
-  tx_source_entry se;
-  se.amount = blk_1.miner_tx.vout[0].amount;
-  se.push_output(0, boost::get<txout_to_key>(blk_1.miner_tx.vout[0].target).key, se.amount);
-  se.real_output = 0;
-  se.rct = false;
-  se.real_out_tx_key = get_tx_pub_key_from_extra(blk_1.miner_tx);
-  se.real_output_in_tx_index = 0;
-  std::vector<tx_source_entry> sources;
-  sources.push_back(se);
-
-  tx_destination_entry de;
-  de.addr = miner_account.get_keys().m_account_address;
-  de.amount = se.amount;
-  std::vector<tx_destination_entry> destinations;
-  destinations.push_back(de);
-
   transaction tmp_tx;
-  if (!construct_tx(miner_account.get_keys(), sources, destinations, boost::none, std::vector<uint8_t>(), tmp_tx, 0))
+  if (!loki_tx_builder(events, tmp_tx, blk_1r, miner_account, miner_account.get_keys().m_account_address, blk_1.miner_tx.vout[0].amount, cryptonote::network_version_7).build())
     return false;
 
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_1);
@@ -420,7 +387,6 @@ bool gen_block_miner_tx_out_is_small::generate(std::vector<test_event_entry>& ev
   events.push_back(blk_1);
 
   DO_CALLBACK(events, "check_block_purged");
-
   return true;
 }
 
@@ -429,12 +395,18 @@ bool gen_block_miner_tx_out_is_big::generate(std::vector<test_event_entry>& even
   BLOCK_VALIDATION_INIT_GENERATE();
 
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.vout[0].amount *= 2;
-
+  miner_tx.vout[0].amount = FIRST_REWARD;
+  
   block blk_1;
   generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, 0, 0, 0, crypto::hash(), 0, miner_tx);
   events.push_back(blk_1);
-
+  
+  MAKE_MINER_TX_MANUALLY(miner_tx2, blk_1);
+  miner_tx2.vout[0].amount *= 2;
+  block blk_2;
+  generator.construct_block_manually(blk_2, blk_1, miner_account, test_generator::bf_miner_tx, 0, 0, 0, crypto::hash(), 0, miner_tx2);
+  events.push_back(blk_2);
+  
   DO_CALLBACK(events, "check_block_purged");
 
   return true;

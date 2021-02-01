@@ -78,7 +78,7 @@
 #define DYNAMIC_FEE_PER_KB_BASE_FEE_V5                  ((uint64_t)20000000 * (uint64_t)CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT        ((uint64_t)3000)
 
-
+#define FIRST_REWARD                                    8301030000000000000U
 #define RTA_TX_FEE                                      COIN
 
 #define ORPHANED_BLOCKS_MAX_COUNT                       100

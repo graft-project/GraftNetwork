@@ -1078,7 +1078,7 @@ bool test_generator::construct_block_manually(cryptonote::block& blk, const cryp
   {
     size_t current_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
     // TODO: This will work, until size of constructed block is less then CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE
-    if (!construct_miner_tx(height, epee::misc_utils::median(block_weights), already_generated_coins, current_block_weight, 0, miner_acc.get_keys().m_account_address, blk.miner_tx, cryptonote::blobdata(), max_outs/* , hf_version*/))
+    if (!construct_miner_tx(height, epee::misc_utils::median(block_weights), already_generated_coins, current_block_weight, 0, miner_acc.get_keys().m_account_address, blk.miner_tx, cryptonote::blobdata(), max_outs, m_hf_version))
       return false;
   }
 
