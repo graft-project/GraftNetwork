@@ -84,10 +84,7 @@ namespace cryptonote {
     const int emission_speed_factor = EMISSION_SPEED_FACTOR_PER_MINUTE - (target_minutes-1);
 
 
-    if (version >= 6  && median_weight > 0 && already_generated_coins < FIRST_REWARD) {
-      reward = FIRST_REWARD;
-      return true;
-    }
+    
     
 
     uint64_t base_reward = (MONEY_SUPPLY - already_generated_coins) >> emission_speed_factor;
@@ -115,6 +112,11 @@ namespace cryptonote {
     if(current_block_weight > 2 * median_weight) {
       MERROR("Block cumulative weight is too big: " << current_block_weight << ", expected less than " << 2 * median_weight);
       return false;
+    }
+    
+    if (version >= 6  && median_weight > 0 && already_generated_coins < FIRST_REWARD) {
+      reward = FIRST_REWARD;
+      return true;
     }
 
     assert(median_weight < std::numeric_limits<uint32_t>::max());
