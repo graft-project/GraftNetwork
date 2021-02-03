@@ -379,12 +379,19 @@ bool gen_block_miner_tx_out_is_small::generate(std::vector<test_event_entry>& ev
 {
   BLOCK_VALIDATION_INIT_GENERATE();
 
+
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.vout[0].amount /= 2;
+  miner_tx.vout[0].amount = FIRST_REWARD;
 
   block blk_1;
   generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, 0, 0, 0, crypto::hash(), 0, miner_tx);
   events.push_back(blk_1);
+
+  MAKE_MINER_TX_MANUALLY(miner_tx2, blk_1);
+  miner_tx2.vout[0].amount /= 2;
+  block blk_2;
+  generator.construct_block_manually(blk_2, blk_1, miner_account, test_generator::bf_miner_tx, 0, 0, 0, crypto::hash(), 0, miner_tx2);
+  events.push_back(blk_2);
 
   DO_CALLBACK(events, "check_block_purged");
   return true;
