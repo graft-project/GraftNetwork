@@ -486,7 +486,7 @@ bool gen_block_is_too_big::generate(std::vector<test_event_entry>& events) const
 
   // Creating a huge miner_tx, it will have a lot of outs
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  static const size_t tx_out_count = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1 / 2;
+  static const size_t tx_out_count = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5 / 2;
   uint64_t amount = get_outs_money_amount(miner_tx);
   uint64_t portion = amount / tx_out_count;
   uint64_t remainder = amount % tx_out_count;
@@ -506,7 +506,6 @@ bool gen_block_is_too_big::generate(std::vector<test_event_entry>& events) const
     o.target = target;
     miner_tx.vout.push_back(o);
   }
-
   // Block reward will be incorrect, as it must be reduced if cumulative block size is very big,
   // but in this test it doesn't matter
   block blk_1;
