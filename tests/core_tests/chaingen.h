@@ -1099,7 +1099,6 @@ inline bool do_replay_file(const std::string& filename)
   }
 
 #define REWIND_BLOCKS(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC) REWIND_BLOCKS_N(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW)
-// #define REWIND_BLOCKS_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, HF) REWIND_BLOCKS_N_HF(VEC_EVENTS, BLK_NAME, PREV_BLOCK, MINER_ACC, CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, HF)
 
 #define MAKE_TX_MIX(VEC_EVENTS, TX_NAME, FROM, TO, AMOUNT, NMIX, HEAD)                       \
   cryptonote::transaction TX_NAME;                                                             \
@@ -1372,7 +1371,7 @@ public:
 
     cryptonote::tx_destination_entry change_addr{ change_amount, m_from.get_keys().m_account_address, false /*is_subaddr*/ };
     bool result = cryptonote::construct_tx(
-      m_from.get_keys(), sources, destinations, change_addr.addr, m_extra, m_tx, m_unlock_time /*, m_hf_version, m_is_staking*/);
+      m_from.get_keys(), sources, destinations, change_addr.addr, m_extra, m_tx, m_unlock_time, cryptonote::transaction_prefix::tx_type_generic, m_hf_version/*, m_is_staking*/);
     return result;
   }
 };
