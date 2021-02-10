@@ -1370,8 +1370,10 @@ public:
       m_events, m_head, m_from, m_to, m_amount, m_fee, nmix, sources, destinations, &change_amount);
 
     cryptonote::tx_destination_entry change_addr{ change_amount, m_from.get_keys().m_account_address, false /*is_subaddr*/ };
+    
     bool result = cryptonote::construct_tx(
-      m_from.get_keys(), sources, destinations, change_addr.addr, m_extra, m_tx, m_unlock_time, cryptonote::transaction_prefix::tx_type_generic, m_hf_version/*, m_is_staking*/);
+      m_from.get_keys(), sources, destinations, change_addr.addr, m_extra, m_tx, m_unlock_time, { m_hf_version, cryptonote::transaction::tx_type_generic }
+    );
     return result;
   }
 };

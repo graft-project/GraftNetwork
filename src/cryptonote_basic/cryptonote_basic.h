@@ -171,9 +171,13 @@ namespace cryptonote
       tx_version_v0 = 0,
       tx_version_v1,
       tx_version_v2_ringct,
-      tx_version_v3_rta, // "intermediate" version of rta tx; "type" field wasn't included into transaction_prefix
+      tx_version_v3_rta,         // "intermediate" version of rta tx; "type" field wasn't included into transaction_prefix
       tx_version_v4_rta_tx_type, // current version of rta tx; "type" field is in transaction_prefix
     };
+    
+    static tx_version get_min_version_for_hf(size_t hf_version);
+    static tx_version get_max_version_for_hf(size_t hf_version);
+    static tx_type    get_max_type_for_hf   (size_t hf_version);
 
     // tx information
     // Graft: TODO: consider to make it "fixed" (platform independent) lenght integer;
@@ -561,6 +565,32 @@ namespace cryptonote
       return k;
     }
   };
+  
+  //---------------------------------------------------------------
+  inline transaction_prefix::tx_version transaction_prefix::get_min_version_for_hf(size_t hf_version)
+  {
+    if (hf_version < network_version_7)
+      return tx_version_v1;
+    return tx_version::tx_version_v2_ringct;
+  }
+
+  inline transaction_prefix::tx_version transaction_prefix::get_max_version_for_hf(size_t hf_version)
+  {
+    
+    if (hf_version >= cryptonote::network_version_7 && hf_version < network_version_13_rta_txs_rta_mining)
+      return tx_version_v2_ringct;
+
+    // v3 txs are allowed till v18 (checkpointing)
+    if (hf_version >= network_version_13_rta_txs_rta_mining && hf_version <= network_version_17_monero14)
+      return tx_version_v3_rta;
+
+    return tx_version_v4_rta_tx_type;
+  }
+
+  inline transaction_prefix::tx_type transaction_prefix::get_max_type_for_hf(size_t hf_version)
+  {
+    return hf_version < network_version_13_rta_txs_rta_mining ? tx_type_generic : tx_type_rta;
+  }
   //---------------------------------------------------------------
   inline char const *transaction_prefix::version_to_string(size_t v)
   {

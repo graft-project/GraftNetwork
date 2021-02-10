@@ -772,10 +772,10 @@ namespace cryptonote
 
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
     // don't allow rta tx until hf 13
-    const size_t max_tx_version = version == 1 ? 1 : version < 13 ? 2 : CURRENT_TRANSACTION_VERSION;
+    const size_t max_tx_version = transaction_prefix::get_max_version_for_hf(version);
     if (tx.version == 0 || tx.version > max_tx_version)
     {
-      // v3 is the latest one we know
+      MERROR("tx version " << tx.version << " is not allowed for HF " << (int)version);
       tvc.m_verifivation_failed = true;
       return false;
     }
