@@ -144,7 +144,7 @@ namespace
     fill_tx_sources_and_destinations(events, blk_head, from, get_address(to), amount, TESTS_DEFAULT_FEE, 0, sources, destinations); 
 
     tx_builder builder;
-    builder.step1_init(1, unlock_time);
+    builder.step1_init(cryptonote::transaction::tx_version_v2_ringct, unlock_time); 
     builder.step2_fill_inputs(from.get_keys(), sources);
     builder.step3_fill_outputs(destinations);
     builder.step4_calc_hash();
@@ -207,41 +207,57 @@ bool gen_tx_unlock_time::generate(std::vector<test_event_entry>& events) const
   uint64_t ts_start = 1338224400;
 
   GENERATE_ACCOUNT(miner_account);
-  MAKE_GENESIS_BLOCK(events, blk_0, miner_account, ts_start);
-  REWIND_BLOCKS_N(events, blk_1, blk_0, miner_account, 10);
-  REWIND_BLOCKS(events, blk_1r, blk_1, miner_account);
-
-  auto make_tx_with_unlock_time = [&](uint64_t unlock_time) -> transaction
-  {
-    return make_simple_tx_with_unlock_time(events, blk_1, miner_account, miner_account, MK_COINS(1), unlock_time);
-  };
+  MAKE_GENESIS_BLOCK(events, blk_tail, miner_account, ts_start);
+  REWIND_BLOCKS_N   (events, blk_money_unlocked, blk_tail,           miner_account, 10);
+  REWIND_BLOCKS     (events, blk_head,           blk_money_unlocked, miner_account);
 
   std::list<transaction> txs_0;
 
-  txs_0.push_back(make_tx_with_unlock_time(0));
-  events.push_back(txs_0.back());
+  transaction tx       = {};
+  uint64_t unlock_time = 0;
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).with_unlock_time(unlock_time).build();
+  events.push_back(tx);
+  txs_0.push_back(tx);
 
-  txs_0.push_back(make_tx_with_unlock_time(get_block_height(blk_1r) - 1));
-  events.push_back(txs_0.back());
+  tx          = {};
+  unlock_time = get_block_height(blk_money_unlocked) - 1;
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).with_unlock_time(unlock_time).build();
+  events.push_back(tx);
+  txs_0.push_back(tx);
 
-  txs_0.push_back(make_tx_with_unlock_time(get_block_height(blk_1r)));
-  events.push_back(txs_0.back());
+  tx          = {};
+  unlock_time = get_block_height(blk_money_unlocked);
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).with_unlock_time(unlock_time).build();
+  events.push_back(tx);
+  txs_0.push_back(tx);
 
-  txs_0.push_back(make_tx_with_unlock_time(get_block_height(blk_1r) + 1));
-  events.push_back(txs_0.back());
+  tx          = {};
+  unlock_time = get_block_height(blk_money_unlocked) + 1;
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).with_unlock_time(unlock_time).build();
+  events.push_back(tx);
+  txs_0.push_back(tx);
 
-  txs_0.push_back(make_tx_with_unlock_time(get_block_height(blk_1r) + 2));
-  events.push_back(txs_0.back());
+  tx          = {};
+  unlock_time = get_block_height(blk_money_unlocked) + 2;
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).with_unlock_time(unlock_time).build();
+  events.push_back(tx);
+  txs_0.push_back(tx);
 
-  txs_0.push_back(make_tx_with_unlock_time(ts_start - 1));
-  events.push_back(txs_0.back());
+  tx          = {};
+  unlock_time = ts_start - 1;
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).with_unlock_time(unlock_time).build();
+  events.push_back(tx);
+  txs_0.push_back(tx);
 
-  txs_0.push_back(make_tx_with_unlock_time(time(0) + 60 * 60));
-  events.push_back(txs_0.back());
+  tx          = {};
+  unlock_time = time(0) + 60 * 60;
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).with_unlock_time(unlock_time).build();
+  events.push_back(tx);
+  txs_0.push_back(tx);
 
-  MAKE_NEXT_BLOCK_TX_LIST(events, blk_2, blk_1r, miner_account, txs_0);
-
+  MAKE_NEXT_BLOCK_TX_LIST(events, blk_tmp, blk_money_unlocked, miner_account, txs_0);
   return true;
+
 }
 
 bool gen_tx_input_is_not_txin_to_key::generate(std::vector<test_event_entry>& events) const
