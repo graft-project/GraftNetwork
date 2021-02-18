@@ -262,38 +262,34 @@ bool gen_tx_unlock_time::generate(std::vector<test_event_entry>& events) const
 
 bool gen_tx_input_is_not_txin_to_key::generate(std::vector<test_event_entry>& events) const
 {
+
   uint64_t ts_start = 1338224400;
 
   GENERATE_ACCOUNT(miner_account);
-  MAKE_GENESIS_BLOCK(events, blk_0, miner_account, ts_start);
-  REWIND_BLOCKS(events, blk_0r, blk_0, miner_account);
+  MAKE_GENESIS_BLOCK(events, blk_tail, miner_account, ts_start);
+  REWIND_BLOCKS_N   (events, blk_money_unlocked, blk_tail,           miner_account, 40);
+  REWIND_BLOCKS     (events, blk_head,           blk_money_unlocked, miner_account);
 
-  MAKE_NEXT_BLOCK(events, blk_tmp, blk_0r, miner_account);
+  MAKE_NEXT_BLOCK(events, blk_tmp, blk_head, miner_account);
   events.pop_back();
 
   DO_CALLBACK(events, "mark_invalid_tx");
   events.push_back(blk_tmp.miner_tx);
 
-  auto make_tx_with_input = [&](const txin_v& tx_input) -> transaction
-  {
-    std::vector<tx_source_entry> sources;
-    std::vector<tx_destination_entry> destinations;
-    fill_tx_sources_and_destinations(events, blk_0, miner_account, get_address(miner_account), MK_COINS(1), TESTS_DEFAULT_FEE, 0, sources, destinations);
-
-    tx_builder builder;
-    builder.step1_init();
-    builder.m_tx.vin.push_back(tx_input);
-    builder.step3_fill_outputs(destinations);
-    return builder.m_tx;
-  };
+  DO_CALLBACK(events, "mark_invalid_tx");
+  transaction tx = {};
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).build();
+  tx.vin.push_back(txin_to_script());
+  events.push_back(tx);
 
   DO_CALLBACK(events, "mark_invalid_tx");
-  events.push_back(make_tx_with_input(txin_to_script()));
-
-  DO_CALLBACK(events, "mark_invalid_tx");
-  events.push_back(make_tx_with_input(txin_to_scripthash()));
+  tx = {};
+  loki_tx_builder(events, tx, blk_money_unlocked, miner_account, miner_account.get_keys().m_account_address, MK_COINS(1), cryptonote::network_version_7).build();
+  tx.vin.push_back(txin_to_scripthash());
+  events.push_back(tx);
 
   return true;
+
 }
 
 bool gen_tx_no_inputs_no_outputs::generate(std::vector<test_event_entry>& events) const
