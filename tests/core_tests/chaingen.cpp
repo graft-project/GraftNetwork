@@ -659,6 +659,8 @@ loki_blockchain_entry loki_chain_generator::create_genesis_block(const cryptonot
 
   // TODO(doyle): Does this evaluate to 0? If so we can simplify this a lot more
   size_t target_block_weight = get_transaction_weight(blk.miner_tx);
+  size_t max_outs = blk.major_version >= 4 ? 1 : 11;
+
 
   while (true)
   {
@@ -670,6 +672,7 @@ loki_blockchain_entry loki_chain_generator::create_genesis_block(const cryptonot
                                           miner.get_keys().m_account_address,
                                           blk.miner_tx,
                                           cryptonote::blobdata(),
+                                          max_outs,
                                           hf_version_);
     assert(constructed);
 
@@ -752,6 +755,7 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
   }
 
   size_t target_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
+  size_t max_outs = blk.major_version >= 4 ? 1 : 11;
   while (true)
   {
     if (!construct_miner_tx(height,
@@ -762,6 +766,7 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
                             miner_acc.get_keys().m_account_address,
                             blk.miner_tx,
                             cryptonote::blobdata(),
+                            max_outs,
                             hf_version
                             ))
       return false;
@@ -977,10 +982,11 @@ bool test_generator::construct_block(cryptonote::block& blk, uint64_t height, co
 
   blk.miner_tx = {};
   size_t target_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
+  size_t max_outs = blk.major_version >= 4 ? 1 : 11;
   while (true)
   {
     if (!construct_miner_tx(height, epee::misc_utils::median(block_weights), already_generated_coins, target_block_weight, total_fee, miner_acc.get_keys().m_account_address, blk.miner_tx, 
-                            cryptonote::blobdata(), 999, blk.major_version))
+                            cryptonote::blobdata(), max_outs, blk.major_version))
       return false;
 
     size_t actual_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
@@ -1063,7 +1069,7 @@ bool test_generator::construct_block_manually(cryptonote::block& blk, const cryp
   blk.timestamp     = actual_params & bf_timestamp ? timestamp : prev_block.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN; // Keep difficulty unchanged
   blk.prev_id       = actual_params & bf_prev_id   ? prev_id   : get_block_hash(prev_block);
   blk.tx_hashes     = actual_params & bf_tx_hashes ? tx_hashes : std::vector<crypto::hash>();
-  max_outs          = actual_params & bf_max_outs ? max_outs : 9999;
+  max_outs          = actual_params & bf_max_outs ? max_outs : (blk.major_version >= 4 ? 1 : 11);
   // hf_version        = actual_params & bf_hf_version ? hf_version : 1;
 
   size_t height = get_block_height(prev_block) + 1;
@@ -1369,6 +1375,7 @@ bool fill_tx_sources(std::vector<cryptonote::tx_source_entry>& sources, const st
     bool sources_found = false;
     for (const size_t sender_out : outs_mine) {
 
+        
         const output_index& oi = outs[sender_out];
         if (oi.spent) continue;
 
