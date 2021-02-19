@@ -152,13 +152,13 @@ bool gen_simple_chain_001::generate(std::vector<test_event_entry> &events)
   chain.resize(1);
   generator.construct_block(chain.back(), miner, ts_start);
   events.push_back(chain[0]);
-  
+
   cryptonote::block blk_side;
   generator.construct_block(blk_side, chain.back(), miner);
   events.push_back(chain.back());
-    
+
   /// Note: to create N RingCT transactions need at least 10 + N outputs
-  while (chain.size() < 10) {
+  while (chain.size() < 10 + 3) {
       chain.emplace_back();
       const auto idx = chain.size() - 1;
       generator.construct_block(chain[idx], chain[idx-1], miner);
@@ -166,9 +166,9 @@ bool gen_simple_chain_001::generate(std::vector<test_event_entry> &events)
   }
 
   rewind_blocks(generator, events, chain, miner);
-
-  std::vector<cryptonote::transaction> txs;
   
+  std::vector<cryptonote::transaction> txs;
+
   make_rct_tx(events, txs, chain.back(), miner, alice, MK_COINS(1));
   make_rct_tx(events, txs, chain.back(), miner, alice, MK_COINS(2));
   make_rct_tx(events, txs, chain.back(), miner, alice, MK_COINS(4));
@@ -192,7 +192,9 @@ bool gen_simple_chain_001::generate(std::vector<test_event_entry> &events)
   txs.clear();
   make_rct_tx(events, txs, last_unlocked, miner, alice, MK_COINS(50));
   construct_block(generator, events, chain, txs, miner);
-
+  
+  DO_CALLBACK(events, "verify_callback_1");
+  
   return true;
 }
 
