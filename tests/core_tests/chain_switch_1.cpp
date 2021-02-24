@@ -71,8 +71,9 @@ bool gen_chain_switch_1::generate(std::vector<test_event_entry>& events) const
   MAKE_ACCOUNT(events, recipient_account_2);                                                      //  2
   MAKE_ACCOUNT(events, recipient_account_3);                                                      //  3
   MAKE_ACCOUNT(events, recipient_account_4);                                                      //  4
-  REWIND_BLOCKS(events, blk_0r, blk_0, miner_account)                                             // <N blocks>
-  MAKE_TX(events, tx_00, miner_account, recipient_account_1, MK_COINS(5), blk_0);                 //  5 + N
+  REWIND_BLOCKS(events, blk_0r0, blk_0, miner_account)                                            // <N blocks>
+  REWIND_BLOCKS(events, blk_0r, blk_0r0, miner_account)                                           // <N blocks>
+  MAKE_TX(events, tx_00, miner_account, recipient_account_1, MK_COINS(5), blk_0r);                //  5 + N
   MAKE_NEXT_BLOCK_TX1(events, blk_1, blk_0r, miner_account, tx_00);                               //  6 + N
   MAKE_NEXT_BLOCK(events, blk_2, blk_1, miner_account);                                           //  7 + N
   REWIND_BLOCKS(events, blk_2r, blk_2, miner_account)                                             // <N blocks>
@@ -145,8 +146,8 @@ bool gen_chain_switch_1::check_split_not_switched(cryptonote::core& c, size_t ev
   std::vector<block> blocks;
   bool r = c.get_blocks(0, 10000, blocks);
   CHECK_TEST_CONDITION(r);
-  CHECK_EQ(5 + 2 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, blocks.size());
-  CHECK_TEST_CONDITION(blocks.back() == boost::get<block>(events[20 + 2 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW]));  // blk_4
+  CHECK_EQ(5 + 3 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, blocks.size());
+  CHECK_TEST_CONDITION(blocks.back() == boost::get<block>(events[20 + 3 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW]));  // blk_4
 
   CHECK_EQ(2, c.get_alternative_blocks_count());
 
@@ -160,8 +161,7 @@ bool gen_chain_switch_1::check_split_not_switched(cryptonote::core& c, size_t ev
   CHECK_EQ(MK_COINS(3),  get_balance(m_recipient_account_4, chain, mtx));
 
   std::vector<transaction> tx_pool;
-  r = c.get_pool_transactions(tx_pool);
-  CHECK_TEST_CONDITION(r);
+  c.get_pool().get_transactions(tx_pool);
   CHECK_EQ(1, tx_pool.size());
 
   const auto transferred = transferred_in_tx(m_recipient_account_4, tx_pool.front());
@@ -169,7 +169,6 @@ bool gen_chain_switch_1::check_split_not_switched(cryptonote::core& c, size_t ev
 
   m_chain_1.swap(blocks);
   m_tx_pool.swap(tx_pool);
-
   return true;
 }
 
@@ -181,11 +180,11 @@ bool gen_chain_switch_1::check_split_switched(cryptonote::core& c, size_t ev_ind
   std::vector<block> blocks;
   bool r = c.get_blocks(0, 10000, blocks);
   CHECK_TEST_CONDITION(r);
-  CHECK_EQ(6 + 2 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, blocks.size());
+  CHECK_EQ(6 + 3 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW, blocks.size());
   auto it = blocks.end();
   --it; --it; --it;
   CHECK_TEST_CONDITION(std::equal(blocks.begin(), it, m_chain_1.begin()));
-  CHECK_TEST_CONDITION(blocks.back() == boost::get<block>(events[24 + 2 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW]));  // blk_7
+  CHECK_TEST_CONDITION(blocks.back() == boost::get<block>(events[24 + 3 * CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW]));  // blk_7
 
   std::vector<block> alt_blocks;
   r = c.get_alternative_blocks(alt_blocks);
@@ -193,7 +192,7 @@ bool gen_chain_switch_1::check_split_switched(cryptonote::core& c, size_t ev_ind
   CHECK_EQ(2, c.get_alternative_blocks_count());
 
   // Some blocks that were in main chain are in alt chain now
-  BOOST_FOREACH(block b, alt_blocks)
+  for (block &b : alt_blocks)
   {
     CHECK_TEST_CONDITION(m_chain_1.end() != std::find(m_chain_1.begin(), m_chain_1.end(), b));
   }
@@ -208,8 +207,7 @@ bool gen_chain_switch_1::check_split_switched(cryptonote::core& c, size_t ev_ind
   CHECK_EQ(MK_COINS(16), get_balance(m_recipient_account_4, chain, mtx));
 
   std::vector<transaction> tx_pool;
-  r = c.get_pool_transactions(tx_pool);
-  CHECK_TEST_CONDITION(r);
+  c.get_pool().get_transactions(tx_pool);
   CHECK_EQ(1, tx_pool.size());
   CHECK_TEST_CONDITION(!(tx_pool.front() == m_tx_pool.front()));
 

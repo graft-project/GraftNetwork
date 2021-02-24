@@ -101,7 +101,6 @@ int main(int argc, char* argv[])
   else if (command_line::get_arg(vm, arg_generate_and_play_test_data) || (list_tests = command_line::get_arg(vm, arg_list_tests)))
   {
     GENERATE_AND_PLAY(gen_simple_chain_001);
-
     GENERATE_AND_PLAY(gen_simple_chain_split_1);
     GENERATE_AND_PLAY(one_block);
     GENERATE_AND_PLAY(gen_chain_switch_1);
@@ -127,7 +126,8 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_block_miner_tx_has_2_tx_gen_in);
     GENERATE_AND_PLAY(gen_block_miner_tx_has_2_in);
     GENERATE_AND_PLAY(gen_block_miner_tx_with_txin_to_key);
-    GENERATE_AND_PLAY(gen_block_miner_tx_out_is_small);
+    // N/A for hf versions > 2; currently v7 is used for tests
+    // GENERATE_AND_PLAY(gen_block_miner_tx_out_is_small);
     GENERATE_AND_PLAY(gen_block_miner_tx_out_is_big);
     GENERATE_AND_PLAY(gen_block_miner_tx_has_no_out);
     GENERATE_AND_PLAY(gen_block_miner_tx_has_out_to_alice);
@@ -180,7 +180,9 @@ int main(int argc, char* argv[])
 //    GENERATE_AND_PLAY(gen_v2_tx_unmixable_two);
     GENERATE_AND_PLAY(gen_v2_tx_dust);
 
-    GENERATE_AND_PLAY(gen_rct_tx_valid_from_pre_rct);
+    
+#if 0  // 
+    // GENERATE_AND_PLAY(gen_rct_tx_valid_from_pre_rct);
     GENERATE_AND_PLAY(gen_rct_tx_valid_from_rct);
     GENERATE_AND_PLAY(gen_rct_tx_valid_from_mixed);
     GENERATE_AND_PLAY(gen_rct_tx_pre_rct_bad_real_dest);
@@ -208,7 +210,8 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_rct_tx_pre_rct_increase_vin_and_fee);
     GENERATE_AND_PLAY(gen_rct_tx_pre_rct_altered_extra);
     GENERATE_AND_PLAY(gen_rct_tx_rct_altered_extra);
-
+#endif
+    
     GENERATE_AND_PLAY(gen_multisig_tx_valid_22_1_2);
     GENERATE_AND_PLAY(gen_multisig_tx_valid_22_1_2_many_inputs);
     GENERATE_AND_PLAY(gen_multisig_tx_valid_22_2_1);
@@ -238,6 +241,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_multisig_tx_invalid_48_1_no_signers);
     GENERATE_AND_PLAY(gen_multisig_tx_invalid_48_1_23_no_threshold);
 
+    
     GENERATE_AND_PLAY(gen_bp_tx_valid_1);
     GENERATE_AND_PLAY(gen_bp_tx_invalid_1_1);
     GENERATE_AND_PLAY(gen_bp_tx_valid_2);
@@ -252,8 +256,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bp_tx_invalid_empty_proofs);
     GENERATE_AND_PLAY(gen_bp_tx_invalid_too_many_proofs);
     GENERATE_AND_PLAY(gen_bp_tx_invalid_wrong_amount);
-    GENERATE_AND_PLAY(gen_bp_tx_invalid_borromean_type);
-    
+    GENERATE_AND_PLAY(gen_bp_tx_invalid_borromean_type);    
 
     el::Level level = (failed_tests.empty() ? el::Level::Info : el::Level::Error);
     if (!list_tests)
