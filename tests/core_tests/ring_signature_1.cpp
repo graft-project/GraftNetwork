@@ -159,7 +159,8 @@ bool gen_ring_signature_2::generate(std::vector<test_event_entry>& events) const
   MAKE_ACCOUNT(events, alice_account);                                                                  //  2
   MAKE_NEXT_BLOCK(events, blk_1, blk_0, miner_account);                                                 //  3
   MAKE_NEXT_BLOCK(events, blk_2, blk_1, miner_account);                                                 //  4
-  MAKE_NEXT_BLOCK(events, blk_3, blk_2, miner_account);                                                 //  5
+  REWIND_BLOCKS(events, blk_2b, blk_2, miner_account);                                                  // <N blocks>
+  MAKE_NEXT_BLOCK(events, blk_3, blk_2b, miner_account);                                                 //  5
   REWIND_BLOCKS(events, blk_3r, blk_3, miner_account);                                                  // <N blocks>
   MAKE_TX_LIST_START(events, txs_blk_4, miner_account, bob_account, MK_COINS(13), blk_3);               //  6 + N
   MAKE_TX_LIST(events, txs_blk_4, miner_account, bob_account, MK_COINS(13), blk_3);                     //  7 + N
