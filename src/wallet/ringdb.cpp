@@ -254,7 +254,8 @@ ringdb::~ringdb()
 void ringdb::close()
 {
   CRITICAL_REGION_LOCAL(g_mdb_env_lock);
-  ref_counter--;
+  if (ref_counter)
+    ref_counter--;
   if (ref_counter == 0 && env)
   {
     mdb_dbi_close(env, dbi_rings);
