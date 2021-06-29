@@ -472,20 +472,22 @@ namespace nodetool
   std::set<std::string> node_server<t_payload_net_handler>::get_seed_nodes(cryptonote::network_type nettype) const
   {
     std::set<std::string> full_addrs;
-    if (m_custom_seed_nodes.size() > 0 && nettype == cryptonote::TESTNET)
-    {
-        for (const auto& na : m_custom_seed_nodes)
-        {
-            const auto& ipv4 = na.template as<const epee::net_utils::ipv4_network_address>();
-            full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
-                              + epee::string_tools::num_to_string_fast(ipv4.port()) );
-        }
-    }
+    
     if (nettype == cryptonote::TESTNET)
     {
-      full_addrs.insert("212.71.237.82:28880");
-      full_addrs.insert("45.79.47.118:28880");
-      full_addrs.insert("139.162.61.111:28880");
+      if (m_custom_seed_nodes.size() > 0)
+      {
+          for (const auto& na : m_custom_seed_nodes)
+          {
+              const auto& ipv4 = na.template as<const epee::net_utils::ipv4_network_address>();
+              full_addrs.insert(epee::string_tools::get_ip_string_from_int32(ipv4.ip()) + ":"
+                                + epee::string_tools::num_to_string_fast(ipv4.port()) );
+          }
+      } else {
+        full_addrs.insert("212.71.237.82:28880");
+        full_addrs.insert("45.79.47.118:28880");
+        full_addrs.insert("139.162.61.111:28880");
+      }
     }
     else if (nettype == cryptonote::STAGENET)
     {
