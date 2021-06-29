@@ -689,13 +689,7 @@ namespace cryptonote
 
   bool get_block_longhash(const Blockchain *pbc, const block& b, crypto::hash& res, const uint64_t height, const int miners)
   {
-    // block 202612 bug workaround
-    if (height == 202612)
-    {
-      static const std::string longhash_202612 = "84f64766475d51837ac9efbef1926486e58563c95a19fef4aec3254f03000000";
-      epee::string_tools::hex_to_pod(longhash_202612, res);
-      return true;
-    }
+  
     blobdata bd = get_block_hashing_blob(b);
     if (b.major_version >= RX_BLOCK_VERSION)
     {
