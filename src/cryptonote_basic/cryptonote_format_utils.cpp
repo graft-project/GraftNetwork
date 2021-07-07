@@ -994,11 +994,16 @@ namespace cryptonote
     return blob;
   }
   //---------------------------------------------------------------
-  bool calculate_block_hash(const block& b, crypto::hash& res)
+  bool calculate_block_hash(const block& b, crypto::hash& res, const blobdata *blob)
   {
+    blobdata bd;
+    if (!blob)
+    {
+      bd = block_to_blob(b);
+      blob = &bd;
+    }
+
     bool hash_result = get_object_hash(get_block_hashing_blob(b), res);
-
-
     return hash_result;
   }
   //---------------------------------------------------------------
@@ -1029,19 +1034,6 @@ namespace cryptonote
     return p;
   }
   //---------------------------------------------------------------
-  bool get_block_longhash(const block& b, crypto::hash& res, uint64_t height)
-  {
-
-    blobdata bd = get_block_hashing_blob(b);
-    // variant = 0 for versions less than 8
-    // variant = 1 for versions between 8 and 11
-    // variant = 2 for versions 11 and greater
-    const int cn_variant = b.major_version < 8 ? 0 : b.major_version >= 11 ? 2 : 1;
-    const int cn_modifier = b.major_version < 12 ? CN_MODIFIER_NONE : CN_MODIFIER_REVERSE_WALTZ;
-    crypto::cn_slow_hash(bd.data(), bd.size(), res, cn_variant, cn_modifier);
-    return true;
-  }
-  //---------------------------------------------------------------
   std::vector<uint64_t> relative_output_offsets_to_absolute(const std::vector<uint64_t>& off)
   {
     std::vector<uint64_t> res = off;
@@ -1062,14 +1054,7 @@ namespace cryptonote
     return res;
   }
   //---------------------------------------------------------------
-  crypto::hash get_block_longhash(const block& b, uint64_t height)
-  {
-    crypto::hash p = null_hash;
-    get_block_longhash(b, p, height);
-    return p;
-  }
-  //---------------------------------------------------------------
-  bool parse_and_validate_block_from_blob(const blobdata& b_blob, block& b)
+  bool parse_and_validate_block_from_blob(const blobdata& b_blob, block& b, crypto::hash *block_hash)
   {
     std::stringstream ss;
     ss << b_blob;
@@ -1078,7 +1063,24 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse block from blob");
     b.invalidate_hashes();
     b.miner_tx.invalidate_hashes();
+    if (block_hash)
+    {
+      calculate_block_hash(b, *block_hash, &b_blob);
+      ++block_hashes_calculated_count;
+      b.hash = *block_hash;
+      b.set_hash_valid(true);
+    }
     return true;
+  }
+  //---------------------------------------------------------------
+  bool parse_and_validate_block_from_blob(const blobdata& b_blob, block& b)
+  {
+    return parse_and_validate_block_from_blob(b_blob, b, NULL);
+  }
+  //---------------------------------------------------------------
+  bool parse_and_validate_block_from_blob(const blobdata& b_blob, block& b, crypto::hash &block_hash)
+  {
+    return parse_and_validate_block_from_blob(b_blob, b, &block_hash);
   }
   //---------------------------------------------------------------
   blobdata block_to_blob(const block& b)

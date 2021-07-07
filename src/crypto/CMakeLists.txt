@@ -45,7 +45,11 @@ set(crypto_sources
   random.c
   skein.c
   slow-hash.c
+  rx-slow-hash.c
   tree-hash.c)
+
+
+include_directories(${RANDOMX_INCLUDE})
 
 set(crypto_headers)
 
@@ -77,6 +81,7 @@ monero_add_library(cncrypto
 target_link_libraries(cncrypto
   PUBLIC
     epee
+    randomx
     ${Boost_SYSTEM_LIBRARY}
     ${SODIUM_LIBRARY}
   PRIVATE
@@ -93,7 +98,7 @@ if (ARM)
 endif()
 
 # Because of the way Qt works on android with JNI, the code does not live in the main android thread
-# So this code runs with a 1 MB default stack size. 
+# So this code runs with a 1 MB default stack size.
 # This will force the use of the heap for the allocation of the scratchpad
 if (ANDROID OR IOS)
   if( BUILD_GUI_DEPS )
