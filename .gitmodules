@@ -11,4 +11,4 @@
 	url = https://github.com/Tencent/rapidjson
 [submodule "external/randomx"]
 	path = external/randomx
-	url = https://github.com/mbg033/Graft-RandomX
+	url = https://github.com/graft-project/Graft-RandomX
