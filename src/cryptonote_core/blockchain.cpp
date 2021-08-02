@@ -173,8 +173,8 @@ static const struct {
   { 15, 343750, 0, 1559401200 },
   // hf 16 increase stake period to 32 days, 2019-08-05T@09:00:00+00
   { 16, 381520, 0, 1564995600 },
-  // hf 17 RandomX PoW, 2019-09-30T@18:45:00+00
-  { 17, 421865, 0, 1569869100 }
+  // hf 17 RandomX PoW, 2021-07-29T@08:30:00+00
+  { 17, 421865, 0, 1627547400 }
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
