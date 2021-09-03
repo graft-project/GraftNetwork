@@ -144,9 +144,11 @@ namespace cryptonote {
     assert(reward_lo < base_reward);
 
     reward = reward_lo;
-    if (version >= 10) { 
+    if (version >= 18) { 
         // halving reward since version 10
         reward /= 2;
+        // quartering reward since version 18
+        reward /= 4;
     }
     return true;
   }
