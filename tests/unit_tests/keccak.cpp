@@ -37,7 +37,7 @@ extern "C" {
 #define TEST_KECCAK(sz, chunks) \
   std::string data; \
   data.resize(sz); \
-  for (size_t i = 0; i < sz; ++i) \
+  for (size_t i = 0; i < data.size(); ++i) \
     data[i] = i * 17; \
   uint8_t md0[32], md1[32]; \
   keccak((const uint8_t*)data.data(), data.size(), md0, 32); \
@@ -53,10 +53,6 @@ extern "C" {
   ASSERT_TRUE(offset == data.size()); \
   keccak_finish(&ctx, md1); \
   ASSERT_EQ(memcmp(md0, md1, 32), 0);
-
-TEST(keccak, )
-{
-}
 
 TEST(keccak, 0_and_0)
 {

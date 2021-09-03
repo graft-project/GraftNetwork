@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -38,6 +38,16 @@ namespace cryptonote
   class HardFork
   {
   public:
+    struct Params
+    {
+      uint8_t version;
+      uint64_t height;
+      uint8_t threshold;
+      time_t time;
+    };
+
+    constexpr static uint8_t INVALID_HF_VERSION_FOR_HEIGHT = 255;
+    constexpr static uint64_t INVALID_HF_VERSION_HEIGHT    = static_cast<uint64_t>(-1);
     typedef enum {
       LikelyForked,
       UpdateNeeded,
@@ -50,6 +60,17 @@ namespace cryptonote
     static const uint64_t DEFAULT_WINDOW_SIZE = 10080; // supermajority window check length - a week
     static const uint8_t DEFAULT_THRESHOLD_PERCENT = 80;
 
+    struct ParamsIterator
+    {
+      const Params *begin_, *end_;
+      constexpr Params const *begin() { return begin_; };
+      constexpr Params const *end()   { return end_; };
+    };
+
+    // NOTE: Returns INVALID_HF_VERSION_HEIGHT if version not specified for nettype
+    static uint64_t get_hardcoded_hard_fork_height(network_type nettype, cryptonote::network_version version);
+    static ParamsIterator get_hardcoded_hard_forks(network_type nettype);
+
     /**
      * @brief creates a new HardFork object
      *
@@ -59,7 +80,7 @@ namespace cryptonote
      * @param window_size the size of the window in blocks to consider for version voting
      * @param default_threshold_percent the size of the majority in percents
      */
-    HardFork(cryptonote::BlockchainDB &db, uint8_t original_version = 1, uint64_t original_version_till_height = DEFAULT_ORIGINAL_VERSION_TILL_HEIGHT, time_t forked_time = DEFAULT_FORKED_TIME, time_t update_time = DEFAULT_UPDATE_TIME, uint64_t window_size = DEFAULT_WINDOW_SIZE, uint8_t default_threshold_percent = DEFAULT_THRESHOLD_PERCENT);
+    HardFork(cryptonote::BlockchainDB &db, uint8_t original_version = 1, time_t forked_time = DEFAULT_FORKED_TIME, time_t update_time = DEFAULT_UPDATE_TIME, uint64_t window_size = DEFAULT_WINDOW_SIZE, uint8_t default_threshold_percent = DEFAULT_THRESHOLD_PERCENT);
 
     /**
      * @brief add a new hardfork height
@@ -150,6 +171,16 @@ namespace cryptonote
     bool reorganize_from_chain_height(uint64_t height);
 
     /**
+     * @brief called when one or more blocks are popped from the blockchain
+     *
+     * The current fork will be updated by looking up the db,
+     * which is much cheaper than recomputing everything
+     *
+     * @param new_chain_height the height of the chain after popping
+     */
+    void on_block_popped(uint64_t new_chain_height);
+
+    /**
      * @brief returns current state at the given time
      *
      * Based on the approximate time of the last known hard fork,
@@ -220,14 +251,6 @@ namespace cryptonote
      */
     uint64_t get_window_size() const { return window_size; }
 
-    struct Params {
-      uint8_t version;
-      uint8_t threshold;
-      uint64_t height;
-      time_t time;
-      Params(uint8_t version, uint64_t height, uint8_t threshold, time_t time): version(version), threshold(threshold), height(height), time(time) {}
-    };
-
   private:
 
     uint8_t get_block_version(uint64_t height) const;
@@ -250,8 +273,6 @@ namespace cryptonote
     uint8_t default_threshold_percent;
 
     uint8_t original_version;
-    uint64_t original_version_till_height;
-
     std::vector<Params> heights;
 
     std::deque<uint8_t> versions; /* rolling window of the last N blocks' versions */

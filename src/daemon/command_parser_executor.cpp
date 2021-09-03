@@ -1,4 +1,5 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -26,10 +27,13 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <forward_list>
+
 #include "common/dns_utils.h"
 #include "common/command_line.h"
 #include "version.h"
 #include "daemon/command_parser_executor.h"
+#include "rpc/core_rpc_server_commands_defs.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "daemon"
@@ -40,17 +44,120 @@ t_command_parser_executor::t_command_parser_executor(
     uint32_t ip
   , uint16_t port
   , const boost::optional<tools::login>& login
+  , const epee::net_utils::ssl_options_t& ssl_options
   , bool is_rpc
   , cryptonote::core_rpc_server* rpc_server
   )
-  : m_executor(ip, port, login, is_rpc, rpc_server)
+  : m_executor(ip, port, login, ssl_options, is_rpc, rpc_server)
 {}
+
+// Consumes an argument from the given list, if present, parsing it into `var`.
+// Returns false upon parse failure, true otherwise.
+template <typename T>
+static bool parse_if_present(std::forward_list<std::string> &list, T &var, const char *name)
+{
+  if (list.empty()) return true;
+  if (epee::string_tools::get_xtype_from_string(var, list.front()))
+  {
+    list.pop_front();
+    return true;
+  }
+
+  std::cout << "unexpected " << name << " argument: " << list.front() << std::endl;
+  return false;
+}
+
+bool t_command_parser_executor::print_checkpoints(const std::vector<std::string> &args)
+{
+  uint64_t start_height = cryptonote::COMMAND_RPC_GET_CHECKPOINTS::HEIGHT_SENTINEL_VALUE;
+  uint64_t end_height   = cryptonote::COMMAND_RPC_GET_CHECKPOINTS::HEIGHT_SENTINEL_VALUE;
+
+  std::forward_list<std::string> args_list(args.begin(), args.end());
+  bool print_json = !args_list.empty() && args_list.front() == "+json";
+  if (print_json)
+    args_list.pop_front();
+
+  if (!parse_if_present(args_list, start_height, "start height"))
+    return false;
+
+  if (!parse_if_present(args_list, end_height, "end height"))
+    return false;
+
+  if (!args_list.empty())
+  {
+    std::cout << "use: print_checkpoints [+json] [start height] [end height]\n"
+              << "(omit arguments to print the last "
+              << cryptonote::COMMAND_RPC_GET_CHECKPOINTS::NUM_CHECKPOINTS_TO_QUERY_BY_DEFAULT << " checkpoints) "
+              << std::endl;
+    return false;
+  }
+
+  return m_executor.print_checkpoints(start_height, end_height, print_json);
+}
+
+bool t_command_parser_executor::print_sn_state_changes(const std::vector<std::string> &args)
+{
+  uint64_t start_height;
+  uint64_t end_height = cryptonote::COMMAND_RPC_GET_SN_STATE_CHANGES::HEIGHT_SENTINEL_VALUE;
+
+  if (args.empty()) {
+    std::cout << "Missing first argument start_height" << std::endl;
+    return false;
+  }
+
+  std::forward_list<std::string> args_list(args.begin(), args.end());
+  if (!epee::string_tools::get_xtype_from_string(start_height, args_list.front()))
+  {
+    std::cout << "start_height should be a number" << std::endl;
+    return false;
+  }
+
+  args_list.pop_front();
+
+  if (!parse_if_present(args_list, end_height, "end height"))
+    return false;
+
+  if (!args_list.empty())
+  {
+    std::cout << "use: print_sn_state_changes <start_height> [end height]"
+              << "(omit arguments to scan until the current block)"
+              << std::endl;
+    return false;
+  }
+
+  return m_executor.print_sn_state_changes(start_height, end_height);
+}
 
 bool t_command_parser_executor::print_peer_list(const std::vector<std::string>& args)
 {
-  if (!args.empty()) return false;
+  if (args.size() > 3)
+  {
+    std::cout << "use: print_pl [white] [gray] [<limit>]" << std::endl;
+    return true;
+  }
 
-  return m_executor.print_peer_list();
+  bool white = false;
+  bool gray = false;
+  size_t limit = 0;
+  for (size_t i = 0; i < args.size(); ++i)
+  {
+    if (args[i] == "white")
+    {
+      white = true;
+    }
+    else if (args[i] == "gray")
+    {
+      gray = true;
+    }
+    else if (!epee::string_tools::get_xtype_from_string(limit, args[i]))
+    {
+      std::cout << "unexpected argument: " << args[i] << std::endl;
+      return true;
+    }
+  }
+
+  const bool print_both = !white && !gray;
+  return m_executor.print_peer_list(white | print_both, gray | print_both, limit);
 }
 
 bool t_command_parser_executor::print_peer_list_stats(const std::vector<std::string>& args)
@@ -102,6 +209,13 @@ bool t_command_parser_executor::print_connections(const std::vector<std::string>
   return m_executor.print_connections();
 }
 
+bool t_command_parser_executor::print_net_stats(const std::vector<std::string>& args)
+{
+  if (!args.empty()) return false;
+
+  return m_executor.print_net_stats();
+}
+
 bool t_command_parser_executor::print_blockchain_info(const std::vector<std::string>& args)
 {
   if(!args.size())
@@ -123,6 +237,72 @@ bool t_command_parser_executor::print_blockchain_info(const std::vector<std::str
   }
 
   return m_executor.print_blockchain_info(start_index, end_index);
+}
+
+bool t_command_parser_executor::print_quorum_state(const std::vector<std::string>& args)
+{
+  uint64_t start_height = cryptonote::COMMAND_RPC_GET_QUORUM_STATE::HEIGHT_SENTINEL_VALUE;
+  uint64_t end_height   = cryptonote::COMMAND_RPC_GET_QUORUM_STATE::HEIGHT_SENTINEL_VALUE;
+
+  std::forward_list<std::string> args_list(args.begin(), args.end());
+  if (!parse_if_present(args_list, start_height, "start height"))
+    return false;
+
+  if (!parse_if_present(args_list, end_height, "end height"))
+    return false;
+
+  if (!args_list.empty())
+  {
+    std::cout << "use: print_quorum_state [start height] [end height]\n"
+              << "(omit arguments to print the latest quorums" << std::endl;
+    return false;
+  }
+
+  return m_executor.print_quorum_state(start_height, end_height);
+}
+
+bool t_command_parser_executor::print_sn_key(const std::vector<std::string>& args)
+{
+  if (!args.empty()) return false;
+  bool result = m_executor.print_sn_key();
+  return result;
+}
+
+bool t_command_parser_executor::print_sr(const std::vector<std::string>& args)
+{
+  if (args.size() != 1)
+  {
+    std::cout << "expected 1 argument, <height>, received: " << args.size() << std::endl;
+    return false;
+  }
+
+  uint64_t height = 0;
+  if(!epee::string_tools::get_xtype_from_string(height, args[0]))
+  {
+    std::cout << "wrong block height parameter" << std::endl;
+    return false;
+  }
+
+  bool result = m_executor.print_sr(height);
+  return result;
+}
+
+bool t_command_parser_executor::prepare_registration()
+{
+  bool result = m_executor.prepare_registration();
+  return result;
+}
+
+bool t_command_parser_executor::print_sn(const std::vector<std::string>& args)
+{
+  bool result = m_executor.print_sn(args);
+  return result;
+}
+
+bool t_command_parser_executor::print_sn_status(const std::vector<std::string>& args)
+{
+  bool result = m_executor.print_sn_status(args);
+  return result;
 }
 
 bool t_command_parser_executor::set_log_level(const std::vector<std::string>& args)
@@ -154,7 +334,7 @@ bool t_command_parser_executor::set_log_level(const std::vector<std::string>& ar
   }
 }
 
-bool t_command_parser_executor::print_height(const std::vector<std::string>& args) 
+bool t_command_parser_executor::print_height(const std::vector<std::string>& args)
 {
   if (!args.empty()) return false;
 
@@ -163,9 +343,21 @@ bool t_command_parser_executor::print_height(const std::vector<std::string>& arg
 
 bool t_command_parser_executor::print_block(const std::vector<std::string>& args)
 {
+  bool include_hex = false;
+
+  // Assumes that optional flags come after mandatory argument <transaction_hash>
+  for (unsigned int i = 1; i < args.size(); ++i) {
+    if (args[i] == "+hex")
+      include_hex = true;
+    else
+    {
+      std::cout << "unexpected argument: " << args[i] << std::endl;
+      return true;
+    }
+  }
   if (args.empty())
   {
-    std::cout << "expected: print_block (<block_hash> | <block_height>)" << std::endl;
+    std::cout << "expected: print_block (<block_hash> | <block_height>) [+hex]" << std::endl;
     return false;
   }
 
@@ -173,14 +365,14 @@ bool t_command_parser_executor::print_block(const std::vector<std::string>& args
   try
   {
     uint64_t height = boost::lexical_cast<uint64_t>(arg);
-    return m_executor.print_block_by_height(height);
+    return m_executor.print_block_by_height(height, include_hex);
   }
   catch (const boost::bad_lexical_cast&)
   {
     crypto::hash block_hash;
     if (parse_hash256(arg, block_hash))
     {
-      return m_executor.print_block_by_hash(block_hash);
+      return m_executor.print_block_by_hash(block_hash, include_hex);
     }
   }
 
@@ -265,7 +457,7 @@ bool t_command_parser_executor::start_mining(const std::vector<std::string>& arg
 {
   if(!args.size())
   {
-    std::cout << "Please specify a wallet address to mine for: start_mining <addr> [<threads>]" << std::endl;
+    std::cout << "Please specify a wallet address to mine for: start_mining <addr> [<threads>|auto]" << std::endl;
     return true;
   }
 
@@ -351,8 +543,15 @@ bool t_command_parser_executor::start_mining(const std::vector<std::string>& arg
   
   if(args.size() >= 2)
   {
-    bool ok = epee::string_tools::get_xtype_from_string(threads_count, args[1]);
-    threads_count = (ok && 0 < threads_count) ? threads_count : 1;
+    if (args[1] == "auto" || args[1] == "autodetect")
+    {
+      threads_count = 0;
+    }
+    else
+    {
+      bool ok = epee::string_tools::get_xtype_from_string(threads_count, args[1]);
+      threads_count = (ok && 0 < threads_count) ? threads_count : 1;
+    }
   }
 
   m_executor.start_mining(info.address, threads_count, nettype, do_background_mining, ignore_battery);
@@ -365,6 +564,11 @@ bool t_command_parser_executor::stop_mining(const std::vector<std::string>& args
   if (!args.empty()) return false;
 
   return m_executor.stop_mining();
+}
+
+bool t_command_parser_executor::mining_status(const std::vector<std::string>& args)
+{
+  return m_executor.mining_status();
 }
 
 bool t_command_parser_executor::stop_daemon(const std::vector<std::string>& args)
@@ -469,18 +673,6 @@ bool t_command_parser_executor::in_peers(const std::vector<std::string>& args)
 	return m_executor.in_peers(limit);
 }
 
-bool t_command_parser_executor::start_save_graph(const std::vector<std::string>& args)
-{
-	if (!args.empty()) return false;
-	return m_executor.start_save_graph();
-}
-
-bool t_command_parser_executor::stop_save_graph(const std::vector<std::string>& args)
-{
-	if (!args.empty()) return false;
-	return m_executor.stop_save_graph();
-}
-
 bool t_command_parser_executor::hard_fork_info(const std::vector<std::string>& args)
 {
   int version;
@@ -537,6 +729,13 @@ bool t_command_parser_executor::unban(const std::vector<std::string>& args)
   if (args.size() != 1) return false;
   std::string ip = args[0];
   return m_executor.unban(ip);
+}
+
+bool t_command_parser_executor::banned(const std::vector<std::string>& args)
+{
+  if (args.size() != 1) return false;
+  std::string address = args[0];
+  return m_executor.banned(address);
 }
 
 bool t_command_parser_executor::flush_txpool(const std::vector<std::string>& args)
@@ -674,10 +873,58 @@ bool t_command_parser_executor::sync_info(const std::vector<std::string>& args)
   return m_executor.sync_info();
 }
 
+bool t_command_parser_executor::pop_blocks(const std::vector<std::string>& args)
+{
+  if (args.size() != 1)
+  {
+    std::cout << "Exactly one parameter is needed" << std::endl;
+    return false;
+  }
+
+  try
+  {
+    uint64_t nblocks = boost::lexical_cast<uint64_t>(args[0]);
+    if (nblocks < 1)
+    {
+      std::cout << "number of blocks must be greater than 0" << std::endl;
+      return false;
+    }
+    return m_executor.pop_blocks(nblocks);
+  }
+  catch (const boost::bad_lexical_cast&)
+  {
+    std::cout << "number of blocks must be a number greater than 0" << std::endl;
+  }
+  return false;
+}
+
 bool t_command_parser_executor::version(const std::vector<std::string>& args)
 {
   std::cout << "Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ")" << std::endl;
   return true;
+}
+
+bool t_command_parser_executor::prune_blockchain(const std::vector<std::string>& args)
+{
+  if (args.size() > 1) return false;
+
+  if (args.empty() || args[0] != "confirm")
+  {
+    std::cout << "Warning: pruning from within lokid will not shrink the database file size." << std::endl;
+    std::cout << "Instead, parts of the file will be marked as free, so the file will not grow" << std::endl;
+    std::cout << "until that newly free space is used up. If you want a smaller file size now," << std::endl;
+    std::cout << "exit lokid and run loki-blockchain-prune (you will temporarily need more" << std::endl;
+    std::cout << "disk space for the database conversion though). If you are OK with the database" << std::endl;
+    std::cout << "file keeping the same size, re-run this command with the \"confirm\" parameter." << std::endl;
+    return true;
+  }
+
+  return m_executor.prune_blockchain();
+}
+
+bool t_command_parser_executor::check_blockchain_pruning(const std::vector<std::string>& args)
+{
+  return m_executor.check_blockchain_pruning();
 }
 
 } // namespace daemonize

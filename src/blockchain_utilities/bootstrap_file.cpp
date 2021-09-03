@@ -1,4 +1,5 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 //
 // All rights reserved.
 //
@@ -32,8 +33,8 @@
 
 #include "bootstrap_file.h"
 
-#undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "bcutil"
+#undef LOKI_DEFAULT_LOG_CATEGORY
+#define LOKI_DEFAULT_LOG_CATEGORY "bcutil"
 
 namespace po = boost::program_options;
 
@@ -43,7 +44,7 @@ using namespace epee;
 namespace
 {
   // This number was picked by taking the leading 4 bytes from this output:
-  // echo Monero bootstrap file | sha1sum
+  // echo Loki bootstrap file | sha1sum
   const uint32_t blockchain_raw_magic = 0x28721586;
   const uint32_t header_size = 1024;
 
@@ -304,7 +305,7 @@ bool BootstrapFile::store_blockchain_raw(Blockchain* _blockchain_storage, tx_mem
     }
     if (m_cur_height % progress_interval == 0) {
       std::cout << refresh_string;
-      std::cout << "block " << m_cur_height << "/" << block_stop << std::flush;
+      std::cout << "block " << m_cur_height << "/" << block_stop << "\r" << std::flush;
     }
   }
   // NOTE: use of NUM_BLOCKS_PER_CHUNK is a placeholder in case multi-block chunks are later supported.
@@ -479,7 +480,7 @@ uint64_t BootstrapFile::count_blocks(const std::string& import_file_path, std::s
     bytes_read += count_bytes(import_file, progress_interval, blocks, quit);
     h += blocks;
     std::cout << "\r" << "block height: " << h-1 <<
-      "    " <<
+      "    \r" <<
       std::flush;
 
     // std::cout << refresh_string;

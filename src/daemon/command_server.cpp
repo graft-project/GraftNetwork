@@ -1,5 +1,6 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -33,6 +34,8 @@
 #include "string_tools.h"
 #include "daemon/command_server.h"
 
+#include "common/loki_integration_test_hooks.h"
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "daemon"
 
@@ -44,10 +47,11 @@ t_command_server::t_command_server(
     uint32_t ip
   , uint16_t port
   , const boost::optional<tools::login>& login
+  , const epee::net_utils::ssl_options_t& ssl_options
   , bool is_rpc
   , cryptonote::core_rpc_server* rpc_server
   )
-  : m_parser(ip, port, login, is_rpc, rpc_server)
+  : m_parser(ip, port, login, ssl_options, is_rpc, rpc_server)
   , m_command_lookup()
   , m_is_rpc(is_rpc)
 {
@@ -65,6 +69,7 @@ t_command_server::t_command_server(
   m_command_lookup.set_handler(
       "print_pl"
     , std::bind(&t_command_parser_executor::print_peer_list, &m_parser, p::_1)
+    , "print_pl [white] [gray] [<limit>]"
     , "Print the current peer list."
     );
   m_command_lookup.set_handler(
@@ -76,6 +81,11 @@ t_command_server::t_command_server(
       "print_cn"
     , std::bind(&t_command_parser_executor::print_connections, &m_parser, p::_1)
     , "Print the current connections."
+    );
+  m_command_lookup.set_handler(
+      "print_net_stats"
+    , std::bind(&t_command_parser_executor::print_net_stats, &m_parser, p::_1)
+    , "Print network statistics."
     );
   m_command_lookup.set_handler(
       "print_bc"
@@ -96,6 +106,42 @@ t_command_server::t_command_server(
     , "Print a given transaction."
     );
   m_command_lookup.set_handler(
+      "print_quorum_state"
+    , std::bind(&t_command_parser_executor::print_quorum_state, &m_parser, p::_1)
+    , "print_quorum_state [start height] [end height]"
+    , "Print the quorum state for the range of block heights, omit the height to print the latest quorum"
+    );
+  m_command_lookup.set_handler(
+      "print_sn_key"
+    , std::bind(&t_command_parser_executor::print_sn_key, &m_parser, p::_1)
+    , "print_sn_key"
+    , "Print this daemon's service node key, if it is one and launched in service node mode."
+    );
+  m_command_lookup.set_handler(
+      "print_sr"
+    , std::bind(&t_command_parser_executor::print_sr, &m_parser, p::_1)
+    , "print_sr <height>"
+    , "Print the staking requirement for the height."
+    );
+  m_command_lookup.set_handler(
+      "prepare_registration"
+    , std::bind(&t_command_parser_executor::prepare_registration, &m_parser)
+    , "prepare_registration"
+    , "Interactive prompt to prepare a service node registration command. The resulting registration command can be run in the command-line wallet to send the registration to the blockchain."
+    );
+  m_command_lookup.set_handler(
+      "print_sn"
+    , std::bind(&t_command_parser_executor::print_sn, &m_parser, p::_1)
+    , "print_sn [<pubkey> [...]] [+json|+detail]"
+    , "Print service node registration info for the current height"
+    );
+  m_command_lookup.set_handler(
+      "print_sn_status"
+    , std::bind(&t_command_parser_executor::print_sn_status, &m_parser, p::_1)
+    , "print_sn_status [+json|+detail]"
+    , "Print service node registration info for this service node"
+    );
+  m_command_lookup.set_handler(
       "is_key_image_spent"
     , std::bind(&t_command_parser_executor::is_key_image_spent, &m_parser, p::_1)
     , "is_key_image_spent <key_image>"
@@ -104,13 +150,18 @@ t_command_server::t_command_server(
   m_command_lookup.set_handler(
       "start_mining"
     , std::bind(&t_command_parser_executor::start_mining, &m_parser, p::_1)
-    , "start_mining <addr> [<threads>] [do_background_mining] [ignore_battery]"
-    , "Start mining for specified address. Defaults to 1 thread and no background mining."
+    , "start_mining <addr> [<threads>|auto] [do_background_mining] [ignore_battery]"
+    , "Start mining for specified address. Defaults to 1 thread and no background mining. Use \"auto\" to autodetect optimal number of threads."
     );
   m_command_lookup.set_handler(
       "stop_mining"
     , std::bind(&t_command_parser_executor::stop_mining, &m_parser, p::_1)
     , "Stop mining."
+    );
+  m_command_lookup.set_handler(
+      "mining_status"
+    , std::bind(&t_command_parser_executor::mining_status, &m_parser, p::_1)
+    , "Show current mining status."
     );
   m_command_lookup.set_handler(
       "print_pool"
@@ -204,16 +255,6 @@ t_command_server::t_command_server(
     , "Set the <max_number> of in peers."
     );
     m_command_lookup.set_handler(
-      "start_save_graph"
-    , std::bind(&t_command_parser_executor::start_save_graph, &m_parser, p::_1)
-    , "Start saving data for dr monero."
-    );
-    m_command_lookup.set_handler(
-      "stop_save_graph"
-    , std::bind(&t_command_parser_executor::stop_save_graph, &m_parser, p::_1)
-    , "Stop saving data for dr monero."
-    );
-    m_command_lookup.set_handler(
       "hard_fork_info"
     , std::bind(&t_command_parser_executor::hard_fork_info, &m_parser, p::_1)
     , "Print the hard fork voting information."
@@ -232,8 +273,14 @@ t_command_server::t_command_server(
     m_command_lookup.set_handler(
       "unban"
     , std::bind(&t_command_parser_executor::unban, &m_parser, p::_1)
-    , "unban <IP>"
+    , "unban <address>"
     , "Unban a given <IP>."
+    );
+    m_command_lookup.set_handler(
+      "banned"
+    , std::bind(&t_command_parser_executor::banned, &m_parser, p::_1)
+    , "banned <address>"
+    , "Check whether an <address> is banned."
     );
     m_command_lookup.set_handler(
       "flush_txpool"
@@ -265,12 +312,15 @@ t_command_server::t_command_server(
     , "bc_dyn_stats <last_block_count>"
     , "Print the information about current blockchain dynamic state."
     );
+    // TODO(loki): Implement
+#if 0
     m_command_lookup.set_handler(
       "update"
     , std::bind(&t_command_parser_executor::update, &m_parser, p::_1)
     , "update (check|download)"
     , "Check if an update is available, optionally downloads it if there is. Updating is not yet implemented."
     );
+#endif
     m_command_lookup.set_handler(
       "relay_tx"
     , std::bind(&t_command_parser_executor::relay_tx, &m_parser, p::_1)
@@ -283,10 +333,97 @@ t_command_server::t_command_server(
     , "Print information about the blockchain sync state."
     );
     m_command_lookup.set_handler(
+      "pop_blocks"
+    , std::bind(&t_command_parser_executor::pop_blocks, &m_parser, p::_1)
+    , "pop_blocks <nblocks>"
+    , "Remove blocks from end of blockchain"
+    );
+    m_command_lookup.set_handler(
       "version"
     , std::bind(&t_command_parser_executor::version, &m_parser, p::_1)
     , "Print version information."
     );
+#if 0 // TODO(loki): Pruning not supported because of Service Node List
+    m_command_lookup.set_handler(
+      "prune_blockchain"
+    , std::bind(&t_command_parser_executor::prune_blockchain, &m_parser, p::_1)
+    , "Prune the blockchain."
+    );
+#endif
+    m_command_lookup.set_handler(
+      "check_blockchain_pruning"
+    , std::bind(&t_command_parser_executor::check_blockchain_pruning, &m_parser, p::_1)
+    , "Check the blockchain pruning."
+    );
+    m_command_lookup.set_handler(
+      "print_checkpoints"
+    , std::bind(&t_command_parser_executor::print_checkpoints, &m_parser, p::_1)
+    , "print_checkpoints [+json] [start height] [end height]"
+    , "Query the available checkpoints between the range, omit arguments to print the last 60 checkpoints"
+    );
+    m_command_lookup.set_handler(
+      "print_sn_state_changes"
+    , std::bind(&t_command_parser_executor::print_sn_state_changes, &m_parser, p::_1)
+    , "print_sn_state_changes <start_height> [end height]"
+    , "Query the state changes between the range, omit the last argument to scan until the current block"
+    );
+#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
+    m_command_lookup.set_handler(
+      "relay_votes_and_uptime", std::bind([rpc_server](std::vector<std::string> const &args) {
+        rpc_server->on_relay_uptime_and_votes();
+        return true;
+      }, p::_1)
+    , ""
+    );
+
+    m_command_lookup.set_handler(
+      "integration_test", std::bind([rpc_server](std::vector<std::string> const &args) {
+        bool valid_cmd = false;
+        if (args.size() == 1)
+        {
+          valid_cmd = true;
+          if (args[0] == "toggle_checkpoint_quorum")
+          {
+            integration_test::state.disable_checkpoint_quorum = !integration_test::state.disable_checkpoint_quorum;
+          }
+          else if (args[0] == "toggle_obligation_quorum")
+          {
+            integration_test::state.disable_obligation_quorum = !integration_test::state.disable_obligation_quorum;
+          }
+          else if (args[0] == "toggle_obligation_uptime_proof")
+          {
+            integration_test::state.disable_obligation_uptime_proof = !integration_test::state.disable_obligation_uptime_proof;
+          }
+          else if (args[0] == "toggle_obligation_checkpointing")
+          {
+            integration_test::state.disable_obligation_checkpointing = !integration_test::state.disable_obligation_checkpointing;
+          }
+          else
+          {
+            valid_cmd = false;
+          }
+
+          if (valid_cmd) std::cout << args[0] << " toggled";
+        }
+        else if (args.size() == 3)
+        {
+          uint64_t num_blocks = 0;
+          if (args[0] == "debug_mine_n_blocks" && epee::string_tools::get_xtype_from_string(num_blocks, args[2]))
+          {
+            rpc_server->on_debug_mine_n_blocks(args[1], num_blocks);
+            valid_cmd = true;
+          }
+        }
+
+        if (!valid_cmd)
+          std::cout << "integration_test invalid command";
+
+        integration_test::write_buffered_stdout();
+        return true;
+      }, p::_1)
+    , ""
+    );
+#endif
 }
 
 bool t_command_server::process_command_str(const std::string& cmd)
@@ -304,12 +441,46 @@ bool t_command_server::process_command_vec(const std::vector<std::string>& cmd)
   return result;
 }
 
+#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
+#include <thread>
+#endif
+
 bool t_command_server::start_handling(std::function<void(void)> exit_handler)
 {
   if (m_is_rpc) return false;
 
-  m_command_lookup.start_handling("", get_commands_str(), exit_handler);
+#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
+  auto handle_pipe = [&]()
+  {
+    // TODO(doyle): Hack, don't hook into input until the daemon has completely initialised, i.e. you can print the status
+    while(!integration_test::state.core_is_idle) {}
+    mlog_set_categories(""); // TODO(doyle): We shouldn't have to do this.
 
+    for (;;)
+    {
+      integration_test::write_buffered_stdout();
+      std::string const input       = integration_test::read_from_pipe();
+      std::vector<std::string> args = integration_test::space_delimit_input(input);
+      {
+        std::unique_lock<std::mutex> scoped_lock(integration_test::state.mutex);
+        integration_test::use_standard_cout();
+        std::cout << input << std::endl;
+        integration_test::use_redirected_cout();
+      }
+
+      process_command_vec(args);
+      if (args.size() == 1 && args[0] == "exit")
+      {
+        integration_test::deinit();
+        break;
+      }
+
+    }
+  };
+  static std::thread handle_pipe_thread(handle_pipe);
+#endif
+
+  m_command_lookup.start_handling("", get_commands_str(), exit_handler);
   return true;
 }
 

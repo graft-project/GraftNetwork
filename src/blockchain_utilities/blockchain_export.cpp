@@ -1,5 +1,6 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 //
 // All rights reserved.
 //
@@ -30,9 +31,8 @@
 #include "bootstrap_file.h"
 #include "blocksdat_file.h"
 #include "common/command_line.h"
-#include "cryptonote_core/tx_pool.h"
 #include "cryptonote_core/cryptonote_core.h"
-#include "blockchain_db/blockchain_db.h"
+#include "blockchain_objects.h"
 #include "blockchain_db/db_types.h"
 #include "version.h"
 
@@ -138,23 +138,10 @@ int main(int argc, char* argv[])
     output_file_path = boost::filesystem::path(m_config_folder) / "export" / BLOCKCHAIN_RAW;
   LOG_PRINT_L0("Export output file: " << output_file_path.string());
 
-  // If we wanted to use the memory pool, we would set up a fake_core.
-
-  // Use Blockchain instead of lower-level BlockchainDB for two reasons:
-  // 1. Blockchain has the init() method for easy setup
-  // 2. exporter needs to use get_current_blockchain_height(), get_block_id_by_height(), get_block_by_hash()
-  //
-  // cannot match blockchain_storage setup above with just one line,
-  // e.g.
-  //   Blockchain* core_storage = new Blockchain(NULL);
-  // because unlike blockchain_storage constructor, which takes a pointer to
-  // tx_memory_pool, Blockchain's constructor takes tx_memory_pool object.
   LOG_PRINT_L0("Initializing source blockchain (BlockchainDB)");
-  Blockchain* core_storage = NULL;
-  tx_memory_pool m_mempool(*core_storage);
-  core_storage = new Blockchain(m_mempool);
-
-  BlockchainDB* db = new_db(db_type);
+  blockchain_objects_t blockchain_objects = {};
+  Blockchain *core_storage = &blockchain_objects.m_blockchain;
+  BlockchainDB *db = new_db(db_type);
   if (db == NULL)
   {
     LOG_ERROR("Attempted to use non-existent database type: " << db_type);
@@ -169,14 +156,20 @@ int main(int argc, char* argv[])
   LOG_PRINT_L0("Loading blockchain from folder " << filename << " ...");
   try
   {
-    db->open(filename, DBF_RDONLY);
+    db->open(filename, core_storage->nettype(), DBF_RDONLY);
   }
   catch (const std::exception& e)
   {
     LOG_PRINT_L0("Error opening database: " << e.what());
     return 1;
   }
-  r = core_storage->init(db, opt_testnet ? cryptonote::TESTNET : opt_stagenet ? cryptonote::STAGENET : cryptonote::MAINNET);
+  r = core_storage->init(db, nullptr, opt_testnet ? cryptonote::TESTNET : opt_stagenet ? cryptonote::STAGENET : cryptonote::MAINNET);
+
+  if (core_storage->get_blockchain_pruning_seed())
+  {
+    LOG_PRINT_L0("Blockchain is pruned, cannot export");
+    return 1;
+  }
 
   CHECK_AND_ASSERT_MES(r, 1, "Failed to initialize source blockchain storage");
   LOG_PRINT_L0("Source blockchain storage initialized OK");

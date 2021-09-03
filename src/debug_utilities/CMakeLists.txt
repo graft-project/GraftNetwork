@@ -1,4 +1,5 @@
-# Copyright (c) 2014-2018, The Monero Project
+# Copyright (c) 2018, The Loki Project
+# Copyright (c) 2014-2019, The Monero Project
 #
 # All rights reserved.
 #
@@ -26,96 +27,18 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(cn_deserialize_sources
+loki_add_executable(cn_deserialize "graft-utils-deserialize"
   cn_deserialize.cpp
   )
 
-monero_add_executable(cn_deserialize
-  ${cn_deserialize_sources}
-  ${cn_deserialize_private_headers})
-
 target_link_libraries(cn_deserialize
-  LINK_PRIVATE
-    cryptonote_core
-    blockchain_db
-    device
-    ringct
+  PRIVATE
+    Boost::program_options
     p2p
-    epee
-    ${CMAKE_THREAD_LIBS_INIT})
+    extra)
 
-set_property(TARGET cn_deserialize
-	PROPERTY
-	OUTPUT_NAME "monero-utils-deserialize")
-
-
-set(object_sizes_sources
+loki_add_executable(object_sizes "graft-utils-object-sizes"
   object_sizes.cpp
   )
 
-monero_add_executable(object_sizes
-  ${object_sizes_sources}
-  ${object_sizes_private_headers})
-
 target_link_libraries(object_sizes
-  LINK_PRIVATE
-    cryptonote_core
-    blockchain_db
-    p2p
-    epee
-    ${CMAKE_THREAD_LIBS_INIT})
-
-set_property(TARGET object_sizes
-	PROPERTY
-	OUTPUT_NAME "monero-utils-object-sizes")
-
-
-
-#
-set(daa_dump_sources
-  daa_dump.cpp
-  )
-
-monero_add_executable(daa_dump
-  ${daa_dump_sources}
-  ${daa_dump_private_headers})
-
-target_link_libraries(daa_dump
-  LINK_PRIVATE
-    cryptonote_core
-    blockchain_db
-    p2p
-    epee
-    ${CMAKE_THREAD_LIBS_INIT})
-
-add_dependencies(daa_dump
-        version)
-set_property(TARGET daa_dump
-        PROPERTY
-        OUTPUT_NAME "daa_dump_data")
-
-#########################################
-set(daa_process_sources
-        daa_process.cpp
-        )
-
-monero_add_executable(daa_process
-   ${daa_process_sources}
-    ${daa_process_private_headers})
-
-target_link_libraries(daa_process
-        LINK_PRIVATE
-        cryptonote_core
-        blockchain_db
-        p2p
-        epee
-        ${CMAKE_THREAD_LIBS_INIT})
-
-add_dependencies(daa_process
-        version)
-
-set_property(TARGET daa_process
-        PROPERTY
-        OUTPUT_NAME "daa_process_data")
-
-#########################################

@@ -1,4 +1,5 @@
-// Copyright (c) 2018, The Graft Project // Copyright (c) 2006-2013, Andrey N. Sabelnikov, www.sabelnikov.net532
+// Copyright (c) 2018, The Graft Project
+// Copyright (c) 2006-2013, Andrey N. Sabelnikov, www.sabelnikov.net
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -40,6 +41,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include "string_tools.h"
+#include "misc_os_dependent.h"
 #include "misc_log_ex.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -54,6 +56,9 @@ thread_local std::string mlog_current_log_category;
 bool mlog_syslog = false;
 
 using namespace epee;
+bool mlog_syslog = false;
+
+using namespace epee;
 
 static std::string generate_log_filename(const char *base)
 {
@@ -62,12 +67,7 @@ static std::string generate_log_filename(const char *base)
   char tmp[200];
   struct tm tm;
   time_t now = time(NULL);
-  if
-#ifdef WIN32
-  (!gmtime_s(&tm, &now))
-#else
-  (!gmtime_r(&now, &tm))
-#endif
+  if (!epee::misc_utils::get_gmt_time(now, tm))
     snprintf(tmp, sizeof(tmp), "part-%u", ++fallback_counter);
   else
     strftime(tmp, sizeof(tmp), "%Y-%m-%d-%H-%M-%S", &tm);
@@ -108,10 +108,10 @@ static const char *get_default_categories(int level)
   switch (level)
   {
     case 0:
-      categories = "*:WARNING,net:FATAL,net.http:FATAL,net.p2p:FATAL,net.cn:FATAL,global:INFO,verify:FATAL,stacktrace:INFO,logging:INFO,msgwriter:INFO";
+      categories = "*:WARNING,net:FATAL,net.http:FATAL,net.ssl:FATAL,net.p2p:FATAL,net.cn:FATAL,global:INFO,verify:FATAL,serialization:FATAL,logging:INFO,msgwriter:INFO";
       break;
     case 1:
-      categories = "*:INFO,global:INFO,stacktrace:INFO,logging:INFO,msgwriter:INFO";
+      categories = "*:INFO,global:INFO,stacktrace:INFO,logging:INFO,msgwriter:INFO,perf.*:DEBUG";
       break;
     case 2:
       categories = "*:DEBUG";
@@ -528,6 +528,9 @@ static bool mlog(el::Level level, const char *category, const char *format, va_l
 
   try
   {
+    /* TODO(loki): when pulling upstream epee changes change this to:
+    MCLOG(level, category, el::Color::Default, p);
+    */
     MCLOG(level, category, p);
   }
   catch(...)

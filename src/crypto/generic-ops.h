@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -43,6 +43,9 @@ namespace crypto { \
   inline bool operator!=(const type &_v1, const type &_v2) { \
     return !operator==(_v1, _v2); \
   } \
+  inline bool operator<(const type &_v1, const type &_v2) { \
+    return memcmp(&_v1, &_v2, sizeof(_v1)) < 0; \
+  } \
 }
 
 #define CRYPTO_MAKE_COMPARABLE_CONSTANT_TIME(type) \
@@ -57,15 +60,11 @@ namespace crypto { \
 }
 
 #define CRYPTO_DEFINE_HASH_FUNCTIONS(type) \
-namespace crypto { \
-  static_assert(sizeof(std::size_t) <= sizeof(type), "Size of " #type " must be at least that of size_t"); \
-  inline std::size_t hash_value(const type &_v) { \
-    return reinterpret_cast<const std::size_t &>(_v); \
-  } \
-} \
 namespace std { \
   template<> \
   struct hash<crypto::type> { \
+    static_assert(sizeof(crypto::type) >= sizeof(std::size_t) && alignof(crypto::type) >= alignof(std::size_t), \
+        "Size and alignment of " #type " must be at least that of size_t"); \
     std::size_t operator()(const crypto::type &_v) const { \
       return reinterpret_cast<const std::size_t &>(_v); \
     } \

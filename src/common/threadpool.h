@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, The Monero Project
+// Copyright (c) 2017-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -72,6 +72,8 @@ public:
   unsigned int get_max_concurrency() const;
 
   ~threadpool();
+  void stop();
+  void start(unsigned int max_threads = 0);
 
   private:
     threadpool(unsigned int max_threads = 0);

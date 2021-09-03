@@ -1,5 +1,6 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -60,21 +61,21 @@ namespace daemonize
     )
   {
     LOG_PRINT_L0("Graft '" << GRAFT_RELEASE_NAME << "' (v" << GRAFT_VERSION_FULL << ") Daemonised");
-    return t_daemon{vm};
+    return t_daemon{vm, public_rpc_port};
   }
 
   bool t_executor::run_non_interactive(
       boost::program_options::variables_map const & vm
     )
   {
-    return t_daemon{vm}.run(false);
+    return t_daemon{vm, public_rpc_port}.run(false);
   }
 
   bool t_executor::run_interactive(
       boost::program_options::variables_map const & vm
     )
   {
-    return t_daemon{vm}.run(true);
+    return t_daemon{vm, public_rpc_port}.run(true);
   }
 }
 

@@ -26,33 +26,26 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-if(WIN32)
-  set(EXTRA_LIBRARIES "${EXTRA_LIBRARIES};bcrypt")
-endif()
-
-set(functional_tests_sources
+add_executable(functional_tests
   main.cpp
   transactions_flow_test.cpp
   transactions_generation_from_blockchain.cpp)
-
-set(functional_tests_headers
-  transactions_flow_test.h
-  transactions_generation_from_blockchain.h)
-
-add_executable(functional_tests
-  ${functional_tests_sources}
-  ${functional_tests_headers})
 target_link_libraries(functional_tests
   PRIVATE
     cryptonote_core
     wallet
     common
-    cncrypto
     epee
-    ${Boost_REGEX_LIBRARY}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
-set_property(TARGET functional_tests
-  PROPERTY
-    FOLDER "tests")
+    Boost::regex
+    Boost::program_options
+    extra)
+
+execute_process(COMMAND ${PYTHON_EXECUTABLE} "-c" "import requests; print('OK')" OUTPUT_VARIABLE REQUESTS_OUTPUT OUTPUT_STRIP_TRAILING_WHITESPACE)
+if (REQUESTS_OUTPUT STREQUAL "OK")
+  add_test(
+    NAME    functional_tests_rpc
+    COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/functional_tests_rpc.py" "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" all)
+else()
+  message(WARNING "functional_tests_rpc skipped, needs the 'requests' python3 module")
+  set(CTEST_CUSTOM_TESTS_IGNORE ${CTEST_CUSTOM_TESTS_IGNORE} functional_tests_rpc)
+endif()

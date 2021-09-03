@@ -29,6 +29,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <unordered_map>
 
@@ -85,7 +86,15 @@ bool do_send_money(tools::wallet2& w1, tools::wallet2& w2, size_t mix_in_factor,
   try
   {
     std::vector<tools::wallet2::pending_tx> ptx;
-    ptx = w1.create_transactions_2(dsts, mix_in_factor, 0, 0, std::vector<uint8_t>(), 0, {}, false);
+    cryptonote::loki_construct_tx_params tx_params;
+    ptx = w1.create_transactions_2(dsts,
+                                   mix_in_factor,
+                                   0 /*unlock_time*/,
+                                   0 /*priority*/,
+                                   std::vector<uint8_t>() /*extra_base*/,
+                                   0 /*subaddr_account*/,
+                                   {} /*subaddr_indices*/,
+                                   tx_params);
     for (auto &p: ptx)
       w1.commit_tx(p);
     return true;
@@ -100,7 +109,7 @@ uint64_t get_money_in_first_transfers(const tools::wallet2::transfer_container& 
 {
   uint64_t summ = 0;
   size_t count = 0;
-  BOOST_FOREACH(const tools::wallet2::transfer_details& td, incoming_transfers)
+  for (const auto& td : incoming_transfers)
   {
     summ += td.m_tx.vout[td.m_internal_output_index].amount;
     if(++count >= n_transfers)
@@ -157,13 +166,13 @@ bool transactions_flow_test(std::string& working_folder,
 
   //lets do some money
   epee::net_utils::http::http_simple_client http_client;
-  COMMAND_RPC_STOP_MINING::request daemon1_req = AUTO_VAL_INIT(daemon1_req);
-  COMMAND_RPC_STOP_MINING::response daemon1_rsp = AUTO_VAL_INIT(daemon1_rsp);
+  COMMAND_RPC_STOP_MINING::request daemon1_req{};
+  COMMAND_RPC_STOP_MINING::response daemon1_rsp{};
   bool r = http_client.set_server(daemon_addr_a, boost::none) && net_utils::invoke_http_json("/stop_mine", daemon1_req, daemon1_rsp, http_client, std::chrono::seconds(10));
   CHECK_AND_ASSERT_MES(r, false, "failed to stop mining");
 
-  COMMAND_RPC_START_MINING::request daemon_req = AUTO_VAL_INIT(daemon_req);
-  COMMAND_RPC_START_MINING::response daemon_rsp = AUTO_VAL_INIT(daemon_rsp);
+  COMMAND_RPC_START_MINING::request daemon_req{};
+  COMMAND_RPC_START_MINING::response daemon_rsp{};
   daemon_req.miner_address = w1.get_account().get_public_address_str(MAINNET);
   daemon_req.threads_count = 9;
   r = net_utils::invoke_http_json("/start_mining", daemon_req, daemon_rsp, http_client, std::chrono::seconds(10));
@@ -189,7 +198,7 @@ bool transactions_flow_test(std::string& working_folder,
     {
       //lets go!
       size_t count = 0;
-      BOOST_FOREACH(tools::wallet2::transfer_details& td, incoming_transfers)
+      for (auto& td : incoming_transfers)
       {
         cryptonote::transaction tx_s;
         bool r = do_send_money(w1, w1, 0, td.m_tx.vout[td.m_internal_output_index].amount - TEST_FEE, tx_s, 50);
@@ -215,7 +224,7 @@ bool transactions_flow_test(std::string& working_folder,
     size_t m_received_count;
     uint64_t amount_transfered;
   };
-  crypto::key_image lst_sent_ki = AUTO_VAL_INIT(lst_sent_ki);
+  crypto::key_image lst_sent_ki{};
   std::unordered_map<crypto::hash, tx_test_entry> txs;
   for(i = 0; i != transactions_count; i++)
   {
@@ -252,7 +261,7 @@ bool transactions_flow_test(std::string& working_folder,
     transfered_money += amount_to_tx;
 
     LOG_PRINT_L0("transferred " << amount_to_tx << ", i=" << i );
-    tx_test_entry& ent = txs[get_transaction_hash(tx)] = boost::value_initialized<tx_test_entry>();
+    tx_test_entry& ent = txs[get_transaction_hash(tx)] = {};
     ent.amount_transfered = amount_to_tx;
     ent.tx = tx;
     //if(i % transactions_per_second)
@@ -261,12 +270,12 @@ bool transactions_flow_test(std::string& working_folder,
 
 
   LOG_PRINT_L0( "waiting some new blocks...");
-  misc_utils::sleep_no_w(DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN*20*1000);//wait two blocks before sync on another wallet on another daemon
+  misc_utils::sleep_no_w(DIFFICULTY_TARGET_V2*20*1000);//wait two blocks before sync on another wallet on another daemon
   LOG_PRINT_L0( "refreshing...");
   bool recvd_money = false;
   while(w2.refresh(true, blocks_fetched, recvd_money, ok) && ( (blocks_fetched && recvd_money) || !blocks_fetched  ) )
   {
-    misc_utils::sleep_no_w(DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN*1000);//wait two blocks before sync on another wallet on another daemon
+    misc_utils::sleep_no_w(DIFFICULTY_TARGET_V2*1000);//wait two blocks before sync on another wallet on another daemon
   }
 
   uint64_t money_2 = w2.balance(0);
@@ -279,14 +288,14 @@ bool transactions_flow_test(std::string& working_folder,
   {
     tools::wallet2::transfer_container tc;
     w2.get_transfers(tc);
-    BOOST_FOREACH(tools::wallet2::transfer_details& td, tc)
+    for (auto& td : tc)
     {
       auto it = txs.find(td.m_txid);
       CHECK_AND_ASSERT_MES(it != txs.end(), false, "transaction not found in local cache");
       it->second.m_received_count += 1;
     }
 
-    BOOST_FOREACH(auto& tx_pair, txs)
+    for (auto& tx_pair : txs)
     {
       if(tx_pair.second.m_received_count != 1)
       {

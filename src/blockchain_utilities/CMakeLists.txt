@@ -1,5 +1,6 @@
 # Copyright (c) 2018, The Graft Project
 # Copyright (c) 2014-2018, The Monero Project
+# Copyright (c) 2018, The Loki Project
 #
 # All rights reserved.
 #
@@ -27,229 +28,80 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(blocksdat "")
-if(PER_BLOCK_CHECKPOINT)
-  if(APPLE AND DEPENDS)
-    add_custom_command(OUTPUT blocksdat.o MAIN_DEPENDENCY ../blocks/checkpoints.dat COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && touch stub.c && ${CMAKE_C_COMPILER} --target=x86_64-apple-darwin11 -o stub.o -c stub.c COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ${CMAKE_LINKER} -r -sectcreate __DATA __blocks_dat ../blocks/checkpoints.dat -o ${CMAKE_CURRENT_BINARY_DIR}/blocksdat.o stub.o && rm -f stub.*)
-  elseif(APPLE AND NOT DEPENDS)
-    add_custom_command(OUTPUT blocksdat.o MAIN_DEPENDENCY ../blocks/checkpoints.dat COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && touch stub.c && ${CMAKE_C_COMPILER} -o stub.o -c stub.c COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ${CMAKE_LINKER} ${LD_RAW_FLAGS} -r -sectcreate __DATA __blocks_dat ../blocks/checkpoints.dat -o ${CMAKE_CURRENT_BINARY_DIR}/blocksdat.o stub.o && rm -f stub.*)
-  elseif(LINUX_32)
-    add_custom_command(OUTPUT blocksdat.o MAIN_DEPENDENCY ../blocks/checkpoints.dat COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && cp ../blocks/checkpoints.dat blocks.dat && ${CMAKE_LINKER} -m elf_i386 ${LD_RAW_FLAGS} -r -b binary -o ${CMAKE_CURRENT_BINARY_DIR}/blocksdat.o blocks.dat && rm -f blocks.dat)
-  else()
-    add_custom_command(OUTPUT blocksdat.o MAIN_DEPENDENCY ../blocks/checkpoints.dat COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && cp ../blocks/checkpoints.dat blocks.dat && ${CMAKE_LINKER} ${LD_RAW_FLAGS} -r -b binary -o ${CMAKE_CURRENT_BINARY_DIR}/blocksdat.o blocks.dat && rm -f blocks.dat)
-  endif()
-  set(blocksdat "blocksdat.o")
-endif()
+add_library(blockchain_tools_common_libs INTERFACE)
+target_link_libraries(blockchain_tools_common_libs INTERFACE
+    cryptonote_core
+    blockchain_db
+    version
+    Boost::filesystem
+    Boost::program_options
+    extra)
 
-set(blockchain_import_sources
+loki_add_executable(blockchain_import "graft-blockchain-import"
   blockchain_import.cpp
   bootstrap_file.cpp
   blocksdat_file.cpp
   )
 
-set(blockchain_import_private_headers
-  bootstrap_file.h
-  blocksdat_file.h
-  bootstrap_serialization.h
-  )
+target_link_libraries(blockchain_import PRIVATE blockchain_tools_common_libs)
 
-monero_private_headers(blockchain_import
-	  ${blockchain_import_private_headers})
+if(ARCH_WIDTH)
+  target_compile_definitions(blockchain_import PRIVATE ARCH_WIDTH=${ARCH_WIDTH})
+endif()
 
-set(blockchain_export_sources
+loki_add_executable(blockchain_export "graft-blockchain-export"
   blockchain_export.cpp
   bootstrap_file.cpp
   blocksdat_file.cpp
   )
-
-set(blockchain_export_private_headers
-  bootstrap_file.h
-  blocksdat_file.h
-  bootstrap_serialization.h
-  )
-
-monero_private_headers(blockchain_export
-	  ${blockchain_export_private_headers})
+target_link_libraries(blockchain_export PRIVATE blockchain_tools_common_libs)
 
 
-set(blockchain_blackball_sources
+loki_add_executable(blockchain_blackball "graft-blockchain-mark-spent-outputs"
   blockchain_blackball.cpp
   )
 
-set(blockchain_blackball_private_headers
-  bootstrap_file.h
-  blocksdat_file.h
-  bootstrap_serialization.h
-  )
-
-monero_private_headers(blockchain_blackball
-	  ${blockchain_blackball_private_headers})
-
-set(blockchain_usage_sources
-  blockchain_usage.cpp
-  )
-
-set(blockchain_usage_private_headers)
-
-monero_private_headers(blockchain_usage
-	  ${blockchain_usage_private_headers})
-
-
-
-set(blockchain_ancestry_sources
-  blockchain_ancestry.cpp
-  )
-
-set(blockchain_ancestry_private_headers)
-
-monero_private_headers(blockchain_ancestry
-	  ${blockchain_ancestry_private_headers})
-
-
-
-set(blockchain_depth_sources
-  blockchain_depth.cpp
-  )
-
-set(blockchain_depth_private_headers)
-
-monero_private_headers(blockchain_depth
-	  ${blockchain_depth_private_headers})
-
-
-
-monero_add_executable(blockchain_import
-  ${blockchain_import_sources}
-  ${blockchain_import_private_headers}
-  ${blocksdat})
-
-target_link_libraries(blockchain_import
-  PRIVATE
-    cryptonote_core
-    blockchain_db
-    version
-    epee
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
-
-if(ARCH_WIDTH)
-  target_compile_definitions(blockchain_import
-    PUBLIC -DARCH_WIDTH=${ARCH_WIDTH})
-endif()
-
-set_property(TARGET blockchain_import
-	PROPERTY
-	OUTPUT_NAME "graft-blockchain-import")
-
-install(TARGETS blockchain_import DESTINATION bin)
-
-monero_add_executable(blockchain_export
-  ${blockchain_export_sources}
-  ${blockchain_export_private_headers})
-
-target_link_libraries(blockchain_export
-  PRIVATE
-    cryptonote_core
-    blockchain_db
-    version
-    epee
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
-
-set_property(TARGET blockchain_export
-	PROPERTY
-	OUTPUT_NAME "graft-blockchain-export")
-install(TARGETS blockchain_export DESTINATION bin)
-
-monero_add_executable(blockchain_blackball
-  ${blockchain_blackball_sources}
-  ${blockchain_blackball_private_headers})
-
 target_link_libraries(blockchain_blackball
   PRIVATE
-    wallet
-    cryptonote_core
-    blockchain_db
-    version
-    epee
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
-
-set_property(TARGET blockchain_blackball
-	PROPERTY
-    OUTPUT_NAME "graft-blockchain-blackball")
-install(TARGETS blockchain_blackball DESTINATION bin)
+    blockchain_tools_common_libs
+    wallet)
 
 
-monero_add_executable(blockchain_usage
-  ${blockchain_usage_sources}
-  ${blockchain_usage_private_headers})
+loki_add_executable(blockchain_usage "graft-blockchain-usage"
+  blockchain_usage.cpp
+  )
+target_link_libraries(blockchain_usage PRIVATE blockchain_tools_common_libs)
 
-target_link_libraries(blockchain_usage
-  PRIVATE
-    cryptonote_core
-    blockchain_db
-    version
-    epee
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
+loki_add_executable(blockchain_ancestry "graft-blockchain-ancestry"
+  blockchain_ancestry.cpp
+  )
+target_link_libraries(blockchain_ancestry PRIVATE blockchain_tools_common_libs)
 
-set_property(TARGET blockchain_usage
-	PROPERTY
-        OUTPUT_NAME "graft-blockchain-usage")
-install(TARGETS blockchain_usage DESTINATION bin)
+loki_add_executable(blockchain_depth "graft-blockchain-depth"
+  blockchain_depth.cpp
+  )
+target_link_libraries(blockchain_depth PRIVATE blockchain_tools_common_libs)
 
-monero_add_executable(blockchain_ancestry
-  ${blockchain_ancestry_sources}
-  ${blockchain_ancestry_private_headers})
+loki_add_executable(blockchain_stats "graft-blockchain-stats"
+  blockchain_stats.cpp
+  )
+target_link_libraries(blockchain_stats PRIVATE blockchain_tools_common_libs)
 
-target_link_libraries(blockchain_ancestry
-  PRIVATE
-    cryptonote_core
-    blockchain_db
-    version
-    epee
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
-
-set_property(TARGET blockchain_ancestry
-	PROPERTY
-	OUTPUT_NAME "graft-blockchain-ancestry")
-install(TARGETS blockchain_ancestry DESTINATION bin)
-
-monero_add_executable(blockchain_depth
-  ${blockchain_depth_sources}
-  ${blockchain_depth_private_headers})
-
-target_link_libraries(blockchain_depth
-  PRIVATE
-    cryptonote_core
-    blockchain_db
-    version
-    epee
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
-
-set_property(TARGET blockchain_depth
-	PROPERTY
-	OUTPUT_NAME "graft-blockchain-depth")
-install(TARGETS blockchain_depth DESTINATION bin)
-
+# TODO(loki): Blockchain pruning not supported in Loki yet
+# loki_add_executable(blockchain_prune_known_spent_data "graft-blockchain-prune-known-spent-data"
+#   blockchain_prune_known_spent_data.cpp
+#   )
+# 
+# target_link_libraries(blockchain_prune_known_spent_data
+#   PRIVATE
+#     blockchain_tools_common_libs
+#     p2p)
+# 
+# loki_add_executable(blockchain_prune "graft-blockchain-prune"
+#   blockchain_prune.cpp
+#   )
+# 
+# target_link_libraries(blockchain_prune
+#   PRIVATE
+#     blockchain_tools_common_libs
+#     p2p)

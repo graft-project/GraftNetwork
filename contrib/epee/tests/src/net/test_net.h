@@ -27,9 +27,11 @@
 #pragma once
 
 #include <boost/thread.hpp>
-#include <boost/bind.hpp> 
+#include <boost/bind/bind.hpp>
 
-#include "net/levin_server_cp2.h"
+#include "net/abstract_tcp_server2.h"
+#include "net/levin_protocol_handler.h"
+#include "net/levin_protocol_handler_async.h"
 #include "storages/abstract_invoke.h"
 
 namespace epee
@@ -60,7 +62,7 @@ namespace tests
   {
     const static int ID = 1000;
 
-    struct request
+    struct request_t
     {		
 
       std::string example_string_data;
@@ -73,9 +75,9 @@ namespace tests
         SERIALIZE_T(sub)
       END_NAMED_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
-
-    struct response
+    struct response_t
     {
       bool 	 m_success; 
       uint64_t example_id_data;
@@ -87,13 +89,14 @@ namespace tests
         SERIALIZE_STL_CONTAINER_T(subs)
       END_NAMED_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
 
   struct COMMAND_EXAMPLE_2
   {
     const static int ID = 1001;
 
-    struct request
+    struct request_t
     {		
       std::string example_string_data2;
       uint64_t example_id_data;
@@ -103,8 +106,9 @@ namespace tests
         SERIALIZE_STL_ANSI_STRING(example_string_data2)
       END_NAMED_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<request_t> request;
 
-    struct response
+    struct response_t
     {
       bool m_success; 
       uint64_t example_id_data;
@@ -114,6 +118,7 @@ namespace tests
         SERIALIZE_POD(m_success)
       END_NAMED_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
   };
   typedef boost::uuids::uuid uuid;
 
@@ -199,17 +204,17 @@ namespace tests
     CHAIN_LEVIN_NOTIFY_TO_STUB(); //move levin_commands_handler interface notify(...) callbacks into nothing
 
     BEGIN_INVOKE_MAP(test_levin_server)
-      HANDLE_INVOKE_T(COMMAND_EXAMPLE_1, &test_levin_server::handle_1)
-      HANDLE_INVOKE_T(COMMAND_EXAMPLE_2, &test_levin_server::handle_2)
+      HANDLE_INVOKE_T(COMMAND_EXAMPLE_1, handle_1)
+      HANDLE_INVOKE_T(COMMAND_EXAMPLE_2, handle_2)
     END_INVOKE_MAP()
 
     //----------------- commands handlers ----------------------------------------------
     int handle_1(int command, COMMAND_EXAMPLE_1::request& arg, COMMAND_EXAMPLE_1::response& rsp, const net_utils::connection_context_base& context)
     {
       LOG_PRINT_L0("on_command_1: id " << arg.example_id_data << "---->>");      
-      COMMAND_EXAMPLE_2::request arg_ = AUTO_VAL_INIT(arg_);
+      COMMAND_EXAMPLE_2::request arg_{};
       arg_.example_id_data = arg.example_id_data;
-      COMMAND_EXAMPLE_2::response rsp_ = AUTO_VAL_INIT(rsp_);
+      COMMAND_EXAMPLE_2::response rsp_{};
       invoke_async<COMMAND_EXAMPLE_2::response>(context.m_connection_id, COMMAND_EXAMPLE_2::ID, arg_, [](int code, const COMMAND_EXAMPLE_2::response& rsp, const net_utils::connection_context_base& context)
         {
           if(code < 0)
@@ -315,13 +320,13 @@ namespace tests
     wait_event.lock();
     while(true)
     {
-      net_utils::connection_context_base cntxt_local = AUTO_VAL_INIT(cntxt_local);
+      net_utils::connection_context_base cntxt_local{};
       bool r = srv.connect_async("127.0.0.1", string_tools::num_to_string_fast(port), 5000, [&srv, &port, &wait_event, &i, &cntxt_local](const net_utils::connection_context_base& cntxt, const boost::system::error_code& ec)
       {
         CHECK_AND_ASSERT_MES(!ec, void(), "Some problems at connect, message: " << ec.message() );
         cntxt_local = cntxt;
         LOG_PRINT_L0("Invoking command 1 to " << port);
-        COMMAND_EXAMPLE_1::request arg = AUTO_VAL_INIT(arg);
+        COMMAND_EXAMPLE_1::request arg{};
         arg.example_id_data = i;
         /*vc2010 workaround*/
         int port_ = port;

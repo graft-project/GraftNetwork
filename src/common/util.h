@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -33,12 +33,14 @@
 #include <boost/thread/locks.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/optional.hpp>
+#include <boost/endian/conversion.hpp>
 #include <system_error>
 #include <csignal>
 #include <cstdio>
 #include <functional>
 #include <memory>
 #include <string>
+#include <chrono>
 
 #ifdef _WIN32
 #include "windows.h"
@@ -145,7 +147,7 @@ namespace tools
   bool create_directories_if_necessary(const std::string& path);
   /*! \brief std::rename wrapper for nix and something strange for windows.
    */
-  std::error_code replace_file(const std::string& replacement_name, const std::string& replaced_name);
+  std::error_code replace_file(const std::string& old_name, const std::string& new_name);
 
   bool sanitize_locale();
 
@@ -221,6 +223,8 @@ namespace tools
 
   void set_strict_default_file_permissions(bool strict);
 
+  ssize_t get_lockable_memory();
+
   void set_max_concurrency(unsigned n);
   unsigned get_max_concurrency();
 
@@ -240,4 +244,77 @@ namespace tools
 #endif
 
   void closefrom(int fd);
+
+  std::string get_human_readable_timestamp(uint64_t ts);
+  std::string get_human_readable_timespan(std::chrono::seconds seconds);
+  std::string get_human_readable_bytes(uint64_t bytes);
+
+#ifdef __cpp_fold_expressions
+  template <typename... T> constexpr size_t constexpr_sum(Ts... ns) { return (0 + ... + size_t{ns}); }
+#else
+  constexpr size_t constexpr_sum() { return 0; }
+  template <typename T, typename... Tmore>
+  constexpr size_t constexpr_sum(T n, Tmore... more) { return size_t{n} + constexpr_sum(more...); }
+#endif
+
+  namespace detail {
+    // Copy an integer type, swapping to little-endian if needed
+    template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
+    void memcpy_one(char *dest, T t) {
+      boost::endian::native_to_little_inplace(t);
+      std::memcpy(dest, &t, sizeof(T));
+    }
+
+    // Copy a class byte-for-byte (but only if it is standard layout and has byte alignment)
+    template <typename T, std::enable_if_t<std::is_class<T>::value, int> = 0>
+    void memcpy_one(char *dest, const T &t) {
+      // We don't *actually* require byte alignment here but it's quite possibly an error (i.e.
+      // passing in a type containing integer members) so disallow it.
+      static_assert(std::is_trivially_copyable<T>::value && alignof(T) == 1, "memcpy_le() may only be used on simple (1-byte alignment) struct types");
+      std::memcpy(dest, &t, sizeof(T));
+    }
+
+    // Copy a string literal
+    template <typename T, size_t N>
+    void memcpy_one(char *dest, const T (&arr)[N]) {
+      for (const T &t : arr) {
+        memcpy_one(dest, t);
+        dest += sizeof(T);
+      }
+    }
+
+    // Recursion terminator
+    inline void memcpy_le_impl(char *) {}
+
+    // Helper function for public memcpy_le
+    template <typename T, typename... Tmore>
+    void memcpy_le_impl(char *dest, const T &t, const Tmore &...more) {
+      memcpy_one(dest, t);
+      memcpy_le_impl(dest + sizeof(T), more...);
+    }
+  }
+
+  // Does a memcpy of one or more values into a char array; for any given values that are basic
+  // integer types the value is first converted from native to little-endian representation (if
+  // necessary).  Non-integer types with alignment of 1 (typically meaning structs containing only
+  // char, bools, and arrays of those) and fixed-size arrays of the above (including string
+  // literals) are also permitted; more complex types are not.
+  //
+  // The 1-byte alignment is here to protect you: if you have a larger alignment that usually means
+  // you have a contained type with a larger alignment, which is probably an integer.
+  template <typename... T, size_t N = constexpr_sum(sizeof(T)...)>
+  std::array<char, N> memcpy_le(const T &...t) {
+    std::array<char, N> r;
+    detail::memcpy_le_impl(r.data(), t...);
+    return r;
+  }
+
+  // Returns the `_count` element of a scoped enum, cast to the enum's underlying type
+  template <typename Enum>
+  constexpr auto enum_count = static_cast<std::underlying_type_t<Enum>>(Enum::_count);
+
+  template <typename Enum>
+  constexpr Enum enum_top = static_cast<Enum>(enum_count<Enum> - 1);
+
+  std::string lowercase_ascii_string(std::string src);
 }

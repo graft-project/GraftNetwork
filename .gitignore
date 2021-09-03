@@ -20,6 +20,8 @@ cscope.out
 cscope.in.out
 cscope.po.out
 
+__pycache__
+
 external/miniupnpc/Makefile
 miniupnpcstrings.h
 version/

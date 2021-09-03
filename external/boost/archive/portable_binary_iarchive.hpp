@@ -226,7 +226,7 @@ public:
 #include <istream>
 #include <string>
 
-#include <boost/detail/endian.hpp>
+#include <boost/endian/conversion.hpp>
 #include <boost/serialization/throw_exception.hpp>
 #include <boost/archive/archive_exception.hpp>
 

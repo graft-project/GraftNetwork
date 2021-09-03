@@ -1,4 +1,5 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -56,7 +57,6 @@ public:
     , t_core & core
     , t_p2p & p2p
     , const bool restricted
-    , const cryptonote::network_type nettype
     , const std::string & port
     , const std::string & description
     )
@@ -64,7 +64,7 @@ public:
   {
     MGINFO("Initializing " << m_description << " RPC server...");
 
-    if (!m_server.init(vm, restricted, nettype, port))
+    if (!m_server.init(vm, restricted, port))
     {
       throw std::runtime_error("Failed to initialize " + m_description + " RPC server.");
     }
@@ -73,10 +73,12 @@ public:
 
   void run()
   {
-    unsigned min_threads = 2;
-    unsigned threads_num = std::max(min_threads, std::thread::hardware_concurrency() / 2);
-    MGINFO("Starting core rpc server with " << threads_num << " threads...");
-    if (!m_server.run(threads_num, false))
+    // TODO: Graft: check actual threads number (use Graft's implementation with hardware_concurrency?)
+    // unsigned min_threads = 2;
+    // unsigned threads_num = std::max(min_threads, std::thread::hardware_concurrency() / 2);
+    // MGINFO("Starting core rpc server with " << threads_num << " threads...");
+    MGINFO("Starting " << m_description << " RPC server...");
+    if (!m_server.run(m_server.m_max_long_poll_connections + cryptonote::core_rpc_server::DEFAULT_RPC_THREADS, false /*wait - for all threads in the pool to exit when terminating*/))
     {
       throw std::runtime_error("Failed to start " + m_description + " RPC server.");
     }

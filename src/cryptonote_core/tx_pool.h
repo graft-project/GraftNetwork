@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -36,7 +36,6 @@
 #include <unordered_set>
 #include <queue>
 #include <boost/serialization/version.hpp>
-#include <boost/utility.hpp>
 
 #include "string_tools.h"
 #include "syncobj.h"
@@ -47,6 +46,8 @@
 #include "crypto/hash.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "rpc/message_data_structs.h"
+#include "tx_blink.h"
+#include "loki_economy.h"
 
 namespace cryptonote
 {
@@ -56,26 +57,48 @@ namespace cryptonote
   /*                                                                      */
   /************************************************************************/
 
-  //! pair of <transaction fee, transaction hash> for organization
-  typedef std::pair<std::pair<double, std::time_t>, crypto::hash> tx_by_fee_and_receive_time_entry;
+  using namespace std::literals;
+
+  //! tuple of <deregister, transaction fee, receive time> for organization
+  typedef std::pair<std::tuple<bool, double, std::time_t>, crypto::hash> tx_by_fee_and_receive_time_entry;
 
   class txCompare
   {
   public:
-    bool operator()(const tx_by_fee_and_receive_time_entry& a, const tx_by_fee_and_receive_time_entry& b)
+    bool operator()(const tx_by_fee_and_receive_time_entry& a, const tx_by_fee_and_receive_time_entry& b) const
     {
-      // sort by greatest first, not least
-      if (a.first.first > b.first.first) return true;
-      else if (a.first.first < b.first.first) return false;
-      else if (a.first.second < b.first.second) return true;
-      else if (a.first.second > b.first.second) return false;
-      else if (a.second != b.second) return true;
-      else return false;
+      // Sort order:         non-standard txes,     fee (descending),      arrival time,         hash
+      return std::make_tuple(!std::get<0>(a.first), -std::get<1>(a.first), std::get<2>(a.first), a.second)
+           < std::make_tuple(!std::get<0>(b.first), -std::get<1>(b.first), std::get<2>(b.first), b.second);
     }
   };
 
   //! container for sorting transactions by fee per unit size
   typedef std::set<tx_by_fee_and_receive_time_entry, txCompare> sorted_tx_container;
+
+  /// Argument passed into add_tx specifying different requires on the transaction
+  struct tx_pool_options {
+    bool kept_by_block = false; ///< has this transaction been in a block?
+    bool relayed = false; ///< was this transaction from the network or a local client?
+    bool do_not_relay = false; ///< to avoid relaying the transaction to the network
+    bool approved_blink = false; ///< signals that this is a blink tx and so should be accepted even if it conflicts with mempool or recent txes in non-immutable block; typically specified indirectly (via core.handle_incoming_txs())
+    uint64_t fee_percent = 100; ///< the required miner tx fee in percent relative to the base required miner tx fee; must be >= 100.
+    uint64_t burn_fixed = 0; ///< a required minimum amount that must be burned (in atomic currency)
+    uint64_t burn_percent = 0; ///< a required amount as a percentage of the base required miner tx fee that must be burned (additive with burn_fixed, if both > 0)
+
+    static tx_pool_options from_block() { tx_pool_options o; o.kept_by_block = true; o.relayed = true; return o; }
+    static tx_pool_options from_peer() { tx_pool_options o; o.relayed = true; return o; }
+    static tx_pool_options new_tx(bool do_not_relay = false) { tx_pool_options o; o.do_not_relay = do_not_relay; return o; }
+    static tx_pool_options new_blink(bool approved, uint8_t hf_version) {
+      tx_pool_options o;
+      o.do_not_relay = !approved;
+      o.approved_blink = approved;
+      o.fee_percent = BLINK_MINER_TX_FEE_PERCENT;
+      o.burn_percent = hf_version <= network_version_14_blink ? BLINK_BURN_TX_FEE_PERCENT_OLD : BLINK_BURN_TX_FEE_PERCENT;
+      o.burn_fixed = BLINK_BURN_FIXED;
+      return o;
+    }
+  };
 
   /**
    * @brief Transaction pool, handles transactions which are not part of a block
@@ -91,7 +114,7 @@ namespace cryptonote
    *   helping create a new block template by choosing transactions for it
    *
    */
-  class tx_memory_pool: boost::noncopyable
+  class tx_memory_pool
   {
   public:
     /**
@@ -101,14 +124,20 @@ namespace cryptonote
      */
     tx_memory_pool(Blockchain& bchs);
 
+    // Non-copyable
+    tx_memory_pool(const tx_memory_pool &) = delete;
+    tx_memory_pool &operator=(const tx_memory_pool &) = delete;
 
     /**
-     * @copydoc add_tx(transaction&, tx_verification_context&, bool, bool, uint8_t)
+     * @copydoc add_tx(transaction&, tx_verification_context&, const tx_pool_options &, uint8_t)
      *
      * @param id the transaction's hash
      * @param tx_weight the transaction's weight
+     * @param blink_rollback_height if tx is a blink that conflicts with a recent (non-immutable)
+     * block tx then set this pointer to the required new height: that is, all blocks with height
+     * `block_rollback_height` and above must be removed.
      */
-    bool add_tx(transaction &tx, const crypto::hash &id, size_t tx_weight, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version);
+    bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version, uint64_t *blink_rollback_height = nullptr);
 
     /**
      * @brief add a transaction to the transaction pool
@@ -120,20 +149,122 @@ namespace cryptonote
      *
      * @param tx the transaction to be added
      * @param tvc return-by-reference status about the transaction verification
-     * @param kept_by_block has this transaction been in a block?
-     * @param relayed was this transaction from the network or a local client?
-     * @param do_not_relay to avoid relaying the transaction to the network
-     * @param version the version used to create the transaction
+     * @param opts the options controlling how this tx will be accepted/added
+     * @param hf_version the hard fork version used to create the transaction
      *
      * @return true if the transaction passes validations, otherwise false
      */
-    bool add_tx(transaction &tx, tx_verification_context& tvc, bool kept_by_block, bool relayed, bool do_not_relay, uint8_t version);
+    bool add_tx(transaction &tx, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version);
+
+    /**
+     * @brief attempts to add a blink transaction to the transaction pool.
+     *
+     * This method must be called without a held blink lock.
+     *
+     * This is only for use for new transactions that should not exist yet on the chain or mempool
+     * (and will fail if already does).  See `add_existing_blink` instead to add blink data about a
+     * transaction that already exists.  This is only meant to be called during the SN blink signing
+     * phase (and requires that the `tx` transaction be properly set to a full transaction);
+     * ordinary nodes receiving a blink tx from the network should be going through
+     * core.handle_incoming_blinks instead.
+     *
+     * Whether or not the transaction is added to the known blinks or marked for relaying depends on
+     * whether the passed-in transaction has an `.approved()` status: if it does, the transaction is
+     * set for relaying and added to the active blinks immediately; otherwise it is not added to the
+     * known blinks and will not be relayed.
+     *
+     * The transaction is *not* added to the known blinks or marked for relaying unless it is passed
+     * in with an `.approved()` status.
+     *
+     * @param blink - a shared_ptr to the blink details
+     * @param tvc - the verification results
+     * @param blink_exists - will be set to true if the addition fails because the blink tx already
+     * exists
+     *
+     * @return true if the tx passes validations and has been added to the tx pool.
+     */
+    bool add_new_blink(const std::shared_ptr<blink_tx> &blink, tx_verification_context& tvc, bool &blink_exists);
+
+    /**
+     * @brief attempts to add blink transaction information about an existing blink transaction
+     *
+     * You *must* already hold a blink_unique_lock().
+     *
+     * This method takes an approved blink_tx and records it in the known blinks data.  No check is
+     * done that the transaction actually exists on the blockchain or mempool.  It is assumed that
+     * the given shared_ptr is a new blink that is not yet shared between threads (and thus doesn't
+     * need locking): sharing is expected only after it is added to the blinks via this method.
+     *
+     * NB: this function assumes that the given blink tx is valid and approved (signed) but does
+     * *not* check it (except as an assert when compiling in debug mode).
+     *
+     * @param blink the blink_tx shared_ptr
+     *
+     * @return true if the blink data was recorded, false if the given blink was already known.
+     */
+    bool add_existing_blink(std::shared_ptr<blink_tx> blink);
+
+    /**
+     * @brief accesses blink tx details if the given tx hash is a known, approved blink tx, nullptr
+     * otherwise.
+     *
+     * You *must* already hold a blink_shared_lock() or blink_unique_lock().
+     *
+     * @param tx_hash the hash of the tx to access
+     */
+    std::shared_ptr<blink_tx> get_blink(const crypto::hash &tx_hash) const;
+
+    /**
+     * Equivalent to `(bool) get_blink(...)`, but slightly more efficient when the blink information
+     * isn't actually needed beyond an existance test (as it avoids copying the shared_ptr).
+     *
+     * You *must* already hold a blink_shared_lock() or blink_unique_lock().
+     */
+    bool has_blink(const crypto::hash &tx_hash) const;
+
+    /**
+     * @brief modifies a vector of tx hashes to remove any that have known valid blink signatures
+     *
+     * Must not currently hold a blink lock.
+     *
+     * @param txs the tx hashes to check
+     */
+    void keep_missing_blinks(std::vector<crypto::hash> &tx_hashes) const;
+
+    /**
+     * @brief returns checksums of blink txes included in recently mined blocks and in the mempool
+     *
+     * Must not currently hold a blink lock.
+     *
+     * The returned map consists of height => hashsum pairs where the height is the height in which
+     * the blink transactions were mined and the hashsum is a checksum of all the blink txes mined
+     * at that height.  Unmined mempool blink txes are included at a height of 0.  Only heights
+     * since the immutable checkpoint block are included.  Any block height (including the special
+     * "0" height) that has no blink tx in it is not included.
+     */
+    std::map<uint64_t, crypto::hash> get_blink_checksums() const;
+
+    /**
+     * @brief returns the hashes of any non-immutable blink transactions mined in the given heights.
+     * A height of 0 is allowed: it indicates blinks in the mempool.
+     *
+     * Must not currently hold a blink lock.
+     *
+     * Note that this returned hashes by MINED HEIGHTS, not BLINK HEIGHTS where are a different
+     * concept.
+     *
+     * @param set of heights
+     *
+     * @return vector of hashes
+     */
+    std::vector<crypto::hash> get_mined_blinks(const std::set<uint64_t> &heights) const;
 
     /**
      * @brief takes a transaction with the given hash from the pool
      *
      * @param id the hash of the transaction
      * @param tx return-by-reference the transaction taken
+     * @param txblob return-by-reference the transaction as a blob
      * @param tx_weight return-by-reference the transaction's weight
      * @param fee the transaction fee
      * @param relayed return-by-reference was transaction relayed to us by the network?
@@ -142,7 +273,7 @@ namespace cryptonote
      *
      * @return true unless the transaction cannot be found in the pool
      */
-    bool take_tx(const crypto::hash &id, transaction &tx, size_t& tx_weight, uint64_t& fee, bool &relayed, bool &do_not_relay, bool &double_spend_seen);
+    bool take_tx(const crypto::hash &id, transaction &tx, cryptonote::blobdata &txblob, size_t& tx_weight, uint64_t& fee, bool &relayed, bool &do_not_relay, bool &double_spend_seen);
 
     /**
      * @brief checks if the pool has a transaction with the given hash
@@ -154,28 +285,34 @@ namespace cryptonote
     bool have_tx(const crypto::hash &id) const;
 
     /**
-     * @brief action to take when notified of a block added to the blockchain
+     * @brief determines whether the given tx hashes are in the mempool
      *
-     * Currently does nothing
+     * @param hashes vector of tx hashes
+     *
+     * @return vector of the same size as `hashes` of true (1) or false (0) values.  (Not using
+     * std::vector<bool> because it is broken by design).
+     */
+    std::vector<uint8_t> have_txs(const std::vector<crypto::hash> &hashes) const;
+
+    /**
+     * @brief action to take when notified of a block added to the blockchain
      *
      * @param new_block_height the height of the blockchain after the change
      * @param top_block_id the hash of the new top block
      *
      * @return true
      */
-    bool on_blockchain_inc(uint64_t new_block_height, const crypto::hash& top_block_id);
+    bool on_blockchain_inc(block const &blk);
 
     /**
      * @brief action to take when notified of a block removed from the blockchain
      *
-     * Currently does nothing
-     *
      * @param new_block_height the height of the blockchain after the change
      * @param top_block_id the hash of the new top block
      *
      * @return true
      */
-    bool on_blockchain_dec(uint64_t new_block_height, const crypto::hash& top_block_id);
+    bool on_blockchain_dec();
 
     /**
      * @brief action to take periodically
@@ -187,12 +324,36 @@ namespace cryptonote
     /**
      * @brief locks the transaction pool
      */
-    void lock() const;
+    void lock() const { m_transactions_lock.lock(); }
 
     /**
      * @brief unlocks the transaction pool
      */
-    void unlock() const;
+    void unlock() const { m_transactions_lock.unlock(); }
+
+    /**
+     * @briefs does a non-blocking attempt to lock the transaction pool
+     */
+    bool try_lock() const { return m_transactions_lock.try_lock(); }
+
+    /* These are needed as a workaround for boost::lock not considering the type lockable if const
+     * versions are defined.  When we switch to std::lock these can go. */
+    void lock() { m_transactions_lock.lock(); }
+    void unlock() { m_transactions_lock.unlock(); }
+    bool try_lock() { return m_transactions_lock.try_lock(); }
+
+    /**
+     * @brief obtains a unique lock on the approved blink tx pool
+     */
+    template <typename... Args>
+    auto blink_unique_lock(Args &&...args) const { return std::unique_lock<boost::shared_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
+
+    /**
+     * @brief obtains a shared lock on the approved blink tx pool
+     */
+    template <typename... Args>
+    auto blink_shared_lock(Args &&...args) const { return std::shared_lock<boost::shared_mutex>{m_blinks_mutex, std::forward<Args>(args)...}; }
+
 
     // load/store operations
 
@@ -229,7 +390,7 @@ namespace cryptonote
      *
      * @return true
      */
-    bool fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version);
+    bool fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version, uint64_t height);
 
     /**
      * @brief get a list of all transactions in the pool
@@ -313,19 +474,40 @@ namespace cryptonote
     bool get_transaction(const crypto::hash& h, cryptonote::blobdata& txblob) const;
 
     /**
+     * @brief get specific transactions from the pool
+     *
+     * @param hashes - tx hashes of desired transactions
+     * @param txblobs - vector of blobdata (i.e. std::strings) to which found blobs should be
+     * appended.  The vector is *not* cleared of existing values.
+     *
+     * @return number of transactions added to txblobs
+     */
+    int find_transactions(const std::vector<crypto::hash> &tx_hashes, std::vector<cryptonote::blobdata> &txblobs) const;
+
+    /**
      * @brief get a list of all relayable transactions and their hashes
      *
      * "relayable" in this case means:
-     *   nonzero fee
+     *   nonzero fee -or- a zero-fee SN state change tx
      *   hasn't been relayed too recently
      *   isn't old enough that relaying it is considered harmful
-     * Note a transaction can be "relayable" even if do_not_relay is true
+     *   doesn't have do_not_relay set
      *
      * @param txs return-by-reference the transactions and their hashes
      *
      * @return true
      */
     bool get_relayable_transactions(std::vector<std::pair<crypto::hash, cryptonote::blobdata>>& txs) const;
+
+    /**
+     * @brief clear transactions' `do_not_relay` flags (if set) so that they can start being
+     * relayed.  (Note that it still must satisfy the other conditions of
+     * `get_relayable_transactions` to actually be relayable).
+     *
+     * @return the number of txes that were found with an active `do_not_relay` flag that was
+     * cleared.
+     */
+    int set_relayable(const std::vector<crypto::hash> &tx_hashes);
 
     /**
      * @brief tell the pool that certain transactions were just relayed
@@ -340,15 +522,6 @@ namespace cryptonote
      * @return the number of transactions in the pool
      */
     size_t get_transactions_count(bool include_unrelayed_txes = true) const;
-
-    /**
-     * @brief get a string containing human-readable pool information
-     *
-     * @param short_format whether to use a shortened format for the info
-     *
-     * @return the string
-     */
-    std::string print_pool(bool short_format) const;
 
     /**
      * @brief remove transactions from the pool which are no longer valid
@@ -389,6 +562,7 @@ namespace cryptonote
       m_stp = arg;
     }
 
+#if 0 // TODO: Graft: this has been removed by loki
 #define CURRENT_MEMPOOL_ARCHIVE_VER    11
 #define CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER    13
 
@@ -432,6 +606,7 @@ namespace cryptonote
 
       bool double_spend_seen; //!< true iff another tx was seen double spending this one
     };
+#endif     
 
   private:
 
@@ -440,7 +615,7 @@ namespace cryptonote
      *
      * @return true on success, false on error
      */
-    bool insert_key_images(const transaction &tx, bool kept_by_block);
+    bool insert_key_images(const transaction_prefix &tx, const crypto::hash &txid, bool kept_by_block);
 
     /**
      * @brief remove old transactions from the pool
@@ -463,6 +638,14 @@ namespace cryptonote
     bool have_tx_keyimg_as_spent(const crypto::key_image& key_im) const;
 
     /**
+     * @brief check if a tx that does not have a key-image component has a duplicate in the pool
+
+     * @return true if it already exists
+     *
+     */
+    bool have_duplicated_non_standard_tx(transaction const &tx, uint8_t hard_fork_version) const;
+
+    /**
      * @brief check if any spent key image in a transaction is in the pool
      *
      * Checks if any of the spent key images in a given transaction are present
@@ -471,10 +654,11 @@ namespace cryptonote
      * @note see tx_pool::have_tx_keyimg_as_spent
      *
      * @param tx the transaction to check spent key images of
+     * @param found if specified, append the hashes of all conflicting mempool txes here
      *
      * @return true if any spent key images are present in the pool, otherwise false
      */
-    bool have_tx_keyimges_as_spent(const transaction& tx) const;
+    bool have_tx_keyimges_as_spent(const transaction& tx, std::vector<crypto::hash> *conflicting = nullptr) const;
 
     /**
      * @brief forget a transaction's spent key images
@@ -484,10 +668,11 @@ namespace cryptonote
      * a transaction from the pool.
      *
      * @param tx the transaction
+     * @param txid the transaction's hash
      *
      * @return false if any key images to be removed cannot be found, otherwise true
      */
-    bool remove_transaction_keyimages(const transaction& tx);
+    bool remove_transaction_keyimages(const transaction_prefix& tx, const crypto::hash &txid);
 
     /**
      * @brief check if any of a transaction's spent key images are present in a given set
@@ -497,7 +682,7 @@ namespace cryptonote
      *
      * @return true if any key images present in the set, otherwise false
      */
-    static bool have_key_images(const std::unordered_set<crypto::key_image>& kic, const transaction& tx);
+    static bool have_key_images(const std::unordered_set<crypto::key_image>& kic, const transaction_prefix& tx);
 
     /**
      * @brief append the key images from a transaction to the given set
@@ -507,7 +692,7 @@ namespace cryptonote
      *
      * @return false if any append fails, otherwise true
      */
-    static bool append_key_images(std::unordered_set<crypto::key_image>& kic, const transaction& tx);
+    static bool append_key_images(std::unordered_set<crypto::key_image>& kic, const transaction_prefix& tx);
 
     /**
      * @brief check if a transaction is a valid candidate for inclusion in a block
@@ -519,7 +704,7 @@ namespace cryptonote
      *
      * @return true if the transaction is good to go, otherwise false
      */
-    bool is_transaction_ready_to_go(txpool_tx_meta_t& txd, const crypto::hash &txid, const cryptonote::blobdata &txblob, transaction &tx) const;
+    bool is_transaction_ready_to_go(txpool_tx_meta_t& txd, const crypto::hash &txid, const cryptonote::blobdata &txblob, transaction&tx) const;
 
     /**
      * @brief mark all transactions double spending the one passed
@@ -527,16 +712,61 @@ namespace cryptonote
     void mark_double_spend(const transaction &tx);
 
     /**
+     * @brief remove a transaction from the mempool
+     *
+     * This is called when pruning the mempool to reduce its size, and when deleting transactions
+     * from the mempool because of a conflicting blink transaction arriving.  Transactions lock and
+     * blockchain lock must be held by the caller.
+     *
+     * @param txid the transaction id to remove
+     * @param meta optional pointer to txpool_tx_meta_t; will be looked up if omitted
+     * @param stc_it an optional iterator to the tx's entry in m_txs_by_fee_and_receive_time to save
+     * a (linear) scan to find it when already available.  The given iterator will be invalidated if
+     * removed.
+     *
+     * @return true if the transaction was removed, false on failure.
+     */
+    bool remove_tx(const crypto::hash &txid, const txpool_tx_meta_t *meta = nullptr, const sorted_tx_container::iterator *stc_it = nullptr);
+
+    /**
      * @brief prune lowest fee/byte txes till we're not above bytes
      *
-     * if bytes is 0, use m_txpool_max_weight
+     * @param skip don't prune the given ID this time (because it was just added)
      */
-    void prune(size_t bytes = 0);
+    void prune(const crypto::hash &skip);
+
+    /**
+     * @brief Attempt to add a blink tx "by force", removing conflicting non-blink txs
+     *
+     * The given transactions are removed from the mempool, if possible, to make way for this blink
+     * transactions.  In order for any removal to happen, all the conflicting txes must be non-blink
+     * transactions, and must either:
+     * - be a mempool transaction
+     * - be a mined, non-blink transaction in the recent (mutable) section of the chain
+     *
+     * If all conflicting txs satisfy the above then conflicting mempool txs are removed and the
+     * blink_rollback_height pointer is updated to the required rollback height to eject any mined
+     * txs (if not already at that height or lower).  True is returned.
+     *
+     * If any txs are found that do not satisfy the above then nothing is removed and false is
+     * returned.
+     *
+     * @param the id of the incoming blink tx
+     * @param conflict_txs vector of conflicting transaction hashes that are preventing the blink tx
+     * @param blink_rollback_height a pointer to update to the new required height if a chain
+     * rollback is needed for the blink tx.  (That is, all blocks with height >=
+     * blink_rollback_height need to be popped).
+     *
+     * This method is *not* called with a blink lock held.
+     *
+     * @return true if the conflicting transactions have been removed (and/or the rollback height
+     * set), false if tx removal and/or rollback are insufficient to eliminate conflicting txes.
+     */
+    bool remove_blink_conflicts(const crypto::hash &id, const std::vector<crypto::hash> &conflict_txs, uint64_t *blink_rollback_height);
 
 
     bool validate_rta_tx(const crypto::hash &txid, const std::vector<cryptonote::rta_signature> &rta_signs, const cryptonote::rta_header &rta_hdr) const;
 
-    bool validate_supernode(uint64_t height, const crypto::public_key &id) const;
 
     //TODO: confirm the below comments and investigate whether or not this
     //      is the desired behavior
@@ -549,20 +779,14 @@ namespace cryptonote
      */
     typedef std::unordered_map<crypto::key_image, std::unordered_set<crypto::hash> > key_images_container;
 
-#if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
-public:
-#endif
-    mutable epee::critical_section m_transactions_lock;  //!< lock for the pool
-#if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
-private:
-#endif
+    mutable boost::recursive_mutex m_transactions_lock;  //!< mutex for the pool
 
     //! container for spent key images from the transactions in the pool
     key_images_container m_spent_key_images;  
 
     //TODO: this time should be a named constant somewhere, not hard-coded
     //! interval on which to check for stale/"stuck" transactions
-    epee::math_helper::once_a_time_seconds<30> m_remove_stuck_tx_interval;
+    epee::math_helper::periodic_task m_remove_stuck_tx_interval{30s};
 
     //TODO: look into doing this better
     //!< container for transactions organized by fee per size and receive time
@@ -580,7 +804,7 @@ private:
     sorted_tx_container::iterator find_tx_in_sorted_container(const crypto::hash& id) const;
 
     //! cache/call Blockchain::check_tx_inputs results
-    bool check_tx_inputs(const std::function<cryptonote::transaction&(void)> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false) const;
+    bool check_tx_inputs(const std::function<cryptonote::transaction&()> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height, crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block = false, uint64_t* blink_rollback_height = nullptr) const;
 
     //! transactions which are unlikely to be included in blocks
     /*! These transactions are kept in RAM in case they *are* included
@@ -596,40 +820,17 @@ private:
     mutable std::unordered_map<crypto::hash, std::tuple<bool, tx_verification_context, uint64_t, crypto::hash>> m_input_cache;
 
     StakeTransactionProcessor * m_stp = nullptr;
+
+    std::unordered_map<crypto::hash, transaction> m_parsed_tx_cache;
+
+    mutable boost::shared_mutex m_blinks_mutex;
+
+    // Contains blink metadata for approved blink transactions. { txhash => blink_tx, ... }.
+    mutable std::unordered_map<crypto::hash, std::shared_ptr<cryptonote::blink_tx>> m_blinks;
+
+    // Helper method: retrieves hashes and mined heights of blink txes since the immutable block;
+    // mempool blinks are included with a height of 0.  Also takes care of cleaning up any blinks
+    // that have become immutable.  Blink lock must not be already held.
+    std::pair<std::vector<crypto::hash>, std::vector<uint64_t>> get_blink_hashes_and_mined_heights() const;
   };
 }
-
-namespace boost
-{
-  namespace serialization
-  {
-    template<class archive_t>
-    void serialize(archive_t & ar, cryptonote::tx_memory_pool::tx_details& td, const unsigned int version)
-    {
-      ar & td.blob_size;
-      ar & td.fee;
-      ar & td.tx;
-      ar & td.max_used_block_height;
-      ar & td.max_used_block_id;
-      ar & td.last_failed_height;
-      ar & td.last_failed_id;
-      ar & td.receive_time;
-      ar & td.last_relayed_time;
-      ar & td.relayed;
-      if (version < 11)
-        return;
-      ar & td.kept_by_block;
-      if (version < 12)
-        return;
-      ar & td.do_not_relay;
-      if (version < 13)
-        return;
-      ar & td.weight;
-    }
-  }
-}
-BOOST_CLASS_VERSION(cryptonote::tx_memory_pool, CURRENT_MEMPOOL_ARCHIVE_VER)
-BOOST_CLASS_VERSION(cryptonote::tx_memory_pool::tx_details, CURRENT_MEMPOOL_TX_DETAILS_ARCHIVE_VER)
-
-
-

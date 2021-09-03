@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -32,12 +32,11 @@
 
 #include <stddef.h>
 #include <iostream>
-#include <boost/utility/value_init.hpp>
 
-#include "common/pod-class.h"
 #include "generic-ops.h"
 #include "hex.h"
 #include "span.h"
+#include "crypto/cn_heavy_hash.hpp"
 
 namespace crypto {
 
@@ -45,14 +44,14 @@ namespace crypto {
 #include "hash-ops.h"
   }
 
-#pragma pack(push, 1)
-  POD_CLASS hash {
+  struct alignas(size_t) hash {
     char data[HASH_SIZE];
+    static constexpr hash null() { return {0}; }
+    operator bool() const { return memcmp(data, null().data, sizeof(data)); }
   };
-  POD_CLASS hash8 {
+  struct hash8 {
     char data[8];
   };
-#pragma pack(pop)
 
   static_assert(sizeof(hash) == HASH_SIZE, "Invalid structure size");
   static_assert(sizeof(hash8) == 8, "Invalid structure size");
@@ -90,9 +89,10 @@ namespace crypto {
     epee::to_hex::formatted(o, epee::as_byte_span(v)); return o;
   }
 
-  const static crypto::hash null_hash = boost::value_initialized<crypto::hash>();
-  const static crypto::hash8 null_hash8 = boost::value_initialized<crypto::hash8>();
+  const static crypto::hash null_hash = {};
+  const static crypto::hash8 null_hash8 = {};
 }
 
+EPEE_TYPE_IS_SPANNABLE(crypto::hash)
 CRYPTO_MAKE_HASHABLE(hash)
 CRYPTO_MAKE_COMPARABLE(hash8)

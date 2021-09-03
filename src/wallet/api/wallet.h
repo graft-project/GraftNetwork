@@ -1,5 +1,5 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -33,6 +33,7 @@
 #define WALLET_IMPL_H
 
 #include "wallet/api/wallet2_api.h"
+// TODO: Still use graft_wallet.h here?
 #include "wallet/graft_wallet.h"
 
 #include <string>
@@ -95,6 +96,8 @@ public:
     std::string errorString() const override;
     void statusWithErrorString(int& status, std::string& errorString) const override;
     bool setPassword(const std::string &password) override;
+    bool setDevicePin(const std::string &password) override;
+    bool setDevicePassphrase(const std::string &password) override;
     std::string address(uint32_t accountIndex = 0, uint32_t addressIndex = 0) const override;
     std::string integratedAddress(const std::string &payment_id) const override;
     std::string secretViewKey() const override;
@@ -115,11 +118,14 @@ public:
     uint64_t unlockedBalance(uint32_t accountIndex = 0) const override;
     uint64_t blockChainHeight() const override;
     uint64_t approximateBlockChainHeight() const override;
+    uint64_t estimateBlockChainHeight() const override;
     uint64_t daemonBlockChainHeight() const override;
     uint64_t daemonBlockChainTargetHeight() const override;
     bool synchronized() const override;
     bool refresh() override;
     void refreshAsync() override;
+    bool rescanBlockchain() override;
+    void rescanBlockchainAsync() override;    
     void setAutoRefreshInterval(int millis) override;
     int autoRefreshInterval() const override;
     void setRefreshFromBlockHeight(uint64_t refresh_from_block_height) override;
@@ -143,6 +149,8 @@ public:
     std::string getSubaddressLabel(uint32_t accountIndex, uint32_t addressIndex) const override;
     void setSubaddressLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label) override;
 
+    PendingTransaction* stakePending(const std::string& service_node_key, const std::string& address, const std::string& amount, std::string& error_msg) override;
+
     MultisigState multisig() const override;
     std::string getMultisigInfo() const override;
     std::string makeMultisig(const std::vector<std::string>& info, uint32_t threshold) override;
@@ -155,7 +163,7 @@ public:
 
     PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
                                         optional<uint64_t> amount, uint32_t mixin_count,
-                                        PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
+                                        uint32_t priority = 0,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
     PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
@@ -169,47 +177,45 @@ public:
 
     PendingTransaction * loadSignedTx(std::istream &stream);
     virtual bool getAmountFromTransaction(PendingTransaction * t, uint64_t &amount) override;
-
-    virtual void disposeTransaction(PendingTransaction * t) override;
-    virtual TransactionHistory * history() override;
-    virtual AddressBook * addressBook() override;
-    virtual Subaddress * subaddress() override;
-    virtual SubaddressAccount * subaddressAccount() override;
-    virtual void setListener(WalletListener * l) override;
-    virtual uint32_t defaultMixin() const override;
-    virtual void setDefaultMixin(uint32_t arg) override;
-    virtual bool setUserNote(const std::string &txid, const std::string &note) override;
-    virtual std::string getUserNote(const std::string &txid) const override;
-    virtual std::string getTxKey(const std::string &txid) const override;
-    virtual bool checkTxKey(const std::string &txid, std::string tx_key, const std::string &address, uint64_t &received, bool &in_pool, uint64_t &confirmations) override;
-    virtual std::string getTxProof(const std::string &txid, const std::string &address, const std::string &message) const override;
-    virtual bool checkTxProof(const std::string &txid, const std::string &address, const std::string &message, const std::string &signature, bool &good, uint64_t &received, bool &in_pool, uint64_t &confirmations) override;
-    virtual std::string getSpendProof(const std::string &txid, const std::string &message) const override;
-    virtual bool checkSpendProof(const std::string &txid, const std::string &message, const std::string &signature, bool &good) const override;
-    virtual std::string getReserveProof(bool all, uint32_t account_index, uint64_t amount, const std::string &message) const override;
-    virtual bool checkReserveProof(const std::string &address, const std::string &message, const std::string &signature, bool &good, uint64_t &total, uint64_t &spent) const override;
-    virtual std::string signMessage(const std::string &message) override;
-    virtual bool verifySignedMessage(const std::string &message, const std::string &address, const std::string &signature) const override;
-    virtual std::string signMultisigParticipant(const std::string &message) const override;
-    virtual bool verifyMessageWithPublicKey(const std::string &message, const std::string &publicKey, const std::string &signature) const override;
-    virtual void startRefresh() override;
-    virtual void pauseRefresh() override;
-    virtual bool parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error) override;
-    virtual std::string getDefaultDataDir() const override;
-    virtual bool lightWalletLogin(bool &isNewWallet) const override;
-    virtual bool lightWalletImportWalletRequest(std::string &payment_id, uint64_t &fee, bool &new_request, bool &request_fulfilled, std::string &payment_address, std::string &status) override;
-    virtual bool blackballOutputs(const std::vector<std::string> &outputs, bool add) override;
-    virtual bool blackballOutput(const std::string &amount, const std::string &offset) override;
-    virtual bool unblackballOutput(const std::string &amount, const std::string &offset) override;
-    virtual bool getRing(const std::string &key_image, std::vector<uint64_t> &ring) const override;
-    virtual bool getRings(const std::string &txid, std::vector<std::pair<std::string, std::vector<uint64_t>>> &rings) const override;
-    virtual bool setRing(const std::string &key_image, const std::vector<uint64_t> &ring, bool relative) override;
-    virtual void segregatePreForkOutputs(bool segregate) override;
-    virtual void segregationHeight(uint64_t height) override;
-    virtual void keyReuseMitigation2(bool mitigation) override;
-    virtual bool lockKeysFile() override;
-    virtual bool unlockKeysFile() override;
-    virtual bool isKeysFileLocked() override;
+    void disposeTransaction(PendingTransaction * t) override;
+    TransactionHistory * history() override;
+    AddressBook * addressBook() override;
+    Subaddress * subaddress() override;
+    SubaddressAccount * subaddressAccount() override;
+    void setListener(WalletListener * l) override;
+    bool setUserNote(const std::string &txid, const std::string &note) override;
+    std::string getUserNote(const std::string &txid) const override;
+    std::string getTxKey(const std::string &txid) const override;
+    bool checkTxKey(const std::string &txid, std::string tx_key, const std::string &address, uint64_t &received, bool &in_pool, uint64_t &confirmations) override;
+    std::string getTxProof(const std::string &txid, const std::string &address, const std::string &message) const override;
+    bool checkTxProof(const std::string &txid, const std::string &address, const std::string &message, const std::string &signature, bool &good, uint64_t &received, bool &in_pool, uint64_t &confirmations) override;
+    std::string getSpendProof(const std::string &txid, const std::string &message) const override;
+    bool checkSpendProof(const std::string &txid, const std::string &message, const std::string &signature, bool &good) const override;
+    std::string getReserveProof(bool all, uint32_t account_index, uint64_t amount, const std::string &message) const override;
+    bool checkReserveProof(const std::string &address, const std::string &message, const std::string &signature, bool &good, uint64_t &total, uint64_t &spent) const override;
+    std::string signMessage(const std::string &message) override;
+    bool verifySignedMessage(const std::string &message, const std::string &address, const std::string &signature) const override;
+    std::string signMultisigParticipant(const std::string &message) const override;
+    bool verifyMessageWithPublicKey(const std::string &message, const std::string &publicKey, const std::string &signature) const override;
+    void startRefresh() override;
+    void pauseRefresh() override;
+    bool parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error) override;
+    std::string getDefaultDataDir() const override;
+    bool lightWalletLogin(bool &isNewWallet) const override;
+    bool lightWalletImportWalletRequest(std::string &payment_id, uint64_t &fee, bool &new_request, bool &request_fulfilled, std::string &payment_address, std::string &status) override;
+    bool blackballOutputs(const std::vector<std::string> &outputs, bool add) override;
+    bool blackballOutput(const std::string &amount, const std::string &offset) override;
+    bool unblackballOutput(const std::string &amount, const std::string &offset) override;
+    bool getRing(const std::string &key_image, std::vector<uint64_t> &ring) const override;
+    bool getRings(const std::string &txid, std::vector<std::pair<std::string, std::vector<uint64_t>>> &rings) const override;
+    bool setRing(const std::string &key_image, const std::vector<uint64_t> &ring, bool relative) override;
+    void segregatePreForkOutputs(bool segregate) override;
+    void segregationHeight(uint64_t height) override;
+    void keyReuseMitigation2(bool mitigation) override;
+    bool lockKeysFile() override;
+    bool unlockKeysFile() override;
+    bool isKeysFileLocked() override;
+    uint64_t coldKeyImageSync(uint64_t &spent, uint64_t &unspent) override;
 
 private:
     void clearStatus() const;
@@ -221,6 +227,7 @@ private:
     bool daemonSynced() const;
     void stopRefresh();
     bool isNewWallet() const;
+    void pendingTxPostProcess(PendingTransactionImpl * pending);
     bool doInit(const std::string &daemon_address, uint64_t upper_transaction_size_limit = 0, bool ssl = false);
 
 private:
@@ -247,6 +254,7 @@ private:
     std::atomic<bool> m_refreshEnabled;
     std::atomic<bool> m_refreshThreadDone;
     std::atomic<int>  m_refreshIntervalMillis;
+    std::atomic<bool> m_refreshShouldRescan;
     // synchronizing  refresh loop;
     boost::mutex        m_refreshMutex;
 
@@ -254,6 +262,8 @@ private:
     boost::mutex        m_refreshMutex2;
     boost::condition_variable m_refreshCV;
     boost::thread       m_refreshThread;
+    boost::thread       m_longPollThread;
+
     // flag indicating wallet is recovering from seed
     // so it shouldn't be considered as new and pull blocks (slow-refresh)
     // instead of pulling hashes (fast-refresh)

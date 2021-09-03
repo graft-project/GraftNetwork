@@ -30,6 +30,9 @@
 
 #include "chaingen.h"
 #include "block_reward.h"
+#include "cryptonote_core/cryptonote_tx_utils.h"
+
+#define EMISSION_SPEED_FACTOR_PER_MINUTE 20
 
 using namespace epee;
 using namespace cryptonote;
@@ -37,7 +40,7 @@ using namespace cryptonote;
 namespace
 {
   bool construct_miner_tx_by_weight(transaction& miner_tx, uint64_t height, uint64_t already_generated_coins,
-    const account_public_address& miner_address, std::vector<size_t>& block_weights, size_t target_tx_weight,
+    const account_public_address& miner_address, std::vector<uint64_t>& block_weights, size_t target_tx_weight,
     size_t target_block_weight, uint64_t fee = 0)
   {
     if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, target_block_weight, fee, miner_address, miner_tx))
@@ -74,7 +77,7 @@ namespace
   bool construct_max_weight_block(test_generator& generator, block& blk, const block& blk_prev, const account_base& miner_account,
     size_t median_block_count = CRYPTONOTE_REWARD_BLOCKS_WINDOW)
   {
-    std::vector<size_t> block_weights;
+    std::vector<uint64_t> block_weights;
     generator.get_last_n_block_weights(block_weights, get_block_hash(blk_prev), median_block_count);
 
     size_t median = misc_utils::median(block_weights);
@@ -110,7 +113,7 @@ namespace
   uint64_t get_tx_out_amount(const transaction& tx)
   {
     uint64_t amount = 0;
-    BOOST_FOREACH(auto& o, tx.vout)
+    for (auto& o : tx.vout)
       amount += o.amount;
     return amount;
   }
@@ -188,9 +191,9 @@ bool gen_block_reward::generate(std::vector<test_event_entry>& events) const
     transaction tx_1 = construct_tx_with_fee(events, blk_5, miner_account, bob_account, MK_COINS(1), 11 * TESTS_DEFAULT_FEE);
     transaction tx_2 = construct_tx_with_fee(events, blk_5, miner_account, bob_account, MK_COINS(1), 13 * TESTS_DEFAULT_FEE);
     size_t txs_1_weight = get_transaction_weight(tx_1) + get_transaction_weight(tx_2);
-    uint64_t txs_fee = get_tx_fee(tx_1) + get_tx_fee(tx_2);
+    uint64_t txs_fee = get_tx_miner_fee(tx_1, true) + get_tx_miner_fee(tx_2, true);
 
-    std::vector<size_t> block_weights;
+    std::vector<uint64_t> block_weights;
     generator.get_last_n_block_weights(block_weights, get_block_hash(blk_7), CRYPTONOTE_REWARD_BLOCKS_WINDOW);
     size_t median = misc_utils::median(block_weights);
 

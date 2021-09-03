@@ -34,6 +34,7 @@
 #include "include_base_utils.h"
 #include "misc_log_ex.h"
 #include "storages/levin_abstract_invoke2.h"
+#include "common/util.h"
 
 #include "net_load_tests.h"
 
@@ -82,12 +83,12 @@ namespace
     CHAIN_LEVIN_NOTIFY_MAP2(test_connection_context);
 
     BEGIN_INVOKE_MAP2(srv_levin_commands_handler)
-      HANDLE_NOTIFY_T2(CMD_CLOSE_ALL_CONNECTIONS, &srv_levin_commands_handler::handle_close_all_connections)
-      HANDLE_NOTIFY_T2(CMD_SHUTDOWN, &srv_levin_commands_handler::handle_shutdown)
-      HANDLE_NOTIFY_T2(CMD_SEND_DATA_REQUESTS, &srv_levin_commands_handler::handle_send_data_requests)
-      HANDLE_INVOKE_T2(CMD_GET_STATISTICS, &srv_levin_commands_handler::handle_get_statistics)
-      HANDLE_INVOKE_T2(CMD_RESET_STATISTICS, &srv_levin_commands_handler::handle_reset_statistics)
-      HANDLE_INVOKE_T2(CMD_START_OPEN_CLOSE_TEST, &srv_levin_commands_handler::handle_start_open_close_test)
+      HANDLE_NOTIFY_T2(CMD_CLOSE_ALL_CONNECTIONS, handle_close_all_connections)
+      HANDLE_NOTIFY_T2(CMD_SHUTDOWN, handle_shutdown)
+      HANDLE_NOTIFY_T2(CMD_SEND_DATA_REQUESTS, handle_send_data_requests)
+      HANDLE_INVOKE_T2(CMD_GET_STATISTICS, handle_get_statistics)
+      HANDLE_INVOKE_T2(CMD_RESET_STATISTICS, handle_reset_statistics)
+      HANDLE_INVOKE_T2(CMD_START_OPEN_CLOSE_TEST, handle_start_open_close_test)
     END_INVOKE_MAP2()
 
     int handle_close_all_connections(int command, const CMD_CLOSE_ALL_CONNECTIONS::request& req, test_connection_context& context)
@@ -215,6 +216,7 @@ namespace
 
 int main(int argc, char** argv)
 {
+  TRY_ENTRY();
   tools::on_startup();
   //set up logging options
   mlog_configure(mlog_get_default_log_path("net_load_tests_srv.log"), true);
@@ -233,4 +235,5 @@ int main(int argc, char** argv)
   if (!tcp_server.run_server(thread_count, true))
     return 2;
   return 0;
+  CATCH_ENTRY_L0("main", 1);
 }

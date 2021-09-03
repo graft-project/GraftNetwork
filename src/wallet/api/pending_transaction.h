@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -45,7 +45,7 @@ public:
     ~PendingTransactionImpl();
     int status() const override;
     std::string errorString() const override;
-    bool commit(const std::string &filename = "", bool overwrite = false) override;
+    bool commit(const std::string &filename = "", bool overwrite = false, bool blink = false) override;
     uint64_t amount() const override;
     uint64_t dust() const override;
     uint64_t fee() const override;
@@ -73,6 +73,8 @@ private:
     std::string m_errorString;
     std::vector<tools::wallet2::pending_tx> m_pending_tx;
     std::unordered_set<crypto::public_key> m_signers;
+    std::vector<std::string> m_tx_device_aux;
+    std::vector<crypto::key_image> m_key_images;
 };
 
 

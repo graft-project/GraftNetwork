@@ -131,7 +131,8 @@ TEST(bulletproofs, multi_splitting)
     }
 
     rct::ctkeyV outSk;
-    rct::rctSig s = rct::genRctSimple(rct::zero(), sc, destinations, inamounts, outamounts, available, mixRing, amount_keys, NULL, NULL, index, outSk, rct::RangeProofPaddedBulletproof, hw::get_device("default"));
+    rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 0 };
+    rct::rctSig s = rct::genRctSimple(rct::zero(), sc, destinations, inamounts, outamounts, available, mixRing, amount_keys, NULL, NULL, index, outSk, rct_config, hw::get_device("default"));
     ASSERT_TRUE(rct::verRctSimple(s));
     for (size_t i = 0; i < n_outputs; ++i)
     {
@@ -255,7 +256,7 @@ TEST(bulletproof, weight_equal)
   cryptonote::transaction tx;
   crypto::hash tx_hash, tx_prefix_hash;
   ASSERT_TRUE(parse_and_validate_tx_from_blob(bd, tx, tx_hash, tx_prefix_hash));
-  ASSERT_TRUE(tx.version == 2);
+  ASSERT_TRUE(tx.version == cryptonote::txversion::v2_ringct);
   ASSERT_TRUE(rct::is_rct_bulletproof(tx.rct_signatures.type));
   const uint64_t tx_size = bd.size();
   const uint64_t tx_weight = cryptonote::get_transaction_weight(tx);
@@ -270,7 +271,7 @@ TEST(bulletproof, weight_more)
   cryptonote::transaction tx;
   crypto::hash tx_hash, tx_prefix_hash;
   ASSERT_TRUE(parse_and_validate_tx_from_blob(bd, tx, tx_hash, tx_prefix_hash));
-  ASSERT_TRUE(tx.version == 2);
+  ASSERT_TRUE(tx.version == cryptonote::txversion::v2_ringct);
   ASSERT_TRUE(rct::is_rct_bulletproof(tx.rct_signatures.type));
   const uint64_t tx_size = bd.size();
   const uint64_t tx_weight = cryptonote::get_transaction_weight(tx);

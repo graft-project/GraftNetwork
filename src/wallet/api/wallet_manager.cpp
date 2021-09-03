@@ -1,5 +1,6 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 //
 // All rights reserved.
 //
@@ -58,17 +59,14 @@ Wallet *WalletManagerImpl::createWallet(const std::string &path, const std::stri
     return wallet;
 }
 
-Wallet *WalletManagerImpl::createNewWallet(const std::string &password, const std::string &language,
-                                           bool testnet)
-{
-    WalletImpl * wallet = new WalletImpl(testnet ? NetworkType::TESTNET : NetworkType::MAINNET);
-    wallet->create(password, language);
-    return wallet;
-}
-
-Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds)
+Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds, WalletListener * listener)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
+    wallet->setListener(listener);
+    if (listener){
+        listener->onSetWallet(wallet);
+    }
+
     wallet->open(path, password);
     //Refresh addressBook
     wallet->addressBook()->refresh(); 
@@ -141,11 +139,19 @@ Wallet *WalletManagerImpl::createWalletFromDevice(const std::string &path,
                                                   const std::string &deviceName,
                                                   uint64_t restoreHeight,
                                                   const std::string &subaddressLookahead,
-                                                  uint64_t kdf_rounds)
+                                                  uint64_t kdf_rounds,
+                                                  WalletListener * listener)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
+    wallet->setListener(listener);
+    if (listener){
+        listener->onSetWallet(wallet);
+    }
+
     if(restoreHeight > 0){
         wallet->setRefreshFromBlockHeight(restoreHeight);
+    } else {
+        wallet->setRefreshFromBlockHeight(wallet->estimateBlockChainHeight());
     }
     auto lookahead = tools::parse_subaddress_lookahead(subaddressLookahead);
     if (lookahead)
@@ -250,8 +256,8 @@ void WalletManagerImpl::setDaemonAddress(const std::string &address)
 
 bool WalletManagerImpl::connected(uint32_t *version)
 {
-    epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_VERSION::request> req_t = AUTO_VAL_INIT(req_t);
-    epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_VERSION::response, std::string> resp_t = AUTO_VAL_INIT(resp_t);
+    epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_VERSION::request> req_t{};
+    epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_VERSION::response, std::string> resp_t{};
     req_t.jsonrpc = "2.0";
     req_t.id = epee::serialization::storage_entry(0);
     req_t.method = "get_version";
@@ -298,7 +304,6 @@ double WalletManagerImpl::miningHashRate()
     cryptonote::COMMAND_RPC_MINING_STATUS::request mreq;
     cryptonote::COMMAND_RPC_MINING_STATUS::response mres;
 
-    epee::net_utils::http::http_simple_client http_client;
     if (!epee::net_utils::invoke_http_json("/mining_status", mreq, mres, m_http_client))
       return 0.0;
     if (!mres.active)
@@ -359,7 +364,7 @@ std::string WalletManagerImpl::resolveOpenAlias(const std::string &address, bool
     return addresses.front();
 }
 
-std::tuple<bool, std::string, std::string, std::string, std::string> WalletManager::checkUpdates(const std::string &software, std::string subdir)
+std::tuple<bool, std::string, std::string, std::string, std::string> WalletManagerBase::checkUpdates(const std::string &software, std::string subdir)
 {
 #ifdef BUILD_TAG
     static const char buildtag[] = BOOST_PP_STRINGIZE(BUILD_TAG);
@@ -386,7 +391,7 @@ std::tuple<bool, std::string, std::string, std::string, std::string> WalletManag
 
 
 ///////////////////// WalletManagerFactory implementation //////////////////////
-WalletManager *WalletManagerFactory::getWalletManager()
+WalletManagerBase *WalletManagerFactory::getWalletManager()
 {
 
     static WalletManagerImpl * g_walletManager = nullptr;

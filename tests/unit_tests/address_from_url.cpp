@@ -114,6 +114,7 @@ TEST(AddressFromURL, Failure)
   //std::vector<std::string> addresses = tools::dns_utils::addresses_from_url("example.invalid", dnssec_result);
   std::vector<std::string> addresses = tools::dns_utils::addresses_from_url("example.veryinvalid", dnssec_result);
   LOG_PRINT_L0("This test could fail in case of running inside LAN with local DNS server");
+
   // for a non-existing domain such as "example.invalid", the non-existence is proved with NSEC records
   ASSERT_TRUE(dnssec_result);
 

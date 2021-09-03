@@ -1,6 +1,6 @@
 #define DEF_GRAFT_VERSION_TAG "@VERSIONTAG@"
-#define DEF_GRAFT_VERSION "1.10.0_alpha1"
-#define DEF_GRAFT_RELEASE_NAME "Vela Pulsar"
+#define DEF_GRAFT_VERSION "2.0.0_alpha1"
+#define DEF_GRAFT_RELEASE_NAME "Name Me"
 #define DEF_GRAFT_VERSION_FULL DEF_GRAFT_VERSION "-" DEF_GRAFT_VERSION_TAG
 
 #include "version.h"

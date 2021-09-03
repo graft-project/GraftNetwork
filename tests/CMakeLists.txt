@@ -32,12 +32,6 @@
 set(folder "tests")
 set(TEST_DATA_DIR "${CMAKE_CURRENT_LIST_DIR}/data")
 
-if (WIN32 AND STATIC)
-  add_definitions(-DSTATICLIB)
-  # miniupnp changed their static define
-  add_definitions(-DMINIUPNP_STATICLIB)
-endif ()
-
 find_package(GTest)
 
 if (GTest_FOUND)
@@ -66,10 +60,12 @@ else ()
 
   # Emulate the FindGTest module's variable.
   set(GTEST_LIBRARIES gtest gtest_main)
+  set(GTEST_BOTH_LIBRARIES gtest gtest_main)
   include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/gtest/include")
 endif (GTest_FOUND)
 
 file(COPY
+  
   data/wallet_serialization_portability.keys
   data/wallet_serialization_portability
   data/outputs
@@ -77,10 +73,7 @@ file(COPY
   data/signed_monero_tx
   DESTINATION data)
 
-# graft supernode data
-file(COPY
-    data/supernode
-    DESTINATION data)
+find_package(PythonInterp 3)
 
 add_subdirectory(core_tests)
 add_subdirectory(fuzz)
@@ -90,27 +83,23 @@ add_subdirectory(performance_tests)
 add_subdirectory(core_proxy)
 add_subdirectory(unit_tests)
 add_subdirectory(difficulty)
+add_subdirectory(block_weight)
 add_subdirectory(hash)
 add_subdirectory(net_load_tests)
-
-if (NOT DISABLE_SUPERNODE)
-    #add_subdirectory(supernode_tests)
+add_subdirectory(network_tests)
+if (BUILD_GUI_DEPS)
+# Currently failed to compile
+#  add_subdirectory(libwallet_api_tests)
 endif()
 
-if (BUILD_GUI_DEPS)
-  add_subdirectory(libwallet_api_tests)
+if (TREZOR_DEBUG)
+  add_subdirectory(trezor)
 endif()
 
 # add_subdirectory(daemon_tests)
 
-set(hash_targets_sources
-  hash-target.cpp)
-
-set(hash_targets_headers)
-
 add_executable(hash-target-tests
-  ${hash_targets_sources}
-  ${hash_targets_headers})
+  hash-target.cpp)
 target_link_libraries(hash-target-tests
   PRIVATE
     cryptonote_core)
@@ -125,6 +114,7 @@ add_test(
 set(enabled_tests
     core_tests
     difficulty
+    block_weight
     hash
     performance_tests
     core_proxy

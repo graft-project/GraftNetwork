@@ -1,4 +1,5 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2018, The Loki Project
+// Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -58,6 +59,7 @@
 #include "include_base_utils.h"
 #include "file_io_utils.h"
 #include "wipeable_string.h"
+#include "misc_os_dependent.h"
 using namespace epee;
 
 #include "crypto/crypto.h"
@@ -68,6 +70,9 @@ using namespace epee;
 #include "net/http_client.h"                        // epee::net_utils::...
 
 #ifdef WIN32
+#ifndef STRSAFE_NO_DEPRECATE
+#define STRSAFE_NO_DEPRECATE
+#endif
   #include <windows.h>
   #include <shlobj.h>
   #include <strsafe.h>
@@ -79,7 +84,35 @@ using namespace epee;
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
+#include <boost/format.hpp>
 #include <openssl/sha.h>
+#include "i18n.h"
+
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "util"
+
+namespace
+{
+
+#ifndef _WIN32
+static int flock_exnb(int fd)
+{
+  struct flock fl;
+  int ret;
+
+  memset(&fl, 0, sizeof(fl));
+  fl.l_type = F_WRLCK;
+  fl.l_whence = SEEK_SET;
+  fl.l_start = 0;
+  fl.l_len = 0;
+  ret = fcntl(fd, F_SETLK, &fl);
+  if (ret < 0)
+    MERROR("Error locking fd " << fd << ": " << errno << " (" << strerror(errno) << ")");
+  return ret;
+}
+#endif
+
+}
 
 namespace tools
 {
@@ -181,7 +214,7 @@ namespace tools
         struct stat wstats = {};
         if (fstat(fdw, std::addressof(wstats)) == 0 &&
             rstats.st_dev == wstats.st_dev && rstats.st_ino == wstats.st_ino &&
-            flock(fdw, (LOCK_EX | LOCK_NB)) == 0 && ftruncate(fdw, 0) == 0)
+            flock_exnb(fdw) == 0 && ftruncate(fdw, 0) == 0)
         {
           std::FILE* file = fdopen(fdw, "w");
           if (file) return {file, std::move(name)};
@@ -234,10 +267,10 @@ namespace tools
       MERROR("Failed to open " << filename << ": " << std::error_code(GetLastError(), std::system_category()));
     }
 #else
-    m_fd = open(filename.c_str(), O_RDONLY | O_CREAT | O_CLOEXEC, 0666);
+    m_fd = open(filename.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0666);
     if (m_fd != -1)
     {
-      if (flock(m_fd, LOCK_EX | LOCK_NB) == -1)
+      if (flock_exnb(m_fd) == -1)
       {
         MERROR("Failed to lock " << filename << ": " << std::strerror(errno));
         close(m_fd);
@@ -308,10 +341,19 @@ namespace tools
       StringCchCopy(pszOS, BUFSIZE, TEXT("Microsoft "));
 
       // Test for the specific product.
+      if ( osvi.dwMajorVersion == 10 )
+      {
+        if ( osvi.dwMinorVersion == 0 )
+        {
+          if( osvi.wProductType == VER_NT_WORKSTATION )
+            StringCchCat(pszOS, BUFSIZE, TEXT("Windows 10 "));
+          else StringCchCat(pszOS, BUFSIZE, TEXT("Windows Server 2016 " ));
+        }
+      }
 
       if ( osvi.dwMajorVersion == 6 )
       {
-        if( osvi.dwMinorVersion == 0 )
+        if ( osvi.dwMinorVersion == 0 )
         {
           if( osvi.wProductType == VER_NT_WORKSTATION )
             StringCchCat(pszOS, BUFSIZE, TEXT("Windows Vista "));
@@ -323,6 +365,20 @@ namespace tools
           if( osvi.wProductType == VER_NT_WORKSTATION )
             StringCchCat(pszOS, BUFSIZE, TEXT("Windows 7 "));
           else StringCchCat(pszOS, BUFSIZE, TEXT("Windows Server 2008 R2 " ));
+        }
+
+        if ( osvi.dwMinorVersion == 2 )
+        {
+          if( osvi.wProductType == VER_NT_WORKSTATION )
+            StringCchCat(pszOS, BUFSIZE, TEXT("Windows 8 "));
+          else StringCchCat(pszOS, BUFSIZE, TEXT("Windows Server 2012 " ));
+        }
+
+        if ( osvi.dwMinorVersion == 3 )
+        {
+          if( osvi.wProductType == VER_NT_WORKSTATION )
+            StringCchCat(pszOS, BUFSIZE, TEXT("Windows 8.1 "));
+          else StringCchCat(pszOS, BUFSIZE, TEXT("Windows Server 2012 R2 " ));
         }
 
         pGPI = (PGPI) GetProcAddress(
@@ -590,16 +646,16 @@ std::string get_nix_version_display_string()
     return res;
   }
 
-  std::error_code replace_file(const std::string& replacement_name, const std::string& replaced_name)
+  std::error_code replace_file(const std::string& old_name, const std::string& new_name)
   {
     int code;
 #if defined(WIN32)
     // Maximizing chances for success
     std::wstring wide_replacement_name;
-    try { wide_replacement_name = string_tools::utf8_to_utf16(replacement_name); }
+    try { wide_replacement_name = string_tools::utf8_to_utf16(old_name); }
     catch (...) { return std::error_code(GetLastError(), std::system_category()); }
     std::wstring wide_replaced_name;
-    try { wide_replaced_name = string_tools::utf8_to_utf16(replaced_name); }
+    try { wide_replaced_name = string_tools::utf8_to_utf16(new_name); }
     catch (...) { return std::error_code(GetLastError(), std::system_category()); }
 
     DWORD attributes = ::GetFileAttributesW(wide_replaced_name.c_str());
@@ -611,7 +667,7 @@ std::string get_nix_version_display_string()
     bool ok = 0 != ::MoveFileExW(wide_replacement_name.c_str(), wide_replaced_name.c_str(), MOVEFILE_REPLACE_EXISTING);
     code = ok ? 0 : static_cast<int>(::GetLastError());
 #else
-    bool ok = 0 == std::rename(replacement_name.c_str(), replaced_name.c_str());
+    bool ok = 0 == std::rename(old_name.c_str(), new_name.c_str());
     code = ok ? 0 : errno;
 #endif
     return std::error_code(code, std::system_category());
@@ -621,10 +677,10 @@ std::string get_nix_version_display_string()
   {
     ub_ctx *ctx = ub_ctx_create();
     if (!ctx) return false; // cheat a bit, should not happen unless OOM
-    char *monero = strdup("monero"), *unbound = strdup("unbound");
-    ub_ctx_zone_add(ctx, monero, unbound); // this calls ub_ctx_finalize first, then errors out with UB_SYNTAX
+    char *graft = strdup("graft"), *unbound = strdup("unbound");
+    ub_ctx_zone_add(ctx, graft, unbound); // this calls ub_ctx_finalize first, then errors out with UB_SYNTAX
     free(unbound);
-    free(monero);
+    free(graft);
     // if no threads, bails out early with UB_NOERROR, otherwise fails with UB_AFTERFINAL id already finalized
     bool with_threads = ub_ctx_async(ctx, 1) != 0; // UB_AFTERFINAL is not defined in public headers, check any error
     ub_ctx_delete(ctx);
@@ -703,6 +759,21 @@ std::string get_nix_version_display_string()
     }
 #endif
     return true;
+  }
+
+  ssize_t get_lockable_memory()
+  {
+#ifdef __GLIBC__
+    struct rlimit rlim;
+    if (getrlimit(RLIMIT_MEMLOCK, &rlim) < 0)
+    {
+      MERROR("Failed to determine the lockable memory limit");
+      return -1;
+    }
+    return rlim.rlim_cur;
+#else
+    return -1;
+#endif
   }
 
   bool on_startup()
@@ -987,4 +1058,70 @@ std::string get_nix_version_display_string()
 #endif
   }
 
+  std::string get_human_readable_timestamp(uint64_t ts)
+  {
+    char buffer[64];
+    if (ts < 1234567890)
+      return "<unknown>";
+    time_t tt = ts;
+    struct tm tm;
+    misc_utils::get_gmt_time(tt, tm);
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S UTC", &tm);
+    return std::string(buffer);
+  }
+
+  std::string get_human_readable_timespan(std::chrono::seconds seconds)
+  {
+    uint64_t ts = seconds.count();
+    if (ts < 60)
+      return std::to_string(ts) + tr(" seconds");
+    if (ts < 3600)
+      return std::to_string((uint64_t)(ts / 60)) + tr(" minutes");
+    if (ts < 3600 * 24)
+      return std::to_string((uint64_t)(ts / 3600)) + tr(" hours");
+    if (ts < 3600 * 24 * 30.5)
+      return std::to_string((uint64_t)(ts / (3600 * 24))) + tr(" days");
+    if (ts < 3600 * 24 * 365.25)
+      return std::to_string((uint64_t)(ts / (3600 * 24 * 30.5))) + tr(" months");
+    return tr("a long time");
+  }
+
+  std::string get_human_readable_bytes(uint64_t bytes)
+  {
+    struct byte_map
+    {
+        const char* const format;
+        const std::uint64_t bytes;
+    };
+
+    static constexpr const byte_map sizes[] =
+    {
+        {"%.0f B", 1000},
+        {"%.2f KB", 1000 * 1000},
+        {"%.2f MB", std::uint64_t(1000) * 1000 * 1000},
+        {"%.2f GB", std::uint64_t(1000) * 1000 * 1000 * 1000},
+        {"%.2f TB", std::uint64_t(1000) * 1000 * 1000 * 1000 * 1000}
+    };
+
+    struct bytes_less
+    {
+        bool operator()(const byte_map& lhs, const byte_map& rhs) const noexcept
+        {
+            return lhs.bytes < rhs.bytes;
+        }
+    };
+
+    const auto size = std::upper_bound(
+        std::begin(sizes), std::end(sizes) - 1, byte_map{"", bytes}, bytes_less{}
+    );
+    const std::uint64_t divisor = size->bytes / 1000;
+    return (boost::format(size->format) % (double(bytes) / divisor)).str();
+  }
+
+  std::string lowercase_ascii_string(std::string src)
+  {
+    for (char &ch : src)
+      if (ch >= 'A' && ch <= 'Z') ch = ch + ('a' - 'A');
+    return src;
+  }
 }

@@ -1,4 +1,5 @@
-# Copyright (c) 2014-2018, The Monero Project
+# Copyright (c) 2018, The Loki Project
+# Copyright (c) 2014-2019, The Monero Project
 #
 # All rights reserved.
 #
@@ -26,30 +27,41 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
-
-set(common_sources
+add_library(common
+  base32z.cpp
   base58.cpp
   command_line.cpp
   dns_utils.cpp
   download.cpp
   error.cpp
   expect.cpp
+  loki.cpp
   util.cpp
   i18n.cpp
+  rules.cpp
   notify.cpp
   password.cpp
   perf_timer.cpp
+  pruning.cpp
+  random.cpp
+  scoped_message_writer.cpp
   spawn.cpp
   threadpool.cpp
   updates.cpp
-  aligned.c)
+  aligned.c
+  timings.cc
+  combinator.cpp)
 
 if (STACK_TRACE)
-  list(APPEND common_sources stack_trace.cpp)
+  target_sources(common PRIVATE stack_trace.cpp)
+  if(WIN32 OR STATIC)
+    target_compile_definitions(common PRIVATE STATICLIB)
+  endif()
 endif()
 
-set(common_headers)
+if (BACKCOMPAT)
+  target_sources(common PRIVATE compat/glibc_compat.cpp)
+endif()
 
 set(common_private_headers
   apply_permutation.h
@@ -89,17 +101,33 @@ monero_add_library(common
 target_link_libraries(common
   PUBLIC
     cncrypto
-    ${UNBOUND_LIBRARY}
-    ${LIBUNWIND_LIBRARIES}
-    ${Boost_DATE_TIME_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_REGEX_LIBRARY}
-    ${Boost_CHRONO_LIBRARY}
+    lokimq::lokimq
   PRIVATE
-    ${OPENSSL_LIBRARIES}
-    ${EXTRA_LIBRARIES})
+    libunbound
+    Boost::regex
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    epee_readline
+    extra)
 
-#monero_install_headers(common
-#  ${common_headers})
+target_include_directories(common PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../../translations")
+
+option(STACK_TRACE "Install a hook that dumps stack on exception" OFF)
+
+if(STACK_TRACE)
+# Can't install hook in static build on OSX, because OSX linker does not support --wrap
+# On ARM, having libunwind package (with .so's only) installed breaks static link.
+# When possible, avoid stack tracing using libunwind in favor of using easylogging++.
+  if (APPLE)
+  elseif (DEPENDS AND NOT LINUX)
+  elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT MINGW)
+    target_link_libraries(common PRIVATE easylogging) # for diag output only
+  elseif (ARM AND STATIC)
+  else()
+    find_package(Libunwind)
+    if(LIBUNWIND_FOUND)
+      target_link_libraries(common PRIVATE ${LIBUNWIND_LIBRARIES})
+      target_include_directories(common PRIVATE ${LIBUNWIND_INCLUDE_DIR})
+    endif()
+  endif()
+endif()

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 //
 // All rights reserved.
 //
@@ -30,9 +30,8 @@
 #include <boost/algorithm/string.hpp>
 #include "common/command_line.h"
 #include "common/varint.h"
-#include "cryptonote_core/tx_pool.h"
 #include "cryptonote_core/cryptonote_core.h"
-#include "cryptonote_core/blockchain.h"
+#include "blockchain_objects.h"
 #include "blockchain_db/blockchain_db.h"
 #include "blockchain_db/db_types.h"
 #include "version.h"
@@ -140,21 +139,9 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  // If we wanted to use the memory pool, we would set up a fake_core.
-
-  // Use Blockchain instead of lower-level BlockchainDB for two reasons:
-  // 1. Blockchain has the init() method for easy setup
-  // 2. exporter needs to use get_current_blockchain_height(), get_block_id_by_height(), get_block_by_hash()
-  //
-  // cannot match blockchain_storage setup above with just one line,
-  // e.g.
-  //   Blockchain* core_storage = new Blockchain(NULL);
-  // because unlike blockchain_storage constructor, which takes a pointer to
-  // tx_memory_pool, Blockchain's constructor takes tx_memory_pool object.
   LOG_PRINT_L0("Initializing source blockchain (BlockchainDB)");
-  std::unique_ptr<Blockchain> core_storage;
-  tx_memory_pool m_mempool(*core_storage);
-  core_storage.reset(new Blockchain(m_mempool));
+  blockchain_objects_t blockchain_objects = {};
+  Blockchain *core_storage = &blockchain_objects.m_blockchain;
   BlockchainDB *db = new_db(db_type);
   if (db == NULL)
   {
@@ -168,14 +155,14 @@ int main(int argc, char* argv[])
 
   try
   {
-    db->open(filename, DBF_RDONLY);
+    db->open(filename, core_storage->nettype(), DBF_RDONLY);
   }
   catch (const std::exception& e)
   {
     LOG_PRINT_L0("Error opening database: " << e.what());
     return 1;
   }
-  r = core_storage->init(db, net_type);
+  r = core_storage->init(db, nullptr /*lns_db*/, net_type);
 
   CHECK_AND_ASSERT_MES(r, 1, "Failed to initialize source blockchain storage");
   LOG_PRINT_L0("Source blockchain storage initialized OK");
@@ -187,8 +174,7 @@ int main(int argc, char* argv[])
   }
   else
   {
-    const crypto::hash block_hash = db->get_block_hash_from_height(opt_height);
-    const cryptonote::blobdata bd = db->get_block_blob(block_hash);
+    const cryptonote::blobdata bd = db->get_block_blob_from_height(opt_height);
     cryptonote::block b;
     if (!cryptonote::parse_and_validate_block_from_blob(bd, b))
     {

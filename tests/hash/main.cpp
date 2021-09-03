@@ -80,6 +80,9 @@ POP_WARNINGS
 
 extern "C" typedef void hash_f(const void *, size_t, char *);
 struct hash_func {
+
+extern "C" typedef void hash_f(const void *, size_t, char *);
+struct hash_func {
   const string name;
   hash_f &f;
 } hashes[] = {{"fast", cn_fast_hash}, {"slow", cn_slow_hash_0}, {"tree", hash_tree},
@@ -88,6 +91,16 @@ struct hash_func {
   {"slow-1", cn_slow_hash_1}, {"slow-2", cn_slow_hash_2},
   {"slow-0-waltz", cn_slow_hash_0_waltz}, {"slow-1-waltz", cn_slow_hash_1_waltz},
   {"slow-2-waltz", cn_slow_hash_2_waltz}, {"slow-2-reverse-waltz", cn_slow_hash_2_reverse_waltz}};
+
+int test_variant2_int_sqrt();
+int test_variant2_int_sqrt_ref();
+
+int main(int argc, char *argv[]) {
+  hash_f *f;
+  hash_func *hf;
+  fstream input;
+  vector<char> data;
+  chash expected, actual;
 
 int test_variant2_int_sqrt();
 int test_variant2_int_sqrt_ref();

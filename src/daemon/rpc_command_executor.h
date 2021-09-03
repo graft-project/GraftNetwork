@@ -6,7 +6,8 @@
 
 */
 
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -43,10 +44,11 @@
 #include "common/common_fwd.h"
 #include "common/rpc_client.h"
 #include "cryptonote_basic/cryptonote_basic.h"
+#include "net/net_fwd.h"
 #include "rpc/core_rpc_server.h"
 
-#undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "daemon"
+#undef LOKI_DEFAULT_LOG_CATEGORY
+#define LOKI_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize {
 
@@ -61,13 +63,18 @@ public:
       uint32_t ip
     , uint16_t port
     , const boost::optional<tools::login>& user
+    , const epee::net_utils::ssl_options_t& ssl_options
     , bool is_rpc = true
     , cryptonote::core_rpc_server* rpc_server = NULL
     );
 
   ~t_rpc_command_executor();
 
-  bool print_peer_list();
+  bool print_checkpoints(uint64_t start_height, uint64_t end_height, bool print_json);
+
+  bool print_sn_state_changes(uint64_t start_height, uint64_t end_height);
+
+  bool print_peer_list(bool white = true, bool gray = true, size_t limit = 0);
 
   bool print_peer_list_stats();
 
@@ -85,15 +92,17 @@ public:
 
   bool print_blockchain_info(uint64_t start_block_index, uint64_t end_block_index);
 
+  bool print_quorum_state(uint64_t start_height, uint64_t end_height);
+
   bool set_log_level(int8_t level);
 
   bool set_log_categories(const std::string &categories);
 
   bool print_height();
 
-  bool print_block_by_hash(crypto::hash block_hash);
+  bool print_block_by_hash(crypto::hash block_hash, bool include_hex);
 
-  bool print_block_by_height(uint64_t height);
+  bool print_block_by_height(uint64_t height, bool include_hex);
 
   bool print_transaction(crypto::hash transaction_hash, bool include_hex, bool include_json);
 
@@ -108,6 +117,8 @@ public:
   bool start_mining(cryptonote::account_public_address address, uint64_t num_threads, cryptonote::network_type nettype, bool do_background_mining = false, bool ignore_battery = false);
 
   bool stop_mining();
+
+  bool mining_status();
 
   bool stop_daemon();
 
@@ -125,17 +136,15 @@ public:
 
   bool in_peers(uint64_t limit);
 
-  bool start_save_graph();
-  
-  bool stop_save_graph();
-  
   bool hard_fork_info(uint8_t version);
 
   bool print_bans();
 
-  bool ban(const std::string &ip, time_t seconds);
+  bool ban(const std::string &address, time_t seconds);
 
-  bool unban(const std::string &ip);
+  bool unban(const std::string &address);
+
+  bool banned(const std::string &address);
 
   bool flush_txpool(const std::string &txid);
 
@@ -152,6 +161,24 @@ public:
   bool relay_tx(const std::string &txid);
 
   bool sync_info();
+
+  bool pop_blocks(uint64_t num_blocks);
+
+  bool print_sn_key();
+
+  bool print_sn_status(const std::vector<std::string>& args);
+
+  bool print_sr(uint64_t height);
+
+  bool prepare_registration();
+
+  bool print_sn(const std::vector<std::string> &args);
+
+  bool prune_blockchain();
+
+  bool check_blockchain_pruning();
+
+  bool print_net_stats();
 };
 
 } // namespace daemonize

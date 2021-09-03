@@ -34,8 +34,8 @@
 using namespace crypto;
 using namespace std;
 
-#undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "ringct"
+#undef LOKI_DEFAULT_LOG_CATEGORY
+#define LOKI_DEFAULT_LOG_CATEGORY "ringct"
 
 namespace rct {
 
@@ -217,6 +217,7 @@ namespace rct {
         {
             case RCTTypeSimple:
             case RCTTypeBulletproof:
+            case RCTTypeBulletproof2:
                 return true;
             default:
                 return false;
@@ -228,6 +229,7 @@ namespace rct {
         switch (type)
         {
             case RCTTypeBulletproof:
+            case RCTTypeBulletproof2:
                 return true;
             default:
                 return false;

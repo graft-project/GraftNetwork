@@ -1,5 +1,5 @@
 // Copyright (c) 2018, The Graft Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -38,6 +38,7 @@
 #include <set>
 #include <ctime>
 #include <iostream>
+#include <stdexcept>
 
 //  Public interface for libwallet library
 namespace Monero {
@@ -66,6 +67,7 @@ enum NetworkType : uint8_t {
         bool set;
     };
 
+// TODO: del?
 struct RtaSignature
 {
     size_t key_index;
@@ -83,25 +85,11 @@ struct PendingTransaction
         Status_Critical
     };
 
-    enum Priority {
-        Priority_Default = 0,
-        Priority_Low = 1,
-        Priority_Medium = 2,
-        Priority_High = 3,
-        Priority_Last
-    };
-
     virtual ~PendingTransaction() = 0;
     virtual int status() const = 0;
     virtual std::string errorString() const = 0;
     // commit transaction or save to file if filename is provided.
-    virtual bool commit(const std::string &filename = "", bool overwrite = false) = 0;
-    /*!
-     * @brief save - serializes transaction to the stream. Can be loaded back with Wallet::loadTransaction
-     * @param oss    stream object to save to
-     * @return       true if saved successfully
-     */
-    virtual bool save(std::ostream &oss) = 0;
+    virtual bool commit(const std::string &filename = "", bool overwrite = false, bool blink = false) = 0;
     virtual uint64_t amount() const = 0;
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
@@ -202,6 +190,8 @@ struct TransactionInfo
     };
 
     virtual ~TransactionInfo() = 0;
+    virtual bool isServiceNodeReward() const = 0;
+    virtual bool isMinerReward() const = 0;
     virtual int  direction() const = 0;
     virtual bool isPending() const = 0;
     virtual bool isFailed() const = 0;
@@ -348,6 +338,20 @@ struct MultisigState {
     uint32_t total;
 };
 
+
+struct DeviceProgress {
+    DeviceProgress(): m_progress(0), m_indeterminate(false) {}
+    DeviceProgress(double progress, bool indeterminate=false): m_progress(progress), m_indeterminate(indeterminate) {}
+
+    virtual double progress() const { return m_progress; }
+    virtual bool indeterminate() const { return m_indeterminate; }
+
+protected:
+    double m_progress;
+    bool m_indeterminate;
+};
+
+struct Wallet;
 struct WalletListener
 {
     virtual ~WalletListener() = 0;
@@ -388,6 +392,41 @@ struct WalletListener
      * @brief refreshed - called when wallet refreshed by background thread or explicitly refreshed by calling "refresh" synchronously
      */
     virtual void refreshed() = 0;
+
+    /**
+     * @brief called by device if the action is required
+     */
+    virtual void onDeviceButtonRequest(uint64_t code) { (void)code; }
+
+    /**
+     * @brief called by device if the button was pressed
+     */
+    virtual void onDeviceButtonPressed() { }
+
+    /**
+     * @brief called by device when PIN is needed
+     */
+    virtual optional<std::string> onDevicePinRequest() {
+        throw std::runtime_error("Not supported");
+    }
+
+    /**
+     * @brief called by device when passphrase entry is needed
+     */
+    virtual optional<std::string> onDevicePassphraseRequest(bool on_device) {
+        if (!on_device) throw std::runtime_error("Not supported");
+        return optional<std::string>();
+    }
+
+    /**
+     * @brief Signalizes device operation progress
+     */
+    virtual void onDeviceProgress(const DeviceProgress & event) { (void)event; };
+
+    /**
+     * @brief If the listener is created before the wallet this enables to set created wallet object
+     */
+    virtual void onSetWallet(Wallet * wallet) { (void)wallet; };
 };
 
 
@@ -399,7 +438,8 @@ struct Wallet
 {
     enum Device {
         Device_Software = 0,
-        Device_Ledger = 1
+        Device_Ledger = 1,
+        Device_Trezor = 2
     };
 
     enum Status {
@@ -425,6 +465,8 @@ struct Wallet
     //! returns both error and error string atomically. suggested to use in instead of status() and errorString()
     virtual void statusWithErrorString(int& status, std::string& errorString) const = 0;
     virtual bool setPassword(const std::string &password) = 0;
+    virtual bool setDevicePin(const std::string &pin) { (void)pin; return false; };
+    virtual bool setDevicePassphrase(const std::string &passphrase) { (void)passphrase; return false; };
     virtual std::string address(uint32_t accountIndex = 0, uint32_t addressIndex = 0) const = 0;
     std::string mainAddress() const { return address(0, 0); }
     virtual std::string path() const = 0;
@@ -599,6 +641,12 @@ struct Wallet
     virtual uint64_t approximateBlockChainHeight() const = 0;
 
     /**
+    * @brief estimateBlockChainHeight - returns estimate blockchain height. More accurate than approximateBlockChainHeight,
+    *                                   uses daemon height and falls back to calculation from date/time
+    * @return
+    **/ 
+    virtual uint64_t estimateBlockChainHeight() const = 0;
+    /**
      * @brief daemonBlockChainHeight - returns daemon blockchain height
      * @return 0 - in case error communicating with the daemon.
      *             status() will return Status_Error and errorString() will return verbose error description
@@ -637,6 +685,8 @@ struct Wallet
     static uint64_t amountFromDouble(double amount);
     static std::string genPaymentId();
     static bool paymentIdValid(const std::string &paiment_id);
+    /// Check if the string represents a valid public key (regardless of whether the service node actually exists or not)
+    static bool serviceNodePubkeyValid(const std::string &str);
     static bool addressValid(const std::string &str, NetworkType nettype);
     static bool addressValid(const std::string &str, bool testnet)          // deprecated
     {
@@ -680,6 +730,17 @@ struct Wallet
      * @brief refreshAsync - refreshes wallet asynchronously.
      */
     virtual void refreshAsync() = 0;
+
+    /**
+     * @brief rescanBlockchain - rescans the wallet, updating transactions from daemon
+     * @return - true if refreshed successfully;
+     */
+    virtual bool rescanBlockchain() = 0;
+
+    /**
+     * @brief rescanBlockchainAsync - rescans wallet asynchronously, starting from genesys
+     */
+    virtual void rescanBlockchainAsync() = 0;
 
     /**
      * @brief setAutoRefreshInterval - setup interval for automatic refresh.
@@ -788,35 +849,18 @@ struct Wallet
      * \param mixin_count       mixin count. if 0 passed, wallet will use default value
      * \param subaddr_account   subaddress account from which the input funds are taken
      * \param subaddr_indices   set of subaddress indices to use for transfer or sweeping. if set empty, all are chosen when sweeping, and one or more are automatically chosen when transferring. after execution, returns the set of actually used indices
-     * \param priority
+     * \param priority          set a priority for the transaction. Accepted Values are: default (0), or 0-5 for: default, unimportant, normal, elevated, priority, blink.
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
      *                          after object returned
      */
 
-    virtual PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
-                                                   optional<uint64_t> amount, uint32_t mixin_count,
-                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low,
-                                                   uint32_t subaddr_account = 0,
-                                                   std::set<uint32_t> subaddr_indices = {}) = 0;
-
-    struct TransactionDestination
-    {
-        std::string address;
-        std::string payment_id;
-        optional<uint64_t> amount;
-    };
-
-     /*!
-     * \brief createTransaction creates transaction. if dst_addr is an integrated address, payment_id is ignored
-     * \param destinations      destinations vector
-     * \param mixin_count       mixin count. if 0 passed, wallet will use default value
-     * \param priority
-      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
-      *                          after object returned
-      */
-    virtual PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
-                                                   bool rtaTransaction = false,
-                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
+    virtual PendingTransaction *createTransaction(const std::string &dst_addr,
+                                                  const std::string &payment_id,
+                                                  optional<uint64_t> amount,
+                                                  uint32_t mixin_count,
+                                                  uint32_t priority                  = 0,
+                                                  uint32_t subaddr_account           = 0,
+                                                  std::set<uint32_t> subaddr_indices = {}) = 0;
 
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.
@@ -873,16 +917,6 @@ struct Wallet
     virtual Subaddress * subaddress() = 0;
     virtual SubaddressAccount * subaddressAccount() = 0;
     virtual void setListener(WalletListener *) = 0;
-    /*!
-     * \brief defaultMixin - returns number of mixins used in transactions
-     * \return
-     */
-    virtual uint32_t defaultMixin() const = 0;
-    /*!
-     * \brief setDefaultMixin - setum number of mixins to be used for new transactions
-     * \param arg
-     */
-    virtual void setDefaultMixin(uint32_t arg) = 0;
 
     /*!
      * \brief setUserNote - attach an arbitrary string note to a txid
@@ -994,12 +1028,18 @@ struct Wallet
      * \return Device they are on
      */
     virtual Device getDeviceType() const = 0;
+
+    /// Prepare a staking transaction; return nullptr on failure
+    virtual PendingTransaction* stakePending(const std::string& service_node_key, const std::string& address, const std::string& amount, std::string& error_msg) = 0;
+
+    //! cold-device protocol key image sync
+    virtual uint64_t coldKeyImageSync(uint64_t &spent, uint64_t &unspent) = 0;
 };
 
 /**
  * @brief WalletManager - provides functions to manage wallets
  */
-struct WalletManager
+struct WalletManagerBase
 {
 
     /*!
@@ -1031,9 +1071,10 @@ struct WalletManager
      * \param  password       Password of wallet file
      * \param  nettype        Network type
      * \param  kdf_rounds     Number of rounds for key derivation function
+     * \param  listener       Wallet listener to set to the wallet after creation
      * \return                Wallet instance (Wallet::status() needs to be called to check if opened successfully)
      */
-    virtual Wallet * openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds = 1) = 0;
+    virtual Wallet * openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds = 1, WalletListener * listener = nullptr) = 0;
     Wallet * openWallet(const std::string &path, const std::string &password, bool testnet = false)     // deprecated
     {
         return openWallet(path, password, testnet ? TESTNET : MAINNET);
@@ -1156,6 +1197,7 @@ struct WalletManager
      * \param  restoreHeight        restore from start height (0 sets to current height)
      * \param  subaddressLookahead  Size of subaddress lookahead (empty sets to some default low value)
      * \param  kdf_rounds           Number of rounds for key derivation function
+     * \param  listener             Wallet listener to set to the wallet after creation
      * \return                      Wallet instance (Wallet::status() needs to be called to check if recovered successfully)
      */
     virtual Wallet * createWalletFromDevice(const std::string &path,
@@ -1164,7 +1206,8 @@ struct WalletManager
                                             const std::string &deviceName,
                                             uint64_t restoreHeight = 0,
                                             const std::string &subaddressLookahead = "",
-                                            uint64_t kdf_rounds = 1) = 0;
+                                            uint64_t kdf_rounds = 1,
+                                            WalletListener * listener = nullptr) = 0;
 
     /*!
      * \brief  Opens existing wallet
@@ -1268,7 +1311,6 @@ struct WalletManager
     static std::tuple<bool, std::string, std::string, std::string, std::string> checkUpdates(const std::string &software, std::string subdir);
 };
 
-
 struct WalletManagerFactory
 {
     // logging levels for underlying library
@@ -1283,7 +1325,7 @@ struct WalletManagerFactory
         LogLevel_Max = LogLevel_4
     };
 
-    static WalletManager * getWalletManager();
+    static WalletManagerBase * getWalletManager();
     static void setLogLevel(int level);
     static void setLogCategories(const std::string &categories);
 };

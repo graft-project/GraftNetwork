@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification, are
@@ -302,8 +302,8 @@ public:
 
   virtual uint64_t get_indexing_base() const { return 1; }
 
-  virtual output_data_t get_output_key(const uint64_t& amount, const uint64_t& index);
-  virtual void get_output_key(const uint64_t &amount, const std::vector<uint64_t> &offsets, std::vector<output_data_t> &outputs);
+  virtual output_data_t get_output_key(const uint64_t& amount, const uint64_t& index) const;
+  virtual void get_output_key(const uint64_t &amount, const std::vector<uint64_t> &offsets, std::vector<output_data_t> &outputs) const;
 
   virtual tx_out_index get_output_tx_and_index_from_global(const uint64_t& index) const;
   virtual void get_output_tx_and_index_from_global(const std::vector<uint64_t> &global_indices,
@@ -312,7 +312,6 @@ public:
   virtual tx_out_index get_output_tx_and_index(const uint64_t& amount, const uint64_t& index);
   virtual void get_output_tx_and_index(const uint64_t& amount, const std::vector<uint64_t> &offsets, std::vector<tx_out_index> &indices);
 
-  virtual std::vector<uint64_t> get_tx_output_indices(const crypto::hash& h) const;
   virtual std::vector<uint64_t> get_tx_amount_output_indices(const crypto::hash& h) const;
 
   virtual bool has_key_image(const crypto::key_image& img) const;
@@ -392,24 +391,6 @@ private:
   virtual void drop_hard_fork_info();
 
   /**
-   * @brief convert a tx output to a blob for storage
-   *
-   * @param output the output to convert
-   *
-   * @return the resultant blob
-   */
-  blobdata output_to_blob(const tx_out& output) const;
-
-  /**
-   * @brief convert a tx output blob to a tx output
-   *
-   * @param blob the blob to convert
-   *
-   * @return the resultant tx output
-   */
-  tx_out output_from_blob(const blobdata& blob) const;
-
-  /**
    * @brief get the global index of the index-th output of the given amount
    *
    * @param amount the output amount
@@ -426,7 +407,11 @@ private:
 
   //
   // fix up anything that may be wrong due to past bugs
-  virtual void fixup();
+  virtual void fixup(fixup_context const context);
+
+  virtual void set_service_node_data(const std::string& data, bool long_term);
+  virtual bool get_service_node_data(std::string& data, bool long_term);
+  virtual void clear_service_node_data();
 
   bool m_run_checkpoint;
   std::unique_ptr<boost::thread> m_checkpoint_thread;

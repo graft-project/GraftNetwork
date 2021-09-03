@@ -32,9 +32,8 @@
 
 #include <list>
 #include <numeric>
-#include <boost/timer.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/random_generator.hpp>
+#include <chrono>
+#include <atomic>
 
 #include "misc_os_dependent.h"
 #include "syncobj.h"
@@ -230,35 +229,38 @@ namespace math_helper
 		}
 
 	}
-	template<int default_interval, bool start_immediate = true>
-	class once_a_time_seconds
-	{
-	public:
-		once_a_time_seconds():m_interval(default_interval)
-		{
-			m_last_worked_time = 0;
-      if(!start_immediate)
-        time(&m_last_worked_time);
-		}
 
-		template<class functor_t>
-		bool do_call(functor_t functr)
-		{
-			time_t current_time = 0;
-			time(&current_time);
+  // Periodic timer that gatekeeps calling of a job to a minimum interval after the previous job
+  // finished.  Only the reset() call is thread-safe; everything else should be confined to the
+  // owning thread.
+  class periodic_task {
+  public:
+    explicit periodic_task(std::chrono::microseconds interval, bool start_immediate = true)
+      : m_interval{interval}, m_last_worked_time{std::chrono::steady_clock::now()}, m_trigger_now{start_immediate}
+    {}
 
-      if(current_time - m_last_worked_time > m_interval)
-			{
-				bool res = functr();
-				time(&m_last_worked_time);
-				return res;
-			}
-			return true;
-		}
+    template <class functor_t>
+    void do_call(functor_t functr)
+    {
+      if (m_trigger_now || std::chrono::steady_clock::now() - m_last_worked_time > m_interval)
+      {
+        functr();
+        m_last_worked_time = std::chrono::steady_clock::now();
+        m_trigger_now = false;
+      }
+    }
 
-	private:
-		time_t m_last_worked_time;
-		time_t m_interval;
-	};
+    // Makes the next task attempt run the job, regardless of the time since the last job. Atomic.
+    void reset() { m_trigger_now = true; }
+    // Returns the current interval
+    std::chrono::microseconds interval() const { return m_interval; }
+    // Changes the current interval
+    void interval(std::chrono::microseconds us) { m_interval = us; }
+
+  private:
+    std::chrono::microseconds m_interval;
+    std::chrono::steady_clock::time_point m_last_worked_time;
+    std::atomic<bool> m_trigger_now;
+  };
 }
 }

@@ -3,9 +3,6 @@
 SOURCES_PATH ?= $(BASEDIR)/sources
 BASE_CACHE ?= $(BASEDIR)/built
 SDK_PATH ?= $(BASEDIR)/SDKs
-NO_QT ?=
-NO_WALLET ?=
-NO_UPNP ?=
 FALLBACK_DOWNLOAD_PATH ?= https://bitcoincore.org/depends-sources
 
 BUILD = $(shell ./config.guess)
@@ -25,9 +22,16 @@ host_toolchain:=$(HOST)-
 endif
 
 ifneq ($(DEBUG),)
-release_type=debug
+release_type=Debug
 else
-release_type=release
+release_type=Release
+endif
+
+ifneq ($(TESTS),)
+build_tests=ON
+release_type=Debug
+else
+build_tests=OFF
 endif
 
 base_build_dir=$(BASEDIR)/work/build
@@ -49,8 +53,12 @@ endif
 host_arch=$(firstword $(subst -, ,$(canonical_host)))
 host_vendor=$(word 2,$(subst -, ,$(canonical_host)))
 full_host_os:=$(subst $(host_arch)-$(host_vendor)-,,$(canonical_host))
+host_os:=$(findstring android,$(full_host_os))
+ifeq ($(host_os),)
 host_os:=$(findstring linux,$(full_host_os))
+endif
 host_os+=$(findstring darwin,$(full_host_os))
+host_os+=$(findstring freebsd,$(full_host_os))
 host_os+=$(findstring mingw32,$(full_host_os))
 host_os:=$(strip $(host_os))
 ifeq ($(host_os),)
@@ -67,8 +75,14 @@ endif
 ifeq ($(host_os),linux)
 host_cmake=Linux
 endif
+ifeq ($(host_os),freebsd)
+host_cmake=FreeBSD
+endif
 ifeq ($(host_os),darwin)
 host_cmake=Darwin
+endif
+ifeq ($(host_os),android)
+host_cmake=Android
 endif
 
 AT_$(V):=
@@ -97,16 +111,9 @@ $(host_arch)_$(host_os)_id_string+=$(shell $(host_CXX) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_RANLIB) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_STRIP) --version 2>/dev/null)
 
-qt_packages_$(NO_QT) = $(qt_packages) $(qt_$(host_os)_packages) $(qt_$(host_arch)_$(host_os)_packages)
-wallet_packages_$(NO_WALLET) = $(wallet_packages)
-upnp_packages_$(NO_UPNP) = $(upnp_packages)
-
-packages += $($(host_arch)_$(host_os)_packages) $($(host_os)_packages) $(qt_packages_) $(wallet_packages_) $(upnp_packages_)
+qt_packages_$(NO_QT) = $(qt_packages) 
+packages += $($(host_arch)_$(host_os)_packages) $($(host_os)_packages) $(qt_packages_)
 native_packages += $($(host_arch)_$(host_os)_native_packages) $($(host_os)_native_packages)
-
-ifneq ($(qt_packages_),)
-native_packages += $(qt_native_packages)
-endif
 
 all_packages = $(packages) $(native_packages)
 
@@ -153,9 +160,6 @@ $(host_prefix)/share/config.site : config.site.in $(host_prefix)/.stamp_$(final_
             -e 's|@CPPFLAGS@|$(strip $(host_CPPFLAGS) $(host_$(release_type)_CPPFLAGS))|' \
             -e 's|@LDFLAGS@|$(strip $(host_LDFLAGS) $(host_$(release_type)_LDFLAGS))|' \
             -e 's|@allow_host_packages@|$(ALLOW_HOST_PACKAGES)|' \
-            -e 's|@no_qt@|$(NO_QT)|' \
-            -e 's|@no_wallet@|$(NO_WALLET)|' \
-            -e 's|@no_upnp@|$(NO_UPNP)|' \
             -e 's|@debug@|$(DEBUG)|' \
             $< > $@
 	$(AT)touch $@
@@ -176,10 +180,9 @@ $(host_prefix)/share/toolchain.cmake : toolchain.cmake.in $(host_prefix)/.stamp_
             -e 's|@CPPFLAGS@|$(strip $(host_CPPFLAGS) $(host_$(release_type)_CPPFLAGS))|' \
             -e 's|@LDFLAGS@|$(strip $(host_LDFLAGS) $(host_$(release_type)_LDFLAGS))|' \
             -e 's|@allow_host_packages@|$(ALLOW_HOST_PACKAGES)|' \
-            -e 's|@no_qt@|$(NO_QT)|' \
-            -e 's|@no_wallet@|$(NO_WALLET)|' \
-            -e 's|@no_upnp@|$(NO_UPNP)|' \
             -e 's|@debug@|$(DEBUG)|' \
+            -e 's|@release_type@|$(release_type)|' \
+            -e 's|@build_tests@|$(build_tests)|' \
             -e 's|@depends@|$(host_cmake)|' \
             -e 's|@prefix@|$($(host_arch)_$(host_os)_prefix)|'\
             -e 's|@sdk@|$(SDK_PATH)|'\

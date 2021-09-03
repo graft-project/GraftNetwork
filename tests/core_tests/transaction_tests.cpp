@@ -54,9 +54,6 @@ bool test_transaction_generation_and_ring_signature()
   account_base miner_acc6;
   miner_acc6.generate();
 
-  std::string add_str = miner_acc3.get_public_address_str(MAINNET);
-
-
   account_base rv_acc;
   rv_acc.generate();
   account_base rv_acc2;
@@ -143,7 +140,7 @@ bool test_block_creation()
   bool r = get_account_address_from_str(info, MAINNET, "0099be99c70ef10fd534c43c88e9d13d1c8853213df7e362afbec0e4ee6fec4948d0c190b58f4b356cd7feaf8d9d0a76e7c7e5a9a0a497a6b1faf7a765882dd08ac2");
   CHECK_AND_ASSERT_MES(r, false, "failed to import");
   block b;
-  r = construct_miner_tx(90, epee::misc_utils::median(szs), 3553616528562147, 33094, 10000000, info.address, b.miner_tx, blobdata(), 11);
+  r = construct_miner_tx(90, epee::misc_utils::median(szs), 3553616528562147, 33094, 10000000, info.address, b.miner_tx, blobdata());
   return r;
 }
 

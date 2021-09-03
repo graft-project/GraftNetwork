@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018, The Monero Project
+// Copyright (c) 2016-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -31,6 +31,7 @@
 #include "crypto/hash.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "ringct/rctSigs.h"
+#include "rpc/rpc_handler.h"
 
 #include <unordered_map>
 #include <vector>
@@ -77,7 +78,9 @@ namespace rpc
     uint64_t id;
     uint32_t ip;
     uint16_t port;
+    uint16_t rpc_port;
     uint64_t last_seen;
+    uint32_t pruning_seed;
   };
 
   struct tx_in_pool
@@ -190,8 +193,15 @@ namespace rpc
     uint64_t block_size_median;
     uint64_t block_weight_median;
     uint64_t start_time;
+    std::string version;
   };
 
+  struct output_distribution
+  {
+    output_distribution_data data;
+    uint64_t amount;
+    bool cumulative;
+  };
 }  // namespace rpc
 
 }  // namespace cryptonote

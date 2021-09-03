@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -46,6 +46,8 @@
 #include <set>
 #include <unordered_set>
 #include <string>
+#include <ios>
+#include <boost/mpl/bool.hpp>
 #include <boost/type_traits/is_integral.hpp>
 #include <boost/type_traits/integral_constant.hpp>
 
@@ -212,18 +214,13 @@ inline bool do_serialize(Archive &ar, bool &v)
  * \brief self-explanatory
  */
 #define END_SERIALIZE()				\
-  return true;					\
+  return ar.stream().good();			\
   }
 
 /*! \macro VALUE(f)
  * \brief the same as FIELD(f)
  */
-#define VALUE(f)					\
-  do {							\
-    ar.tag(#f);						\
-    bool r = ::do_serialize(ar, f);			\
-    if (!r || !ar.stream().good()) return false;	\
-  } while(0);
+#define VALUE(f) FIELD(f)
 
 /*! \macro FIELD_N(t,f)
  *
@@ -240,12 +237,7 @@ inline bool do_serialize(Archive &ar, bool &v)
  *
  * \brief tags the field with the variable name and then serializes it
  */
-#define FIELD(f)					\
-  do {							\
-    ar.tag(#f);						\
-    bool r = ::do_serialize(ar, f);			\
-    if (!r || !ar.stream().good()) return false;	\
-  } while(0);
+#define FIELD(f) FIELD_N(#f, f)
 
 /*! \macro FIELDS(f)
  *
@@ -260,12 +252,7 @@ inline bool do_serialize(Archive &ar, bool &v)
 /*! \macro VARINT_FIELD(f)
  *  \brief tags and serializes the varint \a f
  */
-#define VARINT_FIELD(f)				\
-  do {						\
-    ar.tag(#f);					\
-    ar.serialize_varint(f);			\
-    if (!ar.stream().good()) return false;	\
-  } while(0);
+#define VARINT_FIELD(f) VARINT_FIELD_N(#f, f)
 
 /*! \macro VARINT_FIELD_N(t, f)
  *
@@ -278,6 +265,30 @@ inline bool do_serialize(Archive &ar, bool &v)
     if (!ar.stream().good()) return false;	\
   } while(0);
 
+/*! \macro ENUM_FIELD(f, test)
+ *  \brief tags and serializes (as a varint) the scoped enum \a f with a requirement that expression
+ *  \a test be true (typically for range testing).
+ */
+#define ENUM_FIELD(f, test) ENUM_FIELD_N(#f, f, test)
+
+/*! \macro ENUM_FIELD_N(t, f, begin, end)
+ *
+ * \brief tags (as \a t) and serializes (as a varint) the scoped enum \a f with a requirement that
+ * expession \a test be true (typically for range testing).
+ */
+#define ENUM_FIELD_N(t, f, test)             \
+  do {                                       \
+    using enum_t = decltype(f);              \
+    using int_t = typename std::underlying_type<enum_t>::type; \
+    int_t int_value = W ? static_cast<int_t>(f) : 0;           \
+    ar.tag(t);                               \
+    ar.serialize_varint(int_value);          \
+    if (!ar.stream().good()) return false;	 \
+    if (!W) {                                \
+      f = static_cast<enum_t>(int_value);    \
+      if (!(test)) return false;             \
+    }                                        \
+  } while(0);
 
 namespace serialization {
   /*! \namespace detail
@@ -318,7 +329,7 @@ namespace serialization {
      * \brief self explanatory
      */
     template<class Stream>
-    bool do_check_stream_state(Stream& s, boost::mpl::bool_<true>)
+    bool do_check_stream_state(Stream& s, boost::mpl::bool_<true>, bool noeof)
     {
       return s.good();
     }
@@ -329,13 +340,13 @@ namespace serialization {
      * \detailed Also checks to make sure that the stream is not at EOF
      */
     template<class Stream>
-    bool do_check_stream_state(Stream& s, boost::mpl::bool_<false>)
+    bool do_check_stream_state(Stream& s, boost::mpl::bool_<false>, bool noeof)
     {
       bool result = false;
       if (s.good())
 	{
 	  std::ios_base::iostate state = s.rdstate();
-	  result = EOF == s.peek();
+	  result = noeof || EOF == s.peek();
 	  s.clear(state);
 	}
       return result;
@@ -347,9 +358,9 @@ namespace serialization {
    * \brief calls detail::do_check_stream_state for ar
    */
   template<class Archive>
-  bool check_stream_state(Archive& ar)
+  bool check_stream_state(Archive& ar, bool noeof = false)
   {
-    return detail::do_check_stream_state(ar.stream(), typename Archive::is_saving());
+    return detail::do_check_stream_state(ar.stream(), typename Archive::is_saving(), noeof);
   }
 
   /*! \fn serialize
@@ -360,6 +371,17 @@ namespace serialization {
   inline bool serialize(Archive &ar, T &v)
   {
     bool r = do_serialize(ar, v);
-    return r && check_stream_state(ar);
+    return r && check_stream_state(ar, false);
+  }
+
+  /*! \fn serialize
+   *
+   * \brief serializes \a v into \a ar
+   */
+  template <class Archive, class T>
+  inline bool serialize_noeof(Archive &ar, T &v)
+  {
+    bool r = do_serialize(ar, v);
+    return r && check_stream_state(ar, true);
   }
 }

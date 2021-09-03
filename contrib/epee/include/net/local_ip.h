@@ -27,46 +27,96 @@
 
 #pragma once
 
+#include <string>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/asio/ip/address_v6.hpp>
+#include <boost/version.hpp>
+
 namespace epee
 {
   namespace net_utils
   {
+
+    inline
+    bool is_ipv6_local(const std::string& ip)
+    {
+#if BOOST_VERSION >= 106600
+      auto addr = boost::asio::ip::make_address_v6(ip);
+#else
+      auto addr = boost::asio::ip::address_v6::from_string(ip);
+#endif
+
+      // ipv6 link-local unicast addresses are fe80::/10
+      bool is_link_local = addr.is_link_local();
+
+      auto addr_bytes = addr.to_bytes();
+
+      // ipv6 unique local unicast addresses start with fc00::/7 -- (fcXX or fdXX)
+      bool is_unique_local_unicast = (addr_bytes[0] == 0xfc || addr_bytes[0] == 0xfd);
+
+      return is_link_local || is_unique_local_unicast;
+    }
+
+    inline
+    bool is_ipv6_loopback(const std::string& ip)
+    {
+      // ipv6 loopback is ::1
+      return boost::asio::ip::address_v6::from_string(ip).is_loopback();
+    }
+
     inline
     bool is_ip_local(uint32_t ip)
     {
       /*
-      local ip area
-      10.0.0.0 — 10.255.255.255 
-      172.16.0.0 — 172.31.255.255 
-      192.168.0.0 — 192.168.255.255 
+      private network ranges:
+      10.0.0.0/8
+      172.16.0.0/12
+      192.168.0.0/16
+
+      carrier-grade NAT network range:
+      100.64.0.0/10
+
+      link-local addresses:
+      169.254.0.0/16
       */
-      if( (ip | 0xffffff00) == 0xffffff0a)
+
+      // Extremely bizarrely, IPs are stored in little-endian order in epee, which is just plain
+      // wrong, but we have to deal with.  (Jason)
+      if ((ip & 0xff) == 0x0a) // 10.0.0.0/8
         return true;
 
-      if( (ip | 0xffff0000) == 0xffffa8c0)
+      if ((ip & 0xf0ff) == 0x10ac) // 172.16.0.0/12 (0xf0ff looks strange because of the little endian nonsense)
         return true;
 
-      if( (ip | 0xffffff00) == 0xffffffac)
-      {
-        uint32_t second_num = (ip >> 8) & 0xff;
-        if(second_num >= 16 && second_num <= 31 )
-          return true;
-      }
+      if ((ip & 0xffff) == 0xa8c0) // 192.168.0.0/16
+        return true;
+
+      if ((ip & 0xc0ff) == 0x4064) // 100.64.0.0/10
+        return true;
+
+      if ((ip & 0xffff) == 0xfea9) // 169.254.0.0/16
+        return true;
+
       return false;
     }
     inline
     bool is_ip_loopback(uint32_t ip)
     {
-      if( (ip | 0xffffff00) == 0xffffff7f)
+      if ((ip & 0xff) == 0x7f) // 127.0.0.0/8
         return true;
-      //MAKE_IP
-      /*
-      loopback ip
-      127.0.0.0 — 127.255.255.255 
-      */
+
       return false;
     }
-   
+
+    inline
+    bool is_ip_public(uint32_t ip)
+    {
+      return !(
+          is_ip_local(ip) ||
+          is_ip_loopback(ip) ||
+          (ip & 0xff) == 0x00 || // 0.0.0.0/8 addresses are "current network" addresses valid only as a source but not destination
+          (ip & 0xe0) == 0xe0); // 224.0.0.0/3 -- includes both 224/4 multicast and 240/4 reserved blocks
+    }
   }
 }
 

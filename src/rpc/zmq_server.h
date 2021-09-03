@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018, The Monero Project
+// Copyright (c) 2016-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -29,7 +29,7 @@
 #pragma once
 
 #include <boost/thread/thread.hpp>
-#include <zmq.hpp>
+#include <lokimq/lokimq.h>
 #include <string>
 #include <memory>
 

@@ -34,6 +34,8 @@
 #include <vector>
 
 #include "common/util.h"
+#include "cryptonote_basic/cryptonote_basic.h"
+#include "cryptonote_basic/tx_extra.h"
 #include "cryptonote_core/cryptonote_tx_utils.h"
 
 
@@ -138,26 +140,26 @@ TEST(parse_tx_extra, handles_pub_key_and_padding)
 
 TEST(parse_and_validate_tx_extra, is_valid_tx_extra_parsed)
 {
-  cryptonote::transaction tx = AUTO_VAL_INIT(tx);
+  cryptonote::transaction tx{};
   cryptonote::account_base acc;
   acc.generate();
   cryptonote::blobdata b = "dsdsdfsdfsf";
-  ASSERT_TRUE(cryptonote::construct_miner_tx(0, 0, 10000000000000, 1000, TEST_FEE, acc.get_keys().m_account_address, tx, b, 1));
+  ASSERT_TRUE(cryptonote::construct_miner_tx(0, 0, 10000000000000, 1000, TEST_FEE, acc.get_keys().m_account_address, tx, b));
   crypto::public_key tx_pub_key = cryptonote::get_tx_pub_key_from_extra(tx);
   ASSERT_NE(tx_pub_key, crypto::null_pkey);
 }
 TEST(parse_and_validate_tx_extra, fails_on_big_extra_nonce)
 {
-  cryptonote::transaction tx = AUTO_VAL_INIT(tx);
+  cryptonote::transaction tx{};
   cryptonote::account_base acc;
   acc.generate();
   cryptonote::blobdata b(TX_EXTRA_NONCE_MAX_COUNT + 1, 0);
-  ASSERT_FALSE(cryptonote::construct_miner_tx(0, 0, 10000000000000, 1000, TEST_FEE, acc.get_keys().m_account_address, tx, b, 1));
+  ASSERT_FALSE(cryptonote::construct_miner_tx(0, 0, 10000000000000, 1000, TEST_FEE, acc.get_keys().m_account_address, tx, b));
 }
 
 TEST(parse_and_validate_tx_extra, fails_on_wrong_size_in_extra_nonce)
 {
-  cryptonote::transaction tx = AUTO_VAL_INIT(tx);
+  cryptonote::transaction tx{};
   tx.extra.resize(20, 0);
   tx.extra[0] = TX_EXTRA_NONCE;
   tx.extra[1] = 255;

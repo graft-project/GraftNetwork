@@ -1,4 +1,5 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -29,8 +30,8 @@
 #pragma once
 #include <boost/program_options.hpp>
 
-#undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "daemon"
+#undef LOKI_DEFAULT_LOG_CATEGORY
+#define LOKI_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize {
 
@@ -43,11 +44,13 @@ private:
   void stop_p2p();
 private:
   std::unique_ptr<t_internals> mp_internals;
+  uint16_t public_rpc_port;
   std::string zmq_rpc_bind_address;
   std::string zmq_rpc_bind_port;
 public:
   t_daemon(
-      boost::program_options::variables_map const & vm
+      boost::program_options::variables_map const & vm,
+      uint16_t public_rpc_port = 0
     );
   t_daemon(t_daemon && other);
   t_daemon & operator=(t_daemon && other);

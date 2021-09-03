@@ -40,24 +40,24 @@ namespace
                           std::vector<difficulty_type>& cummulative_difficulties, test_generator& generator,
                           size_t new_block_count, const block &blk_last, const account_base& miner_account)
   {
-    difficulty_type commulative_diffic = cummulative_difficulties.empty() ? 0 : cummulative_difficulties.back();
+    difficulty_type cummulative_diffic = cummulative_difficulties.empty() ? 0 : cummulative_difficulties.back();
     block blk_prev = blk_last;
     for (size_t i = 0; i < new_block_count; ++i)
     {
       block blk_next;
-      difficulty_type diffic = next_difficulty(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V1);
+      difficulty_type diffic = next_difficulty_v2(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V2, false /*use_old_lwma*/, false);
       if (!generator.construct_block_manually(blk_next, blk_prev, miner_account,
         test_generator::bf_timestamp | test_generator::bf_diffic, 0, 0, blk_prev.timestamp, crypto::hash(), diffic))
         return false;
 
-      commulative_diffic += diffic;
-      if (timestamps.size() == DIFFICULTY_WINDOW)
+      cummulative_diffic += diffic;
+      if (timestamps.size() == DIFFICULTY_WINDOW_V2)
       {
         timestamps.erase(timestamps.begin());
         cummulative_difficulties.erase(cummulative_difficulties.begin());
       }
       timestamps.push_back(blk_next.timestamp);
-      cummulative_difficulties.push_back(commulative_diffic);
+      cummulative_difficulties.push_back(cummulative_diffic);
 
       events.push_back(blk_next);
       blk_prev = blk_next;
@@ -134,7 +134,7 @@ bool gen_block_ts_in_future::generate(std::vector<test_event_entry>& events) con
   BLOCK_VALIDATION_INIT_GENERATE();
 
   block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_timestamp, 0, 0, time(NULL) + 60*60 + CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT);
+  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_timestamp, 0, 0, time(NULL) + 60*60 + CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V2);
   events.push_back(blk_1);
 
   DO_CALLBACK(events, "check_block_purged");
@@ -170,12 +170,12 @@ bool gen_block_invalid_nonce::generate(std::vector<test_event_entry>& events) co
   BLOCK_VALIDATION_INIT_GENERATE();
 
   std::vector<uint64_t> timestamps;
-  std::vector<difficulty_type> commulative_difficulties;
-  if (!lift_up_difficulty(events, timestamps, commulative_difficulties, generator, 2, blk_0, miner_account))
+  std::vector<difficulty_type> cummulative_difficulties;
+  if (!lift_up_difficulty(events, timestamps, cummulative_difficulties, generator, 4, blk_0, miner_account))
     return false;
 
   // Create invalid nonce
-  difficulty_type diffic = next_difficulty(timestamps, commulative_difficulties,DIFFICULTY_TARGET_V1);
+  difficulty_type diffic = next_difficulty_v2(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V2, false /*use_old_lwma*/, false);
   assert(1 < diffic);
   const block& blk_last = boost::get<block>(events.back());
   uint64_t timestamp = blk_last.timestamp;
@@ -329,31 +329,15 @@ bool gen_block_miner_tx_has_2_tx_gen_in::generate(std::vector<test_event_entry>&
 bool gen_block_miner_tx_has_2_in::generate(std::vector<test_event_entry>& events) const
 {
   BLOCK_VALIDATION_INIT_GENERATE();
-  REWIND_BLOCKS(events, blk_0r, blk_0, miner_account);
-
-  GENERATE_ACCOUNT(alice);
-
-  tx_source_entry se;
-  se.amount = blk_0.miner_tx.vout[0].amount;
-  se.push_output(0, boost::get<txout_to_key>(blk_0.miner_tx.vout[0].target).key, se.amount);
-  se.real_output = 0;
-  se.rct = false;
-  se.real_out_tx_key = get_tx_pub_key_from_extra(blk_0.miner_tx);
-  se.real_output_in_tx_index = 0;
-  std::vector<tx_source_entry> sources;
-  sources.push_back(se);
-
-  tx_destination_entry de;
-  de.addr = miner_account.get_keys().m_account_address;
-  de.amount = se.amount;
-  std::vector<tx_destination_entry> destinations;
-  destinations.push_back(de);
+  REWIND_BLOCKS_N(events, blk_0a, blk_0, miner_account, 10);
+  REWIND_BLOCKS(events, blk_0r, blk_0a, miner_account);
 
   transaction tmp_tx;
-  if (!construct_tx(miner_account.get_keys(), sources, destinations, boost::none, std::vector<uint8_t>(), tmp_tx, 0))
+
+  if (!loki_tx_builder(events, tmp_tx, blk_0r, miner_account, miner_account.get_keys().m_account_address, blk_0.miner_tx.vout[0].amount, cryptonote::network_version_7).build())
     return false;
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
+  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0r);
   miner_tx.vin.push_back(tmp_tx.vin[0]);
 
   block blk_1;
@@ -376,24 +360,8 @@ bool gen_block_miner_tx_with_txin_to_key::generate(std::vector<test_event_entry>
 
   REWIND_BLOCKS(events, blk_1r, blk_1, miner_account);
 
-  tx_source_entry se;
-  se.amount = blk_1.miner_tx.vout[0].amount;
-  se.push_output(0, boost::get<txout_to_key>(blk_1.miner_tx.vout[0].target).key, se.amount);
-  se.real_output = 0;
-  se.rct = false;
-  se.real_out_tx_key = get_tx_pub_key_from_extra(blk_1.miner_tx);
-  se.real_output_in_tx_index = 0;
-  std::vector<tx_source_entry> sources;
-  sources.push_back(se);
-
-  tx_destination_entry de;
-  de.addr = miner_account.get_keys().m_account_address;
-  de.amount = se.amount;
-  std::vector<tx_destination_entry> destinations;
-  destinations.push_back(de);
-
   transaction tmp_tx;
-  if (!construct_tx(miner_account.get_keys(), sources, destinations, boost::none, std::vector<uint8_t>(), tmp_tx, 0))
+  if (!loki_tx_builder(events, tmp_tx, blk_1r, miner_account, miner_account.get_keys().m_account_address, blk_1.miner_tx.vout[0].amount, cryptonote::network_version_7).build())
     return false;
 
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_1);
@@ -402,22 +370,6 @@ bool gen_block_miner_tx_with_txin_to_key::generate(std::vector<test_event_entry>
   block blk_2;
   generator.construct_block_manually(blk_2, blk_1r, miner_account, test_generator::bf_miner_tx, 0, 0, 0, crypto::hash(), 0, miner_tx);
   events.push_back(blk_2);
-
-  DO_CALLBACK(events, "check_block_purged");
-
-  return true;
-}
-
-bool gen_block_miner_tx_out_is_small::generate(std::vector<test_event_entry>& events) const
-{
-  BLOCK_VALIDATION_INIT_GENERATE();
-
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.vout[0].amount /= 2;
-
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, 0, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
 
   DO_CALLBACK(events, "check_block_purged");
 
@@ -446,6 +398,7 @@ bool gen_block_miner_tx_has_no_out::generate(std::vector<test_event_entry>& even
 
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
   miner_tx.vout.clear();
+  miner_tx.version = txversion::v1;
 
   block blk_1;
   generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, 0, 0, 0, crypto::hash(), 0, miner_tx);
@@ -456,25 +409,96 @@ bool gen_block_miner_tx_has_no_out::generate(std::vector<test_event_entry>& even
   return true;
 }
 
+static crypto::public_key
+get_output_key(const cryptonote::keypair &txkey, const cryptonote::account_public_address &addr, size_t output_index)
+{
+  crypto::key_derivation derivation;
+  crypto::generate_key_derivation(addr.m_view_public_key, txkey.sec, derivation);
+  crypto::public_key out_eph_public_key;
+  crypto::derive_public_key(derivation, output_index, addr.m_spend_public_key, out_eph_public_key);
+  return out_eph_public_key;
+}
+
+static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
+                                                 const cryptonote::account_public_address& miner_address,
+                                                 size_t height,
+                                                 uint64_t already_generated_coins,
+                                                 const cryptonote::account_public_address& extra_address)
+{
+    keypair txkey = keypair::generate(hw::get_device("default"));
+    add_tx_pub_key_to_extra(tx, txkey.pub);
+
+    keypair gov_key = get_deterministic_keypair_from_height(height);
+    if (already_generated_coins != 0) {
+        add_tx_pub_key_to_extra(tx, gov_key.pub);
+    }
+
+    txin_gen in;
+    in.height = height;
+    tx.vin.push_back(in);
+
+    // This will work, until size of constructed block is less then CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE
+    const int hard_fork_version = 7; // NOTE(loki): We know this test doesn't need the new block reward formula
+    uint64_t block_reward, block_reward_unpenalized;
+    if (!get_base_block_reward(0, 0, already_generated_coins, block_reward, block_reward_unpenalized, 1, 0)) {
+        LOG_PRINT_L0("Block is too big");
+        return false;
+    }
+
+    uint64_t governance_reward = 0;
+    if (already_generated_coins != 0) {
+        governance_reward = governance_reward_formula(block_reward, hard_fork_version);
+        block_reward -= governance_reward;
+    }
+
+    tx.version = txversion::v1;
+    tx.unlock_time = height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
+
+    /// half of the miner reward goes to the other account 
+    const auto miner_reward = block_reward / 2;
+
+    /// miner reward
+    tx.vout.push_back({miner_reward, get_output_key(txkey, miner_address, 0)});
+
+    /// extra reward
+    tx.vout.push_back({miner_reward, get_output_key(txkey, extra_address, 1)});
+
+    /// governance reward
+    if (already_generated_coins != 0) {
+        const cryptonote::network_type nettype = cryptonote::FAKECHAIN;
+        cryptonote::address_parse_info governance_wallet_address;
+        cryptonote::get_account_address_from_str(governance_wallet_address, nettype, *cryptonote::get_config(nettype, hard_fork_version).GOVERNANCE_WALLET_ADDRESS);
+
+        crypto::public_key out_eph_public_key{};
+
+        if (!get_deterministic_output_key(
+              governance_wallet_address.address, gov_key, tx.vout.size(), out_eph_public_key)) {
+            MERROR("Failed to generate deterministic output key for governance wallet output creation");
+            return false;
+        }
+
+        tx.vout.push_back({governance_reward, out_eph_public_key});
+        tx.output_unlock_times.push_back(height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW);
+    }
+
+    return true;
+}
+
+
 bool gen_block_miner_tx_has_out_to_alice::generate(std::vector<test_event_entry>& events) const
 {
   BLOCK_VALIDATION_INIT_GENERATE();
 
   GENERATE_ACCOUNT(alice);
 
-  keypair txkey;
-  MAKE_MINER_TX_AND_KEY_MANUALLY(miner_tx, blk_0, &txkey);
+  transaction miner_tx;
 
-  crypto::key_derivation derivation;
-  crypto::public_key out_eph_public_key;
-  crypto::generate_key_derivation(alice.get_keys().m_account_address.m_view_public_key, txkey.sec, derivation);
-  crypto::derive_public_key(derivation, 1, alice.get_keys().m_account_address.m_spend_public_key, out_eph_public_key);
+  const auto height = get_block_height(blk_0);
+  const auto coins = generator.get_already_generated_coins(blk_0);
+  const auto& miner_address = miner_account.get_keys().m_account_address;
+  const auto& alice_address = alice.get_keys().m_account_address;
 
-  tx_out out_to_alice;
-  out_to_alice.amount = miner_tx.vout[0].amount / 2;
-  miner_tx.vout[0].amount -= out_to_alice.amount;
-  out_to_alice.target = txout_to_key(out_eph_public_key);
-  miner_tx.vout.push_back(out_to_alice);
+  construct_miner_tx_with_extra_output(miner_tx, miner_address, height+1, coins, alice_address);
 
   block blk_1;
   generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, 0, 0, 0, crypto::hash(), 0, miner_tx);
@@ -507,7 +531,9 @@ bool gen_block_is_too_big::generate(std::vector<test_event_entry>& events) const
 
   // Creating a huge miner_tx, it will have a lot of outs
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
+  miner_tx.version = txversion::v1;
   static const size_t tx_out_count = CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1 / 2;
+
   uint64_t amount = get_outs_money_amount(miner_tx);
   uint64_t portion = amount / tx_out_count;
   uint64_t remainder = amount % tx_out_count;
@@ -541,15 +567,56 @@ bool gen_block_is_too_big::generate(std::vector<test_event_entry>& events) const
   return true;
 }
 
-gen_block_invalid_binary_format::gen_block_invalid_binary_format()
-  : m_corrupt_blocks_begin_idx(0)
-{
-  REGISTER_CALLBACK("check_all_blocks_purged", gen_block_invalid_binary_format::check_all_blocks_purged);
-  REGISTER_CALLBACK("corrupt_blocks_boundary", gen_block_invalid_binary_format::corrupt_blocks_boundary);
-}
-
 bool gen_block_invalid_binary_format::generate(std::vector<test_event_entry>& events) const
 {
+#if 1
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table();
+  loki_chain_generator gen(events, hard_forks);
+
+  gen.add_blocks_until_version(hard_forks.back().first);
+  gen.add_n_blocks(10);
+  gen.add_mined_money_unlock_blocks();
+
+  uint64_t last_valid_height = gen.height();
+  cryptonote::transaction tx  = gen.create_and_add_tx(gen.first_miner_, gen.first_miner_.get_keys().m_account_address, MK_COINS(30));
+  loki_blockchain_entry entry = gen.create_next_block({tx});
+
+  serialized_block block(t_serializable_object_to_blob(entry.block));
+  // Generate some corrupt blocks
+  {
+    loki_blockchain_addable<serialized_block> entry(block, false /*can_be_added_to_blockchain*/, "Corrupt block can't be added to blockchaain");
+    serialized_block &corrupt_block = entry.data;
+    for (size_t i = 0; i < corrupt_block.data.size() - 1; ++i)
+      corrupt_block.data[i] ^= corrupt_block.data[i + 1];
+    events.push_back(entry);
+  }
+
+  {
+    loki_blockchain_addable<serialized_block> entry(block, false /*can_be_added_to_blockchain*/, "Corrupt block can't be added to blockchaain");
+    serialized_block &corrupt_block = entry.data;
+    for (size_t i = 0; i < corrupt_block.data.size() - 2; ++i)
+      corrupt_block.data[i] ^= corrupt_block.data[i + 2];
+    events.push_back(entry);
+  }
+
+  {
+    loki_blockchain_addable<serialized_block> entry(block, false /*can_be_added_to_blockchain*/, "Corrupt block can't be added to blockchaain");
+    serialized_block &corrupt_block = entry.data;
+    for (size_t i = 0; i < corrupt_block.data.size() - 3; ++i)
+      corrupt_block.data[i] ^= corrupt_block.data[i + 3];
+    events.push_back(entry);
+  }
+
+  loki_register_callback(events, "check_blocks_arent_accepted", [&events, last_valid_height](cryptonote::core &c, size_t ev_index)
+  {
+    DEFINE_TESTS_ERROR_CONTEXT("check_blocks_arent_accepted");
+    CHECK_EQ(c.get_pool().get_transactions_count(), 1);
+    CHECK_EQ(c.get_current_blockchain_height(), last_valid_height + 1);
+    return true;
+  });
+
+  // TODO(loki): I don't know why difficulty has to be high for this test? Just generate some blocks and randomize the bytes???
+#else
   BLOCK_VALIDATION_INIT_GENERATE();
 
   std::vector<uint64_t> timestamps;
@@ -558,7 +625,7 @@ bool gen_block_invalid_binary_format::generate(std::vector<test_event_entry>& ev
 
   // Unlock blk_0 outputs
   block blk_last = blk_0;
-  assert(CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW < DIFFICULTY_WINDOW);
+  assert(CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW < DIFFICULTY_WINDOW_V2);
   for (size_t i = 0; i < CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW; ++i)
   {
     MAKE_NEXT_BLOCK(events, blk_curr, blk_last, miner_account);
@@ -572,7 +639,7 @@ bool gen_block_invalid_binary_format::generate(std::vector<test_event_entry>& ev
   do
   {
     blk_last = boost::get<block>(events.back());
-    diffic = next_difficulty(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V1);
+    diffic = next_difficulty_v2(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V2, false /*use_old_lwma*/, false);
     if (!lift_up_difficulty(events, timestamps, cummulative_difficulties, generator, 1, blk_last, miner_account))
       return false;
     std::cout << "Block #" << events.size() << ", difficulty: " << diffic << std::endl;
@@ -587,7 +654,7 @@ bool gen_block_invalid_binary_format::generate(std::vector<test_event_entry>& ev
   std::vector<crypto::hash> tx_hashes;
   tx_hashes.push_back(get_transaction_hash(tx_0));
   size_t txs_weight = get_transaction_weight(tx_0);
-  diffic = next_difficulty(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V1);
+  diffic = next_difficulty_v2(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V2, false /*use_old_lwma*/, false);
   if (!generator.construct_block_manually(blk_test, blk_last, miner_account,
     test_generator::bf_diffic | test_generator::bf_timestamp | test_generator::bf_tx_hashes, 0, 0, blk_last.timestamp,
     crypto::hash(), diffic, transaction(), tx_hashes, txs_weight))
@@ -607,36 +674,7 @@ bool gen_block_invalid_binary_format::generate(std::vector<test_event_entry>& ev
   }
 
   DO_CALLBACK(events, "check_all_blocks_purged");
-
-  return true;
-}
-
-bool gen_block_invalid_binary_format::check_block_verification_context(const cryptonote::block_verification_context& bvc,
-                                                                       size_t event_idx, const cryptonote::block& blk)
-{
-  if (0 == m_corrupt_blocks_begin_idx || event_idx < m_corrupt_blocks_begin_idx)
-  {
-    return bvc.m_added_to_main_chain;
-  }
-  else
-  {
-    return (!bvc.m_added_to_main_chain && (bvc.m_already_exists || bvc.m_marked_as_orphaned || bvc.m_verifivation_failed))
-      || (bvc.m_added_to_main_chain && bvc.m_partial_block_reward);
-  }
-}
-
-bool gen_block_invalid_binary_format::corrupt_blocks_boundary(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events)
-{
-  m_corrupt_blocks_begin_idx = ev_index + 1;
-  return true;
-}
-
-bool gen_block_invalid_binary_format::check_all_blocks_purged(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events)
-{
-  DEFINE_TESTS_ERROR_CONTEXT("gen_block_invalid_binary_format::check_all_blocks_purged");
-
-  CHECK_EQ(1, c.get_pool_transactions_count());
-  CHECK_EQ(m_corrupt_blocks_begin_idx - 2, c.get_current_blockchain_height());
+#endif
 
   return true;
 }

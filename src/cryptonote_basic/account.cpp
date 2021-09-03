@@ -1,4 +1,5 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c)      2018, The Loki Project
 // 
 // All rights reserved.
 // 
@@ -41,8 +42,8 @@ extern "C"
 #include "cryptonote_basic_impl.h"
 #include "cryptonote_format_utils.h"
 
-#undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "account"
+#undef LOKI_DEFAULT_LOG_CATEGORY
+#define LOKI_DEFAULT_LOG_CATEGORY "account"
 
 #define KEYS_ENCRYPTION_SALT 'k'
 
@@ -136,12 +137,44 @@ DISABLE_VS_WARNINGS(4244 4345)
   void account_base::set_null()
   {
     m_keys = account_keys();
+    m_creation_timestamp = 0;
+  }
+  //-----------------------------------------------------------------
+  void account_base::deinit()
+  {
+    try{
+      m_keys.get_device().disconnect();
+    } catch (const std::exception &e){
+      MERROR("Device disconnect exception: " << e.what());
+    }
   }
   //-----------------------------------------------------------------
   void account_base::forget_spend_key()
   {
     m_keys.m_spend_secret_key = crypto::secret_key();
     m_keys.m_multisig_keys.clear();
+  }
+  //-----------------------------------------------------------------
+  static uint64_t creation_timestamp(bool use_genesis_timestamp)
+  {
+    uint64_t result = 0;
+    if (use_genesis_timestamp)
+    {
+      tm timestamp      = {};
+      timestamp.tm_year = 2018 - 1900; // 2018-05-03
+      timestamp.tm_mon  = 5 - 1;
+      timestamp.tm_mday = 1;
+
+      result = mktime(&timestamp);
+      if (result == (uint64_t)-1) // failure
+        result = 0;               // lowest value
+    }
+    else
+    {
+      result = time(NULL);
+    }
+
+    return result;
   }
   //-----------------------------------------------------------------
   crypto::secret_key account_base::generate(const crypto::secret_key& recovery_key, bool recover, bool two_random)
@@ -153,25 +186,7 @@ DISABLE_VS_WARNINGS(4244 4345)
     keccak((uint8_t *)&m_keys.m_spend_secret_key, sizeof(crypto::secret_key), (uint8_t *)&second, sizeof(crypto::secret_key));
 
     generate_keys(m_keys.m_account_address.m_view_public_key, m_keys.m_view_secret_key, second, two_random ? false : true);
-
-    struct tm timestamp = {0};
-    timestamp.tm_year = 2014 - 1900;  // year 2014
-    timestamp.tm_mon = 6 - 1;  // month june
-    timestamp.tm_mday = 8;  // 8th of june
-    timestamp.tm_hour = 0;
-    timestamp.tm_min = 0;
-    timestamp.tm_sec = 0;
-
-    if (recover)
-    {
-      m_creation_timestamp = mktime(&timestamp);
-      if (m_creation_timestamp == (uint64_t)-1) // failure
-        m_creation_timestamp = 0; // lowest value
-    }
-    else
-    {
-      m_creation_timestamp = time(NULL);
-    }
+    m_creation_timestamp = creation_timestamp(recover /*use_genesis_timestamp*/);
     return first;
   }
   //-----------------------------------------------------------------
@@ -180,18 +195,7 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_keys.m_account_address = address;
     m_keys.m_spend_secret_key = spendkey;
     m_keys.m_view_secret_key = viewkey;
-
-    struct tm timestamp = {0};
-    timestamp.tm_year = 2014 - 1900;  // year 2014
-    timestamp.tm_mon = 4 - 1;  // month april
-    timestamp.tm_mday = 15;  // 15th of april
-    timestamp.tm_hour = 0;
-    timestamp.tm_min = 0;
-    timestamp.tm_sec = 0;
-
-    m_creation_timestamp = mktime(&timestamp);
-    if (m_creation_timestamp == (uint64_t)-1) // failure
-      m_creation_timestamp = 0; // lowest value
+    m_creation_timestamp = creation_timestamp(true /*use_genesis_timestamp*/);
   }
 
   //-----------------------------------------------------------------
@@ -205,22 +209,17 @@ DISABLE_VS_WARNINGS(4244 4345)
   void account_base::create_from_device(hw::device &hwdev)
   {
     m_keys.set_device(hwdev);
-    MCDEBUG("ledger", "device type: "<<typeid(hwdev).name());
-    hwdev.init();
-    hwdev.connect();
-    hwdev.get_public_address(m_keys.m_account_address);
-    hwdev.get_secret_keys(m_keys.m_view_secret_key, m_keys.m_spend_secret_key);
-    struct tm timestamp = {0};
-    timestamp.tm_year = 2014 - 1900;  // year 2014
-    timestamp.tm_mon = 4 - 1;  // month april
-    timestamp.tm_mday = 15;  // 15th of april
-    timestamp.tm_hour = 0;
-    timestamp.tm_min = 0;
-    timestamp.tm_sec = 0;
-
-    m_creation_timestamp = mktime(&timestamp);
-    if (m_creation_timestamp == (uint64_t)-1) // failure
-      m_creation_timestamp = 0; // lowest value
+    MCDEBUG("device", "device type: "<<typeid(hwdev).name());
+    CHECK_AND_ASSERT_THROW_MES(hwdev.init(), "Device init failed");
+    CHECK_AND_ASSERT_THROW_MES(hwdev.connect(), "Device connect failed");
+    try {
+      CHECK_AND_ASSERT_THROW_MES(hwdev.get_public_address(m_keys.m_account_address), "Cannot get a device address");
+      CHECK_AND_ASSERT_THROW_MES(hwdev.get_secret_keys(m_keys.m_view_secret_key, m_keys.m_spend_secret_key), "Cannot get device secret");
+    } catch (const std::exception &e){
+      hwdev.disconnect();
+      throw;
+    }
+    m_creation_timestamp = creation_timestamp(true /*use_genesis_timestamp*/);
   }
 
   //-----------------------------------------------------------------

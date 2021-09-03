@@ -32,6 +32,7 @@
 
 #ifdef __cplusplus
 #include <array>
+#include "span.h"
 
 extern "C" {
 #endif
@@ -59,7 +60,7 @@ namespace tools {
 
     /// Destroy the contents of the contained type.
     void scrub() {
-      static_assert(std::is_pod<T>::value,
+      static_assert(std::is_trivially_copyable<T>::value,
                     "T cannot be auto-scrubbed. T must be POD.");
       static_assert(std::is_trivially_destructible<T>::value,
                     "T cannot be auto-scrubbed. T must be trivially destructable.");
@@ -76,5 +77,9 @@ namespace tools {
   template <class T, size_t N>
   using scrubbed_arr = scrubbed<std::array<T, N>>;
 } // namespace tools
+
+namespace epee {
+  template <typename T> constexpr bool is_byte_spannable<tools::scrubbed<T>> = is_byte_spannable<T>;
+}
 
 #endif // __cplusplus

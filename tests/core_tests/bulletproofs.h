@@ -33,6 +33,7 @@
 
 struct gen_bp_tx_validation_base : public test_chain_unit_base
 {
+  static const int NUM_UNLOCKED_BLOCKS = 48;
   gen_bp_tx_validation_base()
     : m_invalid_tx_index(0)
     , m_invalid_block_index(0)
@@ -49,7 +50,7 @@ struct gen_bp_tx_validation_base : public test_chain_unit_base
       return !tvc.m_verifivation_failed && tx_added;
   }
 
-  bool check_tx_verification_context(const std::vector<cryptonote::tx_verification_context>& tvcs, size_t tx_added, size_t event_idx, const std::vector<cryptonote::transaction>& /*txs*/)
+  bool check_tx_verification_context_array(const std::vector<cryptonote::tx_verification_context>& tvcs, size_t tx_added, size_t event_idx, const std::vector<cryptonote::transaction>& /*txs*/)
   {
     size_t failed = 0;
     for (const cryptonote::tx_verification_context &tvc: tvcs)
@@ -81,8 +82,8 @@ struct gen_bp_tx_validation_base : public test_chain_unit_base
     return true;
   }
 
-  bool generate_with(std::vector<test_event_entry>& events, size_t mixin,
-      size_t n_txes, const uint64_t *amounts_paid, bool valid, const rct::RangeProofType *range_proof_type,
+  bool generate_with(std::vector<test_event_entry>& events,
+      size_t n_txes, const uint64_t *amounts_paid, bool valid, const rct::RCTConfig *rct_config,
       const std::function<bool(std::vector<cryptonote::tx_source_entry> &sources, std::vector<cryptonote::tx_destination_entry> &destinations, size_t)> &pre_tx,
       const std::function<bool(cryptonote::transaction &tx, size_t)> &post_tx) const;
 
@@ -93,15 +94,6 @@ private:
   size_t m_invalid_block_index;
 };
 
-template<>
-struct get_test_options<gen_bp_tx_validation_base> {
-  const std::pair<uint8_t, uint64_t> hard_forks[4] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(14, 73), std::make_pair(0, 0)};
-  const cryptonote::test_options test_options = {
-    hard_forks
-  };
-};
-
-// valid
 struct gen_bp_tx_valid_1 : public gen_bp_tx_validation_base
 {
   bool generate(std::vector<test_event_entry>& events) const;

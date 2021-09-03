@@ -140,4 +140,3 @@ RUN cd /src \
        ANDROID_STANDALONE_TOOLCHAIN_PATH=${TOOLCHAIN_DIR} \
        USE_SINGLE_BUILDDIR=1 \
        PATH=${HOST_PATH} make release-static-android-armv8 -j${NPROC}
-

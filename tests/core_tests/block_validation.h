@@ -53,7 +53,7 @@ public:
     DEFINE_TESTS_ERROR_CONTEXT("gen_block_verification_base::check_block_purged");
 
     CHECK_TEST_CONDITION(invalid_block_idx < ev_index);
-    CHECK_EQ(0, c.get_pool_transactions_count());
+    CHECK_EQ(0, c.get_pool().get_transactions_count());
     CHECK_EQ(invalid_block_idx, c.get_current_blockchain_height());
 
     return true;
@@ -72,7 +72,7 @@ struct gen_block_accepted_base : public test_chain_unit_base
   {
     DEFINE_TESTS_ERROR_CONTEXT("gen_block_accepted_base::check_block_accepted");
 
-    CHECK_EQ(0, c.get_pool_transactions_count());
+    CHECK_EQ(0, c.get_pool().get_transactions_count());
     CHECK_EQ(expected_blockchain_height, c.get_current_blockchain_height());
 
     return true;
@@ -110,7 +110,7 @@ struct gen_block_invalid_prev_id : public gen_block_verification_base<1>
   bool check_block_verification_context(const cryptonote::block_verification_context& bvc, size_t event_idx, const cryptonote::block& /*blk*/);
 };
 
-struct gen_block_invalid_nonce : public gen_block_verification_base<3>
+struct gen_block_invalid_nonce : public gen_block_verification_base<5>
 {
   bool generate(std::vector<test_event_entry>& events) const;
 };
@@ -155,17 +155,12 @@ struct gen_block_miner_tx_has_2_tx_gen_in : public gen_block_verification_base<1
   bool generate(std::vector<test_event_entry>& events) const;
 };
 
-struct gen_block_miner_tx_has_2_in : public gen_block_verification_base<CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW + 1>
+struct gen_block_miner_tx_has_2_in : public gen_block_verification_base<CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW + 11>
 {
   bool generate(std::vector<test_event_entry>& events) const;
 };
 
 struct gen_block_miner_tx_with_txin_to_key : public gen_block_verification_base<CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW + 2>
-{
-  bool generate(std::vector<test_event_entry>& events) const;
-};
-
-struct gen_block_miner_tx_out_is_small : public gen_block_verification_base<1>
 {
   bool generate(std::vector<test_event_entry>& events) const;
 };
@@ -197,12 +192,5 @@ struct gen_block_is_too_big : public gen_block_verification_base<1>
 
 struct gen_block_invalid_binary_format : public test_chain_unit_base
 {
-  gen_block_invalid_binary_format();
   bool generate(std::vector<test_event_entry>& events) const;
-  bool check_block_verification_context(const cryptonote::block_verification_context& bvc, size_t event_idx, const cryptonote::block& /*blk*/);
-  bool check_all_blocks_purged(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
-  bool corrupt_blocks_boundary(cryptonote::core& c, size_t ev_index, const std::vector<test_event_entry>& events);
-
-private:
-  size_t m_corrupt_blocks_begin_idx;
 };

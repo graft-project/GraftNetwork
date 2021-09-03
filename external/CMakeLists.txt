@@ -35,46 +35,85 @@
 # ...except for FreeBSD, because FreeBSD is a special case that doesn't play well with
 # others.
 
-find_package(Miniupnpc REQUIRED)
+find_package(PkgConfig REQUIRED)
 
-message(STATUS "Using in-tree miniupnpc")
-add_subdirectory(miniupnp/miniupnpc)
-set_property(TARGET libminiupnpc-static PROPERTY FOLDER "external")
-if(MSVC)
-  set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -wd4244 -wd4267")
-elseif(NOT MSVC)
-  set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -Wno-undef -Wno-unused-result -Wno-unused-value")
-endif()
-if(CMAKE_SYSTEM_NAME MATCHES "NetBSD")
-	set_property(TARGET libminiupnpc-static APPEND_STRING PROPERTY COMPILE_FLAGS " -D_NETBSD_SOURCE")
+if(NOT STATIC)
+  pkg_check_modules(MINIUPNPC miniupnpc>=2.1)
+  pkg_check_modules(UNBOUND libunbound)
+  pkg_check_modules(LOKIMQ liblokimq>=1.1.4)
 endif()
 
-set(UPNP_LIBRARIES "libminiupnpc-static" PARENT_SCOPE)
+if(MINIUPNPC_FOUND)
+  message(STATUS "Found miniupnpc")
+  link_dep_libs(miniupnpc INTERFACE "${MINIUPNPC_LIBRARY_DIRS}" ${MINIUPNPC_LIBRARIES})
+  target_include_directories(miniupnpc INTERFACE ${MINIUPNPC_INCLUDE_DIRS})
+else()
+  message(STATUS "Using in-tree miniupnpc")
+  add_subdirectory(miniupnp/miniupnpc)
+  if(MSVC)
+    target_compile_options(libminiupnpc-static PRIVATE -wd4244 -wd4267)
+  else()
+    target_compile_options(libminiupnpc-static PRIVATE -Wno-undef -Wno-unused-result -Wno-unused-value)
+  endif()
+  if(CMAKE_SYSTEM_NAME MATCHES "NetBSD")
+    target_compile_definitions(libminiupnpc-static PRIVATE _NETBSD_SOURCE)
+  endif()
 
-find_package(Unbound)
+  target_link_libraries(miniupnpc INTERFACE libminiupnpc-static)
+endif()
 
-if(NOT UNBOUND_INCLUDE_DIR OR STATIC)
+
+if(NOT UNBOUND_FOUND)
   # NOTE: If STATIC is true, CMAKE_FIND_LIBRARY_SUFFIXES has been reordered.
   # unbound has config tests which used OpenSSL libraries, so -ldl may need to
   # be set in this case.
   # The unbound CMakeLists.txt can set it, since it's also needed for the
   # static OpenSSL libraries set up there after with target_link_libraries.
+  message(STATUS "Using in-tree unbound")
+  if(STATIC AND NOT IOS)
+    if(UNIX)
+      set(OPENSSL_LIBRARIES "${OPENSSL_LIBRARIES};${CMAKE_DL_LIBS};${CMAKE_THREAD_LIBS_INIT}")
+    elseif(MINGW)
+      set(OPENSSL_LIBRARIES "${OPENSSL_LIBRARIES};extra")
+    endif()
+  endif()
   add_subdirectory(unbound)
-
-  set(UNBOUND_STATIC true PARENT_SCOPE)
-  set(UNBOUND_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/unbound/libunbound" PARENT_SCOPE)
-  set(UNBOUND_LIBRARY "unbound" PARENT_SCOPE)
-  set(UNBOUND_LIBRARY_DIRS "${LIBEVENT2_LIBDIR}" PARENT_SCOPE)
+  target_link_libraries(libunbound INTERFACE unbound)
+  target_include_directories(libunbound INTERFACE unbound/libunbound)
 else()
-  message(STATUS "Found libunbound include (unbound.h) in ${UNBOUND_INCLUDE_DIR}")
-  if(UNBOUND_LIBRARIES)
-    message(STATUS "Found libunbound shared library")
-    set(UNBOUND_STATIC false PARENT_SCOPE)
-    set(UNBOUND_INCLUDE ${UNBOUND_INCLUDE_DIR} PARENT_SCOPE)
-    set(UNBOUND_LIBRARY ${UNBOUND_LIBRARIES} PARENT_SCOPE)
-    set(UNBOUND_LIBRARY_DIRS "" PARENT_SCOPE)
-  else()
-    die("Found libunbound includes, but could not find libunbound library. Please make sure you have installed libunbound or libunbound-dev or the equivalent")
+  message(STATUS "Found libunbound include (unbound.h) in ${UNBOUND_INCLUDE_DIRS}")
+  if(NOT UNBOUND_LIBRARIES)
+    message(FATAL_ERROR "Found libunbound includes, but could not find libunbound library. Please make sure you have installed libunbound or libunbound-dev or the equivalent")
+  endif()
+
+  link_dep_libs(libunbound INTERFACE "${UNBOUND_LIBRARY_DIRS}" ${UNBOUND_LIBRARIES})
+  target_include_directories(libunbound INTERFACE ${UNBOUND_INCLUDE_DIRS})
+endif()
+
+if(NOT LOKIMQ_FOUND)
+  message(STATUS "Using in-tree lokimq")
+  if (DEPENDS)
+    # The depends system builds a static libzmq so set up a target loki-mq can use to avoid building
+    add_library(libzmq STATIC IMPORTED GLOBAL)
+    set_target_properties(libzmq PROPERTIES IMPORTED_LOCATION ${ZMQ_LIBRARIES})
+    target_link_libraries(libzmq INTERFACE sodium)
+    target_include_directories(libzmq INTERFACE ${ZMQ_INCLUDE_DIRS})
+    message(STATUS "${ZMQ_INCLUDE_DIRS} ${ZMQ_LIBRARIES}")
+  endif()
+  add_subdirectory(loki-mq)
+else()
+  add_library(lokimq INTERFACE)
+  link_dep_libs(lokimq INTERFACE "${LOKIMQ_LIBRARY_DIRS}" ${LOKIMQ_LIBRARIES})
+  target_include_directories(lokimq INTERFACE ${LOKIMQ_INCLUDE_DIRS})
+  add_library(lokimq::lokimq ALIAS lokimq)
+  message(STATUS "Found liblokimq ${LOKIMQ_VERSION}")
+
+  # TODO: Temporary fix for also linking libzmq; this can go when the direct zmq code (for zmq
+  # server) gets replaced with lokimq.
+  pkg_check_modules(LIBZMQ libzmq)
+  if (LIBZMQ_FOUND)
+    link_dep_libs(lokimq INTERFACE "${LIBZMQ_LIBRARY_DIRS}" ${LIBZMQ_LIBRARIES})
+    target_include_directories(lokimq INTERFACE ${LIBZMQ_INCLUDE_DIRS})
   endif()
 endif()
 
