@@ -89,7 +89,6 @@ function(combine_archives output_archive)
                        COMMAND ar -M < ${mri_file})
 endfunction(combine_archives)
 
->>>>>>> v7.1.10
 # build and install libwallet_merged only if we building for GUI
 if (BUILD_GUI_DEPS AND STATIC)
     combine_archives(wallet_merged

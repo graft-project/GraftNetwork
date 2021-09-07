@@ -268,7 +268,6 @@ endif()
 
 # set this to 0 if per-block checkpoint needs to be disabled
 
-# set this to 0 if per-block checkpoint needs to be disabled
 option(PER_BLOCK_CHECKPOINT "Enables per-block checkpointing" ON)
 
 list(INSERT CMAKE_MODULE_PATH 0
@@ -477,6 +476,16 @@ else()
   include(DownloadLibSodium)
   target_link_libraries(sodium INTERFACE sodium_vendor)
 endif()
+
+export(TARGETS sodium NAMESPACE sodium:: FILE sodium-exports.cmake)
+install(TARGETS sodium EXPORT sodiumConfig DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+add_subdirectory(external)
+
+target_compile_definitions(easylogging PRIVATE AUTO_INITIALIZE_EASYLOGGINGPP)
+
+# Trezor support check
+include(CheckTrezor)
 
 if(MSVC)
   add_definitions("/bigobj /MP /W3 /GS- /D_CRT_SECURE_NO_WARNINGS /wd4996 /wd4345 /D_WIN32_WINNT=0x0600 /DWIN32_LEAN_AND_MEAN /DGTEST_HAS_TR1_TUPLE=0 /FIinline_c.h /D__SSE4_1__")
@@ -903,6 +912,8 @@ endif()
 if (WIN32)
   target_link_libraries(extra INTERFACE setupapi)
 endif()
+
+add_library(readline INTERFACE)
 
 if (BUILD_INTEGRATION)
   target_compile_definitions(extra INTERFACE LOKI_ENABLE_INTEGRATION_TEST_HOOKS)

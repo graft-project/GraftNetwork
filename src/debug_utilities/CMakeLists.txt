@@ -42,3 +42,8 @@ loki_add_executable(object_sizes "graft-utils-object-sizes"
   )
 
 target_link_libraries(object_sizes
+  PRIVATE
+    lmdb
+    p2p
+    extra
+    )
