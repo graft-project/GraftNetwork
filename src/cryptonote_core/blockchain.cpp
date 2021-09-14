@@ -131,8 +131,8 @@ static const struct {
   { 16, 412780, 0, 1565622000 },
   // hf 17 RandomX PoW, 2021-08-18T@12:00:00+00
   { 17, 936150, 0, 1629288000 },
-  // hf 18 reduce block reward, 2021-09-09@00:00:00+00
-  { 18, 952260, 0, 1631145600 }
+  // hf 18 reduce block reward, 2021-09-21@12:00:00+00
+  { 18, 960490, 0, 1632225600 }
 };
 // static const uint64_t mainnet_hard_fork_version_1_till = 1009826;
 static const uint64_t mainnet_hard_fork_version_1_till = 1;
@@ -178,7 +178,9 @@ static const struct {
   // hf 16 increase stake period to 32 days, 2019-08-05T@09:00:00+00
   { 16, 381520, 0, 1564995600 },
   // hf 17 RandomX PoW, 2021-07-29T@08:30:00+00
-  { 17, 421865, 0, 1627547400 }
+  { 17, 421865, 0, 1627547400 },
+  // hf 18 quartered block reward, 2021-09-17@12:00:00+00
+  { 18, 457790, 0, 1631880000 }
 };
 
 // static const uint64_t testnet_hard_fork_version_1_till = 624633;
