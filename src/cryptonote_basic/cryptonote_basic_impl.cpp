@@ -85,6 +85,19 @@ namespace cryptonote {
   {
     return CRYPTONOTE_MAX_TX_SIZE;
   }
+  
+  uint64_t get_adjusted_block_reward(uint64_t reward_in, uint8_t hf_version)
+  {
+    uint64_t reward = reward_in;
+    if (hf_version >= 10) {
+      // halving reward since version 10
+      reward /= 2;
+      if (hf_version >= 18)
+        // quartering reward since version 18
+        reward /= 4;
+    }
+    return reward;
+  }
   //-----------------------------------------------------------------------------------------------
   bool get_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint8_t version) {
     static_assert(DIFFICULTY_TARGET_V2%60==0&&DIFFICULTY_TARGET_V1%60==0,"difficulty targets must be a multiple of 60");
@@ -113,11 +126,7 @@ namespace cryptonote {
     }
 
     if (current_block_weight <= median_weight) {
-      reward = base_reward;
-      if (version >= 10) {
-          // halving reward since version 10
-          reward /= 2;
-      }
+      reward = get_adjusted_block_reward(base_reward, version);
       return true;
     }
 
@@ -142,14 +151,7 @@ namespace cryptonote {
     div128_32(reward_hi, reward_lo, static_cast<uint32_t>(median_weight), &reward_hi, &reward_lo);
     assert(0 == reward_hi);
     assert(reward_lo < base_reward);
-
-    reward = reward_lo;
-    if (version >= 18) { 
-        // halving reward since version 10
-        reward /= 2;
-        // quartering reward since version 18
-        reward /= 4;
-    }
+    reward = get_adjusted_block_reward(reward_lo, version);
     return true;
   }
   //------------------------------------------------------------------------------------
