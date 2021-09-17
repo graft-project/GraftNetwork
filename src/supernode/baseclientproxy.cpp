@@ -27,6 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "cryptonote_basic/cryptonote_basic.h"
+#include "cryptonote_core/cryptonote_tx_utils.h"
 #include "mnemonics/electrum-words.h"
 #include "common/command_line.h"
 #include "wallet/wallet_errors.h"
@@ -65,7 +66,7 @@ void fill_transfer_entry(tools::GraftWallet * wallet, tools::wallet_rpc::transfe
   entry.unlock_time = pd.m_unlock_time;
   entry.fee = pd.m_fee;
   entry.note = wallet->get_tx_note(pd.m_tx_hash);
-  entry.type = pd.m_coinbase ? "block" : "in";
+  entry.type = pay_type_string(pd.m_type);
   entry.subaddr_index = pd.m_subaddr_index;
   entry.address = wallet->get_subaddress_as_str(pd.m_subaddr_index);
   set_confirmations(entry, wallet->get_blockchain_current_height(), wallet->get_last_block_reward());
@@ -86,8 +87,8 @@ void fill_transfer_entry(tools::GraftWallet * wallet, tools::wallet_rpc::transfe
   entry.note = wallet->get_tx_note(txid);
 
   for (const auto &d: pd.m_dests) {
-    entry.destinations.push_back(tools::wallet_rpc::transfer_destination());
-    tools::wallet_rpc::transfer_destination &td = entry.destinations.back();
+    entry.destinations.push_back(tools::transfer_destination());
+    tools::transfer_destination &td = entry.destinations.back();
     td.amount = d.amount;
     td.address = get_account_address_as_str(wallet->nettype(), d.is_subaddress, d.addr);
   }
@@ -369,8 +370,8 @@ bool supernode::BaseClientProxy::RestoreAccount(const supernode::rpc_command::RE
 
 bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GET_TRANSFER_FEE::request &in, supernode::rpc_command::GET_TRANSFER_FEE::response &out)
 {
-    std::unique_ptr<tools::GraftWallet> wal = initWallet(base64_decode(in.Account), in.Password, false);
-    if (!wal)
+    std::unique_ptr<tools::GraftWallet> wallet = initWallet(base64_decode(in.Account), in.Password, false);
+    if (!wallet)
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
@@ -386,7 +387,7 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
     iss >> amount;
 
     // validate the transfer requested and populate dsts & extra
-    if (!validate_transfer(wal.get(), in.Address, amount, payment_id, dsts, extra))
+    if (!validate_transfer(wallet.get(), in.Address, amount, payment_id, dsts, extra))
     {
         out.Result = ERROR_OPEN_WALLET_FAILED;
         return false;
@@ -394,13 +395,15 @@ bool supernode::BaseClientProxy::GetTransferFee(const supernode::rpc_command::GE
 
     try
     {
-        uint64_t mixin = wal->adjust_mixin(6);
+        uint64_t mixin = CRYPTONOTE_DEFAULT_TX_MIXIN;
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
         uint32_t subaddr_count = 0;
         std::set<uint32_t> subaddr_indices;
+        boost::optional<uint8_t> hf_version = wallet->get_hard_fork_version();
+        cryptonote::loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, cryptonote::txtype::standard, priority);
         std::vector<tools::GraftWallet::pending_tx> ptx_vector =
-                wal->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_count, subaddr_indices, false);
+                wallet->create_transactions_2(dsts, mixin, unlock_time, priority, extra, subaddr_count, subaddr_indices, tx_params);
 
         uint64_t fees = 0;
         for (const auto ptx : ptx_vector)
@@ -598,15 +601,17 @@ int supernode::BaseClientProxy::create_transfer(tools::GraftWallet *wallet, cons
 
     try
     {
-        uint64_t mixin = wallet->adjust_mixin(6);
+        uint64_t mixin = CRYPTONOTE_DEFAULT_TX_MIXIN;
         uint64_t unlock_time = 0;
         uint64_t priority = 0;
         bool do_not_relay = false;
         uint32_t subaddr_count = 0;
         std::set<uint32_t> subaddr_indices;
+        boost::optional<uint8_t> hf_version = wallet->get_hard_fork_version();
+        cryptonote::loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, cryptonote::txtype::standard, priority);
         std::vector<tools::GraftWallet::pending_tx> ptx_vector =
                 wallet->create_transactions_2(dsts, mixin, unlock_time, priority, extra,
-                                              subaddr_count, subaddr_indices, false);
+                                              subaddr_count, subaddr_indices, tx_params);
 
         if (!do_not_relay && ptx_vector.size() > 0)
         {

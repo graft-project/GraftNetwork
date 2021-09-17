@@ -44,7 +44,8 @@ target_link_libraries(simplewallet
     Boost::regex
     icu
     Boost::thread
-    extra)
+    extra
+    utils)
 
 if (WIN32)
     target_link_libraries(simplewallet PRIVATE Boost::locale)

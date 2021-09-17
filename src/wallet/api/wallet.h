@@ -166,9 +166,11 @@ public:
                                         uint32_t priority = 0,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
+    
     PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
-                                           bool rtaTransaction = true,
-                                           PendingTransaction::Priority = PendingTransaction::Priority_Low) override;
+                                                   bool rtaTransaction = false,
+                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low) override;
+
     virtual PendingTransaction * createSweepUnmixableTransaction() override;
     bool submitTransaction(const std::string &fileName) override;
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename) override;

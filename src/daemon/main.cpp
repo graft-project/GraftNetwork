@@ -251,6 +251,14 @@ int main(int argc, char const * argv[])
     bf::path relative_path_base = data_dir;
 
     po::notify(vm);
+    
+    // Set log format
+    std::string format;
+    if (!vm["log-format"].defaulted())
+    {
+      format = command_line::get_arg(vm, daemon_args::arg_log_format).c_str();
+    }
+    
 
     // log_file_path
     //   default: <data_dir>/<CRYPTONOTE_NAME>.log
@@ -262,7 +270,11 @@ int main(int argc, char const * argv[])
       log_file_path = command_line::get_arg(vm, daemon_args::arg_log_file);
     if (!log_file_path.has_parent_path())
       log_file_path = bf::absolute(log_file_path, relative_path_base);
-    mlog_configure(log_file_path.string(), true, command_line::get_arg(vm, daemon_args::arg_max_log_file_size), command_line::get_arg(vm, daemon_args::arg_max_log_files));
+    mlog_configure(log_file_path.string(), 
+                   true,
+                   format.c_str(),
+                   command_line::get_arg(vm, daemon_args::arg_max_log_file_size),
+                   command_line::get_arg(vm, daemon_args::arg_max_log_files));
 
     // Set log level
     if (!command_line::is_arg_defaulted(vm, daemon_args::arg_log_level))
@@ -284,8 +296,6 @@ int main(int argc, char const * argv[])
     if (!command_line::is_arg_defaulted(vm, daemon_args::arg_max_concurrency))
       tools::set_max_concurrency(command_line::get_arg(vm, daemon_args::arg_max_concurrency));
 
-    // logging is now set up
-    MGINFO("Loki '" << LOKI_RELEASE_NAME << "' (v" << LOKI_VERSION_FULL << ")");
 
     // If there are positional options, we're running a daemon command
     {

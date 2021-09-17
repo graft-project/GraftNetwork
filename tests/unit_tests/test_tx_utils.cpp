@@ -241,7 +241,7 @@ TEST(parse_tx_extra, handles_graft_tx_extra)
 #if 0
 TEST(parse_tx_extra, handles_graft_tx_extra_and_pubkey)
 {
-    cryptonote::transaction tx = AUTO_VAL_INIT(tx);
+  cryptonote::transaction tx {};
     cryptonote::account_base acc;
     acc.generate();
     cryptonote::blobdata b = "dsdsdfsdfsf";
@@ -265,7 +265,7 @@ TEST(parse_tx_extra, handles_graft_tx_extra_and_pubkey)
 
 TEST(parse_tx_extra, handles_rta_header)
 {
-    cryptonote::transaction tx = AUTO_VAL_INIT(tx);
+  cryptonote::transaction tx = {};
     cryptonote::account_base acc;
     acc.generate();
     cryptonote::blobdata b = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -289,7 +289,7 @@ TEST(parse_tx_extra, handles_rta_header)
 
 TEST(parse_tx_extra, handles_rta_signatures)
 {
-    cryptonote::transaction tx = AUTO_VAL_INIT(tx);
+  cryptonote::transaction tx = {};
     cryptonote::account_base acc;
     acc.generate();
 

@@ -31,6 +31,7 @@
 #define FSN_SERVANTBASE_H_H_H_
 
 #include "supernode_common_struct.h"
+#include <boost/thread/recursive_mutex.hpp>
 
 namespace supernode {
 	class FSN_ServantBase {

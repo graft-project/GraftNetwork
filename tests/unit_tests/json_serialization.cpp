@@ -90,7 +90,7 @@ namespace
         subaddresses[from.m_account_address.m_spend_public_key] = {0,0};
 
         cryptonote::loki_construct_tx_params tx_params;
-        tx_params.hf_version = cryptonote::network_version_10_bulletproofs - 1;
+        tx_params.hf_version = cryptonote::network_version_14_bulletproofs - 1;
         if (bulletproof) tx_params.hf_version = cryptonote::network_version_count - 1;
         if (!cryptonote::construct_tx_and_get_tx_key(from, subaddresses, actual_sources, to, boost::none, {}, tx, 0, tx_key, extra_keys, { bulletproof ? rct::RangeProofBulletproof : rct::RangeProofBorromean, bulletproof ? 2 : 0 }, nullptr, tx_params))
             throw std::runtime_error{"transaction construction error"};

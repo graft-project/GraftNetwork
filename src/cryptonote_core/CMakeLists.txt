@@ -40,7 +40,11 @@ add_library(cryptonote_core
   tx_pool.cpp
   tx_sanity_check.cpp
   miner.cpp
-  cryptonote_tx_utils.cpp)
+  cryptonote_tx_utils.cpp
+  stake_transaction_processor.cpp
+  stake_transaction_storage.cpp
+  blockchain_based_list.cpp
+  )
 
 target_link_libraries(cryptonote_core
   PUBLIC

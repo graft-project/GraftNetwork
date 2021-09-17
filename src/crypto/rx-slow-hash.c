@@ -249,8 +249,12 @@ void rx_slow_hash(const uint64_t mainheight, const uint64_t seedheight, const ch
       is_alt = 0;
   } else {
   /* RPC could request an earlier block on mainchain */
-  if (!is_alt && s_height > seedheight)
-    is_alt = 1;
+    if (s_height > seedheight)
+      is_alt = 1;
+    /* miner can be ahead of mainchain */
+    else if (s_height < seedheight)
+      toggle ^= 1;
+  }
 
   toggle ^= (is_alt != 0);
 

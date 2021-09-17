@@ -59,6 +59,15 @@ Wallet *WalletManagerImpl::createWallet(const std::string &path, const std::stri
     return wallet;
 }
 
+Wallet *WalletManagerImpl::createNewWallet(const std::string &password, const std::string &language,
+                                           bool testnet)
+{
+    WalletImpl * wallet = new WalletImpl(testnet ? NetworkType::TESTNET : NetworkType::MAINNET);
+    wallet->create(password, language);
+    return wallet;
+}
+
+
 Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds, WalletListener * listener)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
@@ -379,7 +388,7 @@ std::tuple<bool, std::string, std::string, std::string, std::string> WalletManag
     if (!tools::check_updates(software, buildtag, version, hash))
       return std::make_tuple(false, "", "", "", "");
 
-    if (tools::vercmp(version.c_str(), GRAFT_VERSION) > 0)
+    if (tools::vercmp(version.c_str(), GRAFT_VERSION_STR) > 0)
     {
       std::string user_url = tools::get_update_url(software, subdir, buildtag, version, true);
       std::string auto_url = tools::get_update_url(software, subdir, buildtag, version, false);

@@ -32,6 +32,7 @@
 
 #include "FSN_ServantBase.h"
 #include <cryptonote_core/cryptonote_core.h>
+#include "cryptonote_core/service_node_list.h"
 #include <wallet/api/wallet2_api.h>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/lock_guard.hpp>
@@ -45,8 +46,8 @@ class FSN_Servant : public FSN_ServantBase
 public:
 
     // TODO: remove it;
-    FSN_Servant();
-    FSN_Servant(const FSN_Servant &other);
+    FSN_Servant() = delete;
+    FSN_Servant(const FSN_Servant &other) = delete;
     /*!
      * \brief FSN_Servant - ctor
      * \param bdb_path    - path to blockchain db
@@ -137,9 +138,12 @@ private:
 private:
     // directory where view-only wallets for other FSNs will be stored
     std::string                  m_fsnWalletsDir;
-    cryptonote::BlockchainDB   * m_bdb     = nullptr;
-    cryptonote::Blockchain     * m_bc      = nullptr;
-    cryptonote::tx_memory_pool * m_mempool = nullptr;
+    
+    
+    cryptonote::BlockchainDB    *m_bdb;
+    cryptonote::Blockchain      m_bc;
+    cryptonote::tx_memory_pool  m_mempool;
+    service_nodes::service_node_list m_snl;
 
     mutable Monero::Wallet *m_stakeWallet = nullptr;
     mutable Monero::Wallet *m_minerWallet = nullptr;

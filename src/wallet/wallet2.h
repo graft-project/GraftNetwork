@@ -959,14 +959,14 @@ private:
 
     // locked & unlocked balance of given or current subaddress account
     uint64_t balance(uint32_t subaddr_index_major) const;
-/*  TODO: Graft: remove if not used    
-    uint64_t unlocked_balance(uint32_t subaddr_index_major, uint64_t till_block) const;
+    //  TODO: Graft: remove if not used    
+    // uint64_t unlocked_balance(uint32_t subaddr_index_major, uint64_t till_block) const;
     /*!
      * \brief unspent_balance - like balance(), but only counts transfers for which we have the key image allowing verification of being unspent
      * \return wallet balance in atomic units
      */
     uint64_t unspent_balance() const;
-*/    
+
     uint64_t unlocked_balance(uint32_t subaddr_index_major, uint64_t *blocks_to_unlock = NULL) const;
     // locked & unlocked balance per subaddress of given or current subaddress account
     std::map<uint32_t, uint64_t> balance_per_subaddress(uint32_t subaddr_index_major) const;
@@ -1009,6 +1009,9 @@ private:
 
     bool sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, std::vector<cryptonote::tx_destination_entry> dsts) const;
     void cold_tx_aux_import(const std::vector<pending_tx>& ptx, const std::vector<std::string>& tx_device_aux);
+    void cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> const &dsts_info, std::vector<std::string> & tx_device_aux);
+    uint64_t cold_key_image_sync(uint64_t &spent, uint64_t &unspent);
+    bool parse_multisig_tx_from_str(std::string multisig_tx_st, multisig_tx_set &exported_txs) const;
     bool load_multisig_tx(cryptonote::blobdata blob, multisig_tx_set &exported_txs, std::function<bool(const multisig_tx_set&)> accept_func = NULL);
     bool load_multisig_tx_from_file(const std::string &filename, multisig_tx_set &exported_txs, std::function<bool(const multisig_tx_set&)> accept_func = NULL);
     bool sign_multisig_tx_from_file(const std::string &filename, std::vector<crypto::hash> &txids, std::function<bool(const multisig_tx_set&)> accept_func);
@@ -1602,7 +1605,6 @@ private:
 
 
 
-  private:
     void set_tx_notify(const std::shared_ptr<tools::Notify> &notify) { m_tx_notify = notify; }
     bool get_amount_from_tx(const pending_tx &ptx, uint64_t &amount);
     bool get_amount_from_tx(const cryptonote::transaction &tx, uint64_t &amount);
@@ -1613,8 +1615,8 @@ private:
     void finish_rescan_bc_keep_key_images(uint64_t transfer_height, const crypto::hash &hash);
     void set_offline(bool offline = true);
 
-
     std::atomic<bool> m_long_poll_disabled;
+    
   private:
     /*!
      * \brief  Stores wallet information to wallet file.
@@ -2191,7 +2193,7 @@ namespace boost
         if (ver < 6)
         {
           x.tx_type    = cryptonote::txtype::standard;
-          x.hf_version = cryptonote::network_version_13_enforce_checkpoints;
+          x.hf_version = cryptonote::network_version_21_enforce_checkpoints;
         }
       }
 

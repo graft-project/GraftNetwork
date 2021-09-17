@@ -35,8 +35,8 @@
 #include "net/http_client.h"
 #include "download.h"
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "net.dl"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "net.dl"
 
 namespace tools
 {

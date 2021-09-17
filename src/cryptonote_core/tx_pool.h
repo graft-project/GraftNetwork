@@ -94,7 +94,7 @@ namespace cryptonote
       o.do_not_relay = !approved;
       o.approved_blink = approved;
       o.fee_percent = BLINK_MINER_TX_FEE_PERCENT;
-      o.burn_percent = hf_version <= network_version_14_blink ? BLINK_BURN_TX_FEE_PERCENT_OLD : BLINK_BURN_TX_FEE_PERCENT;
+      o.burn_percent = hf_version <= network_version_22_blink ? BLINK_BURN_TX_FEE_PERCENT_OLD : BLINK_BURN_TX_FEE_PERCENT;
       o.burn_fixed = BLINK_BURN_FIXED;
       return o;
     }

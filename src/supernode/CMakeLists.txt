@@ -82,9 +82,10 @@ set(supernode_private_headers
     TxPool.h
     WorkerPool.h)
 
-monero_private_headers(supernode
-    ${supernode_private_headers})
-monero_add_library(supernode
+#monero_private_headers(supernode
+#    ${supernode_private_headers})
+
+add_library(supernode
     ${supernode_sources}
     ${supernode_api_headers}
     ${supernode_private_headers})
@@ -108,6 +109,7 @@ target_link_libraries(supernode
     ${Boost_REGEX_LIBRARY}
     PRIVATE
     ${EXTRA_LIBRARIES})
+
 add_dependencies(supernode version)
 
 if (NOT BUILD_GUI_DEPS)

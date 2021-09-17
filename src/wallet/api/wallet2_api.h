@@ -85,15 +85,30 @@ struct PendingTransaction
         Status_Critical
     };
 
+    enum Priority {
+        Priority_Default = 0,
+        Priority_Low = 1,
+        Priority_Medium = 2,
+        Priority_High = 3,
+        Priority_Last
+    };
+    
     virtual ~PendingTransaction() = 0;
     virtual int status() const = 0;
     virtual std::string errorString() const = 0;
     // commit transaction or save to file if filename is provided.
     virtual bool commit(const std::string &filename = "", bool overwrite = false, bool blink = false) = 0;
+    /*!
+     * @brief save - serializes transaction to the stream. Can be loaded back with Wallet::loadTransaction
+     * @param oss    stream object to save to
+     * @return       true if saved successfully
+     */
+    virtual bool save(std::ostream &oss) = 0;
     virtual uint64_t amount() const = 0;
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
     virtual std::vector<std::string> txid() const = 0;
+    
     /*!
      * \brief txCount - number of transactions current transaction will be splitted to
      * \return
@@ -861,6 +876,29 @@ struct Wallet
                                                   uint32_t priority                  = 0,
                                                   uint32_t subaddr_account           = 0,
                                                   std::set<uint32_t> subaddr_indices = {}) = 0;
+    
+    
+    
+    // TODO: Graft: deprecate as it only used by Graft UI wallet
+    struct TransactionDestination
+    {
+        std::string address;
+        std::string payment_id;
+        optional<uint64_t> amount;
+    };
+
+     /*!
+     * \brief createTransaction creates transaction. if dst_addr is an integrated address, payment_id is ignored
+     * \param destinations      destinations vector
+     * \param mixin_count       mixin count. if 0 passed, wallet will use default value
+     * \param priority
+      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
+      *                          after object returned
+      */
+    virtual PendingTransaction * createTransaction(const std::vector<TransactionDestination> &destinations, uint32_t mixin_count,
+                                                   bool rtaTransaction = false,
+                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
+    
 
     /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.

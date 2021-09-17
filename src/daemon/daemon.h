@@ -30,8 +30,8 @@
 #pragma once
 #include <boost/program_options.hpp>
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "daemon"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize {
 

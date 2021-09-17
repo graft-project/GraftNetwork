@@ -158,7 +158,7 @@ namespace tools
         MAP_JON_RPC_WE("set_log_categories", on_set_log_categories, wallet_rpc::COMMAND_RPC_SET_LOG_CATEGORIES)
         MAP_JON_RPC_WE("get_version",        on_get_version,        wallet_rpc::COMMAND_RPC_GET_VERSION)
         // TODO: Graft: remove
-        MAP_JON_RPC_WE("transfer_rta",       on_transfer_rta,      wallet_rpc::COMMAND_RPC_TRANSFER_RTA)
+        // MAP_JON_RPC_WE("transfer_rta",       on_transfer_rta,      wallet_rpc::COMMAND_RPC_TRANSFER_RTA)
 
         //
         // Loki
@@ -177,7 +177,7 @@ namespace tools
     END_URI_MAP2()
 
       //json_rpc
-      bool on_transfer_rta(const wallet_rpc::COMMAND_RPC_TRANSFER_RTA::request& req, wallet_rpc::COMMAND_RPC_TRANSFER_RTA::response& res, epee::json_rpc::error& er);
+      // bool on_transfer_rta(const wallet_rpc::COMMAND_RPC_TRANSFER_RTA::request& req, wallet_rpc::COMMAND_RPC_TRANSFER_RTA::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
       
       bool on_getbalance(const wallet_rpc::COMMAND_RPC_GET_BALANCE::request& req, wallet_rpc::COMMAND_RPC_GET_BALANCE::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);
       bool on_getaddress(const wallet_rpc::COMMAND_RPC_GET_ADDRESS::request& req, wallet_rpc::COMMAND_RPC_GET_ADDRESS::response& res, epee::json_rpc::error& er, const connection_context *ctx = NULL);

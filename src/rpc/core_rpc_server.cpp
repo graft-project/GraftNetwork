@@ -93,7 +93,7 @@ namespace cryptonote
   // TODO: move to some utils/helpers library
   bool validate_wallet(const std::string &wallet_addr, bool testnet)
   {
-    cryptonote::address_parse_info acc = AUTO_VAL_INIT(acc);
+    cryptonote::address_parse_info acc {};
     return wallet_addr.size() && cryptonote::get_account_address_from_str(acc, testnet ? cryptonote::TESTNET : cryptonote::MAINNET, wallet_addr);
   }
   //-----------------------------------------------------------------------------------
@@ -280,7 +280,7 @@ namespace cryptonote
     if (restricted)
       res.database_size = round_up(res.database_size, 5ull* 1024 * 1024 * 1024);
     res.update_available = restricted ? false : m_core.is_update_available();
-    res.version = restricted ? std::to_string(LOKI_VERSION[0]) : LOKI_VERSION_STR;
+    res.version = restricted ? std::to_string(GRAFT_VERSION[0]) : GRAFT_VERSION_STR;
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
@@ -1019,8 +1019,8 @@ namespace cryptonote
     const uint8_t major_version = m_core.get_blockchain_storage().get_current_hard_fork_version();
 
     res.pow_algorithm =
-        major_version >= network_version_12_checkpointing    ? "RandomX (LOKI variant)"               :
-        major_version == network_version_11_infinite_staking ? "Cryptonight Turtle Light (Variant 2)" :
+        major_version >= network_version_20_checkpointing    ? "RandomX (LOKI variant)"               :
+        major_version == network_version_19_infinite_staking ? "Cryptonight Turtle Light (Variant 2)" :
                                                                "Cryptonight Heavy (Variant 2)";
 
     if (res.is_background_mining_enabled)
@@ -1381,7 +1381,7 @@ namespace cryptonote
       return false;
     }
 
-    if (b.major_version >= network_version_19_checkpointing)
+    if (b.major_version >= network_version_20_checkpointing)
     {
       uint64_t seed_height, next_height;
       crypto::hash seed_hash;
@@ -2145,16 +2145,16 @@ namespace cryptonote
     if (get_service_nodes_res.service_node_states.empty()) // Started in service node but not staked, no information on the blockchain yet
     {
       res.service_node_state.service_node_pubkey  = std::move(get_service_node_key_res.service_node_pubkey);
-      res.service_node_state.version_major        = LOKI_VERSION[0];
-      res.service_node_state.version_minor        = LOKI_VERSION[1];
-      res.service_node_state.version_patch        = LOKI_VERSION[2];
+      res.service_node_state.version_major        = GRAFT_VERSION[0];
+      res.service_node_state.version_minor        = GRAFT_VERSION[1];
+      res.service_node_state.version_patch        = GRAFT_VERSION[2];
       res.service_node_state.public_ip            = epee::string_tools::get_ip_string_from_int32(m_core.sn_public_ip());
       res.service_node_state.storage_port         = m_core.storage_port();
       res.service_node_state.storage_lmq_port     = m_core.m_storage_lmq_port;
       res.service_node_state.quorumnet_port       = m_core.quorumnet_port();
       res.service_node_state.pubkey_ed25519       = std::move(get_service_node_key_res.service_node_ed25519_pubkey);
       res.service_node_state.pubkey_x25519        = std::move(get_service_node_key_res.service_node_x25519_pubkey);
-      res.service_node_state.service_node_version = LOKI_VERSION;
+      res.service_node_state.service_node_version = GRAFT_VERSION;
     }
     else
     {
@@ -2323,7 +2323,7 @@ namespace cryptonote
       res.status = "Error checking for updates";
       return true;
     }
-    if (tools::vercmp(version.c_str(), GRAFT_VERSION) <= 0)
+    if (tools::vercmp(version.c_str(), GRAFT_VERSION_STR) <= 0)
     {
       res.update = false;
       res.status = CORE_RPC_STATUS_OK;
@@ -2596,46 +2596,53 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request &req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_announce: start");
+#if 0 // TODO: Graft: del
       // send p2p announce
       m_p2p.add_supernode(req.supernode_public_id, req.network_address);
       m_p2p.do_supernode_announce(req);
+#endif      
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_announce: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request &req, COMMAND_RPC_SUPERNODE_GET_STAKES::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: start");
+#if 0 // TODO: Graft: del
       // send p2p stakes
       m_p2p.add_supernode(req.supernode_public_id, req.network_address);
       m_p2p.send_stakes_to_supernode();
+#endif      
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_stakes: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request &req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request &req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: start");
       // send p2p stake txs
+#if 0 // TODO: Graft: del
       m_p2p.add_supernode(req.supernode_public_id, req.network_address);
       m_p2p.send_blockchain_based_list_to_supernode(req.last_received_block_height);
+#endif      
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_blockchain_based_list: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_broadcast: start");
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+#if 0      
+      cryptonote::account_public_address acc = {};
       std::string sender_address = req.sender_address;
       crypto::public_key dummy_key;
       if (!sender_address.empty() && !epee::string_tools::hex_to_pod(sender_address, dummy_key))
@@ -2646,15 +2653,18 @@ namespace cryptonote
       }
 
       m_p2p.do_broadcast(req);
+#endif      
       res.status = 0;
+      
       LOG_PRINT_L0("RPC Request: on_broadcast: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_multicast: start");
+#if 0 // TODO: Graft: del      
       cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
       crypto::public_key dummy_key;
       for (auto addr : req.receiver_addresses)
@@ -2676,16 +2686,18 @@ namespace cryptonote
       }
 
       m_p2p.do_multicast(req);
+#endif      
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_multicast: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_unicast: start");
-      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+#if 0 // TODO: Graft: del      
+      cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);ddress;
 
       std::string receiver_address = req.receiver_address;
       crypto::public_key dummy_key;
@@ -2705,27 +2717,31 @@ namespace cryptonote
       }
 
       m_p2p.do_unicast(req);
+#endif      
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_unicast: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp)
+  bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp, const connection_context *ctx)
   {
       LOG_PRINT_L0("RPC Request: on_get_tunnels: start");
+#if 0 // TODO: Graft: del      
+      
       res.supernodes_addresses = m_p2p.get_supernodes_addresses();
       res.tunnels = m_p2p.get_tunnels();
       // Temporary backwards compatibility (remove me along with the supernode_address member): store the first SN
       if (res.supernodes_addresses.size() > 0)
           res.supernode_address = res.supernodes_addresses[0];
+#endif
       LOG_PRINT_L0("RPC Request: on_get_tunnels: end");
       return true;
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
 
-  bool core_rpc_server::on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp)
+  bool core_rpc_server::on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx)
   {
       res.announce_bytes_in = m_p2p.get_announce_bytes_in();
       res.announce_bytes_out = m_p2p.get_announce_bytes_out();
@@ -2737,29 +2753,6 @@ namespace cryptonote
   }
 
   //------------------------------------------------------------------------------------------------------------------------------
-  bool core_rpc_server::on_prune_blockchain(const COMMAND_RPC_PRUNE_BLOCKCHAIN::request& req, COMMAND_RPC_PRUNE_BLOCKCHAIN::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
-  {
-    try
-    {
-      if (!(req.check ? m_core.check_blockchain_pruning() : m_core.prune_blockchain()))
-      {
-        error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-        error_resp.message = req.check ? "Failed to check blockchain pruning" : "Failed to prune blockchain";
-        return false;
-      }
-      res.pruning_seed = m_core.get_blockchain_pruning_seed();
-      res.pruned = res.pruning_seed != 0;
-    }
-    catch (const std::exception &e)
-    {
-      error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-      error_resp.message = "Failed to prune blockchain";
-      return false;
-    }
-
-    res.status = CORE_RPC_STATUS_OK;
-    return true;
-  }
 
   const command_line::arg_descriptor<std::string, false, true, 2> core_rpc_server::arg_rpc_bind_port = {
       "rpc-bind-port"

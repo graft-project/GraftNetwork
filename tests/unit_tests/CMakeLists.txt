@@ -116,7 +116,8 @@ target_link_libraries(unit_tests
     Boost::thread
     miniupnpc
     ${GTEST_LIBRARIES}
-    extra)
+    extra
+    utils)
 set_property(TARGET unit_tests
   PROPERTY
     FOLDER "tests")

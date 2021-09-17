@@ -733,7 +733,7 @@ namespace cryptonote
   bool add_service_node_state_change_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_service_node_state_change& state_change, const uint8_t hf_version)
   {
     tx_extra_field field;
-    if (hf_version < network_version_12_checkpointing)
+    if (hf_version < network_version_20_checkpointing)
     {
       CHECK_AND_ASSERT_MES(state_change.state == service_nodes::new_state::deregister, false, "internal error: cannot construct an old deregistration for a non-deregistration state change (before hardfork v12)");
       field = tx_extra_service_node_deregister_old{state_change};
@@ -889,7 +889,7 @@ namespace cryptonote
     std::vector<tx_extra_field> tx_extra_fields;
     parse_tx_extra(tx_extra, tx_extra_fields);
 
-    if (hf_version >= cryptonote::network_version_12_checkpointing) {
+    if (hf_version >= cryptonote::network_version_20_checkpointing) {
       // Look for a new-style state change field:
       if (find_tx_extra_field_by_type(tx_extra_fields, state_change))
         return true;
@@ -1056,7 +1056,7 @@ namespace cryptonote
       CHECK_AND_NO_ASSERT_MES(tx.vout.size() == 0, false, "tx type: " << tx.type << " must have 0 outputs, received: " << tx.vout.size() << ", id=" << get_transaction_hash(tx));
     }
 
-    if (tx.version >= txversion::v3_per_output_unlock_times)
+    if (tx.version >= txversion::v4_per_output_unlock_times)
     {
       CHECK_AND_NO_ASSERT_MES(tx.vout.size() == tx.output_unlock_times.size(), false, "tx version: " << tx.version << "must have equal number of output unlock times and outputs");
     }
@@ -1364,7 +1364,7 @@ namespace cryptonote
     const unsigned int unprunable_size = t.unprunable_size;
     if (blob && unprunable_size)
     {
-      const unsigned int v3_fields_len = (t.version == txversion::v3_txtypes) ? t.v3_fields_size.load() : 0;
+      const unsigned int v3_fields_len = (t.version == txversion::v3_tx_types) ? t.v3_fields_size.load() : 0;
       CHECK_AND_ASSERT_MES(unprunable_size <= blob->size() - v3_fields_len , false, "Inconsistent transaction unprunable and blob sizes");
       cryptonote::get_blob_hash(epee::span<const char>(blob->data() + unprunable_size, blob->size() - unprunable_size - v3_fields_len), res);
     }
@@ -1750,7 +1750,7 @@ namespace cryptonote
   crypto::secret_key encrypt_key(crypto::secret_key key, const epee::wipeable_string &passphrase)
   {
     crypto::hash hash;
-    crypto::cn_slow_hash(passphrase.data(), passphrase.size(), hash, crypto::cn_slow_hash_type::heavy_v1);
+    crypto::cn_slow_hash(passphrase.data(), passphrase.size(), hash);
     sc_add((unsigned char*)key.data, (const unsigned char*)key.data, (const unsigned char*)hash.data);
     return key;
   }
@@ -1758,7 +1758,7 @@ namespace cryptonote
   crypto::secret_key decrypt_key(crypto::secret_key key, const epee::wipeable_string &passphrase)
   {
     crypto::hash hash;
-    crypto::cn_slow_hash(passphrase.data(), passphrase.size(), hash, crypto::cn_slow_hash_type::heavy_v1);
+    crypto::cn_slow_hash(passphrase.data(), passphrase.size(), hash);
     sc_sub((unsigned char*)key.data, (const unsigned char*)key.data, (const unsigned char*)hash.data);
     return key;
   }

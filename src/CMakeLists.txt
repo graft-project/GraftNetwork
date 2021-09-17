@@ -29,6 +29,8 @@
 #
 # Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
+
+
 # warnings are cleared only for GCC on Linux
 if (NOT (MINGW OR APPLE OR FREEBSD OR OPENBSD OR DRAGONFLY))
   add_compile_options("${WARNINGS_AS_ERRORS_FLAG}") # applies only to targets that follow
@@ -125,6 +127,7 @@ add_subdirectory(net)
 add_subdirectory(mnemonics)
 add_subdirectory(wallet)
 add_subdirectory(cryptonote_protocol)
+add_subdirectory(utils)
 
 if(NOT IOS)
   if (NOT BUILD_INTEGRATION)

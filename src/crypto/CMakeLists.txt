@@ -46,9 +46,11 @@ add_library(cncrypto
   oaes_lib.c
   random.c
   skein.c
+  # TODO: Graft: remove cn_heavy_*
   cn_heavy_hash_hard_arm.cpp
   cn_heavy_hash_hard_intel.cpp
   cn_heavy_hash_soft.cpp
+  slow-hash.c
   rx-slow-hash.c
   tree-hash.c)
 
@@ -62,6 +64,9 @@ target_link_libraries(cncrypto
     sodium
   PRIVATE
     extra)
+
+include_directories(${RANDOMX_INCLUDE})
+
 
 # Because of the way Qt works on android with JNI, the code does not live in the main android thread
 # So this code runs with a 1 MB default stack size.

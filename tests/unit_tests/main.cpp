@@ -53,7 +53,7 @@ namespace cryptonote { template class t_cryptonote_protocol_handler<cryptonote::
 
 int main(int argc, char** argv)
 {
-  TRY_ENTRY();
+  TRY_ENTRY()
 
   tools::on_startup();
   epee::string_tools::set_module_name_and_folder(argv[0]);
@@ -85,9 +85,8 @@ int main(int argc, char** argv)
     mlog_set_log_level(log_level);
   }
 
-  CATCH_ENTRY_L0("main", 1);
+  CATCH_ENTRY_L0("main", 1)
 
-  CATCH_ENTRY_L0("main", 1);
 
   return RUN_ALL_TESTS();
 }

@@ -45,8 +45,8 @@
 
 #include <boost/endian/conversion.hpp>
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "service_nodes"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "service_nodes"
 
 namespace service_nodes
 {
@@ -137,7 +137,7 @@ namespace service_nodes
                               const uint8_t hf_version)
   {
     auto &vvc = tvc.m_vote_ctx;
-    if (state_change.state != new_state::deregister && hf_version < cryptonote::network_version_12_checkpointing)
+    if (state_change.state != new_state::deregister && hf_version < cryptonote::network_version_20_checkpointing)
     {
       LOG_PRINT_L1("Non-deregister state changes are invalid before v12");
       return bad_tx(tvc);
@@ -198,7 +198,7 @@ namespace service_nodes
     int validator_index_tracker                                            = -1;
     for (const auto &vote : state_change.votes)
     {
-      if (hf_version >= cryptonote::network_version_13_enforce_checkpoints) // NOTE: After HF13, votes must be stored in ascending order
+      if (hf_version >= cryptonote::network_version_21_enforce_checkpoints) // NOTE: After HF13, votes must be stored in ascending order
       {
         if (validator_index_tracker >= static_cast<int>(vote.validator_index))
         {
@@ -258,7 +258,7 @@ namespace service_nodes
       for (size_t i = 0; i < checkpoint.signatures.size(); i++)
       {
         service_nodes::voter_to_signature const &voter_to_signature = checkpoint.signatures[i];
-        if (hf_version >= cryptonote::network_version_13_enforce_checkpoints && i < (checkpoint.signatures.size() - 1))
+        if (hf_version >= cryptonote::network_version_21_enforce_checkpoints && i < (checkpoint.signatures.size() - 1))
         {
           auto curr = checkpoint.signatures[i].voter_index;
           auto next = checkpoint.signatures[i + 1].voter_index;
@@ -520,13 +520,13 @@ namespace service_nodes
 
     std::vector<quorum_vote_t> result;
 
-    if (quorum_relay && hf_version < cryptonote::network_version_14_blink)
+    if (quorum_relay && hf_version < cryptonote::network_version_22_blink)
       return result; // no quorum relaying before HF14
 
-    if (hf_version < cryptonote::network_version_14_blink || quorum_relay)
+    if (hf_version < cryptonote::network_version_22_blink || quorum_relay)
       append_relayable_votes(result, m_obligations_pool, max_last_sent, min_height);
 
-    if (hf_version < cryptonote::network_version_14_blink || !quorum_relay)
+    if (hf_version < cryptonote::network_version_22_blink || !quorum_relay)
       append_relayable_votes(result, m_checkpoint_pool,  max_last_sent, min_height);
 
     return result;

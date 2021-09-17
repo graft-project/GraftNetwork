@@ -55,8 +55,8 @@ extern "C" {
 #include "service_node_swarm.h"
 #include "version.h"
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "service_nodes"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "service_nodes"
 
 namespace service_nodes
 {
@@ -78,7 +78,7 @@ namespace service_nodes
 
   static constexpr service_node_info::version_t get_min_service_node_info_version_for_hf(uint8_t hf_version)
   {
-    return hf_version < cryptonote::network_version_14_blink
+    return hf_version < cryptonote::network_version_22_blink
       ? service_node_info::version_t::v2_ed25519
       : service_node_info::version_t::v3_quorumnet;
   }
@@ -463,7 +463,7 @@ namespace service_nodes
         else
           LOG_PRINT_L1("Deregistration for service node: " << key);
 
-        if (hf_version >= cryptonote::network_version_11_infinite_staking)
+        if (hf_version >= cryptonote::network_version_19_infinite_staking)
         {
           for (const auto &contributor : info.contributors)
           {
@@ -482,7 +482,7 @@ namespace service_nodes
         return true;
 
       case new_state::decommission:
-        if (hf_version < cryptonote::network_version_12_checkpointing) {
+        if (hf_version < cryptonote::network_version_20_checkpointing) {
           MERROR("Invalid decommission transaction seen before network v12");
           return false;
         }
@@ -501,7 +501,7 @@ namespace service_nodes
         info.last_decommission_height = block_height;
         info.decommission_count++;
 
-        if (hf_version >= cryptonote::network_version_13_enforce_checkpoints) {
+        if (hf_version >= cryptonote::network_version_21_enforce_checkpoints) {
           // Assigning invalid swarm id effectively kicks the node off
           // its current swarm; it will be assigned a new swarm id when it
           // gets recommissioned. Prior to HF13 this step was incorrectly
@@ -518,7 +518,7 @@ namespace service_nodes
         return true;
 
       case new_state::recommission:
-        if (hf_version < cryptonote::network_version_12_checkpointing) {
+        if (hf_version < cryptonote::network_version_20_checkpointing) {
           MERROR("Invalid recommission transaction seen before network v12");
           return false;
         }
@@ -555,7 +555,7 @@ namespace service_nodes
         return true;
 
       case new_state::ip_change_penalty:
-        if (hf_version < cryptonote::network_version_12_checkpointing) {
+        if (hf_version < cryptonote::network_version_20_checkpointing) {
           MERROR("Invalid ip_change_penalty transaction seen before network v12");
           return false;
         }
@@ -675,7 +675,7 @@ namespace service_nodes
     hw::device& hwdev               = hw::get_device("default");
     parsed_contribution.transferred = 0;
 
-    if (hf_version >= cryptonote::network_version_11_infinite_staking)
+    if (hf_version >= cryptonote::network_version_19_infinite_staking)
     {
       // In Infinite Staking, we lock the key image that would be generated if
       // you tried to send your stake and prevent it from being transacted on
@@ -772,7 +772,7 @@ namespace service_nodes
         bool has_correct_unlock_time = false;
         {
           uint64_t unlock_time = tx.unlock_time;
-          if (tx.version >= cryptonote::txversion::v3_per_output_unlock_times)
+          if (tx.version >= cryptonote::txversion::v4_per_output_unlock_times)
             unlock_time = tx.output_unlock_times[i];
 
           uint64_t min_height = block_height + staking_num_lock_blocks(nettype);
@@ -926,7 +926,7 @@ namespace service_nodes
     if (!is_registration_tx(nettype, hf_version, tx, block_timestamp, block_height, index, key, info))
       return false;
 
-    if (hf_version >= cryptonote::network_version_11_infinite_staking)
+    if (hf_version >= cryptonote::network_version_19_infinite_staking)
     {
       // NOTE(loki): Grace period is not used anymore with infinite staking. So, if someone somehow reregisters, we just ignore it
       const auto iter = service_nodes_infos.find(key);
@@ -953,7 +953,7 @@ namespace service_nodes
       const auto iter = service_nodes_infos.find(key);
       if (iter != service_nodes_infos.end())
       {
-        if (hf_version >= cryptonote::network_version_10_bulletproofs)
+        if (hf_version >= cryptonote::network_version_14_bulletproofs)
         {
           service_node_info const &old_info = *iter->second;
           uint64_t expiry_height = old_info.registration_height + staking_num_lock_blocks(nettype);
@@ -1047,7 +1047,7 @@ namespace service_nodes
     // Check node contributor counts
     {
       bool too_many_contributions = false;
-      if (hf_version >= cryptonote::network_version_11_infinite_staking)
+      if (hf_version >= cryptonote::network_version_19_infinite_staking)
         // As of HF11 we allow up to 4 stakes total.
         too_many_contributions = curinfo.total_num_locked_contributions() + parsed_contribution.locked_contributions.size() > MAX_NUMBER_OF_CONTRIBUTORS;
       else
@@ -1067,7 +1067,7 @@ namespace service_nodes
     // Check that the contribution is large enough
     {
       const uint64_t min_contribution =
-        (!new_contributor && hf_version < cryptonote::network_version_11_infinite_staking)
+        (!new_contributor && hf_version < cryptonote::network_version_19_infinite_staking)
         ? 1 // Follow-up contributions from an existing contributor could be any size before HF11
         : get_min_node_contribution(hf_version, curinfo.staking_requirement, curinfo.total_reserved, curinfo.total_num_locked_contributions());
 
@@ -1113,7 +1113,7 @@ namespace service_nodes
     info.last_reward_block_height = block_height;
     info.last_reward_transaction_index = index;
 
-    if (hf_version >= cryptonote::network_version_11_infinite_staking)
+    if (hf_version >= cryptonote::network_version_19_infinite_staking)
       for (const auto &contribution : parsed_contribution.locked_contributions)
         contributor.locked_contributions.push_back(contribution);
 
@@ -1127,13 +1127,13 @@ namespace service_nodes
 
   bool service_node_list::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint)
   {
-    if (block.major_version < cryptonote::network_version_9_service_nodes)
+    if (block.major_version < cryptonote::network_version_18_service_nodes)
       return true;
 
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
     process_block(block, txs);
 
-    if (block.major_version >= cryptonote::network_version_13_enforce_checkpoints && checkpoint)
+    if (block.major_version >= cryptonote::network_version_21_enforce_checkpoints && checkpoint)
     {
       std::shared_ptr<const quorum> quorum = get_quorum(quorum_type::checkpointing, checkpoint->height);
       if (!quorum)
@@ -1205,7 +1205,7 @@ namespace service_nodes
     // are no decommissioned nodes, so this distinction is irrelevant for network concensus).
     auto active_snode_list = state.active_service_nodes_infos();
     decltype(active_snode_list) decomm_snode_list;
-    if (hf_version >= cryptonote::network_version_12_checkpointing)
+    if (hf_version >= cryptonote::network_version_20_checkpointing)
       decomm_snode_list = state.decommissioned_service_nodes_infos();
 
     quorum_type const max_quorum_type = max_quorum_type_for_hf(hf_version);
@@ -1322,7 +1322,7 @@ namespace service_nodes
     //
     // Remove expired blacklisted key images
     //
-    if (hf_version >= cryptonote::network_version_11_infinite_staking)
+    if (hf_version >= cryptonote::network_version_19_infinite_staking)
     {
       for (auto entry = key_image_blacklist.begin(); entry != key_image_blacklist.end();)
       {
@@ -1523,7 +1523,7 @@ namespace service_nodes
 
     // TODO(loki): This should really use the registration height instead of getting the block and expiring nodes.
     // But there's something subtly off when using registration height causing syncing problems.
-    if (hf_version == cryptonote::network_version_9_service_nodes)
+    if (hf_version == cryptonote::network_version_18_service_nodes)
     {
       if (block_height <= lock_blocks)
         return expired_nodes;
@@ -1540,7 +1540,7 @@ namespace service_nodes
         return expired_nodes;
       }
 
-      if (block.major_version < cryptonote::network_version_9_service_nodes)
+      if (block.major_version < cryptonote::network_version_18_service_nodes)
         return expired_nodes;
 
       for (crypto::hash const &hash : block.tx_hashes)
@@ -1555,7 +1555,7 @@ namespace service_nodes
         uint32_t index = 0;
         crypto::public_key key;
         service_node_info info = {};
-        if (is_registration_tx(nettype, cryptonote::network_version_9_service_nodes, tx, block.timestamp, expired_nodes_block_height, index, key, info))
+        if (is_registration_tx(nettype, cryptonote::network_version_18_service_nodes, tx, block.timestamp, expired_nodes_block_height, index, key, info))
           expired_nodes.push_back(key);
         index++;
       }
@@ -1567,7 +1567,7 @@ namespace service_nodes
       {
         crypto::public_key const &snode_key = it->first;
         const service_node_info &info       = *it->second;
-        if (info.registration_hf_version >= cryptonote::network_version_11_infinite_staking)
+        if (info.registration_hf_version >= cryptonote::network_version_19_infinite_staking)
         {
           if (info.requested_unlock_height != KEY_IMAGE_AWAITING_UNLOCK_HEIGHT && block_height > info.requested_unlock_height)
             expired_nodes.push_back(snode_key);
@@ -1707,7 +1707,7 @@ namespace service_nodes
 
   bool service_node_list::alt_block_added(cryptonote::block const &block, std::vector<cryptonote::transaction> const &txs, cryptonote::checkpoint_t const *checkpoint)
   {
-    if (block.major_version < cryptonote::network_version_9_service_nodes)
+    if (block.major_version < cryptonote::network_version_18_service_nodes)
       return true;
 
     uint64_t block_height         = cryptonote::get_block_height(block);
@@ -1817,7 +1817,7 @@ namespace service_nodes
         return false; // Haven't been initialized yet
 
     uint8_t hf_version = m_blockchain.get_current_hard_fork_version();
-    if (hf_version < cryptonote::network_version_9_service_nodes)
+    if (hf_version < cryptonote::network_version_18_service_nodes)
       return true;
 
     data_for_serialization *data[] = {&m_transient.cache_long_term_data, &m_transient.cache_short_term_data};
@@ -1896,7 +1896,7 @@ namespace service_nodes
     auto buf = tools::memcpy_le(proof.pubkey.data, proof.timestamp, proof.public_ip, proof.storage_port, proof.pubkey_ed25519.data, proof.qnet_port, proof.storage_lmq_port);
     size_t buf_size = buf.size();
 
-    if (hf_version < cryptonote::network_version_15_lns) // TODO - can be removed post-HF15
+    if (hf_version < cryptonote::network_version_23_lns) // TODO - can be removed post-HF15
       buf_size -= sizeof(proof.storage_lmq_port);
 
     crypto::hash result;
@@ -1908,7 +1908,7 @@ namespace service_nodes
       const service_node_keys &keys, uint32_t public_ip, uint16_t storage_port, uint16_t storage_lmq_port, uint16_t quorumnet_port) const
   {
     cryptonote::NOTIFY_UPTIME_PROOF::request result = {};
-    result.snode_version                            = LOKI_VERSION;
+    result.snode_version                            = GRAFT_VERSION;
     result.timestamp                                = time(nullptr);
     result.pubkey                                   = keys.pub;
     result.public_ip                                = public_ip;
@@ -2042,7 +2042,7 @@ namespace service_nodes
           || !derived_x25519_pubkey)
         REJECT_PROOF("invalid ed25519 pubkey included in proof (x25519 derivation failed)");
     }
-    if (hf_version >= cryptonote::network_version_14_blink)
+    if (hf_version >= cryptonote::network_version_22_blink)
     {
       if (proof.qnet_port == 0)
         REJECT_PROOF("invalid quorumnet port in uptime proof");
@@ -2675,7 +2675,7 @@ namespace service_nodes
 
   bool service_node_info::can_transition_to_state(uint8_t hf_version, uint64_t height, new_state proposed_state) const
   {
-    if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
+    if (hf_version >= cryptonote::network_version_21_enforce_checkpoints)
     {
       if (!can_be_voted_on(height))
         return false;

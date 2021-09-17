@@ -48,9 +48,10 @@
 #include "cryptonote_core/service_node_rules.h"
 #include "cryptonote_core/service_node_list.h"
 #include "cryptonote_basic/hardfork.h"
+#include "misc_language.h"
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "blockchain.db.lmdb"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "blockchain.db.lmdb"
 
 
 using epee::string_tools::pod_to_hex;
@@ -4627,6 +4628,8 @@ void BlockchainLMDB::fixup(fixup_context const context)
   // Always call parent as well
   BlockchainDB::fixup(context);
 
+#if 0  // TODO: Graft:  Check if something needed for Graft
+  
   if (is_read_only())
     return;
 
@@ -4643,11 +4646,11 @@ void BlockchainLMDB::fixup(fixup_context const context)
     // it is, recalculate from there instead (so that we detect the v12 barrier).
     uint8_t v12_initial_blocks_remaining = 0;
     uint8_t start_version = get_hard_fork_version(start_height);
-    if (start_version < cryptonote::network_version_12_checkpointing) {
+    if (start_version < cryptonote::network_version_20_checkpointing) {
       v12_initial_blocks_remaining = DIFFICULTY_WINDOW_V2;
-    } else if (start_version == cryptonote::network_version_12_checkpointing && start_height > DIFFICULTY_WINDOW_V2) {
+    } else if (start_version == cryptonote::network_version_20_checkpointing && start_height > DIFFICULTY_WINDOW_V2) {
       uint8_t earlier_version = get_hard_fork_version(start_height - DIFFICULTY_WINDOW_V2);
-      if (earlier_version < cryptonote::network_version_12_checkpointing) {
+      if (earlier_version < cryptonote::network_version_20_checkpointing) {
         start_height -= DIFFICULTY_WINDOW_V2;
         v12_initial_blocks_remaining = DIFFICULTY_WINDOW_V2;
         LOG_PRINT_L2("Using earlier recalculation start height " << start_height << " to include v12 fork height");
@@ -4694,12 +4697,12 @@ void BlockchainLMDB::fixup(fixup_context const context)
           uint64_t const curr_height = (start_height + (batch_index * BLOCKS_PER_BATCH) + block_index);
           uint8_t version            = get_hard_fork_version(curr_height);
           bool v12_initial_override = false;
-          if (version == cryptonote::network_version_12_checkpointing && v12_initial_blocks_remaining > 0) {
+          if (version == cryptonote::network_version_20_checkpointing && v12_initial_blocks_remaining > 0) {
             v12_initial_override = true;
             v12_initial_blocks_remaining--;
           }
           difficulty_type diff = next_difficulty_v2(timestamps, difficulties, DIFFICULTY_TARGET_V2,
-              version <= cryptonote::network_version_9_service_nodes, v12_initial_override);
+              version <= cryptonote::network_version_18_service_nodes, v12_initial_override);
 
           MDB_val_set(key, curr_height);
 
@@ -4746,6 +4749,7 @@ void BlockchainLMDB::fixup(fixup_context const context)
       return;
     }
   }
+#endif 
 }
 
 #define RENAME_DB(name) do { \
@@ -5879,7 +5883,7 @@ void BlockchainLMDB::migrate_4_5(cryptonote::network_type nettype)
   uint64_t hf12_height = 0;
   for (const auto &record : cryptonote::HardFork::get_hardcoded_hard_forks(nettype))
   {
-    if (record.version == cryptonote::network_version_12_checkpointing)
+    if (record.version == cryptonote::network_version_20_checkpointing)
     {
       hf12_height = record.height;
       break;

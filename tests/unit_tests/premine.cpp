@@ -9,10 +9,12 @@ TEST(premine, height_1)
     size_t median_size = 300000;
     size_t current_block_size = 83;
     uint64_t already_generated_coins = 17592186044415;
-    uint64_t reward = 0;
+    uint64_t reward, reward_unpenalized = 0;
     uint8_t version = 6;
-
-    bool res = get_block_reward(median_size, current_block_size, already_generated_coins, reward, version);
+    uint64_t height = 0; 
+    
+    bool res =  get_base_block_reward(median_size, current_block_size, already_generated_coins, reward, reward_unpenalized, version, height);
+    // bool res = get_block_reward(median_size, current_block_size, already_generated_coins, reward, version);
 
     ASSERT_TRUE(res);
     ASSERT_EQ(8301030000000000000, reward);

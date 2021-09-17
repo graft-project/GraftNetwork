@@ -32,6 +32,7 @@
 
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
+#include <boost/utility/value_init.hpp>
 #include "supernode_rpc_command.h"
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>

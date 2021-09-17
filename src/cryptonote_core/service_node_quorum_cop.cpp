@@ -39,8 +39,8 @@
 
 #include "common/loki_integration_test_hooks.h"
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "quorum_cop"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "quorum_cop"
 
 namespace service_nodes
 {
@@ -113,7 +113,7 @@ namespace service_nodes
     if (!ss_reachable)
     {
       LOG_PRINT_L1("Service Node storage server is not reachable for node: " << pubkey);
-      if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
+      if (hf_version >= cryptonote::network_version_21_enforce_checkpoints)
           result.storage_server_reachable = false;
     }
 
@@ -145,7 +145,7 @@ namespace service_nodes
                                       << missed_votes << " checkpoint votes from: "
                                       << CHECKPOINT_NUM_QUORUMS_TO_PARTICIPATE_IN
                                       << " quorums that they were required to participate in.");
-        if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
+        if (hf_version >= cryptonote::network_version_21_enforce_checkpoints)
           result.voted_in_checkpoints = false;
       }
     }
@@ -156,7 +156,7 @@ namespace service_nodes
   void quorum_cop::blockchain_detached(uint64_t height, bool by_pop_blocks)
   {
     uint8_t hf_version                        = m_core.get_hard_fork_version(height);
-    uint64_t const REORG_SAFETY_BUFFER_BLOCKS = (hf_version >= cryptonote::network_version_12_checkpointing)
+    uint64_t const REORG_SAFETY_BUFFER_BLOCKS = (hf_version >= cryptonote::network_version_20_checkpointing)
                                                     ? REORG_SAFETY_BUFFER_BLOCKS_POST_HF12
                                                     : REORG_SAFETY_BUFFER_BLOCKS_PRE_HF12;
     if (m_obligations_height >= height)
@@ -204,10 +204,10 @@ namespace service_nodes
   void quorum_cop::process_quorums(cryptonote::block const &block)
   {
     uint8_t const hf_version = block.major_version;
-    if (hf_version < cryptonote::network_version_9_service_nodes)
+    if (hf_version < cryptonote::network_version_18_service_nodes)
       return;
 
-    uint64_t const REORG_SAFETY_BUFFER_BLOCKS = (hf_version >= cryptonote::network_version_12_checkpointing)
+    uint64_t const REORG_SAFETY_BUFFER_BLOCKS = (hf_version >= cryptonote::network_version_20_checkpointing)
                                                     ? REORG_SAFETY_BUFFER_BLOCKS_POST_HF12
                                                     : REORG_SAFETY_BUFFER_BLOCKS_PRE_HF12;
     auto my_keys = m_core.get_service_node_keys();
@@ -252,13 +252,13 @@ namespace service_nodes
           for (; m_obligations_height < (height - REORG_SAFETY_BUFFER_BLOCKS); m_obligations_height++)
           {
             uint8_t const obligations_height_hf_version = m_core.get_hard_fork_version(m_obligations_height);
-            if (obligations_height_hf_version < cryptonote::network_version_9_service_nodes) continue;
+            if (obligations_height_hf_version < cryptonote::network_version_18_service_nodes) continue;
 
             // NOTE: Count checkpoints for other nodes, irrespective of being
             // a service node or not for statistics. Also count checkpoints
             // before the minimum lifetime for same purposes, note, we still
             // don't vote for the first 2 hours so this is purely cosmetic
-            if (obligations_height_hf_version >= cryptonote::network_version_12_checkpointing)
+            if (obligations_height_hf_version >= cryptonote::network_version_20_checkpointing)
             {
               auto quorum = m_core.get_quorum(quorum_type::checkpointing, m_obligations_height);
               std::vector<cryptonote::block> blocks;
@@ -437,7 +437,7 @@ namespace service_nodes
                  m_last_checkpointed_height += CHECKPOINT_INTERVAL)
             {
               uint8_t checkpointed_height_hf_version = m_core.get_hard_fork_version(m_last_checkpointed_height);
-              if (checkpointed_height_hf_version <= cryptonote::network_version_11_infinite_staking)
+              if (checkpointed_height_hf_version <= cryptonote::network_version_19_infinite_staking)
                   continue;
 
               if (m_last_checkpointed_height < REORG_SAFETY_BUFFER_BLOCKS)

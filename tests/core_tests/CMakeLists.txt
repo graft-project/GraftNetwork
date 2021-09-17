@@ -59,7 +59,8 @@ target_link_libraries(core_tests
     Boost::program_options
     Boost::regex
     miniupnpc
-    extra)
+    extra
+    utils)
 enable_stack_trace(core_tests)
 set_property(TARGET core_tests
   PROPERTY

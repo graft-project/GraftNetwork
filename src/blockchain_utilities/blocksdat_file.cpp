@@ -29,8 +29,8 @@
 
 #include "blocksdat_file.h"
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "bcutil"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "bcutil"
 
 namespace po = boost::program_options;
 

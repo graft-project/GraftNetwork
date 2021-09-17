@@ -101,7 +101,8 @@ namespace {
             throw runtime_error("Multisig wallet is not finalized yet");
         }
     }
-    void checkMultisigWalletReady(const std::unique_ptr<tools::wallet2> &wallet) {
+    
+    void checkMultisigWalletReady(const std::unique_ptr<tools::GraftWallet> &wallet) {
         return checkMultisigWalletReady(wallet.get());
     }
 
@@ -119,10 +120,13 @@ namespace {
             throw runtime_error("Multisig wallet is already finalized");
         }
     }
-    void checkMultisigWalletNotReady(const std::unique_ptr<tools::wallet2> &wallet) {
+    
+   
+    void checkMultisigWalletNotReady(const std::unique_ptr<tools::GraftWallet> &wallet) {
         return checkMultisigWalletNotReady(wallet.get());
     }
 }
+
 
 struct Wallet2CallbackImpl : public tools::i_wallet2_callback
 {
@@ -440,7 +444,7 @@ WalletImpl::WalletImpl(NetworkType nettype, uint64_t kdf_rounds)
     , m_is_connected(false)
     , m_refreshShouldRescan(false)
 {
-    m_wallet.reset(new tools::wallet2(static_cast<cryptonote::network_type>(nettype), kdf_rounds, true));
+    m_wallet.reset(new tools::GraftWallet(static_cast<cryptonote::network_type>(nettype), kdf_rounds, true));
     m_history.reset(new TransactionHistoryImpl(this));
     m_wallet2Callback.reset(new Wallet2CallbackImpl(this));
     m_wallet->callback(m_wallet2Callback.get());
@@ -1435,19 +1439,6 @@ std::string WalletImpl::exchangeMultisigKeys(const std::vector<std::string> &inf
     return string();
 }
 
-std::string WalletImpl::exchangeMultisigKeys(const std::vector<std::string> &info) {
-    try {
-        clearStatus();
-        checkMultisigWalletNotReady(m_wallet);
-
-        return m_wallet->exchange_multisig_keys(epee::wipeable_string(m_password), info);
-    } catch (const exception& e) {
-        LOG_ERROR("Error on exchanging multisig keys: ") << e.what();
-        setStatusError(string(tr("Failed to make multisig: ")) + e.what());
-    }
-
-    return string();
-}
 
 bool WalletImpl::finalizeMultisig(const vector<string>& extraMultisigInfo) {
     try {
@@ -1729,6 +1720,7 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     return transaction;
 }
 
+
 PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::TransactionDestination> &destinations,
                                                   uint32_t mixin_count, bool rtaTransaction,
                                                   PendingTransaction::Priority priority)
@@ -1737,11 +1729,6 @@ PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::Tran
     // Pause refresh thread while creating transaction
     pauseRefresh();
 
-
-    // TODO:  (https://bitcointalk.org/index.php?topic=753252.msg9985441#msg9985441)
-    size_t fake_outs_count = mixin_count > 0 ? mixin_count : m_wallet->default_mixin();
-    if (fake_outs_count == 0)
-        fake_outs_count = DEFAULT_MIXIN;
 
     PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
 
@@ -1802,6 +1789,9 @@ PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::Tran
             cryptonote::tx_destination_entry de;
             de.addr = addr;
             de.amount = *dest.amount;
+            de.original = dest.address;
+            de.is_subaddress = address_pi.is_subaddress;
+            de.is_integrated = address_pi.has_payment_id;
             dsts.push_back(de);
         }
         if (m_status == Status_Error) {
@@ -1812,9 +1802,19 @@ PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::Tran
             //TODO: check correctness of subaddr_account and subaddr_indices usage
             uint32_t subaddr_account = 0;
             std::set<uint32_t> subaddr_indices;
-            transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
-                                                                        static_cast<uint32_t>(priority),
-                                                                        extra, subaddr_account, subaddr_indices, rtaTransaction);
+            
+
+            boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+            if (!hf_version)
+            {
+              setStatusError(tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED);
+              return transaction;
+            }
+            loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::standard, priority);
+            transaction->m_pending_tx = m_wallet->create_transactions_2(
+                    dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, 0 /* unlock_time */,
+                    priority, extra, subaddr_account, subaddr_indices, tx_params);
+
         } catch (const tools::error::daemon_busy&) {
             // TODO: make it translatable with "tr"?
             m_errorString = tr("daemon is busy. Please try again later.");
@@ -1891,6 +1891,7 @@ PendingTransaction *WalletImpl::createTransaction(const std::vector<Wallet::Tran
     startRefresh();
     return transaction;
 }
+
 
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
 
@@ -2789,5 +2790,5 @@ uint64_t WalletImpl::coldKeyImageSync(uint64_t &spent, uint64_t &unspent)
 {
     return m_wallet->cold_key_image_sync(spent, unspent);
 }
-} // namespace
+} // namespace Monero
 

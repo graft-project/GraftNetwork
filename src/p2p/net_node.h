@@ -38,6 +38,7 @@
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <boost/uuid/uuid.hpp>
+#include <boost/utility/value_init.hpp>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -122,7 +123,8 @@ namespace nodetool
     uint32_t support_flags;
     bool m_in_timedsync;
   };
-
+  // TODO: Graft: remove
+#if 0  
   struct local_supernode {
     local_supernode(std::string host, uint64_t port, std::string uri) : http_host(std::move(host)), http_port(port), uri(std::move(uri)) {
         client.set_server(http_host, std::to_string(http_port), {});
@@ -143,7 +145,8 @@ namespace nodetool
     std::string uri;
     epee::net_utils::http::http_simple_client client;
   };
-
+#endif
+  
   template<class t_payload_net_handler>
   class node_server: public epee::levin::levin_commands_handler<p2p_connection_context_t<typename t_payload_net_handler::connection_context> >,
                      public i_p2p_endpoint<typename t_payload_net_handler::connection_context>,
@@ -298,7 +301,7 @@ namespace nodetool
     virtual std::map<std::string, time_t> get_blocked_hosts() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_hosts; }
 
     // Graft/RTA methods to be called from RPC handlers
-
+#if 0 // TODO: Graft: del
     /*!
      * \brief do_supernode_announce - posts supernode announce to p2p network
      * \param req
@@ -321,6 +324,7 @@ namespace nodetool
     void do_unicast(const cryptonote::COMMAND_RPC_UNICAST::request &req);
 
     std::vector<cryptonote::route_data> get_tunnels() const;
+#endif    
 
     virtual std::map<epee::net_utils::ipv4_network_subnet, time_t> get_blocked_subnets() { CRITICAL_REGION_LOCAL(m_blocked_hosts_lock); return m_blocked_subnets; }
 
@@ -343,19 +347,21 @@ namespace nodetool
     CHAIN_LEVIN_NOTIFY_MAP2(p2p_connection_context); //move levin_commands_handler interface notify(...) callbacks into nothing
 
     BEGIN_INVOKE_MAP2(node_server)
-      // TODO: graft: remove
-      HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, &node_server::handle_supernode_announce)
-      HANDLE_NOTIFY_T2(COMMAND_BROADCAST, &node_server::handle_broadcast)
-      HANDLE_NOTIFY_T2(COMMAND_MULTICAST, &node_server::handle_multicast)
-      HANDLE_NOTIFY_T2(COMMAND_UNICAST, &node_server::handle_unicast)
+    // TODO: graft: remove
+#if 0        
+      HANDLE_NOTIFY_T2(COMMAND_SUPERNODE_ANNOUNCE, handle_supernode_announce)
+      HANDLE_NOTIFY_T2(COMMAND_BROADCAST, handle_broadcast)
+      HANDLE_NOTIFY_T2(COMMAND_MULTICAST, handle_multicast)
+      HANDLE_NOTIFY_T2(COMMAND_UNICAST, handle_unicast)
+#endif        
 
-      HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, &node_server::handle_handshake)
-      HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, &node_server::handle_timed_sync)
-      HANDLE_INVOKE_T2(COMMAND_PING, &node_server::handle_ping)
-      HANDLE_INVOKE_T2(COMMAND_REQUEST_STAT_INFO, &node_server::handle_get_stat_info)
-      HANDLE_INVOKE_T2(COMMAND_REQUEST_NETWORK_STATE, &node_server::handle_get_network_state)
-      HANDLE_INVOKE_T2(COMMAND_REQUEST_PEER_ID, &node_server::handle_get_peer_id)
-      HANDLE_INVOKE_T2(COMMAND_REQUEST_SUPPORT_FLAGS, &node_server::handle_get_support_flags)
+      HANDLE_INVOKE_T2(COMMAND_HANDSHAKE, handle_handshake)
+      HANDLE_INVOKE_T2(COMMAND_TIMED_SYNC, handle_timed_sync)
+      HANDLE_INVOKE_T2(COMMAND_PING, handle_ping)
+      HANDLE_INVOKE_T2(COMMAND_REQUEST_STAT_INFO, handle_get_stat_info)
+      HANDLE_INVOKE_T2(COMMAND_REQUEST_NETWORK_STATE, handle_get_network_state)
+      HANDLE_INVOKE_T2(COMMAND_REQUEST_PEER_ID, handle_get_peer_id)
+      HANDLE_INVOKE_T2(COMMAND_REQUEST_SUPPORT_FLAGS, handle_get_support_flags)
       if (is_filtered_command(context.m_remote_address, command))
         return LEVIN_ERROR_CONNECTION_HANDLER_NOT_DEFINED;
 
@@ -365,6 +371,7 @@ namespace nodetool
     enum PeerType { anchor = 0, white, gray };
 
     //----------------- helper functions ------------------------------------------------
+#if 0 // TODO: Graft: del     
     bool multicast_send(int command, const std::string &data, const std::list<std::string> &addresses,
                         const std::list<peerid_type> &exclude_peerids = std::list<peerid_type>());
     uint64_t get_max_hop(const std::list<std::string> &addresses);
@@ -416,6 +423,7 @@ namespace nodetool
     int handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context);
     int handle_multicast(int command, typename COMMAND_MULTICAST::request &arg, p2p_connection_context &context);
     int handle_unicast(int command, typename COMMAND_UNICAST::request &arg, p2p_connection_context &context);
+#endif    
     int handle_handshake(int command, typename COMMAND_HANDSHAKE::request& arg, typename COMMAND_HANDSHAKE::response& rsp, p2p_connection_context& context);
     int handle_timed_sync(int command, typename COMMAND_TIMED_SYNC::request& arg, typename COMMAND_TIMED_SYNC::response& rsp, p2p_connection_context& context);
     int handle_ping(int command, COMMAND_PING::request& arg, COMMAND_PING::response& rsp, p2p_connection_context& context);
@@ -443,15 +451,6 @@ namespace nodetool
     virtual void for_each_connection(std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool for_connection(const boost::uuids::uuid&, std::function<bool(typename t_payload_net_handler::connection_context&, peerid_type, uint32_t)> f);
     virtual bool add_host_fail(const epee::net_utils::network_address &address);
-    // added, non virtual
-    /*!
-     * \brief relay_notify    - send command to remote connection
-     * \param command         - command
-     * \param data_buff       - data buffer to send
-     * \param connection_id   - connection id
-     * \return                - true on success
-     */
-    bool relay_notify(int command, const std::string& data_buff, const boost::uuids::uuid& connection_id);
     //----------------- i_connection_filter  --------------------------------------------------------
     virtual bool is_remote_host_allowed(const epee::net_utils::network_address &address, time_t *t = NULL);
     //-----------------------------------------------------------------------------------------------
@@ -496,7 +495,8 @@ namespace nodetool
     bool is_priority_node(const epee::net_utils::network_address& na);
     std::set<std::string> get_seed_nodes(cryptonote::network_type nettype) const;
     bool connect_to_seed();
-    bool find_connection_id_by_peer(const peerlist_entry &pe, boost::uuids::uuid &conn_id);
+    // TODO: Graft: remove
+    // bool find_connection_id_by_peer(const peerlist_entry &pe, boost::uuids::uuid &conn_id);
     template <class Container>
     bool connect_to_peerlist(const Container& peers);
 
@@ -546,7 +546,7 @@ namespace nodetool
     {
       m_peer_handshake_idle_maker_interval.reset();
     }
-
+#if 0 // TODO: Graft: del
     void add_supernode(const std::string& addr, const std::string& url)
     {
         epee::net_utils::http::url_content parsed{};
@@ -595,11 +595,12 @@ namespace nodetool
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
         m_supernodes.clear();
     }
-
+#endif    
+#if 0 // TODO: Graft: del
     bool notify_peer_list(int command, const std::string& buf, const std::vector<peerlist_entry>& peers_to_send, bool try_connect = false);
-
     void send_stakes_to_supernode();
     void send_blockchain_based_list_to_supernode(uint64_t last_received_block_height);
+#endif    
 
     uint64_t get_announce_bytes_in() const { return m_announce_bytes_in; }
     uint64_t get_announce_bytes_out() const { return m_announce_bytes_out; }
@@ -609,16 +610,20 @@ namespace nodetool
     uint64_t get_multicast_bytes_out() const { return m_multicast_bytes_out; }
 
   private:
+#if 0 // TODO: Graft: del
     void handle_stakes_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_stake_array& stakes);
     void handle_blockchain_based_list_update(uint64_t block_number, const cryptonote::StakeTransactionProcessor::supernode_tier_array& tiers);
+#endif    
 
   private:
+#if 0 // TODO: Graft: del   
     std::multimap<int, std::string> m_supernode_requests_timestamps;
     std::set<std::string> m_supernode_requests_cache;
     std::map<std::string, nodetool::supernode_route> m_supernode_routes;
     std::unordered_map<std::string, local_supernode> m_supernodes;
     boost::recursive_mutex m_supernode_lock;
     boost::recursive_mutex m_request_cache_lock;
+#endif    
     std::vector<epee::net_utils::network_address> m_custom_seed_nodes;
 
     std::string m_config_folder;
@@ -657,7 +662,6 @@ namespace nodetool
     std::vector<nodetool::peerlist_entry> m_command_line_peers;
     uint64_t m_peer_livetime;
     //keep connections to initiate some interactions
-    net_server m_net_server;
     boost::uuids::uuid m_network_id;
 
     static boost::optional<p2p_connection_context> public_connect(network_zone&, epee::net_utils::network_address const&, epee::net_utils::ssl_support_t);
@@ -685,7 +689,6 @@ namespace nodetool
     boost::mutex m_used_stripe_peers_mutex;
     std::array<std::list<epee::net_utils::network_address>, 1 << CRYPTONOTE_PRUNING_LOG_STRIPES> m_used_stripe_peers;
 
-    boost::uuids::uuid m_network_id;
     cryptonote::network_type m_nettype;
     // traffic counters
     std::atomic<uint64_t> m_announce_bytes_in {0};
@@ -728,6 +731,10 @@ namespace nodetool
     extern const command_line::arg_descriptor<int64_t> arg_limit_rate_up;
     extern const command_line::arg_descriptor<int64_t> arg_limit_rate_down;
     extern const command_line::arg_descriptor<int64_t> arg_limit_rate;
+    
+    extern const command_line::arg_descriptor<bool> arg_save_graph;
+    extern const command_line::arg_descriptor<Uuid> arg_p2p_net_id;
+    
 }
 
 POP_WARNINGS

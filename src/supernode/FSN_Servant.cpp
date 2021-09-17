@@ -105,19 +105,22 @@ crypto::public_key get_tx_pub_key_from_received_outs(const transaction &tx)
 
 
 
-FSN_Servant::FSN_Servant()
-{
+//FSN_Servant::FSN_Servant()
+//{
 
-}
+//}
 
-FSN_Servant::FSN_Servant(const FSN_Servant &other)
-{
+//FSN_Servant::FSN_Servant(const FSN_Servant &other)
+//{
 
-}
+//}
 
 FSN_Servant::FSN_Servant(const string &bdb_path, const string &node_addr, const string &node_login, const string &node_password,
                          const string &fsn_wallets_dir, network_type nettype)
     : m_fsnWalletsDir(fsn_wallets_dir)
+    , m_mempool(m_bc)
+    , m_snl(m_bc)
+    , m_bc(m_mempool, m_snl)
 {
     FSN_ServantBase::m_nettype      = nettype;
     FSN_ServantBase::m_nodelogin    = node_login;
@@ -153,7 +156,7 @@ vector<pair<uint64_t, boost::shared_ptr<supernode::FSN_Data>>>
 FSN_Servant::LastBlocksResolvedByFSN(uint64_t startFromBlock, uint64_t blockNums) const
 {
     vector<pair<uint64_t, boost::shared_ptr<FSN_Data>>> result;
-    uint64_t block_height = m_bc->get_current_blockchain_height();
+    uint64_t block_height = m_bc.get_current_blockchain_height();
     if (startFromBlock >= block_height) {
         LOG_ERROR("starting block is not in blockchain: " << startFromBlock);
         return result;
@@ -207,11 +210,9 @@ vector< boost::shared_ptr<supernode::FSN_Data> > FSN_Servant::GetAuthSample(uint
 }
 uint64_t FSN_Servant::GetCurrentBlockHeight() const
 {
-    if (m_bc)
-    {
-        return m_bc->get_current_blockchain_height();
-    }
-    return 0;
+    
+    return m_bc.get_current_blockchain_height();
+    
 }
 
 
@@ -319,9 +320,7 @@ bool FSN_Servant::proofCoinbaseTx(const cryptonote::account_public_address &addr
 
 bool FSN_Servant::initBlockchain(const string &dbpath, network_type nettype)
 {
-    m_bc = nullptr;
-    m_mempool = new cryptonote::tx_memory_pool(*m_bc);
-    m_bc = new cryptonote::Blockchain(*m_mempool);
+    
 
     m_bdb = cryptonote::new_db("lmdb");
     if (!m_bdb) {
@@ -338,14 +337,14 @@ bool FSN_Servant::initBlockchain(const string &dbpath, network_type nettype)
     LOG_PRINT_L0("Loading blockchain from folder " << filename << " ...");
     try
     {
-        m_bdb->open(filename, DBF_RDONLY);
+        m_bdb->open(filename, nettype, DBF_RDONLY);
     }
     catch (const std::exception& e)
     {
         LOG_PRINT_L0("Error opening database: " << e.what());
         return false;
     }
-    bool result = m_bc->init(m_bdb, nettype);
+    bool result = m_bc.init(m_bdb, nullptr, nettype);
     CHECK_AND_ASSERT_MES(result, false, "Failed to initialize source blockchain storage");
     LOG_PRINT_L0("Source blockchain storage initialized OK");
     return result;
@@ -353,7 +352,7 @@ bool FSN_Servant::initBlockchain(const string &dbpath, network_type nettype)
 
 Wallet *FSN_Servant::initWallet(Wallet * existingWallet, const string &path, const string &password, network_type nettype)
 {
-    WalletManager * wmgr = Monero::WalletManagerFactory::getWalletManager();
+    WalletManagerBase * wmgr = Monero::WalletManagerFactory::getWalletManager();
 
     if (existingWallet)
         wmgr->closeWallet(existingWallet);
@@ -392,7 +391,7 @@ Wallet *FSN_Servant::initViewOnlyWallet(const FSN_WalletData &walletData, networ
     boost::filesystem::path wallet_path (m_fsnWalletsDir);
     wallet_path /= walletData.Addr;
     Monero::Wallet * w = nullptr;
-    Monero::WalletManager * wmgr = Monero::WalletManagerFactory::getWalletManager();
+    Monero::WalletManagerBase * wmgr = Monero::WalletManagerFactory::getWalletManager();
 
     if (!wmgr->walletExists(wallet_path.string())) {
         // create new view only wallet

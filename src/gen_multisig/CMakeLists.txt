@@ -27,7 +27,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-loki_add_executable(gen_multisig "loki-gen-trusted-multisig"
+loki_add_executable(gen_multisig "graft-gen-trusted-multisig"
   gen_multisig.cpp
   )
 
@@ -41,4 +41,5 @@ target_link_libraries(gen_multisig
     Boost::program_options
     Boost::filesystem
     version
-    extra)
+    extra
+    utils)

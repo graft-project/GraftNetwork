@@ -30,25 +30,11 @@
 
 # include (${PROJECT_SOURCE_DIR}/cmake/libutils.cmake)
 
-set(utils_sources
+add_library(utils
   utils.cpp
   cryptmsg.cpp
 )
 
-set(utils_headers
-  cryptmsg.h
-)
-
-set(utils_private_headers
-  utils.h
-  )
-
-monero_private_headers(utils
-  ${crypto_private_headers})
-monero_add_library(utils
-  ${utils_sources}
-  ${utils_headers}
-  ${utils_private_headers})
 target_link_libraries(utils
   PUBLIC
     ringct

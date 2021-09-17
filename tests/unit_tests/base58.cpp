@@ -470,18 +470,6 @@ namespace
   std::string test_keys_addr_str = "GAktFYPMuemfFBDKw3E2pw8v7QEXL5DnnSzzWGYxBuZjhC8ZKZ5pnZC6zY8EKzbNTrfGXA29dd4S5GknAgtXwUSu4kPF5uw";
 }
 
-TEST(get_account_address_as_str, works_correctly)
-{
-  cryptonote::account_public_address addr;
-  ASSERT_TRUE(serialization::parse_binary(test_serialized_keys, addr));
-  // DON'T ever use this as a destination for funds, as the keys are right above this comment...
-  std::string test_keys_addr_str = "GAktFYPMuemfFBDKw3E2pw8v7QEXL5DnnSzzWGYxBuZjhC8ZKZ5pnZC6zY8EKzbNTrfGXA29dd4S5GknAgtXwUSu4kPF5uw";
-}
-
-TEST(get_account_address_as_str, works_correctly)
-{
-  cryptonote::account_public_address addr;
-}
 
 TEST(get_account_address_as_str, works_correctly)
 {

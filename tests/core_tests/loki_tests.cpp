@@ -510,7 +510,7 @@ bool loki_core_block_reward_unpenalized::generate(std::vector<test_event_entry>&
   gen.add_blocks_until_version(hard_forks.back().first);
 
   uint8_t newest_hf = hard_forks.back().first;
-  assert(newest_hf >= cryptonote::network_version_13_enforce_checkpoints);
+  assert(newest_hf >= cryptonote::network_version_21_enforce_checkpoints);
 
   gen.add_mined_money_unlock_blocks();
 
@@ -521,7 +521,7 @@ bool loki_core_block_reward_unpenalized::generate(std::vector<test_event_entry>&
     txs[i] = gen.create_and_add_tx(gen.first_miner_, dummy.get_keys().m_account_address, MK_COINS(5));
 
   gen.create_and_add_next_block(txs);
-  uint64_t unpenalized_block_reward     = cryptonote::block_reward_unpenalized_formula_v8(gen.height());
+  uint64_t unpenalized_block_reward     = cryptonote::block_reward_unpenalized_formula(gen.height());
   uint64_t expected_service_node_reward = cryptonote::service_node_reward_formula(unpenalized_block_reward, newest_hf);
 
   loki_register_callback(events, "check_block_rewards", [&events, unpenalized_block_reward, expected_service_node_reward](cryptonote::core &c, size_t ev_index)
@@ -549,7 +549,7 @@ bool loki_core_fee_burning::generate(std::vector<test_event_entry>& events)
   gen.add_blocks_until_version(hard_forks.back().first);
 
   uint8_t newest_hf = hard_forks.back().first;
-  assert(newest_hf >= cryptonote::network_version_14_blink);
+  assert(newest_hf >= cryptonote::network_version_22_blink);
 
   gen.add_mined_money_unlock_blocks();
 
@@ -619,13 +619,13 @@ bool loki_core_fee_burning::generate(std::vector<test_event_entry>& events)
 
 bool loki_core_governance_batched_reward::generate(std::vector<test_event_entry>& events)
 {
-  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_10_bulletproofs);
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_14_bulletproofs);
   const cryptonote::config_t &network = cryptonote::get_config(cryptonote::FAKECHAIN, cryptonote::network_version_count - 1);
 
   uint64_t hf10_height = 0;
   for (std::pair<uint8_t, uint64_t> hf_pair : hard_forks)
   {
-    if (hf_pair.first == cryptonote::network_version_10_bulletproofs)
+    if (hf_pair.first == cryptonote::network_version_14_bulletproofs)
     {
       hf10_height = hf_pair.second;
       break;
@@ -636,7 +636,7 @@ bool loki_core_governance_batched_reward::generate(std::vector<test_event_entry>
   uint64_t expected_total_governance_paid = 0;
   loki_chain_generator batched_governance_generator(events, hard_forks);
   {
-    batched_governance_generator.add_blocks_until_version(cryptonote::network_version_10_bulletproofs);
+    batched_governance_generator.add_blocks_until_version(cryptonote::network_version_14_bulletproofs);
     uint64_t blocks_to_gen = network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS - batched_governance_generator.height();
     batched_governance_generator.add_n_blocks(blocks_to_gen);
   }
@@ -648,7 +648,7 @@ bool loki_core_governance_batched_reward::generate(std::vector<test_event_entry>
     std::vector<std::pair<uint8_t, uint64_t>> other_hard_forks = {
         std::make_pair(cryptonote::network_version_7, 0),
         std::make_pair(cryptonote::network_version_8, 1),
-        std::make_pair(cryptonote::network_version_9_service_nodes, hf10_height)};
+        std::make_pair(cryptonote::network_version_18_service_nodes, hf10_height)};
 
     std::vector<test_event_entry> unused_events;
     loki_chain_generator no_batched_governance_generator(unused_events, other_hard_forks);
@@ -694,8 +694,9 @@ bool loki_core_governance_batched_reward::generate(std::vector<test_event_entry>
 
 bool loki_core_block_rewards_lrc6::generate(std::vector<test_event_entry>& events)
 {
+#if 0  // TODO: Graft: lrc6?
   auto& network = cryptonote::get_config(cryptonote::FAKECHAIN, cryptonote::network_version_16);
-  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_15_lns);
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_23_lns);
   hard_forks.emplace_back(cryptonote::network_version_16, hard_forks.back().second + network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS + 10);
   loki_chain_generator batched_governance_generator(events, hard_forks);
   batched_governance_generator.add_blocks_until_version(cryptonote::network_version_16);
@@ -704,8 +705,9 @@ bool loki_core_block_rewards_lrc6::generate(std::vector<test_event_entry>& event
   uint64_t hf15_height = 0, hf16_height = 0;
   for (const auto &hf : hard_forks)
   {
-    if (hf.first == cryptonote::network_version_15_lns)
+    if (hf.first == cryptonote::network_version_23_lns)
       hf15_height = hf.second;
+    
     else if (hf.first == cryptonote::network_version_16)
     {
       hf16_height = hf.second;
@@ -757,13 +759,14 @@ bool loki_core_block_rewards_lrc6::generate(std::vector<test_event_entry>& event
 
     return true;
   });
+#endif  
 
   return true;
 }
 
 bool loki_core_test_deregister_preferred::generate(std::vector<test_event_entry> &events)
 {
-  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_9_service_nodes);
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_18_service_nodes);
   loki_chain_generator gen(events, hard_forks);
   const auto miner                 = gen.first_miner();
   const auto alice                 = gen.add_account();
@@ -828,7 +831,7 @@ bool loki_core_test_deregister_preferred::generate(std::vector<test_event_entry>
 // to test), they don't get deregistered.
 bool loki_core_test_deregister_safety_buffer::generate(std::vector<test_event_entry> &events)
 {
-  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_9_service_nodes);
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_18_service_nodes);
   loki_chain_generator gen(events, hard_forks);
   const auto miner = gen.first_miner();
 
@@ -887,7 +890,7 @@ bool loki_core_test_deregister_safety_buffer::generate(std::vector<test_event_en
 // Daemon A accepts the block without X. Now X is too old and should not be added in future blocks.
 bool loki_core_test_deregister_too_old::generate(std::vector<test_event_entry>& events)
 {
-  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_9_service_nodes);
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_18_service_nodes);
   loki_chain_generator gen(events, hard_forks);
   gen.add_blocks_until_version(hard_forks.back().first);
 
@@ -2692,7 +2695,7 @@ bool loki_service_nodes_checkpoint_quorum_size::generate(std::vector<test_event_
 
 bool loki_service_nodes_gen_nodes::generate(std::vector<test_event_entry> &events)
 {
-  const std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_9_service_nodes);
+  const std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_18_service_nodes);
   loki_chain_generator gen(events, hard_forks);
   const auto miner                      = gen.first_miner();
   const auto alice                      = gen.add_account();
@@ -2772,7 +2775,7 @@ static bool contains(const std::vector<sn_info_t>& infos, const crypto::public_k
 
 bool loki_service_nodes_test_rollback::generate(std::vector<test_event_entry>& events)
 {
-  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_9_service_nodes);
+  std::vector<std::pair<uint8_t, uint64_t>> hard_forks = loki_generate_sequential_hard_fork_table(cryptonote::network_version_18_service_nodes);
   loki_chain_generator gen(events, hard_forks);
   gen.add_blocks_until_version(hard_forks.back().first);
   gen.add_n_blocks(20); /// generate some outputs and unlock them
@@ -2878,9 +2881,9 @@ bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry
 
   /// create a few blocks with active service nodes
   gen.add_n_blocks(5);
-  assert(gen.hf_version_ == cryptonote::network_version_9_service_nodes);
+  assert(gen.hf_version_ == cryptonote::network_version_18_service_nodes);
 
-  gen.add_blocks_until_version(cryptonote::network_version_10_bulletproofs);
+  gen.add_blocks_until_version(cryptonote::network_version_14_bulletproofs);
   loki_register_callback(events, "test_initial_swarms", [&events](cryptonote::core &c, size_t ev_index)
   {
     DEFINE_TESTS_ERROR_CONTEXT("test_swarms_basic::test_initial_swarms");

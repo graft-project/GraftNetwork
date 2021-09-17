@@ -161,8 +161,10 @@ namespace cryptonote
     v4_per_output_unlock_times,
     _count,
   };
+  
   enum class txtype : uint16_t {
-    standard,
+    standard = 0,
+    rta_deprecated,
     state_change,
     key_image_unlock,
     stake,
@@ -200,10 +202,10 @@ namespace cryptonote
 
     BEGIN_SERIALIZE()
       ENUM_FIELD(version, version >= txversion::v1 && version < txversion::_count);
-      if (version >= txversion::v3_per_output_unlock_times)
+      if (version >= txversion::v4_per_output_unlock_times)
       {
         FIELD(output_unlock_times)
-        if (version == txversion::v3_per_output_unlock_times) {
+        if (version == txversion::v4_per_output_unlock_times) {
           bool is_state_change = type == txtype::state_change;
           FIELD(is_state_change)
           type = is_state_change ? txtype::state_change : txtype::standard;
@@ -212,10 +214,10 @@ namespace cryptonote
       VARINT_FIELD(unlock_time)
       FIELD(vin)
       FIELD(vout)
-      if (version >= txversion::v3_per_output_unlock_times && vout.size() != output_unlock_times.size())
+      if (version >= txversion::v4_per_output_unlock_times && vout.size() != output_unlock_times.size())
         return false;
       FIELD(extra)
-      if (version >= txversion::v4_tx_types)
+      if (version >= txversion::v3_tx_types)
         ENUM_FIELD_N("type", type, type < txtype::_count);
     END_SERIALIZE()
   public:
@@ -233,7 +235,7 @@ namespace cryptonote
 
     uint64_t get_unlock_time(size_t out_index) const
     {
-      if (version >= txversion::v3_per_output_unlock_times)
+      if (version >= txversion::v4_per_output_unlock_times)
       {
         if (out_index >= output_unlock_times.size())
         {
@@ -243,36 +245,6 @@ namespace cryptonote
         return output_unlock_times[out_index];
       }
       return unlock_time;
-    }
-  };
-
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
-  struct account_public_address
-  {
-    crypto::public_key m_spend_public_key;
-    crypto::public_key m_view_public_key;
-
-    BEGIN_SERIALIZE_OBJECT()
-      FIELD(m_spend_public_key)
-      FIELD(m_view_public_key)
-    END_SERIALIZE()
-
-    BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_spend_public_key)
-      KV_SERIALIZE_VAL_POD_AS_BLOB_FORCE(m_view_public_key)
-    END_KV_SERIALIZE_MAP()
-
-    bool operator==(const account_public_address& rhs) const
-    {
-      return m_spend_public_key == rhs.m_spend_public_key &&
-             m_view_public_key == rhs.m_view_public_key;
-    }
-
-    bool operator!=(const account_public_address& rhs) const
-    {
-      return !(*this == rhs);
     }
   };
 
@@ -346,7 +318,7 @@ namespace cryptonote
     // TODO: consider to removed 'type' field. we can check if transaction is rta either by
     // 1. checking if 'tx_extra_graft_rta_header' is present in tx_extra
     // 2. simply checking tx version, so 'type' only needed for 'alpha' compatibilty.
-    size_t type = tx_type_generic;
+    txtype type = txtype::standard;
 
     std::vector<uint8_t> extra2;
 
@@ -417,7 +389,7 @@ namespace cryptonote
         }
         ar.end_array();
       }
-      else if (version >= 2)
+      else if (version >= txversion::v2_ringct)
       {
         ar.tag("rct_signatures");
         if (!vin.empty())
@@ -442,13 +414,14 @@ namespace cryptonote
         }
       }
       // version >= 3 is rta transaction: allowed 0 fee and auth sample signatures
-      if (version == 3) 
+      if (version == txversion::v3_tx_types)
       // quirck. for v3 we don't use type for hash calculation, so we need to adjust blob passed to hash function by 
       // moving end of the buffer up by the size of serialized 'type' and 'extra2' fields
       {
         // we can't use 'extra2' field into tx-hash calculation, but we should(?) include 'type' field
         size_t v3_fields_start_pos = getpos(ar);
-        FIELD(type)
+        // TODO: !!! Graft: conflict with Loki's type field
+        ENUM_FIELD(type, type >= txtype::standard && type < txtype::_count)
         FIELD(extra2)
         v3_fields_size = getpos(ar) - v3_fields_start_pos;
       }
@@ -506,7 +479,7 @@ namespace cryptonote
     rct_signatures.type = rct::RCTTypeNull;
     set_hash_valid(false);
     set_blob_size_valid(false);
-    type = tx_type_generic;
+    type = txtype::standard;
     pruned = false;
     unprunable_size = 0;
     prefix_size = 0;
@@ -641,29 +614,29 @@ namespace cryptonote
   //---------------------------------------------------------------
   inline txversion transaction_prefix::get_min_version_for_hf(uint8_t hf_version)
   {
-    if (hf_version >= cryptonote::network_version_7 && hf_version <= cryptonote::network_version_10_bulletproofs)
+    if (hf_version >= cryptonote::network_version_7 && hf_version <= cryptonote::network_version_14_bulletproofs)
       return txversion::v2_ringct;
-    return txversion::v3_tx_types;
+    return txversion::v3_tx_types; // TODO: 
   }
 
   inline txversion transaction_prefix::get_max_version_for_hf(uint8_t hf_version)
   {
-    if (hf_version >= cryptonote::network_version_7 && hf_version <= cryptonote::network_version_8)
+    if (hf_version >= cryptonote::network_version_7 && hf_version <= cryptonote::network_version_12_reverse_waltz_pow)
       return txversion::v2_ringct;
 
-    if (hf_version >= cryptonote::network_version_9_service_nodes && hf_version <= cryptonote::network_version_10_bulletproofs)
-      return txversion::v4_per_output_unlock_times;
+    if (hf_version >= cryptonote::network_version_13_rta_txs_rta_mining && hf_version <= cryptonote::network_version_17_randomx_pow)
+      return txversion::v3_tx_types;
 
-    return txversion::v3_tx_types;
+    return txversion::v4_per_output_unlock_times;
   }
 
   inline txtype transaction_prefix::get_max_type_for_hf(uint8_t hf_version)
   {
     txtype result = txtype::standard;
-    else if (hf_version >= network_version_14_blink)            result = txtype::stake;
-    else if (hf_version >= network_version_11_infinite_staking) result = txtype::key_image_unlock;
-    else if (hf_version >= network_version_9_service_nodes)     result = txtype::state_change;
-
+    if      (hf_version >= network_version_22_blink)              result = txtype::stake;
+    else if (hf_version >= network_version_19_infinite_staking)   result = txtype::key_image_unlock;
+    else if (hf_version >= network_version_18_service_nodes)      result = txtype::state_change;
+    else if (hf_version >= network_version_13_rta_txs_rta_mining) result = txtype::rta_deprecated;
     return result;
   }
 
@@ -684,6 +657,7 @@ namespace cryptonote
     switch(type)
     {
       case txtype::standard:                return "standard";
+      case txtype::rta_deprecated:           return "rta_deprecated";
       case txtype::state_change:            return "state_change";
       case txtype::key_image_unlock:        return "key_image_unlock";
       case txtype::stake:                   return "stake";

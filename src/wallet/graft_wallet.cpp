@@ -297,11 +297,9 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         m_multisig_derivations.clear();
         m_always_confirm_transfers = false;
         m_print_ring_members = false;
-        m_default_mixin = 0;
         m_default_priority = 0;
         m_auto_refresh = true;
         m_refresh_type = RefreshType::RefreshDefault;
-        m_confirm_missing_payment_id = true;
         m_confirm_non_default_ring_size = true;
         m_ask_password = AskPasswordToDecrypt;
         m_min_output_count = 0;
@@ -310,7 +308,6 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         m_confirm_backlog = true;
         m_confirm_backlog_threshold = 0;
         m_confirm_export_overwrite = true;
-        m_auto_low_priority = true;
         m_segregate_pre_fork_outputs = true;
         m_key_reuse_mitigation2 = true;
         m_segregation_height = 0;
@@ -400,8 +397,6 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, store_tx_keys, int, Int, false, true);
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, store_tx_info, int, Int, false, true);
         m_store_tx_info = ((field_store_tx_keys != 0) || (field_store_tx_info != 0));
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_mixin, unsigned int, Uint, false, 0);
-        m_default_mixin = field_default_mixin;
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, default_priority, unsigned int, Uint, false, 0);
         if (field_default_priority_found)
         {
@@ -428,8 +423,7 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         }
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, refresh_height, uint64_t, Uint64, false, 0);
         m_refresh_from_block_height = field_refresh_height;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_missing_payment_id, int, Int, false, true);
-        m_confirm_missing_payment_id = field_confirm_missing_payment_id;
+
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_non_default_ring_size, int, Int, false, true);
         m_confirm_non_default_ring_size = field_confirm_non_default_ring_size;
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, ask_password, AskPasswordType, Int, false, AskPasswordToDecrypt);
@@ -452,8 +446,7 @@ bool tools::GraftWallet::load_keys_from_data(const std::string &data, const std:
         m_confirm_backlog_threshold = field_confirm_backlog_threshold;
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, confirm_export_overwrite, int, Int, false, true);
         m_confirm_export_overwrite = field_confirm_export_overwrite;
-        GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, auto_low_priority, int, Int, false, true);
-        m_auto_low_priority = field_auto_low_priority;
+        
         GET_FIELD_FROM_JSON_RETURN_ON_ERROR(json, nettype, uint8_t, Uint, false, static_cast<uint8_t>(m_nettype));
         // The network type given in the program argument is inconsistent with the network type saved in the wallet
         THROW_WALLET_EXCEPTION_IF(static_cast<uint8_t>(m_nettype) != field_nettype, error::wallet_internal_error,

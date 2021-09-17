@@ -31,10 +31,11 @@
 
 
 #include "device_default.hpp"
+#include "cryptonote_core/cryptonote_tx_utils.h"
 #include "int-util.h"
 #include "cryptonote_basic/account.h"
 #include "cryptonote_basic/subaddress_index.h"
-#include "cryptonote_core/cryptonote_tx_utils.h"
+
 #include "ringct/rctOps.h"
 
 #define ENCRYPTED_PAYMENT_ID_TAIL 0x8d

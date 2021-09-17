@@ -50,7 +50,7 @@
 #define CURRENT_BLOCK_MINOR_VERSION                     0
 #define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT              60*60*2
 #define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V9           120*7  // 7xT https://github.com/zawy12/difficulty-algorithms/issues/3, TimeStamp manipulation
-#define CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW            30
+
 // #define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V2           60*10 // Loki
 #define CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE             10
 #define CRYPTONOTE_DEFAULT_TX_MIXIN                     9
@@ -71,7 +71,6 @@ static_assert(STAKING_PORTIONS % 12 == 0, "Use a multiple of twelve, so that it 
 #define FINAL_SUBSIDY_PER_MINUTE                        ((uint64_t)3000000000) // 3 * pow(10, 9)
 
 
-#define BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW               11
 
 // For local testnet debug purposes allow shrinking the uptime proof frequency
 #ifndef UPTIME_PROOF_BASE_MINUTE
@@ -102,7 +101,11 @@ static_assert(STAKING_PORTIONS % 12 == 0, "Use a multiple of twelve, so that it 
 #define FEE_PER_KB_OLD                                  ((uint64_t)(COIN)/100) // pow(10, 8)
 #define FEE_PER_KB                                      ((uint64_t)2  *  (COIN) / 1000) // 2 * pow(10, 7)
 #define FEE_PER_BYTE                                    ((uint64_t)3000)
-#define DYNAMIC_FEE_PER_KB_BASE_FEE                     ((uint64_t)2  *  (COIN) / 1000) // 2 * pow(10, 7)
+
+// TODO: Graft: double check the amount
+#define FEE_PER_OUTPUT                                  ((uint64_t)2 * (COIN) / 100000) // 2 * pow(10, 5)
+
+#define DYNAMIC_FEE_PER_KB_BASE_FEE                     ((uint64_t)2  * (COIN) / 1000) // 2 * pow(10, 7)
 #define DYNAMIC_FEE_PER_KB_BASE_BLOCK_REWARD            ((uint64_t)10 *  (COIN) ) // 10 * pow(10,10)
 #define DYNAMIC_FEE_PER_KB_BASE_FEE_V5                  ((uint64_t)20000000 * (uint64_t)CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT        ((uint64_t)3000)
@@ -122,8 +125,8 @@ static_assert(STAKING_PORTIONS % 12 == 0, "Use a multiple of twelve, so that it 
 #define DIFFICULTY_BLOCKS_COUNT                         DIFFICULTY_WINDOW + DIFFICULTY_LAG
 
 // Loki's constant
-#define DIFFICULTY_WINDOW_V2                            60
-#define DIFFICULTY_BLOCKS_COUNT_V2                      (DIFFICULTY_WINDOW_V2 + 1) // added +1 to make N=N
+// #define DIFFICULTY_WINDOW_V2                            60
+// #define DIFFICULTY_BLOCKS_COUNT_V2                      (DIFFICULTY_WINDOW_V2 + 1) // added +1 to make N=N
 
 #define DIFFICULTY_WINDOW_V8                            60
 #define DIFFICULTY_BLOCKS_COUNT_V8                      DIFFICULTY_WINDOW_V8
@@ -134,7 +137,7 @@ static_assert(STAKING_PORTIONS % 12 == 0, "Use a multiple of twelve, so that it 
 #define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V2   DIFFICULTY_TARGET_V2 * CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS
 #define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS       1
 
-#define DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN             DIFFICULTY_TARGET_V1 //just alias; used by tests
+// #define DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN             DIFFICULTY_TARGET_V1 //just alias; used by tests
 
 #define BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT          10000  //by default, blocks ids count in synchronizing
 #define BLOCKS_SYNCHRONIZING_DEFAULT_COUNT_PRE_V4       100    //by default, blocks count in blocks downloading
@@ -195,18 +198,17 @@ static_assert(STAKING_PORTIONS % 12 == 0, "Use a multiple of twelve, so that it 
 #define HF_VERSION_MONERO_13                    14
 #define HF_VERSION_DYNAMIC_FEE                  4
 #define HF_VERSION_MIN_MIXIN_4                  6
-#define HF_VERSION_MIN_MIXIN_10                 HF_VERSION_MONERO_13
+#define HF_VERSION_MIN_MIXIN_10                 cryptonote::network_version_14_bulletproofs
 #define HF_VERSION_ENFORCE_RCT                  6
-#define HF_VERSION_PER_BYTE_FEE                 HF_VERSION_MONERO_13
 
 #define HF_VERSION_PER_BYTE_FEE                 cryptonote::network_version_14_bulletproofs
-#define HF_VERSION_SMALLER_BP                   cryptonote::network_version_11_infinite_staking
-#define HF_VERSION_LONG_TERM_BLOCK_WEIGHT       cryptonote::network_version_11_infinite_staking
-#define HF_VERSION_INCREASE_FEE                 cryptonote::network_version_12_checkpointing
-#define HF_VERSION_PER_OUTPUT_FEE               cryptonote::network_version_13_enforce_checkpoints
-#define HF_VERSION_ED25519_KEY                  cryptonote::network_version_13_enforce_checkpoints
-#define HF_VERSION_FEE_BURNING                  cryptonote::network_version_14_blink
-#define HF_VERSION_BLINK                        cryptonote::network_version_14_blink
+#define HF_VERSION_SMALLER_BP                   cryptonote::network_version_19_infinite_staking
+#define HF_VERSION_LONG_TERM_BLOCK_WEIGHT       cryptonote::network_version_19_infinite_staking
+#define HF_VERSION_INCREASE_FEE                 cryptonote::network_version_20_checkpointing
+#define HF_VERSION_PER_OUTPUT_FEE               cryptonote::network_version_21_enforce_checkpoints
+#define HF_VERSION_ED25519_KEY                  cryptonote::network_version_21_enforce_checkpoints
+#define HF_VERSION_FEE_BURNING                  cryptonote::network_version_22_blink
+#define HF_VERSION_BLINK                        cryptonote::network_version_22_blink
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 
@@ -245,8 +247,9 @@ namespace config
   std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101dbb56baf25ba96a9e186214df0725d5aa898514fcce283013338fd9de0ae8f95";
   uint32_t const GENESIS_NONCE = 10000;
 
-#if 0 // TODO: Remove for Graft
+
   uint64_t const GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS = ((60 * 60 * 24 * 7) / DIFFICULTY_TARGET_V2);
+#if 0 // TODO: Remove for Graft
   std::string const GOVERNANCE_WALLET_ADDRESS[] =
   {
     "LCFxT37LAogDn1jLQKf4y7aAqfi21DjovX9qyijaLYQSdrxY1U5VGcnMJMjWrD9RhjeK5Lym67wZ73uh9AujXLQ1RKmXEyL", // hardfork v7-10
@@ -269,8 +272,9 @@ namespace config
     } };
     std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101dbb56baf25ba96a9e186214df0725d5aa898514fcce283013338fd9de0ae8f95";
     uint32_t const GENESIS_NONCE = 10001;
-#if 0 //TODO: remove fro Graft
     uint64_t const GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS = 1000;
+    
+#if 0 //TODO: remove fro Graft
     std::string const GOVERNANCE_WALLET_ADDRESS[] =
     {
       "T6SUprTYE5rQpep9iQFxyPcKVd91DFR1fQ1Qsyqp5eYLiFc8XuYd3reRE71qDL8c3DXioUbDEpDFdaUpetnL37NS1R3rzoKxi", // hardfork v7-9
@@ -295,8 +299,9 @@ namespace config
       } };
     std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101a9be144ebd3c5bc0e74ebaa61be19231280771c155d31c449979bc50dc854aa3";
     uint32_t const GENESIS_NONCE = 10002;
-#if 0 // TODO: Remove for Graft
     uint64_t const GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS = ((60 * 60 * 24 * 7) / DIFFICULTY_TARGET_V2);
+    
+#if 0 // TODO: Remove for Graft
     std::string const GOVERNANCE_WALLET_ADDRESS[] =
     {
       "59f7FCwYMiwMnFr8HwsnfJ2hK3DYB1tryhjsfmXqEBJojKyqKeNWoaDaZaauoZPiZHUYp2wJuy5s9H96qy4q9xUVCXXHmTU", // hardfork v7-9
@@ -321,11 +326,13 @@ namespace cryptonote
     network_version_15_disable_non_bullet_proof, // disable non-bullet-proof
     network_version_16_32_days_stake_period,     // stake period up to 32 days
     network_version_17_randomx_pow,              // monero v14 merge
-    network_version_18_infinite_staking,         // Loki's service nodes/infinite staking
-    network_version_19_checkpointing,            // Loki's checkpointing
-    network_version_20_enforce_checkpoints,      // force Loki's checkpointing
-    network_version_21_blink,                    // Loki's blink txes 
-    network_version_count,
+    network_version_18_service_nodes,            // Proof Of Stake w/ Service Nodes
+    network_version_19_infinite_staking,         // Loki's service nodes/infinite staking
+    network_version_20_checkpointing,            // Loki's checkpointing
+    network_version_21_enforce_checkpoints,      // force Loki's checkpointing
+    network_version_22_blink,                    // Loki's blink txes 
+    network_version_23_lns,                      // Loki's LNS; to be removed from Graft
+    network_version_count,                       // future fork
   };
   enum network_type : uint8_t
   {
@@ -347,6 +354,7 @@ namespace cryptonote
     boost::uuids::uuid NETWORK_ID;
     std::string GENESIS_TX;
     uint32_t GENESIS_NONCE;
+    uint64_t GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS;
   };
   inline const config_t& get_config(network_type nettype, int hard_fork_version = 7)
   {
@@ -359,7 +367,8 @@ namespace cryptonote
       ::config::ZMQ_RPC_DEFAULT_PORT,
       ::config::QNET_DEFAULT_PORT,
       ::config::NETWORK_ID,
-      ::config::GENESIS_TX
+      ::config::GENESIS_TX,
+      ::config::GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS
     };
 
     static config_t testnet = {
@@ -372,7 +381,8 @@ namespace cryptonote
       ::config::testnet::QNET_DEFAULT_PORT,
       ::config::testnet::NETWORK_ID,
       ::config::testnet::GENESIS_TX,
-      ::config::testnet::GENESIS_NONCE
+      ::config::testnet::GENESIS_NONCE,
+      ::config::GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS
     };
 
     static config_t stagenet = {
@@ -385,7 +395,8 @@ namespace cryptonote
       ::config::stagenet::QNET_DEFAULT_PORT,
       ::config::stagenet::NETWORK_ID,
       ::config::stagenet::GENESIS_TX,
-      ::config::stagenet::GENESIS_NONCE
+      ::config::stagenet::GENESIS_NONCE,
+      ::config::GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS
     };
 
     switch (nettype)
@@ -394,10 +405,9 @@ namespace cryptonote
       case FAKECHAIN: return mainnet;
       case TESTNET: return testnet;
       case STAGENET: return stagenet;
-    }
-
       default: throw std::runtime_error("Invalid network type");
     }
-  };
-}
+  }
+};
+
 

@@ -629,8 +629,8 @@ TEST(Serialization, serializes_rta_transaction_correctly)
   // Empty tx
   cryptonote::transaction tx;
   cryptonote::transaction tx1;
-  tx.version = 3;
-  tx.type = cryptonote::transaction::tx_type_rta;
+  tx.version = cryptonote::txversion::v3_tx_types;
+  tx.type = cryptonote::txtype::rta_deprecated;
   cryptonote::rta_header rta_hdr_in, rta_hdr_out;
   std::vector<cryptonote::account_base> accounts;
 
@@ -669,6 +669,8 @@ TEST(Serialization, serializes_rta_transaction_correctly)
   ASSERT_EQ(tx_hash, tx_hash1);
   ASSERT_TRUE(cryptonote::get_graft_rta_header_from_extra(tx1, rta_hdr_out));
   ASSERT_EQ(rta_hdr_in, rta_hdr_out);
+
+  
 }
 
 TEST(Serialization, empty_rta_signatures)
@@ -678,8 +680,8 @@ TEST(Serialization, empty_rta_signatures)
   // Empty tx
   cryptonote::transaction tx_in;
   cryptonote::transaction tx_out;
-  tx_in.version = 3;
-  tx_in.type = cryptonote::transaction::tx_type_rta;
+  tx_in.version = cryptonote::txversion::v3_tx_types;
+  tx_in.type = cryptonote::txtype::rta_deprecated;
   cryptonote::rta_header rta_hdr_in, rta_hdr_out;
   std::vector<cryptonote::account_base> accounts;
 

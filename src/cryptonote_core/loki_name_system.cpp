@@ -24,8 +24,8 @@ extern "C"
 #include <sodium.h>
 }
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "lns"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "lns"
 
 namespace lns
 {
@@ -1746,7 +1746,7 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
    return false;
 
   bool lns_parsed_from_block = false;
-  if (block.major_version >= cryptonote::network_version_15_lns)
+  if (block.major_version >= cryptonote::network_version_23_lns)
   {
     for (cryptonote::transaction const &tx : txs)
     {

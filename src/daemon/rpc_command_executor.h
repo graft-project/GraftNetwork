@@ -47,8 +47,8 @@
 #include "net/net_fwd.h"
 #include "rpc/core_rpc_server.h"
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "daemon"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "daemon"
 
 namespace daemonize {
 
@@ -136,6 +136,10 @@ public:
 
   bool in_peers(uint64_t limit);
 
+  bool start_save_graph();
+  
+  bool stop_save_graph();
+  
   bool hard_fork_info(uint8_t version);
 
   bool print_bans();

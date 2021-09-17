@@ -38,7 +38,8 @@ target_link_libraries(functional_tests
     epee
     Boost::regex
     Boost::program_options
-    extra)
+    extra
+    utils)
 
 execute_process(COMMAND ${PYTHON_EXECUTABLE} "-c" "import requests; print('OK')" OUTPUT_VARIABLE REQUESTS_OUTPUT OUTPUT_STRIP_TRAILING_WHITESPACE)
 if (REQUESTS_OUTPUT STREQUAL "OK")

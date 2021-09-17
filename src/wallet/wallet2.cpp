@@ -1038,27 +1038,10 @@ void wallet_device_callback::on_progress(const hw::device_progress& event)
     wallet->on_device_progress(event);
 }
 
-boost::optional<epee::wipeable_string> wallet_device_callback::on_pin_request()
-{
-  if (wallet)
-    return wallet->on_device_pin_request();
-  return boost::none;
-}
 
-boost::optional<epee::wipeable_string> wallet_device_callback::on_passphrase_request(bool on_device)
-{
-  if (wallet)
-    return wallet->on_device_passphrase_request(on_device);
-  return boost::none;
-}
 
-void wallet_device_callback::on_progress(const hw::device_progress& event)
-{
-  if (wallet)
-    wallet->on_device_progress(event);
-}
-
-wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
+wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended, boost::shared_ptr<boost::asio::io_service> ios):
+  m_http_client(ios),
   m_multisig_rescan_info(NULL),
   m_multisig_rescan_k(NULL),
   m_upper_transaction_weight_limit(0),
@@ -1325,7 +1308,7 @@ bool wallet2::get_multisig_seed(epee::wipeable_string& seed, const epee::wipeabl
   if (!passphrase.empty())
   {
     crypto::secret_key key;
-    crypto::cn_slow_hash(passphrase.data(), passphrase.size(), (crypto::hash&)key, crypto::cn_slow_hash_type::heavy_v1);
+    crypto::cn_slow_hash(passphrase.data(), passphrase.size(), (crypto::hash&)key);
     sc_reduce32((unsigned char*)key.data);
     data = encrypt(data, key, true);
   }
@@ -2426,26 +2409,6 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     std::shared_ptr<tools::Notify> tx_notify = m_tx_notify;
     if (tx_notify)
       tx_notify->notify("%s", epee::string_tools::pod_to_hex(txid).c_str(), NULL);
-  }
-}
-//----------------------------------------------------------------------------------------------------
-void wallet2::process_unconfirmed(const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t height)
-{
-  if (m_unconfirmed_txs.empty())
-    return;
-
-  auto unconf_it = m_unconfirmed_txs.find(txid);
-  if(unconf_it != m_unconfirmed_txs.end()) {
-    if (store_tx_info()) {
-      try {
-        m_confirmed_txs.emplace(txid, confirmed_transfer_details(unconf_it->second, height));
-      }
-      catch (...) {
-        // can fail if the tx has unexpected input types
-        LOG_PRINT_L0("Failed to add outgoing transaction to confirmed transaction map");
-      }
-    }
-    m_unconfirmed_txs.erase(unconf_it);
   }
 }
 //----------------------------------------------------------------------------------------------------
@@ -3958,10 +3921,13 @@ bool wallet2::store_keys_to_buffer(const wipeable_string &password, std::string 
   keys_file_data.iv = crypto::rand<crypto::chacha_iv>();
   crypto::chacha20(account_data.data(), account_data.size(), key, keys_file_data.iv, &cipher[0]);
   keys_file_data.account_data = cipher;
-
-  std::string tmp_file_name = keys_file_name + ".new";
   std::string buf;
+
   r = ::serialization::dump_binary(keys_file_data, buf);
+  
+  /*
+  std::string tmp_file_name = keys_file_name + ".new";
+  
   r = r && epee::file_io_utils::save_string_to_file(tmp_file_name, buf);
   CHECK_AND_ASSERT_MES(r, false, "failed to generate wallet keys file " << tmp_file_name);
 
@@ -3974,6 +3940,7 @@ bool wallet2::store_keys_to_buffer(const wipeable_string &password, std::string 
       LOG_ERROR("failed to update wallet keys file " << keys_file_name);
       return false;
   }
+  */
 
   return true;
 }
@@ -5509,13 +5476,7 @@ void wallet2::set_offline(bool offline)
 bool wallet2::generate_chacha_key_from_secret_keys(crypto::chacha_key &key) const
 {
   hw::device &hwdev =  m_account.get_device();
-  bool result = hwdev.generate_chacha_key(m_account.get_keys(), key, m_kdf_rounds);
-
-  // generate_chacha_key() -> .. -> slow_hash_allocate_state() allocates cryptonote 2Mb on heap
-  // which never freed in case thread exits
-  slow_hash_free_state(); 
-
-  return result;
+  return hwdev.generate_chacha_key(m_account.get_keys(), key, m_kdf_rounds);
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::generate_chacha_key_from_password(const epee::wipeable_string &pass, crypto::chacha_key &key) const
@@ -5635,7 +5596,6 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
       m_account_public_address.m_spend_public_key != m_account.get_keys().m_account_address.m_spend_public_key ||
       m_account_public_address.m_view_public_key  != m_account.get_keys().m_account_address.m_view_public_key,
       error::wallet_files_doesnt_correspond, m_keys_file, m_wallet_file);
-#endif
   }
 
   cryptonote::block genesis;
@@ -5675,6 +5635,93 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
     MERROR("Failed to initialize MMS, it will be unusable");
   }
 }
+//----------------------------------------------------------------------------------------------------
+void wallet2::load_cache(const string &cache_filename)
+{
+  wallet2::cache_file_data cache_file_data;
+  std::string buf;
+  bool r = epee::file_io_utils::load_file_to_string(cache_filename, buf, std::numeric_limits<size_t>::max());
+  THROW_WALLET_EXCEPTION_IF(!r, error::file_read_error, cache_filename);
+
+  // try to read it as an encrypted cache
+  try
+  {
+    LOG_PRINT_L1("Trying to decrypt cache data");
+
+    r = ::serialization::parse_binary(buf, cache_file_data);
+    THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "internal error: failed to deserialize \"" + cache_filename + '\"');
+    std::string cache_data;
+    cache_data.resize(cache_file_data.cache_data.size());
+    crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), m_cache_key, cache_file_data.iv, &cache_data[0]);
+
+    try {
+      std::stringstream iss;
+      iss << cache_data;
+      boost::archive::portable_binary_iarchive ar(iss);
+      ar >> *this;
+    }
+    catch (...)
+    {
+      // try with previous scheme: direct from keys
+      crypto::chacha_key key;
+      generate_chacha_key_from_secret_keys(key);
+      crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
+      try
+      {
+        std::stringstream iss;
+        iss << cache_data;
+        boost::archive::portable_binary_iarchive ar(iss);
+        ar >> *this;
+      }
+      catch (...)
+      {
+        crypto::chacha8(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), key, cache_file_data.iv, &cache_data[0]);
+        try
+        {
+          std::stringstream iss;
+          iss << cache_data;
+          boost::archive::portable_binary_iarchive ar(iss);
+          ar >> *this;
+        }
+        catch (...)
+        {
+          LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+          boost::filesystem::copy_file(cache_filename, cache_filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+          std::stringstream iss;
+          iss.str("");
+          iss << cache_data;
+          boost::archive::binary_iarchive ar(iss);
+          ar >> *this;
+        }
+      }
+    }
+  }
+  catch (...)
+  {
+    LOG_PRINT_L1("Failed to load encrypted cache, trying unencrypted");
+    try {
+      std::stringstream iss;
+      iss << buf;
+      boost::archive::portable_binary_iarchive ar(iss);
+      ar >> *this;
+    }
+    catch (...)
+    {
+      LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+      boost::filesystem::copy_file(cache_filename, cache_filename + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+      std::stringstream iss;
+      iss.str("");
+      iss << buf;
+      boost::archive::binary_iarchive ar(iss);
+      ar >> *this;
+    }
+  }
+  THROW_WALLET_EXCEPTION_IF(
+      m_account_public_address.m_spend_public_key != m_account.get_keys().m_account_address.m_spend_public_key ||
+      m_account_public_address.m_view_public_key  != m_account.get_keys().m_account_address.m_view_public_key,
+        error::wallet_files_doesnt_correspond, m_keys_file, cache_filename);
+}
+
 //----------------------------------------------------------------------------------------------------
 void wallet2::trim_hashchain()
 {
@@ -5839,7 +5886,6 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
     ostr.close();
     THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, new_file);
 #endif
-#endif
 
     // here we have "*.new" file, we need to rename it to be without ".new"
     std::error_code e = tools::replace_file(new_file, m_wallet_file);
@@ -5853,6 +5899,41 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
     m_message_store.write_to_file(get_multisig_wallet_state(), m_mms_file);
   }
   
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::store_cache(const string &filename)
+{
+  // preparing wallet data
+  std::stringstream oss;
+  boost::archive::portable_binary_oarchive ar(oss);
+  ar << *this;
+
+  wallet2::cache_file_data cache_file_data = boost::value_initialized<wallet2::cache_file_data>();
+  cache_file_data.cache_data = oss.str();
+  std::string cipher;
+  cipher.resize(cache_file_data.cache_data.size());
+  cache_file_data.iv = crypto::rand<crypto::chacha_iv>();
+  crypto::chacha20(cache_file_data.cache_data.data(), cache_file_data.cache_data.size(), m_cache_key, cache_file_data.iv, &cipher[0]);
+  cache_file_data.cache_data = cipher;
+
+#ifdef WIN32
+    // On Windows avoid using std::ofstream which does not work with UTF-8 filenames
+    // The price to pay is temporary higher memory consumption for string stream + binary archive
+    std::ostringstream ostr;
+    binary_archive<true> oar(ostr);
+    bool success = ::serialization::serialize(oar, cache_file_data);
+    if (success) {
+        success = epee::file_io_utils::save_string_to_file(filename, ostr.str());
+    }
+    THROW_WALLET_EXCEPTION_IF(!success, error::file_save_error, filename);
+#else
+    std::ofstream ostr;
+    ostr.open(filename, std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);
+    binary_archive<true> oar(ostr);
+    bool success = ::serialization::serialize(oar, cache_file_data);
+    ostr.close();
+    THROW_WALLET_EXCEPTION_IF(!success || !ostr.good(), error::file_save_error, filename);
+#endif
 }
 //----------------------------------------------------------------------------------------------------
 uint64_t wallet2::balance(uint32_t index_major) const
@@ -6287,6 +6368,7 @@ std::string wallet2::transfers_to_csv(const std::vector<transfer_view>& transfer
       new_line(output);
     }
   }
+  return output.str();
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::get_payments(const crypto::hash& payment_id, std::list<wallet2::payment_details>& payments, uint64_t min_height, const boost::optional<uint32_t>& subaddr_account, const std::set<uint32_t>& subaddr_indices) const
@@ -7612,9 +7694,9 @@ uint64_t wallet2::get_fee_percent(uint32_t priority, txtype type) const
       THROW_WALLET_EXCEPTION(error::invalid_priority);
 
     uint64_t burn_pct = 0;
-    if (use_fork_rules(network_version_15_lns, 0))
+    if (use_fork_rules(network_version_23_lns, 0))
       burn_pct = BLINK_BURN_TX_FEE_PERCENT;
-    else if (use_fork_rules(network_version_14_blink, 0))
+    else if (use_fork_rules(network_version_22_blink, 0))
       burn_pct = BLINK_BURN_TX_FEE_PERCENT_OLD;
     else
       THROW_WALLET_EXCEPTION(error::invalid_priority);
@@ -7635,9 +7717,9 @@ byte_and_output_fees wallet2::get_dynamic_base_fee_estimate() const
     return fees;
 
   if (use_fork_rules(HF_VERSION_PER_OUTPUT_FEE))
-    fees = {FEE_PER_BYTE, FEE_PER_OUTPUT}; // v13 switches back from v12 per-byte fees, add per-output
+    fees = {FEE_PER_BYTE, FEE_PER_OUTPUT}; 
   else
-    fees = {FEE_PER_BYTE_V12, 0};
+    fees = {use_fork_rules(HF_VERSION_PER_BYTE_FEE) ? FEE_PER_BYTE : FEE_PER_KB, 0};
 
   LOG_PRINT_L1("Failed to query base fee, using " << print_money(fees.first) << "/byte + " << print_money(fees.second) << "/output");
   return fees;
@@ -7679,7 +7761,7 @@ loki_construct_tx_params wallet2::construct_params(uint8_t hf_version, txtype tx
   else if (priority == tools::tx_priority_blink)
   {
     tx_params.burn_fixed   = BLINK_BURN_FIXED;
-    tx_params.burn_percent = hf_version <= network_version_14_blink
+    tx_params.burn_percent = hf_version <= network_version_22_blink
         ? BLINK_BURN_TX_FEE_PERCENT_OLD
         : BLINK_BURN_TX_FEE_PERCENT;
   }
@@ -8417,7 +8499,8 @@ wallet2::register_service_node_result wallet2::create_register_service_node_tx(c
 wallet2::request_stake_unlock_result wallet2::can_request_stake_unlock(const crypto::public_key &sn_key)
 {
   request_stake_unlock_result result = {};
-  result.ptx.tx.version = cryptonote::txversion::v4_tx_types;
+  // TODO: Graft: make sure version is correct (v3 vs v4)
+  result.ptx.tx.version = cryptonote::txversion::v4_per_output_unlock_times;
   result.ptx.tx.type    = cryptonote::txtype::key_image_unlock;
 
   std::string const sn_key_as_str = epee::string_tools::pod_to_hex(sn_key);
@@ -9454,7 +9537,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
           [](const get_outputs_out &a, const get_outputs_out &b) { return a.index < b.index; });
     }
 
-    if (ELPP->vRegistry()->allowed(el::Level::Debug, LOKI_DEFAULT_LOG_CATEGORY))
+    if (ELPP->vRegistry()->allowed(el::Level::Debug, MONERO_DEFAULT_LOG_CATEGORY))
     {
       std::map<uint64_t, std::set<uint64_t>> outs;
       for (const auto &i: req.outputs)
@@ -10559,8 +10642,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   hw::device &hwdev = m_account.get_device();
   boost::unique_lock<hw::device> hwdev_lock (hwdev);
   hw::reset_mode rst(hwdev);
-  const size_t tx_type = rta_tx_fee ? cryptonote::transaction::tx_type_rta : cryptonote::transaction::tx_type_generic;
   // TODO: Graft: LNS removed
+ bool const is_lns_tx = false;
+ auto original_dsts = dsts;
+ 
 #if 0
   bool const is_lns_tx = (tx_params.tx_type == txtype::loki_name_system);
   auto original_dsts = dsts;
@@ -10654,7 +10739,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   needed_money = 0;
   for(auto& dt: dsts)
   {
-    THROW_WALLET_EXCEPTION_IF(0 == dt.amount && !is_lns_tx, error::zero_destination);
+    THROW_WALLET_EXCEPTION_IF(0 == dt.amount && !is_lns_tx, error::zero_destination); 
     needed_money += dt.amount;
     LOG_PRINT_L2("transfer: adding " << print_money(dt.amount) << ", for a total of " << print_money (needed_money));
     THROW_WALLET_EXCEPTION_IF(needed_money < dt.amount, error::tx_sum_overflow, dsts, 0, m_nettype);
@@ -10675,7 +10760,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   // early out if we know we can't make it anyway
   // we could also check for being within FEE_PER_KB, but if the fee calculation
   // ever changes, this might be missed, so let this go through
-  const uint64_t num_outputs = tx_params.tx_type == cryptonote::txtype::loki_name_system ? 1 : 2; // if lns, only request the change output
+  const uint64_t num_outputs = is_lns_tx ? 1 : 2; // if lns, only request the change output
   {
     uint64_t min_fee = (
         base_fee.first * estimate_rct_tx_size(1, fake_outs_count, num_outputs, extra.size()) +
@@ -14583,6 +14668,68 @@ uint64_t wallet2::hash_m_transfers(int64_t transfer_height, crypto::hash &hash) 
     keccak_update(&state, (const uint8_t *) transfer.m_block_height, sizeof(transfer.m_block_height));
     keccak_update(&state, (const uint8_t *) tmp_hash.data, sizeof(tmp_hash.data));
     current_height += 1;
+  }
+
+  keccak_finish(&state, (uint8_t *) hash.data);
+  return current_height;
+}
+bool parse_subaddress_indices(const std::string& arg, std::set<uint32_t>& subaddr_indices, std::string *err_msg)
+{
+  subaddr_indices.clear();
+
+  if (arg.substr(0, 6) != "index=")
+    return false;
+  std::string subaddr_indices_str_unsplit = arg.substr(6, arg.size() - 6);
+  std::vector<std::string> subaddr_indices_str;
+  boost::split(subaddr_indices_str, subaddr_indices_str_unsplit, boost::is_any_of(","));
+
+  for (const auto& subaddr_index_str : subaddr_indices_str)
+  {
+    uint32_t subaddr_index;
+    if(!epee::string_tools::get_xtype_from_string(subaddr_index, subaddr_index_str))
+    {
+      subaddr_indices.clear();
+      if (err_msg) *err_msg = tr("failed to parse index: ") + subaddr_index_str;
+      return false;
+    }
+    subaddr_indices.insert(subaddr_index);
+  }
+  return true;
+}
+
+bool parse_priority(const std::string& arg, uint32_t& priority)
+{
+  auto priority_pos = std::find(
+    allowed_priority_strings.begin(),
+    allowed_priority_strings.end(),
+    arg);
+  if(priority_pos != allowed_priority_strings.end()) {
+    priority = std::distance(allowed_priority_strings.begin(), priority_pos);
+    return true;
+  }
+  return false;
+}
+
+//----------------------------------------------------------------------------------------------------
+void wallet2::finish_rescan_bc_keep_key_images(uint64_t transfer_height, const crypto::hash &hash)
+{
+  // Compute hash of m_transfers, if differs there had to be BC reorg.
+  crypto::hash new_transfers_hash{};
+  hash_m_transfers((int64_t) transfer_height, new_transfers_hash);
+
+  if (new_transfers_hash != hash)
+  {
+    // Soft-Reset to avoid inconsistency in case of BC reorg.
+    clear_soft(false);  // keep_key_images works only with soft reset.
+    THROW_WALLET_EXCEPTION_IF(true, error::wallet_internal_error, "Transfers changed during rescan, soft or hard rescan is needed");
+  }
+
+  // Restore key images in m_transfers from m_key_images
+  for(auto it = m_key_images.begin(); it != m_key_images.end(); it++)
+  {
+    THROW_WALLET_EXCEPTION_IF(it->second >= m_transfers.size(), error::wallet_internal_error, "Key images cache contains illegal transfer offset");
+    m_transfers[it->second].m_key_image = it->first;
+    m_transfers[it->second].m_key_image_known = true;
   }
 }
 //----------------------------------------------------------------------------------------------------

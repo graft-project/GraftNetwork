@@ -35,8 +35,8 @@
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "multisig.h"
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "multisig"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "multisig"
 
 using namespace std;
 

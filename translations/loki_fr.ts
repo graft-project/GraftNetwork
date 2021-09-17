@@ -1961,35 +1961,6 @@ Cette transaction sera déverrouillée au bloc %llu, dans approximativement %s j
         <location filename="../src/simplewallet/simplewallet.cpp" line="7093"/>
         <source>unknown error</source>
         <translation>erreur inconnue</translation>
-||||||| merged common ancestors
-        <location filename="../src/simplewallet/simplewallet.cpp" line="1185"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="3263"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="3556"/>
-        <source>unexpected error: </source>
-        <translation>erreur inattendue : </translation>
-    </message>
-    <message>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="1119"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="1190"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="3268"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="3561"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="4030"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="4138"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="4371"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="4570"/>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="4865"/>
-        <source>unknown error</source>
-        <translation>erreur inconnue</translation>
-=======
-        <location filename="../src/simplewallet/simplewallet.cpp" line="5041"/>
-        <source>Failed to read device passphrase</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/simplewallet/simplewallet.cpp" line="5057"/>
-        <source>The first refresh has finished for the HW-based wallet with received money. hw_key_images_sync is needed. </source>
-        <translation type="unfinished"></translation>
->>>>>>> v7.1.10:translations/loki_fr.ts
     </message>
     <message>
         <location filename="../src/simplewallet/simplewallet.cpp" line="5157"/>

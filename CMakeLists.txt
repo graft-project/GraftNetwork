@@ -43,6 +43,11 @@ endif()
 cmake_minimum_required(VERSION 3.7)
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
+# to override boost::variant's 20 types limit (we have more than 20 in tx_extra_field
+add_definitions(-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS)
+add_definitions(-DBOOST_MPL_LIMIT_LIST_SIZE=30)
+
+
 project(graftnetwork)
 
 function (die msg)
@@ -265,6 +270,15 @@ if(NOT MANUAL_SUBMODULES)
     check_submodule(external/loki-mq mapbox-variant cppzmq)
   endif()
 endif()
+
+
+
+if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
+# CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
+    set(CMAKE_ROOT_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+endif()
+
+add_definitions(-DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
 
 # set this to 0 if per-block checkpoint needs to be disabled
 

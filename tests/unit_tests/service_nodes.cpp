@@ -41,6 +41,7 @@ TEST(service_nodes, staking_requirement)
   // NOTE: Thanks for the values @Sonofotis
   const uint64_t atomic_epsilon = config::DEFAULT_DUST_THRESHOLD;
 
+  // TODO: Graft: 
   // LHS of Equation
   // Try underflow
   {
@@ -63,8 +64,8 @@ TEST(service_nodes, staking_requirement)
     // NOTE: The maximum staking requirement is 50,000, in atomic units is 50,000,000,000,000 < int64 range (2^63-1)
     // so casting is safe.
     uint64_t height = 101250;
-    int64_t mainnet_requirement  = (int64_t)service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_9_service_nodes);
-    int64_t stagenet_requirement = (int64_t)service_nodes::get_staking_requirement(cryptonote::STAGENET, height, cryptonote::network_version_9_service_nodes);
+    int64_t mainnet_requirement  = (int64_t)service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_18_service_nodes);
+    int64_t stagenet_requirement = (int64_t)service_nodes::get_staking_requirement(cryptonote::STAGENET, height, cryptonote::network_version_18_service_nodes);
 
     ASSERT_EQ(mainnet_requirement,  (45000 * COIN));
 
@@ -76,7 +77,7 @@ TEST(service_nodes, staking_requirement)
   // Check the requirements are decreasing
   {
     uint64_t height = 209250;
-    int64_t mainnet_requirement  = (int64_t)service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_10_bulletproofs);
+    int64_t mainnet_requirement  = (int64_t)service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_14_bulletproofs);
 
     int64_t  mainnet_expected = (int64_t)((29643 * COIN) + 670390000);
     int64_t  mainnet_delta    = std::abs(mainnet_requirement - mainnet_expected);
@@ -87,7 +88,7 @@ TEST(service_nodes, staking_requirement)
   // Sliftly after the boundary when the scheme switches over to a smooth emissions curve to 15k
   {
     uint64_t height = 235987;
-    int64_t  mainnet_requirement  = (int64_t)service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_11_infinite_staking);
+    int64_t  mainnet_requirement  = (int64_t)service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_19_infinite_staking);
 
     int64_t  mainnet_expected = (int64_t)((27164 * COIN) + 648610000);
     int64_t  mainnet_delta    = std::abs(mainnet_requirement - mainnet_expected);
@@ -97,7 +98,7 @@ TEST(service_nodes, staking_requirement)
   // Check staking requirement on height whose value is different with different floating point rounding modes, we expect FE_TONEAREST.
   {
     uint64_t height = 373200;
-    int64_t  mainnet_requirement  = (int64_t)service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_11_infinite_staking);
+    int64_t  mainnet_requirement  = (int64_t)service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_19_infinite_staking);
 
     int64_t  mainnet_expected = (int64_t)((20839 * COIN) + 644149350);
     ASSERT_EQ(mainnet_requirement, mainnet_expected);
@@ -106,7 +107,7 @@ TEST(service_nodes, staking_requirement)
   // NOTE: Staking Requirement Algorithm Switch: Integer Math Variant ^____^
   {
     uint64_t height = 450000;
-    uint64_t mainnet_requirement  = service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_13_enforce_checkpoints);
+    uint64_t mainnet_requirement  = service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_21_enforce_checkpoints);
 
     uint64_t  mainnet_expected = (18898 * COIN) + 351896001;
     ASSERT_EQ(mainnet_requirement, mainnet_expected);
@@ -115,7 +116,7 @@ TEST(service_nodes, staking_requirement)
   // Just before 15k boundary
   {
     uint64_t height = 999999;
-    uint64_t mainnet_requirement  = service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_13_enforce_checkpoints);
+    uint64_t mainnet_requirement  = service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_21_enforce_checkpoints);
 
     uint64_t mainnet_expected = (15000 * COIN) + 3122689;
     ASSERT_EQ(mainnet_requirement, mainnet_expected);
@@ -124,7 +125,7 @@ TEST(service_nodes, staking_requirement)
   // 15k requirement boundary
   {
     uint64_t height = 1000000;
-    uint64_t mainnet_requirement  = service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_13_enforce_checkpoints);
+    uint64_t mainnet_requirement  = service_nodes::get_staking_requirement(cryptonote::MAINNET, height, cryptonote::network_version_21_enforce_checkpoints);
 
     uint64_t mainnet_expected = 15000 * COIN;
     ASSERT_EQ(mainnet_requirement, mainnet_expected);
@@ -245,7 +246,7 @@ TEST(service_nodes, tx_extra_state_change_validation)
 
   // Valid state_change
   cryptonote::tx_extra_service_node_state_change valid_state_change = {};
-  uint8_t hf_version = cryptonote::network_version_11_infinite_staking;
+  uint8_t hf_version = cryptonote::network_version_19_infinite_staking;
   const uint64_t HEIGHT = 100;
   {
     valid_state_change.block_height       = HEIGHT - 1;
@@ -337,7 +338,7 @@ TEST(service_nodes, tx_extra_state_change_validation)
 TEST(service_nodes, min_portions)
 {
 
-  uint8_t hf_version = cryptonote::network_version_9_service_nodes;
+  uint8_t hf_version = cryptonote::network_version_18_service_nodes;
   // Test new contributors can *NOT* stake to a registration with under 25% of the total stake if there is more than 25% available.
   {
     ASSERT_FALSE(service_nodes::check_service_node_portions(hf_version, {0, STAKING_PORTIONS}));
@@ -389,7 +390,7 @@ TEST(service_nodes, min_portions)
   }
 
   // ===== After hard fork v11 =====
-  hf_version = cryptonote::network_version_11_infinite_staking;
+  hf_version = cryptonote::network_version_19_infinite_staking;
 
   {
     ASSERT_FALSE(service_nodes::check_service_node_portions(hf_version, {0, STAKING_PORTIONS}));
@@ -457,7 +458,7 @@ TEST(service_nodes, min_stake_amount)
 {
   /// pre v11
   uint64_t height            = 101250;
-  uint8_t hf_version         = cryptonote::network_version_9_service_nodes;
+  uint8_t hf_version         = cryptonote::network_version_18_service_nodes;
   uint64_t stake_requirement = service_nodes::get_staking_requirement(cryptonote::MAINNET, height, hf_version);
   {
     const uint64_t reserved = stake_requirement / 2;
@@ -472,7 +473,7 @@ TEST(service_nodes, min_stake_amount)
   }
 
   /// post v11
-  hf_version = cryptonote::network_version_11_infinite_staking;
+  hf_version = cryptonote::network_version_19_infinite_staking;
   stake_requirement = service_nodes::get_staking_requirement(cryptonote::MAINNET, height, hf_version);
   {
     // 50% reserved, with 1 contribution, max of 4- the minimum stake should be (50% / 3)

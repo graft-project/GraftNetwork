@@ -84,6 +84,87 @@ namespace
     }
     return pwd_container;
   }
+  
+  // TODO: Graft: deprecate
+  template <typename Request>
+  bool process_stake_transfer(const Request &req,  const std::vector<cryptonote::tx_destination_entry> &dsts,
+                              tools::wallet2 * wallet, std::vector<uint8_t>& extra, epee::json_rpc::error &er)
+  {
+    if (req.stake_transfer) {
+      crypto::signature supernode_signature;
+      if (!epee::string_tools::hex_to_pod(req.supernode_signature, supernode_signature))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_WRONG_SIGNATURE;
+        er.message = "failed to parse supernode signature";
+        return false;
+      }
+
+      crypto::public_key W;
+      if (!epee::string_tools::hex_to_pod(req.supernode_public_id, W) || !check_key(W))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_WRONG_SUPERNODE_KEY;
+        er.message = "invalid supernode public identifier";
+        return false;
+      }
+
+      const cryptonote::account_public_address& supernode_public_address = dsts.front().addr;
+      std::string supernode_public_address_str = cryptonote::get_account_address_as_str(wallet->nettype(), dsts.front().is_subaddress, supernode_public_address);
+      std::string data = supernode_public_address_str + ":" + req.supernode_public_id;
+      crypto::hash hash;
+      crypto::cn_fast_hash(data.data(), data.size(), hash);
+
+      if (!crypto::check_signature(hash, W, supernode_signature))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_WRONG_SIGNATURE;
+        er.message = "invalid supernode signature";
+        return false;
+      }
+
+      auto current_height = wallet->get_blockchain_current_height();
+      if (req.unlock_time < current_height + config::graft::STAKE_MIN_UNLOCK_TIME_FOR_WALLET)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "unlock_time is too low";
+        return false;
+      }
+      // allow 32 days stake period from HF16
+      uint64_t hf16_height = 0;
+      wallet->get_hard_fork_info(16, hf16_height);
+
+      const auto CURRENT_STAKE_MAX_UNLOCK_TIME = wallet->get_blockchain_current_height() < hf16_height ? config::graft::STAKE_MAX_UNLOCK_TIME_V15
+                                                                                                       : config::graft::STAKE_MAX_UNLOCK_TIME;
+
+      if (req.unlock_time > current_height + CURRENT_STAKE_MAX_UNLOCK_TIME)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "unlock_time is too high";
+        return false;
+      }
+
+      if (dsts.size() != 1)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "stake transfer must go to exactly one recipient";
+        return false;
+      }
+
+      uint64_t amount = dsts.front().amount;
+      if (amount < config::graft::TIER1_STAKE_AMOUNT && !req.allow_low_stake)
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "staked amount is too low";
+        return false;
+      }
+
+      if (!add_graft_stake_tx_extra_to_extra(extra, req.supernode_public_id, supernode_public_address, supernode_signature))
+      {
+        er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+        er.message = "failed to add stake transaction extra fields";
+        return false;
+      }
+    }
+    return true;
+  }
 }
 
 namespace tools
@@ -860,9 +941,10 @@ namespace tools
     {
       return false;
     }
-
-    if (!process_stake_transfer(req, dsts, m_wallet, extra, er))
-      return false;
+    // Graft: removed
+//    if (!process_stake_transfer(req, dsts, m_wallet, extra, er))
+//      return false;
+    
 
     try
     {
@@ -906,7 +988,9 @@ namespace tools
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool wallet_rpc_server::on_transfer_rta(const wallet_rpc::COMMAND_RPC_TRANSFER_RTA::request& req, wallet_rpc::COMMAND_RPC_TRANSFER_RTA::response& res, epee::json_rpc::error& er)
+  // TODO: Graft: remove/deprecate
+#if 0  
+  bool wallet_rpc_server::on_transfer_rta(const wallet_rpc::COMMAND_RPC_TRANSFER_RTA::request& req, wallet_rpc::COMMAND_RPC_TRANSFER_RTA::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     std::vector<cryptonote::tx_destination_entry> dsts;
     std::vector<uint8_t> extra;
@@ -977,9 +1061,23 @@ namespace tools
 
     try
     {
-      const bool rta_tx_fee = true;
-      uint64_t mixin = m_wallet->adjust_mixin(req.mixin);
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, req.priority, extra, req.account_index, req.subaddr_indices, rta_tx_fee);
+      uint32_t priority = req.priority;
+      if (req.blink || priority != tx_priority_unimportant)
+        priority = tx_priority_blink;
+      
+      boost::optional<uint8_t> hf_version = m_wallet->get_hard_fork_version();
+      if (!hf_version)
+      {
+        er.code    = WALLET_RPC_ERROR_CODE_HF_QUERY_FAILED;
+        er.message = tools::ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
+        return false;
+      } 
+      cryptonote::loki_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, cryptonote::txtype::standard, priority);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, CRYPTONOTE_DEFAULT_TX_MIXIN, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices, tx_params);
+      
+//      const bool rta_tx_fee = true;
+//      uint64_t mixin = m_wallet->adjust_mixin(req.mixin);
+//      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, req.priority, extra, req.account_index, req.subaddr_indices, rta_tx_fee);
 
       // reject proposed transactions if there are more than one.  see on_transfer_split below.
       if (ptx_vector.size() != 1)
@@ -1041,6 +1139,7 @@ namespace tools
     return true;
 
   }
+#endif  
 
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_transfer_split(const wallet_rpc::COMMAND_RPC_TRANSFER_SPLIT::request& req, wallet_rpc::COMMAND_RPC_TRANSFER_SPLIT::response& res, epee::json_rpc::error& er, const connection_context *ctx)

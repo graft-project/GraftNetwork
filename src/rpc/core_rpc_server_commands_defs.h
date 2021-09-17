@@ -29,6 +29,8 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
+
+
 #include <boost/asio/ip/address_v4.hpp>
 #include <boost/asio.hpp> // cross-platform way to include a header with 'ntohl' 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
@@ -40,15 +42,16 @@
 #include "cryptonote_basic/difficulty.h"
 #include "crypto/hash.h"
 #include "cryptonote_config.h"
-#include "cryptonote_core/service_node_voting.h"
 #include "rpc/rpc_handler.h"
 #include "common/varint.h"
 #include "common/perf_timer.h"
 #include "checkpoints/checkpoints.h"
-
 #include "cryptonote_core/service_node_quorum_cop.h"
 #include "cryptonote_core/service_node_list.h"
+#include "cryptonote_core/service_node_voting.h"
 #include "common/loki.h"
+#include "misc_language.h"
+
 
 namespace
 {

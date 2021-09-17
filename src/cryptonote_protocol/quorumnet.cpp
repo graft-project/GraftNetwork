@@ -42,8 +42,8 @@
 #include <shared_mutex>
 #include <iterator>
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "qnet"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "qnet"
 
 namespace quorumnet {
 
@@ -155,8 +155,8 @@ constexpr el::Level easylogging_level(LogLevel level) {
     return el::Level::Unknown;
 };
 void snn_write_log(LogLevel level, const char *file, int line, std::string msg) {
-    if (ELPP->vRegistry()->allowed(easylogging_level(level), LOKI_DEFAULT_LOG_CATEGORY))
-        el::base::Writer(easylogging_level(level), file, line, ELPP_FUNC, el::base::DispatchAction::NormalLog).construct(LOKI_DEFAULT_LOG_CATEGORY) << msg;
+    if (ELPP->vRegistry()->allowed(easylogging_level(level), MONERO_DEFAULT_LOG_CATEGORY))
+        el::base::Writer(easylogging_level(level), file, line, ELPP_FUNC, el::base::DispatchAction::NormalLog).construct(MONERO_DEFAULT_LOG_CATEGORY) << msg;
 }
 
 void setup_endpoints(SNNWrapper& snw);

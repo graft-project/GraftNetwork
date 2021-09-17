@@ -236,12 +236,12 @@ namespace net_utils
 			}
 			catch(const boost::system::system_error& er)
 			{
-				MDEBUG("Some problems at connect, message: " << er.what());
+				MERROR("Some problems at connect, message: " << er.what());
 				return false;
 			}
 			catch(...)
 			{
-				MDEBUG("Some fatal problems.");
+				MERROR("Some fatal problems.");
 				return false;
 			}
 
@@ -392,7 +392,7 @@ namespace net_utils
 			return true;
 		}
 
-		bool is_connected(bool *ssl = NULL)
+		bool is_connected(bool *ssl = NULL) const
 		{
 			if (!m_connected || !m_ssl_socket->next_layer().is_open())
 				return false;

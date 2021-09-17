@@ -29,6 +29,7 @@
 
 #include "FSN_ServantBase.h"
 #include <boost/algorithm/string.hpp>
+#include <boost/thread/lock_guard.hpp>
 
 
 namespace supernode {

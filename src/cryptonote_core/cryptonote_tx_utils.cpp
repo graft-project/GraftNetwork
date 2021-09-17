@@ -135,9 +135,11 @@ namespace cryptonote
 
   uint64_t governance_reward_formula(uint64_t base_reward, uint8_t hf_version)
   {
-    return hf_version >= network_version_16     ? FOUNDATION_REWARD_HF16 :
-           hf_version >= network_version_15_lns ? FOUNDATION_REWARD_HF15 :
-           base_reward / 20;
+    // TODO: Graft: no governance reward?
+    return 0;
+    /*return hf_version >= network_version_16     ? FOUNDATION_REWARD_HF16 :
+           hf_version >= network_version_23_lns ? FOUNDATION_REWARD_HF15 :
+           base_reward / 20;*/
   }
 
   bool block_has_governance_output(network_type nettype, cryptonote::block const &block)
@@ -148,10 +150,14 @@ namespace cryptonote
 
   bool height_has_governance_output(network_type nettype, uint8_t hard_fork_version, uint64_t height)
   {
+    return false;
+    
+#if 0    
+    // TODO: Graft: no governance ?
     if (height == 0)
       return false;
 
-    if (hard_fork_version <= network_version_9_service_nodes)
+    if (hard_fork_version <= network_version_18_service_nodes)
       return true;
 
     const cryptonote::config_t &network = cryptonote::get_config(nettype, hard_fork_version);
@@ -161,6 +167,7 @@ namespace cryptonote
     }
 
     return true;
+#endif    
   }
 
   uint64_t derive_governance_from_block_reward(network_type nettype, const cryptonote::block &block, uint8_t hf_version)
@@ -201,8 +208,8 @@ namespace cryptonote
   {
     return
 // TODO: Graft: adjust reward formula      hard_fork_version >= network_version_16              ? SN_REWARD_HF16 :
-//      hard_fork_version >= network_version_15_lns          ? SN_REWARD_HF15 :
-//      hard_fork_version >= network_version_9_service_nodes ? base_reward / 2 : // 50% of base reward up until HF15's fixed payout
+//      hard_fork_version >= network_version_23_lns          ? SN_REWARD_HF15 :
+//      hard_fork_version >= network_version_18_service_nodes ? base_reward / 2 : // 50% of base reward up until HF15's fixed payout
       0;
   }
 
@@ -300,7 +307,7 @@ namespace cryptonote
       tx.output_unlock_times.push_back(height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW);
     }
 
-    if (hard_fork_version >= network_version_17_loki_service_nodes) // Service Node Reward
+    if (hard_fork_version >= network_version_18_service_nodes) // Service Node Reward
     {
       for (size_t i = 0; i < service_node_info.size(); i++)
       {
@@ -328,7 +335,7 @@ namespace cryptonote
     {
       if (reward_parts.governance_paid == 0)
       {
-        CHECK_AND_ASSERT_MES(hard_fork_version >= network_version_10_bulletproofs, false, "Governance reward can NOT be 0 before hardfork 10, hard_fork_version: " << hard_fork_version);
+        CHECK_AND_ASSERT_MES(hard_fork_version >= network_version_14_bulletproofs, false, "Governance reward can NOT be 0 before hardfork 10, hard_fork_version: " << hard_fork_version);
       }
       else
       {
@@ -393,7 +400,7 @@ namespace cryptonote
     // however, they were accidentally based on the block reward formula *after* subtracting a
     // potential penalty if the miner includes txes beyond the median size limit).
     result.original_base_reward =
-        hard_fork_version >= network_version_13_enforce_checkpoints ? base_reward_unpenalized : base_reward;
+        hard_fork_version >= network_version_21_enforce_checkpoints ? base_reward_unpenalized : base_reward;
 
     result.service_node_total = service_node_reward_formula(result.original_base_reward, hard_fork_version);
     result.service_node_paid  = calculate_sum_of_portions(loki_context.service_node_payouts, result.service_node_total);
@@ -402,7 +409,7 @@ namespace cryptonote
     // from the block reward as if it was paid, but the actual payments get batched into rare, large
     // accumulated payments.  (Before hardfork 10 they are included in every block, unbatched).
     result.governance_due  = governance_reward_formula(result.original_base_reward, hard_fork_version);
-    result.governance_paid = hard_fork_version >= network_version_10_bulletproofs
+    result.governance_paid = hard_fork_version >= network_version_14_bulletproofs
         ? loki_context.batched_governance
         : result.governance_due;
 
@@ -471,7 +478,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx_params.burn_fixed && tx_params.hf_version < cryptonote::network_version_14_blink)
+    if (tx_params.burn_fixed && tx_params.hf_version < cryptonote::network_version_22_blink)
     {
       LOG_ERROR("cannot construct tx: burn can not be specified before hard fork 14");
       return false;
@@ -742,7 +749,7 @@ namespace cryptonote
       CHECK_AND_ASSERT_MES(key_image_proofs.proofs.size() >= 1, false, "No key image proofs were generated for staking tx");
       add_tx_key_image_proofs_to_tx_extra(tx.extra, key_image_proofs);
 
-      if (tx_params.hf_version <= cryptonote::network_version_13_enforce_checkpoints)
+      if (tx_params.hf_version <= cryptonote::network_version_21_enforce_checkpoints)
         tx.type = txtype::standard;
     }
 
@@ -979,7 +986,7 @@ namespace cryptonote
      std::vector<tx_destination_entry> destinations_copy = destinations;
 
      rct::RCTConfig rct_config    = {};
-     rct_config.range_proof_type  = (tx_params.hf_version < network_version_14_bulletproofs_enabled) ?  rct::RangeProofBorromean : rct::RangeProofPaddedBulletproof;
+     rct_config.range_proof_type  = (tx_params.hf_version < network_version_14_bulletproofs) ?  rct::RangeProofBorromean : rct::RangeProofPaddedBulletproof;
      rct_config.bp_version        = (tx_params.hf_version < HF_VERSION_SMALLER_BP) ? 1 : 0;
 
      return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, unlock_time, tx_key, additional_tx_keys, rct_config, NULL, tx_params);
@@ -1003,7 +1010,7 @@ namespace cryptonote
     bl.minor_version = CURRENT_BLOCK_MINOR_VERSION;
     bl.timestamp = 0;
     bl.nonce = nonce;
-    miner::find_nonce_for_given_block(bl, 1, 0);
+    miner::find_nonce_for_given_block(nullptr, bl, 1, 0);
     bl.invalidate_hashes();
     return true;
   }
@@ -1016,15 +1023,14 @@ namespace cryptonote
 
   bool get_block_longhash(const Blockchain *pbc, const block& b, crypto::hash& res, const uint64_t height, const int miners)
   {
-    const blobdata bd                 = get_block_hashing_blob(b);
-    const uint8_t hf_version          = b.major_version;
-    crypto::cn_slow_hash_type cn_type = cn_slow_hash_type::heavy_v1;
-
+    
+    blobdata bd = get_block_hashing_blob(b);
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
     const_cast<int &>(miners) = 0;
 #endif
-
-    if (hf_version >= network_version_12_checkpointing) {
+    
+    if (b.major_version >= RX_BLOCK_VERSION)
+    {
       uint64_t seed_height, main_height;
       crypto::hash hash;
       if (pbc != NULL)
@@ -1039,15 +1045,11 @@ namespace cryptonote
         main_height = 0;
       }
       rx_slow_hash(main_height, seed_height, hash.data, bd.data(), bd.size(), res.data, miners, 0);
-      return true;
+    } else {
+      const int cn_variant = b.major_version < 8 ? 0 : b.major_version >= 11 ? 2 : 1;
+      const int cn_modifier = b.major_version < 12 ? CN_MODIFIER_NONE : CN_MODIFIER_REVERSE_WALTZ;
+      crypto::cn_slow_hash(bd.data(), bd.size(), res, cn_variant, cn_modifier);
     }
-
-    if (hf_version >= network_version_11_infinite_staking)
-      cn_type = cn_slow_hash_type::turtle_lite_v2;
-    else if (hf_version >= network_version_7)
-      cn_type = crypto::cn_slow_hash_type::heavy_v2;
-
-    crypto::cn_slow_hash(bd.data(), bd.size(), res, cn_type);
     return true;
   }
 

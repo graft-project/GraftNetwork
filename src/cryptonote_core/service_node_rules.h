@@ -121,10 +121,10 @@ namespace service_nodes {
   };
 
   constexpr proof_version MIN_UPTIME_PROOF_VERSIONS[] = {
-    {cryptonote::network_version_15_lns,                  {7,1,2}},
-    {cryptonote::network_version_14_blink,                {6,1,0}},
-    {cryptonote::network_version_13_enforce_checkpoints,  {5,1,0}},
-    {cryptonote::network_version_12_checkpointing,        {4,0,3}},
+    // {cryptonote::network_version_23_lns,                  {7,1,2}},
+    {cryptonote::network_version_22_blink,                {6,1,0}},
+    {cryptonote::network_version_21_enforce_checkpoints,  {5,1,0}},
+    {cryptonote::network_version_20_checkpointing,        {4,0,3}},
   };
 
   using swarm_id_t                         = uint64_t;
@@ -141,8 +141,8 @@ namespace service_nodes {
   constexpr quorum_type max_quorum_type_for_hf(uint8_t hf_version)
   {
     return
-        hf_version <= cryptonote::network_version_12_checkpointing ? quorum_type::obligations :
-        hf_version <  cryptonote::network_version_14_blink         ? quorum_type::checkpointing :
+        hf_version <= cryptonote::network_version_20_checkpointing ? quorum_type::obligations :
+        hf_version <  cryptonote::network_version_22_blink         ? quorum_type::checkpointing :
         quorum_type::blink;
   }
 

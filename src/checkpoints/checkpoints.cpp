@@ -33,6 +33,7 @@
 
 #include "common/dns_utils.h"
 #include "string_tools.h"
+
 #include "storages/portable_storage_template_helper.h" // epee json include
 #include "serialization/keyvalue_serialization.h"
 #include "cryptonote_core/service_node_rules.h"
@@ -41,13 +42,14 @@
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 
+
 using namespace epee;
 
 #include "common/loki_integration_test_hooks.h"
 #include "common/loki.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define DEFAULT_DEFAULT_LOG_CATEGORY "checkpoints"
+#define MONERO_DEFAULT_LOG_CATEGORY "checkpoints"
 
 namespace cryptonote
 {
@@ -175,7 +177,7 @@ namespace cryptonote
   bool checkpoints::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, checkpoint_t const *checkpoint)
   {
     uint64_t const height = get_block_height(block);
-    if (height < service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL || block.major_version < network_version_12_checkpointing)
+    if (height < service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL || block.major_version < network_version_20_checkpointing)
       return true;
 
     uint64_t end_cull_height = 0;

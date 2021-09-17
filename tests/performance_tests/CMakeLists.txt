@@ -68,7 +68,8 @@ target_link_libraries(performance_tests
     Boost::chrono
     Boost::program_options
     Boost::regex
-    extra)
+    extra
+    utils)
 set_property(TARGET performance_tests
   PROPERTY
     FOLDER "tests")

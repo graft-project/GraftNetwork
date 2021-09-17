@@ -40,8 +40,8 @@
 #include <boost/optional.hpp>
 using namespace epee;
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "net.dns"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "net.dns"
 
 static const char *DEFAULT_DNS_PUBLIC_ADDR[] =
 {

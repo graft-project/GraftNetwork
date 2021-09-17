@@ -65,7 +65,8 @@ target_link_libraries(wallet_rpc_server
     epee_readline
     Boost::program_options
     Boost::regex
-    extra)
+    extra
+    utils)
 
 
 function(combine_archives output_archive)

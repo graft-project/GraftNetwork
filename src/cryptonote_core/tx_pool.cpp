@@ -92,7 +92,7 @@ namespace cryptonote
     uint64_t get_transaction_weight_limit(uint8_t version)
     {
       // from v14, limit a tx to 50% of the minimum block weight
-      if (version >= network_version_14_bulletproofs_enabled)
+      if (version >= network_version_14_bulletproofs)
         return get_min_block_weight(version) / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
       else
         return get_min_block_weight(version) - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
@@ -165,7 +165,7 @@ namespace cryptonote
           continue;
         }
 
-        if (hard_fork_version >= cryptonote::network_version_12_checkpointing)
+        if (hard_fork_version >= cryptonote::network_version_20_checkpointing)
         {
           crypto::public_key service_node_to_change_in_the_pool;
           bool same_service_node = false;
@@ -319,8 +319,8 @@ namespace cryptonote
     // 1. if tx.type == tx_type_rta and tx.rta_signatures.size() > 0
     // 2. if tx.version >= 3 and tx.rta_signatures.size() > 0
     // TODO: Graft: double-check code below after merge
-    if (hf_version >= network_version_13_rta_mining && hf_version < network_version_17_loki_service_nodes) {
-      bool is_rta_tx = tx.type == transaction::tx_type_rta;
+    if (hf_version >= network_version_13_rta_txs_rta_mining && hf_version < network_version_18_service_nodes) {
+      bool is_rta_tx = tx.type == txtype::rta_deprecated;
       if (is_rta_tx) {
         cryptonote::rta_header rta_hdr;
         if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
@@ -338,7 +338,7 @@ namespace cryptonote
         }
 
         // validate rta tx only if it wasn't processed before AND stake processing enabled
-        if (!kept_by_block && m_stp->is_enabled() && !validate_rta_tx(id, rta_signatures, rta_hdr)) {
+        if (!opts.kept_by_block && m_stp->is_enabled() && !validate_rta_tx(id, rta_signatures, rta_hdr)) {
           LOG_ERROR("failed to validate rta tx, tx contains " << rta_signatures.size() << " signatures");
           tvc.m_rta_signature_failed = true;
           tvc.m_verifivation_failed = true;

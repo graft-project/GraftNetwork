@@ -33,8 +33,8 @@
 #include "dns_utils.h"
 #include "updates.h"
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "updates"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "updates"
 
 namespace tools
 {

@@ -45,13 +45,13 @@ namespace
     for (size_t i = 0; i < new_block_count; ++i)
     {
       block blk_next;
-      difficulty_type diffic = next_difficulty_v2(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V2, false /*use_old_lwma*/, false);
+      difficulty_type diffic = next_difficulty(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V2);
       if (!generator.construct_block_manually(blk_next, blk_prev, miner_account,
         test_generator::bf_timestamp | test_generator::bf_diffic, 0, 0, blk_prev.timestamp, crypto::hash(), diffic))
         return false;
 
       cummulative_diffic += diffic;
-      if (timestamps.size() == DIFFICULTY_WINDOW_V2)
+      if (timestamps.size() == DIFFICULTY_WINDOW)
       {
         timestamps.erase(timestamps.begin());
         cummulative_difficulties.erase(cummulative_difficulties.begin());
@@ -134,7 +134,7 @@ bool gen_block_ts_in_future::generate(std::vector<test_event_entry>& events) con
   BLOCK_VALIDATION_INIT_GENERATE();
 
   block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_timestamp, 0, 0, time(NULL) + 60*60 + CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V2);
+  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_timestamp, 0, 0, time(NULL) + 60*60 + CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT);
   events.push_back(blk_1);
 
   DO_CALLBACK(events, "check_block_purged");
@@ -175,7 +175,7 @@ bool gen_block_invalid_nonce::generate(std::vector<test_event_entry>& events) co
     return false;
 
   // Create invalid nonce
-  difficulty_type diffic = next_difficulty_v2(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V2, false /*use_old_lwma*/, false);
+  difficulty_type diffic = next_difficulty(timestamps, cummulative_difficulties,DIFFICULTY_TARGET_V2);
   assert(1 < diffic);
   const block& blk_last = boost::get<block>(events.back());
   uint64_t timestamp = blk_last.timestamp;
@@ -465,6 +465,7 @@ static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
 
     /// governance reward
     if (already_generated_coins != 0) {
+#if 0  // TODO: Graft: remove governance fee
         const cryptonote::network_type nettype = cryptonote::FAKECHAIN;
         cryptonote::address_parse_info governance_wallet_address;
         cryptonote::get_account_address_from_str(governance_wallet_address, nettype, *cryptonote::get_config(nettype, hard_fork_version).GOVERNANCE_WALLET_ADDRESS);
@@ -479,6 +480,7 @@ static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
 
         tx.vout.push_back({governance_reward, out_eph_public_key});
         tx.output_unlock_times.push_back(height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW);
+#endif        
     }
 
     return true;

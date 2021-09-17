@@ -28,13 +28,15 @@
 #ifndef _MISC_LOG_EX_H_
 #define _MISC_LOG_EX_H_
 
+#ifdef __cplusplus
+
 #include <string>
 
 #include "easylogging++.h"
 
-#undef MONERO_DEFAULT_LOG_CATEGORY
+#ifndef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "default"
-
+#endif
 #define MAX_LOG_FILE_SIZE 104850000 // 100 MB - 7600 bytes
 #define MAX_LOG_FILES 50
 
@@ -255,9 +257,13 @@ bool is_stdout_a_tty();
 void set_console_color(int color, bool bright);
 void reset_console_color();
 
+} // namespace epee
+
+#endif // #ifdef __cplusplus
+
+#ifdef __cplusplus
 extern "C"
 {
-
 #endif
 
 #ifdef __GNUC__
@@ -273,9 +279,9 @@ bool mdebug(const char *category, const char *format, ...) ATTRIBUTE_PRINTF;
 bool mtrace(const char *category, const char *format, ...) ATTRIBUTE_PRINTF;
 
 #ifdef __cplusplus
-
 }
+#endif 
 
-#endif
-}
+
+
 #endif //_MISC_LOG_EX_H_

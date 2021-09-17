@@ -33,7 +33,8 @@ target_link_libraries(block_fuzz_tests
     p2p
     epee
     device
-    extra)
+    extra
+    utils)
 set_property(TARGET block_fuzz_tests
   PROPERTY
     FOLDER "tests")
@@ -45,7 +46,8 @@ target_link_libraries(transaction_fuzz_tests
     p2p
     epee
     device
-    extra)
+    extra
+    utils)
 set_property(TARGET transaction_fuzz_tests
   PROPERTY
     FOLDER "tests")
@@ -58,7 +60,8 @@ target_link_libraries(signature_fuzz_tests
     p2p
     epee
     device
-    extra)
+    extra
+    utils)
 set_property(TARGET signature_fuzz_tests
   PROPERTY
     FOLDER "tests")
@@ -71,7 +74,8 @@ target_link_libraries(cold-outputs_fuzz_tests
     p2p
     epee
     device
-    extra)
+    extra
+    utils)
 set_property(TARGET cold-outputs_fuzz_tests
   PROPERTY
     FOLDER "tests")
@@ -84,7 +88,8 @@ target_link_libraries(cold-transaction_fuzz_tests
     p2p
     epee
     device
-    extra)
+    extra
+    utils)
 set_property(TARGET cold-transaction_fuzz_tests
   PROPERTY
     FOLDER "tests")
@@ -95,7 +100,8 @@ target_link_libraries(load-from-binary_fuzz_tests
     common
     epee
     Boost::program_options
-    extra)
+    extra
+    utils)
 set_property(TARGET load-from-binary_fuzz_tests
   PROPERTY
     FOLDER "tests")
@@ -106,7 +112,8 @@ target_link_libraries(load-from-json_fuzz_tests
     common
     epee
     Boost::program_options
-    extra)
+    extra
+    utils)
 set_property(TARGET load-from-json_fuzz_tests
   PROPERTY
     FOLDER "tests")

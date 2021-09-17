@@ -297,6 +297,7 @@ namespace cryptonote
   core::core(i_cryptonote_protocol* pprotocol):
               m_mempool(m_blockchain_storage),
               m_service_node_list(m_blockchain_storage),
+              m_graft_stake_transaction_processor(m_blockchain_storage),
               m_blockchain_storage(m_mempool, m_service_node_list),
               m_quorum_cop(*this),
               m_miner(this, &m_blockchain_storage),
@@ -305,11 +306,9 @@ namespace cryptonote
               m_target_blockchain_height(0),
               m_checkpoints_path(""),
               m_last_json_checkpoints_update(0),
-              m_threadpool(tools::threadpool::getInstance()),
-              m_update_download(0)
               m_update_download(0),
               m_nettype(UNDEFINED),
-              m_update_available(false)
+              m_update_available(false),
               m_last_storage_server_ping(0),
               m_last_lokinet_ping(0),
               m_pad_transactions(false)
@@ -436,8 +435,10 @@ namespace cryptonote
       /// TODO: parse these options early, before we start p2p server etc?
       m_storage_port = command_line::get_arg(vm, arg_storage_server_port);
 
-      }
+      
       m_quorumnet_port = command_line::get_arg(vm, arg_quorumnet_port);
+      
+      bool storage_ok = true;
 
       if (m_quorumnet_port == 0) {
         MERROR("Quorumnet port cannot be 0; please specify a valid port to listen on with: '--" << arg_quorumnet_port.name << " <port>'");
@@ -561,7 +562,7 @@ namespace cryptonote
   {
     std::string s;
     s.reserve(128);
-    s += 'v'; s += LOKI_VERSION_STR;
+    s += 'v'; s += GRAFT_VERSION_STR;
     s += "; Height: ";
     s += std::to_string(c.get_blockchain_storage().get_current_blockchain_height());
     s += ", SN: ";
@@ -2133,7 +2134,7 @@ namespace cryptonote
         uint8_t hf_version = get_blockchain_storage().get_current_hard_fork_version();
         if (!check_external_ping(m_last_lokinet_ping, LOKINET_PING_LIFETIME, "Lokinet"))
         {
-          if (hf_version >= cryptonote::network_version_14_blink)
+          if (hf_version >= cryptonote::network_version_22_blink)
           {
             MGINFO_RED(
                 "Failed to submit uptime proof: have not heard from lokinet recently. Make sure that it "
@@ -2277,7 +2278,7 @@ namespace cryptonote
     if (!tools::check_updates(software, buildtag, version, hash))
       return false;
 
-    if (tools::vercmp(version.c_str(), GRAFT_VERSION) <= 0)
+    if (tools::vercmp(version.c_str(), GRAFT_VERSION_STR) <= 0)
     {
       m_update_available = false;
       return true;

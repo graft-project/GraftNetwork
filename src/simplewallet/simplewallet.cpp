@@ -153,7 +153,8 @@ enum TransferType {
       return true; \
     } \
   } while(0)
-{
+
+namespace {
   const auto arg_wallet_file = wallet_args::arg_wallet_file();
   const command_line::arg_descriptor<std::string> arg_generate_new_wallet = {"generate-new-wallet", sw::tr("Generate new wallet and save it to <arg>"), ""};
   const command_line::arg_descriptor<std::string> arg_generate_from_device = {"generate-from-device", sw::tr("Generate new wallet from device and save it to <arg>"), ""};
@@ -3549,7 +3550,7 @@ bool simple_wallet::init(const boost::program_options::variables_map& vm)
         if (m_restore_multisig_wallet)
         {
           crypto::secret_key key;
-          crypto::cn_slow_hash(seed_pass.data(), seed_pass.size(), (crypto::hash&)key, crypto::cn_slow_hash_type::heavy_v1);
+          crypto::cn_slow_hash(seed_pass.data(), seed_pass.size(), (crypto::hash&)key);
           sc_reduce32((unsigned char*)key.data);
           multisig_keys = m_wallet->decrypt<epee::wipeable_string>(std::string(multisig_keys.data(), multisig_keys.size()), key, true);
         }
@@ -5768,10 +5769,6 @@ bool simple_wallet::confirm_and_send_tx(std::vector<cryptonote::address_parse_in
   {
     commit_or_save(ptx_vector, m_do_not_relay, blink);
   }
-  else
-  {
-    commit_or_save(ptx_vector, m_do_not_relay, blink);
-  }
 
   return true;
 }
@@ -5818,7 +5815,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
       return false;
     }
   }
-
+#if 0 // TODO: Graft: remove
   std::string supernode_public_id;
   crypto::signature supernode_signature;
 
@@ -5835,6 +5832,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
     supernode_public_id = local_args.back();
     local_args.pop_back();
   }
+#endif  
 
   uint64_t locked_blocks = 0;
   if (transfer_type == Transfer::Locked)
@@ -5861,11 +5859,13 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
     }
   }
 
+#if 0  // TODO: Graft: remove
   if (transfer_type == TransferStake && local_args.size() != 2)
   {
       fail_msg_writer() << tr("stake transaction must be sent to a single destination");
       return true;
   }
+#endif   
 
   vector<cryptonote::address_parse_info> dsts_info;
   vector<cryptonote::tx_destination_entry> dsts;
@@ -6194,189 +6194,21 @@ bool simple_wallet::stake(const std::vector<std::string> &args_)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::transfer(const std::vector<std::string> &args_)
-{
-  return transfer_main(Transfer::Normal, args_, false);
-}
-//----------------------------------------------------------------------------------------------------
+// TODO: Graft: remove
 bool simple_wallet::transfer_rta(const std::vector<std::string> &args_)
 {
-  return transfer_main(TransferRTAFee, args_);
-}
-//----------------------------------------------------------------------------------------------------
-bool simple_wallet::locked_transfer(const std::vector<std::string> &args_)
-{
-  return transfer_main(Transfer::Locked, args_, false);
+  fail_msg_writer() << tr("transfer_rta is deprecated");
+  // return transfer_main(TransferRTAFee, args_);
+  return false;
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::stake_transfer(const std::vector<std::string> &args_)
 {
-  return transfer_main(TransferStake, args_);
+  fail_msg_writer() << tr("stake_transfer is deprecated");
+  // return transfer_main(TransferStake, args_);
+  return false;
 }
-//----------------------------------------------------------------------------------------------------
-bool simple_wallet::locked_sweep_all(const std::vector<std::string> &args_)
-{
-  return sweep_main(0, Transfer::Locked, args_);
-}
-//----------------------------------------------------------------------------------------------------
-bool simple_wallet::register_service_node(const std::vector<std::string> &args_)
-{
-  if (!try_connect_to_daemon())
-    return true;
 
-  SCOPED_WALLET_UNLOCK()
-  tools::wallet2::register_service_node_result result = m_wallet->create_register_service_node_tx(args_, m_current_subaddress_account);
-  if (result.status != tools::wallet2::register_service_node_result_status::success)
-  {
-    fail_msg_writer() << result.msg;
-    if (result.status == tools::wallet2::register_service_node_result_status::insufficient_num_args ||
-        result.status == tools::wallet2::register_service_node_result_status::service_node_key_parse_fail ||
-        result.status == tools::wallet2::register_service_node_result_status::service_node_signature_parse_fail ||
-        result.status == tools::wallet2::register_service_node_result_status::subaddr_indices_parse_fail ||
-        result.status == tools::wallet2::register_service_node_result_status::convert_registration_args_failed)
-    {
-      fail_msg_writer() << USAGE_REGISTER_SERVICE_NODE;
-    }
-    return true;
-  }
-
-  address_parse_info info = {};
-  info.address            = m_wallet->get_address();
-  try
-  {
-    std::vector<tools::wallet2::pending_tx> ptx_vector = {result.ptx};
-    if (!sweep_main_internal(sweep_type_t::register_stake, ptx_vector, info, false /* don't blink */))
-    {
-      fail_msg_writer() << tr("Sending register transaction failed");
-      return true;
-    }
-  }
-  catch (const std::exception& e)
-  {
-    handle_transfer_exception(std::current_exception(), m_wallet->is_trusted_daemon());
-  }
-  catch (...)
-  {
-    LOG_ERROR("unknown error");
-    fail_msg_writer() << tr("unknown error");
-  }
-
-  return true;
-}
-//----------------------------------------------------------------------------------------------------
-bool simple_wallet::stake(const std::vector<std::string> &args_)
-{
-  if (!try_connect_to_daemon())
-    return true;
-
-  //
-  // Parse Arguments from Args
-  //
-  crypto::public_key service_node_key = {};
-  uint32_t priority = 0;
-  std::set<uint32_t> subaddr_indices = {};
-  uint64_t amount = 0;
-  double amount_fraction = 0;
-  {
-    std::vector<std::string> local_args = args_;
-    uint32_t priority                   = 0;
-    std::set<uint32_t> subaddr_indices  = {};
-    if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority))
-      return false;
-
-    if (local_args.size() < 2)
-    {
-      fail_msg_writer() << tr(USAGE_STAKE);
-      return true;
-    }
-
-    if (!epee::string_tools::hex_to_pod(local_args[0], service_node_key))
-    {
-      fail_msg_writer() << tr("failed to parse service node pubkey");
-      return true;
-    }
-
-    if (local_args[1].back() == '%')
-    {
-      local_args[1].pop_back();
-      amount = 0;
-      try
-      {
-        amount_fraction = boost::lexical_cast<double>(local_args[1]) / 100.0;
-      }
-      catch (const std::exception &e)
-      {
-        fail_msg_writer() << tr("Invalid percentage");
-        return true;
-      }
-      if (amount_fraction < 0 || amount_fraction > 1)
-      {
-        fail_msg_writer() << tr("Invalid percentage");
-        return true;
-      }
-    }
-    else
-    {
-      if (!cryptonote::parse_amount(amount, local_args[1]) || amount == 0)
-      {
-        fail_msg_writer() << tr("amount is wrong: ") << local_args[1] <<
-          ", " << tr("expected number from ") << print_money(1) << " to " << print_money(std::numeric_limits<uint64_t>::max());
-        return true;
-      }
-    }
-  }
-
-  //
-  // Try Staking
-  //
-  SCOPED_WALLET_UNLOCK()
-  {
-    m_wallet->refresh(false);
-    try
-    {
-      address_parse_info info = {};
-      info.address            = m_wallet->get_address();
-
-      time_t begin_construct_time = time(nullptr);
-
-      tools::wallet2::stake_result stake_result = m_wallet->create_stake_tx(service_node_key, info, amount, amount_fraction, priority, m_current_subaddress_account, subaddr_indices);
-      if (stake_result.status != tools::wallet2::stake_result_status::success)
-      {
-        fail_msg_writer() << stake_result.msg;
-        return true;
-      }
-
-      if (!stake_result.msg.empty()) // i.e. warnings
-        tools::msg_writer() << stake_result.msg;
-
-      std::vector<tools::wallet2::pending_tx> ptx_vector = {stake_result.ptx};
-      if (!sweep_main_internal(sweep_type_t::stake, ptx_vector, info, false /* don't blink */))
-      {
-        fail_msg_writer() << tr("Sending stake transaction failed");
-        return true;
-      }
-
-      time_t end_construct_time = time(nullptr);
-      time_t construct_time     = end_construct_time - begin_construct_time;
-      if (construct_time > (60 * 10))
-      {
-        fail_msg_writer() << tr("Staking command has timed out due to waiting longer than 10 mins. This prevents the staking transaction from becoming invalid due to blocks mined interim. Please try again");
-        return true;
-      }
-    }
-    catch (const std::exception& e)
-    {
-      handle_transfer_exception(std::current_exception(), m_wallet->is_trusted_daemon());
-    }
-    catch (...)
-    {
-      LOG_ERROR("unknown error");
-      fail_msg_writer() << tr("unknown error");
-    }
-  }
-
-  return true;
-}
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::request_stake_unlock(const std::vector<std::string> &args_)
 {

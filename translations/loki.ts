@@ -48,16 +48,6 @@
     </message>
     <message>
         <location filename="../src/wallet/api/pending_transaction.cpp" line="145"/>
-        <source>no connection to daemon. Please make sure daemon is running.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/pending_transaction.cpp" line="145"/>
-        <source>transaction %s was rejected by daemon with status: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/pending_transaction.cpp" line="150"/>
         <source>transaction %s was rejected by daemon with status: </source>
         <translation type="unfinished"></translation>
     </message>
@@ -68,26 +58,11 @@
     </message>
     <message>
         <location filename="../src/wallet/api/pending_transaction.cpp" line="152"/>
-        <source>. Reason: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/pending_transaction.cpp" line="152"/>
         <source>Unknown exception: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/wallet/api/pending_transaction.cpp" line="155"/>
-        <source>Unknown exception: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/pending_transaction.cpp" line="155"/>
-        <source>Unhandled exception</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/pending_transaction.cpp" line="228"/>
         <source>Unhandled exception</source>
         <translation type="unfinished"></translation>
     </message>
@@ -101,10 +76,6 @@
         <source>Couldn&apos;t sign multisig transaction: </source>
         <translation type="unfinished"></translation>
     </message>
-</context>
-<context>
-    <name>Monero::UnsignedTransactionImpl</name>
-    <message>
 </context>
 <context>
     <name>Monero::UnsignedTransactionImpl</name>
@@ -169,16 +140,6 @@
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1468"/>
-        <source>payment id has invalid format, expected 16 or 64 character hex string: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1468"/>
-        <source>Failed to add short payment id: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1510"/>
         <source>Failed to add short payment id: </source>
         <translation type="unfinished"></translation>
     </message>
@@ -191,30 +152,12 @@
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1512"/>
         <location filename="../src/wallet/api/wallet.cpp" line="1594"/>
-        <source>daemon is busy. Please try again later.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1512"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1594"/>
         <source>no connection to daemon. Please make sure daemon is running.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1514"/>
         <location filename="../src/wallet/api/wallet.cpp" line="1596"/>
-        <source>no connection to daemon. Please make sure daemon is running.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1514"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1596"/>
-        <source>RPC error: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1516"/>
-        <source>failed to get outputs to mix: %s</source>
         <source>RPC error: </source>
         <translation type="unfinished"></translation>
     </message>
@@ -229,11 +172,9 @@
         <source>not enough outputs for specified ring size</source>
         <translation type="unfinished"></translation>
     </message>
-        <source>not enough outputs for specified ring size</source>
-        <translation type="unfinished"></translation>
-    </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1544"/>
+        <location filename="../src/wallet/api/wallet.cpp" line="1629"/>
         <source>found outputs to use</source>
         <translation type="unfinished"></translation>
     </message>
@@ -251,26 +192,10 @@
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="589"/>
         <source>failed to parse address</source>
-        <source>not enough money to transfer, available only %s, sent amount %s</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="589"/>
-        <source>failed to parse address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="600"/>
-        <source>failed to parse address</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="600"/>
-        <source>failed to parse secret spend key</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="615"/>
         <source>failed to parse secret spend key</source>
         <translation type="unfinished"></translation>
     </message>
@@ -283,25 +208,9 @@
         <location filename="../src/wallet/api/wallet.cpp" line="623"/>
         <source>failed to parse secret view key</source>
         <translation type="unfinished"></translation>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="623"/>
-        <source>failed to parse secret view key</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="632"/>
-        <source>failed to parse secret view key</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="632"/>
-        <source>failed to verify secret spend key</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="636"/>
         <source>failed to verify secret spend key</source>
         <translation type="unfinished"></translation>
     </message>
@@ -312,37 +221,17 @@
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="642"/>
-        <source>spend key does not match address</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="642"/>
         <source>failed to verify secret view key</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="646"/>
-        <source>failed to verify secret view key</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="646"/>
-        <source>view key does not match address</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="669"/>
         <source>view key does not match address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="669"/>
         <location filename="../src/wallet/api/wallet.cpp" line="686"/>
-        <source>failed to generate new wallet: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="734"/>
         <source>failed to generate new wallet: </source>
         <translation type="unfinished"></translation>
     </message>
@@ -363,16 +252,6 @@
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1125"/>
-        <source>Failed to send import wallet request</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1125"/>
-        <source>Failed to load unsigned transactions</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1144"/>
         <source>Failed to load unsigned transactions</source>
         <translation type="unfinished"></translation>
     </message>
@@ -383,16 +262,6 @@
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1160"/>
-        <source>Failed to load transaction from file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1160"/>
-        <source>Wallet is view only</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1168"/>
         <source>Wallet is view only</source>
         <translation type="unfinished"></translation>
     </message>
@@ -403,16 +272,6 @@
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1184"/>
-        <source>failed to save file </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1184"/>
-        <source>Key images can only be imported with a trusted daemon</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1197"/>
         <source>Key images can only be imported with a trusted daemon</source>
         <translation type="unfinished"></translation>
     </message>
@@ -423,16 +282,6 @@
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1229"/>
-        <source>Failed to import key images: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1229"/>
-        <source>Failed to get subaddress label: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1242"/>
         <source>Failed to get subaddress label: </source>
         <translation type="unfinished"></translation>
     </message>
@@ -443,11 +292,7 @@
     </message>
     <message>
         <location filename="../src/wallet/api/wallet.cpp" line="1259"/>
-        <source>Failed to set subaddress label: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1259"/>
+        <source>Failed to get multisig info: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -538,67 +383,6 @@
         <location filename="../src/wallet/api/wallet.cpp" line="1549"/>
         <location filename="../src/wallet/api/wallet.cpp" line="1633"/>
         <source>transaction was not constructed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1552"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1636"/>
-        <source>transaction %s was rejected by daemon with status: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1557"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1641"/>
-        <source>one of destinations is zero</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1559"/>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="2282"/>
-        <source>Failed to mark outputs as spent</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="2304"/>
-        <source>Failed to mark output as spent</source>
-        <translation type="unfinished"></translation>
-    </message>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1534"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1619"/>
-        <source>not enough money to transfer, available only %s, transaction amount %s = %s + %s (fee)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1544"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1629"/>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1544"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1629"/>
-        <source>output amount</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1549"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1633"/>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1549"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1633"/>
-        <source>transaction was not constructed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/wallet/api/wallet.cpp" line="1552"/>
-        <location filename="../src/wallet/api/wallet.cpp" line="1636"/>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2026,6 +1810,7 @@ Key Image, &quot;absolute&quot;, list of rings</source>
     </message>
     <message>
         <location filename="../src/simplewallet/simplewallet.cpp" line="3204"/>
+        <source>Show the help section or the documentation about a &lt;command&gt;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

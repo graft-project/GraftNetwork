@@ -205,7 +205,7 @@ loki_blockchain_entry &loki_chain_generator::add_block(loki_blockchain_entry con
     db_.tx_table[tx_hash] = tx;
   }
 
-  if (can_be_added_to_blockchain && entry.block.major_version >= cryptonote::network_version_15_lns)
+  if (can_be_added_to_blockchain && entry.block.major_version >= cryptonote::network_version_23_lns)
   {
     lns_db_->add_block(entry.block, entry.txs);
   }
@@ -399,7 +399,7 @@ loki_chain_generator::create_registration_tx(const cryptonote::account_base &src
     uint64_t amount                = service_nodes::portions_to_amount(portions[0], staking_requirement);
 
     uint64_t unlock_time = 0;
-    if (new_hf_version < cryptonote::network_version_11_infinite_staking)
+    if (new_hf_version < cryptonote::network_version_19_infinite_staking)
       unlock_time = new_height + service_nodes::staking_num_lock_blocks(cryptonote::FAKECHAIN);
 
     std::vector<uint8_t> extra;
@@ -439,7 +439,7 @@ cryptonote::transaction loki_chain_generator::create_staking_tx(const crypto::pu
   uint8_t new_hf_version = get_hf_version_at(new_height);
 
   uint64_t unlock_time = 0;
-  if (new_hf_version < cryptonote::network_version_11_infinite_staking)
+  if (new_hf_version < cryptonote::network_version_19_infinite_staking)
     unlock_time = new_height + service_nodes::staking_num_lock_blocks(cryptonote::FAKECHAIN);
 
   loki_tx_builder(events_, result, top().block, src /*from*/, src.get_keys().m_account_address /*to*/, amount, new_hf_version)
@@ -757,17 +757,19 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
 
   // NOTE: Calculate governance
   cryptonote::loki_miner_tx_context miner_tx_context(cryptonote::FAKECHAIN, block_winner);
-  if (hf_version >= cryptonote::network_version_10_bulletproofs &&
+  if (hf_version >= cryptonote::network_version_14_bulletproofs &&
       cryptonote::height_has_governance_output(cryptonote::FAKECHAIN, hf_version, height))
   {
     const cryptonote::config_t &network = cryptonote::get_config(cryptonote::FAKECHAIN, hf_version);
     uint64_t num_blocks                 = network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS;
     uint64_t start_height               = height - num_blocks;
 
-    if (hf_version == cryptonote::network_version_15_lns)
+    if (hf_version == cryptonote::network_version_23_lns)
       miner_tx_context.batched_governance = FOUNDATION_REWARD_HF15 * num_blocks;
-    else if (hf_version == cryptonote::network_version_16)
+    /*
+    else if (hf_version == cryptonote::network_version_)
       miner_tx_context.batched_governance = FOUNDATION_REWARD_HF16 * num_blocks;
+    */  
     else
     {
       for (int i = (int)get_block_height(prev.block), count = 0;
@@ -775,7 +777,7 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
            i--, count++)
       {
         loki_blockchain_entry const &historical_entry = db_.blocks[i];
-        if (historical_entry.block.major_version < cryptonote::network_version_10_bulletproofs) break;
+        if (historical_entry.block.major_version < cryptonote::network_version_14_bulletproofs) break;
         miner_tx_context.batched_governance += cryptonote::derive_governance_from_block_reward(cryptonote::FAKECHAIN, historical_entry.block, hf_version);
       }
     }
@@ -984,14 +986,14 @@ static void manual_calc_batched_governance(const test_generator &generator,
                                            uint64_t height)
 {
   miner_tx_context.batched_governance = 0;
-  if (hard_fork_version >= cryptonote::network_version_10_bulletproofs &&
+  if (hard_fork_version >= cryptonote::network_version_14_bulletproofs &&
       cryptonote::height_has_governance_output(cryptonote::FAKECHAIN, hard_fork_version, height))
   {
     const cryptonote::config_t &network = cryptonote::get_config(cryptonote::FAKECHAIN, hard_fork_version);
     uint64_t num_blocks                 = network.GOVERNANCE_REWARD_INTERVAL_IN_BLOCKS;
     uint64_t start_height               = height - num_blocks;
 
-    if (hard_fork_version >= cryptonote::network_version_15_lns)
+    if (hard_fork_version >= cryptonote::network_version_23_lns)
     {
       miner_tx_context.batched_governance = num_blocks * cryptonote::governance_reward_formula(0, hard_fork_version);
       return;
@@ -1013,7 +1015,7 @@ static void manual_calc_batched_governance(const test_generator &generator,
       if (block_height < start_height)
         continue;
 
-      if (entry.major_version >= cryptonote::network_version_10_bulletproofs)
+      if (entry.major_version >= cryptonote::network_version_14_bulletproofs)
         miner_tx_context.batched_governance += cryptonote::derive_governance_from_block_reward(cryptonote::FAKECHAIN, entry, hard_fork_version);
     }
   }
@@ -1210,7 +1212,7 @@ cryptonote::transaction make_registration_tx(std::vector<test_event_entry>& even
 
   cryptonote::transaction tx;
   uint64_t unlock_time = 0;
-  if (hf_version < cryptonote::network_version_11_infinite_staking)
+  if (hf_version < cryptonote::network_version_19_infinite_staking)
     unlock_time = new_height + service_nodes::staking_num_lock_blocks(cryptonote::FAKECHAIN);
 
   std::vector<uint8_t> extra;
@@ -1230,7 +1232,8 @@ cryptonote::transaction make_registration_tx(std::vector<test_event_entry>& even
   add_service_node_contributor_to_tx_extra(extra, contributors.at(0));
 
   cryptonote::txtype tx_type = cryptonote::txtype::standard;
-  if (hf_version >= cryptonote::network_version_15_lns) tx_type = cryptonote::txtype::stake; // NOTE: txtype stake was not introduced until HF14
+  // TODO: Graft: introduce txtype stake without lns
+  if (hf_version >= cryptonote::network_version_23_lns) tx_type = cryptonote::txtype::stake; // NOTE: txtype stake was not introduced until HF14
   loki_tx_builder(events, tx, head, account, account.get_keys().m_account_address, amount, hf_version).with_tx_type(tx_type).with_extra(extra).with_unlock_time(unlock_time).build();
   events.push_back(tx);
   return tx;
@@ -1326,7 +1329,7 @@ bool init_output_indices(std::vector<output_index>& outs, std::vector<size_t>& o
                     const auto height = boost::get<cryptonote::txin_gen>(*blk.miner_tx.vin.begin()).height; /// replace with front?
 
                     output_index oi(out.target, out.amount, height, i, j, &blk, vtx[i]);
-                    oi.unlock_time            = (tx.version < cryptonote::txversion::v3_per_output_unlock_times) ? tx.unlock_time : tx.output_unlock_times[j];
+                    oi.unlock_time            = (tx.version < cryptonote::txversion::v4_per_output_unlock_times) ? tx.unlock_time : tx.output_unlock_times[j];
                     oi.idx                    = outs.size();
                     oi.mask                   = rct::zeroCommit(out.amount);
                     oi.is_coin_base           = (i == 0);

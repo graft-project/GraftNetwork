@@ -40,6 +40,8 @@ class WalletManagerImpl : public WalletManagerBase
 public:
     Wallet * createWallet(const std::string &path, const std::string &password,
                           const std::string &language, NetworkType nettype, uint64_t kdf_rounds = 1) override;
+    Wallet *createNewWallet(const std::string &password, const std::string &language, bool testnet) override;
+    
     Wallet * openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds = 1, WalletListener * listener = nullptr) override;
     virtual Wallet * recoveryWallet(const std::string &path,
                                        const std::string &password,

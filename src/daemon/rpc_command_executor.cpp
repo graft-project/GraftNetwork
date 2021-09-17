@@ -1830,7 +1830,8 @@ bool t_rpc_command_executor::in_peers(uint64_t limit)
 
 bool t_rpc_command_executor::start_save_graph()
 {
-	cryptonote::COMMAND_RPC_START_SAVE_GRAPH::request req;
+#if 0	
+  cryptonote::COMMAND_RPC_START_SAVE_GRAPH::request req;
 	cryptonote::COMMAND_RPC_START_SAVE_GRAPH::response res;
 	std::string fail_message = "Unsuccessful";
 
@@ -1850,14 +1851,15 @@ bool t_rpc_command_executor::start_save_graph()
 			return true;
 		}
 	}
-
+#endif
 	tools::success_msg_writer() << "Saving graph is now on";
 	return true;
 }
 
 bool t_rpc_command_executor::stop_save_graph()
 {
-	cryptonote::COMMAND_RPC_STOP_SAVE_GRAPH::request req;
+#if 0	
+  cryptonote::COMMAND_RPC_STOP_SAVE_GRAPH::request req;
 	cryptonote::COMMAND_RPC_STOP_SAVE_GRAPH::response res;
 	std::string fail_message = "Unsuccessful";
 
@@ -1877,6 +1879,7 @@ bool t_rpc_command_executor::stop_save_graph()
 			return true;
 		}
 	}
+#endif  
 	tools::success_msg_writer() << "Saving graph is now off";
 	return true;
 }
@@ -2522,11 +2525,11 @@ static void append_printable_service_node_list_entry(cryptonote::network_type ne
   uint64_t const now = time(nullptr);
   {
     uint64_t expiry_height = 0;
-    if (entry.registration_hf_version >= cryptonote::network_version_11_infinite_staking)
+    if (entry.registration_hf_version >= cryptonote::network_version_19_infinite_staking)
     {
       expiry_height = entry.requested_unlock_height;
     }
-    else if (entry.registration_hf_version >= cryptonote::network_version_10_bulletproofs)
+    else if (entry.registration_hf_version >= cryptonote::network_version_14_bulletproofs)
     {
         expiry_height = entry.registration_height + service_nodes::staking_num_lock_blocks(nettype);
         expiry_height += STAKING_REQUIREMENT_LOCK_BLOCKS_EXCESS;
@@ -2975,7 +2978,7 @@ bool t_rpc_command_executor::prepare_registration()
 
   // Query the latest known block height and nettype
   uint64_t block_height            = 0;
-  uint8_t hf_version               = cryptonote::network_version_9_service_nodes;
+  uint8_t hf_version               = cryptonote::network_version_18_service_nodes;
   cryptonote::network_type nettype = cryptonote::UNDEFINED;
   {
     cryptonote::COMMAND_RPC_GET_INFO::request req;

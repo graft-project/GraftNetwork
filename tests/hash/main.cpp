@@ -79,9 +79,7 @@ extern "C" {
 POP_WARNINGS
 
 extern "C" typedef void hash_f(const void *, size_t, char *);
-struct hash_func {
 
-extern "C" typedef void hash_f(const void *, size_t, char *);
 struct hash_func {
   const string name;
   hash_f &f;
@@ -94,13 +92,6 @@ struct hash_func {
 
 int test_variant2_int_sqrt();
 int test_variant2_int_sqrt_ref();
-
-int main(int argc, char *argv[]) {
-  hash_f *f;
-  hash_func *hf;
-  fstream input;
-  vector<char> data;
-  chash expected, actual;
 
 int test_variant2_int_sqrt();
 int test_variant2_int_sqrt_ref();

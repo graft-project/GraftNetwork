@@ -467,6 +467,8 @@ namespace wallet_rpc
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
+  
+  
   LOKI_RPC_DOC_INTROSPECT
   // Send loki to a number of recipients. To preview the transaction fee, set do_not_relay to true and get_tx_metadata to true. 
   // Submit the response using the data in get_tx_metadata in the RPC call, relay_tx.
@@ -474,7 +476,7 @@ namespace wallet_rpc
   {
     struct request_t
     {
-            std::list<transfer_destination> destinations; // Array of destinations to receive LOKI.
+      std::list<transfer_destination> destinations; // Array of destinations to receive LOKI.
       uint32_t account_index;                       // (Optional) Transfer from this account index. (Defaults to 0)
       std::set<uint32_t> subaddr_indices;           // (Optional) Transfer from this set of subaddresses. (Defaults to 0)
       uint32_t priority;                            // Set a priority for the transaction. Accepted values are: 1 for unimportant or 5 for blink.  (0 and 2-4 are accepted for backwards compatibility and are equivalent to 5)
@@ -754,7 +756,6 @@ namespace wallet_rpc
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(destinations)
         KV_SERIALIZE(priority)
-        KV_SERIALIZE(mixin)
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
         KV_SERIALIZE(get_tx_key)
@@ -1461,7 +1462,44 @@ namespace wallet_rpc
     };
     typedef epee::misc_utils::struct_init<response_t> response;
   };
+  
+  struct transfer_entry
+  {
+    std::string txid;
+    std::string payment_id;
+    uint64_t height;
+    uint64_t timestamp;
+    uint64_t amount;
+    uint64_t fee;
+    std::string note;
+    std::list<transfer_destination> destinations;
+    std::string type;
+    uint64_t unlock_time;
+    cryptonote::subaddress_index subaddr_index;
+    std::string address;
+    bool double_spend_seen;
+    uint64_t confirmations;
+    uint64_t suggested_confirmations_threshold;
 
+    BEGIN_KV_SERIALIZE_MAP()
+      KV_SERIALIZE(txid);
+      KV_SERIALIZE(payment_id);
+      KV_SERIALIZE(height);
+      KV_SERIALIZE(timestamp);
+      KV_SERIALIZE(amount);
+      KV_SERIALIZE(fee);
+      KV_SERIALIZE(note);
+      KV_SERIALIZE(destinations);
+      KV_SERIALIZE(type);
+      KV_SERIALIZE(unlock_time)
+      KV_SERIALIZE(subaddr_index);
+      KV_SERIALIZE(address);
+      KV_SERIALIZE(double_spend_seen)
+      KV_SERIALIZE_OPT(confirmations, (uint64_t)0)
+      KV_SERIALIZE_OPT(suggested_confirmations_threshold, (uint64_t)0)
+    END_KV_SERIALIZE_MAP()
+  };
+  
   LOKI_RPC_DOC_INTROSPECT
   // Prove a transaction by checking its signature.
   struct COMMAND_RPC_CHECK_TX_PROOF
@@ -2560,6 +2598,8 @@ namespace wallet_rpc
         KV_SERIALIZE(multisig_info)
       END_KV_SERIALIZE_MAP()
     };
+    typedef epee::misc_utils::struct_init<response_t> response;
+    
   };
 
   LOKI_RPC_DOC_INTROSPECT

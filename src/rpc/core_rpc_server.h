@@ -44,8 +44,8 @@
 #include "common/loki_integration_test_hooks.h"
 #endif
 
-#undef LOKI_DEFAULT_LOG_CATEGORY
-#define LOKI_DEFAULT_LOG_CATEGORY "daemon.rpc"
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "daemon.rpc"
 
 // yes, epee doesn't properly use its full namespace when calling its
 // functions from macros.  *sigh*
@@ -306,15 +306,15 @@ namespace cryptonote
     bool on_lns_owners_to_names(const COMMAND_RPC_LNS_OWNERS_TO_NAMES::request &req, COMMAND_RPC_LNS_OWNERS_TO_NAMES::response &res, epee::json_rpc::error &error_resp, const connection_context *ctx = NULL);
     //-----------------------
     // RTA
-    bool on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request& req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response& res, epee::json_rpc::error& error_resp);
-    bool on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request& req, COMMAND_RPC_SUPERNODE_GET_STAKES::response& res, epee::json_rpc::error& error_resp);
-    bool on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request& req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response& res, epee::json_rpc::error& error_resp);
-    bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp);
-    bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp);
+    bool on_supernode_announce(const COMMAND_RPC_SUPERNODE_ANNOUNCE::request& req, COMMAND_RPC_SUPERNODE_ANNOUNCE::response& res, epee::json_rpc::error& error_resp, const connection_context * ctx = nullptr);
+    bool on_supernode_stakes(const COMMAND_RPC_SUPERNODE_GET_STAKES::request& req, COMMAND_RPC_SUPERNODE_GET_STAKES::response& res, epee::json_rpc::error& error_resp, const connection_context * ctx = nullptr);
+    bool on_supernode_blockchain_based_list(const COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request& req, COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response& res, epee::json_rpc::error& error_resp, const connection_context * ctx = nullptr);
+    bool on_broadcast(const COMMAND_RPC_BROADCAST::request &req, COMMAND_RPC_BROADCAST::response &res, epee::json_rpc::error &error_resp, const connection_context * ctx = nullptr);
+    bool on_multicast(const COMMAND_RPC_MULTICAST::request &req, COMMAND_RPC_MULTICAST::response &res, epee::json_rpc::error &error_resp, const connection_context * ctx = nullptr);
+    bool on_unicast(const COMMAND_RPC_UNICAST::request &req, COMMAND_RPC_UNICAST::response &res, epee::json_rpc::error &error_resp, const connection_context * ctx = nullptr);
 
-    bool on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, epee::json_rpc::error &error_resp);
-    bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp);
+    bool on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, epee::json_rpc::error &error_resp, const connection_context * ctx = nullptr);
+    bool on_get_rta_stats(const COMMAND_RPC_RTA_STATS::request &req, COMMAND_RPC_RTA_STATS::response &res, epee::json_rpc::error &error_resp, const connection_context * ctx = nullptr);
 
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
     void on_relay_uptime_and_votes()

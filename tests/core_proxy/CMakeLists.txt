@@ -39,7 +39,8 @@ target_link_libraries(core_proxy
     Boost::regex
     Boost::program_options
     miniupnpc
-    extra)
+    extra
+    utils)
 set_property(TARGET core_proxy
   PROPERTY
     FOLDER "tests")

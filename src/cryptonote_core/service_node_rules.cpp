@@ -15,7 +15,7 @@ uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t he
   if (m_nettype == cryptonote::TESTNET || m_nettype == cryptonote::FAKECHAIN)
       return COIN * 100;
 
-  if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
+  if (hf_version >= cryptonote::network_version_21_enforce_checkpoints)
   {
     constexpr int64_t heights[] = {
         385824,
@@ -76,7 +76,7 @@ uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t he
   uint64_t height_adjusted = height - hardfork_height;
   uint64_t base = 0, variable = 0;
   std::fesetround(FE_TONEAREST);
-  if (hf_version >= cryptonote::network_version_11_infinite_staking)
+  if (hf_version >= cryptonote::network_version_19_infinite_staking)
   {
     base     = 15000 * COIN;
     variable = (25007.0 * COIN) / loki::exp2(height_adjusted/129600.0);
@@ -144,7 +144,7 @@ static uint64_t get_min_node_contribution_pre_v11(uint64_t staking_requirement, 
 
 uint64_t get_min_node_contribution(uint8_t version, uint64_t staking_requirement, uint64_t total_reserved, size_t num_contributions)
 {
-  if (version < cryptonote::network_version_11_infinite_staking)
+  if (version < cryptonote::network_version_19_infinite_staking)
     return get_min_node_contribution_pre_v11(staking_requirement, total_reserved);
 
   const uint64_t needed = staking_requirement - total_reserved;

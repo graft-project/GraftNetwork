@@ -53,13 +53,14 @@ public:
     uint64_t txCount() const override;
     std::vector<uint32_t> subaddrAccount() const override;
     std::vector<std::set<uint32_t>> subaddrIndices() const override;
+    bool save(std::ostream &stream) override;
     // TODO: continue with interface;
 
     std::string multisigSignData() override;
     void signMultisigTx() override;
     std::vector<std::string> signersKeys() const override;
 
-    bool save(std::ostream &stream) override;
+
     std::vector<std::string> getRawTransaction() const override;
     void updateTransactionCache() override;
     // TODO: update for new rta tx structure

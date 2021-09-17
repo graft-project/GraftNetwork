@@ -172,10 +172,10 @@ namespace boost
   inline void serialize(Archive &a, cryptonote::transaction_prefix &x, const boost::serialization::version_type ver)
   {
     a & x.version;
-    if (x.version >= cryptonote::txversion::v3_per_output_unlock_times)
+    if (x.version >= cryptonote::txversion::v4_per_output_unlock_times)
     {
       a & x.output_unlock_times;
-      if (x.version == cryptonote::txversion::v3_per_output_unlock_times) {
+      if (x.version == cryptonote::txversion::v4_per_output_unlock_times) {
         bool is_deregister = x.type == cryptonote::txtype::state_change;
         a & is_deregister;
         x.type = is_deregister ? cryptonote::txtype::state_change : cryptonote::txtype::standard;
@@ -185,7 +185,7 @@ namespace boost
     a & x.vin;
     a & x.vout;
     a & x.extra;
-    if (x.version >= cryptonote::txversion::v4_tx_types)
+    if (x.version >= cryptonote::txversion::v3_tx_types)
       a & x.type;
   }
 
