@@ -158,6 +158,7 @@ namespace cryptonote
     v1,
     v2_ringct,
     v3_tx_types,
+    // TODO: Graft: should we introduce more versions here?
     v4_per_output_unlock_times,
     _count,
   };
@@ -193,7 +194,7 @@ namespace cryptonote
 
     bool is_transfer() const { return type == txtype::standard || type == txtype::stake || type == txtype::loki_name_system; }
 
-    // not used after version 2, but remains for compatibility
+    // not used after version 4(v4_per_output_unlock_times), but remains for compatibility
     uint64_t unlock_time;  //number of block (or time), used as a limitation like: spend this tx not early then block/time
     std::vector<txin_v> vin;
     std::vector<tx_out> vout;
@@ -217,8 +218,11 @@ namespace cryptonote
       if (version >= txversion::v4_per_output_unlock_times && vout.size() != output_unlock_times.size())
         return false;
       FIELD(extra)
-      if (version >= txversion::v3_tx_types)
-        ENUM_FIELD_N("type", type, type < txtype::_count);
+      //TODO: fix: Graft has own 'type' serializer implemented in 'transaction' class, see below
+/*    
+        if (version >= txversion::v3_tx_types)
+          ENUM_FIELD_N("type", type, type < txtype::_count);
+*/
     END_SERIALIZE()
   public:
     transaction_prefix(){ set_null(); }
@@ -318,8 +322,10 @@ namespace cryptonote
     // TODO: consider to removed 'type' field. we can check if transaction is rta either by
     // 1. checking if 'tx_extra_graft_rta_header' is present in tx_extra
     // 2. simply checking tx version, so 'type' only needed for 'alpha' compatibilty.
-    txtype type = txtype::standard;
-
+    // txtype type = txtype::standard;
+    // IK: type is defined in 'transaction_header'
+    
+    // TODO: Graft Consider to remove extra2 after switching to loki's service nodes
     std::vector<uint8_t> extra2;
 
     bool pruned;
@@ -329,7 +335,7 @@ namespace cryptonote
     std::atomic<unsigned int> v3_fields_size;
 
     transaction();
-    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), type(t.type), extra2(t.extra2), pruned(t.pruned), unprunable_size(t.unprunable_size.load()), prefix_size(t.prefix_size.load()), v3_fields_size(t.v3_fields_size.load()) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
+    transaction(const transaction &t): transaction_prefix(t), hash_valid(false), blob_size_valid(false), signatures(t.signatures), rct_signatures(t.rct_signatures), extra2(t.extra2), pruned(t.pruned), unprunable_size(t.unprunable_size.load()), prefix_size(t.prefix_size.load()), v3_fields_size(t.v3_fields_size.load()) { if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } }
     transaction &operator=(const transaction &t) { transaction_prefix::operator=(t); set_hash_valid(false); set_blob_size_valid(false); signatures = t.signatures; rct_signatures = t.rct_signatures; type = t.type; extra2 = t.extra2; if (t.is_hash_valid()) { hash = t.hash; set_hash_valid(true); } if (t.is_blob_size_valid()) { blob_size = t.blob_size; set_blob_size_valid(true); } pruned = t.pruned; unprunable_size = t.unprunable_size.load(); prefix_size = t.prefix_size.load(); v3_fields_size = t.v3_fields_size.load(); return *this; }
     virtual ~transaction();
     void set_null();
@@ -414,14 +420,14 @@ namespace cryptonote
         }
       }
       // version >= 3 is rta transaction: allowed 0 fee and auth sample signatures
-      if (version == txversion::v3_tx_types)
+      if (version >= txversion::v3_tx_types)
       // quirck. for v3 we don't use type for hash calculation, so we need to adjust blob passed to hash function by 
       // moving end of the buffer up by the size of serialized 'type' and 'extra2' fields
       {
         // we can't use 'extra2' field into tx-hash calculation, but we should(?) include 'type' field
         size_t v3_fields_start_pos = getpos(ar);
         // TODO: !!! Graft: conflict with Loki's type field
-        ENUM_FIELD(type, type >= txtype::standard && type < txtype::_count)
+        ENUM_FIELD_N("type", type, type < txtype::_count);
         FIELD(extra2)
         v3_fields_size = getpos(ar) - v3_fields_start_pos;
       }
