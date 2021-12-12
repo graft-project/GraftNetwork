@@ -1129,6 +1129,7 @@ namespace cryptonote
         return;
       }
     }
+    tx_info.result = true;
   }
   //-----------------------------------------------------------------------------------------------
   void core::set_semantics_failed(const crypto::hash &tx_hash)
