@@ -446,7 +446,7 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
   m_offline = offline;
   m_fixed_difficulty = fixed_difficulty;
   if (m_hardfork == nullptr)
-    m_hardfork = new HardFork(*db, 7);
+    m_hardfork = new HardFork(*db, 1);
 
   if (test_options) // Fakechain mode or in integration testing mode we're overriding hardfork dates
   {
