@@ -53,7 +53,7 @@
 
 // #define CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V2           60*10 // Loki
 #define CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE             10
-#define CRYPTONOTE_DEFAULT_TX_MIXIN                     9
+#define CRYPTONOTE_DEFAULT_TX_MIXIN                     10
 
 #define BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW               60
 #define BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V9            11
