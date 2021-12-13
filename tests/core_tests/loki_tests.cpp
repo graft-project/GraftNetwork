@@ -2854,13 +2854,135 @@ bool loki_service_nodes_test_rollback::generate(std::vector<test_event_entry>& e
 
   return true;
 }
+#if 0
+void dbg_print_events(const std::vector<test_event_entry> &events)
+{
+  struct visitor : public boost::static_visitor<bool>
+  {
+    bool operator()(const cryptonote::block & bl)
+    {
+      MDEBUG("-- block --, version: " << (int) bl.major_version << ", id: " << cryptonote::get_block_hash(bl));
+      return true;
+    }
+    bool operator()(const cryptonote::transaction & tx)
+    {
+      // MDEBUG("-- block --, version: " << bl.major_version << ", id: " << cryptonote::get_block_hash(bl));
+      MDEBUG(typeid(tx).name());
+      return true;
+    }
+    bool operator()(const std::vector<cryptonote::transaction> & arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const cryptonote::account_base &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const callback_entry &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const serialized_block &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const serialized_transaction &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const event_visitor_settings &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    
+    bool operator()(const event_replay_settings &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const std::string &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_callback_entry &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+      
+    }
+    
+    bool operator()(const loki_blockchain_addable<loki_block_with_checkpoint> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<cryptonote::block> &arg)
+    {
+      MDEBUG("-- block (lba) --, version: " << (int) arg.data.major_version << ", id: " << cryptonote::get_block_hash(arg.data));
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<loki_transaction> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<service_nodes::quorum_vote_t> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<serialized_block> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<cryptonote::checkpoint_t> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+  };
+  
+  visitor v;
+  
+  MDEBUG("events.size: " << events.size());
+  for (size_t i = 0; i < events.size(); ++i) {
+    MDEBUG("processing event: " << i);
+    events[i].apply_visitor(v);
+  }
+}
+#endif
 
 bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry>& events)
 {
+  // TODO: Graft: gap in hard_forks. is this ok?
   const std::vector<std::pair<uint8_t, uint64_t>> hard_forks = {
-      std::make_pair(7, 0), std::make_pair(8, 1), std::make_pair(9, 2), std::make_pair(10, 150)};
-
+    {1, 0}, {7, 1}, {8, 2}, {18, 3}, {19, 180}
+  };
+  
   loki_chain_generator gen(events, hard_forks);
+  
   gen.add_blocks_until_version(hard_forks.rbegin()[1].first);
 
   /// Create some service nodes before hf version 10
@@ -2868,7 +2990,7 @@ bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry
   constexpr size_t TOTAL_SN_COUNT = 25;
   gen.add_n_blocks(90);
   gen.add_mined_money_unlock_blocks();
-
+  
   /// register some service nodes
   std::vector<cryptonote::transaction> reg_txs;
   for (auto i = 0u; i < INIT_SN_COUNT; ++i)
@@ -2876,14 +2998,15 @@ bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry
     const auto tx = gen.create_and_add_registration_tx(gen.first_miner());
     reg_txs.push_back(tx);
   }
-
   gen.create_and_add_next_block(reg_txs);
 
   /// create a few blocks with active service nodes
   gen.add_n_blocks(5);
   assert(gen.hf_version_ == cryptonote::network_version_18_service_nodes);
 
-  gen.add_blocks_until_version(cryptonote::network_version_14_bulletproofs);
+  // TODO: Graft: adjust version
+  gen.add_blocks_until_version(cryptonote::network_version_19_infinite_staking);
+  
   loki_register_callback(events, "test_initial_swarms", [&events](cryptonote::core &c, size_t ev_index)
   {
     DEFINE_TESTS_ERROR_CONTEXT("test_swarms_basic::test_initial_swarms");
@@ -2899,7 +3022,6 @@ bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry
     CHECK_EQ(swarms.begin()->second.size(), 13);
     return true;
   });
-
   /// rewind some blocks and register 1 more service node
   {
     const auto tx = gen.create_and_add_registration_tx(gen.first_miner());
@@ -2919,7 +3041,6 @@ bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry
     CHECK_EQ(swarms.size(), 2);
     return true;
   });
-
   for (auto i = INIT_SN_COUNT + 1; i < TOTAL_SN_COUNT; ++i)
   {
     const auto tx = gen.create_and_add_registration_tx(gen.first_miner());
@@ -2964,7 +3085,7 @@ bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry
     CHECK_EQ(swarms.size(), 3);
     return true;
   });
-
+  
   /// deregister 1 snode, which should trigger a decommission
   dereg_txs.clear();
   {

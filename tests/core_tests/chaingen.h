@@ -909,7 +909,7 @@ inline bool replay_events_through_core_plain(cryptonote::core& cr, const std::ve
 //--------------------------------------------------------------------------
 template<typename t_test_class>
 struct get_test_options {
-  const std::vector<std::pair<uint8_t, uint64_t>> hard_forks = {{7, 0}};
+  const std::vector<std::pair<uint8_t, uint64_t>> hard_forks = {{1, 0}};
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };
@@ -1334,7 +1334,7 @@ public:
     uint64_t change_amount;
 
     // TODO(loki): Eww we still depend on monero land test code
-    const auto nmix = 9;
+    const auto nmix = 10;
     fill_tx_sources_and_destinations(
       m_events, m_head, m_from, m_to, m_amount, m_fee, nmix, sources, destinations, &change_amount);
 
@@ -1387,7 +1387,7 @@ struct loki_chain_generator
   uint64_t                                                           last_cull_height_ = 0;
   std::shared_ptr<lns::name_system_db>                               lns_db_ = std::make_shared<lns::name_system_db>();
   loki_chain_generator_db                                            db_;
-  uint8_t                                                            hf_version_ = cryptonote::network_version_7;
+  uint8_t                                                            hf_version_ = 1;
   std::vector<test_event_entry>&                                     events_;
   const std::vector<std::pair<uint8_t, uint64_t>>                    hard_forks_;
   cryptonote::account_base                                           first_miner_;
