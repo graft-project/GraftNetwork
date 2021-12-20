@@ -1238,8 +1238,10 @@ namespace service_nodes
         size_t total_nodes = active_snode_list.size();
 
         // TODO(loki): Soft fork, remove when testnet gets reset
+        /* Graft: commented out
         if (nettype == cryptonote::TESTNET && state.height < 85357)
           total_nodes = active_snode_list.size() + decomm_snode_list.size();
+          */
 
         if (total_nodes >= CHECKPOINT_QUORUM_SIZE)
         {
@@ -1423,7 +1425,7 @@ namespace service_nodes
     uint64_t block_height = cryptonote::get_block_height(block);
     uint8_t hf_version    = block.major_version;
 
-    if (hf_version < 9)
+    if (hf_version < cryptonote::network_version_18_service_nodes)
       return;
 
     // Cull old history
@@ -1640,7 +1642,7 @@ namespace service_nodes
   bool service_node_list::validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hf_version, cryptonote::block_reward_parts const &reward_parts) const
   {
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
-    if (hf_version < 9)
+    if (hf_version < cryptonote::network_version_18_service_nodes)
       return true;
 
     // NOTE(loki): Service node reward distribution is calculated from the
@@ -2407,13 +2409,13 @@ namespace service_nodes
       m_blockchain.get_db().clear_service_node_data();
     }
 
-    uint64_t hardfork_9_from_height = 0;
+    uint64_t hardfork_18_from_height = 0;
     {
       uint32_t window, votes, threshold;
       uint8_t voting;
-      m_blockchain.get_hard_fork_voting_info(9, window, votes, threshold, hardfork_9_from_height, voting);
+      m_blockchain.get_hard_fork_voting_info(cryptonote::network_version_18_service_nodes, window, votes, threshold, hardfork_18_from_height, voting);
     }
-    m_state.height = hardfork_9_from_height - 1;
+    m_state.height = hardfork_18_from_height - 1;
   }
 
   size_t service_node_info::total_num_locked_contributions() const
