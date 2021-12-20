@@ -39,6 +39,128 @@ extern "C"
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "sn_core_tests"
 
+
+namespace  {
+void dbg_print_events(const std::vector<test_event_entry> &events)
+{
+  struct visitor : public boost::static_visitor<bool>
+  {
+    bool operator()(const cryptonote::block & bl)
+    {
+      MDEBUG("-- block --, version: " << (int) bl.major_version << ", id: " << cryptonote::get_block_hash(bl));
+      return true;
+    }
+    bool operator()(const cryptonote::transaction & tx)
+    {
+      // MDEBUG("-- block --, version: " << bl.major_version << ", id: " << cryptonote::get_block_hash(bl));
+      MDEBUG(typeid(tx).name());
+      return true;
+    }
+    bool operator()(const std::vector<cryptonote::transaction> & arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const cryptonote::account_base &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const callback_entry &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const serialized_block &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const serialized_transaction &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const event_visitor_settings &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    
+    bool operator()(const event_replay_settings &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const std::string &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_callback_entry &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+      
+    }
+    
+    bool operator()(const loki_blockchain_addable<loki_block_with_checkpoint> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<cryptonote::block> &arg)
+    {
+      MDEBUG("-- block (lba) --, version: " << (int) arg.data.major_version << ", id: " << cryptonote::get_block_hash(arg.data));
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<loki_transaction> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<service_nodes::quorum_vote_t> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<serialized_block> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+    bool operator()(const loki_blockchain_addable<cryptonote::checkpoint_t> &arg)
+    {
+      MDEBUG(typeid(arg).name());
+      return true;
+    }
+    
+  };
+  
+  visitor v;
+  
+  MDEBUG("events.size: " << events.size());
+  for (size_t i = 0; i < events.size(); ++i) {
+    MDEBUG("processing event: " << i);
+    events[i].apply_visitor(v);
+  }
+}
+
+}
+
 // Suppose we have checkpoint and alt block at height 40 and the main chain is at height 40 with a differing block.
 // Main chain receives checkpoints for height 40 on the alt chain via votes and reorgs back to height 39.
 // Now main chain has an alt block sitting in its DB for height 40 which actually starts beyond the chain.
@@ -836,7 +958,7 @@ bool loki_core_test_deregister_safety_buffer::generate(std::vector<test_event_en
   const auto miner = gen.first_miner();
 
   gen.add_blocks_until_version(hard_forks.back().first);
-  gen.add_n_blocks(40); /// give miner some outputs to spend and unlock them
+  gen.add_n_blocks(60); /// give miner some outputs to spend and unlock them
   gen.add_mined_money_unlock_blocks();
 
   std::vector<cryptonote::keypair> used_sn_keys; /// save generated keys here
@@ -853,6 +975,8 @@ bool loki_core_test_deregister_safety_buffer::generate(std::vector<test_event_en
   const auto height_a                      = gen.height();
   std::vector<crypto::public_key> quorum_a = gen.quorum(height_a).obligations->workers;
 
+  
+  
   gen.add_n_blocks(5); /// create 5 blocks and find public key to be tested twice
 
   const auto height_b                      = gen.height();
@@ -2854,125 +2978,7 @@ bool loki_service_nodes_test_rollback::generate(std::vector<test_event_entry>& e
 
   return true;
 }
-#if 0
-void dbg_print_events(const std::vector<test_event_entry> &events)
-{
-  struct visitor : public boost::static_visitor<bool>
-  {
-    bool operator()(const cryptonote::block & bl)
-    {
-      MDEBUG("-- block --, version: " << (int) bl.major_version << ", id: " << cryptonote::get_block_hash(bl));
-      return true;
-    }
-    bool operator()(const cryptonote::transaction & tx)
-    {
-      // MDEBUG("-- block --, version: " << bl.major_version << ", id: " << cryptonote::get_block_hash(bl));
-      MDEBUG(typeid(tx).name());
-      return true;
-    }
-    bool operator()(const std::vector<cryptonote::transaction> & arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const cryptonote::account_base &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const callback_entry &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const serialized_block &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const serialized_transaction &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const event_visitor_settings &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    
-    bool operator()(const event_replay_settings &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const std::string &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const loki_callback_entry &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-      
-    }
-    
-    bool operator()(const loki_blockchain_addable<loki_block_with_checkpoint> &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const loki_blockchain_addable<cryptonote::block> &arg)
-    {
-      MDEBUG("-- block (lba) --, version: " << (int) arg.data.major_version << ", id: " << cryptonote::get_block_hash(arg.data));
-      return true;
-    }
-    
-    bool operator()(const loki_blockchain_addable<loki_transaction> &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const loki_blockchain_addable<service_nodes::quorum_vote_t> &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const loki_blockchain_addable<serialized_block> &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-    bool operator()(const loki_blockchain_addable<cryptonote::checkpoint_t> &arg)
-    {
-      MDEBUG(typeid(arg).name());
-      return true;
-    }
-    
-  };
-  
-  visitor v;
-  
-  MDEBUG("events.size: " << events.size());
-  for (size_t i = 0; i < events.size(); ++i) {
-    MDEBUG("processing event: " << i);
-    events[i].apply_visitor(v);
-  }
-}
-#endif
+
 
 bool loki_service_nodes_test_swarms_basic::generate(std::vector<test_event_entry>& events)
 {

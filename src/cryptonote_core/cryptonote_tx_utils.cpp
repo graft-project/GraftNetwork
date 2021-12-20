@@ -206,11 +206,10 @@ namespace cryptonote
 
   uint64_t service_node_reward_formula(uint64_t base_reward, uint8_t hard_fork_version)
   {
+    // TODO: Graft economy;
     return
-// TODO: Graft: adjust reward formula      hard_fork_version >= network_version_16              ? SN_REWARD_HF16 :
-//      hard_fork_version >= network_version_23_lns          ? SN_REWARD_HF15 :
-//      hard_fork_version >= network_version_18_service_nodes ? base_reward / 2 : // 50% of base reward up until HF15's fixed payout
-      0;
+      hard_fork_version >= network_version_18_service_nodes ? base_reward / 2 : 0;
+
   }
 
   uint64_t get_portion_of_reward(uint64_t portions, uint64_t total_service_node_reward)
