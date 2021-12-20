@@ -757,7 +757,7 @@ bool loki_chain_generator::create_block(loki_blockchain_entry &entry,
 
   // NOTE: Calculate governance
   cryptonote::loki_miner_tx_context miner_tx_context(cryptonote::FAKECHAIN, block_winner);
-  if (hf_version >= cryptonote::network_version_14_bulletproofs &&
+  if (hf_version >= cryptonote::network_version_count &&
       cryptonote::height_has_governance_output(cryptonote::FAKECHAIN, hf_version, height))
   {
     const cryptonote::config_t &network = cryptonote::get_config(cryptonote::FAKECHAIN, hf_version);
