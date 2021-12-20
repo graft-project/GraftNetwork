@@ -69,6 +69,8 @@ loki_generate_sequential_hard_fork_table(uint8_t max_hf_version)
   assert(max_hf_version < cryptonote::network_version_count);
   std::vector<std::pair<uint8_t, uint64_t>> result = {};
   uint64_t version_height = 0;
+  // Graft: we started with version 1 for 1st block
+  result.emplace_back(std::make_pair(1, version_height++));
   for (uint8_t version = cryptonote::network_version_7; version <= max_hf_version; version++)
   {
     /*
