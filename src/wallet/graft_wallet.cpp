@@ -94,7 +94,7 @@ std::unique_ptr<tools::GraftWallet> tools::GraftWallet::createWallet(const std::
     {
         wallet->loadFromData(account_data, password, "" /*cache_file*/, use_base64);
     }
-    return std::move(wallet);
+    return wallet;
 }
 
 bool tools::GraftWallet::verify_message(const std::string &message, const std::string &address,
