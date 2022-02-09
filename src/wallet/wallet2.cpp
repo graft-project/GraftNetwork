@@ -11649,7 +11649,7 @@ bool wallet2::use_fork_rules(uint8_t version, uint64_t early_blocks) const
   result = m_node_rpc_proxy.get_earliest_height(version, earliest_height);
   throw_on_rpc_response_error(result, "get_hard_fork_info");
   // graft: we started from v7, little hack here so we don't get integer overflow
-  if (int64_t(earliest_height) < early_blocks)
+  if (uint64_t(earliest_height) < early_blocks)
     early_blocks = 0;
 
   bool close_enough = height >= earliest_height - early_blocks; // start using the rules that many blocks beforehand
