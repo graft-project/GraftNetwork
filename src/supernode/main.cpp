@@ -38,7 +38,7 @@
 #include "FSN_ActualList.h"
 
 #include "supernode_helpers.h"
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <string>
 #include <iostream>
 #include <boost/property_tree/ini_parser.hpp>

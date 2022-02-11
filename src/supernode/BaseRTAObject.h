@@ -78,7 +78,7 @@ namespace supernode {
 
 
 		#define ADD_RTA_OBJECT_HANDLER(method, data, class_owner) \
-			AddHandler<data::request, data::response>(dapi_call::method, bind( &class_owner::method, this, _1, _2))
+			AddHandler<data::request, data::response>(dapi_call::method, bind( &class_owner::method, this, boost::placeholders::_1, boost::placeholders::_2))
 
 
 		protected:

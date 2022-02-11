@@ -30,7 +30,7 @@
 #ifndef P2PBROADCAST_H_
 #define P2PBROADCAST_H_
 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/function.hpp>
 #include <string>
 #include <vector>
