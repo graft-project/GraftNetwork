@@ -44,10 +44,10 @@ FSN_ActualList::FSN_ActualList(FSN_ServantBase* servant, P2P_Broadcast* p2p, DAP
 	m_DAPIServer = dapi;
 
 
-	m_P2P->AddHandler<rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>( p2p_call::AddFSN, bind(&FSN_ActualList::OnAddFSN, this, _1) );
-	m_P2P->AddHandler<rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE>( p2p_call::LostFSNStatus, bind(&FSN_ActualList::OnLostFSNStatus, this, _1) );
+	m_P2P->AddHandler<rpc_command::BROADCACT_ADD_FULL_SUPER_NODE>( p2p_call::AddFSN, bind(&FSN_ActualList::OnAddFSN, this, boost::placeholders::_1) );
+	m_P2P->AddHandler<rpc_command::BROADCACT_LOST_STATUS_FULL_SUPER_NODE>( p2p_call::LostFSNStatus, bind(&FSN_ActualList::OnLostFSNStatus, this, boost::placeholders::_1) );
 	m_DAPIServer->ADD_DAPI_HANDLER(FSN_CheckWalletOwnership, rpc_command::FSN_CHECK_WALLET_OWNERSHIP, FSN_ActualList);
-	m_P2P->AddNearHandler<rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response>( p2p_call::GetFSNList, bind(&FSN_ActualList::GetFSNList, this, _1, _2) );
+	m_P2P->AddNearHandler<rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::request, rpc_command::BROADCAST_NEAR_GET_ACTUAL_FSN_LIST::response>( p2p_call::GetFSNList, bind(&FSN_ActualList::GetFSNList, this, boost::placeholders::_1, boost::placeholders::_2) );
 }
 
 void FSN_ActualList::Start() {

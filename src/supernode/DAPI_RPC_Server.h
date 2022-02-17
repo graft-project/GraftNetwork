@@ -30,7 +30,7 @@
 #ifndef DAPI_RPC_SERVER_H_
 #define DAPI_RPC_SERVER_H_
 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/function.hpp>
 #include <boost/utility/value_init.hpp>
 #include "supernode_rpc_command.h"
@@ -102,7 +102,7 @@ namespace supernode {
 			return AddHandlerData(hh);
 		}
 
-		#define ADD_DAPI_HANDLER(method, data, class_owner) AddHandler<data::request, data::response>( #method, bind( &class_owner::method, this, _1, _2) )
+		#define ADD_DAPI_HANDLER(method, data, class_owner) AddHandler<data::request, data::response>( #method, bind( &class_owner::method, this, boost::placeholders::_1, boost::placeholders::_2) )
 
 		// IN must be child from sub_net_data
 		// income message filtered by payment_id and method
