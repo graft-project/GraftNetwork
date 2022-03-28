@@ -209,21 +209,23 @@ namespace cryptonote
         if (version == txversion::v4_per_output_unlock_times) {
           bool is_state_change = type == txtype::state_change;
           FIELD(is_state_change)
-          type = is_state_change ? txtype::state_change : txtype::standard;
+          // 
+          // type = is_state_change ? txtype::state_change : txtype::standard;
         }
       }
       VARINT_FIELD(unlock_time)
       FIELD(vin)
       FIELD(vout)
-      if (version >= txversion::v4_per_output_unlock_times && vout.size() != output_unlock_times.size())
+      if (version >= txversion::v4_per_output_unlock_times && vout.size() != output_unlock_times.size()) {
+        MDEBUG("unexpected version :" << version);
         return false;
+      }
       FIELD(extra)
       //TODO: fix: Graft has own 'type' serializer implemented in 'transaction' class, see below
-/*    
-        if (version >= txversion::v3_tx_types)
-          ENUM_FIELD_N("type", type, type < txtype::_count);
-*/
-    END_SERIALIZE()
+   
+      if (version >= txversion::v3_tx_types)
+        ENUM_FIELD_N("type", type, type < txtype::_count);
+      END_SERIALIZE()
   public:
     transaction_prefix(){ set_null(); }
     void set_null()
@@ -427,7 +429,7 @@ namespace cryptonote
         // we can't use 'extra2' field into tx-hash calculation, but we should(?) include 'type' field
         size_t v3_fields_start_pos = getpos(ar);
         // TODO: !!! Graft: conflict with Loki's type field
-        ENUM_FIELD_N("type", type, type < txtype::_count);
+        // ENUM_FIELD_N("type", type, type < txtype::_count);
         FIELD(extra2)
         v3_fields_size = getpos(ar) - v3_fields_start_pos;
       }
