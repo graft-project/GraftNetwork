@@ -748,10 +748,11 @@ namespace cryptonote
       CHECK_AND_ASSERT_MES(key_image_proofs.proofs.size() >= 1, false, "No key image proofs were generated for staking tx");
       add_tx_key_image_proofs_to_tx_extra(tx.extra, key_image_proofs);
 
-      if (tx_params.hf_version <= cryptonote::network_version_21_enforce_checkpoints)
+      if (tx_params.hf_version <= cryptonote::network_version_21_enforce_checkpoints) { 
+        MDEBUG("tx_params.hf_version:"  << (int)tx_params.hf_version << "(less or eq than: " << int(cryptonote::network_version_21_enforce_checkpoints) << "), setting type = txtype::standard");
         tx.type = txtype::standard;
+      }
     }
-
     remove_field_from_tx_extra(tx.extra, typeid(tx_extra_additional_pub_keys));
 
     LOG_PRINT_L2("tx pubkey: " << txkey_pub);
@@ -944,7 +945,6 @@ namespace cryptonote
       memwipe(inSk.data(), inSk.size() * sizeof(rct::ctkey));
 
       CHECK_AND_ASSERT_MES(tx.vout.size() == outSk.size(), false, "outSk size does not match vout");
-
       MCINFO("construct_tx", "transaction_created: " << get_transaction_hash(tx) << ENDL << obj_to_json_str(tx) << ENDL);
     }
 
