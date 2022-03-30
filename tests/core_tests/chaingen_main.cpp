@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
     list_tests = command_line::get_arg(vm, arg_list_tests);
 
     // NOTE: Loki Tests
-    GENERATE_AND_PLAY(loki_checkpointing_alt_chain_handle_alt_blocks_at_tip);
+    GENERATE_AND_PLAY(loki_checkpointing_alt_chain_handle_alt_blocks_at_tip); // pass
     GENERATE_AND_PLAY(loki_checkpointing_alt_chain_more_service_node_checkpoints_less_pow_overtakes);
     GENERATE_AND_PLAY(loki_checkpointing_alt_chain_receive_checkpoint_votes_should_reorg_back);
     GENERATE_AND_PLAY(loki_checkpointing_alt_chain_too_old_should_be_dropped);
@@ -117,12 +117,12 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(loki_core_block_reward_unpenalized);
     // TODO: Graft: temporary disabled LRC6 test
     // GENERATE_AND_PLAY(loki_core_block_rewards_lrc6);
-    GENERATE_AND_PLAY(loki_core_fee_burning);
-    GENERATE_AND_PLAY(loki_core_governance_batched_reward);
-    GENERATE_AND_PLAY(loki_core_test_deregister_preferred);
-    GENERATE_AND_PLAY(loki_core_test_deregister_safety_buffer);
-    GENERATE_AND_PLAY(loki_core_test_deregister_too_old);
-    GENERATE_AND_PLAY(loki_core_test_deregister_zero_fee);
+    GENERATE_AND_PLAY(loki_core_fee_burning);                   // fail
+    GENERATE_AND_PLAY(loki_core_governance_batched_reward);     // pass
+    GENERATE_AND_PLAY(loki_core_test_deregister_preferred);     // fail
+    GENERATE_AND_PLAY(loki_core_test_deregister_safety_buffer); // pass
+    GENERATE_AND_PLAY(loki_core_test_deregister_too_old);       // pass
+    GENERATE_AND_PLAY(loki_core_test_deregister_zero_fee);      // pass
     GENERATE_AND_PLAY(loki_core_test_deregister_on_split);
     GENERATE_AND_PLAY(loki_core_test_state_change_ip_penalty_disallow_dupes);
     GENERATE_AND_PLAY(loki_name_system_disallow_reserved_type);

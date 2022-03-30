@@ -192,7 +192,11 @@ bool loki_checkpointing_alt_chain_handle_alt_blocks_at_tip::generate(std::vector
   loki_chain_generator gen(events, hard_forks);
 
   gen.add_blocks_until_version(hard_forks.back().first);
-  gen.add_mined_money_unlock_blocks();
+  // TODO: Graft: it's not enough to mine CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW blocks 
+  // to generate NUM_SERVICE_NODES registration txs but it works 
+  // with CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW + 2 blocks; figure out why
+  // gen.add_mined_money_unlock_blocks();
+  gen.add_n_blocks(CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW + 2);
 
   int constexpr NUM_SERVICE_NODES = service_nodes::CHECKPOINT_QUORUM_SIZE;
   std::vector<cryptonote::transaction> registration_txs(NUM_SERVICE_NODES);
