@@ -41,6 +41,19 @@ extern "C"
 
 
 namespace  {
+
+std::string dbg_print_hardforks(const std::vector<std::pair<uint8_t, uint64_t>> &hard_forks)
+{
+  std::stringstream ss;
+  ss << "{ ";
+  for (const auto hf: hard_forks) {
+    ss << "[" << (int)hf.first << ", " << (int)hf.second << "]";
+  }
+  ss << " } ";
+  
+  return ss.str();
+}
+
 void dbg_print_events(const std::vector<test_event_entry> &events)
 {
   struct visitor : public boost::static_visitor<bool>

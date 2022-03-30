@@ -69,7 +69,7 @@ loki_generate_sequential_hard_fork_table(uint8_t max_hf_version)
   assert(max_hf_version < cryptonote::network_version_count);
   std::vector<std::pair<uint8_t, uint64_t>> result = {};
   uint64_t version_height = 0;
-  // Graft: we started with version 1 for 1st block
+  // Graft: we started with version 1 for the 1st block
   result.emplace_back(std::make_pair(1, version_height++));
   for (uint8_t version = cryptonote::network_version_7; version <= max_hf_version; version++)
   {
@@ -1463,28 +1463,41 @@ bool fill_tx_sources(std::vector<cryptonote::tx_source_entry>& sources, const st
 {
     /// Don't fill up sources if the amount is zero
     if (amount == 0) return true;
+    MDEBUG("trying to find the outs for amount: " << amount);
 
     std::vector<output_index> outs;
     std::vector<size_t> outs_mine;
 
     std::vector<cryptonote::block> blockchain;
     map_hash2tx_t mtx;
-    if (!find_block_chain(events, blockchain, mtx, cryptonote::get_block_hash(blk_head)))
+    if (!find_block_chain(events, blockchain, mtx, cryptonote::get_block_hash(blk_head))) {
+        MERROR("find_block_chain failed");
         return false;
+    }
 
-    if (!init_output_indices(outs, outs_mine, blockchain, mtx, from))
+    if (!init_output_indices(outs, outs_mine, blockchain, mtx, from)) {
+        MERROR("init_outpud_indices failed");
         return false;
+    }
 
-    if (!init_spent_output_indices(outs, outs_mine, blockchain, mtx, from))
+    if (!init_spent_output_indices(outs, outs_mine, blockchain, mtx, from)) {
+        MERROR("init_spent_output_indices failed"); 
         return false;
+    }
 
     uint64_t sources_amount = 0;
     bool sources_found = false;
     for (const size_t sender_out : outs_mine) {
 
         const output_index& oi = outs[sender_out];
-        if (oi.spent) continue;
-        if (!cryptonote::rules::is_output_unlocked(oi.unlock_time, cryptonote::get_block_height(blk_head))) continue;
+        if (oi.spent) {
+          MDEBUG("output already spent");
+          continue;
+        }
+        if (!cryptonote::rules::is_output_unlocked(oi.unlock_time, cryptonote::get_block_height(blk_head))) {
+          MDEBUG("output not unlocked");
+          continue;
+        }
 
         cryptonote::tx_source_entry ts;
         const auto& tx = *oi.p_tx;
@@ -1519,16 +1532,20 @@ bool fill_tx_sources(std::vector<cryptonote::tx_source_entry>& sources, const st
             }
         }
 
-        if (!fill_output_entries(outs, sender_out, nmix, ts.real_output, ts.outputs)) continue;
+        if (!fill_output_entries(outs, sender_out, nmix, ts.real_output, ts.outputs)) {
+          MDEBUG("fill_output_entries failed");
+          continue;
+        }
 
         sources.push_back(ts);
 
         sources_amount += ts.amount;
+        MDEBUG("sources_amount: " << sources_amount);
 
         sources_found = amount <= sources_amount;
         if (sources_found) return true;
     }
-
+    MDEBUG("end of fill_tx_sources, returning false");
     return false;
 }
 
@@ -1560,14 +1577,17 @@ void fill_tx_sources_and_multi_destinations(const std::vector<test_event_entry>&
 
   if (!fill_tx_sources(sources, events, blk_head, from, total_amount, nmix))
   {
+    MERROR("couldn't fill transaction sources");
     throw std::runtime_error("couldn't fill transaction sources");
   }
 
   for (int i = 0; i < num_amounts; ++i)
   {
     cryptonote::tx_destination_entry de;
-    if (!fill_tx_destination(de, to, amount[i]))
+    if (!fill_tx_destination(de, to, amount[i])) {
+      MERROR("couldn't fill transaction sources");
       throw std::runtime_error("couldn't fill transaction destination");
+    }
     destinations.push_back(de);
   }
 
