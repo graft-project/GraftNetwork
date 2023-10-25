@@ -497,9 +497,12 @@ namespace nodetool
     }
     else
     {
-      full_addrs.insert("109.74.204.179:18980");
-      full_addrs.insert("45.79.42.116:18980");
-      full_addrs.insert("207.148.153.14:18980");
+      full_addrs.insert("213.56.136.124:18980");     // community seed-node #1
+      full_addrs.insert("207.180.254.198:18980");    // community seed-node #2
+      full_addrs.insert("82.69.122.59:18980");       // community seed-node #3
+      full_addrs.insert("78.29.36.45:18980");        // community seed-node #4
+      full_addrs.insert("45.118.134.99:18980");      // graft seed-node #3
+      
     }
     return full_addrs;
   }
