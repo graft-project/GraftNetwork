@@ -501,6 +501,7 @@ namespace nodetool
       full_addrs.insert("207.180.254.198:18980");    // community seed-node #2
       full_addrs.insert("82.69.122.59:18980");       // community seed-node #3
       full_addrs.insert("78.29.36.45:18980");        // community seed-node #4
+      full_addrs.insert("82.197.160.5:18980");       // community seed-node #5
       full_addrs.insert("45.118.134.99:18980");      // graft seed-node #3
       
     }
